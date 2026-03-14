@@ -40,7 +40,7 @@ export default function MarkdownViewer({
     setMounted(true);
   }, []);
 
-  // 目次の生成
+  // Generate table of contents
   useEffect(() => {
     const headings: TocItem[] = [];
     const lines = content.split('\n');
@@ -62,7 +62,7 @@ export default function MarkdownViewer({
     setToc(headings);
   }, [content]);
 
-  // コードコピー機能
+  // Code copy functionality
   const handleCopyCode = async (code: string, id: string) => {
     try {
       await navigator.clipboard.writeText(code);
@@ -73,7 +73,7 @@ export default function MarkdownViewer({
     }
   };
 
-  // 目次のスクロール
+  // Table of contents scrolling
   const scrollToHeading = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -92,7 +92,7 @@ export default function MarkdownViewer({
 
   return (
     <div className={`markdown-viewer relative ${className}`}>
-      {/* 目次トグルボタン */}
+      {/* Table of contents toggle button */}
       {showToc && toc.length > 0 && (
         <button
           onClick={() => setShowTocPanel(!showTocPanel)}
@@ -103,7 +103,7 @@ export default function MarkdownViewer({
         </button>
       )}
 
-      {/* 目次パネル */}
+      {/* Table of contents panel */}
       {showToc && showTocPanel && (
         <div className="fixed right-8 top-44 z-40 w-72 max-h-[70vh] bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
@@ -137,7 +137,7 @@ export default function MarkdownViewer({
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
-            // カスタムコンポーネントの定義
+            // Custom component definitions
             h1: ({ children, ...props }) => {
               const id = `heading-${headingCounter++}`;
               return (

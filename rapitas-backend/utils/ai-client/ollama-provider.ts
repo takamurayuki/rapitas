@@ -1,7 +1,8 @@
 /**
- * ローカルLLMプロバイダー (OpenAI互換API)
- * Ollama / llama-server の両方に対応
- * 両者とも /v1/chat/completions エンドポイントを提供する
+ * Local LLM Provider (OpenAI-compatible API)
+ *
+ * Supports both Ollama and llama-server.
+ * Both expose the /v1/chat/completions endpoint.
  */
 import { createLogger } from '../../config/logger';
 import type { AIMessage, AIResponse } from './types';
@@ -9,7 +10,7 @@ import type { AIMessage, AIResponse } from './types';
 const log = createLogger('ai-client:ollama');
 
 /**
- * ローカルLLMサーバーの接続確認
+ * Check connectivity to a local LLM server.
  */
 export async function checkOllamaConnection(baseUrl: string): Promise<{
   connected: boolean;
@@ -17,7 +18,7 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
   serverType: 'ollama' | 'llama-server' | 'unknown';
   error?: string;
 }> {
-  // まずOllamaの /api/tags を試す
+  // Try Ollama's /api/tags first
   try {
     const ollamaRes = await fetch(`${baseUrl}/api/tags`, {
       signal: AbortSignal.timeout(3000),
@@ -28,10 +29,10 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
       return { connected: true, models, serverType: 'ollama' };
     }
   } catch {
-    // Ollamaではない可能性、次を試す
+    // Possibly not Ollama, try next
   }
 
-  // llama-server の /v1/models を試す
+  // Try llama-server's /v1/models
   try {
     const llamaRes = await fetch(`${baseUrl}/v1/models`, {
       signal: AbortSignal.timeout(3000),
@@ -42,7 +43,7 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
       return { connected: true, models, serverType: 'llama-server' };
     }
   } catch {
-    // llama-serverでもない
+    // Not llama-server either
   }
 
   return {
@@ -54,8 +55,8 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
 }
 
 /**
- * OpenAI互換API呼び出し（非ストリーミング）
- * Ollama / llama-server の両方で動作
+ * OpenAI-compatible API call (non-streaming).
+ * Works with both Ollama and llama-server.
  */
 export async function callOllama(
   baseUrl: string,
@@ -110,7 +111,7 @@ export async function callOllama(
 }
 
 /**
- * OpenAI互換API呼び出し（ストリーミング）
+ * OpenAI-compatible API call (streaming).
  */
 export async function callOllamaStream(
   baseUrl: string,

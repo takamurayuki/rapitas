@@ -1,23 +1,23 @@
 /**
- * タスク複雑度分析サービス
+ * Task Complexity Analysis Service
  *
- * タスクのタイトル・説明・推定時間から複雑度を自動判定し、
- * 適切なワークフローモードを推奨するシステム
+ * Automatically determines task complexity from title, description, and estimated time,
+ * and recommends the appropriate workflow mode.
  */
 
 export interface TaskComplexityInput {
   title: string;
   description?: string | null;
   estimatedHours?: number | null;
-  labels?: string[]; // ラベル配列
+  labels?: string[]; // Label array
   priority?: string; // low, medium, high, urgent
   themeId?: number | null;
 }
 
 export interface ComplexityAnalysisResult {
-  complexityScore: number; // 0-100のスコア
+  complexityScore: number; // Score from 0-100
   recommendedMode: 'lightweight' | 'standard' | 'comprehensive';
-  confidence: number; // 判定の信頼度 0-1
+  confidence: number; // Confidence level 0-1
   analysisBreakdown: {
     keywordScore: number;
     timeScore: number;
@@ -25,15 +25,14 @@ export interface ComplexityAnalysisResult {
     labelScore: number;
     reasons: string[];
   };
-  estimatedExecutionTime: number; // 推定実行時間（分）
+  estimatedExecutionTime: number; // Estimated execution time (minutes)
 }
 
 /**
- * 軽量タスクを示すキーワードパターン
- * バグ修正、UI調整、軽微な変更など
+ * Keyword patterns indicating lightweight tasks (bug fixes, UI adjustments, minor changes).
  */
 const LIGHTWEIGHT_KEYWORDS = [
-  // バグ修正関連
+  // Bug fix related
   'バグ',
   'bug',
   'fix',
@@ -42,7 +41,7 @@ const LIGHTWEIGHT_KEYWORDS = [
   'エラー',
   'error',
   '不具合',
-  // UI調整関連
+  // UI adjustment related
   'UI',
   'スタイル',
   'style',
@@ -61,7 +60,7 @@ const LIGHTWEIGHT_KEYWORDS = [
   'margin',
   'パディング',
   'padding',
-  // 軽微な変更
+  // Minor changes
   'タイポ',
   'typo',
   '誤字',
@@ -78,7 +77,7 @@ const LIGHTWEIGHT_KEYWORDS = [
   'add',
   '更新',
   'update',
-  // 小規模修正
+  // Small fixes
   '小さな',
   '小規模',
   'small',
@@ -88,7 +87,7 @@ const LIGHTWEIGHT_KEYWORDS = [
   '軽微',
   'tiny',
   'quick',
-  // 設定関連
+  // Configuration related
   '設定',
   'config',
   'configuration',
@@ -99,11 +98,10 @@ const LIGHTWEIGHT_KEYWORDS = [
 ];
 
 /**
- * 重量タスクを示すキーワードパターン
- * 新機能、アーキテクチャ変更、大規模リファクタリングなど
+ * Keyword patterns indicating heavyweight tasks (new features, architecture changes, large refactoring).
  */
 const HEAVYWEIGHT_KEYWORDS = [
-  // 新機能関連
+  // New feature related
   '新機能',
   '機能',
   'feature',
@@ -113,7 +111,7 @@ const HEAVYWEIGHT_KEYWORDS = [
   'develop',
   '構築',
   'build',
-  // アーキテクチャ関連
+  // Architecture related
   'リファクタリング',
   'refactor',
   'アーキテクチャ',
@@ -124,7 +122,7 @@ const HEAVYWEIGHT_KEYWORDS = [
   'optimize',
   'パフォーマンス',
   'performance',
-  // インフラ・API関連
+  // Infrastructure / API related
   'API',
   'エンドポイント',
   'endpoint',
@@ -139,7 +137,7 @@ const HEAVYWEIGHT_KEYWORDS = [
   'table',
   'インデックス',
   'index',
-  // システム関連
+  // System related
   'システム',
   'system',
   'フレームワーク',
@@ -153,7 +151,7 @@ const HEAVYWEIGHT_KEYWORDS = [
   'authentication',
   '認可',
   'authorization',
-  // 統合・連携
+  // Integration
   '統合',
   'integration',
   '連携',
@@ -161,7 +159,7 @@ const HEAVYWEIGHT_KEYWORDS = [
   'third-party',
   '外部',
   'external',
-  // 大規模変更
+  // Large-scale changes
   '大幅',
   '大規模',
   'major',
@@ -173,7 +171,7 @@ const HEAVYWEIGHT_KEYWORDS = [
 ];
 
 /**
- * 軽量タスクを示すラベルキーワード
+ * Label keywords indicating lightweight tasks.
  */
 const LIGHTWEIGHT_LABEL_KEYWORDS = [
   'bug',
@@ -189,7 +187,7 @@ const LIGHTWEIGHT_LABEL_KEYWORDS = [
 ];
 
 /**
- * 重量タスクを示すラベルキーワード
+ * Label keywords indicating heavyweight tasks.
  */
 const HEAVYWEIGHT_LABEL_KEYWORDS = [
   'feature',
@@ -207,7 +205,7 @@ const HEAVYWEIGHT_LABEL_KEYWORDS = [
 ];
 
 /**
- * キーワードベース分析
+ * Keyword-based analysis.
  */
 function analyzeKeywords(input: TaskComplexityInput): { score: number; reasons: string[] } {
   const text = `${input.title} ${input.description || ''}`.toLowerCase();
@@ -216,35 +214,35 @@ function analyzeKeywords(input: TaskComplexityInput): { score: number; reasons: 
   let lightweightMatches = 0;
   let heavyweightMatches = 0;
 
-  // 軽量キーワードの検出
+  // Detect lightweight keywords
   for (const keyword of LIGHTWEIGHT_KEYWORDS) {
     if (text.includes(keyword.toLowerCase())) {
       lightweightMatches++;
-      reasons.push(`軽量キーワード検出: "${keyword}"`);
+      reasons.push(`Lightweight keyword detected: "${keyword}"`);
     }
   }
 
-  // 重量キーワードの検出
+  // Detect heavyweight keywords
   for (const keyword of HEAVYWEIGHT_KEYWORDS) {
     if (text.includes(keyword.toLowerCase())) {
       heavyweightMatches++;
-      reasons.push(`重量キーワード検出: "${keyword}"`);
+      reasons.push(`Heavyweight keyword detected: "${keyword}"`);
     }
   }
 
-  // スコア算出（0-100）
-  // 軽量キーワードが多いほどスコアが下がる、重量キーワードが多いほどスコアが上がる
+  // Score calculation (0-100)
+  // More lightweight keywords = lower score; more heavyweight keywords = higher score
   const keywordBalance = heavyweightMatches - lightweightMatches;
-  const baseScore = 50; // デフォルト値
-  let score = baseScore + keywordBalance * 15; // キーワード1つにつき15点の差
+  const baseScore = 50; // Default
+  let score = baseScore + keywordBalance * 15; // 15-point difference per keyword
 
-  // 極端な値の制限
+  // Clamp to valid range
   score = Math.max(0, Math.min(100, score));
 
   if (lightweightMatches > heavyweightMatches) {
-    reasons.push(`軽量傾向 (軽量:${lightweightMatches}, 重量:${heavyweightMatches})`);
+    reasons.push(`Lightweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`);
   } else if (heavyweightMatches > lightweightMatches) {
-    reasons.push(`重量傾向 (軽量:${lightweightMatches}, 重量:${heavyweightMatches})`);
+    reasons.push(`Heavyweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`);
   } else {
     reasons.push(`キーワード分析: バランス型`);
   }
@@ -253,46 +251,46 @@ function analyzeKeywords(input: TaskComplexityInput): { score: number; reasons: 
 }
 
 /**
- * 推定時間による分析
+ * Estimated time analysis.
  */
 function analyzeEstimatedTime(input: TaskComplexityInput): { score: number; reasons: string[] } {
   const reasons: string[] = [];
 
   if (!input.estimatedHours) {
-    reasons.push('推定時間未設定 (標準値を使用)');
-    return { score: 50, reasons }; // デフォルト値
+    reasons.push('Estimated time not set (using default value)');
+    return { score: 50, reasons }; // Default value
   }
 
   let score: number;
 
   if (input.estimatedHours <= 1) {
     score = 20;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (軽量)`);
+    reasons.push(`Estimated time: ${input.estimatedHours} hours (lightweight)`);
   } else if (input.estimatedHours <= 2) {
     score = 35;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (軽量-標準)`);
+    reasons.push(`Estimated time: ${input.estimatedHours} hours (lightweight-standard)`);
   } else if (input.estimatedHours <= 4) {
     score = 60;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (標準)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (standard)`);
   } else if (input.estimatedHours <= 8) {
     score = 80;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (重量)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (heavyweight)`);
   } else {
     score = 95;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (超重量)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (ultra-heavyweight)`);
   }
 
   return { score, reasons };
 }
 
 /**
- * 優先度による分析
+ * Priority-based analysis.
  */
 function analyzePriority(input: TaskComplexityInput): { score: number; reasons: string[] } {
   const reasons: string[] = [];
 
   if (!input.priority) {
-    reasons.push('優先度未設定 (標準値を使用)');
+    reasons.push('Priority not set (using default value)');
     return { score: 50, reasons };
   }
 
@@ -301,30 +299,30 @@ function analyzePriority(input: TaskComplexityInput): { score: number; reasons: 
   switch (input.priority) {
     case 'low':
       score = 30;
-      reasons.push('低優先度 → 軽量傾向');
+      reasons.push('Low priority → lightweight tendency');
       break;
     case 'medium':
       score = 50;
-      reasons.push('中優先度 → 標準');
+      reasons.push('Medium priority → standard');
       break;
     case 'high':
       score = 70;
-      reasons.push('高優先度 → 重量傾向');
+      reasons.push('High priority → heavyweight tendency');
       break;
     case 'urgent':
-      score = 40; // 緊急は短時間で修正すべき問題が多い
-      reasons.push('緊急 → 軽量-標準 (迅速対応が必要)');
+      score = 40; // Urgent issues often need quick fixes
+      reasons.push('Urgent → lightweight-standard (requires quick response)');
       break;
     default:
       score = 50;
-      reasons.push(`不明な優先度: ${input.priority}`);
+      reasons.push(`Unknown priority: ${input.priority}`);
   }
 
   return { score, reasons };
 }
 
 /**
- * ラベルによる分析
+ * Label-based analysis.
  */
 function analyzeLabels(input: TaskComplexityInput): { score: number; reasons: string[] } {
   const reasons: string[] = [];
@@ -340,7 +338,7 @@ function analyzeLabels(input: TaskComplexityInput): { score: number; reasons: st
   for (const label of input.labels) {
     const labelLower = label.toLowerCase();
 
-    // 軽量ラベルの検出
+    // Detect lightweight labels
     for (const keyword of LIGHTWEIGHT_LABEL_KEYWORDS) {
       if (labelLower.includes(keyword)) {
         lightweightLabelMatches++;
@@ -349,7 +347,7 @@ function analyzeLabels(input: TaskComplexityInput): { score: number; reasons: st
       }
     }
 
-    // 重量ラベルの検出
+    // Detect heavyweight labels
     for (const keyword of HEAVYWEIGHT_LABEL_KEYWORDS) {
       if (labelLower.includes(keyword)) {
         heavyweightLabelMatches++;
@@ -359,16 +357,16 @@ function analyzeLabels(input: TaskComplexityInput): { score: number; reasons: st
     }
   }
 
-  // スコア算出
+  // Score calculation
   const labelBalance = heavyweightLabelMatches - lightweightLabelMatches;
-  let score = 50 + labelBalance * 20; // ラベル1つにつき20点の差
+  let score = 50 + labelBalance * 20; // 20-point difference per label
   score = Math.max(0, Math.min(100, score));
 
   return { score, reasons };
 }
 
 /**
- * 複雑度スコアから推奨モードを決定
+ * Determine recommended mode from complexity score.
  */
 function getRecommendedMode(complexityScore: number): 'lightweight' | 'standard' | 'comprehensive' {
   if (complexityScore <= 35) {
@@ -381,25 +379,25 @@ function getRecommendedMode(complexityScore: number): 'lightweight' | 'standard'
 }
 
 /**
- * 推定実行時間を計算（分）
+ * Calculate estimated execution time in minutes.
  */
 function calculateEstimatedExecutionTime(
   mode: 'lightweight' | 'standard' | 'comprehensive',
 ): number {
   switch (mode) {
     case 'lightweight':
-      return 20; // 15-30分
+      return 20; // 15-30 minutes
     case 'standard':
-      return 90; // 1-2時間
+      return 90; // 1-2 hours
     case 'comprehensive':
-      return 210; // 3-4時間
+      return 210; // 3-4 hours
     default:
       return 90;
   }
 }
 
 /**
- * 判定の信頼度を計算
+ * Calculate judgment confidence.
  */
 function calculateConfidence(
   keywordScore: number,
@@ -408,24 +406,24 @@ function calculateConfidence(
   labelScore: number,
   hasEstimatedTime: boolean,
 ): number {
-  // 各分析要素の信頼度重みづけ
-  let confidence = 0.5; // ベース値
+  // Weighted confidence from each analysis factor
+  let confidence = 0.5; // Base value
 
-  // 推定時間がある場合は信頼度UP
+  // Estimated time available = higher confidence
   if (hasEstimatedTime) {
     confidence += 0.2;
   }
 
-  // キーワード分析の一致度
+  // Keyword analysis match degree
   const keywordDeviation = Math.abs(keywordScore - 50);
   confidence += Math.min(0.3, keywordDeviation / 100);
 
-  // 各分析結果の整合性
+  // Consistency across analysis results
   const scores = [keywordScore, timeScore, priorityScore, labelScore];
   const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
   const variance =
     scores.reduce((sum, score) => sum + Math.pow(score - avgScore, 2), 0) / scores.length;
-  const consistency = Math.max(0, 1 - variance / 1000); // 分散が小さいほど一貫性高い
+  const consistency = Math.max(0, 1 - variance / 1000); // Lower variance = higher consistency
 
   confidence += consistency * 0.2;
 
@@ -433,21 +431,21 @@ function calculateConfidence(
 }
 
 /**
- * メイン分析関数
+ * Main analysis function.
  */
 export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAnalysisResult {
-  // 各分析要素を実行
+  // Run each analysis factor
   const keywordAnalysis = analyzeKeywords(input);
   const timeAnalysis = analyzeEstimatedTime(input);
   const priorityAnalysis = analyzePriority(input);
   const labelAnalysis = analyzeLabels(input);
 
-  // 重みづけによる最終スコア算出
+  // Final score via weighted average
   const weights = {
-    keyword: 0.4, // キーワード分析が最重要
-    time: 0.3, // 推定時間も重要
-    priority: 0.15, // 優先度は補助的
-    label: 0.15, // ラベルも補助的
+    keyword: 0.4, // Keyword analysis is most important
+    time: 0.3, // Estimated time is also important
+    priority: 0.15, // Priority is supplementary
+    label: 0.15, // Labels are supplementary
   };
 
   const complexityScore = Math.round(
@@ -468,7 +466,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
     !!input.estimatedHours,
   );
 
-  // すべての理由をまとめる
+  // Aggregate all reasons
   const allReasons = [
     ...keywordAnalysis.reasons,
     ...timeAnalysis.reasons,
@@ -492,14 +490,14 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
 }
 
 /**
- * 複数タスクの一括分析
+ * Batch analysis for multiple tasks.
  */
 export function analyzeBatchComplexity(inputs: TaskComplexityInput[]): ComplexityAnalysisResult[] {
   return inputs.map((input) => analyzeTaskComplexity(input));
 }
 
 /**
- * ワークフローモード設定の取得（将来的にDBから取得予定）
+ * Get workflow mode configuration (to be fetched from DB in the future).
  */
 export function getWorkflowModeConfig() {
   return {
@@ -525,10 +523,10 @@ export function getWorkflowModeConfig() {
 }
 
 /**
- * 学習データを考慮した複雑度分析（拡張版）
+ * Complexity analysis with learning data (extended version).
  *
- * 通常の analyzeTaskComplexity に加えて、過去の学習記録から
- * 類似タスクの実績を反映させた推奨モードを返す
+ * In addition to standard analyzeTaskComplexity, reflects historical learning records
+ * from similar tasks to return an optimized recommended mode.
  */
 export async function analyzeTaskComplexityWithLearning(
   input: TaskComplexityInput,
@@ -536,10 +534,10 @@ export async function analyzeTaskComplexityWithLearning(
   const baseResult = analyzeTaskComplexity(input);
 
   try {
-    // 動的インポートでPrismaの循環依存を回避
+    // Dynamic import to avoid circular dependency with Prisma
     const { prisma } = await import('../../config');
 
-    // 同テーマの学習記録を取得
+    // Fetch learning records for the same theme
     const where: Record<string, unknown> = { success: true };
     if (input.themeId) where.themeId = input.themeId;
 
@@ -559,7 +557,7 @@ export async function analyzeTaskComplexityWithLearning(
       return baseResult;
     }
 
-    // 類似複雑度（±15ポイント）のタスクを抽出
+    // Extract tasks with similar complexity (within +/-15 points)
     const similar = records.filter(
       (r) =>
         r.predictedComplexity !== null &&
@@ -570,7 +568,7 @@ export async function analyzeTaskComplexityWithLearning(
       return baseResult;
     }
 
-    // 最も成功率の高いモードを判定
+    // Determine the mode with highest success rate
     const modeCount: Record<string, number> = {};
     for (const r of similar) {
       modeCount[r.workflowMode] = (modeCount[r.workflowMode] || 0) + 1;
@@ -579,11 +577,11 @@ export async function analyzeTaskComplexityWithLearning(
     const sortedModes = Object.entries(modeCount).sort((a, b) => b[1] - a[1]);
     const topMode = sortedModes[0];
 
-    // 実績が十分で、基本分析と異なるモードが推奨される場合
+    // If sufficient data recommends a different mode than base analysis
     const learningRecommendedMode = topMode[0] as 'lightweight' | 'standard' | 'comprehensive';
     const learningConfidence = topMode[1] / similar.length;
 
-    // 実績ベースの推定時間
+    // Estimated time based on historical data
     const durations = similar
       .map((r) => r.actualDurationMinutes)
       .filter((d): d is number => d !== null);
@@ -601,7 +599,7 @@ export async function analyzeTaskComplexityWithLearning(
       differs: learningRecommendedMode !== baseResult.recommendedMode,
     };
 
-    // 学習データの信頼度が高い場合はモードを上書き
+    // Override mode if learning data confidence is high
     if (insight.differs && learningConfidence >= 0.7 && similar.length >= 5) {
       return {
         ...baseResult,
@@ -620,7 +618,7 @@ export async function analyzeTaskComplexityWithLearning(
 
     return { ...baseResult, learningInsight: insight };
   } catch {
-    // DB接続失敗時は基本結果をそのまま返す
+    // On DB connection failure, return base result as-is
     return baseResult;
   }
 }

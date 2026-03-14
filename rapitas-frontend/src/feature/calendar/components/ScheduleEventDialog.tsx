@@ -50,13 +50,13 @@ function getDefaultTimes(): { start: string; end: string } {
   let startMin = currentMin <= 30 ? 30 : 0;
   if (currentMin > 30) startHour += 1;
 
-  // 24時間制をサポート
+  // Wrap around for 24-hour clock
   if (startHour >= 24) {
     startHour = 9;
     startMin = 0;
   }
 
-  const endHour = (startHour + 1) % 24; // 24時間制をサポート
+  const endHour = (startHour + 1) % 24; // Wrap around for 24-hour clock
 
   const pad = (n: number) => String(n).padStart(2, '0');
   return {
@@ -106,8 +106,7 @@ export default function ScheduleEventDialog({
 
     setSubmitting(true);
     try {
-      // 日付・時刻文字列からUTCのISO文字列を生成するヘルパー
-      // ローカルタイムゾーンの影響を受けないよう Date.UTC を使用
+      // Use Date.UTC to avoid local timezone influence
       const toUTCISO = (dateStr: string, timeStr: string = '00:00') => {
         const [year, month, day] = dateStr.split('-').map(Number);
         const [hour, min] = timeStr.split(':').map(Number);
@@ -122,7 +121,7 @@ export default function ScheduleEventDialog({
       if (isAllDay) {
         startAt = toUTCISO(startDate);
         if (isMultiDay && endDate > startDate) {
-          // 終日イベントは翌日の00:00で終了
+          // All-day events end at 00:00 the next day
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
           const [year, month, day] = nextDay
@@ -139,11 +138,11 @@ export default function ScheduleEventDialog({
         if (isMultiDay && endDate >= startDate) {
           endAt = toUTCISO(endDate, endTime);
         } else {
-          // 同日で終了時刻が開始時刻より早い場合（例：23:00開始→02:00終了）、翌日とみなす
+          // If end time is earlier than start time on same day (e.g., 23:00→02:00), treat as next day
           const [startH] = startTime.split(':').map(Number);
           const [endH] = endTime.split(':').map(Number);
           if (endH < startH) {
-            // 翌日の終了時刻として設定
+            // Set as end time for next day
             const nextDay = new Date(startDate);
             nextDay.setDate(nextDay.getDate() + 1);
             const [year, month, day] = nextDay
@@ -196,7 +195,7 @@ export default function ScheduleEventDialog({
   const dayOfWeek = new Date(startDate).getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 複数日の日数計算
+  // Calculate number of days for multi-day events
   const dayCount =
     isMultiDay && endDate > startDate
       ? Math.ceil(
@@ -393,9 +392,9 @@ export default function ScheduleEventDialog({
                     value={startTime}
                     onChange={(e) => {
                       setStartTime(e.target.value);
-                      // Auto-adjust end time to 1 hour after start (支援24時間制)
+                      // Auto-adjust end time to 1 hour after start
                       const [h, m] = e.target.value.split(':').map(Number);
-                      const endH = (h + 1) % 24; // 24時間制をサポート（23:00→00:00）
+                      const endH = (h + 1) % 24; // Wrap around 24-hour clock (23:00 -> 00:00)
                       setEndTime(
                         `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
                       );

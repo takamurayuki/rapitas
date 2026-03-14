@@ -1,6 +1,7 @@
 /**
- * Debug Log Analyzer テスト
- * 各種ログパーサーとアナライザーのテスト
+ * Debug Log Analyzer Test
+ *
+ * Tests for various log parsers and the log analyzer.
  */
 import { describe, test, expect } from 'bun:test';
 import {
@@ -487,7 +488,7 @@ describe('DebugLogAnalyzer', () => {
 
     test('循環参照を含む可能性のあるログ構造をハンドリングすること', () => {
       const analyzer = new DebugLogAnalyzer();
-      // 循環参照はJSON.stringifyでエラーになるが、すでに文字列化されたログでテスト
+      // Circular refs cause JSON.stringify errors, but we test with already-stringified logs
       const logLine = '{"level":"error","message":"Circular ref handled","data":"[Circular]"}';
 
       const result = analyzer.analyze(logLine);
@@ -509,7 +510,7 @@ describe('DebugLogAnalyzer', () => {
       const end = performance.now();
 
       expect(result.entries).toHaveLength(1000);
-      expect(end - start).toBeLessThan(2000); // 2秒以内
+      expect(end - start).toBeLessThan(2000); // Within 2 seconds
     });
 
     test('メモリ効率的なフィルタリングを行うこと', () => {
@@ -526,8 +527,8 @@ describe('DebugLogAnalyzer', () => {
       });
       const end = performance.now();
 
-      expect(result.entries.length).toBe(200); // 1000の1/5
-      expect(end - start).toBeLessThan(1000); // 1秒以内
+      expect(result.entries.length).toBe(200); // 1/5 of 1000
+      expect(end - start).toBeLessThan(1000); // Within 1 second
     });
 
     test('複雑な条件でのフィルタリング性能テスト', () => {
@@ -551,7 +552,7 @@ describe('DebugLogAnalyzer', () => {
       const end = performance.now();
 
       expect(result.entries.length).toBeGreaterThan(0);
-      expect(end - start).toBeLessThan(500); // 500ms以内
+      expect(end - start).toBeLessThan(500); // Within 500ms
     });
   });
 
@@ -559,15 +560,15 @@ describe('DebugLogAnalyzer', () => {
     test('実世界のログサンプルを処理すること', () => {
       const analyzer = new DebugLogAnalyzer();
       const realWorldLogs = [
-        // アプリケーションログ
+        // Application log
         '{"timestamp":"2024-01-15T10:30:45.123Z","level":"info","logger":"app","message":"Server started on port 3000","port":3000}',
-        // エラーログ
+        // Error log
         '{"timestamp":"2024-01-15T10:31:12.456Z","level":"error","logger":"db","message":"Connection timeout","error":{"code":"TIMEOUT","timeout":5000}}',
-        // リクエストログ
+        // Request log
         '{"timestamp":"2024-01-15T10:31:30.789Z","level":"info","logger":"http","message":"Request completed","method":"GET","url":"/api/users","status":200,"duration":45}',
-        // 警告ログ
+        // Warning log
         '{"timestamp":"2024-01-15T10:32:00.012Z","level":"warn","logger":"auth","message":"Rate limit approaching","userId":123,"requests":95,"limit":100}',
-        // デバッグログ
+        // Debug log
         '{"timestamp":"2024-01-15T10:32:15.345Z","level":"debug","logger":"cache","message":"Cache miss","key":"user:123","ttl":300}',
       ].join('\n');
 
@@ -582,7 +583,7 @@ describe('DebugLogAnalyzer', () => {
       expect(result.summary.levelDistribution[LogLevel.WARN]).toBe(1);
       expect(result.summary.levelDistribution[LogLevel.DEBUG]).toBe(1);
 
-      // 時間範囲の確認
+      // Verify time range
       expect(result.summary.timeRange).toBeDefined();
       expect(result.summary.timeRange?.start).toBeInstanceOf(Date);
       expect(result.summary.timeRange?.end).toBeInstanceOf(Date);
@@ -591,22 +592,22 @@ describe('DebugLogAnalyzer', () => {
     test('混合形式のログストリームを処理すること', () => {
       const analyzer = new DebugLogAnalyzer();
       const mixedLogs = [
-        // JSON形式
+        // JSON format
         '{"level":"info","message":"JSON log entry"}',
-        // Syslog形式
+        // Syslog format
         'Jan 15 10:30:00 server app[12345]: Syslog entry',
-        // Apache形式
+        // Apache format
         '127.0.0.1 - - [15/Jan/2024:10:30:00 +0000] "GET /index.html HTTP/1.1" 200 1234',
-        // Node.js形式
+        // Node.js format
         '2024-01-15 10:30:00 [ERROR] Node.js error occurred',
-        // 不明形式
+        // Unknown format
         'Unknown log format line',
       ].join('\n');
 
       const result = analyzer.analyze(mixedLogs);
 
       expect(result.entries).toHaveLength(5);
-      // ログタイプの認識は実装に依存するため、少なくとも適切にパースされることを確認
+      // Log type recognition depends on implementation; verify at least proper parsing
       expect(result.entries[0].type).toBe(LogType.JSON);
       expect(result.entries[2].type).toBe(LogType.APACHE_COMMON);
     });
@@ -624,7 +625,7 @@ describe('DebugLogAnalyzer', () => {
       let totalEntries = 0;
       let totalErrors = 0;
 
-      // 各バッチを順次処理
+      // Process each batch sequentially
       batches.forEach((batch) => {
         const result = analyzer.analyze(batch);
         totalEntries += result.summary.totalEntries;
@@ -644,7 +645,7 @@ describe('DebugLogAnalyzer', () => {
 
       const result = analyzer.analyze(logLine);
       expect(result.entries[0].message).toContain(xssAttempt);
-      // セキュリティ: エスケープされていないが、これは解析のみでレンダリングしないため
+      // Security: not escaped, but this is analysis only — no rendering
     });
 
     test('SQL インジェクション類似文字列を処理すること', () => {
@@ -662,7 +663,7 @@ describe('DebugLogAnalyzer', () => {
 
       const result = analyzer.analyze(prototypePollution);
       expect(result.entries[0].message).toBe('test');
-      // プロトタイプ汚染が発生していないことを確認
+      // Verify prototype pollution did not occur
       expect({}.isAdmin).toBeUndefined();
     });
 
@@ -676,7 +677,7 @@ describe('DebugLogAnalyzer', () => {
       const end = performance.now();
 
       expect(result.entries).toHaveLength(1);
-      expect(end - start).toBeLessThan(5000); // 5秒以内で処理
+      expect(end - start).toBeLessThan(5000); // Within 5 seconds
     });
   });
 
@@ -695,7 +696,7 @@ describe('DebugLogAnalyzer', () => {
 
       expect(result.entries).toHaveLength(5);
       expect(result.summary.errorCount).toBe(5);
-      // 基本的な解析結果の検証
+      // Basic analysis result verification
       expect(result.summary.totalEntries).toBe(5);
     });
 

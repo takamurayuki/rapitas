@@ -1,6 +1,6 @@
 /**
- * 横断検索用のカスタムフック
- * 新しいバックエンド /search エンドポイントを使用
+ * Custom hook for cross-cutting search functionality
+ * Uses new backend /search endpoint
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
@@ -94,7 +94,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
-  // 初期クエリがある場合は即座にローディング表示
+  // Show loading immediately if initial query exists
   const [loading, setLoading] = useState(!!initialQuery.trim());
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
@@ -106,11 +106,11 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 安定した参照を持つため、useRefで最新の値を管理
+  // Manage latest values with useRef for stable references
   const typesRef = useRef(typesState);
   const limitRef = useRef(limit);
 
-  // typesStateとlimitの参照を常に最新に保つ
+  // Keep typesState and limit references up to date
   typesRef.current = typesState;
   limitRef.current = limit;
 
@@ -157,7 +157,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok) throw new Error('検索に失敗しました');
+      if (!res.ok) throw new Error('Search failed');
 
       const data = await res.json();
       if (!abortRef.current.signal.aborted) {
@@ -179,9 +179,9 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
         setLoading(false);
       }
     }
-  }, []); // 安定した依存配列 - 循環参照を防ぐ
+  }, []); // Stable dependency array - prevents circular references
 
-  // 初期クエリの即座実行フラグ
+  // Flag for immediate execution of initial query
   const isInitialQuery = useRef(!!initialQuery.trim());
 
   useEffect(() => {
@@ -193,15 +193,15 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
       return;
     }
 
-    // 初期クエリの場合は即座に実行、それ以外はデバウンス
+    // Execute immediately for initial query, otherwise debounce
     const delay = isInitialQuery.current ? 0 : debounceDelay;
-    isInitialQuery.current = false; // 一度実行後は通常のデバウンス
+    isInitialQuery.current = false; // Use normal debounce after first execution
 
     timerRef.current = setTimeout(() => search(query, offset), delay);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query, offset, debounceDelay, typesState]); // typesStateを依存配列に追加
+  }, [query, offset, debounceDelay, typesState]); // Add typesState to dependency array
 
   useEffect(() => {
     return () => {
@@ -246,7 +246,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
 }
 
 /**
- * 検索サジェスト用のフック
+ * Hook for search suggestions
  */
 export function useSearchSuggest() {
   const [query, setQuery] = useState('');

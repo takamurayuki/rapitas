@@ -134,8 +134,8 @@ describe('DockerLogParser', () => {
       stream: 'stdout',
       time: '2026-01-01T10:00:00.000Z',
     });
-    // canParseはisDockerJsonLogまたは"docker"を含むかチェック
-    // Docker JSON形式はlog, stream, timeを持つ
+    // canParse checks isDockerJsonLog or whether the input contains "docker"
+    // Docker JSON format has log, stream, and time fields
     expect(parser.canParse(log)).toBeTruthy();
     const result = parser.parse(log);
     expect(result).not.toBeNull();

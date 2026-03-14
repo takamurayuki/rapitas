@@ -7,11 +7,11 @@ import {
 } from '@/utils/notification';
 import type { ScheduleEvent } from '@/types';
 
-const CHECK_INTERVAL_MS = 30_000; // 30秒ごとにチェック
+const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds
 
 /**
- * スケジュールのリマインド通知を定期的にチェックし、
- * PC通知（デスクトップ通知）を表示するフック
+ * Hook that periodically checks for schedule reminder notifications
+ * and displays desktop notifications
  */
 export function useScheduleReminders() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -47,28 +47,28 @@ export function useScheduleReminders() {
           },
         });
 
-        // リマインド送信済みとしてマーク
+        // Mark reminder as sent
         await fetch(`${API_BASE_URL}/schedules/reminders/${event.id}/sent`, {
           method: 'POST',
           signal: AbortSignal.timeout(5000),
         }).catch(() => {
-          // 失敗しても通知自体は表示済みなので無視
+          // Ignore failures since notification was already shown
         });
       }
     } catch {
-      // ネットワークエラー・タイムアウト等は静かに無視（バックグラウンドチェックなので）
+      // Silently ignore network errors/timeouts (background check)
     } finally {
       clearTimeout(timeoutId);
     }
   }, []);
 
   useEffect(() => {
-    // 初回で通知権限をリクエスト
+    // Request notification permission on first load
     requestNotificationPermission().then((granted) => {
       permissionGranted.current = granted;
     });
 
-    // 定期チェック開始
+    // Start periodic checks
     checkReminders();
     intervalRef.current = setInterval(checkReminders, CHECK_INTERVAL_MS);
 

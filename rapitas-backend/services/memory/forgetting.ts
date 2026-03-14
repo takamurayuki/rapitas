@@ -1,6 +1,7 @@
 /**
- * 忘却システム（3段階忘却）
- * active (decayScore≥0.5) → dormant (0.1≤score<0.5) → archived (score<0.1)
+ * Three-stage Forgetting System
+ *
+ * active (decayScore >= 0.5) -> dormant (0.1 <= score < 0.5) -> archived (score < 0.1)
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -9,8 +10,9 @@ import { appendEvent } from './timeline';
 const log = createLogger('memory:forgetting');
 
 /**
- * 減衰スコアを計算
- * newDecay = decayScore * (0.95 ^ daysSinceLastAccess) * (0.5 + confidence * 0.5)
+ * Calculate decay score.
+ *
+ * Formula: decayScore * (0.95 ^ daysSinceLastAccess) * (0.5 + confidence * 0.5)
  */
 function calculateDecay(
   currentDecay: number,
@@ -27,7 +29,7 @@ function calculateDecay(
 }
 
 /**
- * forgettingStageを判定
+ * Determine forgetting stage from decay score.
  */
 function determineStage(decayScore: number): 'active' | 'dormant' | 'archived' {
   if (decayScore >= 0.5) return 'active';
@@ -36,8 +38,9 @@ function determineStage(decayScore: number): 'active' | 'dormant' | 'archived' {
 }
 
 /**
- * 忘却スイープを実行
- * すべてのactive/dormantエントリの減衰スコアを更新し、ステージを遷移
+ * Run a forgetting sweep.
+ *
+ * Updates decay scores for all active/dormant entries and transitions their stages.
  */
 export async function runForgettingSweep(): Promise<{
   processed: number;
@@ -58,7 +61,7 @@ export async function runForgettingSweep(): Promise<{
     },
   });
 
-  // pinnedでないもののみ処理（pinnedUntilが未来の場合はスキップ）
+  // Skip pinned entries (pinnedUntil in the future)
   const now = new Date();
   const processable = entries.filter((e) => !e.pinnedUntil || e.pinnedUntil <= now);
 
@@ -108,8 +111,7 @@ export async function runForgettingSweep(): Promise<{
 }
 
 /**
- * アクセス時にdecayを回復
- * min(1.0, current + 0.3)
+ * Boost decay score on access: min(1.0, current + 0.3).
  */
 export async function boostDecayOnAccess(entryId: number): Promise<void> {
   const entry = await prisma.knowledgeEntry.findUnique({

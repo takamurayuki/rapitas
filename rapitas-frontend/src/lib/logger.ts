@@ -13,8 +13,8 @@ const current: LogLevel =
   (process.env.NODE_ENV === 'production' ? 'warn' : 'debug');
 
 /**
- * スロットリング用の最終出力タイムスタンプ管理
- * key: "prefix|message先頭80文字" → 最終出力時刻
+ * Throttling final output timestamp management
+ * key: "prefix|first 80 chars of message" → last output time
  */
 const throttleMap = new Map<string, number>();
 const THROTTLE_WINDOW_MS = 5_000;
@@ -35,7 +35,7 @@ function makeThrottleKey(prefix: string, args: unknown[]): string {
 }
 
 /**
- * ネットワーク系の一時的エラーかどうかを判定
+ * Determine if error is transient network error
  */
 export function isTransientError(error: unknown): boolean {
   if (error == null || typeof error !== 'object') return false;
@@ -43,13 +43,13 @@ export function isTransientError(error: unknown): boolean {
   if (!err.name && !err.message) return false;
   const name = err.name ?? '';
   const message = err.message ?? '';
-  // TypeError: Failed to fetch (ネットワーク切断)
+  // TypeError: Failed to fetch (network disconnection)
   if (name === 'TypeError' && message.includes('Failed to fetch')) return true;
-  // AbortError (タイムアウト)
+  // AbortError (timeout)
   if (name === 'AbortError' || message.includes('aborted')) return true;
-  // cause がある場合は再帰的にチェック
+  // If cause exists, check recursively
   if (err.cause != null) return isTransientError(err.cause);
-  // メッセージにネットワーク関連のキーワード
+  // Message contains network-related keywords
   if (/network|timeout|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i.test(message))
     return true;
   return false;
@@ -65,9 +65,9 @@ export function createLogger(name: string) {
     error: (...a: unknown[]) => ok('error') && console.error(p, ...a),
 
     /**
-     * スロットリング付きエラーログ
-     * 同一メッセージは THROTTLE_WINDOW_MS (5秒) 以内に1回だけ出力
-     * 重複分はdebugレベルに降格
+     * Error log with throttling
+     * Same message output only once within THROTTLE_WINDOW_MS (5 sec)
+     * Duplicates demoted to debug level
      */
     errorThrottled: (...a: unknown[]) => {
       if (!ok('warn')) return;
@@ -80,8 +80,8 @@ export function createLogger(name: string) {
     },
 
     /**
-     * 一時的エラー用ログ（NetworkError, Timeout等）
-     * 一時的エラーはwarnレベルで出力し、そうでないエラーはerrorレベルで出力
+     * Log for transient errors (NetworkError, Timeout, etc.)
+     * Output transient errors at warn level, others at error level
      */
     transientError: (message: string, error?: unknown, ...rest: unknown[]) => {
       if (isTransientError(error)) {

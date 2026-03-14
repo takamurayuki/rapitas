@@ -88,13 +88,13 @@ export function ExecutionReviewPanel({
   const [showScreenshots, setShowScreenshots] = useState(true);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  // 手動スクリーンショット撮影用の状態
+  // Manual screenshot capture state
   const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(
     initialScreenshots || [],
   );
   const [isCapturing, setIsCapturing] = useState(false);
 
-  // initialScreenshots が後から変更された場合にも反映する
+  // NOTE: Also reflect changes when initialScreenshots updates later
   useEffect(() => {
     if (initialScreenshots && initialScreenshots.length > 0) {
       setScreenshots(initialScreenshots);
@@ -168,7 +168,7 @@ export function ExecutionReviewPanel({
     setReviewComments(reviewComments.filter((c) => c.id !== id));
   };
 
-  // プロジェクト構造を自動検出
+  // Auto-detect project structure
   const detectProject = async () => {
     if (!workingDirectory) return;
 
@@ -192,7 +192,7 @@ export function ExecutionReviewPanel({
     }
   };
 
-  // 手動スクリーンショット撮影
+  // Manual screenshot capture
   const handleCapture = async () => {
     if (capturePages.length === 0) return;
 
@@ -376,7 +376,6 @@ export function ExecutionReviewPanel({
               </span>
             )}
           </button>
-          {/* 手動撮影ボタン */}
           <button
             onClick={() => {
               setShowCaptureForm(!showCaptureForm);
@@ -394,7 +393,6 @@ export function ExecutionReviewPanel({
 
         {showScreenshots && (
           <div className="px-6 pb-4 space-y-4">
-            {/* 手動撮影フォーム */}
             {showCaptureForm && (
               <div className="p-4 bg-zinc-50 dark:bg-indigo-dark-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
                 <div className="flex items-center justify-between">
@@ -409,7 +407,6 @@ export function ExecutionReviewPanel({
                   )}
                 </div>
 
-                {/* ベースURL */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                     ベースURL
@@ -432,7 +429,6 @@ export function ExecutionReviewPanel({
                   )}
                 </div>
 
-                {/* ページリスト */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
                     撮影ページ
@@ -459,7 +455,6 @@ export function ExecutionReviewPanel({
                     ))}
                   </div>
 
-                  {/* ページ追加 */}
                   <div className="flex items-center gap-2 mt-2">
                     <input
                       type="text"
@@ -504,7 +499,6 @@ export function ExecutionReviewPanel({
                   </div>
                 )}
 
-                {/* 撮影ボタン */}
                 <button
                   onClick={handleCapture}
                   disabled={isCapturing || capturePages.length === 0}
@@ -520,7 +514,6 @@ export function ExecutionReviewPanel({
               </div>
             )}
 
-            {/* スクリーンショット一覧 */}
             {screenshots.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {screenshots.map((screenshot) => (
@@ -637,7 +630,6 @@ export function ExecutionReviewPanel({
 
           {showFeedbackForm && (
             <div className="px-6 pb-4 space-y-4">
-              {/* 既存のコメント一覧 */}
               {reviewComments.length > 0 && (
                 <div className="space-y-2">
                   <h5 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">
@@ -674,7 +666,6 @@ export function ExecutionReviewPanel({
                 </div>
               )}
 
-              {/* 新しいコメント追加フォーム */}
               <div className="space-y-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <div className="flex items-center gap-2">
                   <select
@@ -720,7 +711,6 @@ export function ExecutionReviewPanel({
                 </div>
               </div>
 
-              {/* 全体的なフィードバック */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                   全体的なフィードバック（任意）
@@ -734,7 +724,6 @@ export function ExecutionReviewPanel({
                 />
               </div>
 
-              {/* 修正依頼ボタン */}
               {onRequestChanges && (
                 <button
                   onClick={handleRequestChanges}
@@ -838,7 +827,7 @@ export function ExecutionReviewPanel({
   );
 }
 
-/** 実装内容の説明セクション（長い場合は折りたたみ可能） */
+/** Implementation summary section (collapsible when long) */
 function ImplementationSummarySection({
   summary,
   executionTimeMs,

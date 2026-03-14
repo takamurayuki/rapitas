@@ -1,6 +1,7 @@
 /**
- * ライフサイクル管理
- * シグナルハンドラー、グレースフルシャットダウン、エージェント状態保存を担当
+ * LifecycleManager
+ *
+ * Signal handlers, graceful shutdown, and agent state persistence.
  */
 import { createLogger } from '../../../config/logger';
 import type {
@@ -15,7 +16,7 @@ import type { QuestionTimeoutManager } from './question-timeout-manager';
 const logger = createLogger('lifecycle-manager');
 
 /**
- * ライフサイクル管理に必要なコンテキスト
+ * Context required for lifecycle management.
  */
 export type LifecycleContext = {
   prisma: PrismaClientInstance;
@@ -28,7 +29,7 @@ export type LifecycleContext = {
 };
 
 /**
- * 特定のエージェントの状態をDBに保存
+ * Save a specific agent's state to the database.
  */
 export async function saveAgentState(
   prisma: PrismaClientInstance,
@@ -51,7 +52,6 @@ export async function saveAgentState(
     },
   });
 
-  // セッションのステータスも更新
   try {
     await prisma.agentSession.update({
       where: { id: info.sessionId },
@@ -67,7 +67,6 @@ export async function saveAgentState(
     );
   }
 
-  // タスクのステータスを todo に戻す
   try {
     const task = await prisma.task.findUnique({
       where: { id: info.taskId },
@@ -86,7 +85,7 @@ export async function saveAgentState(
 }
 
 /**
- * 全てのアクティブなエージェントの状態を保存
+ * Save state for all active agents.
  */
 export async function saveAllAgentStates(
   prisma: PrismaClientInstance,
@@ -107,7 +106,7 @@ export async function saveAllAgentStates(
 }
 
 /**
- * グレースフルシャットダウン
+ * Perform graceful shutdown.
  */
 export async function gracefulShutdown(
   ctx: LifecycleContext,
@@ -127,11 +126,9 @@ export async function gracefulShutdown(
   const startTime = Date.now();
 
   try {
-    // 全ての質問タイムアウトをキャンセル
     ctx.questionTimeoutManager.cancelAllTimeouts();
     ctx.questionTimeoutManager.clearAllLocks();
 
-    // 全てのアクティブなエージェントを停止
     const stopPromises = Array.from(ctx.activeAgents.entries()).map(async ([executionId, info]) => {
       try {
         logger.info(`[LifecycleManager] Stopping agent for execution ${executionId}...`);
@@ -186,7 +183,7 @@ export async function gracefulShutdown(
 }
 
 /**
- * シグナルハンドラーを設定
+ * Register signal handlers for graceful shutdown.
  */
 export function setupSignalHandlers(
   shutdownFn: () => Promise<void>,

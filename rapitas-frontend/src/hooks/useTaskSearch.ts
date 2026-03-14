@@ -1,6 +1,6 @@
 /**
- * タスク検索用のカスタムフック
- * デバウンス、キャンセレーション、キャッシュを含む最適化済み
+ * Custom hook for task search
+ * Optimized with debouncing, cancellation, and caching
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -11,8 +11,8 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useTaskSearch');
 
 interface UseTaskSearchOptions {
-  minLength?: number; // 最小検索文字数
-  debounceDelay?: number; // デバウンス遅延（ms）
+  minLength?: number; // Minimum search character count
+  debounceDelay?: number; // Debounce delay (ms)
 }
 
 export function useTaskSearch(options: UseTaskSearchOptions = {}) {
@@ -26,10 +26,10 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 検索実行
+  // Execute search
   const performSearch = useCallback(
     async (searchQuery: string) => {
-      // 前回の検索をキャンセル
+      // Cancel previous search
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -43,22 +43,22 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
       setLoading(true);
       setError(null);
 
-      // 新しいAbortController作成
+      // Create new AbortController
       abortControllerRef.current = new AbortController();
 
       try {
         const tasks = await searchTasks(searchQuery);
 
-        // キャンセルされていなければ結果を設定
+        // Set results if not cancelled
         if (!abortControllerRef.current.signal.aborted) {
           setResults(tasks);
         }
       } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') {
-          setError(err.message || '検索中にエラーが発生しました');
+          setError(err.message || 'An error occurred during search');
           logger.error('Search error:', err);
         } else if (!(err instanceof Error)) {
-          setError('検索中にエラーが発生しました');
+          setError('An error occurred during search');
           logger.error('Search error:', err);
         }
       } finally {
@@ -70,26 +70,26 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
     [minLength],
   );
 
-  // クエリ変更時のデバウンス処理
+  // Debounce processing on query change
   useEffect(() => {
-    // 前回のタイマーをクリア
+    // Clear previous timer
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // 空文字の場合は即座にクリア
+    // Clear immediately if empty string
     if (!query) {
       setResults([]);
       setLoading(false);
       return;
     }
 
-    // デバウンスタイマー設定
+    // Set debounce timer
     searchTimeoutRef.current = setTimeout(() => {
       performSearch(query);
     }, debounceDelay);
 
-    // クリーンアップ
+    // Cleanup
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
@@ -97,7 +97,7 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
     };
   }, [query, debounceDelay, performSearch]);
 
-  // コンポーネントアンマウント時のクリーンアップ
+  // Cleanup on component unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -109,7 +109,7 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
     };
   }, []);
 
-  // 検索のクリア
+  // Clear search
   const clearSearch = useCallback(() => {
     setQuery('');
     setResults([]);
@@ -134,7 +134,7 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}) {
 }
 
 /**
- * 高度な検索フィルター付きのフック
+ * Hook with advanced search filters
  */
 interface SearchFilters {
   status?: string[];
@@ -154,19 +154,19 @@ export function useAdvancedTaskSearch(
   const { query, setQuery, results, loading, error, clearSearch } =
     useTaskSearch(options);
 
-  // フィルターを適用した結果
+  // Results with filters applied
   const filteredResults = results.filter((task) => {
-    // ステータスフィルター
+    // Status filter
     if (filters.status?.length && !filters.status.includes(task.status)) {
       return false;
     }
 
-    // カテゴリフィルター（Taskにはtheme.categoryIdがある）
+    // Category filter (Task has theme.categoryId)
     if (filters.categoryId && task.theme?.categoryId !== filters.categoryId) {
       return false;
     }
 
-    // 日付範囲フィルター
+    // Date range filter
     if (filters.dateRange) {
       const taskDate = new Date(task.createdAt);
       if (
@@ -177,9 +177,9 @@ export function useAdvancedTaskSearch(
       }
     }
 
-    // タグフィルター（実装は仮定）
+    // Tag filter (implementation assumed)
     if (filters.tags?.length) {
-      // task.tagsがあると仮定
+      // Assuming task.tags exists
       // const taskTags = task.tags || [];
       // if (!filters.tags.some(tag => taskTags.includes(tag))) {
       //   return false;
@@ -189,7 +189,7 @@ export function useAdvancedTaskSearch(
     return true;
   });
 
-  // フィルターの更新
+  // Update filter
   const updateFilter = useCallback(
     <K extends keyof SearchFilters>(key: K, value: SearchFilters[K]) => {
       setFilters((prev) => ({ ...prev, [key]: value }));
@@ -197,7 +197,7 @@ export function useAdvancedTaskSearch(
     [],
   );
 
-  // すべてのフィルターをクリア
+  // Clear all filters
   const clearAllFilters = useCallback(() => {
     setFilters({});
     clearSearch();

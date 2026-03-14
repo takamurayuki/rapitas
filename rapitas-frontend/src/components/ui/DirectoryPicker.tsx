@@ -73,24 +73,22 @@ export function DirectoryPicker({
   const [favorites, setFavorites] = useState<FavoriteDirectory[]>([]);
   const [showFavorites, setShowFavorites] = useState(true);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
-  const [favoritesOnlyMode, setFavoritesOnlyMode] = useState(false); // お気に入りのみ表示モード
+  const [favoritesOnlyMode, setFavoritesOnlyMode] = useState(false);
   const [showFavoritesDropdown, setShowFavoritesDropdown] = useState(false);
-  const [isEditing, setIsEditing] = useState(false); // インライン編集モード
-  const [editValue, setEditValue] = useState(''); // 編集中の値
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false); // 新規フォルダ作成モード
-  const [newFolderName, setNewFolderName] = useState(''); // 新規フォルダ名
-  const [isCreating, setIsCreating] = useState(false); // 作成中フラグ
-  const [createError, setCreateError] = useState<string | null>(null); // 作成エラー
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const newFolderInputRef = useRef<HTMLInputElement>(null);
 
-  // 初回マウント時にお気に入りを取得
   useEffect(() => {
     fetchFavorites();
   }, []);
 
-  // ドロップダウン外クリックで閉じる & インライン編集外クリックで反映
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -99,7 +97,6 @@ export function DirectoryPicker({
       ) {
         setShowFavoritesDropdown(false);
       }
-      // インライン編集中に外側をクリックしたら反映
       if (
         editInputRef.current &&
         !editInputRef.current.contains(event.target as Node) &&
@@ -112,18 +109,16 @@ export function DirectoryPicker({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isEditing, editValue]);
 
-  // インライン編集開始
   const handleStartEdit = () => {
     setEditValue(value);
     setIsEditing(true);
-    // 次のレンダリング後にフォーカス
+    // NOTE: setTimeout defers focus until after React re-render commits the input to the DOM.
     setTimeout(() => {
       editInputRef.current?.focus();
       editInputRef.current?.select();
     }, 0);
   };
 
-  // インライン編集完了
   const handleEditComplete = () => {
     if (editValue !== value) {
       onChange(editValue);
@@ -131,13 +126,11 @@ export function DirectoryPicker({
     setIsEditing(false);
   };
 
-  // インライン編集キャンセル
   const handleEditCancel = () => {
     setIsEditing(false);
     setEditValue(value);
   };
 
-  // お気に入り一覧を取得
   const fetchFavorites = async () => {
     setIsLoadingFavorites(true);
     try {
@@ -153,7 +146,6 @@ export function DirectoryPicker({
     }
   };
 
-  // お気に入りに追加
   const addToFavorites = async (dirPath: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/directories/favorites`, {
@@ -170,7 +162,6 @@ export function DirectoryPicker({
     }
   };
 
-  // お気に入りから削除
   const removeFromFavorites = async (id: number) => {
     try {
       const res = await fetch(`${API_BASE_URL}/directories/favorites/${id}`, {
@@ -185,12 +176,10 @@ export function DirectoryPicker({
     }
   };
 
-  // 現在のパスがお気に入りに登録されているか確認
   const isFavorite = (dirPath: string) => {
     return favorites.some((f) => f.path === dirPath);
   };
 
-  // 現在のパスのお気に入りIDを取得
   const getFavoriteId = (dirPath: string) => {
     const fav = favorites.find((f) => f.path === dirPath);
     return fav?.id;
@@ -232,16 +221,14 @@ export function DirectoryPicker({
     setManualPath('');
     setShowFavorites(true);
 
-    // まずお気に入りを取得
     setIsLoadingFavorites(true);
     try {
       const res = await fetch(`${API_BASE_URL}/directories/favorites`);
       const data = await res.json();
       if (!data.error && Array.isArray(data) && data.length > 0) {
         setFavorites(data);
-        // お気に入りがある場合は、お気に入りのみ表示モードで開始
+        // NOTE: Skip directory browsing when favorites exist — prompt user to pick from favorites first.
         setFavoritesOnlyMode(true);
-        // ディレクトリブラウズは開始しない（お気に入りから選択を促す）
         setCurrentPath('');
         setDirectories([]);
         setParentPath(null);
@@ -250,7 +237,7 @@ export function DirectoryPicker({
       } else {
         setFavorites(data.error ? [] : data);
         setFavoritesOnlyMode(false);
-        // お気に入りがない場合は通常のブラウズを開始
+        // NOTE: Fall back to filesystem browsing when no favorites are saved.
         if (value) {
           browseDirectory(value);
         } else {
@@ -261,7 +248,7 @@ export function DirectoryPicker({
       logger.error('Failed to fetch favorites:', err);
       setFavorites([]);
       setFavoritesOnlyMode(false);
-      // エラー時も通常のブラウズを開始
+      // NOTE: Fall back to filesystem browsing on favorites fetch failure.
       if (value) {
         browseDirectory(value);
       } else {
@@ -272,7 +259,6 @@ export function DirectoryPicker({
     }
   };
 
-  // お気に入りモードからフォルダブラウズに切り替え
   const handleStartBrowsing = () => {
     setFavoritesOnlyMode(false);
     if (value) {
@@ -282,7 +268,6 @@ export function DirectoryPicker({
     }
   };
 
-  // 新規フォルダ作成を開始
   const handleStartCreateFolder = () => {
     setIsCreatingFolder(true);
     setNewFolderName('');
@@ -292,21 +277,18 @@ export function DirectoryPicker({
     }, 0);
   };
 
-  // 新規フォルダ作成をキャンセル
   const handleCancelCreateFolder = () => {
     setIsCreatingFolder(false);
     setNewFolderName('');
     setCreateError(null);
   };
 
-  // 新規フォルダを作成
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) {
       setCreateError('フォルダ名を入力してください');
       return;
     }
 
-    // フォルダ名のバリデーション
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(newFolderName)) {
       setCreateError('フォルダ名に使用できない文字が含まれています');
@@ -335,12 +317,10 @@ export function DirectoryPicker({
         return;
       }
 
-      // 作成成功 → フォルダ一覧を更新して新しいフォルダに移動
       setIsCreatingFolder(false);
       setNewFolderName('');
       setCreateError(null);
 
-      // 新しく作成されたフォルダに移動
       browseDirectory(data.path);
     } catch (err) {
       setCreateError(
@@ -375,13 +355,12 @@ export function DirectoryPicker({
     if (parentPath) {
       browseDirectory(parentPath);
     } else if (currentPath) {
-      // 親がない場合はドライブ一覧に戻る
       browseDirectory();
     }
   };
 
   const handleGoToDrives = () => {
-    browseDirectory(); // ドライブ一覧を表示
+    browseDirectory();
   };
 
   const handleGoToPath = () => {
@@ -390,17 +369,13 @@ export function DirectoryPicker({
     }
   };
 
-  // テーマの作業ディレクトリが設定されているかチェック
   const hasThemeDirectory = !!value;
 
   return (
     <div className={`relative ${className}`}>
-      {/* Path Display - シンプルで直感的なデザイン */}
       <div className="flex gap-2">
-        {/* パス入力/表示エリア */}
         <div className="flex-1 relative">
           {isEditing ? (
-            /* 編集モード */
             <div className="flex items-center">
               <input
                 ref={editInputRef}
@@ -437,7 +412,6 @@ export function DirectoryPicker({
               </div>
             </div>
           ) : (
-            /* 表示モード */
             <div className="flex items-center rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 overflow-hidden">
               <div className="flex-1 flex items-center px-4 py-2.5 min-w-0">
                 {value ? (
@@ -453,7 +427,6 @@ export function DirectoryPicker({
                   </span>
                 )}
               </div>
-              {/* 編集ボタン - 常に表示 */}
               <button
                 type="button"
                 onClick={handleStartEdit}
@@ -478,7 +451,6 @@ export function DirectoryPicker({
           )}
         </div>
 
-        {/* 参照ボタン */}
         <button
           type="button"
           onClick={handleOpen}
@@ -510,10 +482,8 @@ export function DirectoryPicker({
               </button>
             </div>
 
-            {/* Navigation Bar - お気に入りモード時は非表示 */}
             {!favoritesOnlyMode && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-700">
-                {/* ナビゲーションボタン */}
                 <div className="flex items-center gap-1 border-r border-zinc-200 dark:border-zinc-700 pr-2 mr-1">
                   <button
                     onClick={handleGoUp}
@@ -533,7 +503,6 @@ export function DirectoryPicker({
                   </button>
                 </div>
 
-                {/* 現在のパス表示 */}
                 <div className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg overflow-x-auto min-w-0">
                   <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
                   <span className="text-sm font-mono text-zinc-700 dark:text-zinc-300 truncate">
@@ -547,9 +516,7 @@ export function DirectoryPicker({
                   )}
                 </div>
 
-                {/* お気に入り & フォルダ作成ボタン */}
                 <div className="flex items-center gap-1 border-l border-zinc-200 dark:border-zinc-700 pl-2 ml-1">
-                  {/* 新規フォルダ作成ボタン */}
                   {currentPath && !isDriveList && (
                     <button
                       onClick={handleStartCreateFolder}
@@ -562,7 +529,6 @@ export function DirectoryPicker({
                     </button>
                   )}
 
-                  {/* お気に入り表示切り替え */}
                   <button
                     onClick={() => setShowFavorites(!showFavorites)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -580,7 +546,6 @@ export function DirectoryPicker({
                     <span className="hidden sm:inline">{favorites.length}</span>
                   </button>
 
-                  {/* 現在のパスをお気に入りに追加/削除 */}
                   {currentPath && (
                     <button
                       onClick={() => {
@@ -619,7 +584,6 @@ export function DirectoryPicker({
               </div>
             )}
 
-            {/* Manual Path Input - お気に入りモード時は非表示 */}
             {!favoritesOnlyMode && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
                 <input
@@ -644,7 +608,6 @@ export function DirectoryPicker({
               </div>
             )}
 
-            {/* Favorites Only Mode - お気に入りがある場合の初期表示 */}
             {favoritesOnlyMode && favorites.length > 0 ? (
               <div className="h-72 flex flex-col">
                 <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 border-b border-yellow-100 dark:border-yellow-900/30">
@@ -787,7 +750,6 @@ export function DirectoryPicker({
                   </div>
                 )}
 
-                {/* Favorites Section - 通常モード時のお気に入り表示 */}
                 {showFavorites && favorites.length > 0 && (
                   <div className="border-b border-zinc-200 dark:border-zinc-700">
                     <div className="flex items-center justify-between px-4 py-2 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10">
@@ -861,7 +823,6 @@ export function DirectoryPicker({
                   </div>
                 )}
 
-                {/* Directory List - 通常モード時のディレクトリ一覧 */}
                 <div
                   className={`overflow-y-auto ${showFavorites && favorites.length > 0 ? 'h-40' : 'h-72'}`}
                 >
@@ -894,7 +855,6 @@ export function DirectoryPicker({
                   ) : (
                     <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
                       {directories.map((dir) => {
-                        // ドライブかどうかを判定（C:\, D:\ などのパターン）
                         const isDrive = /^[A-Z]:\\?$/.test(dir.path);
                         return (
                           <button

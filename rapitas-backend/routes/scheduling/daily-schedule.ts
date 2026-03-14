@@ -1,6 +1,6 @@
 /**
  * Daily Schedule Block API Routes
- * 一日の行動スケジュール（円グラフ表示用）
+ * Daily activity schedule blocks (used for pie chart display)
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';

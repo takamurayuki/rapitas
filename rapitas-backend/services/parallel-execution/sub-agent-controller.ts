@@ -1,12 +1,11 @@
 /**
- * サブエージェント制御システム
- * 複数のClaude Code CLIインスタンスを管理し、タスクを分散実行する
+ * Claude Code CLI
  *
- * 親タスク(claude-code-agent.ts)と同様の方式で実装:
- * - プロンプトをstdinにパイプで渡す
- * - Windows用UTF-8設定 (chcp 65001)
- * - ファイルベースの出力監視でリアルタイムログ取得
- * - AskUserQuestionツール検出で入力待ち状態に遷移
+ * (claude-code-agent.ts):
+ * - stdin
+ * - WindowsUTF-8 (chcp 65001)
+ * - Output
+ * - AskUserQuestion
  */
 
 import { spawn, ChildProcess } from 'child_process';
@@ -36,7 +35,6 @@ import { createLogger } from '../../config/logger';
 const logger = createLogger('sub-agent-controller');
 
 /**
- * 質問詳細情報
  */
 type QuestionDetails = {
   headers?: string[];
@@ -45,7 +43,6 @@ type QuestionDetails = {
 };
 
 /**
- * サブエージェントの設定
  */
 type SubAgentConfig = {
   agentId: string;
@@ -58,7 +55,7 @@ type SubAgentConfig = {
 };
 
 /**
- * 出力ログファイルのディレクトリを取得
+ * Output
  */
 function getLogDirectory(): string {
   const logDir = join(tmpdir(), 'rapitas-subagent-logs');
@@ -69,14 +66,13 @@ function getLogDirectory(): string {
 }
 
 /**
- * エージェントの出力ログファイルパスを取得
+ * Output
  */
 function getLogFilePath(taskId: number, executionId: number): string {
   return join(getLogDirectory(), `task-${taskId}-exec-${executionId}.log`);
 }
 
 /**
- * サブエージェントインスタンス
  */
 class SubAgent extends EventEmitter {
   readonly config: SubAgentConfig;
@@ -88,11 +84,10 @@ class SubAgent extends EventEmitter {
   private logFilePath: string;
   private fileWatchInterval: NodeJS.Timeout | null = null;
   private lastFileSize: number = 0;
-  // 質問検出状態
   private waitingForInput: boolean = false;
   private detectedQuestion: string | null = null;
   private questionDetails: QuestionDetails | null = null;
-  // アクティブなツール追跡
+  // Tracking
   private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
 
   constructor(config: SubAgentConfig) {
@@ -111,19 +106,18 @@ class SubAgent extends EventEmitter {
       executionTimeMs: 0,
       watingForInput: false,
     };
-    // 出力ログファイルパスを設定
+    // Output
     this.logFilePath = getLogFilePath(config.taskId, config.executionId);
   }
 
   /**
-   * 出力ログファイルパスを取得
+   * Output
    */
   getLogFilePath(): string {
     return this.logFilePath;
   }
 
   /**
-   * タスクを実行
    */
   async execute(task: AgentTask): Promise<AgentExecutionResult> {
     const startTime = Date.now();
@@ -131,7 +125,6 @@ class SubAgent extends EventEmitter {
     this.state.startedAt = new Date();
     this.state.lastActivityAt = new Date();
 
-    // ログファイルを初期化
     writeFileSync(
       this.logFilePath,
       `[${new Date().toISOString()}] Task ${this.config.taskId} started\n`,
@@ -155,20 +148,19 @@ class SubAgent extends EventEmitter {
       };
 
       try {
-        // プロンプトを構築
         const prompt = this.buildPrompt(task);
 
-        // Windowsかどうかを判定
+        // Windows
         const isWindows = process.platform === 'win32';
         const claudePath = process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
 
-        // コマンドライン引数を構築（プロンプトは含めない、stdinで渡す）
+        // （stdin）
         const args: string[] = [];
         args.push('--print');
         args.push('--verbose');
         args.push('--output-format', 'stream-json');
 
-        // セッション再開の場合は --continue を使用
+        // --continue
         if (task.resumeSessionId) {
           args.push('--continue');
           logger.info(
@@ -180,7 +172,7 @@ class SubAgent extends EventEmitter {
           args.push('--dangerously-skip-permissions');
         }
 
-        // Windows用: UTF-8設定を含むコマンドを構築
+        // Windows: UTF-8
         let finalCommand: string;
         let finalArgs: string[];
 
@@ -206,7 +198,6 @@ class SubAgent extends EventEmitter {
         );
         logger.info(`[SubAgent ${this.config.agentId}] Prompt length: ${prompt.length} chars`);
 
-        // プロセスを起動（親タスクと同様の設定）
         this.process = spawn(finalCommand, finalArgs, {
           cwd: this.config.workingDirectory,
           shell: true,
@@ -228,7 +219,6 @@ class SubAgent extends EventEmitter {
           },
         });
 
-        // エンコーディング設定
         if (this.process.stdout) {
           this.process.stdout.setEncoding('utf8');
         }
@@ -240,7 +230,7 @@ class SubAgent extends EventEmitter {
           `[SubAgent ${this.config.agentId}] Process spawned with PID: ${this.process.pid}`,
         );
 
-        // stdinにプロンプトを書き込む（親タスクと同様）
+        // stdin（）
         const writePromptToStdin = async () => {
           if (!this.process?.stdin) {
             logger.info(`[SubAgent ${this.config.agentId}] stdin is not available`);
@@ -278,18 +268,17 @@ class SubAgent extends EventEmitter {
           logger.error({ err }, `[SubAgent ${this.config.agentId}] Failed to write prompt`);
         });
 
-        // ファイル監視を開始（500ms間隔）
+        // （500ms）
         this.fileWatchInterval = setInterval(() => {
           this.readNewOutputFromFile();
         }, 500);
 
-        // 最大実行時間ベースのタイムアウトチェック
-        const maxExecutionTime = this.config.timeout * 6; // デフォルト5分 → 30分
+        const maxExecutionTime = this.config.timeout * 6; // Default 5 min timeout * 6 = 30 min
         timeoutCheckInterval = setInterval(() => {
           const now = Date.now();
           const elapsedTime = now - startTime;
 
-          // 30秒ごとにステータスログを出力
+          // 30Output
           const idleTime = now - this.state.lastActivityAt.getTime();
           logger.info(
             `[SubAgent ${this.config.agentId}] Status: elapsed=${Math.floor(elapsedTime / 1000)}s, idle=${Math.floor(idleTime / 1000)}s, output=${this.outputBuffer.length} chars`,
@@ -315,7 +304,7 @@ class SubAgent extends EventEmitter {
           }
         }, 30000);
 
-        // 標準出力の処理
+        // Output
         this.process.stdout?.on('data', (data: Buffer | string) => {
           const chunk = data.toString();
           this.lineBuffer += chunk;
@@ -329,10 +318,8 @@ class SubAgent extends EventEmitter {
             );
           }
 
-          // ファイルに追記
           this.appendToLogFile(chunk);
 
-          // 改行で分割して処理
           const lines = this.lineBuffer.split('\n');
           this.lineBuffer = lines.pop() || '';
 
@@ -342,36 +329,30 @@ class SubAgent extends EventEmitter {
           }
         });
 
-        // 標準エラー出力の処理
+        // Output
         this.process.stderr?.on('data', (data: Buffer | string) => {
           const chunk = data.toString();
           this.outputBuffer += chunk;
           this.state.output += chunk;
           this.state.lastActivityAt = new Date();
 
-          // ファイルに追記
           this.appendToLogFile(`[STDERR] ${chunk}`);
 
-          // イベント発火
           this.emit('output', chunk, true);
         });
 
-        // プロセス終了時の処理
         this.process.on('close', (code) => {
           cleanup();
           this.state.executionTimeMs = Date.now() - startTime;
 
-          // 最後にファイルから読み取り
           this.readNewOutputFromFile();
 
-          // 終了ログを追記
           this.appendToLogFile(
             `\n[${new Date().toISOString()}] Process exited with code ${code}\n`,
           );
 
           if (isTimedOut) return;
 
-          // 質問が検出された場合は入力待ち状態（終了コードに関係なく）
           if (this.waitingForInput) {
             logger.info(
               `[SubAgent ${this.config.agentId}] Setting status to waiting_for_input (question detected)`,
@@ -386,7 +367,7 @@ class SubAgent extends EventEmitter {
             this.state.watingForInput = true;
             this.appendToLogFile(`\n[WAITING] 回答を待っています...\n`);
             resolve({
-              success: true, // 技術的には成功だが、完了ではない
+              success: true, // Technically successful but not complete — waiting for user input
               output: this.state.output,
               tokensUsed: this.state.tokensUsed,
               executionTimeMs: this.state.executionTimeMs,
@@ -419,7 +400,6 @@ class SubAgent extends EventEmitter {
           }
         });
 
-        // エラーハンドリング
         this.process.on('error', (error) => {
           cleanup();
           this.state.status = 'failed';
@@ -436,7 +416,6 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * ログファイルに追記
    */
   private appendToLogFile(content: string): void {
     try {
@@ -447,7 +426,7 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * ログファイルから新しい出力を読み取る
+   * Output
    */
   private readNewOutputFromFile(): void {
     try {
@@ -463,32 +442,31 @@ class SubAgent extends EventEmitter {
         const newContent = buffer.toString('utf8');
         if (newContent) {
           this.state.lastActivityAt = new Date();
-          // 出力イベントを発火（DBに保存用）
+          // Output（DB）
           this.emit('output', newContent, false);
         }
 
         this.lastFileSize = stat.size;
       }
     } catch (error) {
-      // ファイル読み取りエラーは無視
     }
   }
 
   /**
-   * 出力行を処理
+   * Output
    */
   private processOutputLine(line: string): void {
     try {
       if (line.startsWith('{')) {
         const json = JSON.parse(line);
 
-        // セッションIDを抽出
+        // ID
         if (json.session_id) {
           this.claudeSessionId = json.session_id;
           logger.info(`[SubAgent ${this.config.agentId}] Session ID: ${this.claudeSessionId}`);
         }
 
-        // イベントタイプに応じて出力を生成
+        // Output
         let displayOutput = '';
         switch (json.type) {
           case 'system':
@@ -506,7 +484,7 @@ class SubAgent extends EventEmitter {
                 if (block.type === 'text' && block.text) {
                   displayOutput += block.text;
                 } else if (block.type === 'tool_use') {
-                  // AskUserQuestionツールの検出（親タスクと同様の処理）
+                  // AskUserQuestion（）
                   if (block.name === 'AskUserQuestion') {
                     logger.info(`[SubAgent ${this.config.agentId}] AskUserQuestion tool detected!`);
                     logger.info(
@@ -514,7 +492,6 @@ class SubAgent extends EventEmitter {
                       `[SubAgent ${this.config.agentId}] Tool input`,
                     );
 
-                    // 質問情報を抽出
                     const questionInfo = this.extractQuestionInfo(block.input);
                     this.waitingForInput = true;
                     this.detectedQuestion = questionInfo.questionText;
@@ -523,13 +500,11 @@ class SubAgent extends EventEmitter {
 
                     displayOutput += `\n[質問] ${questionInfo.questionText}\n`;
 
-                    // 質問検出イベントを発火
                     this.emit('question_detected', {
                       question: questionInfo.questionText,
                       questionDetails: questionInfo.questionDetails,
                     });
 
-                    // プロセスを停止して入力待ち状態にする
                     logger.info(
                       `[SubAgent ${this.config.agentId}] Stopping process to wait for user response`,
                     );
@@ -537,10 +512,9 @@ class SubAgent extends EventEmitter {
                       this.process.kill('SIGTERM');
                     }
                   } else {
-                    // ツール呼び出しの詳細情報を表示
                     const toolInfo = this.formatToolInfo(block.name, block.input);
                     displayOutput += `[Tool: ${block.name}] ${toolInfo}\n`;
-                    // アクティブツールとして追跡
+                    // Tracking
                     if (block.id) {
                       this.activeTools.set(block.id, {
                         name: block.name,
@@ -554,7 +528,6 @@ class SubAgent extends EventEmitter {
             }
             break;
           case 'user':
-            // ユーザーメッセージ（ツール結果など）
             if (json.message?.content) {
               for (const block of json.message.content) {
                 if (block.type === 'tool_result') {
@@ -599,11 +572,11 @@ class SubAgent extends EventEmitter {
         if (displayOutput) {
           this.outputBuffer += displayOutput;
           this.state.output += displayOutput;
-          // 整形された出力をイベントで通知
+          // Output
           this.emit('output', displayOutput, false);
         }
       } else {
-        // JSONではない行: chcpコマンドの出力など不要な行をフィルタリング
+        // JSON: chcpOutput
         const trimmedLine = line.trim();
         if (
           !trimmedLine ||
@@ -618,7 +591,7 @@ class SubAgent extends EventEmitter {
         this.emit('output', line + '\n', false);
       }
     } catch {
-      // JSONパースエラー: chcpコマンドの出力など不要な行をフィルタリング
+      // JSON: chcpOutput
       const trimmedLine = line.trim();
       if (
         !trimmedLine ||
@@ -635,7 +608,7 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * AskUserQuestionツールの入力から質問情報を抽出
+   * AskUserQuestion
    */
   private extractQuestionInfo(input: Record<string, unknown> | undefined): {
     questionText: string;
@@ -648,7 +621,7 @@ class SubAgent extends EventEmitter {
     let questionText = '';
     const questionDetails: QuestionDetails = {};
 
-    // questionsフィールドがある場合（配列形式）
+    // questions（）
     if (input.questions && Array.isArray(input.questions)) {
       const questions = input.questions as Array<{
         question?: string;
@@ -695,7 +668,6 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * ツール情報を人間が読みやすい形式にフォーマット
    */
   private formatToolInfo(toolName: string, input: Record<string, unknown> | undefined): string {
     if (!input) return '';
@@ -737,10 +709,9 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * プロンプトを構築（親タスクのbuildStructuredPromptと同様のロジック）
+   * （buildStructuredPrompt）
    */
   private buildPrompt(task: AgentTask): string {
-    // 最適化されたプロンプトが存在する場合はそれを優先使用
     if (task.optimizedPrompt) {
       logger.info(
         `[SubAgent ${this.config.agentId}] Using optimized prompt (${task.optimizedPrompt.length} chars)`,
@@ -750,24 +721,21 @@ class SubAgent extends EventEmitter {
 
     const sections: string[] = [];
 
-    // ヘッダー
     sections.push('# タスク実行指示');
     sections.push('');
 
-    // タスク情報
     if (task.title) {
       sections.push(`## タスク: ${task.title}`);
       sections.push('');
     }
 
-    // タスク詳細説明
     if (task.description) {
       sections.push('## 詳細');
       sections.push(task.description);
       sections.push('');
     }
 
-    // AIタスク分析結果がある場合は追加
+    // AIAnalysis results
     if (task.analysisInfo) {
       const analysis = task.analysisInfo;
 
@@ -790,7 +758,6 @@ class SubAgent extends EventEmitter {
       }
       sections.push('');
 
-      // 実装のヒント
       if (analysis.tips && analysis.tips.length > 0) {
         sections.push('## 実装のヒント');
         for (const tip of analysis.tips) {
@@ -799,7 +766,6 @@ class SubAgent extends EventEmitter {
         sections.push('');
       }
 
-      // 分析理由
       if (analysis.reasoning) {
         sections.push('## 実装方針');
         sections.push(analysis.reasoning);
@@ -807,24 +773,21 @@ class SubAgent extends EventEmitter {
       }
     }
 
-    // 実行指示
     sections.push('## 実行指示');
     sections.push('上記のタスクを実装してください。');
     sections.push('不明点がある場合は、質問してください。');
     sections.push('');
 
-    // 並列実行時の注意事項
     sections.push('## 注意事項');
     sections.push('このタスクは他のタスクと並列で実行されている可能性があります。');
     sections.push('- ファイルの編集が他のタスクと競合しないよう注意');
     sections.push('- 共有リソースへのアクセスは最小限に');
-    sections.push('- 進捗状況を明確に出力すること');
+    sections.push('- 進捗状況を明確にOutputすること');
 
     return sections.join('\n');
   }
 
   /**
-   * 実行を停止
    */
   stop(): void {
     if (this.fileWatchInterval) {
@@ -838,14 +801,12 @@ class SubAgent extends EventEmitter {
   }
 
   /**
-   * 状態を取得
    */
   getState(): SubAgentState {
     return { ...this.state };
   }
 
   /**
-   * ステータスを取得
    */
   getStatus(): ParallelExecutionStatus {
     return this.state.status;
@@ -853,7 +814,6 @@ class SubAgent extends EventEmitter {
 }
 
 /**
- * サブエージェントコントローラー
  */
 export class SubAgentController extends EventEmitter {
   private agents: Map<string, SubAgent> = new Map();
@@ -867,7 +827,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * 新しいサブエージェントを作成
    */
   createAgent(taskId: number, executionId: number, workingDirectory: string): string {
     const agentId = `agent-${taskId}-${Date.now()}`;
@@ -894,7 +853,7 @@ export class SubAgentController extends EventEmitter {
       },
     });
 
-    // 出力イベントをフォワード
+    // Output
     agent.on('output', (chunk: string, isError: boolean) => {
       this.emit('agent_output', {
         agentId,
@@ -905,7 +864,6 @@ export class SubAgentController extends EventEmitter {
         timestamp: new Date(),
       });
 
-      // ログ共有が有効な場合、他のエージェントに通知
       if (this.config.logSharing) {
         this.broadcastMessage({
           id: `msg-${Date.now()}`,
@@ -931,7 +889,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * エージェントのログファイルパスを取得
    */
   getAgentLogFilePath(agentId: string): string | null {
     const agent = this.agents.get(agentId);
@@ -939,7 +896,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * エージェントでタスクを実行
    */
   async executeTask(agentId: string, task: AgentTask): Promise<AgentExecutionResult> {
     const agent = this.agents.get(agentId);
@@ -947,7 +903,6 @@ export class SubAgentController extends EventEmitter {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    // タスク開始を通知
     this.emit('task_started', {
       agentId,
       taskId: task.id,
@@ -966,7 +921,6 @@ export class SubAgentController extends EventEmitter {
     try {
       const result = await agent.execute(task);
 
-      // タスク完了を通知
       this.emit(result.success ? 'task_completed' : 'task_failed', {
         agentId,
         taskId: task.id,
@@ -1016,7 +970,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * エージェントを停止
    */
   stopAgent(agentId: string): void {
     const agent = this.agents.get(agentId);
@@ -1027,7 +980,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * すべてのエージェントを停止
    */
   stopAllAgents(): void {
     for (const [agentId, agent] of this.agents) {
@@ -1038,7 +990,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * エージェントの状態を取得
    */
   getAgentState(agentId: string): SubAgentState | null {
     const agent = this.agents.get(agentId);
@@ -1046,7 +997,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * すべてのエージェントの状態を取得
    */
   getAllAgentStates(): Map<string, SubAgentState> {
     const states = new Map<string, SubAgentState>();
@@ -1057,7 +1007,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * アクティブなエージェント数を取得
    */
   getActiveAgentCount(): number {
     let count = 0;
@@ -1070,7 +1019,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * メッセージをブロードキャスト
    */
   broadcastMessage(message: AgentMessage): void {
     if (!this.config.coordinationEnabled) return;
@@ -1082,7 +1030,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * 特定のエージェントにメッセージを送信
    */
   sendMessage(
     toAgentId: string,
@@ -1108,7 +1055,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * メッセージキューを処理
    */
   private async processMessageQueue(): Promise<void> {
     if (this.isProcessingMessages || this.messageQueue.length === 0) return;
@@ -1124,7 +1070,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * メッセージをログに記録
    */
   private logMessage(message: AgentMessage): void {
     const entry: ExecutionLogEntry = {
@@ -1144,7 +1089,6 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * エージェントを削除
    */
   removeAgent(agentId: string): void {
     const agent = this.agents.get(agentId);
@@ -1156,7 +1100,7 @@ export class SubAgentController extends EventEmitter {
   }
 
   /**
-   * 実行中のタスクIDを取得
+   * ID
    */
   getRunningTaskIds(): number[] {
     const taskIds: number[] = [];
@@ -1170,7 +1114,6 @@ export class SubAgentController extends EventEmitter {
 }
 
 /**
- * サブエージェントコントローラーのファクトリー関数
  */
 export function createSubAgentController(config: ParallelExecutionConfig): SubAgentController {
   return new SubAgentController(config);

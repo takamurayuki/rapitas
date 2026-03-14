@@ -9,13 +9,13 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useExecutingTasksPolling');
 
 /**
- * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
- * HomeClientやkanbanページなどの親コンポーネントで使用する
+ * Hook for detecting executing tasks via polling and reflecting to global store
+ * Used in parent components like HomeClient and kanban pages
  */
 export function useExecutingTasksPolling(options?: {
-  /** ポーリング間隔(ms) デフォルト5000ms */
+  /** Polling interval (ms) Default: 5000ms */
   interval?: number;
-  /** 実行中タスクが新たに見つかった時のコールバック */
+  /** Callback when new executing task is found */
   onExecutingTaskFound?: (taskId: number) => void;
 }) {
   const { interval = 5000, onExecutingTaskFound } = options || {};
@@ -24,10 +24,10 @@ export function useExecutingTasksPolling(options?: {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onExecutingTaskFoundRef = useRef(onExecutingTaskFound);
 
-  // 前回検出済みのタスクIDセット（新規検出判定用）
+  // Set of previously detected task IDs (for new detection)
   const knownTaskIdsRef = useRef<Set<number>>(new Set());
 
-  // 動的ポーリング間隔管理
+  // Dynamic polling interval management
   const currentIntervalRef = useRef(interval);
   const errorCountRef = useRef(0);
   const lastSuccessTimeRef = useRef<number>(Date.now());
@@ -36,17 +36,17 @@ export function useExecutingTasksPolling(options?: {
     onExecutingTaskFoundRef.current = onExecutingTaskFound;
   }, [onExecutingTaskFound]);
 
-  // ポーリング間隔を動的に調整する関数
+  // Dynamically adjust polling interval
   const adjustPollingInterval = useCallback(
     (hasExecutingTasks: boolean, hadError: boolean) => {
       let newInterval = interval;
 
       if (hadError) {
-        // エラー発生時は間隔を倍に（最大30秒）
+        // Double interval on error (max 30s)
         newInterval = Math.min(currentIntervalRef.current * 2, 30000);
         logger.debug(`Error occurred, increasing interval to ${newInterval}ms`);
       } else if (hasExecutingTasks) {
-        // 実行中タスクがある場合は短い間隔（デフォルトのまま）
+        // Short interval when tasks are running (keep default)
         newInterval = interval;
         if (currentIntervalRef.current !== interval) {
           logger.debug(
@@ -54,7 +54,7 @@ export function useExecutingTasksPolling(options?: {
           );
         }
       } else {
-        // 実行中タスクがない場合は長い間隔（最大15秒）
+        // Longer interval when no tasks running (max 15s)
         newInterval = Math.min(interval * 2, 15000);
         if (currentIntervalRef.current !== newInterval) {
           logger.debug(
@@ -63,7 +63,7 @@ export function useExecutingTasksPolling(options?: {
         }
       }
 
-      // 間隔が変わった場合はタイマーを再設定
+      // Reset timer when interval changes
       if (currentIntervalRef.current !== newInterval) {
         currentIntervalRef.current = newInterval;
 
@@ -79,7 +79,7 @@ export function useExecutingTasksPolling(options?: {
   const checkExecutingTasks = useCallback(async () => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒タイムアウト
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
 
       const res = await fetch(`${API_BASE_URL}/tasks/executing`, {
         signal: controller.signal,
@@ -111,7 +111,7 @@ export function useExecutingTasksPolling(options?: {
             status: item.executionStatus as 'running' | 'waiting_for_input',
           });
 
-          // 新しく検出されたタスクの場合のみコールバック
+          // Only callback for newly detected tasks
           if (
             !knownTaskIdsRef.current.has(item.taskId) &&
             onExecutingTaskFoundRef.current
@@ -121,7 +121,7 @@ export function useExecutingTasksPolling(options?: {
         }
       }
 
-      // 前回は実行中だったが、今回は含まれていないタスクを除去
+      // Remove tasks that were running but are no longer present
       let hasRemovedTasks = false;
       for (const prevId of knownTaskIdsRef.current) {
         if (!currentExecutingIds.has(prevId)) {
@@ -132,12 +132,11 @@ export function useExecutingTasksPolling(options?: {
 
       knownTaskIdsRef.current = currentExecutingIds;
 
-      // 実行中タスクがある場合、またはタスクが完了した場合は、サイレントモードでタスク更新
+      // Silently update tasks when running or completed
       if (currentExecutingIds.size > 0 || hasRemovedTasks) {
         fetchTaskUpdates(true); // silent mode
       }
 
-      // 成功時の処理
       errorCountRef.current = 0;
       lastSuccessTimeRef.current = Date.now();
       adjustPollingInterval(currentExecutingIds.size > 0, false);
@@ -152,9 +151,9 @@ export function useExecutingTasksPolling(options?: {
 
       adjustPollingInterval(knownTaskIdsRef.current.size > 0, true);
 
-      // 長期間エラーが続く場合は既知のタスク状態をリセット
+      // Reset known task state on prolonged errors
       if (timeSinceLastSuccess > 60000) {
-        // 1分
+        // 1 minute
         logger.warn('Long-term connectivity issues, clearing known tasks');
         knownTaskIdsRef.current.clear();
       }
@@ -167,15 +166,14 @@ export function useExecutingTasksPolling(options?: {
   ]);
 
   useEffect(() => {
-    // 初期化
     currentIntervalRef.current = interval;
     errorCountRef.current = 0;
     lastSuccessTimeRef.current = Date.now();
 
-    // 初回即チェック
+    // Immediate initial check
     checkExecutingTasks();
 
-    // 初期間隔でタイマー設定
+    // Set timer with initial interval
     intervalRef.current = setInterval(checkExecutingTasks, interval);
 
     return () => {

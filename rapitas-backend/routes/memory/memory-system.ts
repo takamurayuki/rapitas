@@ -1,6 +1,6 @@
 /**
  * Memory System API Routes
- * タイムライン、固定化、矛盾管理、キュー状態、忘却スイープ、RAGテスト
+ * Timeline, consolidation, contradiction management, queue status, forgetting sweep, and RAG testing.
  */
 import { Elysia, t } from 'elysia';
 import { queryEvents } from '../../services/memory/timeline';
@@ -25,7 +25,7 @@ interface ResolveContradictionBody {
 }
 
 export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
-  // GET /memory/timeline - イベント一覧
+  // GET /memory/timeline - List events
   .get(
     '/timeline',
     async ({ query }) => {
@@ -52,7 +52,7 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     },
   )
 
-  // GET /memory/consolidation/runs - 固定化実行履歴
+  // GET /memory/consolidation/runs - Consolidation run history
   .get(
     '/consolidation/runs',
     async ({ query }) => {
@@ -66,13 +66,13 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     },
   )
 
-  // POST /memory/consolidation/trigger - 手動トリガー
+  // POST /memory/consolidation/trigger - Manual trigger
   .post('/consolidation/trigger', async () => {
     const result = await runConsolidation();
     return result;
   })
 
-  // GET /memory/contradictions - 未解決矛盾一覧
+  // GET /memory/contradictions - Unresolved contradictions
   .get(
     '/contradictions',
     async ({ query }) => {
@@ -86,7 +86,7 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     },
   )
 
-  // POST /memory/contradictions/:id/resolve - 矛盾解決
+  // POST /memory/contradictions/:id/resolve - Resolve contradiction
   .post(
     '/contradictions/:id/resolve',
     async ({ params, body }) => {
@@ -103,20 +103,20 @@ export const memorySystemRoutes = new Elysia({ prefix: '/memory' })
     },
   )
 
-  // GET /memory/queue/status - キュー状態
+  // GET /memory/queue/status - Queue status
   .get('/queue/status', async () => {
     const status = await memoryTaskQueue.getStatus();
     const embeddingCount = getEmbeddingCount();
     return { ...status, embeddingCount };
   })
 
-  // POST /memory/forgetting/sweep - 忘却スイープ手動実行
+  // POST /memory/forgetting/sweep - Manual forgetting sweep
   .post('/forgetting/sweep', async () => {
     const result = await runForgettingSweep();
     return result;
   })
 
-  // GET /memory/rag/test - RAGテスト
+  // GET /memory/rag/test - RAG test
   .get(
     '/rag/test',
     async ({ query }) => {

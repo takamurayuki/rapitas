@@ -10,6 +10,6 @@ export default function AuthLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 認証ページ専用のレイアウト（ヘッダーなし、シンプルなレイアウト）
+  // Auth pages use a minimal layout without the global header
   return <>{children}</>;
 }

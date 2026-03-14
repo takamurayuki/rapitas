@@ -1,5 +1,7 @@
 /**
- * エージェントタイプ別の設定スキーマとバリデーション
+ * Agent Config Schema
+ *
+ * Defines per-agent-type configuration schemas and validation logic.
  */
 
 export interface ConfigFieldSchema {
@@ -44,9 +46,7 @@ export interface AgentConfigSchema {
   };
 }
 
-/**
- * エージェントタイプ別の設定スキーマ定義
- */
+/** Per-agent-type configuration schema definitions. */
 const agentConfigSchemas: Record<string, AgentConfigSchema> = {
   'claude-code': {
     agentType: 'claude-code',
@@ -292,21 +292,25 @@ const agentConfigSchemas: Record<string, AgentConfigSchema> = {
 };
 
 /**
- * エージェントタイプの設定スキーマを取得
+ * Returns the configuration schema for a given agent type, or null if unknown.
  */
 export function getAgentConfigSchema(agentType: string): AgentConfigSchema | null {
   return agentConfigSchemas[agentType] || null;
 }
 
 /**
- * 全エージェントタイプの設定スキーマを取得
+ * Returns configuration schemas for all known agent types.
  */
 export function getAllAgentConfigSchemas(): AgentConfigSchema[] {
   return Object.values(agentConfigSchemas);
 }
 
 /**
- * APIキーの形式をバリデーション
+ * Validates API key format against the agent type's expected prefix and length.
+ *
+ * @param agentType - The agent type identifier
+ * @param apiKey - The API key to validate
+ * @returns Validation result with optional error message
  */
 export function validateApiKeyFormat(
   agentType: string,
@@ -315,7 +319,7 @@ export function validateApiKeyFormat(
   const schema = agentConfigSchemas[agentType];
 
   if (!schema) {
-    return { valid: true }; // 未知のエージェントタイプは許可
+    return { valid: true }; // Allow unknown agent types
   }
 
   if (!schema.apiKeyRequired && !apiKey) {
@@ -326,7 +330,6 @@ export function validateApiKeyFormat(
     return { valid: false, message: 'APIキーは必須です' };
   }
 
-  // プレフィックスチェック
   if (schema.apiKeyPrefix && !apiKey.startsWith(schema.apiKeyPrefix)) {
     return {
       valid: false,
@@ -334,7 +337,6 @@ export function validateApiKeyFormat(
     };
   }
 
-  // 最小長チェック
   if (apiKey.length < 10) {
     return { valid: false, message: 'APIキーが短すぎます' };
   }
@@ -343,7 +345,11 @@ export function validateApiKeyFormat(
 }
 
 /**
- * エージェント設定をバリデーション
+ * Validates a full agent configuration (endpoint, model, additional fields).
+ *
+ * @param agentType - The agent type identifier
+ * @param config - The configuration to validate
+ * @returns Validation result with an array of error messages
  */
 export function validateAgentConfig(
   agentType: string,
@@ -360,7 +366,6 @@ export function validateAgentConfig(
     return { valid: true, errors: [] };
   }
 
-  // エンドポイントバリデーション
   if (schema.endpointRequired && !config.endpoint) {
     errors.push('エンドポイントURLは必須です');
   }
@@ -373,7 +378,6 @@ export function validateAgentConfig(
     }
   }
 
-  // モデルバリデーション
   if (schema.modelRequired && !config.modelId) {
     errors.push('モデルの選択は必須です');
   }
@@ -385,7 +389,6 @@ export function validateAgentConfig(
     }
   }
 
-  // 追加フィールドのバリデーション
   if (schema.additionalFields && config.additionalConfig) {
     for (const field of schema.additionalFields) {
       const value = config.additionalConfig[field.name];

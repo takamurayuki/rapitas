@@ -73,7 +73,7 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
         )}
       </AnimatePresence>
 
-      {/* ホバー時のリップル効果 */}
+      {/* Hover ripple effect */}
       <span
         className={`
           absolute inset-0 rounded-lg

@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
-// Types
 interface QueueItemTask {
   id: number;
   title: string;
@@ -90,7 +89,6 @@ interface AvailableTask {
   theme: { name: string } | null;
 }
 
-// Status badge component
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { bg: string; text: string; label: string }> = {
     queued: {
@@ -134,7 +132,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// Phase badge component
 function PhaseBadge({ phase }: { phase: string }) {
   const labels: Record<string, string> = {
     draft: '下書き',
@@ -172,7 +169,6 @@ export default function OrchestraPage() {
   });
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Fetch orchestra state
   const fetchState = useCallback(async () => {
     try {
       const [stateRes, queueRes] = await Promise.all([
@@ -188,7 +184,6 @@ export default function OrchestraPage() {
     }
   }, []);
 
-  // SSE connection with reconnection logic
   useEffect(() => {
     fetchState();
 
@@ -214,7 +209,6 @@ export default function OrchestraPage() {
           if (data.state) {
             setState(data.state);
           }
-          // Refresh queue on item updates
           if (
             data.type === 'item_update' ||
             data.type?.startsWith('orchestra_')
@@ -241,7 +235,6 @@ export default function OrchestraPage() {
       };
     };
 
-    // Initial connection
     connectSSE();
 
     return () => {
@@ -256,7 +249,6 @@ export default function OrchestraPage() {
     };
   }, [fetchState]);
 
-  // Actions
   const startOrchestra = async () => {
     if (selectedTaskIds.length === 0) {
       setShowAddDialog(true);
@@ -345,7 +337,6 @@ export default function OrchestraPage() {
     setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Stats summary
   const isRunning = state?.runner?.isRunning || false;
   const sessionStatus = state?.session?.status || 'idle';
 
@@ -664,7 +655,6 @@ export default function OrchestraPage() {
   );
 }
 
-// Stat Card Component
 function StatCard({
   icon,
   label,
@@ -704,7 +694,6 @@ function StatCard({
   );
 }
 
-// Queue Section Component
 function QueueSection({
   title,
   items,

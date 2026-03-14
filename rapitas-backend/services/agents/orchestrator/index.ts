@@ -1,9 +1,10 @@
 /**
- * オーケストレーターモジュール - エントリーポイント
- * 各サブモジュールの再エクスポート
+ * Orchestrator Module - Entry Point
+ *
+ * Re-exports from all sub-modules.
  */
 
-// 型定義
+// Type definitions
 export type {
   ExecutionOptions,
   ExecutionState,
@@ -14,7 +15,7 @@ export type {
   PrismaClientInstance,
 } from './types';
 
-// 実行ヘルパー
+// Execution helpers
 export {
   toJsonString,
   createLogChunkManager,
@@ -32,17 +33,17 @@ export type {
   LogManagerContext,
 } from './execution-helpers';
 
-// イベント管理
+// Event management
 export { EventManager } from './event-manager';
 
-// Git操作
+// Git operations
 export { GitOperations } from './git-operations';
 
-// 質問タイムアウト管理
+// Question timeout management
 export { QuestionTimeoutManager } from './question-timeout-manager';
 export type { TimeoutHandler, EventEmitter } from './question-timeout-manager';
 
-// ライフサイクル管理
+// Lifecycle management
 export {
   saveAgentState,
   saveAllAgentStates,
@@ -50,10 +51,10 @@ export {
   setupSignalHandlers,
 } from './lifecycle-manager';
 
-// タスク実行
+// Task execution
 export { executeTask } from './task-executor';
 
-// 継続実行
+// Continuation execution
 export {
   executeContinuation,
   executeContinuationWithLock,
@@ -61,7 +62,7 @@ export {
   handleQuestionTimeout,
 } from './continuation-executor';
 
-// リカバリ管理
+// Recovery management
 export {
   getInterruptedExecutions,
   recoverStaleExecutions,

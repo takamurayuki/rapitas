@@ -36,7 +36,6 @@ import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('AgentMetricsPage');
 
-// 型定義
 interface AgentMetrics {
   agentId: number;
   agentName: string;
@@ -81,7 +80,6 @@ interface AgentPerformanceComparison {
   totalTokens: number;
 }
 
-// カスタムカラーパレット
 const COLORS = [
   '#3b82f6',
   '#10b981',
@@ -99,7 +97,6 @@ function AgentMetricsPage() {
   const t = useTranslations('agents');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
-  // State
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [agentMetrics, setAgentMetrics] = useState<AgentMetrics[]>([]);
   const [executionTrends, setExecutionTrends] = useState<ExecutionTrendData[]>(
@@ -111,7 +108,6 @@ function AgentMetricsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // フィルター設定
   const [dateRange, setDateRange] = useState<{
     startDate: string;
     endDate: string;
@@ -125,7 +121,6 @@ function AgentMetricsPage() {
   });
   const [trendDays, setTrendDays] = useState(30);
 
-  // データ取得関数
   const fetchMetricsData = async () => {
     try {
       setLoading(true);
@@ -178,7 +173,6 @@ function AgentMetricsPage() {
     fetchMetricsData();
   }, [dateRange, trendDays]);
 
-  // データのエクスポート
   const exportData = () => {
     const data = {
       overview,
@@ -207,7 +201,6 @@ function AgentMetricsPage() {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
@@ -228,7 +221,6 @@ function AgentMetricsPage() {
           </div>
         </div>
 
-        {/* エラー表示 */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
@@ -242,7 +234,6 @@ function AgentMetricsPage() {
           </div>
         )}
 
-        {/* フィルターセクション */}
         <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-3 mb-4">
             <Filter className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -319,7 +310,6 @@ function AgentMetricsPage() {
           </div>
         </div>
 
-        {/* 概要カード */}
         {overview && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6">
@@ -376,7 +366,6 @@ function AgentMetricsPage() {
           </div>
         )}
 
-        {/* {t('executionTrend')}チャート */}
         <div className="mb-8">
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
@@ -425,9 +414,7 @@ function AgentMetricsPage() {
           </div>
         </div>
 
-        {/* {t('performanceComparison')}とトークン使用量 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* 性能比較 */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
               {t('performanceComparison')}
@@ -473,7 +460,6 @@ function AgentMetricsPage() {
             </div>
           </div>
 
-          {/* {t('tokenDistribution')} */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
               {t('tokenDistribution')}
@@ -518,7 +504,6 @@ function AgentMetricsPage() {
           </div>
         </div>
 
-        {/* エージェント詳細テーブル */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -619,5 +604,4 @@ function AgentMetricsPage() {
   );
 }
 
-// 認証が必要なページとしてエクスポート
 export default requireAuth(AgentMetricsPage);

@@ -169,7 +169,7 @@ function handleBackspace(
     }
   }
 
-  // activeColorSpanがある場合の処理
+  // Handle active color span cleanup after delete
   handleColorSpanAfterDelete(refs);
 }
 

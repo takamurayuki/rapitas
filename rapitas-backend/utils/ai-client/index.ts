@@ -1,14 +1,15 @@
 /**
- * マルチプロバイダーAIクライアントユーティリティ
- * Claude / ChatGPT / Gemini を統一的に扱う
+ * Multi-provider AI Client Utility
  *
- * 各サブモジュール:
- * - types.ts: 型定義・定数
- * - credentials.ts: APIキー管理・認証情報
- * - error-handler.ts: エラーハンドリング
- * - claude-provider.ts: Claude API呼び出し
- * - chatgpt-provider.ts: OpenAI API呼び出し
- * - gemini-provider.ts: Gemini API呼び出し
+ * Provides a unified interface for Claude / ChatGPT / Gemini.
+ *
+ * Submodules:
+ * - types.ts: Type definitions and constants
+ * - credentials.ts: API key management and authentication
+ * - error-handler.ts: Error handling
+ * - claude-provider.ts: Claude API calls
+ * - chatgpt-provider.ts: OpenAI API calls
+ * - gemini-provider.ts: Gemini API calls
  */
 
 // --- Re-exports ---
@@ -51,7 +52,7 @@ import { createLogger } from '../../config';
 const log = createLogger('ai-client');
 
 /**
- * 有料APIで実行する（ollama フォールバック先）
+ * Execute with a paid API provider (fallback target when Ollama fails).
  */
 async function sendWithPaidProvider(options: AIRequestOptions): Promise<AIResponse> {
   const provider = await getDefaultProvider();
@@ -79,7 +80,7 @@ async function sendWithPaidProvider(options: AIRequestOptions): Promise<AIRespon
 }
 
 /**
- * 有料APIでストリーミング実行する（ollama フォールバック先）
+ * Execute streaming with a paid API provider (fallback target when Ollama fails).
  */
 async function sendStreamWithPaidProvider(options: AIRequestOptions): Promise<ReadableStream> {
   const provider = await getDefaultProvider();
@@ -107,12 +108,12 @@ async function sendStreamWithPaidProvider(options: AIRequestOptions): Promise<Re
 }
 
 /**
- * 統一AIチャットAPI（非ストリーミング）
+ * Unified AI chat API (non-streaming).
  */
 export async function sendAIMessage(options: AIRequestOptions): Promise<AIResponse> {
   const provider = options.provider || 'claude';
 
-  // ローカルLLM（Ollama優先 → llama-server → 有料APIフォールバック）
+  // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
     try {
       const ollamaUrl = await getOllamaUrl();
@@ -126,7 +127,7 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
         maxTokens,
       );
     } catch (error) {
-      log.warn({ err: error }, 'ローカルLLM失敗、有料APIにフォールバック');
+      log.warn({ err: error }, 'Local LLM failed, falling back to paid API');
       return await sendWithPaidProvider(options);
     }
   }
@@ -159,12 +160,12 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
 }
 
 /**
- * 統一AIチャットAPI（ストリーミング）
+ * Unified AI chat API (streaming).
  */
 export async function sendAIMessageStream(options: AIRequestOptions): Promise<ReadableStream> {
   const provider = options.provider || 'claude';
 
-  // ローカルLLM（Ollama優先 → llama-server → 有料APIフォールバック）
+  // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
     try {
       const ollamaUrl = await getOllamaUrl();
@@ -178,7 +179,7 @@ export async function sendAIMessageStream(options: AIRequestOptions): Promise<Re
         maxTokens,
       );
     } catch (error) {
-      log.warn({ err: error }, 'ローカルLLM(stream)失敗、有料APIにフォールバック');
+      log.warn({ err: error }, 'Local LLM stream failed, falling back to paid API');
       return await sendStreamWithPaidProvider(options);
     }
   }

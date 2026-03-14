@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useNoteStore } from '@/stores/noteStore';
 
-// 動的インポートでノートモーダルを読み込み（初期レンダリングのパフォーマンス改善）
+// NOTE: Dynamic import to improve initial render performance
 const NoteModal = dynamic(() => import('./NoteModal'), {
   ssr: false,
 });
@@ -11,7 +11,7 @@ const NoteModal = dynamic(() => import('./NoteModal'), {
 export default function NoteProvider() {
   const { toggleModal } = useNoteStore();
 
-  // グローバルイベントリスナー（他のコンポーネントからノートモーダルを開けるように）
+  // Global event listener so other components can open the note modal
   useEffect(() => {
     const handleOpenNote = () => toggleModal();
     window.addEventListener('openNoteModal', handleOpenNote);

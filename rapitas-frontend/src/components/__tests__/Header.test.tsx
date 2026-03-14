@@ -175,36 +175,36 @@ describe('Header', () => {
     document.body.innerHTML = '';
   });
 
-  describe('基本レンダリング', () => {
-    it('ヘッダーが表示される', () => {
+  describe('Basic rendering', () => {
+    it('renders the header', () => {
       render(<Header />);
       const header = screen.getByRole('banner');
       expect(header).toBeInTheDocument();
     });
 
-    it('アプリアイコンが表示される', () => {
+    it('renders the app icon', () => {
       render(<Header />);
       // AppIcon appears in both header and sidebar nav
       const icons = screen.getAllByTestId('app-icon');
       expect(icons.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('メニューボタンが表示される', () => {
+    it('renders the menu button', () => {
       render(<Header />);
       // aria-label is t('openMenu') which returns 'openMenu'
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
       expect(menuButton).toBeInTheDocument();
     });
 
-    it('検索バーが常に表示される', () => {
+    it('always renders the search bar', () => {
       render(<Header />);
       const searchInput = screen.getByPlaceholderText('searchPlaceholder');
       expect(searchInput).toBeInTheDocument();
     });
   });
 
-  describe('ナビゲーションメニュー', () => {
-    it('メニューボタンクリックでナビゲーションが開く', async () => {
+  describe('Navigation menu', () => {
+    it('opens navigation on menu button click', async () => {
       render(<Header />);
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
       fireEvent.click(menuButton);
@@ -214,7 +214,7 @@ describe('Header', () => {
       });
     });
 
-    it('ナビゲーションメニューに主要なリンクが含まれる', async () => {
+    it('contains primary navigation links', async () => {
       render(<Header />);
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
       fireEvent.click(menuButton);
@@ -225,11 +225,10 @@ describe('Header', () => {
       });
     });
 
-    it('メニューを再度クリックで閉じる', async () => {
+    it('closes menu on second click', async () => {
       render(<Header />);
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
 
-      // メニューを開く
       fireEvent.click(menuButton);
       await waitFor(() => {
         // The sidebar nav should have translate-x-0 class when open
@@ -238,7 +237,6 @@ describe('Header', () => {
         expect(nav.className).toContain('translate-x-0');
       });
 
-      // メニューを閉じる
       fireEvent.click(menuButton);
       await waitFor(() => {
         const nav = screen.getByRole('navigation');
@@ -247,14 +245,14 @@ describe('Header', () => {
     });
   });
 
-  describe('検索機能', () => {
-    it('検索入力フィールドが表示される', () => {
+  describe('Search functionality', () => {
+    it('renders the search input field', () => {
       render(<Header />);
       const searchInput = screen.getByPlaceholderText('searchPlaceholder');
       expect(searchInput).toBeInTheDocument();
     });
 
-    it('検索クエリの入力ができる', () => {
+    it('accepts search query input', () => {
       render(<Header />);
       const searchInput = screen.getByPlaceholderText(
         'searchPlaceholder',
@@ -264,8 +262,8 @@ describe('Header', () => {
     });
   });
 
-  describe('ダークモードトグル', () => {
-    it('三点メニュー内のダークモードボタンがクリック可能', async () => {
+  describe('Dark mode toggle', () => {
+    it('dark mode button in more menu is clickable', async () => {
       render(<Header />);
       // Dark mode toggle is inside the more menu (EllipsisVertical button)
       const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
@@ -279,7 +277,7 @@ describe('Header', () => {
       });
     });
 
-    it('ダークモード状態に応じて適切なアイコンが表示される', async () => {
+    it('displays appropriate icon based on dark mode state', async () => {
       render(<Header />);
       // Open more menu
       const moreMenuButton = screen.getByRole('button', { name: /moreMenu/i });
@@ -293,25 +291,25 @@ describe('Header', () => {
     });
   });
 
-  describe('統合コンポーネント', () => {
-    it('ポモドーロウィジェットが表示される', () => {
+  describe('Integrated components', () => {
+    it('renders the pomodoro widget', () => {
       render(<Header />);
       expect(screen.getByTestId('pomodoro-widget')).toBeInTheDocument();
     });
 
-    it('通知ベルが表示される', () => {
+    it('renders the notification bell', () => {
       render(<Header />);
       expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
     });
 
-    it('言語切り替えが表示される', () => {
+    it('renders the language switcher', () => {
       render(<Header />);
       expect(screen.getByTestId('language-switcher')).toBeInTheDocument();
     });
   });
 
-  describe('レスポンシブ動作', () => {
-    it('メニューボタンが表示される', () => {
+  describe('Responsive behavior', () => {
+    it('renders the menu button', () => {
       Object.defineProperty(window, 'innerWidth', {
         writable: true,
         configurable: true,
@@ -324,31 +322,30 @@ describe('Header', () => {
     });
   });
 
-  describe('アクセシビリティ', () => {
-    it('適切なヘッダー役割が設定されている', () => {
+  describe('Accessibility', () => {
+    it('has correct header role', () => {
       render(<Header />);
       const header = screen.getByRole('banner');
       expect(header).toBeInTheDocument();
     });
 
-    it('メニューボタンに適切なaria-labelが設定されている', () => {
+    it('menu button has correct aria-label', () => {
       render(<Header />);
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
       expect(menuButton).toHaveAttribute('aria-label', 'openMenu');
     });
 
-    it('キーボードナビゲーションが機能する', () => {
+    it('supports keyboard navigation', () => {
       render(<Header />);
       const menuButton = screen.getByRole('button', { name: /openMenu/i });
 
-      // フォーカス可能であることを確認
       menuButton.focus();
       expect(document.activeElement).toBe(menuButton);
     });
   });
 
-  describe('エラーハンドリング', () => {
-    it('ヘッダーが正常にレンダリングされる', () => {
+  describe('Error handling', () => {
+    it('renders the header without errors', () => {
       render(<Header />);
       expect(screen.getByRole('banner')).toBeInTheDocument();
     });

@@ -1,6 +1,7 @@
 /**
  * Agent Configuration Service
- * エージェント設定のCRUD操作、バリデーション、暗号化処理を管理
+ *
+ * Manages CRUD operations, validation, and encryption for agent configurations.
  */
 
 import { prisma } from '../config/database';
@@ -47,9 +48,7 @@ export interface ValidationResult {
 }
 
 export class AgentConfigService {
-  /**
-   * アクティブなエージェント一覧を取得
-   */
+  /** Retrieves all active agent configurations. */
   async getActiveAgents() {
     return await prisma.aIAgentConfig.findMany({
       where: { isActive: true },
@@ -60,9 +59,7 @@ export class AgentConfigService {
     });
   }
 
-  /**
-   * 全エージェント一覧を取得
-   */
+  /** Retrieves all agent configurations including inactive ones. */
   async getAllAgents() {
     return await prisma.aIAgentConfig.findMany({
       include: {
@@ -72,25 +69,21 @@ export class AgentConfigService {
     });
   }
 
-  /**
-   * エージェントをIDで取得
-   */
+  /** Finds an agent configuration by its ID. */
   async getAgentById(id: number) {
     return await prisma.aIAgentConfig.findUnique({
       where: { id },
     });
   }
 
-  /**
-   * デフォルトエージェントを取得
-   */
+  /** Returns the default active agent, falling back to a built-in Claude Code config. */
   async getDefaultAgent() {
     const defaultAgent = await prisma.aIAgentConfig.findFirst({
       where: { isDefault: true, isActive: true },
     });
 
     if (!defaultAgent) {
-      // DBにデフォルトエージェントが設定されていない場合、組み込みのClaude Codeをフォールバックとして返す
+      // NOTE: Falls back to built-in Claude Code when no default agent is configured in DB.
       return {
         id: -1,
         agentType: 'claude-code',
@@ -109,13 +102,11 @@ export class AgentConfigService {
     return defaultAgent;
   }
 
-  /**
-   * エージェント設定を作成
-   */
+  /** Creates a new agent configuration with validation and encryption. */
   async createAgentConfig(config: CreateAgentConfigRequest): Promise<AIAgentConfig> {
     const { agentType, name, apiKey, endpoint, modelId, capabilities, isDefault } = config;
 
-    // バリデーション実行
+    // Validate configuration
     const validation = await this.validateAgentConfig({
       agentType,
       apiKey,
@@ -130,12 +121,12 @@ export class AgentConfigService {
       );
     }
 
-    // デフォルトエージェントの場合、既存のデフォルトを解除
+    // Clear existing default before setting a new one
     if (isDefault) {
       await this.clearDefaultAgent();
     }
 
-    // APIキーの暗号化
+    // Encrypt API key if provided
     let apiKeyEncrypted: string | null = null;
     if (apiKey) {
       if (!isEncryptionKeyConfigured()) {
@@ -157,7 +148,6 @@ export class AgentConfigService {
       },
     });
 
-    // 監査ログを記録
     await logAgentConfigChange({
       agentConfigId: created.id,
       action: 'create',
@@ -176,24 +166,22 @@ export class AgentConfigService {
     return created;
   }
 
-  /**
-   * エージェント設定を更新
-   */
+  /** Updates an existing agent configuration. */
   async updateAgentConfig(id: number, updates: UpdateAgentConfigRequest): Promise<AIAgentConfig> {
     const { name, apiKey, endpoint, modelId, capabilities, isDefault } = updates;
 
-    // 更新前の値を取得
+    // Fetch previous values for audit log diff
     const previous = await this.getAgentById(id);
     if (!previous) {
       throw new Error(`Agent config not found: ${id}`);
     }
 
-    // デフォルトエージェントの場合、既存のデフォルトを解除
+    // Clear existing default before setting a new one
     if (isDefault) {
       await this.clearDefaultAgent();
     }
 
-    // APIキーの処理
+    // Handle API key encryption
     let apiKeyEncrypted: string | undefined = undefined;
     if (apiKey !== undefined) {
       if (apiKey === null || apiKey === '') {
@@ -207,7 +195,7 @@ export class AgentConfigService {
       }
     }
 
-    // 更新データの構築
+    // Build update payload
     const updateData: Record<string, string | boolean | null | undefined> = {};
     if (name !== undefined) updateData.name = name;
     if (apiKeyEncrypted !== undefined) updateData.apiKeyEncrypted = apiKeyEncrypted;
@@ -223,7 +211,7 @@ export class AgentConfigService {
       data: updateData,
     });
 
-    // 監査ログを記録
+    // Record audit log
     const changes = calculateChanges(previous, updated);
     if (Object.keys(changes).length > 0) {
       await logAgentConfigChange({
@@ -239,9 +227,7 @@ export class AgentConfigService {
     return updated;
   }
 
-  /**
-   * エージェントのアクティブ状態を切り替え
-   */
+  /** Toggles the active state of an agent configuration. */
   async toggleAgentActive(id: number): Promise<AIAgentConfig> {
     const agent = await this.getAgentById(id);
     if (!agent) {
@@ -253,7 +239,7 @@ export class AgentConfigService {
       data: { isActive: !agent.isActive },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'update',
@@ -268,9 +254,7 @@ export class AgentConfigService {
     return updated;
   }
 
-  /**
-   * エージェント設定を削除（論理削除）
-   */
+  /** Soft-deletes an agent configuration by deactivating it. */
   async deleteAgentConfig(id: number): Promise<AIAgentConfig> {
     const previous = await this.getAgentById(id);
     if (!previous) {
@@ -282,7 +266,7 @@ export class AgentConfigService {
       data: { isActive: false },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'delete',
@@ -297,25 +281,23 @@ export class AgentConfigService {
     return result;
   }
 
-  /**
-   * デフォルトエージェントを設定
-   */
+  /** Sets a specific agent as the default. */
   async setDefaultAgent(id: number): Promise<AIAgentConfig> {
     const agent = await this.getAgentById(id);
     if (!agent) {
       throw new Error(`Agent config not found: ${id}`);
     }
 
-    // 既存のデフォルトを解除
+    // Clear existing default first
     await this.clearDefaultAgent();
 
-    // 新しいデフォルトを設定
+    // Set new default
     const updated = await prisma.aIAgentConfig.update({
       where: { id },
       data: { isDefault: true },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'update',
@@ -328,9 +310,7 @@ export class AgentConfigService {
     return updated;
   }
 
-  /**
-   * デフォルトエージェントをクリア
-   */
+  /** Clears the default flag on all agents. */
   async clearDefaultAgent(): Promise<void> {
     await prisma.aIAgentConfig.updateMany({
       where: { isDefault: true },
@@ -338,9 +318,7 @@ export class AgentConfigService {
     });
   }
 
-  /**
-   * APIキーを設定
-   */
+  /** Sets and encrypts an API key for a specific agent. */
   async setApiKey(id: number, apiKey: string): Promise<void> {
     const agent = await this.getAgentById(id);
     if (!agent) {
@@ -351,7 +329,7 @@ export class AgentConfigService {
       throw new Error('Encryption key is not configured');
     }
 
-    // APIキーフォーマットの検証
+    // Validate API key format
     const validationResult = validateApiKeyFormat(agent.agentType, apiKey);
     if (!validationResult.valid) {
       throw new Error(`Invalid API key format: ${validationResult.message}`);
@@ -364,7 +342,7 @@ export class AgentConfigService {
       data: { apiKeyEncrypted },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'api_key_set',
@@ -376,9 +354,7 @@ export class AgentConfigService {
     log.info(`[AgentConfigService] API key set for agent: ${agent.name} (${agent.agentType})`);
   }
 
-  /**
-   * APIキーを削除
-   */
+  /** Removes the API key from an agent configuration. */
   async deleteApiKey(id: number): Promise<void> {
     const agent = await this.getAgentById(id);
     if (!agent) {
@@ -390,7 +366,7 @@ export class AgentConfigService {
       data: { apiKeyEncrypted: null },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'api_key_delete',
@@ -399,9 +375,7 @@ export class AgentConfigService {
     log.info(`[AgentConfigService] API key deleted for agent: ${agent.name} (${agent.agentType})`);
   }
 
-  /**
-   * APIキーを取得（復号化済み）
-   */
+  /** Retrieves and decrypts the API key for a given agent. */
   async getApiKey(id: number): Promise<string | null> {
     const agent = await this.getAgentById(id);
     if (!agent || !agent.apiKeyEncrypted) {
@@ -423,9 +397,7 @@ export class AgentConfigService {
     }
   }
 
-  /**
-   * エージェント設定の検証
-   */
+  /** Validates an agent configuration including API key format. */
   async validateAgentConfig(config: {
     agentType: string;
     apiKey?: string;
@@ -437,7 +409,7 @@ export class AgentConfigService {
     const errors: ValidationError[] = [];
 
     try {
-      // 基本的な検証
+      // Basic config validation
       const basicValidation = validateAgentConfig(agentType, {
         endpoint,
         modelId,
@@ -451,7 +423,7 @@ export class AgentConfigService {
         });
       }
 
-      // APIキーフォーマットの検証
+      // Validate API key format
       if (apiKey) {
         const apiKeyValidation = validateApiKeyFormat(agentType, apiKey);
         if (!apiKeyValidation.valid) {
@@ -479,16 +451,12 @@ export class AgentConfigService {
     }
   }
 
-  /**
-   * エージェント設定のスキーマ情報を取得
-   */
+  /** Returns the configuration schema for a given agent type. */
   getConfigSchema(agentType: string) {
     return getAgentConfigSchema(agentType);
   }
 
-  /**
-   * エージェントのAPIキーをマスク表示
-   */
+  /** Returns a masked version of the agent's API key for display. */
   async getMaskedApiKey(id: number): Promise<string | null> {
     const agent = await this.getAgentById(id);
     if (!agent || !agent.apiKeyEncrypted) {
@@ -503,9 +471,7 @@ export class AgentConfigService {
     return maskApiKey(apiKey);
   }
 
-  /**
-   * エージェントの機能設定を取得
-   */
+  /** Retrieves the capabilities configuration for an agent. */
   async getCapabilities(id: number): Promise<Record<string, boolean>> {
     const agent = await this.getAgentById(id);
     if (!agent) {
@@ -520,9 +486,7 @@ export class AgentConfigService {
     }
   }
 
-  /**
-   * エージェントの機能設定を更新
-   */
+  /** Updates the capabilities configuration for an agent. */
   async updateCapabilities(
     id: number,
     capabilities: Record<string, boolean>,
@@ -539,7 +503,7 @@ export class AgentConfigService {
       },
     });
 
-    // 監査ログを記録
+    // Record audit log
     await logAgentConfigChange({
       agentConfigId: id,
       action: 'update',
@@ -556,5 +520,5 @@ export class AgentConfigService {
   }
 }
 
-// シングルトンインスタンスをエクスポート
+// Singleton instance
 export const agentConfigService = new AgentConfigService();

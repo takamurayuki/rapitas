@@ -1,21 +1,21 @@
 /**
- * タスク分析・サブタスク・制約の型定義
+ * Task analysis, subtask, and constraint type definitions.
  */
 
 /**
- * タスク分析結果
+ * Task analysis result.
  */
 export interface TaskAnalysisResult {
   summary: string;
   complexity: 'simple' | 'medium' | 'complex';
-  estimatedDuration?: number; // 推定時間（分）
+  estimatedDuration?: number; 
   subtasks?: SubtaskDefinition[];
   tips?: string[];
   risks?: string[];
 }
 
 /**
- * サブタスク定義
+ * Subtask definition.
  */
 export interface SubtaskDefinition {
   order: number;
@@ -28,12 +28,12 @@ export interface SubtaskDefinition {
 }
 
 /**
- * タスク制約
+ * Task constraints.
  */
 export interface TaskConstraints {
-  maxFiles?: number; // 変更可能なファイル数上限
-  allowedPaths?: string[]; // 変更可能なパス（glob）
-  forbiddenPaths?: string[]; // 変更禁止パス（glob）
-  allowedCommands?: string[]; // 実行可能なコマンド
-  forbiddenCommands?: string[]; // 実行禁止コマンド
+  maxFiles?: number; 
+  allowedPaths?: string[]; 
+  forbiddenPaths?: string[]; 
+  allowedCommands?: string[]; 
+  forbiddenCommands?: string[]; 
 }

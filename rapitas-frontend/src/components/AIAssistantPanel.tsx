@@ -72,7 +72,7 @@ export default function AIAssistantPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // プロバイダー/モデル選択
+  // Provider/model selection
   const [selectedProvider, setSelectedProvider] =
     useState<ApiProvider>('claude');
   const [selectedModel, setSelectedModel] = useState<string>('');
@@ -89,7 +89,7 @@ export default function AIAssistantPanel() {
     model: selectedModel || undefined,
   });
 
-  // 設定済みプロバイダーとモデル一覧を取得
+  // Fetch configured providers and available models
   useEffect(() => {
     fetchConfiguredProviders().then((providers) => {
       setConfiguredProviders(providers);
@@ -100,14 +100,14 @@ export default function AIAssistantPanel() {
     fetchAvailableModels().then(setAvailableModels);
   }, []);
 
-  // メッセージリストを自動スクロール
+  // Auto-scroll message list
   useEffect(() => {
     if (messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // AIモードに切り替わった時にフォーカス
+  // Focus input when switching to AI mode
   useEffect(() => {
     if (currentMode === 'ai' && inputRef.current) {
       setTimeout(() => {
@@ -144,14 +144,14 @@ export default function AIAssistantPanel() {
 
   const currentModels = availableModels[selectedProvider] || [];
 
-  // AIモードでない場合は表示しない
+  // Only render when in AI mode
   if (currentMode !== 'ai') return null;
 
   return (
     <div className="fixed inset-0 top-16 z-30 bg-zinc-50 dark:bg-zinc-900 flex flex-col">
-      {/* メインコンテナ */}
+      {/* Main container */}
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col p-4">
-        {/* ヘッダー */}
+        {/* Header */}
         <div className="bg-white dark:bg-zinc-800 rounded-t-2xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -207,7 +207,7 @@ export default function AIAssistantPanel() {
             </div>
           </div>
 
-          {/* プロバイダー/モデル選択パネル */}
+          {/* Provider/model selection panel */}
           {showSettings && (
             <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
               <div className="space-y-4">
@@ -291,7 +291,7 @@ export default function AIAssistantPanel() {
           )}
         </div>
 
-        {/* メッセージエリア */}
+        {/* Message area */}
         <div
           className={`flex-1 bg-white dark:bg-zinc-800 border-x border-zinc-200 dark:border-zinc-700 overflow-hidden ${
             isMinimized ? 'h-0' : ''
@@ -335,7 +335,7 @@ export default function AIAssistantPanel() {
           </div>
         </div>
 
-        {/* エラー表示 */}
+        {/* Error display */}
         {error && !isMinimized && (
           <div className="bg-red-50 dark:bg-red-900/30 border-x border-zinc-200 dark:border-zinc-700 px-4 py-3">
             <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
@@ -357,7 +357,7 @@ export default function AIAssistantPanel() {
           </div>
         )}
 
-        {/* 入力エリア */}
+        {/* Input area */}
         <div
           className={`bg-white dark:bg-zinc-800 rounded-b-2xl border border-zinc-200 dark:border-zinc-700 p-4 ${
             isMinimized ? 'hidden' : ''

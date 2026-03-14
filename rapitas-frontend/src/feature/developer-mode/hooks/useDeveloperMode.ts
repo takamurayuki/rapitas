@@ -91,15 +91,15 @@ export function useDeveloperMode(taskId: number) {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
 
-  // Ref-based排他制御: React状態の非同期更新を回避して即座に二重実行を防止
+  // Ref-based mutex: prevents double execution immediately, bypassing async React state updates
   const isExecutingRef = useRef(false);
 
-  // taskIdが変わった時（別のタスク詳細に遷移した時）に状態をリセット
+  // Reset state when taskId changes (navigating to a different task detail)
   const prevTaskIdRef = useRef(taskId);
   useEffect(() => {
     if (prevTaskIdRef.current !== taskId) {
       prevTaskIdRef.current = taskId;
-      // 新しいtaskIdに切り替わった時、前のタスクの実行状態をリセット
+      // Reset previous task's execution state when switching to new taskId
       isExecutingRef.current = false;
       setIsExecuting(false);
       setExecutionStatus('idle');
@@ -110,7 +110,7 @@ export function useDeveloperMode(taskId: number) {
     }
   }, [taskId]);
 
-  // コンポーネントアンマウント時にrefをリセット
+  // Reset ref on component unmount
   useEffect(() => {
     return () => {
       isExecutingRef.current = false;
@@ -138,17 +138,17 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId]);
 
   /**
-   * 進行中の実行状態を復元する
-   * コンポーネントのマウント時に呼び出して、実行中のエージェントがあれば状態を復元する
-   * アプリ再起動後もログを復元できるようにDBからログ履歴を取得する
+   * Restore in-progress execution state.
+   * Called on component mount to recover running agent state and fetch log history from DB
+   * so logs can be restored even after app restart.
    */
   const restoreExecutionState = useCallback(async () => {
-    // 既に実行が開始されている場合はスキップ（autoExecuteとの競合防止）
+    // Skip if execution already started (prevent conflict with autoExecute)
     if (isExecutingRef.current) {
       return null;
     }
     try {
-      // まず実行ステータスを確認
+      // First check execution status
       const statusRes = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/execution-status`,
       );
@@ -156,12 +156,12 @@ export function useDeveloperMode(taskId: number) {
 
       const statusData = await statusRes.json();
 
-      // 実行データがない場合はスキップ
+      // Skip if no execution data
       if (!statusData.executionStatus || statusData.status === 'none') {
         return null;
       }
 
-      // 実行中、入力待ち、中断、または完了した実行がある場合はログ履歴を取得
+      // Fetch log history if there's running, input-waiting, interrupted, or completed execution
       if (
         statusData.executionStatus === 'running' ||
         statusData.executionStatus === 'waiting_for_input' ||
@@ -169,7 +169,7 @@ export function useDeveloperMode(taskId: number) {
         statusData.executionStatus === 'completed' ||
         statusData.executionStatus === 'failed'
       ) {
-        // ログ履歴を取得
+        // Fetch log history
         let fullOutput = statusData.output || '';
         try {
           const logsRes = await fetch(
@@ -178,7 +178,7 @@ export function useDeveloperMode(taskId: number) {
           if (logsRes.ok) {
             const logsData = await logsRes.json();
             if (logsData.logs && logsData.logs.length > 0) {
-              // ログチャンクを結合して完全な出力を復元
+              // Join log chunks to reconstruct full output
               fullOutput = logsData.logs
                 .map((log: { chunk: string }) => log.chunk)
                 .join('');
@@ -192,14 +192,14 @@ export function useDeveloperMode(taskId: number) {
           );
         }
 
-        // 実行中、入力待ちの場合はUI状態を「実行中」に更新
+        // Update UI state to "running" for running or input-waiting cases
         if (
           statusData.executionStatus === 'running' ||
           statusData.executionStatus === 'waiting_for_input'
         ) {
           setIsExecuting(true);
           setExecutionStatus('running');
-          // グローバルストアに実行中タスクを記録
+          // Record executing task in global store
           setExecutingTask({
             taskId,
             sessionId: statusData.sessionId,
@@ -209,8 +209,8 @@ export function useDeveloperMode(taskId: number) {
                 : 'running',
           });
         } else if (statusData.executionStatus === 'interrupted') {
-          // 中断された実行がある場合（サーバー再起動後など）
-          // 中断状態を適切に表示（failedではなくinterruptedとして扱う）
+          // Handle interrupted execution (e.g., after server restart)
+          // Display interrupted state properly (treat as interrupted, not failed)
           setIsExecuting(false);
           setExecutionStatus('idle');
         } else if (statusData.executionStatus === 'completed') {
@@ -355,7 +355,7 @@ export function useDeveloperMode(taskId: number) {
       const data = await res.json();
       if (res.ok) {
         setAnalysisResult(data.analysis);
-        // 承認リクエストIDを保存（自動承認でない場合）
+        // Save approval request ID (when not auto-approved)
         if (data.approvalRequestId && !data.autoApproved) {
           setAnalysisApprovalId(data.approvalRequestId);
         }
@@ -388,7 +388,7 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId]);
 
   /**
-   * 分析結果のサブタスク提案を承認してサブタスクを作成
+   * Approve subtask proposals from analysis results and create subtasks.
    */
   const approveSubtaskCreation = useCallback(
     async (selectedSubtaskIndices?: number[]) => {
@@ -412,7 +412,7 @@ export function useDeveloperMode(taskId: number) {
         );
         const data = await res.json();
         if (res.ok) {
-          // 承認成功後、状態をクリア
+          // Clear state after successful approval
           setAnalysisApprovalId(null);
           return data;
         } else {
@@ -429,17 +429,17 @@ export function useDeveloperMode(taskId: number) {
   );
 
   /**
-   * AIエージェントを実行してタスクを実装
+   * Execute an AI agent to implement the task.
    */
   const executeAgent = useCallback(
     async (options?: {
       instruction?: string;
       branchName?: string;
       workingDirectory?: string;
-      useTaskAnalysis?: boolean; // AIタスク分析を使用するか
-      optimizedPrompt?: string; // 最適化されたプロンプト
-      agentConfigId?: number; // 使用するエージェント設定ID
-      sessionId?: number; // 既存のセッションID（継続実行時）
+      useTaskAnalysis?: boolean; // Whether to use AI task analysis
+      optimizedPrompt?: string; // Optimized prompt
+      agentConfigId?: number; // Agent configuration ID to use
+      sessionId?: number; // Existing session ID (for continuation)
       attachments?: Array<{
         id: number;
         title: string;
@@ -450,7 +450,7 @@ export function useDeveloperMode(taskId: number) {
         description?: string;
       }>;
     }) => {
-      // Ref-based排他制御: 二重実行防止
+      // Ref-based mutex: prevent double execution
       if (isExecutingRef.current) {
         logger.warn('Duplicate execution blocked: already executing');
         return undefined;
@@ -462,9 +462,9 @@ export function useDeveloperMode(taskId: number) {
       setExecutionResult(null);
       setError(null);
       try {
-        // 既存のセッションIDがある場合は継続実行エンドポイントを使用
+        // Use continuation endpoint if existing session ID is provided
         if (options?.sessionId && options?.instruction) {
-          // 継続実行用のエンドポイント
+          // Endpoint for continuation execution
           const res = await fetch(
             `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
             {
@@ -479,7 +479,7 @@ export function useDeveloperMode(taskId: number) {
             },
           );
 
-          // レスポンスがJSONかどうかを確認
+          // Verify response is JSON
           // Check if endpoint exists (404 error)
           if (res.status === 404) {
             logger.error('Endpoint not found:', res.url);
@@ -541,7 +541,7 @@ export function useDeveloperMode(taskId: number) {
               message: (data.message as string) || '継続実行を開始しました',
             });
             setExecutionStatus('running');
-            // グローバルストアに実行中タスクを記録
+            // Record executing task in global store
             setExecutingTask({
               taskId,
               sessionId: data.sessionId as number,
@@ -552,8 +552,8 @@ export function useDeveloperMode(taskId: number) {
             throw new Error((data.error as string) || '継続実行に失敗しました');
           }
         } else {
-          // 新規実行の場合は通常のエンドポイントを使用
-          // agentConfigIdはoptions内の値を優先し、なければhookの状態値を使用
+          // Use normal endpoint for new execution
+          // Prefer agentConfigId from options, fall back to hook state value
           const requestBody = {
             ...options,
             agentConfigId: options?.agentConfigId ?? agentConfigId ?? undefined,
@@ -572,7 +572,7 @@ export function useDeveloperMode(taskId: number) {
             );
           }
 
-          // 二重実行防止 (409 Conflict)
+          // Prevent double execution (409 Conflict)
           if (res.status === 409) {
             const conflictData = (await res.json().catch(() => ({}))) as Record<
               string,
@@ -638,7 +638,7 @@ export function useDeveloperMode(taskId: number) {
                 (data.message as string) || 'エージェント実行を開始しました',
             });
             setExecutionStatus('running');
-            // グローバルストアに実行中タスクを記録
+            // Record executing task in global store
             setExecutingTask({
               taskId,
               sessionId: data.sessionId as number,
@@ -660,7 +660,7 @@ export function useDeveloperMode(taskId: number) {
           success: false,
           error: errorMessage,
         });
-        // 失敗時はストアから除去
+        // Remove from store on failure
         removeExecutingTask(taskId);
         return null;
       } finally {
@@ -672,17 +672,17 @@ export function useDeveloperMode(taskId: number) {
   );
 
   /**
-   * 実行状態をリセット（DBとローカル状態の両方をリセット）
+   * Reset execution state (both DB and local state).
    */
   const resetExecutionState = useCallback(async () => {
-    // ローカル状態をリセット
+    // Reset local state
     isExecutingRef.current = false;
     setIsExecuting(false);
     setExecutionStatus('idle');
     setExecutionResult(null);
     setError(null);
 
-    // DBの実行状態もリセット
+    // Reset execution state in DB as well
     try {
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/reset-execution-state`,
@@ -702,11 +702,11 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId]);
 
   /**
-   * 実行を停止してUIを復元
+   * Stop execution and restore UI state.
    */
   const stopExecution = useCallback(async () => {
     try {
-      // タスクレベルの停止エンドポイントを呼び出し
+      // Call task-level stop endpoint
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
         {
@@ -715,10 +715,10 @@ export function useDeveloperMode(taskId: number) {
       );
 
       if (res.ok) {
-        // UIを即座に停止状態に更新
+        // Immediately update UI to stopped state
         setIsExecuting(false);
         setExecutionStatus('idle');
-        // グローバルストアから除去
+        // Remove from global store
         removeExecutingTask(taskId);
         return true;
       }
@@ -730,12 +730,12 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId, removeExecutingTask]);
 
   /**
-   * 実行をキャンセル状態に設定（UIの即時更新用）
+   * Set execution to cancelled state (for immediate UI updates).
    */
   const setExecutionCancelled = useCallback(() => {
     setIsExecuting(false);
     setExecutionStatus('idle');
-    // グローバルストアから除去
+    // Remove from global store
     removeExecutingTask(taskId);
   }, [taskId, removeExecutingTask]);
 

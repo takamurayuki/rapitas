@@ -60,17 +60,17 @@ export default function NoteSidebar() {
     return d.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' });
   };
 
-  // ノートリストが空の場合、初回のみ新規ノートを作成
+  // Create a new note on first mount if the list is empty
   useEffect(() => {
     const notes = getFilteredNotes();
     if (notes.length === 0) {
       createNote();
     }
-  }, []); // 初回マウント時のみ実行
+  }, []); // Run only on initial mount
 
   return (
     <div className="flex flex-col h-full bg-zinc-50 dark:bg-zinc-800/50 custom-scrollbar">
-      {/* ノートリスト */}
+      {/* Note list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar pt-3">
         {filteredNotes.length === 0 ? (
           <div className="p-4 text-center">
@@ -125,7 +125,7 @@ export default function NoteSidebar() {
         )}
       </div>
 
-      {/* 削除確認モーダル */}
+      {/* Delete confirmation modal */}
       <DeleteNoteModal
         isOpen={deleteModalState.isOpen}
         noteTitle={deleteModalState.noteTitle}

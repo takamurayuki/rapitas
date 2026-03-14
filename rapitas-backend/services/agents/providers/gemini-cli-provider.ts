@@ -1,7 +1,7 @@
 /**
- * Gemini CLI プロバイダー
- * 新しい抽象化レイヤーに対応したGemini CLIエージェントプロバイダー
+ * Gemini CLI Provider
  *
+ * Gemini CLI agent provider compatible with the abstraction layer.
  * Gemini CLI: @google/gemini-cli (npm install -g @google/gemini-cli)
  * https://github.com/google-gemini/gemini-cli
  */
@@ -24,17 +24,17 @@ import { AbstractAgent } from '../abstraction/abstract-agent';
 import { generateAgentId } from '../abstraction';
 
 /**
- * Gemini CLI プロバイダー設定
+ * Gemini CLI provider configuration
  */
 export interface GeminiCliConfig extends GeminiCliProviderConfig {
   workingDirectory?: string;
-  model?: string; // gemini-2.0-flash, gemini-1.5-flash など
+  model?: string; // e.g. gemini-2.0-flash, gemini-1.5-flash
   timeout?: number;
   maxTokens?: number;
 }
 
 /**
- * Gemini CLI stream-json イベント型
+ * Gemini CLI stream-json event type
  */
 interface GeminiStreamEvent {
   type: 'assistant' | 'user' | 'result' | 'system' | 'tool_use' | 'tool_result';
@@ -59,7 +59,7 @@ interface GeminiStreamEvent {
 }
 
 /**
- * Gemini CLI エージェント（新抽象化レイヤー対応版）
+ * Gemini CLI Agent (v2 - abstraction layer compatible)
  */
 export class GeminiCliAgentV2 extends AbstractAgent {
   private config: GeminiCliConfig;
@@ -178,7 +178,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
     const prompt = continuation.userResponse || '';
     const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    // 継続実行のためにチェックポイントIDを設定
+    // Temporarily set checkpoint ID for continuation
     const originalCheckpoint = this.config.checkpointId;
     this.config.checkpointId = continuation.sessionId;
 
@@ -286,28 +286,23 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         this.config.cliPath || process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
       );
 
-      // コマンドライン引数を構築
       const args: string[] = [];
 
-      // 非インタラクティブモード: -p でプロンプトを渡す
+      // Non-interactive mode: pass prompt via -p flag
       args.push('-p', prompt);
 
-      // JSON形式で出力
       args.push('--output-format', 'stream-json');
 
-      // サンドボックスモード
       if (this.config.sandboxMode) {
         args.push('--sandbox');
       }
 
-      // 自動承認モード
       if (this.config.yolo || context.dangerouslySkipPermissions) {
         args.push('--yolo');
       }
 
-      // モデル指定
       if (this.config.model) {
-        // モデル名のマッピング（Gemini CLIが期待する形式に変換）
+        // Map model names to the format expected by Gemini CLI
         const modelMapping: Record<string, string> = {
           'gemini-2.0-flash': 'gemini-2.0-flash-exp-0111',
           'gemini-1.5-flash': 'gemini-1.5-flash',
@@ -317,12 +312,11 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
         let modelName = this.config.model;
 
-        // マッピングがあれば使用
         if (modelMapping[modelName]) {
           modelName = modelMapping[modelName];
         }
 
-        // models/プレフィックスがない場合は追加
+        // Gemini CLI requires models/ prefix
         if (!modelName.startsWith('models/')) {
           modelName = `models/${modelName}`;
         }
@@ -330,17 +324,15 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         args.push('-m', modelName);
       }
 
-      // チェックポイントIDで会話を再開
+      // Resume conversation from checkpoint
       if (this.config.checkpointId) {
         args.push('--checkpoint', this.config.checkpointId);
       }
 
-      // 許可するツール
       if (this.config.allowedTools && this.config.allowedTools.length > 0) {
         args.push('--allowlist', this.config.allowedTools.join(','));
       }
 
-      // 禁止するツール
       if (this.config.disallowedTools && this.config.disallowedTools.length > 0) {
         args.push('--denylist', this.config.disallowedTools.join(','));
       }
@@ -373,7 +365,6 @@ export class GeminiCliAgentV2 extends AbstractAgent {
       });
 
       try {
-        // 環境変数
         const env: NodeJS.ProcessEnv = {
           ...process.env,
           FORCE_COLOR: '0',
@@ -384,7 +375,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
         if (this.config.apiKey) {
           env.GEMINI_API_KEY = this.config.apiKey;
-          // Gemini CLIはGOOGLE_API_KEYも使用する可能性がある
+          // Gemini CLI may also use GOOGLE_API_KEY
           env.GOOGLE_API_KEY = this.config.apiKey;
         }
         if (this.config.projectId) {
@@ -394,7 +385,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
           env.GOOGLE_CLOUD_LOCATION = this.config.location;
         }
 
-        // API KEY設定の確認（セキュリティのため最初の数文字のみ表示）
+        // Log API key presence (only prefix for security)
         const hasApiKey =
           !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
         const apiKeyPrefix = (
@@ -424,7 +415,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
           this.process.stderr.setEncoding('utf8');
         }
 
-        // -p でプロンプトを渡しているのでstdinは閉じる
+        // stdin must be closed since prompt is passed via -p flag
         if (this.process.stdin) {
           this.process.stdin.end();
         }
@@ -433,7 +424,6 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         let hasDetectedQuestion = false;
         let detectedQuestionText = '';
 
-        // タイムアウト監視
         const timeoutCheck = setInterval(() => {
           if (Date.now() - lastOutputTime >= timeout) {
             clearInterval(timeoutCheck);
@@ -486,13 +476,13 @@ export class GeminiCliAgentV2 extends AbstractAgent {
                 hasDetectedQuestion = true;
                 detectedQuestionText = result.questionText || '';
 
-                // 質問検出時にプロセスを停止
+                // Stop process on question detection to hand control back to user
                 if (this.process && !this.process.killed) {
                   this.process.kill('SIGTERM');
                 }
               }
             } catch {
-              // chcpコマンドの出力など不要な行をフィルタリング
+              // Filter out non-JSON lines (e.g. Windows chcp output)
               const trimmedLine = line.trim();
               if (
                 !trimmedLine ||
@@ -513,7 +503,6 @@ export class GeminiCliAgentV2 extends AbstractAgent {
           this.errorBuffer += output;
           lastOutputTime = Date.now();
 
-          // エラー詳細をログ出力
           this.log('error', 'Gemini CLI stderr output', {
             error: output,
             model: this.config.model,
@@ -557,7 +546,6 @@ export class GeminiCliAgentV2 extends AbstractAgent {
             if (this.errorBuffer.trim()) {
               errorMessage += `\nError output: ${this.errorBuffer.trim()}`;
             }
-            // ModelNotFoundErrorをチェック
             if (
               this.errorBuffer.includes('ModelNotFoundError') ||
               this.errorBuffer.includes('Requested entity was not found')
@@ -631,7 +619,6 @@ export class GeminiCliAgentV2 extends AbstractAgent {
             if (block.type === 'text' && block.text) {
               output += block.text;
             } else if (block.type === 'tool_use') {
-              // 質問ツールの検出
               if (
                 block.name === 'AskUserQuestion' ||
                 block.name === 'ask_user' ||
@@ -693,14 +680,14 @@ export class GeminiCliAgentV2 extends AbstractAgent {
   }
 
   /**
-   * チェックポイントIDを取得
+   * Returns the checkpoint ID for session continuation.
    */
   getCheckpointId(): string | null {
     return this.checkpointId;
   }
 
   /**
-   * セッションIDを取得
+   * Returns the Gemini session ID.
    */
   getSessionId(): string | null {
     return this.geminiSessionId;
@@ -721,13 +708,13 @@ function resolveCliPath(cliName: string): string {
       return resolved;
     }
   } catch {
-    // フォールバック
+    // Fallback to original path
   }
   return cliName;
 }
 
 /**
- * Gemini CLI プロバイダー
+ * Gemini CLI Provider
  */
 export class GeminiCliProvider implements IAgentProvider {
   readonly providerId = 'google-gemini' as const;
@@ -845,6 +832,6 @@ export class GeminiCliProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトのGemini CLIプロバイダーインスタンス
+ * Default Gemini CLI provider instance
  */
 export const geminiCliProvider = new GeminiCliProvider();

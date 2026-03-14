@@ -30,7 +30,6 @@ export default function DeveloperModeSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  // エラーキャプチャの設定
   const { manualCaptureError } = useErrorCapture({
     captureConsoleErrors: true,
     captureUnhandledRejections: true,
@@ -40,11 +39,10 @@ export default function DeveloperModeSettingsPage() {
     },
   });
 
-  // 自動生成待機時間のローカル状態（即座に反映し、デバウンスで保存）
+  // NOTE: Local state for instant UI feedback; actual save is debounced.
   const [localDelay, setLocalDelay] = useState<number | ''>(3);
   const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 自動再開設定
   const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
   useEffect(() => {
     fetchSettings();
@@ -95,7 +93,6 @@ export default function DeveloperModeSettingsPage() {
     }
   };
 
-  // 待機時間のデバウンス保存
   const saveDelayDebounced = useCallback((val: number) => {
     if (delayTimerRef.current) {
       clearTimeout(delayTimerRef.current);
@@ -105,7 +102,6 @@ export default function DeveloperModeSettingsPage() {
     }, 500);
   }, []);
 
-  // クリーンアップ
   useEffect(() => {
     return () => {
       if (delayTimerRef.current) {
@@ -128,7 +124,7 @@ export default function DeveloperModeSettingsPage() {
   };
 
   const handleDelayBlur = () => {
-    // 空欄のままフォーカスを外したらデフォルト値に戻す
+    // Reset to default if left empty on blur
     if (localDelay === '' || localDelay < 1) {
       setLocalDelay(3);
       saveDelayDebounced(3);
@@ -169,7 +165,6 @@ export default function DeveloperModeSettingsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
           <Bot className="w-6 h-6 text-violet-600 dark:text-violet-400" />
@@ -200,7 +195,6 @@ export default function DeveloperModeSettingsPage() {
         </TabsList>
 
         <TabsContent value="ai-settings" className="mt-6">
-          {/* Messages */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
@@ -211,7 +205,6 @@ export default function DeveloperModeSettingsPage() {
           )}
 
           <div className="space-y-6">
-            {/* AIアシスタント設定 */}
             <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
               <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-3">
@@ -222,7 +215,6 @@ export default function DeveloperModeSettingsPage() {
                 </div>
               </div>
               <div className="p-6 space-y-6">
-                {/* AIアシスタント有効設定 */}
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
@@ -256,7 +248,6 @@ export default function DeveloperModeSettingsPage() {
             </div>
           </div>
 
-          {/* タスク作成時の設定 */}
           <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-3">
@@ -439,7 +430,6 @@ export default function DeveloperModeSettingsPage() {
             </div>
           </div>
 
-          {/* タスク自動再開設定 */}
           <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-3">
@@ -487,7 +477,6 @@ export default function DeveloperModeSettingsPage() {
             </div>
           </div>
 
-          {/* ワークフロー設定 */}
           <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-3">

@@ -1,6 +1,6 @@
 /**
  * Workflow Routes
- * AIエージェントのワークフローファイル（research.md, question.md, plan.md, verify.md）を管理するAPI
+ * Manages AI agent workflow files (research.md, question.md, plan.md, verify.md)
  */
 import { Elysia } from 'elysia';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
@@ -35,8 +35,8 @@ const VALID_WORKFLOW_STATUSES = [
 ] as const;
 
 /**
- * タスクIDからワークフローディレクトリのパスを解決する
- * Task → Theme → Category の関連をたどってID取得
+ * Resolve the workflow directory path from a task ID.
+ * Traverses Task -> Theme -> Category relations to get IDs.
  */
 async function resolveWorkflowDir(taskId: number) {
   const task = await prisma.task.findUnique({
@@ -61,7 +61,7 @@ async function resolveWorkflowDir(taskId: number) {
 }
 
 /**
- * ファイルの情報を取得する
+ * Get file info.
  */
 async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
   try {
@@ -83,7 +83,7 @@ async function getFileInfo(filePath: string, fileType: WorkflowFileType) {
 }
 
 /**
- * verify.md保存後の自動コミット・PR作成処理
+ * Auto-commit and PR creation after verify.md is saved.
  */
 async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
   const result: {
@@ -99,7 +99,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
   } = {};
 
   try {
-    // AgentExecutionConfigを取得してautoCommit/autoCreatePRの設定を確認
+    // Get AgentExecutionConfig and check autoCommit/autoCreatePR settings
     const execConfig = await prisma.agentExecutionConfig.findUnique({
       where: { taskId },
     });
@@ -111,7 +111,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       return result;
     }
 
-    // タスクとworkingDirectoryの情報を取得
+    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -129,15 +129,15 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     if (!task) return result;
 
-    // workingDirectoryを解決: AgentExecutionConfig → theme → cwd
+    // Resolve workingDirectory: AgentExecutionConfig → theme → cwd
     const workingDirectory =
       execConfig.workingDirectory || task.theme?.workingDirectory || getProjectRoot();
 
-    // ブランチ名をAgentSessionから取得
+    
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
 
-    // ターゲットブランチを解決: execConfig.targetBranch → theme.defaultBranch → 'master'
+    // Resolve target branch: execConfig -> theme -> 'master'
     const targetBranch =
       ((execConfig as Record<string, unknown>).targetBranch as string) ||
       task.theme?.defaultBranch ||
@@ -145,10 +145,10 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
-    // autoCommitの処理
+    // Process autoCommit
     if (execConfig.autoCommit) {
       try {
-        // ブランチが設定されている場合はチェックアウト
+        // Checkout branch if set
         if (branchName) {
           await orchestrator.createBranch(workingDirectory, branchName);
         }
@@ -164,7 +164,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
         log.info(`[Workflow] Auto-commit successful for task ${taskId}: ${commitResult.hash}`);
 
-        // ActivityLogに記録
+        // Record in ActivityLog
         await prisma.activityLog.create({
           data: {
             taskId,
@@ -188,7 +188,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       }
     }
 
-    // autoCreatePRの処理（autoCommitが成功した場合のみ）
+    // Process autoCreatePR (only if autoCommit succeeded)
     if (execConfig.autoCreatePR && result.autoCommitResult?.success) {
       try {
         const prTitle = `[Task-${taskId}] ${task.title}`;
@@ -206,7 +206,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
         if (prResult.success) {
           log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
 
-          // ActivityLogに記録
+          // Record in ActivityLog
           await prisma.activityLog.create({
             data: {
               taskId,
@@ -219,12 +219,12 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
 
-          // 通知を作成
+          
           await prisma.notification.create({
             data: {
               type: 'auto_pr_created',
-              title: '自動PR作成完了',
-              message: `タスク「${task.title}」のPRが自動作成されました: ${prResult.prUrl}`,
+              title: 'Auto PR Creation Complete',
+              message: `PR for task "${task.title}" was automatically created: ${prResult.prUrl}`,
               link: prResult.prUrl || `/tasks/${taskId}`,
               metadata: JSON.stringify({
                 taskId,
@@ -248,7 +248,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       }
     }
 
-    // autoMergePRの処理（autoCreatePRが成功した場合のみ）
+    // Process autoMergePR (only if autoCreatePR succeeded)
     if (execConfig.autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
       try {
         const mergeResult = await orchestrator.mergePullRequest(
@@ -265,7 +265,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             `[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`,
           );
 
-          // ActivityLogに記録
+          // Record in ActivityLog
           await prisma.activityLog.create({
             data: {
               taskId,
@@ -279,12 +279,12 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
 
-          // 通知を作成
+          
           await prisma.notification.create({
             data: {
               type: 'auto_pr_merged',
-              title: '自動マージ完了',
-              message: `タスク「${task.title}」のPRが自動マージされました (${mergeResult.mergeStrategy})`,
+              title: 'Auto Merge Complete',
+              message: `PR for task "${task.title}" was automatically merged (${mergeResult.mergeStrategy})`,
               link: result.autoPRResult.prUrl || `/tasks/${taskId}`,
               metadata: JSON.stringify({
                 taskId,
@@ -299,12 +299,12 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             `[Workflow] Auto-merge failed for task ${taskId}`,
           );
 
-          // 失敗通知（ワークフロー全体は失敗させない）
+          // Failure notification (does not fail the whole workflow)
           await prisma.notification.create({
             data: {
               type: 'auto_pr_merge_failed',
-              title: '自動マージ失敗',
-              message: `タスク「${task.title}」のPR自動マージに失敗しました: ${mergeResult.error}`,
+              title: 'Auto Merge Failed',
+              message: `Automatic merge of PR for task "${task.title}" failed: ${mergeResult.error}`,
               link: result.autoPRResult.prUrl || `/tasks/${taskId}`,
               metadata: JSON.stringify({
                 taskId,
@@ -331,7 +331,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
 export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
-  // ワークフローファイル一覧取得
+  // Get workflow files list
   .get('/tasks/:taskId/files', async ({ params, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -343,7 +343,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       const { task, dir, categoryId, themeId } = resolved;
 
-      // 4ファイルの情報を並列取得
+      // Parallel retrieval of 4 file information
       const [research, question, plan, verify] = await Promise.all(
         VALID_FILE_TYPES.map((type) => getFileInfo(join(dir, `${type}.md`), type)),
       );
@@ -368,7 +368,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // ワークフローファイル保存
+  // Save workflow file
   .put('/tasks/:taskId/files/:fileType', async ({ params, body, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -391,10 +391,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         throw new ValidationError('content is required');
       }
 
-      // ディレクトリ作成（再帰的）
+      
       await mkdir(dir, { recursive: true });
 
-      // 文字化け検出・修正処理
+      // Mojibake detection and sanitization
       const sanitizeResult = sanitizeMarkdownContent(parsedBody.content);
       const mojibakeFixed = sanitizeResult.wasFixed;
       if (sanitizeResult.wasFixed) {
@@ -404,11 +404,11 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         );
       }
 
-      // ファイル書き込み
+      
       const filePath = join(dir, `${fileType}.md`);
       await writeFile(filePath, sanitizeResult.content, 'utf-8');
 
-      // workflowStatus の自動更新
+      // Auto-update workflowStatus
       let newStatus: string | undefined;
       const currentStatus = resolved.task.workflowStatus;
 
@@ -440,7 +440,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         log.info(`[Workflow] newStatus is falsy, skipping workflowStatus update`);
       }
 
-      // plan.md保存時、autoApprovePlanが有効なら自動承認
+      // Auto-approve when saving plan.md if autoApprovePlan is enabled
       let autoApproved = false;
       if (fileType === 'plan' && newStatus === 'plan_created') {
         const userSettings = await prisma.userSettings.findFirst();
@@ -449,17 +449,17 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           select: { autoApprovePlan: true, parentId: true },
         });
 
-        // サブタスク判定
+        // Subtask check
         const isSubtask = task?.parentId !== null && task?.parentId !== undefined;
 
-        // タスクレベル / グローバル / サブタスク自動承認のいずれかがtrueなら自動承認
+        // Auto-approve if any of task-level / global / subtask auto-approve is enabled
         const shouldAutoApprove =
           task?.autoApprovePlan ||
           userSettings?.autoApprovePlan ||
           (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
 
         if (shouldAutoApprove) {
-          // 自動承認: plan_approved に遷移
+          // Auto-approve: transition to plan_approved
           await prisma.task.update({
             where: { id: taskId },
             data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
@@ -467,7 +467,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           newStatus = 'plan_approved';
           autoApproved = true;
 
-          // ActivityLog に自動承認を記録
+          // Record auto-approval in ActivityLog
           const approvalReason = task?.autoApprovePlan
             ? 'task-level autoApprovePlan setting enabled'
             : isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan
@@ -492,7 +492,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
             },
           });
 
-          // 自動的に実装フェーズを開始
+          // Automatically start the implementation phase
           try {
             const { WorkflowOrchestrator } =
               await import('../../services/workflow/workflow-orchestrator');
@@ -516,23 +516,23 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         }
       }
 
-      // verify.md保存時の自動コミット・PR作成
+      // Auto commit and PR creation when saving verify.md
       let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
       if (fileType === 'verify' && newStatus === 'completed') {
         autoCommitPRResult = await performAutoCommitAndPR(taskId, sanitizeResult.content);
 
-        // ワークフロー学習記録を非同期で収集（レスポンスを待たない）
+        // Collect workflow learning data asynchronously (fire-and-forget)
         recordWorkflowCompletion(taskId).catch((err) => {
           log.error({ err, taskId }, 'Failed to record workflow learning data');
         });
 
-        // タスク完了時のナレッジ自動抽出（非同期）
+        // Auto-extract knowledge on task completion (async)
         extractKnowledgeFromTask(taskId).catch((err) => {
           log.error({ err, taskId }, 'Failed to extract knowledge from task');
         });
       }
 
-      // レスポンス構築
+      // Build response
       const response: {
         success: boolean;
         fileType: string;
@@ -559,13 +559,13 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         autoApproved,
       };
 
-      // verify.mdファイル保存で完了した場合の追加情報
+      // Additional information when completed by saving verify.md file
       if (fileType === 'verify' && newStatus === 'completed') {
         response.taskCompleted = true;
         response.taskStatus = 'done';
         response.completedAt = new Date().toISOString();
 
-        // 自動コミット・PR結果を含める
+        // Include auto-commit/PR results
         if (autoCommitPRResult.autoCommitResult) {
           response.autoCommit = autoCommitPRResult.autoCommitResult;
         }
@@ -585,7 +585,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // プラン承認
+  // Plan approval
   .post('/tasks/:taskId/approve-plan', async ({ params, body, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -602,10 +602,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       let newStatus: string;
       if (parsedBody.approved) {
-        // 承認 → plan_approved に移行（次に実装者エージェントを実行可能）
+        // Approve: transition to plan_approved (implementer agent can now run)
         newStatus = 'plan_approved';
       } else {
-        // 却下 → plan_created に戻す
+        // Reject: revert to plan_created
         newStatus = 'plan_created';
       }
 
@@ -614,7 +614,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         data: { workflowStatus: newStatus, updatedAt: new Date() },
       });
 
-      // ActivityLog に記録
+      // Record in ActivityLog
       await prisma.activityLog.create({
         data: {
           taskId,
@@ -628,10 +628,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         },
       });
 
-      // 承認された場合、自動的に実装フェーズを開始する
+      // If approved, auto-start the implementation phase
       if (parsedBody.approved) {
         try {
-          // オーケストラキュー内のタスクであれば、キュー経由で再開
+          // Resume via orchestra queue if task is queued
           const { AIOrchestra } = await import('../../services/workflow/ai-orchestra');
           AIOrchestra.getInstance()
             .handlePlanApproved(taskId)
@@ -645,7 +645,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           const { WorkflowOrchestrator } =
             await import('../../services/workflow/workflow-orchestrator');
           const orchestrator = WorkflowOrchestrator.getInstance();
-          // 非同期で実装フェーズを開始（レスポンスを待たない）
+          // Start implementation phase asynchronously (fire-and-forget)
           orchestrator
             .advanceWorkflow(taskId)
             .then((result) => {
@@ -668,7 +668,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         success: true,
         task: updatedTask,
         workflowStatus: newStatus,
-        autoAdvance: parsedBody.approved, // フロントエンドにauto-advanceが開始されたことを通知
+        autoAdvance: parsedBody.approved,
       };
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
@@ -677,7 +677,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // ワークフローステータス更新
+  // Update workflow status
   .put('/tasks/:taskId/status', async ({ params, body, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -702,7 +702,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         data: { workflowStatus: parsedBody.status, updatedAt: new Date() },
       });
 
-      // ActivityLog に記録
+      // Record in ActivityLog
       await prisma.activityLog.create({
         data: {
           taskId,
@@ -727,7 +727,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // ワークフローの次のフェーズを実行
+  // Advance to the next workflow phase
   .post('/workflow/tasks/:taskId/advance', async ({ params, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -736,25 +736,25 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         await import('../../services/workflow/workflow-orchestrator');
       const orchestrator = WorkflowOrchestrator.getInstance();
 
-      // 非同期で実行開始（結果を待たずにレスポンスを返す）
+      // Start async execution (return response without waiting for result)
       const resultPromise = orchestrator.advanceWorkflow(taskId);
 
-      // ただし、即座に失敗する場合（バリデーションエラー等）は同期的にエラーを返す
-      // 100ms待ってエラーが出ていないか確認
+      // Return synchronous error for immediate failures (validation errors, etc.)
+      // Wait 100ms and check if any errors occurred
       const quickResult = await Promise.race([
         resultPromise,
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 100)),
       ]);
 
       if (quickResult !== null) {
-        // 即座に完了（APIエージェントの場合）またはバリデーションエラー
+        // Immediate completion (API agent) or validation error
         if (!quickResult.success) {
           set.status = 400;
         }
         return quickResult;
       }
 
-      // CLIエージェントなど時間のかかる実行はバックグラウンドで続行
+      // Continue long-running executions like CLI agents in the background
       resultPromise
         .then(async (result) => {
           log.info(
@@ -767,7 +767,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
       return {
         success: true,
-        message: 'ワークフローフェーズの実行を開始しました',
+        message: 'Workflow phase execution started',
         taskId,
         async: true,
       };
@@ -778,7 +778,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // ワークフローモード手動設定
+  // Manual workflow mode setting
   .post('/tasks/:taskId/set-mode', async ({ params, body, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -807,7 +807,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         },
       });
 
-      // ActivityLog に記録
+      // Record in ActivityLog
       await prisma.activityLog.create({
         data: {
           taskId,
@@ -835,7 +835,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // タスク複雑度自動分析
+  // Automatic task complexity analysis
   .get('/tasks/:taskId/analyze-complexity', async ({ params, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -854,7 +854,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         throw new NotFoundError('Task not found');
       }
 
-      // TaskComplexityInput を構築
+      // Build TaskComplexityInput
       const complexityInput: TaskComplexityInput = {
         title: task.title,
         description: task.description,
@@ -864,10 +864,10 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         themeId: task.themeId,
       };
 
-      // 学習データを考慮した複雑度分析を実行
+      // Run complexity analysis with learning data
       const analysisResult = await analyzeTaskComplexityWithLearning(complexityInput);
 
-      // 結果をデータベースに保存（複雑度スコアとワークフローモード）
+      // Save results to DB (complexity score and workflow mode)
       const updatedTask = await prisma.task.update({
         where: { id: taskId },
         data: {
@@ -894,7 +894,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     }
   })
 
-  // 利用可能なワークフローモード一覧取得
+  // Get available workflow modes
   .get('/modes', async ({ set }) => {
     try {
       const modeConfig = getWorkflowModeConfig();

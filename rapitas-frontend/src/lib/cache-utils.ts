@@ -1,5 +1,5 @@
 /**
- * HTTPキャッシュとETag管理のユーティリティ
+ * Utility for HTTP cache and ETag management
  */
 
 import { createLogger } from '@/lib/logger';
@@ -18,7 +18,7 @@ class CacheManager {
   private cacheVersion = '1.0';
 
   /**
-   * ETagを使用した条件付きリクエスト
+   * Conditional request using ETag
    */
   async fetchWithETag<T = unknown>(
     url: string,
@@ -31,7 +31,7 @@ class CacheManager {
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    // キャッシュがある場合、条件付きヘッダーを追加
+    // Add conditional headers if cache exists
     if (cached) {
       if (cached.etag) {
         headers['If-None-Match'] = cached.etag;
@@ -47,7 +47,7 @@ class CacheManager {
         headers,
       });
 
-      // 304 Not Modified - キャッシュを使用
+      // 304 Not Modified - use cache
       if (response.status === 304 && cached) {
         return { data: cached.data as T, fromCache: true };
       }
@@ -58,7 +58,7 @@ class CacheManager {
 
       const data = await response.json();
 
-      // 新しいETag情報を保存
+      // Save new ETag information
       const etag = response.headers.get('ETag');
       const lastModified = response.headers.get('Last-Modified');
 
@@ -73,7 +73,7 @@ class CacheManager {
 
       return { data, fromCache: false };
     } catch (error) {
-      // ネットワークエラー時は、キャッシュがあれば使用
+      // Use cache if available on network error
       if (cached && this.isCacheValid(cached)) {
         logger.warn('Network error, using cached data:', error);
         return { data: cached.data as T, fromCache: true };
@@ -83,7 +83,7 @@ class CacheManager {
   }
 
   /**
-   * Service Worker用のキャッシュ戦略
+   * Cache strategy for Service Worker
    */
   async applyCacheStrategy<T = unknown>(
     url: string,
@@ -98,14 +98,14 @@ class CacheManager {
 
     switch (strategy) {
       case 'cache-first':
-        // キャッシュがあればそれを使用、なければネットワーク
+        // Use cache if available, otherwise network
         if (cached && this.isCacheValid(cached)) {
           return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
 
       case 'network-first':
-        // ネットワークを優先、失敗したらキャッシュ
+        // Prioritize network, use cache if fails
         try {
           return await this.fetchAndCache(url, cacheKey, options);
         } catch (error) {
@@ -116,9 +116,9 @@ class CacheManager {
         }
 
       case 'stale-while-revalidate':
-        // 古いデータを即座に返し、バックグラウンドで更新
+        // Return stale data immediately, update in background
         if (cached) {
-          // バックグラウンドで更新
+          // Update in background
           this.fetchAndCache(url, cacheKey, options).catch((err) =>
             logger.error(err),
           );
@@ -129,7 +129,7 @@ class CacheManager {
   }
 
   /**
-   * プリロードとウォームアップ
+   * Preload and warmup
    */
   async warmupCache(urls: string[]): Promise<void> {
     await Promise.allSettled(
@@ -142,7 +142,7 @@ class CacheManager {
   }
 
   /**
-   * キャッシュの有効性チェック
+   * Cache validity check
    */
   private isCacheValid(
     entry: CacheEntry,
@@ -152,7 +152,7 @@ class CacheManager {
   }
 
   /**
-   * データの取得とキャッシュ
+   * Fetch data and cache
    */
   private async fetchAndCache<T = unknown>(
     url: string,
@@ -180,7 +180,7 @@ class CacheManager {
   }
 
   /**
-   * キャッシュのクリア
+   * Clear cache
    */
   clearCache(pattern?: RegExp): void {
     if (pattern) {
@@ -193,7 +193,7 @@ class CacheManager {
   }
 
   /**
-   * キャッシュ統計
+   * Cache statistics
    */
   getCacheStats(): {
     size: number;
@@ -217,7 +217,7 @@ class CacheManager {
 export const cacheManager = new CacheManager();
 
 /**
- * 圧縮とエンコーディングの最適化
+ * Optimize compression and encoding
  */
 export function enableCompressionHeaders(
   headers: HeadersInit = {},
@@ -229,7 +229,7 @@ export function enableCompressionHeaders(
 }
 
 /**
- * Keep-Aliveとコネクションプーリング
+ * Keep-Alive and connection pooling
  */
 export function enableConnectionPooling(
   headers: HeadersInit = {},
@@ -241,14 +241,14 @@ export function enableConnectionPooling(
 }
 
 /**
- * レスポンスサイズの最適化
+ * Optimize response size
  */
 export function requestPartialFields(fields: string[]): string {
   return `?fields=${fields.join(',')}`;
 }
 
 /**
- * バージョニングとキャッシュバスティング
+ * Versioning and cache busting
  */
 export function addCacheVersion(url: string, version: string = '1.0'): string {
   const separator = url.includes('?') ? '&' : '?';

@@ -1,32 +1,32 @@
 /**
- * プロバイダー設定の型定義
+ * Provider configuration type definitions.
  */
 
 import type { AgentProviderId, AgentCapabilities } from './agent-identification';
 
 /**
- * プロバイダー共通設定
+ * Common provider configuration.
  */
 export interface AgentProviderConfigBase {
   providerId: AgentProviderId;
   enabled: boolean;
 
-  // 認証
+  // Authentication
   apiKey?: string;
-  apiKeyEnvVar?: string; // 環境変数から取得する場合
+  apiKeyEnvVar?: string; 
 
-  // エンドポイント
+  // Endpoint
   endpoint?: string;
 
-  // デフォルト設定
+  // Defaults
   defaultModel?: string;
   defaultTimeout?: number;
   maxConcurrentExecutions?: number;
 
-  // 機能フラグ
+  // Feature flags
   features?: Partial<AgentCapabilities>;
 
-  // カスタム設定
+  // Custom settings
   customConfig?: Record<string, unknown>;
 }
 
@@ -65,7 +65,7 @@ export interface AnthropicAPIProviderConfig extends AgentProviderConfigBase {
 }
 
 /**
- * 全プロバイダー設定のユニオン
+ * Union of all provider configurations.
  */
 export type AgentProviderConfig =
   | ClaudeCodeProviderConfig

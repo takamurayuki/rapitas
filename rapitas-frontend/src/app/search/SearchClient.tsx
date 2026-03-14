@@ -29,7 +29,6 @@ export default function SearchClient() {
 
   const initialLimit = parseInt(searchParams.get('limit') || '10', 10);
 
-  // 初期値として使用するためのtypes（URLパラメータベース）
   const initialTypes = useMemo(
     () =>
       initialType === null || initialType === 'all'
@@ -38,7 +37,6 @@ export default function SearchClient() {
     [initialType],
   );
 
-  // useGlobalSearchのオプションをメモ化
   const searchOptions = useMemo(
     () => ({
       initialQuery,
@@ -64,7 +62,6 @@ export default function SearchClient() {
     setTypes,
   } = useGlobalSearch(searchOptions);
 
-  // アクティブタイプをフックの現在の状態から決定
   const activeType = currentTypes
     ? currentTypes[0] || 'all'
     : initialType || 'all';
@@ -95,12 +92,12 @@ export default function SearchClient() {
       if (currentLimit !== 10) params.set('limit', String(currentLimit));
       router.push(`/search?${params.toString()}`);
     },
-    [router], // limit を依存配列から除去 - 実行時に最新値を参照
+    [router], // NOTE: Intentionally omit `limit` — read latest value at call time to avoid stale closures.
   );
 
   const handleTypeChange = (type: SearchResultType | 'all') => {
     const newTypes = type === 'all' ? undefined : [type];
-    setTypes(newTypes); // useGlobalSearchに直接通知
+    setTypes(newTypes);
     updateUrl(query, type, 1);
   };
 
@@ -117,7 +114,6 @@ export default function SearchClient() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      {/* Type filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
         {TYPE_TABS.map((tab) => (
           <button
@@ -134,23 +130,19 @@ export default function SearchClient() {
         ))}
       </div>
 
-      {/* Results info */}
       {query && !loading && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 animate-in fade-in-0 duration-200">
           {t('searchResultsFor', { query, total })}
         </p>
       )}
 
-      {/* Results container with stable height */}
       <div className="min-h-[500px] relative">
-        {/* Error */}
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4 animate-in fade-in-0 duration-200">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
-        {/* Loading skeleton */}
         {loading && (
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -159,24 +151,19 @@ export default function SearchClient() {
                 className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 animate-pulse min-h-[96px]"
               >
                 <div className="flex items-start gap-3">
-                  {/* Icon skeleton - matches SearchResultCard icon */}
                   <div className="flex-shrink-0 w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
 
-                  {/* Content skeleton */}
                   <div className="flex-1 min-w-0 space-y-2">
-                    {/* Title row - matches h3 + ExternalLink */}
                     <div className="flex items-center gap-2">
                       <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-2/3" />
                       <div className="w-3.5 h-3.5 bg-zinc-200 dark:bg-zinc-700 rounded" />
                     </div>
 
-                    {/* Excerpt skeleton - matches line-clamp-2 */}
                     <div className="space-y-1">
                       <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-full" />
                       <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded w-4/5" />
                     </div>
 
-                    {/* Metadata badges row - matches badge layout */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       <div className="h-5 w-12 bg-zinc-200 dark:bg-zinc-700 rounded" />
                       <div className="h-5 w-10 bg-zinc-200 dark:bg-zinc-700 rounded" />
@@ -190,7 +177,6 @@ export default function SearchClient() {
           </div>
         )}
 
-        {/* Results list */}
         {!loading && results.length > 0 && (
           <div className="space-y-3 animate-in fade-in-0 duration-300">
             {results.map((result, index) => (
@@ -205,7 +191,6 @@ export default function SearchClient() {
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && query && results.length === 0 && !error && (
           <div className="text-center py-16 animate-in fade-in-0 duration-300">
             <SearchX className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
@@ -218,7 +203,6 @@ export default function SearchClient() {
           </div>
         )}
 
-        {/* Initial state (no query) */}
         {!loading && !query && (
           <div className="text-center py-16 animate-in fade-in-0 duration-300">
             <Search className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
@@ -229,7 +213,6 @@ export default function SearchClient() {
         )}
       </div>
 
-      {/* Pagination */}
       {!loading && totalPages > 1 && (
         <Pagination
           currentPage={currentPage}

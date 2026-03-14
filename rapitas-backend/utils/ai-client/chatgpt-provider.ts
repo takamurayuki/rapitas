@@ -1,11 +1,11 @@
 /**
- * OpenAI (ChatGPT) APIプロバイダー
+ * OpenAI (ChatGPT) API Provider
  */
 import { type AIMessage, type AIResponse } from './types';
 import { formatApiError } from './error-handler';
 
 /**
- * OpenAI (ChatGPT) APIを呼び出す（非ストリーミング）
+ * Call OpenAI (ChatGPT) API (non-streaming).
  */
 export async function callChatGPT(
   apiKey: string,
@@ -44,7 +44,7 @@ export async function callChatGPT(
 }
 
 /**
- * OpenAI ストリーミング呼び出し
+ * OpenAI streaming call.
  */
 export async function callChatGPTStream(
   apiKey: string,

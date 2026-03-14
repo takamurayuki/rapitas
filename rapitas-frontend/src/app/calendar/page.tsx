@@ -117,7 +117,6 @@ export default function CalendarPage() {
     fetchPaidLeaveBalance,
   ]);
 
-  // 自動同期を有効化
   useTaskAutoSync({
     enabled: true,
     interval: 30000,
@@ -146,7 +145,7 @@ export default function CalendarPage() {
     }));
 
     const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
-      // UTC ISO文字列から時刻部分を直接抽出（タイムゾーン変換を避ける）
+      // NOTE: Extract time directly from UTC ISO string to avoid timezone conversion issues.
       const extractUTCTime = (isoStr: string) => {
         const timePart = isoStr.split('T')[1]; // "HH:MM:SS.000Z"
         if (!timePart) return undefined;
@@ -213,7 +212,6 @@ export default function CalendarPage() {
     const dateStr = `${year}-${month}-${dayStr}`;
     return events.filter((e) => {
       if (e.date === dateStr) return true;
-      // 複数日スケジュールの場合、開始日〜終了日の範囲内かチェック
       if (e.endDate && e.date <= dateStr && e.endDate >= dateStr) return true;
       return false;
     });
@@ -373,7 +371,6 @@ export default function CalendarPage() {
     t('weekSat'),
   ];
 
-  // 祝日データ（月ごとにメモ化）
   const holidays = useMemo(() => {
     return getHolidaysForMonth(
       currentDate.getFullYear(),
@@ -389,7 +386,6 @@ export default function CalendarPage() {
     return map;
   }, [holidays]);
 
-  // 複数日イベントのバー表示用データを計算
   const getMultiDayBars = () => {
     const multiDayEvents = events.filter(
       (e) => e.endDate && e.type === 'schedule',
@@ -402,16 +398,15 @@ export default function CalendarPage() {
 
     type BarSegment = {
       event: CalendarEvent;
-      gridCol: number; // 0-6 (グリッド内の列)
-      gridRow: number; // 週の行
-      span: number; // 何セル分の幅
+      gridCol: number; // 0-6 (column in grid)
+      gridRow: number; // week row
+      span: number; // cell span width
       isStart: boolean;
       isEnd: boolean;
-      lane: number; // バーの縦位置（0, 1, 2...）
+      lane: number; // vertical lane (0, 1, 2...)
     };
 
     const bars: BarSegment[] = [];
-    // 各セルのレーン使用状況を追跡
     const cellLanes: Map<string, Set<number>> = new Map();
 
     const getGridPosition = (day: number) => {
@@ -423,7 +418,6 @@ export default function CalendarPage() {
       const eventStart = new Date(event.date + 'T00:00:00');
       const eventEnd = new Date(event.endDate! + 'T00:00:00');
 
-      // 表示月の範囲にクリップ
       const visibleStart =
         eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
       const visibleEnd = eventEnd > lastDayOfMonth ? lastDayOfMonth : eventEnd;
@@ -434,7 +428,6 @@ export default function CalendarPage() {
       const startDay = visibleStart.getDate();
       const endDay = visibleEnd.getDate();
 
-      // 週ごとにバーを分割
       let currentDay = startDay;
       while (currentDay <= endDay) {
         const pos = getGridPosition(currentDay);
@@ -442,7 +435,7 @@ export default function CalendarPage() {
         const remainInEvent = endDay - currentDay + 1;
         const span = Math.min(remainInWeek, remainInEvent);
 
-        // この区間で空きレーンを探す
+        // Find an available lane for this segment
         let lane = 0;
         let laneFound = false;
         while (!laneFound) {
@@ -458,7 +451,6 @@ export default function CalendarPage() {
           }
         }
 
-        // レーンを予約
         for (let d = currentDay; d < currentDay + span; d++) {
           const key = `${pos.row}-${getGridPosition(d).col}`;
           if (!cellLanes.has(key)) cellLanes.set(key, new Set());
@@ -525,7 +517,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Paid Leave Balance */}
         {paidLeaveBalance && (
           <div className="flex items-center gap-3">
             <div className="text-right">
@@ -557,9 +548,7 @@ export default function CalendarPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* カレンダー */}
         <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          {/* ヘッダー */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <button
@@ -589,7 +578,6 @@ export default function CalendarPage() {
             </button>
           </div>
 
-          {/* 曜日ヘッダー */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {weekDays.map((day, index) => (
               <div
@@ -607,27 +595,23 @@ export default function CalendarPage() {
             ))}
           </div>
 
-          {/* 日付グリッド（週ごとに行を分割） */}
           {(() => {
             const weeks: (number | null)[][] = [];
             for (let i = 0; i < days.length; i += 7) {
               weeks.push(days.slice(i, i + 7));
             }
-            // 7列に足りない最終週をnullで埋める
+            // Pad last week with nulls to fill 7 columns
             const lastWeek = weeks[weeks.length - 1];
             while (lastWeek.length < 7) {
               lastWeek.push(null);
             }
 
-            // 各セルに表示するイベント数の上限
             const MAX_VISIBLE_EVENTS = 3;
 
             return weeks.map((week, weekIndex) => {
-              // この週のバー
               const weekBars = multiDayBars.filter(
                 (b) => b.gridRow === weekIndex,
               );
-              // この週の最大レーン数
               const maxLaneInWeek =
                 weekBars.length > 0
                   ? Math.max(...weekBars.map((b) => b.lane)) + 1
@@ -644,7 +628,6 @@ export default function CalendarPage() {
                             key={`empty-${weekIndex}-${colIndex}`}
                             className="border border-zinc-100 dark:border-zinc-700/50 flex flex-col bg-zinc-100/70 dark:bg-zinc-900/50"
                           >
-                            {/* 空セルの日付ヘッダー相当 */}
                             <div className="w-full px-1 py-0.5 bg-zinc-200/50 dark:bg-zinc-800/90">
                               <div className="w-5 h-5" />
                             </div>
@@ -681,7 +664,6 @@ export default function CalendarPage() {
                               : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
                           }`}
                         >
-                          {/* 日付ヘッダー（背景色付き・左寄せ） */}
                           <div
                             className={`w-full flex items-center px-1 py-0.5 gap-0.5 min-w-0 ${
                               isSelected
@@ -711,15 +693,11 @@ export default function CalendarPage() {
                               </span>
                             </div>
                           </div>
-                          {/* 区切り線（セル全幅） */}
                           <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
-                          {/* 区切り線下のコンテンツ領域（正方形を維持） */}
                           <div className="w-full aspect-square relative">
-                            {/* バーのスペーサー */}
                             {barAreaHeight > 0 && (
                               <div style={{ height: barAreaHeight }} />
                             )}
-                            {/* イベント内容表示エリア */}
                             <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
                               {singleDayEvents
                                 .slice(0, MAX_VISIBLE_EVENTS)
@@ -778,7 +756,6 @@ export default function CalendarPage() {
                     })}
                   </div>
 
-                  {/* この週の複数日バー（オーバーレイ） */}
                   {weekBars.map((bar, i) => {
                     const color = bar.event.color || '#6366F1';
                     const leftPercent = (bar.gridCol / 7) * 100;
@@ -817,7 +794,6 @@ export default function CalendarPage() {
             });
           })()}
 
-          {/* 凡例 */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
@@ -849,7 +825,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* 選択日の詳細 */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -1041,7 +1016,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* タスク作成モーダル */}
       {showCreateModal && selectedDate && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
@@ -1103,7 +1077,6 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* スケジュール作成モーダル */}
       {showScheduleModal && selectedDate && (
         <ScheduleEventDialog
           selectedDate={selectedDate}
@@ -1112,7 +1085,6 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* 有給申請モーダル */}
       {showPaidLeaveModal && selectedDate && (
         <PaidLeaveDialog
           selectedDate={selectedDate}

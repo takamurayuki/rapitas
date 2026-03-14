@@ -1,5 +1,7 @@
 /**
- * Worker ↔ メインスレッド間のメッセージプロトコル型定義
+ * Output Parser Types
+ *
+ * Message protocol type definitions for Worker <-> main thread communication.
  */
 
 import type {
@@ -8,7 +10,7 @@ import type {
   QuestionDetectionResult,
 } from '../services/agents/question-detection';
 
-// ==================== Worker入力メッセージ ====================
+// ==================== Worker Input Messages ====================
 
 export type WorkerInputMessage =
   | { type: 'parse-chunk'; data: string }
@@ -21,7 +23,7 @@ export type WorkerConfig = {
   logPrefix?: string;
 };
 
-// ==================== Worker出力メッセージ ====================
+// ==================== Worker Output Messages ====================
 
 export type WorkerOutputMessage =
   | WorkerSystemEvent
@@ -42,7 +44,7 @@ export type WorkerSystemEvent = {
   sessionId?: string;
   errorMessage?: string;
   displayOutput: string;
-  /** セッションID不一致の場合の警告メッセージ */
+  /** Warning message when session ID does not match */
   sessionMismatchWarning?: string;
 };
 
@@ -107,7 +109,7 @@ export type WorkerCommitsParsed = {
 
 export type WorkerParseComplete = {
   type: 'parse-complete';
-  /** 未処理の残りバッファ */
+  /** Remaining unprocessed buffer */
   remainingBuffer: string;
 };
 
@@ -117,7 +119,7 @@ export type WorkerError = {
   stack?: string;
 };
 
-// ==================== アーティファクト・コミット型（再エクスポート） ====================
+// ==================== Artifact & Commit Types ====================
 
 export type ParsedArtifact = {
   type: 'file' | 'diff';

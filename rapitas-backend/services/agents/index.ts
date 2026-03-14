@@ -1,8 +1,8 @@
 /**
- * AIエージェント モジュール - メインエントリーポイント
+ * AI Agent Module - Main Entry Point
  *
- * 複数のAIプロバイダー（Claude Code, Anthropic API, OpenAI, Gemini等）を
- * 統一的なインターフェースで扱うための包括的なエージェント抽象化レイヤー
+ * Comprehensive agent abstraction layer for managing multiple AI providers
+ * (Claude Code, Anthropic API, OpenAI, Gemini, etc.) through a unified interface.
  *
  * @example
  * ```typescript
@@ -11,15 +11,15 @@
  *   executeWithAgent,
  * } from './services/agents';
  *
- * // サービスを初期化
+ * // Initialize the service
  * await agentService.initialize();
  *
- * // タスクを実行
+ * // Execute a task
  * const result = await executeWithAgent(
  *   {
  *     id: 1,
- *     title: 'コードレビュー',
- *     description: 'src/app.ts をレビューしてください',
+ *     title: 'Code review',
+ *     description: 'Please review src/app.ts',
  *   },
  *   {
  *     workingDirectory: '/path/to/project',
@@ -31,7 +31,7 @@
  */
 
 // ============================================================================
-// 既存のレガシーエクスポート（後方互換性のため維持）
+// Legacy exports (maintained for backward compatibility)
 // ============================================================================
 
 export * from './base-agent';
@@ -43,11 +43,10 @@ export * from './agent-factory';
 export * from './agent-orchestrator';
 
 // ============================================================================
-// 抽象化レイヤー（コアタイプ・インターフェース）
-// 名前の衝突を避けるため、明示的にリネームしてエクスポート
+// Abstraction layer (core types & interfaces)
+// Explicitly renamed exports to avoid name collisions
 // ============================================================================
 
-// 型定義（名前空間として使用）
 export type {
   AgentProviderId,
   AgentState,
@@ -90,14 +89,14 @@ export type {
   ExecutionMetrics as AbstractionExecutionMetrics,
 } from './abstraction/types';
 
-// 新しい抽象化レイヤーの実行結果型（既存との衝突を避ける）
+// Abstraction layer execution result types (renamed to avoid collisions)
 export type {
   AgentExecutionResult as UnifiedAgentExecutionResult,
   AgentArtifact as UnifiedAgentArtifact,
   GitCommitInfo as UnifiedGitCommitInfo,
 } from './abstraction/types';
 
-// インターフェース
+// Interfaces
 export type {
   IAgentProvider,
   IAgent,
@@ -113,7 +112,7 @@ export type {
   AgentErrorType,
 } from './abstraction/interfaces';
 
-// クラスとユーティリティ
+// Classes and utilities
 export {
   AgentError as AbstractionAgentError,
   AbstractAgent,
@@ -129,22 +128,22 @@ export {
   getStateDisplayName,
   generateExecutionId,
   generateAgentId,
-  // 実行マネージャー
+  // Execution manager
   AgentExecutionManager,
   getDefaultExecutionManager,
   setDefaultExecutionManager,
-  // メトリクスコレクター
+  // Metrics collector
   DefaultMetricsCollector,
   getDefaultMetricsCollector,
   setDefaultMetricsCollector,
-  // エラーハンドラー
+  // Error handler
   DefaultErrorHandler,
   getDefaultErrorHandler,
   setDefaultErrorHandler,
   wrapError,
   isAgentError,
   isRecoverableError,
-  // ロガー
+  // Logger
   ConsoleLogger,
   SilentLogger,
   BufferingLogger,
@@ -154,11 +153,11 @@ export {
   createExecutionLogger,
 } from './abstraction';
 
-// abstraction/providersからアダプターをエクスポート
+// Adapter exports from abstraction/providers
 export { ClaudeCodeAgentAdapter } from './abstraction/providers';
 
 // ============================================================================
-// プロバイダー実装
+// Provider implementations
 // ============================================================================
 
 export {
@@ -185,7 +184,7 @@ export {
   geminiProvider,
   GEMINI_MODELS,
 
-  // 登録関数
+  // Registration functions
   registerDefaultProviders,
   registerAllProviders,
   AVAILABLE_PROVIDERS,
@@ -201,7 +200,7 @@ export type {
 } from './providers';
 
 // ============================================================================
-// 統一サービス
+// Unified service
 // ============================================================================
 
 export { AgentService, agentService, executeWithAgent, continueWithAgent } from './agent-service';
@@ -214,7 +213,7 @@ export type {
 } from './agent-service';
 
 // ============================================================================
-// 便利なファクトリー関数
+// Convenience factory functions
 // ============================================================================
 
 import { agentService, type ExecuteOptions } from './agent-service';
@@ -225,14 +224,14 @@ import type {
 } from './abstraction/types';
 
 /**
- * エージェントサービスを初期化して準備完了状態にする
+ * Initialize the agent service.
  */
 export async function initializeAgents(): Promise<void> {
   await agentService.initialize();
 }
 
 /**
- * Claude Code エージェントでタスクを実行
+ * Execute a task using Claude Code agent.
  */
 export async function executeWithClaudeCode(
   task: AgentTaskDefinition,
@@ -242,7 +241,7 @@ export async function executeWithClaudeCode(
 }
 
 /**
- * Anthropic API エージェントでタスクを実行
+ * Execute a task using Anthropic API agent.
  */
 export async function executeWithAnthropicApi(
   task: AgentTaskDefinition,
@@ -252,7 +251,7 @@ export async function executeWithAnthropicApi(
 }
 
 /**
- * タスクを簡単に作成するヘルパー
+ * Helper to create a task definition.
  */
 export function createTask(
   title: string,
@@ -271,7 +270,7 @@ export function createTask(
 }
 
 /**
- * 利用可能なプロバイダーの簡易一覧を取得
+ * Get a simple list of available providers.
  */
 export async function listProviders(): Promise<
   Array<{

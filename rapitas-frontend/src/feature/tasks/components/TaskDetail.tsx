@@ -50,9 +50,8 @@ export default function TaskDetail({
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-8 mb-6">
       {isEditing ? (
-        /* 編集モード */
+        /* Edit mode */
         <div className="space-y-6">
-          {/* タイトルとステータス */}
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
               タイトル <span className="text-red-500">*</span>
@@ -84,7 +83,6 @@ export default function TaskDetail({
             </div>
           </div>
 
-          {/* 説明 */}
           <div>
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
               説明
@@ -101,7 +99,6 @@ export default function TaskDetail({
             />
           </div>
 
-          {/* ラベルと見積もり時間 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
@@ -133,7 +130,7 @@ export default function TaskDetail({
           </div>
         </div>
       ) : (
-        /* 表示モード */
+        /* View mode */
         <>
           <div className="flex items-start justify-between mb-4">
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">

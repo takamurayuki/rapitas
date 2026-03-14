@@ -9,7 +9,7 @@ type IconGridProps = {
   accentClass?: string;
 };
 
-// 個別のアイコンボタンをメモ化
+// Memoized individual icon button
 const IconButton = memo(
   ({
     iconName,
@@ -43,7 +43,7 @@ const IconButton = memo(
 
 IconButton.displayName = 'IconButton';
 
-// アイコングリッドコンポーネント
+// Icon grid component
 export const IconGrid = memo(
   ({
     icons,

@@ -6,32 +6,32 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useTaskAutoSync');
 
 interface UseTaskAutoSyncOptions {
-  /** 自動更新を有効化するか (default: true) */
+  /** Enable automatic updates (default: true) */
   enabled?: boolean;
-  /** 更新間隔（ミリ秒） (default: 30000 = 30秒) */
+  /** Update interval in milliseconds (default: 30000 = 30s) */
   interval?: number;
-  /** サイレントモードで更新（ローディング表示なし） (default: true) */
+  /** Silent mode updates without loading indicators (default: true) */
   silent?: boolean;
-  /** AIエージェント実行中の更新をスキップするか (default: false) */
+  /** Skip updates during AI agent execution (default: false) */
   skipDuringExecution?: boolean;
 }
 
 /**
- * タスクの自動同期を行うカスタムフック
+ * Custom hook for automatic task synchronization
  *
- * @param options 自動同期のオプション
+ * @param options Auto-sync options
  * @returns void
  *
  * @example
  * ```tsx
- * // HomeClient.tsx などで使用
+ * // Used in HomeClient.tsx etc.
  * useTaskAutoSync({ enabled: true, interval: 30000 });
  * ```
  */
 export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
   const {
     enabled = true,
-    interval = 30000, // 30秒
+    interval = 30000, // 30 seconds
     silent = true,
     skipDuringExecution = false,
   } = options;
@@ -44,7 +44,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // 無効化されているか、初期化されていない場合は何もしない
+    // Do nothing if disabled or not initialized
     if (!enabled || !initialized) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -53,9 +53,9 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
       return;
     }
 
-    // 定期的な更新を設定
+    // Set up periodic updates
     intervalRef.current = setInterval(() => {
-      // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
+      // Skip updates if AI agent is executing and skip is enabled
       if (skipDuringExecution && executingTasksSize > 0) {
         logger.debug('Skipping sync due to executing tasks');
         return;
@@ -64,7 +64,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
       fetchUpdates(silent);
     }, interval);
 
-    // クリーンアップ
+    // Cleanup
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -81,12 +81,12 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     fetchUpdates,
   ]);
 
-  // ページがフォーカスされたときにも更新
+  // Update when page gains focus
   useEffect(() => {
     if (!enabled || !initialized) return;
 
     const handleFocus = () => {
-      // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
+      // Skip updates if AI agent is executing and skip is enabled
       if (skipDuringExecution && executingTasksSize > 0) {
         logger.debug('Skipping focus sync due to executing tasks');
         return;
@@ -106,13 +106,13 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     fetchUpdates,
   ]);
 
-  // ページが表示されたとき（Page Visibility API）
+  // When page becomes visible (Page Visibility API)
   useEffect(() => {
     if (!enabled || !initialized) return;
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // AIエージェント実行中で、スキップが有効な場合は更新をスキップ
+        // Skip updates if AI agent is executing and skip is enabled
         if (skipDuringExecution && executingTasksSize > 0) {
           logger.debug('Skipping visibility sync due to executing tasks');
           return;

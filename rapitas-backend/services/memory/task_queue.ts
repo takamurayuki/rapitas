@@ -1,6 +1,7 @@
 /**
- * メモリシステムのバックグラウンドジョブキュー
- * 5秒間隔ポーリングワーカー、リトライ3回、dead_letter移行
+ * Memory System Background Job Queue
+ *
+ * Polls every 5 seconds, retries up to 3 times, then moves to dead_letter.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -21,7 +22,7 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * タスクハンドラーを登録
+   * Register a handler for a task type.
    */
   registerHandler(taskType: MemoryTaskType, handler: TaskHandler): void {
     this.handlers.set(taskType, handler);
@@ -29,7 +30,7 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * ワーカーを開始
+   * Start the worker.
    */
   start(): void {
     if (this.intervalId) return;
@@ -44,7 +45,7 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * ワーカーを停止
+   * Stop the worker.
    */
   stop(): void {
     if (this.intervalId) {
@@ -55,7 +56,7 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * タスクをキューに追加
+   * Enqueue a task.
    */
   async enqueue(
     taskType: MemoryTaskType,
@@ -77,14 +78,14 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * 次のタスクを取得して処理
+   * Fetch and process the next task.
    */
   private async processNext(): Promise<void> {
     if (this.isProcessing) return;
     this.isProcessing = true;
 
     try {
-      // 最も優先度が高く、スケジュール時刻を過ぎたpendingタスクを取得
+      // Get the highest-priority pending task past its scheduled time
       const task = await prisma.memoryTaskQueue.findFirst({
         where: {
           status: 'pending',
@@ -101,7 +102,7 @@ export class MemoryTaskQueueProcessor {
         return;
       }
 
-      // processing に更新
+      // Update to processing
       await prisma.memoryTaskQueue.update({
         where: { id: task.id },
         data: { status: 'processing', startedAt: new Date(), attempts: task.attempts + 1 },
@@ -111,7 +112,7 @@ export class MemoryTaskQueueProcessor {
         const payload = JSON.parse(task.payload);
         await handler(payload);
 
-        // completed に更新
+        // Update to completed
         await prisma.memoryTaskQueue.update({
           where: { id: task.id },
           data: { status: 'completed', completedAt: new Date() },
@@ -122,7 +123,7 @@ export class MemoryTaskQueueProcessor {
         const newAttempts = task.attempts + 1;
 
         if (newAttempts >= task.maxAttempts) {
-          // dead_letter に移行
+          // Move to dead_letter
           await prisma.memoryTaskQueue.update({
             where: { id: task.id },
             data: { status: 'dead_letter', errorMessage: message },
@@ -132,7 +133,7 @@ export class MemoryTaskQueueProcessor {
             'Task moved to dead_letter',
           );
         } else {
-          // リトライ: pending に戻す
+          // Retry: return to pending
           await prisma.memoryTaskQueue.update({
             where: { id: task.id },
             data: { status: 'pending', errorMessage: message },
@@ -149,7 +150,7 @@ export class MemoryTaskQueueProcessor {
   }
 
   /**
-   * キューの状態を取得
+   * Get queue status counts.
    */
   async getStatus(): Promise<{
     pending: number;

@@ -4,16 +4,14 @@ import { API_BASE_URL } from '@/utils/api';
 
 export type PomodoroStatus = 'idle' | 'work' | 'shortBreak' | 'longBreak';
 
-// デフォルト値
-const DEFAULT_POMODORO_DURATION = 25 * 60; // 25分
-const DEFAULT_SHORT_BREAK = 5 * 60; // 5分
-const DEFAULT_LONG_BREAK = 15 * 60; // 15分
+const DEFAULT_POMODORO_DURATION = 25 * 60;
+const DEFAULT_SHORT_BREAK = 5 * 60;
+const DEFAULT_LONG_BREAK = 15 * 60;
 
-// カスタマイズ可能な設定
 export interface PomodoroSettings {
-  pomodoroDuration: number; // 秒
-  shortBreakDuration: number; // 秒
-  longBreakDuration: number; // 秒
+  pomodoroDuration: number; // seconds
+  shortBreakDuration: number; // seconds
+  longBreakDuration: number; // seconds
   soundEnabled: boolean;
   soundVolume: number; // 0-1
 }
@@ -26,7 +24,6 @@ const DEFAULT_SETTINGS: PomodoroSettings = {
   soundVolume: 0.5,
 };
 
-// BroadcastChannel for syncing state between iframe and parent
 let broadcastChannel: BroadcastChannel | null = null;
 
 const getBroadcastChannel = () => {
@@ -37,7 +34,6 @@ const getBroadcastChannel = () => {
   return broadcastChannel;
 };
 
-// 状態を他のコンテキストに通知
 const broadcastState = (state: Partial<PomodoroState>) => {
   const channel = getBroadcastChannel();
   if (channel) {
@@ -46,40 +42,31 @@ const broadcastState = (state: Partial<PomodoroState>) => {
 };
 
 export interface PomodoroState {
-  // タスク情報
   taskId: number | null;
   taskTitle: string | null;
 
-  // タイマー状態
   isTimerRunning: boolean;
   isPaused: boolean;
   isBreakTime: boolean;
 
-  // ポモドーロカウント
   pomodoroCount: number;
   pomodoroSeconds: number;
 
-  // 作業時間トラッキング
   workSeconds: number;
   accumulatedBreakSeconds: number;
   timerStartTime: number | null; // Unix timestamp
 
-  // ダイアログ状態
   showBreakDialog: boolean;
   showBreakEndDialog: boolean;
 
-  // 設定
   settings: PomodoroSettings;
 
-  // 統計（今日の累計）
   todayCompletedPomodoros: number;
   todayTotalWorkSeconds: number;
   lastStatDate: string | null; // YYYY-MM-DD
 
-  // Hydration状態
   _hasHydrated: boolean;
 
-  // アクション
   startTimer: (taskId: number, taskTitle: string) => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
@@ -94,15 +81,12 @@ export interface PomodoroState {
   _checkAndResetDailyStats: () => void;
 }
 
-// AudioContext用のグローバル変数
 let audioContext: AudioContext | null = null;
 
-// 今日の日付を取得
 const getTodayDateString = () => {
   return new Date().toISOString().split('T')[0];
 };
 
-// 通知音を再生
 const playNotificationSound = (
   type: 'work' | 'break',
   volume: number = 0.5,
@@ -120,7 +104,7 @@ const playNotificationSound = (
   const context = audioContext;
   if (!context) return;
 
-  // AudioContext が suspended の場合は resume
+  // NOTE: Browser autoplay policy suspends AudioContext until user interaction triggers resume.
   if (context.state === 'suspended') {
     context.resume();
   }
@@ -128,7 +112,6 @@ const playNotificationSound = (
   const adjustedVolume = Math.max(0.01, Math.min(1, volume));
 
   if (type === 'work') {
-    // 作業終了: 高い音3回
     const playBeep = (delay: number) => {
       const osc = context.createOscillator();
       const gain = context.createGain();
@@ -147,7 +130,6 @@ const playNotificationSound = (
     playBeep(0.2);
     playBeep(0.4);
   } else {
-    // 休憩終了: 低い音2回
     const playBeep = (delay: number, frequency: number) => {
       const osc = context.createOscillator();
       const gain = context.createGain();
@@ -167,10 +149,8 @@ const playNotificationSound = (
   }
 };
 
-// タイマーのインターバルID
 let timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
-// タイマーを開始
 const startTimerInterval = () => {
   if (typeof window === 'undefined') return;
   if (timerIntervalId) return;
@@ -180,7 +160,6 @@ const startTimerInterval = () => {
   }, 1000);
 };
 
-// タイマーを停止
 const stopTimerInterval = () => {
   if (timerIntervalId) {
     clearInterval(timerIntervalId);
@@ -233,7 +212,6 @@ export const usePomodoroStore = create<PomodoroState>()(
       },
 
       startTimer: (taskId: number, taskTitle: string) => {
-        // AudioContextを初期化
         if (typeof window !== 'undefined' && !audioContext) {
           const AudioContextClass =
             window.AudioContext ||
@@ -261,7 +239,6 @@ export const usePomodoroStore = create<PomodoroState>()(
         broadcastState(newState);
         startTimerInterval();
 
-        // バックエンド同期
         const settings = get().settings;
         syncPomodoroToBackend.start(taskId, settings.pomodoroDuration, 'work');
       },
@@ -279,7 +256,6 @@ export const usePomodoroStore = create<PomodoroState>()(
       stopTimer: () => {
         stopTimerInterval();
 
-        // バックエンド同期（停止=キャンセル）
         syncPomodoroToBackend.cancel();
 
         const newState = {
@@ -316,7 +292,6 @@ export const usePomodoroStore = create<PomodoroState>()(
           showBreakDialog: false,
         });
 
-        // バックエンド同期: 休憩セッション開始
         syncPomodoroToBackend.start(state.taskId, breakDuration, breakType);
       },
 
@@ -350,7 +325,6 @@ export const usePomodoroStore = create<PomodoroState>()(
         if (!state.isTimerRunning || state.isPaused) return;
         if (state.showBreakDialog || state.showBreakEndDialog) return;
 
-        // 日付が変わったら統計をリセット
         state._checkAndResetDailyStats();
 
         const { settings } = state;
@@ -359,18 +333,15 @@ export const usePomodoroStore = create<PomodoroState>()(
         const longBreakDuration = settings.longBreakDuration;
 
         if (!state.isBreakTime) {
-          // 作業中
           const newPomodoroSeconds = state.pomodoroSeconds + 1;
           const newWorkSeconds = state.workSeconds + 1;
           const newTodayWorkSeconds = state.todayTotalWorkSeconds + 1;
 
           if (newPomodoroSeconds >= pomodoroDuration) {
-            // ポモドーロ完了
             if (settings.soundEnabled) {
               playNotificationSound('work', settings.soundVolume);
             }
 
-            // デスクトップ通知
             if (
               typeof window !== 'undefined' &&
               'Notification' in window &&
@@ -382,7 +353,6 @@ export const usePomodoroStore = create<PomodoroState>()(
               });
             }
 
-            // バックエンド同期
             syncPomodoroToBackend.complete(state.pomodoroCount + 1);
 
             set({
@@ -400,7 +370,6 @@ export const usePomodoroStore = create<PomodoroState>()(
             });
           }
         } else {
-          // 休憩中
           const breakDuration =
             state.pomodoroCount % 4 === 0
               ? longBreakDuration
@@ -412,7 +381,6 @@ export const usePomodoroStore = create<PomodoroState>()(
               playNotificationSound('break', settings.soundVolume);
             }
 
-            // デスクトップ通知
             if (
               typeof window !== 'undefined' &&
               'Notification' in window &&
@@ -436,7 +404,6 @@ export const usePomodoroStore = create<PomodoroState>()(
         }
       },
 
-      // ページロード時にタイマーを再開する
       _initializeTimer: () => {
         const state = get();
         if (state.isTimerRunning && !state.isPaused && !timerIntervalId) {
@@ -476,7 +443,6 @@ export const usePomodoroStore = create<PomodoroState>()(
   ),
 );
 
-// ヘルパー関数
 export function formatTime(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -513,7 +479,6 @@ export {
   DEFAULT_SETTINGS,
 };
 
-// バックエンドとのポモドーロセッション同期（fire-and-forget）
 const syncPomodoroToBackend = {
   start: (
     taskId: number | null,
@@ -559,7 +524,6 @@ const syncPomodoroToBackend = {
   },
 };
 
-// BroadcastChannelのリスナーを設定（クライアントサイドのみ）
 if (typeof window !== 'undefined') {
   const channel = getBroadcastChannel();
   if (channel) {
@@ -568,13 +532,11 @@ if (typeof window !== 'undefined') {
         const currentState = usePomodoroStore.getState();
         const newState = event.data.state;
 
-        // 状態を更新
         usePomodoroStore.setState({
           ...newState,
           _hasHydrated: currentState._hasHydrated,
         });
 
-        // タイマーの開始/停止を同期
         if (newState.isTimerRunning && !timerIntervalId) {
           startTimerInterval();
         } else if (!newState.isTimerRunning && timerIntervalId) {
@@ -584,7 +546,6 @@ if (typeof window !== 'undefined') {
     };
   }
 
-  // ページ離脱時のクリーンアップ（メモリリーク防止）
   window.addEventListener('beforeunload', () => {
     stopTimerInterval();
     if (broadcastChannel) {

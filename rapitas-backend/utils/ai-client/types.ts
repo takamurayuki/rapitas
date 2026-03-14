@@ -1,5 +1,5 @@
 /**
- * AIクライアント型定義・定数
+ * AI Client Type Definitions and Constants
  */
 
 export type AIProvider = 'claude' | 'chatgpt' | 'gemini' | 'ollama';

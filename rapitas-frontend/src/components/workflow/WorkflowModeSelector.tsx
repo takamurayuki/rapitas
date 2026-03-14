@@ -150,9 +150,9 @@ export default function WorkflowModeSelector({
 
   return (
     <div className={`relative ${className}`}>
-      {/* メインセレクター */}
+      {/* Main selector */}
       <div className="space-y-3">
-        {/* 現在のモード表示 */}
+        {/* Current mode display */}
         <div className={`p-4 rounded-lg border ${currentConfig.bgColor}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ export default function WorkflowModeSelector({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* 分析ボタン */}
+              {/* Analyze button */}
               {showAnalyzeButton && (
                 <button
                   onClick={handleAnalyze}
@@ -200,7 +200,7 @@ export default function WorkflowModeSelector({
                 </button>
               )}
 
-              {/* モード変更ボタン */}
+              {/* Mode change button */}
               <button
                 onClick={() => setIsOpen(!isOpen)}
                 disabled={disabled || isUpdating}
@@ -221,7 +221,7 @@ export default function WorkflowModeSelector({
           </div>
         </div>
 
-        {/* モード選択ドロップダウン */}
+        {/* Mode selection dropdown */}
         {isOpen && (
           <div className="space-y-2 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 shadow-lg">
             <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-2">

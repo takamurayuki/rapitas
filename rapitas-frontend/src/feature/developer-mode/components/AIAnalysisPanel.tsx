@@ -149,12 +149,12 @@ export function AIAnalysisPanel({
   const [activeTab, setActiveTab] = useState<TabType>('analysis');
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // サブタスク作成の状態
+  // Subtask creation state
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
   const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
 
-  // プロンプト最適化の状態
+  // Prompt optimization state
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [promptResult, setPromptResult] =
     useState<OptimizedPromptResult | null>(null);
@@ -165,7 +165,7 @@ export function AIAnalysisPanel({
   );
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
-  // APIキー設定の状態
+  // API key config state
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [maskedApiKey, setMaskedApiKey] = useState<string | null>(null);
@@ -175,7 +175,7 @@ export function AIAnalysisPanel({
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [apiKeySuccess, setApiKeySuccess] = useState<string | null>(null);
 
-  // プロンプト管理の状態
+  // Prompt management state
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -183,12 +183,12 @@ export function AIAnalysisPanel({
   const [editingPromptText, setEditingPromptText] = useState('');
   const [promptsError, setPromptsError] = useState<string | null>(null);
 
-  // マウント時にAPIキー情報を取得
+  // Fetch API key info on mount
   useEffect(() => {
     fetchApiKey();
   }, []);
 
-  // タブ切り替え時にプロンプト一覧を取得
+  // Fetch prompt list on tab switch
   useEffect(() => {
     if (activeTab === 'prompts' && isApiKeyConfigured) {
       fetchPrompts();
@@ -239,7 +239,7 @@ export function AIAnalysisPanel({
       }
     } catch (err) {
       setApiKeyError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     } finally {
       setIsSavingApiKey(false);
@@ -268,14 +268,13 @@ export function AIAnalysisPanel({
       }
     } catch (err) {
       setApiKeyError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     } finally {
       setIsSavingApiKey(false);
     }
   };
 
-  // プロンプト一覧取得
   const fetchPrompts = async () => {
     setIsLoadingPrompts(true);
     setPromptsError(null);
@@ -289,14 +288,14 @@ export function AIAnalysisPanel({
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     } finally {
       setIsLoadingPrompts(false);
     }
   };
 
-  // 全サブタスクのプロンプト一括生成
+  // Batch generate prompts for all subtasks
   const generateAllPrompts = async () => {
     if (
       !confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')
@@ -313,21 +312,20 @@ export function AIAnalysisPanel({
         },
       );
       if (res.ok) {
-        await fetchPrompts(); // 再取得
+        await fetchPrompts();
       } else {
         const errData = await res.json();
         throw new Error(errData.error || '一括生成に失敗しました');
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     } finally {
       setIsGeneratingAll(false);
     }
   };
 
-  // プロンプト更新
   const updatePrompt = async (promptId: number, newText: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/prompts/${promptId}`, {
@@ -344,12 +342,11 @@ export function AIAnalysisPanel({
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     }
   };
 
-  // プロンプト削除
   const deletePrompt = async (promptId: number) => {
     if (!confirm('このプロンプトを削除しますか？')) return;
 
@@ -364,12 +361,11 @@ export function AIAnalysisPanel({
       }
     } catch (err) {
       setPromptsError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     }
   };
 
-  // プロンプト生成
   const generatePrompt = useCallback(
     async (clarificationAnswers?: Record<string, string>) => {
       setIsGeneratingPrompt(true);
@@ -403,7 +399,7 @@ export function AIAnalysisPanel({
         }
       } catch (err) {
         setPromptError(
-          err instanceof Error ? err.message : 'エラーが発生しました',
+          err instanceof Error ? err.message : 'Errorが発生しました',
         );
       } finally {
         setIsGeneratingPrompt(false);
@@ -490,7 +486,7 @@ export function AIAnalysisPanel({
     return 'text-red-600 dark:text-red-400';
   };
 
-  // APIキーが未設定の場合は設定を促す
+  // Prompt user to configure API key when not set
   if (!isApiKeyConfigured) {
     return (
       <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden">
@@ -564,7 +560,6 @@ export function AIAnalysisPanel({
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-      {/* ヘッダー */}
       <div
         className="px-4 py-3 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -592,7 +587,6 @@ export function AIAnalysisPanel({
 
       {isExpanded && (
         <>
-          {/* タブ */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
             <button
               onClick={() => setActiveTab('analysis')}
@@ -650,9 +644,7 @@ export function AIAnalysisPanel({
             </button>
           </div>
 
-          {/* タブコンテンツ */}
           <div className="p-4">
-            {/* タスク分析タブ */}
             {activeTab === 'analysis' && (
               <div className="space-y-4">
                 {isAnalyzing ? (
@@ -787,7 +779,6 @@ export function AIAnalysisPanel({
                             ))}
                           </div>
 
-                          {/* サブタスク作成ボタン */}
                           {analysisApprovalId && !subtaskCreationSuccess && (
                             <div className="mt-3 flex items-center justify-end gap-2">
                               <span className="text-xs text-zinc-500">
@@ -824,7 +815,6 @@ export function AIAnalysisPanel({
                             </div>
                           )}
 
-                          {/* 作成成功メッセージ */}
                           {subtaskCreationSuccess && (
                             <div className="mt-3 flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
                               <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -836,7 +826,6 @@ export function AIAnalysisPanel({
                         </div>
                       )}
 
-                    {/* 再分析ボタン */}
                     <div className="flex justify-end">
                       <button
                         onClick={() => {
@@ -879,7 +868,6 @@ export function AIAnalysisPanel({
               </div>
             )}
 
-            {/* プロンプト最適化タブ */}
             {activeTab === 'prompt' && (
               <div className="space-y-4">
                 {isGeneratingPrompt ? (
@@ -908,7 +896,7 @@ export function AIAnalysisPanel({
                     </button>
                   </div>
                 ) : promptResult?.hasQuestions ? (
-                  // 質問がある場合
+                  // When questions exist
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
                       <HelpCircle className="w-4 h-4" />
@@ -993,7 +981,7 @@ export function AIAnalysisPanel({
                     </div>
                   </div>
                 ) : promptResult ? (
-                  // 結果表示
+                  // Display results
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -1043,7 +1031,6 @@ export function AIAnalysisPanel({
                     </div>
                   </div>
                 ) : (
-                  // 初期状態
                   <div className="text-center py-6">
                     <Wand2 className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
@@ -1061,10 +1048,8 @@ export function AIAnalysisPanel({
               </div>
             )}
 
-            {/* プロンプト管理タブ */}
             {activeTab === 'prompts' && (
               <div className="space-y-4">
-                {/* ヘッダー */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-zinc-500" />
@@ -1116,7 +1101,6 @@ export function AIAnalysisPanel({
                   </div>
                 ) : promptsData ? (
                   <div className="space-y-3">
-                    {/* タスク情報 */}
                     <div className="p-2 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg text-xs">
                       <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
                         <Target className="w-3 h-3" />
@@ -1132,7 +1116,6 @@ export function AIAnalysisPanel({
                       </div>
                     </div>
 
-                    {/* プロンプト一覧 */}
                     {promptsData.prompts.length === 0 ? (
                       <div className="text-center py-6">
                         <FileText className="w-10 h-10 text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
@@ -1277,13 +1260,10 @@ export function AIAnalysisPanel({
               </div>
             )}
 
-            {/* 依存度分析タブ */}
             {activeTab === 'dependency' && <DependencyTree taskId={taskId} />}
 
-            {/* 設定タブ */}
             {activeTab === 'settings' && (
               <div className="space-y-4">
-                {/* APIキー設定 */}
                 <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -1395,7 +1375,6 @@ export function AIAnalysisPanel({
                   )}
                 </div>
 
-                {/* 開発者モード設定へのリンク */}
                 <button
                   onClick={onOpenSettings}
                   className="w-full flex items-center justify-between p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"

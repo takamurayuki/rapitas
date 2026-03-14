@@ -1,11 +1,13 @@
 /**
  * Mojibake Detection and Fix Utility
- * AIエージェントのMD出力で発生しがちな文字化けを検出・修正する
+ *
+ * Detects and repairs mojibake (character corruption) commonly found
+ * in AI agent markdown output.
  */
 
 export interface MojibakeDetectionResult {
   hasMojibake: boolean;
-  score: number; // 0-100の文字化け度スコア
+  score: number; // Mojibake severity score (0-100)
   issues: string[];
   patterns: {
     utf8ToLatin1: string[];
@@ -24,26 +26,26 @@ export interface SanitizeResult {
 }
 
 /**
- * UTF-8からLatin-1への誤解釈でよく出現する文字化けパターン
- * 日本語の「こんにちは」→ UTF-8バイト→ Latin-1解釈で起こる典型例
+ * Common mojibake patterns caused by UTF-8 to Latin-1 misinterpretation.
+ * For example, Japanese characters get corrupted when UTF-8 bytes are decoded as Latin-1.
  */
 const UTF8_LATIN1_PATTERNS = [
-  // 「あ」(U+3042) → UTF-8(E3 81 82) → Latin-1(ã)
+  // "a" (U+3042) -> UTF-8(E3 81 82) -> Latin-1(ã) misinterpretation
   /ã[\x80-\xBF]{2}/g,
-  // 頻出パターン
+  // Frequently occurring patterns
   /Ã£Â[\x80-\xBF][\x80-\xBF]/g,
   /Ã¢Â[\x80-\xBF][\x80-\xBF]/g,
   /Ã¤Â[\x80-\xBF][\x80-\xBF]/g,
   /Ã¥Â[\x80-\xBF][\x80-\xBF]/g,
   /Ã§Â[\x80-\xBF][\x80-\xBF]/g,
-  // より一般的なUTF-8 3バイト文字のLatin-1解釈
+  // More general UTF-8 3-byte character Latin-1 misinterpretation
   /[\xC3][\x80-\xBF][\xC2][\x80-\xBF][\x80-\xBF]/g,
-  // 2バイト文字パターン（ひらがな・カタカナ範囲）
+  // 2-byte character patterns (hiragana/katakana range)
   /[\xC3][\x81-\x82][\xC2][\x80-\xBF]/g,
 ];
 
 /**
- * 文字化けを検出する
+ * Detect mojibake in the given text.
  */
 export function detectMojibake(text: string): MojibakeDetectionResult {
   const issues: string[] = [];
@@ -56,64 +58,64 @@ export function detectMojibake(text: string): MojibakeDetectionResult {
     invalidSequences: [] as string[],
   };
 
-  // 1. UTF-8→Latin-1誤解釈パターンの検出
+  // 1. Detect UTF-8 -> Latin-1 misinterpretation patterns
   for (const pattern of UTF8_LATIN1_PATTERNS) {
     const matches = text.match(pattern);
     if (matches) {
       patterns.utf8ToLatin1.push(...matches);
-      score += matches.length * 15; // 1つ見つかるごとに15点加算
+      score += matches.length * 15; // +15 points per occurrence
       issues.push(
-        `UTF-8→Latin-1誤解釈パターンを${matches.length}箇所検出: ${matches.slice(0, 3).join(', ')}`,
+        `Detected ${matches.length} UTF-8→Latin-1 misinterpretation patterns: ${matches.slice(0, 3).join(', ')}`,
       );
     }
   }
 
-  // 2. 置換文字 (U+FFFD) の検出
+  // 2. Detect replacement characters (U+FFFD)
   const replacementCharMatches = text.match(/\uFFFD/g);
   if (replacementCharMatches) {
     patterns.replacementChars = replacementCharMatches.length;
     score += patterns.replacementChars * 20;
-    issues.push(`置換文字(�)を${patterns.replacementChars}箇所検出`);
+    issues.push(`Detected ${patterns.replacementChars} replacement characters (�)`);
   }
 
-  // 3. 制御文字の検出（タブ・改行・復帰文字は除く）
+  // 3. Detect control characters (excluding tab, newline, carriage return)
   const controlCharMatches = text.match(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g);
   if (controlCharMatches) {
     patterns.controlChars = controlCharMatches.length;
     score += patterns.controlChars * 10;
-    issues.push(`制御文字を${patterns.controlChars}箇所検出`);
+    issues.push(`Detected ${patterns.controlChars} control characters`);
   }
 
-  // 4. 不正なUTF-8シーケンスの検出
-  // サロゲートペア範囲の不正使用
+  // 4. Detect invalid UTF-8 sequences
+  // Invalid use of surrogate pair range
   const surrogateMatches = text.match(/[\uD800-\uDFFF]/g);
   if (surrogateMatches) {
     patterns.invalidSequences.push(...surrogateMatches);
     score += surrogateMatches.length * 25;
-    issues.push(`不正なサロゲートペア文字を${surrogateMatches.length}箇所検出`);
+    issues.push(`Detected ${surrogateMatches.length} invalid surrogate pair characters`);
   }
 
-  // 5. 日本語コンテキストでの異常パターン
+  // 5. Anomalous patterns in Japanese context
   const japaneseTextRatio =
     (text.match(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/g) || []).length /
     Math.max(text.length, 1);
   if (japaneseTextRatio > 0.1) {
-    // 日本語が10%以上含まれる場合
-    // 日本語の後に意味不明なバイト列が続くパターン
+    // When text contains 10%+ Japanese characters
+    // Pattern: Japanese character followed by meaningless byte sequences
     const brokenJapanesePattern = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF][\x80-\xFF]{2,}/g;
     const brokenMatches = text.match(brokenJapanesePattern);
     if (brokenMatches) {
       patterns.invalidSequences.push(...brokenMatches);
       score += brokenMatches.length * 15;
-      issues.push(`日本語文字化けパターンを${brokenMatches.length}箇所検出`);
+      issues.push(`Detected ${brokenMatches.length} Japanese mojibake patterns`);
     }
   }
 
-  // スコアの上限を100に制限
+  // Cap score at 100
   score = Math.min(score, 100);
 
   return {
-    hasMojibake: score > 20, // スコア20以上を文字化けとみなす
+    hasMojibake: score > 20, // Score above 20 is considered mojibake
     score,
     issues,
     patterns,
@@ -121,15 +123,15 @@ export function detectMojibake(text: string): MojibakeDetectionResult {
 }
 
 /**
- * UTF-8→Latin-1誤解釈を修復する
+ * Repair UTF-8 -> Latin-1 misinterpretation.
  */
 function fixUtf8Latin1(text: string): string {
   let fixed = text;
 
-  // 典型的なUTF-8 3バイト文字の修復を試行
-  // ただし、確実に修復できるパターンのみに限定（データ破壊を避けるため）
+  // Attempt to repair typical UTF-8 3-byte character corruption
+  // NOTE: Limited to patterns that can be reliably fixed to avoid data corruption
 
-  // パターン1: Ã£Â\x81\x82 → あ (U+3042)のような確実なパターンのみ
+  // NOTE: Only repair patterns that can be reliably reversed (e.g. Ã£Â\x81\x82 -> U+3042)
   const knownPatterns = [
     { broken: /Ã£Â\x81\x82/g, fixed: 'あ' },
     { broken: /Ã£Â\x81\x84/g, fixed: 'い' },
@@ -142,13 +144,13 @@ function fixUtf8Latin1(text: string): string {
     fixed = fixed.replace(broken, char);
   }
 
-  // より汎用的だが安全な修復: 明らかに文字化けしたバイト列を除去
-  // （ただし、日本語コンテンツが含まれている場合のみ）
+  // More general but safe repair: remove obviously corrupted byte sequences
+  // (only when Japanese content is present)
   const hasJapanese = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(fixed);
   if (hasJapanese) {
-    // 日本語文字の後に続く明らかに不正なバイト列を除去
+    // Remove clearly invalid byte sequences following Japanese characters
     fixed = fixed.replace(/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF][\x80-\xFF]+/g, (match) => {
-      return match.charAt(0); // 日本語文字のみ残し、後続のバイト列は除去
+      return match.charAt(0); // Keep only the Japanese character, strip trailing bytes
     });
   }
 
@@ -156,34 +158,34 @@ function fixUtf8Latin1(text: string): string {
 }
 
 /**
- * 文字化けを修正する
+ * Fix mojibake in the given text.
  */
 export function fixMojibake(text: string): string {
   let fixed = text;
 
-  // 1. 置換文字(U+FFFD)を除去
+  // 1. Remove replacement characters (U+FFFD)
   fixed = fixed.replace(/\uFFFD/g, '');
 
-  // 2. 制御文字を除去（タブ・改行・復帰文字は保持）
+  // 2. Remove control characters (preserve tab, newline, carriage return)
   fixed = fixed.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
-  // 3. 不正なサロゲートペア文字を除去
+  // 3. Remove invalid surrogate pair characters
   fixed = fixed.replace(/[\uD800-\uDFFF]/g, '');
 
-  // 4. UTF-8→Latin-1誤解釈の修復
+  // 4. Repair UTF-8 -> Latin-1 misinterpretation
   fixed = fixUtf8Latin1(fixed);
 
-  // 5. 連続する空白文字の正規化
+  // 5. Normalize consecutive whitespace
   fixed = fixed.replace(/[ \t]+/g, ' ');
 
-  // 6. 過剰な改行の正規化（3つ以上連続する改行を2つに制限）
+  // 6. Normalize excessive newlines (limit 3+ consecutive newlines to 2)
   fixed = fixed.replace(/\n{3,}/g, '\n\n');
 
   return fixed.trim();
 }
 
 /**
- * Markdownコンテンツをサニタイズする（メイン関数）
+ * Sanitize markdown content by detecting and fixing mojibake (main entry point).
  */
 export function sanitizeMarkdownContent(text: string): SanitizeResult {
   const originalLength = text.length;
@@ -196,19 +198,19 @@ export function sanitizeMarkdownContent(text: string): SanitizeResult {
   if (detection.hasMojibake) {
     const fixedText = fixMojibake(text);
 
-    // 修正後に再検証
+    // Re-validate after fix
     const redetection = detectMojibake(fixedText);
 
-    // 修正により文字化けスコアが改善された場合のみ採用
+    // Only adopt the fix if the mojibake score improved
     if (redetection.score < detection.score) {
       content = fixedText;
       wasFixed = true;
-      issues.push(`文字化けを修正しました (スコア: ${detection.score} → ${redetection.score})`);
+      issues.push(`Fixed mojibake (score: ${detection.score} → ${redetection.score})`);
       issues.push(...detection.issues);
     } else {
-      // 修正が効果的でない場合は元のテキストを保持
+      // Keep original text if the fix was not effective
       content = text;
-      issues.push('文字化けを検出しましたが、修正により品質が向上しませんでした');
+      issues.push('Mojibake detected but quality did not improve with fixes');
       issues.push(...detection.issues);
     }
   }

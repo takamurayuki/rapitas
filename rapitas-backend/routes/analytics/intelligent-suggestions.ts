@@ -1,6 +1,6 @@
 /**
  * Intelligent Suggestions Routes
- * 予測型タスク提案、ナレッジリマインド、知識共有のAPIエンドポイント
+ * Predictive task suggestions, knowledge reminders, and knowledge sharing endpoints.
  */
 import { Elysia } from 'elysia';
 import { parseId } from '../../middleware/error-handler';
@@ -28,9 +28,9 @@ const log = createLogger('routes:intelligent-suggestions');
 
 export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence' })
 
-  // ─── 予測型タスク提案 ───
+  // ─── Predictive Task Suggestions ───
 
-  // 今やるべきタスクの提案を取得
+  // Get suggested tasks to work on now
   .get('/suggested-tasks', async ({ query }) => {
     try {
       const limit = Math.min(parseInt(query?.limit || '5', 10), 20);
@@ -42,7 +42,7 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // 生産性ヒートマップを取得
+  // Get productivity heatmap
   .get('/productivity-heatmap', async ({ query }) => {
     try {
       const days = Math.min(Math.max(parseInt(query?.days || '90', 10), 7), 365);
@@ -54,7 +54,7 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // ヒートマップセルの詳細タスク一覧
+  // Get detailed task list for a heatmap cell
   .get('/productivity-heatmap/tasks', async ({ query }) => {
     try {
       const day = parseInt(query?.day || '0', 10);
@@ -68,9 +68,9 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // ─── ナレッジ自動リマインド ───
+  // ─── Knowledge Auto-Reminders ───
 
-  // リマインドスキャンを実行
+  // Execute a reminder scan
   .post('/knowledge-reminders/scan', async () => {
     try {
       const result = await scanAndRemind();
@@ -81,7 +81,7 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // リマインドサマリーを取得（ダッシュボード用）
+  // Get reminder summary (for dashboard)
   .get('/knowledge-reminders/summary', async () => {
     try {
       const summary = await getReminderSummary();
@@ -92,7 +92,7 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // ナレッジを復習済みとしてマーク
+  // Mark knowledge entry as reviewed
   .post('/knowledge-reminders/:entryId/review', async ({ params }) => {
     try {
       const entryId = parseId(params.entryId, 'entry ID');
@@ -104,9 +104,9 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // ─── タスク完了→ナレッジ自動抽出 ───
+  // ─── Task Completion → Knowledge Extraction ───
 
-  // タスクからナレッジを手動抽出
+  // Manually extract knowledge from a task
   .post('/tasks/:taskId/extract-knowledge', async ({ params }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -122,7 +122,7 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // タスクに関連するナレッジを検索
+  // Search for knowledge related to a task
   .get('/tasks/related-knowledge', async ({ query }) => {
     try {
       const title = query?.title || '';
@@ -142,9 +142,9 @@ export const intelligentSuggestionsRoutes = new Elysia({ prefix: '/intelligence'
     }
   })
 
-  // ─── エージェント間知識共有 ───
+  // ─── Agent Knowledge Sharing ───
 
-  // タスク実行前の共有知識を取得
+  // Get shared knowledge context before task execution
   .get('/tasks/:taskId/agent-context', async ({ params }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');

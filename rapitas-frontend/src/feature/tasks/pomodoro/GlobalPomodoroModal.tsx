@@ -44,7 +44,7 @@ export default function GlobalPomodoroModal({
   const [mounted, setMounted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // クライアントサイドでのみportalをマウント
+  // Mount portal only on client side
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
     return () => {
@@ -53,7 +53,7 @@ export default function GlobalPomodoroModal({
     };
   }, []);
 
-  // タスクのtime entriesとタスクデータを取得
+  // Fetch task time entries and task data
   useEffect(() => {
     const currentTaskId = propTaskId || state.taskId;
     if (currentTaskId && isOpen) {
@@ -68,7 +68,7 @@ export default function GlobalPomodoroModal({
       fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
-            // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
+            // Stop timer and close modal if task not found
             logger.info('Task not found, stopping timer');
             state.stopTimer();
             onClose();
@@ -91,11 +91,11 @@ export default function GlobalPomodoroModal({
   if (!isOpen) return null;
   if (!mounted) return null;
 
-  // taskIdとtaskTitleを決定（props優先、fallbackでstore）
+  // Determine taskId and taskTitle (props take priority, fallback to store)
   const currentTaskId = propTaskId || state.taskId;
   const currentTaskTitle = propTaskTitle || state.taskTitle;
 
-  // タスク情報が不足している場合は表示しない
+  // Don't render if task info is missing
   if (!currentTaskId || !currentTaskTitle) return null;
 
   const handleUpdate = () => {
@@ -112,7 +112,7 @@ export default function GlobalPomodoroModal({
       fetch(`${API_BASE_URL}/tasks/${currentTaskId}`)
         .then((res) => {
           if (!res.ok) {
-            // タスクが見つからない場合はタイマーを停止してモーダルを閉じる
+            // Stop timer and close modal if task not found
             logger.info('Task not found, stopping timer');
             state.stopTimer();
             onClose();
@@ -141,7 +141,6 @@ export default function GlobalPomodoroModal({
         className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ヘッダー */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 min-w-0">
             <Timer className="w-5 h-5 text-blue-500 shrink-0" />
@@ -158,7 +157,6 @@ export default function GlobalPomodoroModal({
           </button>
         </div>
 
-        {/* タスク名 */}
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
           <Link
             href={`${getTaskDetailPath(currentTaskId)}${getTaskDetailPath(currentTaskId).includes('?') ? '&' : '?'}showHeader=true`}
@@ -170,7 +168,6 @@ export default function GlobalPomodoroModal({
           </Link>
         </div>
 
-        {/* タイマー */}
         <div className="p-4">
           <PomodoroTimer
             taskId={currentTaskId}
@@ -183,7 +180,6 @@ export default function GlobalPomodoroModal({
           />
         </div>
 
-        {/* 今日の統計 */}
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 mb-2">
             <BarChart3 className="w-4 h-4 text-emerald-500" />
@@ -211,7 +207,6 @@ export default function GlobalPomodoroModal({
           </div>
         </div>
 
-        {/* 設定セクション */}
         <div className="border-t border-zinc-200 dark:border-zinc-800">
           <button
             onClick={() => setShowSettings(!showSettings)}
@@ -230,7 +225,6 @@ export default function GlobalPomodoroModal({
 
           {showSettings && (
             <div className="px-4 pb-4 space-y-4">
-              {/* 音声設定 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm text-zinc-600 dark:text-zinc-400">
@@ -276,7 +270,6 @@ export default function GlobalPomodoroModal({
                 )}
               </div>
 
-              {/* 時間設定 */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
@@ -346,6 +339,6 @@ export default function GlobalPomodoroModal({
     </div>
   );
 
-  // document.bodyにPortalでレンダリングしてHeaderのz-indexから独立させる
+  // NOTE: Render as Portal on document.body to be independent of Header z-index
   return createPortal(modalContent, document.body);
 }

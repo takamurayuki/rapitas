@@ -16,7 +16,6 @@ export const reportsRoutes = new Elysia()
     const twoWeeksAgo = new Date(today);
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    // 今週のデータ
     const thisWeekTasks = await prisma.task.count({
       where: { status: 'done', completedAt: { gte: weekAgo }, parentId: null },
     });
@@ -28,7 +27,6 @@ export const reportsRoutes = new Elysia()
       0,
     );
 
-    // 先週のデータ（比較用）
     const lastWeekTasks = await prisma.task.count({
       where: {
         status: 'done',
@@ -44,7 +42,6 @@ export const reportsRoutes = new Elysia()
       0,
     );
 
-    // 日別データ
     const dailyData = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
@@ -71,7 +68,6 @@ export const reportsRoutes = new Elysia()
       });
     }
 
-    // 科目別データ
     const subjectData = await prisma.task.groupBy({
       by: ['subject'],
       where: {

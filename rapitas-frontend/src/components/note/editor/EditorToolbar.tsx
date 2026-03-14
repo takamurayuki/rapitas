@@ -169,7 +169,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
   return (
     <div className="flex items-center gap-0.5 px-4 pb-1.5 border-b border-zinc-200 dark:border-zinc-700">
-      {/* フォントファミリー */}
+      {/* Font family */}
       <div className="relative">
         <button
           onClick={toggleFontPicker}
@@ -206,7 +206,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         )}
       </div>
 
-      {/* フォントサイズ */}
+      {/* Font size */}
       <div className="relative">
         <input
           type="text"
@@ -273,7 +273,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-      {/* 基本装飾 */}
+      {/* Basic formatting */}
       <button
         onClick={() => onApplyFormat('bold')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
@@ -298,7 +298,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-      {/* 文字色 */}
+      {/* Text color */}
       <div className="relative">
         <button
           onClick={onTextColorButtonClick}
@@ -316,7 +316,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
               テキスト色
             </div>
 
-            {/* よく使う色 */}
+            {/* Frequently used colors */}
             <div className="flex justify-between gap-1 mb-3">
               {quickTextColors.map((item) => (
                 <button
@@ -342,7 +342,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 mb-3" />
 
-            {/* カラーパレット */}
+            {/* Color palette */}
             <div className="space-y-1.5 mb-3">
               <div>
                 <div className="grid grid-cols-10 gap-1">
@@ -386,7 +386,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
               </div>
             </div>
 
-            {/* リセットボタン */}
+            {/* Reset button */}
             <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700">
               <button
                 className="w-full text-center text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 py-1 px-2 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
@@ -399,7 +399,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         )}
       </div>
 
-      {/* ハイライト */}
+      {/* Highlight */}
       <div className="relative">
         <button
           onClick={toggleColorPicker}
@@ -410,7 +410,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
         </button>
         {showColorPicker && (
           <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 w-52">
-            {/* スタイル選択 */}
+            {/* Style selector */}
             <div className="flex items-center gap-1 mb-2 p-0.5 bg-zinc-100 dark:bg-zinc-700 rounded-md">
               {highlightStyles.map((style, i) => (
                 <button
@@ -436,7 +436,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
                 </button>
               ))}
             </div>
-            {/* カラー選択 */}
+            {/* Color selector */}
             <div className="space-y-1">
               {highlightColors.map((color) => (
                 <button
@@ -466,7 +466,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-      {/* リスト */}
+      {/* Lists */}
       <button
         onClick={() => onApplyFormat('insertUnorderedList')}
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
@@ -484,7 +484,7 @@ export default function EditorToolbar(props: EditorToolbarProps) {
 
       <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
 
-      {/* 挿入系 */}
+      {/* Insert tools */}
       <div className="relative">
         <button
           onClick={onOpenLinkInput}

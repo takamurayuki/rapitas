@@ -1,12 +1,13 @@
 /**
- * AIエージェント抽象化レイヤー - メトリクスコレクター
- * エージェント実行のメトリクスを収集・集計
+ * Agent Abstraction Layer - Metrics Collector
+ *
+ * Collects and aggregates execution metrics for agents.
  */
 
 import type { IMetricsCollector } from './interfaces';
 
 /**
- * 実行メトリクスデータ
+ * Execution metrics data.
  */
 interface ExecutionMetricsData {
   executionId: string;
@@ -31,7 +32,7 @@ interface ExecutionMetricsData {
 }
 
 /**
- * 集計済みメトリクス
+ * Aggregated metrics.
  */
 interface AggregatedMetrics {
   totalExecutions: number;
@@ -43,7 +44,7 @@ interface AggregatedMetrics {
 }
 
 /**
- * デフォルトのメトリクスコレクター実装
+ * Default metrics collector implementation.
  */
 export class DefaultMetricsCollector implements IMetricsCollector {
   private executions: Map<string, ExecutionMetricsData> = new Map();
@@ -55,7 +56,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * 実行を開始
+   * Starts tracking an execution.
    */
   startExecution(executionId: string, agentId: string): void {
     const data: ExecutionMetricsData = {
@@ -70,7 +71,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
 
     this.executions.set(executionId, data);
 
-    // エージェント別メトリクスに追加
+    // Add to per-agent metrics
     let agentHistory = this.agentMetrics.get(agentId);
     if (!agentHistory) {
       agentHistory = [];
@@ -78,12 +79,12 @@ export class DefaultMetricsCollector implements IMetricsCollector {
     }
     agentHistory.push(data);
 
-    // 履歴サイズを制限
+    // Limit history size
     this.pruneHistory();
   }
 
   /**
-   * 実行を終了
+   * Ends tracking for an execution.
    */
   endExecution(executionId: string, success: boolean): void {
     const data = this.executions.get(executionId);
@@ -94,7 +95,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * トークン使用量を記録
+   * Records token usage.
    */
   recordTokenUsage(executionId: string, input: number, output: number): void {
     const data = this.executions.get(executionId);
@@ -105,7 +106,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * ツール呼び出しを記録
+   * Records a tool call.
    */
   recordToolCall(
     executionId: string,
@@ -120,7 +121,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * ファイル変更を記録
+   * Records file changes.
    */
   recordFileChange(executionId: string, added: number, deleted: number): void {
     const data = this.executions.get(executionId);
@@ -131,7 +132,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * コストを記録
+   * Records cost.
    */
   recordCost(executionId: string, costUsd: number): void {
     const data = this.executions.get(executionId);
@@ -141,7 +142,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * メトリクスを取得
+   * Returns metrics for an execution.
    */
   getMetrics(executionId: string): {
     durationMs: number;
@@ -168,7 +169,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * 集計メトリクスを取得
+   * Returns aggregated metrics for a time period.
    */
   getAggregateMetrics(
     agentId: string,
@@ -182,7 +183,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   } {
     const agentHistory = this.agentMetrics.get(agentId) || [];
 
-    // 期間に基づいてフィルタリング
+    // Filter by time period
     const now = Date.now();
     const periodMs = this.getPeriodMs(period);
     const cutoff = now - periodMs;
@@ -199,7 +200,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
       };
     }
 
-    // 集計
+    // Aggregate
     let totalDurationMs = 0;
     let successCount = 0;
     let totalTokens = 0;
@@ -231,7 +232,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * 全体の統計を取得
+   * Returns global statistics across all executions.
    */
   getGlobalStats(): {
     totalExecutions: number;
@@ -268,7 +269,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
       totalCostUsd += data.costUsd;
     }
 
-    // エージェント別の統計
+    // Per-agent statistics
     const byAgent = new Map<string, AggregatedMetrics>();
     for (const [agentId, history] of this.agentMetrics.entries()) {
       let agentDurationMs = 0;
@@ -311,7 +312,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * ツール呼び出し統計を取得
+   * Returns tool call statistics.
    */
   getToolCallStats(agentId?: string): Map<
     string,
@@ -350,7 +351,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
       }
     }
 
-    // 平均値に変換
+    // Convert to averages
     const result = new Map<
       string,
       {
@@ -372,7 +373,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * 履歴をクリア
+   * Clears all history.
    */
   clear(): void {
     this.executions.clear();
@@ -380,7 +381,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   /**
-   * 特定のエージェントの履歴をクリア
+   * Clears history for a specific agent.
    */
   clearAgent(agentId: string): void {
     const history = this.agentMetrics.get(agentId);
@@ -393,7 +394,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   // ============================================================================
-  // プライベートメソッド
+  // Private methods
   // ============================================================================
 
   private getPeriodMs(period: 'hour' | 'day' | 'week' | 'month'): number {
@@ -410,12 +411,12 @@ export class DefaultMetricsCollector implements IMetricsCollector {
   }
 
   private pruneHistory(): void {
-    // 履歴サイズを超過した場合、古いものから削除
+    // Evict oldest entries when exceeding max history size
     if (this.executions.size <= this.maxHistorySize) {
       return;
     }
 
-    // startTimeでソートして古いものを削除
+    // Sort by startTime and remove oldest
     const sorted = Array.from(this.executions.entries()).sort(
       (a, b) => a[1].startTime.getTime() - b[1].startTime.getTime(),
     );
@@ -425,7 +426,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
     for (const [executionId, data] of toDelete) {
       this.executions.delete(executionId);
 
-      // エージェント別履歴からも削除
+      // Also remove from per-agent history
       const agentHistory = this.agentMetrics.get(data.agentId);
       if (agentHistory) {
         const index = agentHistory.findIndex((d) => d.executionId === executionId);
@@ -438,7 +439,7 @@ export class DefaultMetricsCollector implements IMetricsCollector {
 }
 
 /**
- * デフォルトのメトリクスコレクターインスタンス
+ * Default metrics collector singleton.
  */
 let defaultCollector: DefaultMetricsCollector | null = null;
 

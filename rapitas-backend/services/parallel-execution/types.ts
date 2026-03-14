@@ -1,50 +1,51 @@
 /**
- * 並列実行システムの型定義
- * サブタスクの依存関係分析と並列実行のためのデータ構造
+ * Parallel Execution System Type Definitions
+ *
+ * Data structures for subtask dependency analysis and parallel execution.
  */
 
 /**
- * タスク優先度
+ * Task priority
  */
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 /**
- * 並列実行ステータス
+ * Parallel execution status
  */
 export type ParallelExecutionStatus =
-  | 'pending' // 待機中
-  | 'scheduled' // スケジュール済み
-  | 'running' // 実行中
-  | 'completed' // 完了
-  | 'failed' // 失敗
-  | 'cancelled' // キャンセル
-  | 'blocked' // ブロック（依存タスク未完了）
-  | 'waiting_for_input'; // ユーザー入力待ち
+  | 'pending'
+  | 'scheduled'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'blocked' // Blocked by incomplete dependencies
+  | 'waiting_for_input';
 
 /**
- * 依存関係の種類
+ * Dependency types
  */
 export type DependencyType =
-  | 'file_sharing' // ファイル共有による依存
-  | 'data_flow' // データフローによる依存
-  | 'sequential' // 順序依存（明示的）
-  | 'resource' // リソース競合
-  | 'logical'; // 論理的な依存関係
+  | 'file_sharing'
+  | 'data_flow'
+  | 'sequential' // Explicit ordering dependency
+  | 'resource' // Resource contention
+  | 'logical';
 
 /**
- * 依存関係エッジ（タスク間の依存を表現）
+ * Dependency edge (represents inter-task dependencies)
  */
 export type DependencyEdge = {
   fromTaskId: number;
   toTaskId: number;
   type: DependencyType;
-  weight: number; // 依存の強度 (0-100)
-  sharedResources: string[]; // 共有リソース（ファイルパス等）
+  weight: number; // Dependency strength (0-100)
+  sharedResources: string[]; // Shared resources (file paths etc.)
   description?: string;
 };
 
 /**
- * タスクノード（依存関係グラフのノード）
+ * Task node (node in the dependency graph)
  */
 export type TaskNode = {
   id: number;
@@ -55,81 +56,81 @@ export type TaskNode = {
   actualHours?: number;
   status: ParallelExecutionStatus;
 
-  // 依存関係
-  dependencies: number[]; // このタスクが依存するタスクID
-  dependents: number[]; // このタスクに依存するタスクID
+  // Dependencies
+  dependencies: number[]; // Task IDs this task depends on
+  dependents: number[]; // Task IDs that depend on this task
 
-  // 分析結果
-  depth: number; // グラフ内の深さ（クリティカルパス計算用）
-  independenceScore: number; // 独立性スコア (0-100)
-  parallelizability: number; // 並列実行可能性スコア (0-100)
+  // Analysis results
+  depth: number; // Depth in graph (for critical path calculation)
+  independenceScore: number; // Independence score (0-100)
+  parallelizability: number; // Parallelizability score (0-100)
 
-  // 実行情報
+  // Execution info
   executionId?: number;
   agentId?: string;
   startedAt?: Date;
   completedAt?: Date;
 
-  // メタデータ
-  files: string[]; // 関連ファイル
+  // Metadata
+  files: string[]; // Related files
   tags: string[];
 };
 
 /**
- * 依存関係ツリーマップ
+ * Dependency tree map
  */
 export type DependencyTreeMap = {
   nodes: Map<number, TaskNode>;
   edges: DependencyEdge[];
 
-  // 計算済みメトリクス
-  criticalPath: number[]; // クリティカルパスのタスクID
+  // Computed metrics
+  criticalPath: number[]; // Task IDs on the critical path
   parallelGroups: ParallelGroup[];
   maxDepth: number;
   totalWeight: number;
 };
 
 /**
- * 並列実行グループ
+ * Parallel execution group
  */
 export type ParallelGroup = {
   groupId: number;
-  level: number; // 実行レベル（0から始まる）
+  level: number; // Execution level (starting from 0)
   taskIds: number[];
   canRunParallel: boolean;
   estimatedDuration: number;
 
-  // グループ内の依存関係
+  // Intra-group dependencies
   internalDependencies: DependencyEdge[];
 
-  // 他のグループへの依存
+  // Dependencies on other groups
   dependsOnGroups: number[];
 };
 
 /**
- * 並列実行プラン
+ * Parallel execution plan
  */
 export type ParallelExecutionPlan = {
   id: string;
   parentTaskId: number;
   createdAt: Date;
 
-  // 実行構造
+  // Execution structure
   groups: ParallelGroup[];
-  executionOrder: number[][]; // レベルごとのタスクID配列
+  executionOrder: number[][]; // Task ID arrays by level
 
-  // 推定値
+  // Estimates
   estimatedTotalDuration: number;
   estimatedSequentialDuration: number;
-  parallelEfficiency: number; // 並列化による効率向上率
+  parallelEfficiency: number; // Efficiency gain from parallelization
 
-  // 制約
-  maxConcurrency: number; // 最大同時実行数
+  // Constraints
+  maxConcurrency: number; // Max concurrent execution count
   resourceConstraints: ResourceConstraint[];
 };
 
 /**
- * リソース制約
+ * Resource constraints
  */
 export type ResourceConstraint = {
   type: 'file' | 'api' | 'memory' | 'cpu';
@@ -139,7 +140,7 @@ export type ResourceConstraint = {
 };
 
 /**
- * サブエージェントの状態
+ * Sub-agent state
  */
 export type SubAgentState = {
   agentId: string;
@@ -150,46 +151,46 @@ export type SubAgentState = {
   lastActivityAt: Date;
   watingForInput: boolean;
 
-  // 出力
+  // Output
   output: string;
   artifacts: string[];
 
-  // メトリクス
+  // Metrics
   tokensUsed: number;
   executionTimeMs: number;
 };
 
 /**
- * 並列実行セッション
+ * Parallel execution session
  */
 export type ParallelExecutionSession = {
   sessionId: string;
   parentTaskId: number;
   plan: ParallelExecutionPlan;
 
-  // 実行状態
+  // Execution state
   status: ParallelExecutionStatus;
   currentLevel: number;
   activeAgents: Map<string, SubAgentState>;
   completedTasks: number[];
   failedTasks: number[];
 
-  // 実行コンテキスト（次のバッチ実行に必要）
+  // Execution context (needed for next batch execution)
   nodes: Map<number, TaskNode>;
   workingDirectory: string;
 
-  // タイミング
+  // Timing
   startedAt: Date;
   lastActivityAt: Date;
   completedAt?: Date;
 
-  // 統計
+  // Statistics
   totalTokensUsed: number;
   totalExecutionTimeMs: number;
 };
 
 /**
- * エージェント間メッセージ
+ * Inter-agent message
  */
 export type AgentMessage = {
   id: string;
@@ -200,13 +201,13 @@ export type AgentMessage = {
   type: AgentMessageType;
   payload: unknown;
 
-  // 追跡
+  // Tracking
   correlationId?: string;
   replyToId?: string;
 };
 
 /**
- * エージェントメッセージの種類
+ * Agent message types
  */
 export type AgentMessageType =
   | 'task_started'
@@ -221,7 +222,7 @@ export type AgentMessageType =
   | 'coordination_response';
 
 /**
- * 実行ログエントリ
+ * Execution log entry
  */
 export type ExecutionLogEntry = {
   timestamp: Date;
@@ -233,7 +234,7 @@ export type ExecutionLogEntry = {
 };
 
 /**
- * 並列実行の設定
+ * Parallel execution configuration
  */
 export type ParallelExecutionConfig = {
   maxConcurrentAgents: number;
@@ -246,7 +247,7 @@ export type ParallelExecutionConfig = {
 };
 
 /**
- * 依存関係分析の入力
+ * Dependency analysis input
  */
 export type DependencyAnalysisInput = {
   parentTaskId: number;
@@ -263,7 +264,7 @@ export type DependencyAnalysisInput = {
 };
 
 /**
- * 依存関係分析の結果
+ * Dependency analysis result
  */
 export type DependencyAnalysisResult = {
   treeMap: DependencyTreeMap;

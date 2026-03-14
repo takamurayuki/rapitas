@@ -39,7 +39,6 @@ export default function TaskComments({
         コメント ({comments.length})
       </h2>
 
-      {/* コメント追加フォーム */}
       <div className="mb-4">
         <textarea
           value={newComment}
@@ -59,7 +58,6 @@ export default function TaskComments({
         </div>
       </div>
 
-      {/* コメント一覧 */}
       {comments.length > 0 && (
         <div className="space-y-4">
           {comments.map((comment) => (

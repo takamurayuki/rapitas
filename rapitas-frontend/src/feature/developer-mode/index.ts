@@ -1,9 +1,7 @@
-// Hooks
 export { useDeveloperMode } from './hooks/useDeveloperMode';
 export { useApprovals } from './hooks/useApprovals';
 export { useNotifications } from './hooks/useNotifications';
 
-// Components
 export { DeveloperModeConfigModal } from './components/DeveloperModeConfig';
 export { TaskAnalysisPanel } from './components/TaskAnalysisPanel';
 export { AIAnalysisPanel } from './components/AIAnalysisPanel';

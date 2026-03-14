@@ -6,19 +6,16 @@ import { createPortal } from 'react-dom';
 const PARTICLE_DURATION = 900;
 const RING_SIZE = 56;
 
-// 進捗率に基づくカラーシステム
 export function useProgressColors(completed: number, total: number) {
   return useMemo(() => {
     const p = total > 0 ? completed / total : 0;
 
-    // 彩度と明度のランプ
     const saturation = Math.round(15 + p * 80); // 15 → 95
     const lightness = Math.round(72 - p * 18); // 72 → 54
     const opacity = 0.4 + p * 0.6; // 0.4 → 1.0
     const glowStrength = Math.round(p * 20); // 0 → 20
     const glowOpacity = (p * 0.7).toFixed(2); // 0 → 0.7
 
-    // カラー構築
     const primary = `hsl(220, ${saturation}%, ${lightness}%)`;
     const primaryLight = `hsl(220, ${saturation}%, ${Math.min(lightness + 20, 90)}%)`;
     const primaryDark = `hsl(225, ${Math.min(saturation + 10, 100)}%, ${Math.max(lightness - 15, 35)}%)`;
@@ -45,7 +42,6 @@ export function useProgressColors(completed: number, total: number) {
   }, [completed, total]);
 }
 
-// 飛翔する粒子のコンポーネント
 interface FlyingParticleProps {
   startX: number;
   startY: number;
@@ -113,7 +109,6 @@ export function FlyingParticle({
   );
 }
 
-// リングバーストエフェクト
 interface RingBurstProps {
   color: string;
   onDone: () => void;
@@ -127,12 +122,10 @@ function RingBurst({ color, onDone }: RingBurstProps) {
     return () => clearTimeout(timer);
   }, [onDone]);
 
-  // ProgressRingの位置を取得して、その位置に波紋を表示
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    // ProgressRingの要素を探す
     const progressRing = document.querySelector('[data-progress-ring]');
     if (!progressRing) return;
 
@@ -140,7 +133,6 @@ function RingBurst({ color, onDone }: RingBurstProps) {
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
 
-    // 波紋の中心を設定
     el.style.left = `${centerX}px`;
     el.style.top = `${centerY}px`;
   }, []);
@@ -163,7 +155,6 @@ function RingBurst({ color, onDone }: RingBurstProps) {
   );
 }
 
-// 完了時のお祝いエフェクト
 function CompleteCelebration() {
   return (
     <>
@@ -184,7 +175,6 @@ function CompleteCelebration() {
   );
 }
 
-// プログレスリング
 interface ProgressRingProps {
   completed: number;
   total: number;
@@ -246,7 +236,6 @@ export function ProgressRing({
               : 'none',
         }}
       >
-        {/* トラック */}
         <circle
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
@@ -255,7 +244,6 @@ export function ProgressRing({
           stroke="rgba(203,213,225,0.2)"
           strokeWidth="4"
         />
-        {/* プログレス */}
         <circle
           cx={RING_SIZE / 2}
           cy={RING_SIZE / 2}
@@ -273,7 +261,6 @@ export function ProgressRing({
         />
       </svg>
 
-      {/* 中央のコンテンツ */}
       <div className="absolute inset-0 flex items-center justify-center transition-all duration-500">
         {colors.isComplete ? (
           <svg
@@ -305,7 +292,6 @@ export function ProgressRing({
         )}
       </div>
 
-      {/* バーストエフェクト */}
       {bursts.map((id) => (
         <RingBurst
           key={id}
@@ -314,13 +300,11 @@ export function ProgressRing({
         />
       ))}
 
-      {/* 完了時のお祝い */}
       {showCelebration && <CompleteCelebration />}
     </div>
   );
 }
 
-// カードのライトスイープ
 interface CardLightSweepProps {
   active: boolean;
   colors: ReturnType<typeof useProgressColors>;
@@ -346,7 +330,6 @@ export function CardLightSweep({ active, colors }: CardLightSweepProps) {
   );
 }
 
-// タスク完了アニメーション管理のフック
 export function useTaskCompletionAnimation(
   totalTasks: number,
   completedTasks: number,
@@ -373,7 +356,6 @@ export function useTaskCompletionAnimation(
 
   const triggerTaskCompletion = useCallback(
     (taskId: number, cardX: number, cardY: number) => {
-      // 本日のタスクが0件の場合はアニメーションを発生させない
       if (totalTasks === 0) return;
 
       setSweepingTaskId(taskId);
@@ -403,7 +385,6 @@ export function useTaskCompletionAnimation(
 
   const handleParticleArrive = useCallback(() => {
     setParticles((prev) => prev.slice(1));
-    // 本日のタスクが0件の場合は波紋を発生させない
     if (totalTasks > 0) {
       const burstId = ++idRef.current;
       setBursts((prev) => [...prev, burstId]);

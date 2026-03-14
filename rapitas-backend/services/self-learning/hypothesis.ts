@@ -1,5 +1,5 @@
 /**
- * Hypothesis Manager - 仮説の生成・追跡・検証
+ * Hypothesis Manager - Tracking
  */
 
 import { prisma } from '../../config/database';
@@ -9,7 +9,6 @@ import type { CreateHypothesisInput, HypothesisStatus, HypothesisTestResult } fr
 const log = createLogger('self-learning:hypothesis');
 
 /**
- * 仮説を作成
  */
 export async function createHypothesis(input: CreateHypothesisInput) {
   const hypothesis = await prisma.hypothesis.create({
@@ -28,7 +27,6 @@ export async function createHypothesis(input: CreateHypothesisInput) {
 }
 
 /**
- * 仮説のステータスを更新
  */
 export async function updateHypothesisStatus(
   id: number,
@@ -39,7 +37,6 @@ export async function updateHypothesisStatus(
 
   if (testResult) {
     data.testResult = JSON.stringify(testResult);
-    // テスト結果に基づいて信頼度を更新
     if (testResult.passed) {
       data.confidence = Math.min(1.0, 0.8 + (testResult.metrics?.accuracy ?? 0));
     } else {
@@ -57,7 +54,6 @@ export async function updateHypothesisStatus(
 }
 
 /**
- * 仮説を改訂（新バージョンを作成）
  */
 export async function reviseHypothesis(
   originalId: number,
@@ -70,10 +66,9 @@ export async function reviseHypothesis(
 
   if (!original) throw new Error(`Hypothesis ${originalId} not found`);
 
-  // 元の仮説を「revised」に更新
+  // revised
   await updateHypothesisStatus(originalId, 'revised');
 
-  // 新しい仮説を作成
   return createHypothesis({
     experimentId: original.experimentId,
     content: revisedContent,
@@ -85,7 +80,6 @@ export async function reviseHypothesis(
 }
 
 /**
- * 実験の仮説一覧を取得
  */
 export async function getHypotheses(experimentId: number) {
   return prisma.hypothesis.findMany({
@@ -95,7 +89,7 @@ export async function getHypotheses(experimentId: number) {
 }
 
 /**
- * 仮説をランキング（信頼度×優先度でソート）
+ * （×）
  */
 export async function rankHypotheses(experimentId: number) {
   const hypotheses = await prisma.hypothesis.findMany({

@@ -1,6 +1,7 @@
 /**
- * ベクトルインデックス管理
- * SQLiteでembeddingsを管理し、コサイン類似度でブルートフォース検索
+ * Vector Index Management
+ *
+ * Manages embeddings in SQLite and performs brute-force cosine similarity search.
  */
 import { Database } from 'bun:sqlite';
 import { join } from 'path';
@@ -17,7 +18,7 @@ const DB_PATH = join(DB_DIR, 'knowledge-vectors.db');
 let db: Database | null = null;
 
 /**
- * SQLiteデータベースを初期化
+ * Initialize the SQLite database.
  */
 function getDb(): Database {
   if (db) return db;
@@ -52,7 +53,7 @@ function getDb(): Database {
 }
 
 /**
- * embeddingをFloat32Arrayに変換してBlobとして保存
+ * Convert embedding array to a Buffer (Float32Array blob) for storage.
  */
 function embeddingToBlob(embedding: number[]): Buffer {
   const float32 = new Float32Array(embedding);
@@ -60,7 +61,7 @@ function embeddingToBlob(embedding: number[]): Buffer {
 }
 
 /**
- * BlobからFloat32Arrayに復元
+ * Restore a number array from a Float32Array blob.
  */
 function blobToEmbedding(blob: Buffer): number[] {
   const float32 = new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
@@ -68,7 +69,7 @@ function blobToEmbedding(blob: Buffer): number[] {
 }
 
 /**
- * embeddingを挿入または更新
+ * Insert or update an embedding.
  */
 export function upsertEmbedding(
   knowledgeEntryId: number,
@@ -99,7 +100,7 @@ export function upsertEmbedding(
 }
 
 /**
- * embeddingを削除
+ * Delete an embedding.
  */
 export function deleteEmbedding(knowledgeEntryId: number): void {
   const database = getDb();
@@ -107,7 +108,7 @@ export function deleteEmbedding(knowledgeEntryId: number): void {
 }
 
 /**
- * コサイン類似度でブルートフォース検索
+ * Brute-force search by cosine similarity.
  */
 export function searchSimilar(
   queryEmbedding: number[],
@@ -142,13 +143,13 @@ export function searchSimilar(
     }
   }
 
-  // 類似度降順でソートしてlimitで切る
+  // Sort by similarity descending and truncate to limit
   results.sort((a, b) => b.similarity - a.similarity);
   return results.slice(0, limit);
 }
 
 /**
- * エントリ数を取得
+ * Get the total number of stored embeddings.
  */
 export function getEmbeddingCount(): number {
   const database = getDb();
@@ -159,7 +160,7 @@ export function getEmbeddingCount(): number {
 }
 
 /**
- * データベースを閉じる
+ * Close the database connection.
  */
 export function closeVectorDb(): void {
   if (db) {

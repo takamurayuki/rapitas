@@ -227,7 +227,6 @@ export default function AgentsPage() {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -257,7 +256,6 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        {/* エラー・成功表示 */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
@@ -286,12 +284,10 @@ export default function AgentsPage() {
           </div>
         )}
 
-        {/* 使用制限グラフ */}
         <div className="mb-6">
           <UsageRateLimitGraph />
         </div>
 
-        {/* ワークフローロール設定 */}
         <div className="mb-8">
           <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
@@ -311,7 +307,6 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        {/* 利用可能なエージェント一覧 */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             {t('registeredAgents')}
@@ -416,7 +411,6 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        {/* 使い方ガイド */}
         <div className="p-6 bg-linear-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             {t('howToUse')}

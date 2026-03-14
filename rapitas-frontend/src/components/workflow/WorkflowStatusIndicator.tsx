@@ -100,7 +100,7 @@ export default function WorkflowStatusIndicator({
   );
 }
 
-// ワークフロー進捗バー
+// Workflow progress bar
 const STAGES: WorkflowStatus[] = [
   'draft',
   'research_done',
@@ -111,7 +111,7 @@ const STAGES: WorkflowStatus[] = [
   'completed',
 ];
 
-// ステージとロールの対応
+// Stage-to-role mapping
 const STAGE_ROLES: Record<string, string> = {
   draft: 'researcher',
   research_done: 'planner',

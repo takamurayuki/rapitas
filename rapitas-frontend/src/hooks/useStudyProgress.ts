@@ -1,6 +1,6 @@
 /**
- * 学習進捗を追跡するカスタムフック
- * 目標に対する進捗率、合計学習時間、マイルストーンを提供
+ * Custom hook for tracking study progress
+ * Provides progress percentage against goals, total study time, and milestones
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -51,7 +51,7 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
 
     fetch(`/api/learning-goals/${goalId}/progress`)
       .then((res) => {
-        if (!res.ok) throw new Error('進捗データの取得に失敗しました');
+        if (!res.ok) throw new Error('Failed to fetch progress data');
         return res.json();
       })
       .then((json) => {
@@ -80,7 +80,7 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
       .catch((err) => {
         if (cancelled) return;
         logger.error('Failed to fetch study progress:', err);
-        setError(err instanceof Error ? err.message : '不明なエラー');
+        setError(err instanceof Error ? err.message : 'Unknown error');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

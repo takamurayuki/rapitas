@@ -9,7 +9,7 @@ import { mkdir, writeFile, unlink, copyFile, stat } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, basename, extname } from 'path';
 
-// 拡張子からMIMEタイプを取得
+// Get MIME type from file extension
 function getMimeType(filePath: string): string {
   const ext = extname(filePath).toLowerCase().slice(1);
   const mimeTypes: Record<string, string> = {
@@ -176,7 +176,7 @@ export const resourcesRoutes = new Elysia()
       throw new ValidationError('ファイルが見つかりません');
     }
 
-    // FormDataから来るtaskIdは文字列なので数値に変換
+    // NOTE: taskId from FormData is a string, convert to number
     const taskId = taskIdStr ? parseInt(taskIdStr, 10) : undefined;
     if (taskIdStr && (isNaN(taskId!) || taskId! <= 0)) {
       throw new ValidationError('無効なタスクIDです');

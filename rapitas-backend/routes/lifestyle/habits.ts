@@ -8,7 +8,7 @@ import { createLogger } from '../../config/logger';
 const logger = createLogger('routes:habits');
 
 /**
- * ストリーク計算ロジック
+ * Calculate streak data from habit logs.
  */
 function calculateStreak(
   logs: { date: Date; count: number }[],
@@ -18,13 +18,12 @@ function calculateStreak(
     return { current: 0, longest: 0, lastDate: null, totalCompletions: 0 };
   }
 
-  // 日付でソート（降順）
   const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   const totalCompletions = sortedLogs.reduce((sum, log) => sum + log.count, 0);
   const lastDate = sortedLogs[0]!.date;
 
-  // ユニークな日付セット（日単位）
+  // Unique date set (day granularity)
   const dateSet = new Set<string>();
   for (const log of sortedLogs) {
     if (log.count > 0) {
@@ -39,7 +38,7 @@ function calculateStreak(
     return { current: 0, longest: 0, lastDate, totalCompletions };
   }
 
-  // 現在のストリーク計算（今日または昨日から開始）
+  // Current streak: starts from today or yesterday
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today);
@@ -67,7 +66,7 @@ function calculateStreak(
     }
   }
 
-  // 最長ストリーク計算
+  // Longest streak calculation
   let longest = 0;
   let streak = 1;
   for (let i = 1; i < dates.length; i++) {
@@ -122,7 +121,6 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
 
     if (!habit) return null;
 
-    // ストリーク計算
     const allLogs = await prisma.habitLog.findMany({
       where: { habitId: id },
       orderBy: { date: 'desc' },
@@ -130,7 +128,7 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
 
     const streak = calculateStreak(allLogs, habit.frequency);
 
-    // 週次達成率（直近4週間）
+    // Weekly completion rate (last 4 weeks)
     const fourWeeksAgo = new Date();
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
     const recentLogs = allLogs.filter((l) => l.date >= fourWeeksAgo);
@@ -143,7 +141,7 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
     };
   })
 
-  // 全習慣のストリーク情報を一括取得
+  // Get streak info for all active habits
   .get('/streaks/all', async () => {
     const habits = await prisma.habit.findMany({
       where: { isActive: true },
@@ -260,7 +258,7 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
     return log;
   })
 
-  // 習慣の統計情報
+  // Habit statistics
   .get('/:id/statistics', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -278,7 +276,7 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
 
     const streak = calculateStreak(allLogs, habit.frequency);
 
-    // 月別集計
+    // Monthly aggregation
     const monthlyMap = new Map<string, number>();
     for (const log of allLogs) {
       const monthKey = log.date.toISOString().slice(0, 7); // YYYY-MM
@@ -290,7 +288,7 @@ export const habitsRoutes = new Elysia({ prefix: '/habits' })
       .sort((a, b) => b.month.localeCompare(a.month))
       .slice(0, 6);
 
-    // 曜日別集計
+    // Day-of-week aggregation
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
     for (const log of allLogs) {
       dayOfWeekCounts[log.date.getDay()] += log.count;

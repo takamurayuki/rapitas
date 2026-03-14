@@ -25,10 +25,9 @@ export default function ErrorDemoPage() {
     },
   });
 
-  // エラーを意図的に発生させる関数群
   const triggerSyntaxError = () => {
     try {
-      // SyntaxErrorは実行時には発生しないので、evalを使用
+      // NOTE: SyntaxError cannot be thrown at runtime without eval.
       eval('const x = {');
     } catch (error) {
       manualCaptureError(
@@ -54,7 +53,7 @@ export default function ErrorDemoPage() {
     try {
       await fetch('https://invalid-domain-that-does-not-exist.com/api/test');
     } catch (error) {
-      // fetchのエラーはuseErrorCaptureが自動的にキャプチャします
+      // NOTE: fetch errors are automatically captured by useErrorCapture.
     }
   };
 
@@ -111,7 +110,6 @@ export default function ErrorDemoPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="mb-8">
         <Link
           href="/settings/developer-mode"
@@ -136,7 +134,6 @@ export default function ErrorDemoPage() {
         </div>
       </div>
 
-      {/* 最後にキャプチャされたエラー */}
       {lastError && (
         <Card className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
           <div className="flex items-start gap-3">
@@ -155,7 +152,6 @@ export default function ErrorDemoPage() {
         </Card>
       )}
 
-      {/* エラートリガーボタン */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
@@ -254,7 +250,6 @@ export default function ErrorDemoPage() {
         </Card>
       </div>
 
-      {/* 説明 */}
       <Card className="mt-6 p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
         <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
           {t('errorDemoAboutTitle')}

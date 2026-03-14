@@ -1,6 +1,4 @@
 /**
- * 並列実行オーケストレーター
- * すべてのコンポーネントを統合し、サブタスクの並列実行を管理する
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -27,7 +25,6 @@ import { createLogger } from '../../config/logger';
 const logger = createLogger('parallel-executor');
 
 /**
- * コーディネーターメッセージのペイロードを人間が読みやすい形式に変換
  */
 function formatCoordinatorPayload(payload: unknown): string {
   if (!payload || typeof payload !== 'object') return String(payload ?? '');
@@ -35,21 +32,16 @@ function formatCoordinatorPayload(payload: unknown): string {
   const obj = payload as Record<string, unknown>;
   const parts: string[] = [];
 
-  // メッセージ系
   const msg = obj.message || obj.msg || obj.description;
   if (msg && typeof msg === 'string') parts.push(msg);
 
-  // ステータス系
   if (obj.status && typeof obj.status === 'string') parts.push(`status=${obj.status}`);
 
-  // タスク・エージェント情報
   if (obj.taskId) parts.push(`task=${obj.taskId}`);
   if (obj.agentId && typeof obj.agentId === 'string') parts.push(`agent=${obj.agentId}`);
 
-  // エラー系
   if (obj.error && typeof obj.error === 'string') parts.push(`error: ${obj.error}`);
 
-  // その他のフィールド
   const skipKeys = new Set([
     'message',
     'msg',
@@ -73,7 +65,6 @@ function formatCoordinatorPayload(payload: unknown): string {
 }
 
 /**
- * 並列実行イベント
  */
 type ParallelExecutionEvent = {
   type:
@@ -96,7 +87,7 @@ type ParallelExecutionEvent = {
 type ParallelExecutionEventListener = (event: ParallelExecutionEvent) => void;
 
 /**
- * デフォルト設定
+ * Default settings
  */
 const DEFAULT_CONFIG: ParallelExecutionConfig = {
   maxConcurrentAgents: 3,
@@ -109,7 +100,7 @@ const DEFAULT_CONFIG: ParallelExecutionConfig = {
 };
 
 /**
- * DB操作用のミューテックス（同時書き込み時の競合防止）
+ * DB（）
  */
 class DatabaseMutex {
   private locked = false;
@@ -137,7 +128,7 @@ class DatabaseMutex {
 }
 
 /**
- * リトライ付きでDB操作を実行
+ * DB
  */
 async function withRetry<T>(
   operation: () => Promise<T>,
@@ -160,7 +151,6 @@ async function withRetry<T>(
         throw lastError;
       }
 
-      // 指数バックオフ
       const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 100;
       logger.info(
         `[ParallelExecutor] DB operation failed, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`,
@@ -172,11 +162,10 @@ async function withRetry<T>(
   throw lastError;
 }
 
-// グローバルなDBミューテックス
+// DB
 const dbMutex = new DatabaseMutex();
 
 /**
- * 並列実行オーケストレーター
  */
 export class ParallelExecutor extends EventEmitter {
   private config: ParallelExecutionConfig;
@@ -185,11 +174,10 @@ export class ParallelExecutor extends EventEmitter {
   private logAggregator: LogAggregator;
   private coordinator: AgentCoordinator;
 
-  // アクティブなセッション
   private sessions: Map<string, ParallelExecutionSession> = new Map();
   private schedulers: Map<string, ParallelScheduler> = new Map();
 
-  // Prismaクライアント
+  // Prisma
   private prisma: PrismaClientInstance;
 
   constructor(prisma: PrismaClientInstance, config?: Partial<ParallelExecutionConfig>) {
@@ -197,26 +185,22 @@ export class ParallelExecutor extends EventEmitter {
     this.prisma = prisma;
     this.config = { ...DEFAULT_CONFIG, ...config };
 
-    // コンポーネントを初期化
     this.analyzer = createDependencyAnalyzer();
     this.agentController = createSubAgentController(this.config);
     this.logAggregator = createLogAggregator();
     this.coordinator = createAgentCoordinator();
 
-    // イベントハンドラーを設定
     this.setupEventHandlers();
   }
 
-  // ログシーケンス番号を追跡（executionId -> sequenceNumber）
+  // Tracking（executionId -> sequenceNumber）
   private logSequenceNumbers: Map<number, number> = new Map();
 
   /**
-   * イベントハンドラーを設定
    */
   private setupEventHandlers(): void {
-    // エージェント出力をログに集約し、DBに保存
+    // OutputDB
     this.agentController.on('agent_output', async (data) => {
-      // ログアグリゲーターにも追加
       this.logAggregator.addLog({
         timestamp: data.timestamp,
         agentId: data.agentId,
@@ -225,7 +209,7 @@ export class ParallelExecutor extends EventEmitter {
         message: data.chunk,
       });
 
-      // DBに実行ログを保存
+      // DB
       try {
         const sequenceNumber = this.logSequenceNumbers.get(data.executionId) || 0;
         this.logSequenceNumbers.set(data.executionId, sequenceNumber + 1);
@@ -243,7 +227,6 @@ export class ParallelExecutor extends EventEmitter {
         logger.error({ err: error }, '[ParallelExecutor] Failed to save execution log');
       }
 
-      // イベントを発火（リアルタイム通知用）
       this.emitEvent({
         type: 'progress_updated',
         sessionId: '',
@@ -257,7 +240,6 @@ export class ParallelExecutor extends EventEmitter {
       });
     });
 
-    // タスク完了時の処理
     this.agentController.on('task_completed', (data) => {
       const session = this.findSessionByTaskId(data.taskId);
       if (session) {
@@ -265,7 +247,6 @@ export class ParallelExecutor extends EventEmitter {
       }
     });
 
-    // タスク失敗時の処理
     this.agentController.on('task_failed', (data) => {
       const session = this.findSessionByTaskId(data.taskId);
       if (session) {
@@ -277,7 +258,6 @@ export class ParallelExecutor extends EventEmitter {
       }
     });
 
-    // コーディネーターメッセージをログに記録
     this.coordinator.on('message', (message) => {
       this.logAggregator.addLog({
         timestamp: message.timestamp,
@@ -290,7 +270,7 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * タスクIDからセッションを検索
+   * ID
    */
   private findSessionByTaskId(taskId: number): ParallelExecutionSession | undefined {
     for (const session of this.sessions.values()) {
@@ -303,7 +283,7 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * 依存関係を分析してプランを生成
+   * Dependencies
    */
   async analyzeDependencies(input: DependencyAnalysisInput): Promise<DependencyAnalysisResult> {
     logger.info(`[ParallelExecutor] Analyzing dependencies for parent task ${input.parentTaskId}`);
@@ -323,7 +303,7 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * 並列実行セッションを開始
+   * Parallel execution session
    */
   async startSession(
     parentTaskId: number,
@@ -337,11 +317,9 @@ export class ParallelExecutor extends EventEmitter {
     logger.info(`[ParallelExecutor] Total tasks: ${plan.groups.flatMap((g) => g.taskIds).length}`);
     logger.info(`[ParallelExecutor] Max concurrency: ${this.config.maxConcurrentAgents}`);
 
-    // スケジューラーを作成
     const scheduler = createParallelScheduler(plan, nodes, this.config);
     this.schedulers.set(sessionId, scheduler);
 
-    // セッションを作成
     const session: ParallelExecutionSession = {
       sessionId,
       parentTaskId,
@@ -361,12 +339,11 @@ export class ParallelExecutor extends EventEmitter {
 
     this.sessions.set(sessionId, session);
 
-    // 依存関係をコーディネーターに登録
+    // Dependencies
     for (const node of nodes.values()) {
       this.coordinator.registerDependency(node.id, node.dependencies);
     }
 
-    // セッション開始イベント
     this.emitEvent({
       type: 'session_started',
       sessionId,
@@ -378,7 +355,6 @@ export class ParallelExecutor extends EventEmitter {
       },
     });
 
-    // スケジューラーイベントをリッスン
     scheduler.addEventListener((event) => {
       if (event.type === 'level_completed') {
         this.emitEvent({
@@ -392,12 +368,11 @@ export class ParallelExecutor extends EventEmitter {
       }
     });
 
-    // 実行を開始（非同期で実行し、APIレスポンスをブロックしない）
-    // setImmediateを使用してイベントループの次のティックで実行を開始
+    // （API）
+    // setImmediate
     setImmediate(() => {
       this.executeNextBatch(sessionId, nodes, workingDirectory).catch((error) => {
         logger.error({ err: error }, '[ParallelExecutor] Error in executeNextBatch');
-        // エラー発生時はセッションを失敗状態にする
         const session = this.sessions.get(sessionId);
         if (session && session.status === 'running') {
           session.status = 'failed';
@@ -418,7 +393,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * 次のバッチを実行
    */
   private async executeNextBatch(
     sessionId: string,
@@ -432,11 +406,9 @@ export class ParallelExecutor extends EventEmitter {
       return;
     }
 
-    // 実行可能なタスクを取得
     const executableTasks = scheduler.getNextExecutableTasks();
 
     if (executableTasks.length === 0) {
-      // 実行中のタスクもなければセッション完了
       if (this.agentController.getActiveAgentCount() === 0) {
         this.completeSession(sessionId);
       }
@@ -445,20 +417,18 @@ export class ParallelExecutor extends EventEmitter {
 
     logger.info(`[ParallelExecutor] Executing batch of ${executableTasks.length} tasks`);
 
-    // 並列でタスクを実行
     const promises: Promise<void>[] = [];
 
     for (const taskId of executableTasks) {
       const node = nodes.get(taskId);
       if (!node) continue;
 
-      // スケジューラーでタスク開始
       if (!scheduler.startTask(taskId)) {
         logger.warn(`[ParallelExecutor] Failed to start task ${taskId}`);
         continue;
       }
 
-      // DBからAgentExecutionを作成
+      // DBAgentExecution
       promises.push(this.executeTask(sessionId, taskId, node, workingDirectory));
     }
 
@@ -466,7 +436,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * 単一タスクを実行
    */
   private async executeTask(
     sessionId: string,
@@ -480,7 +449,7 @@ export class ParallelExecutor extends EventEmitter {
     logger.info(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
 
     try {
-      // AgentExecutionをDBに作成（ミューテックスとリトライで保護）
+      // AgentExecutionDB（）
       await dbMutex.acquire();
       let agentSession;
       let execution;
@@ -514,10 +483,8 @@ export class ParallelExecutor extends EventEmitter {
         dbMutex.release();
       }
 
-      // サブエージェントを作成
       const agentId = this.agentController.createAgent(taskId, execution.id, workingDirectory);
 
-      // セッションにエージェントを追加
       session.activeAgents.set(agentId, {
         agentId,
         taskId,
@@ -532,7 +499,6 @@ export class ParallelExecutor extends EventEmitter {
         watingForInput: false,
       });
 
-      // タスク開始イベント
       this.emitEvent({
         type: 'task_started',
         sessionId,
@@ -540,7 +506,7 @@ export class ParallelExecutor extends EventEmitter {
         timestamp: new Date(),
       });
 
-      // DBのサブタスクステータスを「進行中」に更新（ミューテックスとリトライで保護）
+      // DB（）
       try {
         await dbMutex.acquire();
         await withRetry(async () => {
@@ -556,14 +522,14 @@ export class ParallelExecutor extends EventEmitter {
         dbMutex.release();
       }
 
-      // 以前の実行からセッションIDを取得（再実行の場合）
+      // ID（）
       let previousSessionId: string | null = null;
       try {
         const previousExecution = await this.prisma.agentExecution.findFirst({
           where: {
             session: {
               config: {
-                taskId: taskId, // サブタスク自体のID
+                taskId: taskId, // The subtask's own ID
               },
             },
             claudeSessionId: { not: null },
@@ -580,7 +546,6 @@ export class ParallelExecutor extends EventEmitter {
         logger.info(`[ParallelExecutor] No previous session found for task ${taskId}`);
       }
 
-      // タスクを実行
       const task: AgentTask = {
         id: taskId,
         title: node.title,
@@ -591,10 +556,10 @@ export class ParallelExecutor extends EventEmitter {
 
       const result = await this.agentController.executeTask(agentId, task);
 
-      // 結果をDBに保存（ミューテックスとリトライで保護）
+      // DB（）
       try {
         await dbMutex.acquire();
-        // 質問待ち状態の場合は'waiting_for_input'ステータス
+        // 'waiting_for_input'
         const executionStatus = result.waitingForInput
           ? 'waiting_for_input'
           : result.success
@@ -621,12 +586,11 @@ export class ParallelExecutor extends EventEmitter {
         dbMutex.release();
       }
 
-      // 質問待ち状態の場合は特別な処理
       if (result.waitingForInput) {
         logger.info(`[ParallelExecutor] Task ${taskId} is waiting for user input`);
         logger.info(`[ParallelExecutor] Question: ${result.question?.substring(0, 200)}`);
 
-        // DBのサブタスクステータスを「質問待ち」に更新
+        // DB
         try {
           await dbMutex.acquire();
           await withRetry(async () => {
@@ -642,9 +606,8 @@ export class ParallelExecutor extends EventEmitter {
           dbMutex.release();
         }
 
-        // 質問待ちイベントを発火
         this.emitEvent({
-          type: 'task_failed', // UIで質問を表示するため
+          type: 'task_failed', // Emitted as 'task_failed' so the UI can display the question
           sessionId,
           taskId,
           timestamp: new Date(),
@@ -656,8 +619,6 @@ export class ParallelExecutor extends EventEmitter {
           },
         });
 
-        // 質問待ちのタスクは失敗扱いにしない（他のタスクは続行）
-        // ただしスケジューラーには通知しない（依存タスクをブロックするため）
         return;
       }
 
@@ -674,7 +635,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * タスク完了を処理
    */
   private async handleTaskCompletion(
     sessionId: string,
@@ -688,19 +648,17 @@ export class ParallelExecutor extends EventEmitter {
 
     logger.info(`[ParallelExecutor] Task ${taskId} completed`);
 
-    // スケジューラーを更新
     scheduler.completeTask(taskId);
 
-    // 依存関係を解決
+    // Dependencies
     this.coordinator.resolveDependency(taskId);
 
-    // セッションを更新
     session.completedTasks.push(taskId);
     session.lastActivityAt = new Date();
     session.totalTokensUsed += result.tokensUsed || 0;
     session.totalExecutionTimeMs += result.executionTimeMs || 0;
 
-    // DBのサブタスクステータスを「完了」に更新（ミューテックスとリトライで保護）
+    // DB（）
     try {
       await dbMutex.acquire();
       await withRetry(async () => {
@@ -719,7 +677,6 @@ export class ParallelExecutor extends EventEmitter {
       dbMutex.release();
     }
 
-    // タスク完了イベント
     this.emitEvent({
       type: 'task_completed',
       sessionId,
@@ -731,7 +688,6 @@ export class ParallelExecutor extends EventEmitter {
       },
     });
 
-    // 進捗更新イベント
     const status = scheduler.getStatus();
     this.emitEvent({
       type: 'progress_updated',
@@ -746,12 +702,11 @@ export class ParallelExecutor extends EventEmitter {
       },
     });
 
-    // 次のバッチを実行（セッションからnodes/workingDirectoryを取得）
+    // （nodes/workingDirectory）
     await this.executeNextBatch(sessionId, session.nodes, session.workingDirectory);
   }
 
   /**
-   * タスク失敗を処理
    */
   private async handleTaskFailure(
     sessionId: string,
@@ -765,14 +720,12 @@ export class ParallelExecutor extends EventEmitter {
 
     logger.error(`[ParallelExecutor] Task ${taskId} failed: ${errorMessage}`);
 
-    // スケジューラーを更新
     scheduler.failTask(taskId);
 
-    // セッションを更新
     session.failedTasks.push(taskId);
     session.lastActivityAt = new Date();
 
-    // DBのサブタスクステータスを「未着手」に戻す（失敗時は元の状態に戻す、ミューテックスとリトライで保護）
+    // DB（）
     try {
       await dbMutex.acquire();
       await withRetry(async () => {
@@ -788,7 +741,6 @@ export class ParallelExecutor extends EventEmitter {
       dbMutex.release();
     }
 
-    // タスク失敗イベント
     this.emitEvent({
       type: 'task_failed',
       sessionId,
@@ -797,8 +749,7 @@ export class ParallelExecutor extends EventEmitter {
       data: { errorMessage },
     });
 
-    // リトライ設定がある場合はリトライ（未実装）
-    // 進捗更新イベント
+    // Retry configuration（）
     const status = scheduler.getStatus();
     this.emitEvent({
       type: 'progress_updated',
@@ -813,12 +764,10 @@ export class ParallelExecutor extends EventEmitter {
       },
     });
 
-    // 失敗しても他のタスクは続行（依存タスクはスケジューラーでブロック）
     await this.executeNextBatch(sessionId, session.nodes, session.workingDirectory);
   }
 
   /**
-   * セッションを完了
    */
   private completeSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
@@ -847,7 +796,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * セッションを停止
    */
   async stopSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
@@ -855,7 +803,6 @@ export class ParallelExecutor extends EventEmitter {
 
     logger.info(`[ParallelExecutor] Stopping session ${sessionId}`);
 
-    // すべてのアクティブなエージェントを停止
     for (const [agentId] of session.activeAgents) {
       this.agentController.stopAgent(agentId);
     }
@@ -872,7 +819,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * セッションの状態を取得
    */
   getSessionStatus(sessionId: string): {
     status: ParallelExecutionStatus;
@@ -902,7 +848,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * ログを取得
    */
   getLogs(filter?: {
     sessionId?: string;
@@ -920,7 +865,6 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * イベントを発火
    */
   private emitEvent(event: ParallelExecutionEvent): void {
     this.emit('event', event);
@@ -928,21 +872,19 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
-   * イベントリスナーを追加
    */
   addEventListener(listener: ParallelExecutionEventListener): void {
     this.on('event', listener);
   }
 
   /**
-   * イベントリスナーを削除
    */
   removeEventListener(listener: ParallelExecutionEventListener): void {
     this.off('event', listener);
   }
 
   /**
-   * クリーンアップ
+   * Clean up.
    */
   cleanup(): void {
     this.agentController.stopAllAgents();
@@ -953,7 +895,6 @@ export class ParallelExecutor extends EventEmitter {
 }
 
 /**
- * 並列実行オーケストレーターのファクトリー関数
  */
 export function createParallelExecutor(
   prisma: PrismaClientInstance,

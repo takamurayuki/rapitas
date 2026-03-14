@@ -61,7 +61,7 @@ export default function NotificationBell() {
     deleteAllNotifications,
   } = useNotifications();
 
-  // ドロップダウン外クリックで閉じる
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -81,7 +81,7 @@ export default function NotificationBell() {
     };
   }, [isOpen]);
 
-  // ドロップダウンを開いた時に通知を取得
+  // Fetch notifications when dropdown is opened
   useEffect(() => {
     if (isOpen) {
       fetchNotifications(false, 10);

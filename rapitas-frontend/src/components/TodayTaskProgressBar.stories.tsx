@@ -120,7 +120,7 @@ export const HighEfficiency: Story = {
   },
 };
 
-// インタラクティブストーリー（タスクを完了させてアニメーションを確認）
+// Interactive story (complete tasks to see animations)
 const InteractiveComponent = () => {
   const [completedCount, setCompletedCount] = useState(2);
   const totalCount = 10;

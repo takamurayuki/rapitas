@@ -1,6 +1,7 @@
 /**
  * Agent Execution Config API Routes
- * エージェント実行設定の保存・取得API
+ *
+ * Provides CRUD endpoints for per-task agent execution configuration.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -32,7 +33,6 @@ interface ExecutionConfigBody {
 export const agentExecutionConfigRoutes = new Elysia({
   prefix: '/agent-execution-config',
 })
-  // エージェント実行設定の取得
   .get('/:taskId', async (context) => {
     const { params, set } = context;
     const taskId = parseInt((params as { taskId: string }).taskId);
@@ -60,20 +60,17 @@ export const agentExecutionConfigRoutes = new Elysia({
     return config;
   })
 
-  // エージェント実行設定の作成または更新（upsert）
   .put('/:taskId', async (context) => {
     const { params, set } = context;
     const body = context.body as ExecutionConfigBody;
     const taskId = parseInt((params as { taskId: string }).taskId);
 
-    // タスクの存在確認
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) {
       set.status = 404;
       return { error: 'Task not found' };
     }
 
-    // バリデーション
     if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
       set.status = 400;
       return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
@@ -102,7 +99,6 @@ export const agentExecutionConfigRoutes = new Elysia({
       return { error: 'maxRetries must be between 0 and 5' };
     }
 
-    // agentConfigIdの存在確認
     if (body.agentConfigId) {
       const agentConfig = await prisma.aIAgentConfig.findUnique({
         where: { id: body.agentConfigId },
@@ -184,7 +180,6 @@ export const agentExecutionConfigRoutes = new Elysia({
     return config;
   })
 
-  // エージェント実行設定の部分更新
   .patch('/:taskId', async (context) => {
     const { set } = context;
     const body = context.body as ExecutionConfigBody;
@@ -199,7 +194,6 @@ export const agentExecutionConfigRoutes = new Elysia({
       return { error: 'Agent execution config not found. Use PUT to create.' };
     }
 
-    // バリデーション
     if (body.branchStrategy && !['auto', 'manual', 'none'].includes(body.branchStrategy)) {
       set.status = 400;
       return { error: 'Invalid branchStrategy. Must be: auto, manual, none' };
@@ -265,7 +259,6 @@ export const agentExecutionConfigRoutes = new Elysia({
     return config;
   })
 
-  // エージェント実行設定の削除（デフォルトに戻す）
   .delete('/:taskId', async (context) => {
     const { params, set } = context;
     const taskId = parseInt((params as { taskId: string }).taskId);
@@ -286,7 +279,6 @@ export const agentExecutionConfigRoutes = new Elysia({
     return { success: true, message: 'Agent execution config deleted' };
   })
 
-  // デフォルト設定値の取得
   .get('/defaults/values', async () => {
     return {
       timeoutMs: 900000,

@@ -1,6 +1,6 @@
 /**
- * 依存関係分析アルゴリズム
- * サブタスク間の依存関係を分析し、重みづけを行う
+ * Dependencies
+ * Dependencies
  */
 
 import type {
@@ -17,19 +17,17 @@ import type {
 } from './types';
 
 /**
- * ファイルパスを抽出するヘルパー関数
  */
 function extractFilePaths(text: string | null | undefined): string[] {
   if (!text) return [];
 
   const patterns = [
-    // Unix/Mac パス
+    // Unix/Mac
     /(?:^|\s|["'`])([\/][\w\-\.\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // Windows パス
+    // Windows
     /(?:^|\s|["'`])([A-Za-z]:[\\\/][\w\-\.\\\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // 相対パス
     /(?:^|\s|["'`])(\.{0,2}[\/\\][\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // src/components/... 形式
+    // src/components/...
     /(?:^|\s|["'`])((?:src|lib|app|components|pages|features?|services?|utils?|hooks?|types?|api|routes?)[\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
   ];
 
@@ -48,7 +46,6 @@ function extractFilePaths(text: string | null | undefined): string[] {
 }
 
 /**
- * ファイル名を取得
  */
 function getFileName(path: string): string {
   const parts = path.split('/');
@@ -56,7 +53,6 @@ function getFileName(path: string): string {
 }
 
 /**
- * 優先度を数値に変換
  */
 function priorityToWeight(priority: TaskPriority): number {
   switch (priority) {
@@ -72,7 +68,7 @@ function priorityToWeight(priority: TaskPriority): number {
 }
 
 /**
- * 依存関係分析クラス
+ * Dependencies
  */
 export class DependencyAnalyzer {
   private nodes: Map<number, TaskNode> = new Map();
@@ -81,28 +77,25 @@ export class DependencyAnalyzer {
   constructor() {}
 
   /**
-   * 依存関係を分析してツリーマップを生成
+   * Dependencies
    */
   analyze(input: DependencyAnalysisInput): DependencyAnalysisResult {
     this.nodes.clear();
     this.edges = [];
 
-    // ノードを初期化
     this.initializeNodes(input);
 
-    // 依存関係エッジを計算
+    // Dependencies
     this.calculateDependencyEdges();
 
-    // グラフの深さと独立性スコアを計算
+    // Independence score
     this.calculateNodeMetrics();
 
-    // 並列実行グループを生成
+    // Parallel execution group
     const parallelGroups = this.generateParallelGroups();
 
-    // クリティカルパスを計算
     const criticalPath = this.calculateCriticalPath();
 
-    // ツリーマップを構築
     const treeMap: DependencyTreeMap = {
       nodes: this.nodes,
       edges: this.edges,
@@ -112,10 +105,8 @@ export class DependencyAnalyzer {
       totalWeight: this.calculateTotalWeight(),
     };
 
-    // 実行プランを生成
     const plan = this.generateExecutionPlan(input.parentTaskId, treeMap, input.config);
 
-    // 推奨事項と警告を生成
     const { recommendations, warnings } = this.generateRecommendations(treeMap);
 
     return {
@@ -127,11 +118,9 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * ノードを初期化
    */
   private initializeNodes(input: DependencyAnalysisInput): void {
     for (const subtask of input.subtasks) {
-      // 説明からファイルを抽出
       const extractedFiles = extractFilePaths(subtask.description);
       const files = [...new Set([...(subtask.files || []), ...extractedFiles])];
 
@@ -154,7 +143,7 @@ export class DependencyAnalyzer {
       this.nodes.set(subtask.id, node);
     }
 
-    // 明示的な依存関係から dependents を設定
+    // Dependencies dependents
     for (const node of this.nodes.values()) {
       for (const depId of node.dependencies) {
         const depNode = this.nodes.get(depId);
@@ -166,7 +155,7 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 依存関係エッジを計算
+   * Dependencies
    */
   private calculateDependencyEdges(): void {
     const nodeArray = Array.from(this.nodes.values());
@@ -176,7 +165,7 @@ export class DependencyAnalyzer {
         const node1 = nodeArray[i];
         const node2 = nodeArray[j];
 
-        // ファイル共有による依存関係を検出
+        // Dependencies
         const sharedFiles = this.findSharedFiles(node1, node2);
         if (sharedFiles.length > 0) {
           const weight = this.calculateFileSharingWeight(node1, node2, sharedFiles);
@@ -190,9 +179,7 @@ export class DependencyAnalyzer {
             description: `共有ファイル: ${sharedFiles.join(', ')}`,
           });
 
-          // 双方向の依存として追加（ファイル共有の場合）
           if (!node1.dependencies.includes(node2.id)) {
-            // 優先度が高いタスクが先に実行されるべき
             if (priorityToWeight(node1.priority) < priorityToWeight(node2.priority)) {
               node1.dependencies.push(node2.id);
               node2.dependents.push(node1.id);
@@ -200,7 +187,6 @@ export class DependencyAnalyzer {
           }
         }
 
-        // 明示的な順序依存
         if (node1.dependencies.includes(node2.id)) {
           this.edges.push({
             fromTaskId: node2.id,
@@ -226,7 +212,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 共有ファイルを検出
    */
   private findSharedFiles(node1: TaskNode, node2: TaskNode): string[] {
     const fileNames1 = new Set(node1.files.map(getFileName));
@@ -242,7 +227,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * ファイル共有の重みを計算
    */
   private calculateFileSharingWeight(
     node1: TaskNode,
@@ -252,12 +236,10 @@ export class DependencyAnalyzer {
     const node1FileCount = node1.files.length || 1;
     const node2FileCount = node2.files.length || 1;
 
-    // 共有ファイルの割合を計算
     const ratio1 = sharedFiles.length / node1FileCount;
     const ratio2 = sharedFiles.length / node2FileCount;
     const avgRatio = (ratio1 + ratio2) / 2;
 
-    // 重要なファイルタイプの重みを増加
     let typeWeight = 1.0;
     for (const file of sharedFiles) {
       if (file.match(/\.(ts|tsx|js|jsx)$/)) typeWeight = Math.max(typeWeight, 1.2);
@@ -271,16 +253,15 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * ノードのメトリクスを計算
+   * Metrics
    */
   private calculateNodeMetrics(): void {
-    // トポロジカルソートで深さを計算
     const visited = new Set<number>();
     const depths = new Map<number, number>();
 
     const calculateDepth = (nodeId: number): number => {
       if (depths.has(nodeId)) return depths.get(nodeId)!;
-      if (visited.has(nodeId)) return 0; // 循環依存を回避
+      if (visited.has(nodeId)) return 0; // Avoid circular dependencies
 
       visited.add(nodeId);
       const node = this.nodes.get(nodeId);
@@ -296,13 +277,12 @@ export class DependencyAnalyzer {
       return maxDepth;
     };
 
-    // 各ノードの深さを計算
     for (const nodeId of this.nodes.keys()) {
       const depth = calculateDepth(nodeId);
       const node = this.nodes.get(nodeId)!;
       node.depth = depth;
 
-      // 独立性スコアを計算
+      // Independence score
       const totalEdgeWeight = this.edges
         .filter((e) => e.fromTaskId === nodeId || e.toTaskId === nodeId)
         .reduce((sum, e) => sum + e.weight, 0);
@@ -313,7 +293,7 @@ export class DependencyAnalyzer {
         100 - Math.round((totalEdgeWeight / maxPossibleWeight) * 100),
       );
 
-      // 並列実行可能性スコアを計算
+      // Parallelizability score
       const dependencyCount = node.dependencies.length;
       const dependentCount = node.dependents.length;
       const connectionRatio = (dependencyCount + dependentCount) / (this.nodes.size - 1);
@@ -322,13 +302,12 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 並列実行グループを生成
+   * Parallel execution group
    */
   private generateParallelGroups(): ParallelGroup[] {
     const groups: ParallelGroup[] = [];
     const assigned = new Set<number>();
 
-    // レベル（深さ）ごとにグループ化
     const maxDepth = this.calculateMaxDepth();
 
     for (let level = 0; level <= maxDepth; level++) {
@@ -336,7 +315,6 @@ export class DependencyAnalyzer {
 
       for (const node of this.nodes.values()) {
         if (node.depth === level && !assigned.has(node.id)) {
-          // 依存タスクがすべて完了している（より低いレベル）か確認
           const canSchedule = node.dependencies.every((depId) => {
             const depNode = this.nodes.get(depId);
             return depNode && depNode.depth < level;
@@ -350,12 +328,11 @@ export class DependencyAnalyzer {
       }
 
       if (levelTasks.length > 0) {
-        // グループ内の依存関係を検出
+        // Dependencies
         const internalDeps = this.edges.filter(
           (e) => levelTasks.includes(e.fromTaskId) && levelTasks.includes(e.toTaskId),
         );
 
-        // グループ間の依存を計算
         const dependsOnGroups: number[] = [];
         for (const taskId of levelTasks) {
           const node = this.nodes.get(taskId)!;
@@ -367,7 +344,6 @@ export class DependencyAnalyzer {
           }
         }
 
-        // 推定実行時間を計算（並列実行の場合は最長タスクの時間）
         const estimatedDuration = Math.max(
           ...levelTasks.map((id) => this.nodes.get(id)?.estimatedHours || 1),
         );
@@ -388,19 +364,16 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * クリティカルパスを計算
    */
   private calculateCriticalPath(): number[] {
     const distances = new Map<number, number>();
     const predecessors = new Map<number, number | null>();
 
-    // 初期化
     for (const nodeId of this.nodes.keys()) {
       distances.set(nodeId, -Infinity);
       predecessors.set(nodeId, null);
     }
 
-    // 開始ノード（依存のないノード）を見つける
     const startNodes = Array.from(this.nodes.values())
       .filter((n) => n.dependencies.length === 0)
       .map((n) => n.id);
@@ -409,7 +382,6 @@ export class DependencyAnalyzer {
       distances.set(startId, this.nodes.get(startId)?.estimatedHours || 0);
     }
 
-    // トポロジカル順序で処理
     const sorted = this.topologicalSort();
 
     for (const nodeId of sorted) {
@@ -427,7 +399,6 @@ export class DependencyAnalyzer {
       }
     }
 
-    // 最長パスの終点を見つける
     let maxDist = -Infinity;
     let endNode: number | null = null;
     for (const [nodeId, dist] of distances) {
@@ -437,7 +408,6 @@ export class DependencyAnalyzer {
       }
     }
 
-    // パスを逆順にたどる
     const path: number[] = [];
     let current = endNode;
     while (current !== null) {
@@ -449,7 +419,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * トポロジカルソート
    */
   private topologicalSort(): number[] {
     const visited = new Set<number>();
@@ -476,7 +445,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 最大深さを計算
    */
   private calculateMaxDepth(): number {
     let maxDepth = 0;
@@ -487,14 +455,12 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 総重みを計算
    */
   private calculateTotalWeight(): number {
     return this.edges.reduce((sum, e) => sum + e.weight, 0);
   }
 
   /**
-   * 実行プランを生成
    */
   private generateExecutionPlan(
     parentTaskId: number,
@@ -503,10 +469,9 @@ export class DependencyAnalyzer {
   ): ParallelExecutionPlan {
     const maxConcurrency = config?.maxConcurrentAgents || 3;
 
-    // 実行順序を生成（レベルごと）
     const executionOrder: number[][] = [];
     for (const group of treeMap.parallelGroups) {
-      // maxConcurrencyに合わせてグループを分割
+      // maxConcurrency
       const tasks = [...group.taskIds];
       while (tasks.length > 0) {
         const batch = tasks.splice(0, maxConcurrency);
@@ -514,10 +479,9 @@ export class DependencyAnalyzer {
       }
     }
 
-    // リソース制約を検出
+    // Constraints
     const resourceConstraints = this.detectResourceConstraints();
 
-    // 推定時間を計算
     let estimatedTotalDuration = 0;
     for (const group of treeMap.parallelGroups) {
       estimatedTotalDuration += group.estimatedDuration;
@@ -548,13 +512,12 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * リソース制約を検出
+   * Constraints
    */
   private detectResourceConstraints(): ResourceConstraint[] {
     const constraints: ResourceConstraint[] = [];
     const fileUsage = new Map<string, number[]>();
 
-    // ファイル使用状況を収集
     for (const node of this.nodes.values()) {
       for (const file of node.files) {
         const fileName = getFileName(file);
@@ -565,10 +528,9 @@ export class DependencyAnalyzer {
       }
     }
 
-    // 複数タスクで使用されるファイルを制約として追加
+    // Constraints
     for (const [fileName, taskIds] of fileUsage) {
       if (taskIds.length > 1) {
-        // 重要なファイルは同時実行を制限
         const isImportantFile = fileName.match(/index\.|schema\.|config\.|package\.json/);
         constraints.push({
           type: 'file',
@@ -583,7 +545,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 推奨事項と警告を生成
    */
   private generateRecommendations(treeMap: DependencyTreeMap): {
     recommendations: string[];
@@ -592,7 +553,6 @@ export class DependencyAnalyzer {
     const recommendations: string[] = [];
     const warnings: string[] = [];
 
-    // 独立性の高いタスクを推奨
     const highlyIndependent = Array.from(treeMap.nodes.values()).filter(
       (n) => n.independenceScore >= 80,
     );
@@ -602,20 +562,18 @@ export class DependencyAnalyzer {
       );
     }
 
-    // クリティカルパスの警告
     if (treeMap.criticalPath.length > 3) {
       warnings.push(
         `クリティカルパスが${treeMap.criticalPath.length}タスクと長いため、全体の実行時間に影響します。`,
       );
     }
 
-    // 循環依存の警告
     const hasCycle = this.detectCycles();
     if (hasCycle) {
       warnings.push('循環依存が検出されました。タスクの順序を見直してください。');
     }
 
-    // 高い依存関係の警告
+    // Dependencies
     const highlyDependent = Array.from(treeMap.nodes.values()).filter(
       (n) => n.independenceScore < 30,
     );
@@ -625,7 +583,6 @@ export class DependencyAnalyzer {
       );
     }
 
-    // 並列化の効果
     const parallelGroups = treeMap.parallelGroups.filter(
       (g) => g.canRunParallel && g.taskIds.length > 1,
     );
@@ -640,7 +597,6 @@ export class DependencyAnalyzer {
   }
 
   /**
-   * 循環依存を検出
    */
   private detectCycles(): boolean {
     const visited = new Set<number>();
@@ -676,7 +632,7 @@ export class DependencyAnalyzer {
 }
 
 /**
- * 依存関係分析のファクトリー関数
+ * Dependencies
  */
 export function createDependencyAnalyzer(): DependencyAnalyzer {
   return new DependencyAnalyzer();

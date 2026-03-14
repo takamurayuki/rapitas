@@ -1,5 +1,5 @@
 /**
- * デバッグログ解析ツールを使うためのReact Hook
+ * React hook for using the debug log analyzer
  */
 
 import { useState, useCallback } from 'react';
@@ -44,7 +44,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ログを解析
+  // Analyze logs
   const analyzeLog = useCallback(
     async (
       content: string,
@@ -84,7 +84,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
           throw new Error(data.error || 'ログ解析に失敗しました');
         }
 
-        // 日付文字列をDateオブジェクトに変換
+        // Convert date string to Date object
         const result = {
           ...data.result,
           entries: data.result.entries.map((entry) => ({
@@ -118,7 +118,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
     [API_BASE_URL],
   );
 
-  // ログタイプを検出
+  // Detect log type
   const detectLogType = useCallback(
     async (content: string): Promise<LogType> => {
       try {
@@ -145,7 +145,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
     [API_BASE_URL],
   );
 
-  // サポートされているログタイプを取得
+  // Get supported log types
   const getSupportedTypes = useCallback(async (): Promise<LogTypeInfo[]> => {
     try {
       const response = await fetch(
@@ -164,7 +164,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
     }
   }, [API_BASE_URL]);
 
-  // URLからログを解析（大きなファイル用）
+  // Analyze logs from URL (for large files)
   const analyzeFromUrl = useCallback(
     async (
       url: string,
@@ -207,7 +207,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
           throw new Error(data.error || 'ストリーム解析に失敗しました');
         }
 
-        // 日付文字列をDateオブジェクトに変換
+        // Convert date string to Date object
         const result = {
           ...data.result,
           entries: data.result.entries.map((entry: ParsedLogEntry) => ({

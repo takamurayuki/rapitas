@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 
 /**
- * 非同期操作の状態
+ * State for async operations
  */
 export type AsyncOperationState<T> = {
   data: T | null;
@@ -12,7 +12,7 @@ export type AsyncOperationState<T> = {
 };
 
 /**
- * 非同期操作フックの戻り値
+ * Return value of async operation hook
  */
 export type UseAsyncOperationReturn<T, Args extends unknown[]> = {
   data: T | null;
@@ -25,7 +25,7 @@ export type UseAsyncOperationReturn<T, Args extends unknown[]> = {
 };
 
 /**
- * 非同期操作を管理する汎用フック
+ * Generic hook for managing async operations
  *
  * @example
  * const { data, isLoading, error, execute } = useAsyncOperation(
@@ -36,7 +36,7 @@ export type UseAsyncOperationReturn<T, Args extends unknown[]> = {
  *   }
  * );
  *
- * // 使用例
+ * // Usage example
  * execute(123);
  */
 export function useAsyncOperation<T, Args extends unknown[] = []>(
@@ -62,7 +62,7 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
         return result;
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : 'エラーが発生しました';
+          err instanceof Error ? err.message : 'An error occurred';
         setError(errorMessage);
         options?.onError?.(
           err instanceof Error ? err : new Error(errorMessage),
@@ -93,8 +93,8 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
 }
 
 /**
- * 複数の非同期操作を管理するフック
- * 各操作に個別の状態を持つ
+ * Hook for managing multiple async operations
+ * Each operation has individual state
  */
 export function useMultiAsyncOperation<
   Operations extends Record<string, (...args: unknown[]) => Promise<unknown>>,
@@ -139,7 +139,7 @@ export function useMultiAsyncOperation<
         return result as Awaited<ReturnType<Operations[K]>>;
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : 'エラーが発生しました';
+          err instanceof Error ? err.message : 'An error occurred';
         setStates((prev) => ({
           ...prev,
           [key]: { ...prev[key], isLoading: false, error: errorMessage },

@@ -1,6 +1,7 @@
 /**
  * Notification Service
- * 通知の作成とリアルタイム配信を統合
+ *
+ * Creates notifications and delivers them in real-time via SSE.
  */
 import { prisma } from '../config/database';
 import { realtimeService } from './realtime-service';
@@ -29,7 +30,7 @@ interface CreateNotificationParams {
 }
 
 /**
- * 通知を作成し、SSE経由でリアルタイム配信する
+ * Create a notification and deliver it in real-time via SSE.
  */
 export async function createNotification(params: CreateNotificationParams) {
   const notification = await prisma.notification.create({
@@ -42,7 +43,7 @@ export async function createNotification(params: CreateNotificationParams) {
     },
   });
 
-  // SSE経由でリアルタイム配信
+  // Deliver in real-time via SSE
   const unreadCount = await prisma.notification.count({ where: { isRead: false } });
   realtimeService.broadcast('notifications', 'new_notification', {
     notification,
@@ -53,7 +54,7 @@ export async function createNotification(params: CreateNotificationParams) {
 }
 
 /**
- * タスク完了通知
+ * Send a task completion notification.
  */
 export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
   return createNotification({
@@ -66,7 +67,7 @@ export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
 }
 
 /**
- * AI実行完了通知
+ * Send an AI execution completion notification.
  */
 export async function notifyAgentExecutionCompleted(
   executionId: number,
@@ -85,7 +86,7 @@ export async function notifyAgentExecutionCompleted(
 }
 
 /**
- * 承認リクエスト通知
+ * Send an approval request notification.
  */
 export async function notifyApprovalRequested(approvalId: number, title: string) {
   return createNotification({
@@ -98,7 +99,7 @@ export async function notifyApprovalRequested(approvalId: number, title: string)
 }
 
 /**
- * ポモドーロ完了通知
+ * Send a pomodoro completion notification.
  */
 export async function notifyPomodoroCompleted(taskTitle: string | null, completedCount: number) {
   return createNotification({

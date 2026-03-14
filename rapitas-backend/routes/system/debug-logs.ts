@@ -1,5 +1,5 @@
 /**
- * デバッグログ解析APIエンドポイント
+ * Debug Log Analysis API Endpoints
  */
 
 import { Elysia, t, type Context } from 'elysia';
@@ -14,9 +14,7 @@ import { LogParserFactory } from '../../utils/debug-log-parsers';
 
 const log = createLogger('routes:debug-logs');
 
-// デバッグログ解析ルーター
 export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
-  // ログ解析エンドポイント
   .post(
     '/analyze',
     async (context) => {
@@ -28,17 +26,14 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
           options?: AnalyzeOptions;
         };
 
-        // アナライザーのインスタンスを作成
         const analyzer = new DebugLogAnalyzer();
 
-        // 追加パーサーを登録
         const additionalParsers = LogParserFactory.createAllParsers();
         additionalParsers.forEach((parser) => analyzer.addParser(parser));
 
-        // ログタイプの自動検出または指定されたタイプを使用
+        // Auto-detect or use specified log type
         const detectedType = type || analyzer.detectLogType(content);
 
-        // ログを解析
         const result = analyzer.analyze(content, options);
 
         return {
@@ -104,7 +99,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
     },
   )
 
-  // ログタイプの検出
+  // Detect log type
   .post(
     '/detect-type',
     async (context) => {
@@ -142,7 +137,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
     },
   )
 
-  // ストリーム解析エンドポイント（大きなファイル用）
+  // Stream analysis endpoint (for large files)
   .post(
     '/analyze-stream',
     async (context) => {
@@ -154,7 +149,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
           options?: AnalyzeOptions;
         };
 
-        // URLからログをストリーミングで取得
+        // Stream-fetch log from URL
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`Failed to fetch log from URL: ${response.statusText}`);
@@ -173,7 +168,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
         const entries: Record<string, unknown>[] = [];
         let buffer = '';
 
-        // ストリーム処理
+        // Process stream
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -185,7 +180,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
           for (const line of lines) {
             if (!line.trim()) continue;
 
-            // 各行を解析（本来はanalyzeStreamを使うべきですが、簡略化）
+            // HACK: Parsing line-by-line instead of using analyzeStream for simplicity
             const lineResult = analyzer.analyze(line, options);
             if (lineResult.entries.length > 0) {
               entries.push(
@@ -193,7 +188,6 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
               );
             }
 
-            // リミットチェック
             if (options?.limit && entries.length >= options.limit) {
               reader.cancel();
               break;
@@ -201,7 +195,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
           }
         }
 
-        // 残りのバッファを処理
+        // Process remaining buffer
         if (buffer.trim()) {
           const lineResult = analyzer.analyze(buffer, options);
           if (lineResult.entries.length > 0) {
@@ -209,7 +203,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
           }
         }
 
-        // 全体の解析結果を生成
+        // Generate overall analysis result
         const fullContent = entries.map((e) => e.raw).join('\n');
         const result = analyzer.analyze(fullContent, options);
 
@@ -265,7 +259,7 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
     },
   )
 
-  // サポートされているログタイプの一覧
+  // Supported log types list
   .get(
     '/supported-types',
     async () => {

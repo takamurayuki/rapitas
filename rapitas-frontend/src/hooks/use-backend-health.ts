@@ -9,21 +9,21 @@ const logger = createLogger('useBackendHealth');
 type BackendHealthStatus = 'connected' | 'disconnected' | 'checking';
 
 type UseBackendHealthOptions = {
-  /** ヘルスチェック間隔（ミリ秒）。デフォルト: 5000 */
+  /** Health check interval (milliseconds). Default: 5000 */
   intervalMs?: number;
-  /** 切断検知後のリトライ間隔（ミリ秒）。デフォルト: 2000 */
+  /** Retry interval after disconnect detection (milliseconds). Default: 2000 */
   retryIntervalMs?: number;
-  /** 再接続時に呼ばれるコールバック */
+  /** Callback called on reconnection */
   onReconnectAction?: () => void;
-  /** 切断時に呼ばれるコールバック */
+  /** Callback called on disconnection */
   onDisconnectAction?: () => void;
 };
 
 /**
- * バックエンドの接続状態を監視し、再起動後の復帰を検知するフック。
- * 切断→復帰を検知した場合に onReconnect コールバックを呼び出す。
- * SSE経由でshutdownイベントを受信した場合は意図的な再起動として扱い、
- * isIntentionalRestartフラグをtrueにする。
+ * Hook for monitoring backend connection status and detecting recovery after restart.
+ * Calls onReconnect callback when disconnect→recovery is detected.
+ * When shutdown event is received via SSE, treats it as intentional restart
+ * and sets isIntentionalRestart flag to true.
  */
 export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const {
@@ -48,7 +48,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     onDisconnectRef.current = onDisconnectAction;
   }, [onDisconnectAction]);
 
-  // SSE接続でshutdownイベントを検出
+  // Detect shutdown events via SSE connection
   useEffect(() => {
     const connectSSE = () => {
       try {
@@ -63,12 +63,12 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         });
 
         es.onerror = () => {
-          // SSE接続エラーは無視（ヘルスチェックポーリングで検出する）
+          // NOTE: Ignore SSE connection errors (detected by health check polling)
           es.close();
           eventSourceRef.current = null;
         };
       } catch {
-        // EventSource作成失敗は無視
+        // Ignore EventSource creation failure
       }
     };
 
@@ -99,7 +99,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           logger.info('Backend reconnected');
           onReconnectRef.current?.();
 
-          // 再接続後にSSEも再接続
+          // Reconnect SSE after recovery
           if (
             !eventSourceRef.current ||
             eventSourceRef.current.readyState === EventSource.CLOSED
@@ -118,7 +118,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
                 eventSourceRef.current = null;
               };
             } catch {
-              // EventSource作成失敗は無視
+              // Ignore EventSource creation failure
             }
           }
         }
@@ -132,7 +132,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         setStatus('disconnected');
       }
     } catch (error) {
-      // タイムアウトエラーかどうかを判定
+      // Determine if error is a timeout error
       const isTimeout = error instanceof Error && error.name === 'AbortError';
       const errorMessage = isTimeout
         ? 'Request timeout'
@@ -149,9 +149,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     }
   }, []);
 
-  // status に応じて間隔を切り替える単一のインターバル
+  // Single interval that adjusts based on status
   useEffect(() => {
-    // 初回チェックを非同期で実行
+    // Run initial check asynchronously
     const initialCheck = setTimeout(() => checkHealth(), 0);
 
     const currentInterval =

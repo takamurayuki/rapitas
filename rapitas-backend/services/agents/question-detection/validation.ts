@@ -1,11 +1,11 @@
 /**
- * 質問判定システム - バリデーション & パース
+ * Question Detection System - Validation & Parsing
  */
 
 import type { QuestionKey } from './types';
 
 /**
- * QuestionKeyの妥当性を検証
+ * Validates whether the given object is a valid QuestionKey.
  */
 export function validateQuestionKey(key: unknown): key is QuestionKey {
   if (!key || typeof key !== 'object') {
@@ -14,7 +14,6 @@ export function validateQuestionKey(key: unknown): key is QuestionKey {
 
   const obj = key as Record<string, unknown>;
 
-  // 必須フィールドの存在チェック
   if (
     typeof obj.status !== 'string' ||
     typeof obj.question_id !== 'string' ||
@@ -24,19 +23,16 @@ export function validateQuestionKey(key: unknown): key is QuestionKey {
     return false;
   }
 
-  // status値の検証
   const validStatuses = ['awaiting_user_input', 'processing', 'completed'];
   if (!validStatuses.includes(obj.status)) {
     return false;
   }
 
-  // question_type値の検証
   const validTypes = ['clarification', 'confirmation', 'selection'];
   if (!validTypes.includes(obj.question_type)) {
     return false;
   }
 
-  // timeout_secondsがある場合は数値であることを確認
   if (obj.timeout_seconds !== undefined && typeof obj.timeout_seconds !== 'number') {
     return false;
   }
@@ -45,7 +41,7 @@ export function validateQuestionKey(key: unknown): key is QuestionKey {
 }
 
 /**
- * 文字列からQuestionKeyをパース（将来の直接キー返却方式用）
+ * Parses a QuestionKey from a JSON string (for future direct key return approach).
  */
 export function parseQuestionKeyFromString(str: string): QuestionKey | null {
   try {
@@ -60,15 +56,14 @@ export function parseQuestionKeyFromString(str: string): QuestionKey | null {
 }
 
 /**
- * オブジェクトからQuestionKeyを抽出（将来の直接キー返却方式用）
+ * Extracts a QuestionKey from an object (for future direct key return approach).
  */
 export function extractQuestionKeyFromObject(obj: Record<string, unknown>): QuestionKey | null {
-  // オブジェクト自体がQuestionKeyの場合
   if (validateQuestionKey(obj)) {
     return obj;
   }
 
-  // ネストされた場所にある場合を探索
+  // Search common nested locations
   const possibleLocations = ['questionKey', 'question_key', 'key', 'response'];
   for (const loc of possibleLocations) {
     if (obj[loc] && validateQuestionKey(obj[loc])) {

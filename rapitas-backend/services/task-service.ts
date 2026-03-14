@@ -1,6 +1,7 @@
 /**
  * Task Service
- * ルーターから分離されたタスク関連のビジネスロジック
+ *
+ * Task-related business logic separated from routers.
  */
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
@@ -17,7 +18,7 @@ type PrismaInstance = InstanceType<typeof PrismaClient>;
 
 const logger = createLogger('task-service');
 
-// タスク作成時の共通include
+// Common include for task queries
 const TASK_FULL_INCLUDE = {
   subtasks: { orderBy: { createdAt: 'asc' as const } },
   theme: true,
@@ -27,7 +28,7 @@ const TASK_FULL_INCLUDE = {
   taskLabels: { include: { label: true } },
 } as const;
 
-// ============ タスク作成 ============
+// ============ Task creation ============
 
 export interface CreateTaskInput {
   title: string;
@@ -168,7 +169,7 @@ async function createParentTask(
   return createdTask;
 }
 
-// ============ タスク更新 ============
+// ============ Task update ============
 
 export interface UpdateTaskInput {
   title?: string;
@@ -199,7 +200,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     throw new Error(`タスク(ID: ${taskId})が見つかりません`);
   }
 
-  // ストリーク記録
+  // Record streak
   if (fields.status === 'done') {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -234,7 +235,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     },
   });
 
-  // ラベル更新
+  // Update labels
   if (labelIds !== undefined) {
     await prisma.taskLabel.deleteMany({ where: { taskId } });
     if (labelIds.length > 0) {
@@ -249,7 +250,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
     include: TASK_FULL_INCLUDE,
   });
 
-  // ユーザー行動記録（親タスクのみ）
+  // Record user behavior (parent tasks only)
   if (!currentTask?.parentId && updatedTask) {
     if (fields.status && currentTask?.status !== fields.status) {
       if (fields.status === 'in-progress' && currentTask?.status !== 'in-progress') {
@@ -286,7 +287,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
   return updatedTask;
 }
 
-// ============ 頻度ベースタスク提案 ============
+// ============ Frequency-based task suggestions ============
 
 export async function getFrequencyBasedSuggestions(
   prisma: PrismaInstance,
@@ -368,7 +369,7 @@ export async function getFrequencyBasedSuggestions(
     }));
 }
 
-// ============ 重複サブタスク削除 ============
+// ============ Duplicate subtask cleanup ============
 
 export async function cleanupDuplicateSubtasks(prisma: PrismaInstance, parentId: number) {
   const subtasks = await prisma.task.findMany({
@@ -453,7 +454,7 @@ export async function cleanupAllDuplicateSubtasks(prisma: PrismaInstance) {
   return { deletedIds, affectedParents };
 }
 
-// ============ AI タスク提案 ============
+// ============ AI task suggestions ============
 
 const AI_SUGGESTION_SYSTEM_PROMPT = `あなたはタスク管理AIアシスタントです。テーマの情報、過去のタスク履歴、そしてユーザーの行動パターンを分析し、パーソナライズされた次のタスクを提案します。
 
@@ -662,7 +663,7 @@ export async function generateAISuggestions(
     return { suggestions: [], source: 'none' };
   }
 
-  // データ収集を並列実行
+  // Collect data in parallel
   const [completedTasks, taskPatterns, behaviorSummary, existingTasks] = await Promise.all([
     prisma.task.findMany({
       where: { themeId, parentId: null, status: 'done' },
@@ -726,7 +727,7 @@ export async function generateAISuggestions(
       return { suggestions: [], source: 'ai_error' };
     }
 
-    // キャッシュ保存
+    // Save to cache
     await cacheSuggestions(prisma, themeId, suggestions, analysis);
 
     return { suggestions, analysis, source: 'ai', tokensUsed: response.tokensUsed };

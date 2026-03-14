@@ -4,27 +4,24 @@ import { createLogger } from '../config/logger';
 
 const log = createLogger('performance');
 
-// メモリキャッシュの設定
 const cache = new LRUCache<string, { data: unknown; etag: string }>({
-  max: 500, // 最大500エントリ
-  ttl: 1000 * 60 * 5, // 5分のTTL
+  max: 500,
+  ttl: 1000 * 60 * 5,
   updateAgeOnGet: true,
   updateAgeOnHas: true,
 });
 
-// ETagを生成
 function generateETag(data: unknown): string {
   const str = JSON.stringify(data);
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash = hash & hash; // 32bitに変換
+    hash = hash & hash; // NOTE: Convert to 32-bit integer to prevent overflow
   }
   return `"${Math.abs(hash).toString(36)}"`;
 }
 
-// レスポンス圧縮の設定
 export const compressionMiddleware = new Elysia({ name: 'compression' }).derive(
   async ({ request }) => {
     const acceptEncoding = request.headers.get('accept-encoding');
@@ -41,10 +38,8 @@ export const compressionMiddleware = new Elysia({ name: 'compression' }).derive(
   },
 );
 
-// キャッシュミドルウェア
 export const cacheMiddleware = new Elysia({ name: 'cache' }).derive(
   async ({ request, set, path }) => {
-    // GETリクエストのみキャッシュ
     if (request.method !== 'GET') {
       return { cache: { enabled: false } };
     }
@@ -52,7 +47,6 @@ export const cacheMiddleware = new Elysia({ name: 'cache' }).derive(
     const cacheKey = `${path}:${request.url}`;
     const cached = cache.get(cacheKey);
 
-    // If-None-Matchヘッダーのチェック
     const ifNoneMatch = request.headers.get('if-none-match');
     if (cached && ifNoneMatch === cached.etag) {
       set.status = 304;
@@ -82,7 +76,6 @@ export const cacheMiddleware = new Elysia({ name: 'cache' }).derive(
         },
         invalidate: (pattern?: string) => {
           if (pattern) {
-            // パターンマッチングでキャッシュを無効化
             for (const key of cache.keys()) {
               if (key.includes(pattern)) {
                 cache.delete(key);
@@ -97,7 +90,6 @@ export const cacheMiddleware = new Elysia({ name: 'cache' }).derive(
   },
 );
 
-// パフォーマンスモニタリング
 interface RequestMetrics {
   startTime: number;
   dbQueryTime: number;
@@ -131,12 +123,10 @@ export const performanceMonitoring = new Elysia({ name: 'performance-monitoring'
     if (metrics) {
       const totalTime = performance.now() - metrics.startTime;
 
-      // レスポンスヘッダーにパフォーマンス情報を追加
       set.headers['x-response-time'] = `${totalTime.toFixed(2)}ms`;
       set.headers['x-db-queries'] = metrics.dbQueryCount.toString();
       set.headers['x-db-time'] = `${metrics.dbQueryTime.toFixed(2)}ms`;
 
-      // 遅いリクエストの警告
       if (totalTime > 1000) {
         log.warn(
           {
@@ -153,26 +143,19 @@ export const performanceMonitoring = new Elysia({ name: 'performance-monitoring'
     }
   });
 
-// 接続プーリング最適化
 export const connectionPooling = {
-  // HTTP Keep-Aliveの設定
-  keepAliveTimeout: 30000, // 30秒
-
-  // 同時接続数の制限
+  keepAliveTimeout: 30000,
   maxConnections: 1000,
-
-  // リクエストタイムアウト
-  requestTimeout: 30000, // 30秒
+  requestTimeout: 30000,
 };
 
-// レート制限（スライディングウィンドウ方式）
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 export const rateLimitMiddleware = new Elysia({ name: 'rate-limit' }).derive(({ request, set }) => {
   const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
   const now = Date.now();
-  const windowMs = 60000; // 1分
-  const maxRequests = 100; // 1分あたり100リクエスト
+  const windowMs = 60000;
+  const maxRequests = 100;
 
   let clientData = rateLimitMap.get(clientIp);
 
@@ -183,7 +166,6 @@ export const rateLimitMiddleware = new Elysia({ name: 'rate-limit' }).derive(({ 
     clientData.count++;
   }
 
-  // ヘッダーの設定
   set.headers['x-ratelimit-limit'] = maxRequests.toString();
   set.headers['x-ratelimit-remaining'] = Math.max(0, maxRequests - clientData.count).toString();
   set.headers['x-ratelimit-reset'] = new Date(clientData.resetAt).toISOString();
@@ -202,7 +184,7 @@ export const rateLimitMiddleware = new Elysia({ name: 'rate-limit' }).derive(({ 
   return { rateLimit: { exceeded: false } };
 });
 
-// 定期的なクリーンアップ
+// NOTE: Periodic cleanup prevents unbounded memory growth in rateLimitMap
 setInterval(() => {
   const now = Date.now();
   for (const [ip, data] of rateLimitMap.entries()) {
@@ -210,9 +192,8 @@ setInterval(() => {
       rateLimitMap.delete(ip);
     }
   }
-}, 60000); // 1分ごと
+}, 60000);
 
-// 全体的なパフォーマンス最適化ミドルウェア
 export const performanceOptimization = new Elysia({ name: 'performance' })
   .use(compressionMiddleware)
   .use(cacheMiddleware)

@@ -1,11 +1,11 @@
 /**
  * Agent Worker Manager
  *
- * エージェントワーカープロセスの管理、IPC通信、ヘルスチェック、
- * リアルタイムイベントのブリッジを担当する。
+ * Manages agent worker processes, IPC communication, health checks,
+ * and real-time event bridging.
  *
- * AgentOrchestrator と同じインターフェースを提供し、
- * agent-execution-router からの呼び出しを透過的にワーカーに委譲する。
+ * Provides the same interface as AgentOrchestrator,
+ * transparently delegating calls from agent-execution-router to the worker.
  */
 
 import type { ChildProcess } from 'child_process';
@@ -65,11 +65,11 @@ export class AgentWorkerManager {
   }
 
   /**
-   * ワーカープロセスを起動し、Ready状態になるまで待機する。
-   * index.ts のサーバー起動時に呼び出す。
+   * Starts the worker process and waits until it reaches the ready state.
+   * Called during server startup in index.ts.
    */
   public async initialize(): Promise<void> {
-    // NOTE: 前回クラッシュ時の残存ゾンビプロセスをクリーンアップしてから起動
+    // NOTE: Clean up zombie processes remaining from a previous crash before starting
     cleanupZombieProcesses();
     await this.setupWorker();
   }
@@ -87,11 +87,11 @@ export class AgentWorkerManager {
       const workerPath = join(process.cwd(), 'workers', 'agent-worker.ts');
       logger.info({ workerPath }, '[AgentWorkerManager] Starting agent worker process');
 
-      // Bun環境では spawn を使って起動
+      // Use spawn to start in the Bun environment
       const { spawn } = await import('child_process');
       this.workerProcess = spawn('bun', [workerPath], {
         stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-        windowsHide: true, // NOTE: TCPハンドル継承防止 — 子プロセスがポート3001のソケットを掴むのを防ぐ
+        windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops child process from holding port 3001 socket
         env: {
           ...process.env,
           NODE_ENV: process.env.NODE_ENV || 'development',
@@ -100,7 +100,7 @@ export class AgentWorkerManager {
         cwd: process.cwd(),
       });
 
-      // PID登録（クラッシュ後も追跡可能にする）
+      // Register PID for tracking even after crashes
       if (this.workerProcess.pid) {
         registerProcess({
           pid: this.workerProcess.pid,
@@ -110,12 +110,12 @@ export class AgentWorkerManager {
         });
       }
 
-      // Ready状態の Promise を作成
+      // Create a Promise for the ready state
       const readyPromise = new Promise<void>((resolve) => {
         this.readyResolve = resolve;
       });
 
-      // IPCメッセージハンドラー
+      // IPC message handler
       this.workerProcess.on('message', (message: Record<string, unknown>) => {
         this.handleWorkerMessage(message);
       });
@@ -137,7 +137,7 @@ export class AgentWorkerManager {
         }
       });
 
-      // STDIOストリーム処理
+      // STDIO stream handling
       if (this.workerProcess.stdout) {
         this.workerProcess.stdout.on('data', (data: Buffer) => {
           const lines = data.toString().trim();
@@ -156,14 +156,14 @@ export class AgentWorkerManager {
         });
       }
 
-      // ワーカーの起動完了を待機（タイムアウト: 30秒）
+      // Wait for worker startup to complete (timeout: 30 seconds)
       const timeoutPromise = new Promise<void>((_, reject) => {
         setTimeout(() => reject(new Error('Worker startup timeout')), 30000);
       });
 
       await Promise.race([readyPromise, timeoutPromise]);
 
-      // ヘルスチェック開始
+      // Start health check
       this.startHealthCheck();
 
       logger.info('[AgentWorkerManager] Agent worker manager initialized successfully');
@@ -403,7 +403,7 @@ export class AgentWorkerManager {
     });
   }
 
-  // ==================== Public API (Orchestrator互換) ====================
+  // ==================== Public API (Orchestrator-compatible) ====================
 
   async executeTask(task: AgentTask, options: ExecutionOptions): Promise<AgentExecutionResult> {
     logger.info({ taskId: task.id }, '[AgentWorkerManager] Delegating task execution to worker');
@@ -443,7 +443,7 @@ export class AgentWorkerManager {
   }
 
   /**
-   * セッション内のアクティブな実行を取得（非同期）
+   * Retrieves active executions within a session (async).
    */
   async getSessionExecutionsAsync(sessionId: number): Promise<ExecutionState[]> {
     const result = await this.sendIPCRequest('get-session-executions', { sessionId }, 5000);
@@ -471,7 +471,7 @@ export class AgentWorkerManager {
   private _cachedActiveCount = 0;
 
   /**
-   * アクティブな実行数を取得（非同期）
+   * Retrieves the active execution count (async).
    */
   async getActiveExecutionCountAsync(): Promise<number> {
     const result = await this.sendIPCRequest('get-active-count', {}, 5000);
@@ -481,14 +481,14 @@ export class AgentWorkerManager {
   }
 
   /**
-   * アクティブな実行数を同期的に取得（キャッシュ値）
+   * Retrieves the active execution count synchronously (cached value).
    */
   getActiveExecutionCount(): number {
     return this._cachedActiveCount;
   }
 
   /**
-   * ロック取得の非同期版
+   * Async version of lock acquisition.
    */
   async tryAcquireContinuationLockAsync(
     executionId: number,
@@ -505,7 +505,7 @@ export class AgentWorkerManager {
   }
 
   /**
-   * タイムアウト情報の非同期取得
+   * Async retrieval of question timeout info.
    */
   async getQuestionTimeoutInfoAsync(executionId: number): Promise<{
     remainingSeconds: number;
@@ -586,7 +586,7 @@ export class AgentWorkerManager {
     ) as Promise<AgentExecutionResult>;
   }
 
-  // ==================== Git操作 ====================
+  // ==================== Git Operations ====================
 
   async commitChanges(
     workingDirectory: string,
@@ -657,12 +657,12 @@ export class AgentWorkerManager {
     return this.sendIPCRequest('get-git-diff', { workingDirectory }, 10000) as Promise<string>;
   }
 
-  // ==================== 同期互換メソッド ====================
+  // ==================== Sync Compatibility Methods ====================
 
   /**
-   * getSessionExecutions の同期版（互換性用）
-   * ワーカーとの通信は非同期のため、空配列を返す。
-   * 正確な値が必要な場合は getSessionExecutionsAsync() を使用すること。
+   * Sync version of getSessionExecutions (for compatibility).
+   * Worker communication is async, so this always returns an empty array.
+   * Use getSessionExecutionsAsync() when accurate values are needed.
    */
   getSessionExecutions(_sessionId: number): ExecutionState[] {
     return [];
@@ -682,14 +682,31 @@ export class AgentWorkerManager {
     return [];
   }
 
+  /**
+   * Asynchronously retrieves the list of active execution IDs from the worker process.
+   * Used by the resumable-executions API for accurate active execution detection.
+   *
+   * @returns Array of active execution IDs
+   */
+  async getActiveExecutionIdsAsync(): Promise<number[]> {
+    try {
+      const result = await this.sendIPCRequest('get-active-agent-infos', {}, 5000);
+      const infos = result as Array<{ executionId: number }>;
+      return infos.map((info) => info.executionId);
+    } catch (error) {
+      logger.warn({ err: error }, '[AgentWorkerManager] Failed to get active execution IDs');
+      return [];
+    }
+  }
+
   getExecutionState(_executionId: number): ExecutionState | undefined {
     return undefined;
   }
 
-  // ==================== ダミーメソッド (Orchestrator互換) ====================
+  // ==================== Stub Methods (Orchestrator-compatible) ====================
 
   addEventListener(_listener: (event: unknown) => void): void {
-    // イベントは handleOrchestratorEvent で SSE にブリッジ済み
+    // Events are already bridged to SSE via handleOrchestratorEvent
   }
 
   removeEventListener(_listener: (event: unknown) => void): void {}
@@ -699,15 +716,15 @@ export class AgentWorkerManager {
   }
 
   setServerStopCallback(_callback: () => Promise<void> | void): void {
-    // ワーカーはサーバーを停止しない
+    // Worker does not stop the server
   }
 
   async stopServer(): Promise<void> {
-    // ワーカーマネージャーではサーバー停止は不要
-    // メインプロセスの index.ts で直接処理する
+    // Server stop is not needed in the worker manager
+    // Handled directly in the main process index.ts
   }
 
-  // ==================== ライフサイクル ====================
+  // ==================== Lifecycle ====================
 
   public getIsWorkerReady(): boolean {
     return this.isWorkerReady;
@@ -726,7 +743,7 @@ export class AgentWorkerManager {
       this.healthCheckInterval = null;
     }
 
-    // ワーカーにシャットダウンを通知
+    // Notify the worker to shut down
     if (this.workerProcess && this.isWorkerReady) {
       try {
         await this.sendIPCRequest('shutdown', {}, 8000);

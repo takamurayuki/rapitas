@@ -22,7 +22,6 @@ import remarkBreaks from 'remark-breaks';
 import type { Comment, CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
-// Types
 type CommentLink = {
   id: number;
   direction: 'outgoing' | 'incoming';

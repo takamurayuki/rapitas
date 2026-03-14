@@ -22,7 +22,6 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { API_BASE_URL } from '@/utils/api';
 import { requireAuth } from '@/contexts/AuthContext';
 
-// CLIツールの型定義
 interface CLITool {
   id: string;
   name: string;
@@ -50,7 +49,6 @@ interface CLITool {
   };
 }
 
-// ツールサマリー
 interface ToolsSummary {
   total: number;
   installed: number;
@@ -87,7 +85,6 @@ function CLIToolsPage() {
     }));
   };
 
-  // CLIツールのステータスを取得
   const fetchTools = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/cli-tools`);
@@ -122,7 +119,6 @@ function CLIToolsPage() {
     }
   }, []);
 
-  // ツールをインストール
   const installTool = async (toolId: string) => {
     updateActionState(toolId, { isInstalling: true });
     setError(null);
@@ -150,7 +146,6 @@ function CLIToolsPage() {
     }
   };
 
-  // ツールを更新
   const updateTool = async (toolId: string) => {
     updateActionState(toolId, { isUpdating: true });
     setError(null);
@@ -178,7 +173,6 @@ function CLIToolsPage() {
     }
   };
 
-  // 認証状況をチェック
   const checkAuthentication = async (toolId: string) => {
     updateActionState(toolId, { isAuthenticating: true });
     setError(null);
@@ -216,7 +210,6 @@ function CLIToolsPage() {
     }
   };
 
-  // 認証モーダルの状態
   const [authModal, setAuthModal] = useState<{
     isOpen: boolean;
     tool: CLITool | null;
@@ -229,7 +222,6 @@ function CLIToolsPage() {
     step: 'command',
   });
 
-  // 認証コマンドを取得してモーダル表示
   const showAuthModal = async (tool: CLITool) => {
     try {
       const response = await fetch(
@@ -257,7 +249,6 @@ function CLIToolsPage() {
     }
   };
 
-  // コマンドをクリップボードにコピー
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -268,7 +259,6 @@ function CLIToolsPage() {
     }
   };
 
-  // 認証状況を再確認
   const verifyAuthentication = async () => {
     if (!authModal.tool) return;
 
@@ -289,7 +279,6 @@ function CLIToolsPage() {
         if (data.data.isAuthenticated) {
           setAuthModal((prev) => ({ ...prev, step: 'completed' }));
           await fetchTools(); // Refresh tool status
-          // 3秒後に自動的にモーダルを閉じる
           setTimeout(() => {
             closeAuthModal();
           }, 3000);
@@ -330,7 +319,6 @@ function CLIToolsPage() {
     fetchTools();
   }, [fetchTools]);
 
-  // ステータスアイコンとラベル
   const getStatusDisplay = (tool: CLITool) => {
     if (!tool.isInstalled) {
       return {
@@ -875,5 +863,4 @@ function CLIToolsPage() {
   );
 }
 
-// 認証が必要なコンポーネントとしてエクスポート
 export default requireAuth(CLIToolsPage);

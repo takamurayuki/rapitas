@@ -103,7 +103,7 @@ export function useCodeReview(): UseCodeReviewReturn {
     async (prId: number, action: ReviewAction, body?: string) => {
       const endpoint = action === 'approve' ? 'approve' : 'request-changes';
       if (action === 'comment') {
-        // コメントのみの場合は別エンドポイント
+        // NOTE: Comment-only reviews use a different endpoint
         await request(`/github/pull-requests/${prId}/comments`, {
           method: 'POST',
           body: JSON.stringify({ body }),
@@ -157,7 +157,7 @@ export function useCodeReview(): UseCodeReviewReturn {
     let newLine = 0;
 
     for (const line of lines) {
-      // ハンクヘッダー（@@ -1,5 +1,6 @@）
+      // Hunk header (@@ -1,5 +1,6 @@)
       const hunkMatch = line.match(
         /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/,
       );

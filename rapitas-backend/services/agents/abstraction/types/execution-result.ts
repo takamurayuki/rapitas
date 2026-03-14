@@ -1,54 +1,54 @@
 /**
- * 実行結果・成果物・メトリクス・デバッグ情報
+ * Execution results, artifacts, metrics, and debug info.
  */
 
 import type { AgentState } from './agent-identification';
 
 /**
- * エージェント実行結果
+ * Agent execution result.
  */
 export interface AgentExecutionResult {
-  // 基本結果
+  // Basic result
   success: boolean;
   state: AgentState;
 
-  // 出力
-  output: string; // 主要出力
-  structuredOutput?: unknown; // 構造化出力（JSON等）
-  errorMessage?: string; // エラーメッセージ
+  // Output
+  output: string; 
+  structuredOutput?: unknown; 
+  errorMessage?: string; 
 
-  // 成果物
+  // Artifacts
   artifacts?: AgentArtifact[];
   commits?: GitCommitInfo[];
 
-  // メトリクス
+  // Metrics
   metrics?: ExecutionMetrics;
 
-  // 質問/入力待ち状態
+  // Pending question / waiting for input
   pendingQuestion?: PendingQuestion;
 
-  // セッション情報
-  sessionId?: string; // 継続用セッションID
+  // Session info
+  sessionId?: string; 
 
-  // デバッグ情報
+  // Debug info
   debugInfo?: ExecutionDebugInfo;
 }
 
 /**
- * 成果物（ファイル変更、コード生成等）
+ * Artifact (file changes, code generation, etc.).
  */
 export interface AgentArtifact {
   type: 'file' | 'code' | 'diff' | 'log' | 'image' | 'data';
   name: string;
   content: string;
   path?: string;
-  language?: string; // プログラミング言語
+  language?: string; 
   mimeType?: string;
   metadata?: Record<string, unknown>;
 }
 
 /**
- * Gitコミット情報
+ * Git commit info.
  */
 export interface GitCommitInfo {
   hash: string;
@@ -62,7 +62,7 @@ export interface GitCommitInfo {
 }
 
 /**
- * 実行メトリクス
+ * Execution metrics.
  */
 export interface ExecutionMetrics {
   startTime: Date;
@@ -80,7 +80,7 @@ export interface ExecutionMetrics {
 }
 
 /**
- * 保留中の質問
+ * Pending question awaiting user response.
  */
 export interface PendingQuestion {
   questionId: string;
@@ -89,12 +89,12 @@ export interface PendingQuestion {
   options?: QuestionOption[];
   multiSelect?: boolean;
   defaultValue?: string;
-  timeout?: number; // 質問のタイムアウト（秒）
+  timeout?: number; 
   metadata?: Record<string, unknown>;
 }
 
 /**
- * 質問の選択肢
+ * Question option.
  */
 export interface QuestionOption {
   label: string;
@@ -104,7 +104,7 @@ export interface QuestionOption {
 }
 
 /**
- * 実行デバッグ情報
+ * Execution debug info.
  */
 export interface ExecutionDebugInfo {
   logs: DebugLogEntry[];
@@ -118,7 +118,7 @@ export interface ExecutionDebugInfo {
 }
 
 /**
- * デバッグログエントリ
+ * Debug log entry.
  */
 export interface DebugLogEntry {
   timestamp: Date;
@@ -128,7 +128,7 @@ export interface DebugLogEntry {
 }
 
 /**
- * ツール呼び出し情報
+ * Tool call info.
  */
 export interface ToolCallInfo {
   id: string;

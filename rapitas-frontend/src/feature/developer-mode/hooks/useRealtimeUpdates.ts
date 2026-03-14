@@ -48,7 +48,7 @@ export function useRealtimeUpdates(
     onError,
   } = options;
 
-  // channels配列を安定化（参照の変化による無限ループを防止）
+  // Stabilize channels array to prevent infinite loops from reference changes
   const channelsKey = channels.join(',');
   const stableChannels = useMemo(() => channels, [channelsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -56,7 +56,7 @@ export function useRealtimeUpdates(
   const [lastEvent, setLastEvent] = useState<SSEEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const handlersRef = useRef<Map<string, Set<EventHandler>>>(new Map());
-  // コールバックをrefで保持して依存配列を安定化
+  // Store callbacks in refs to stabilize dependency arrays
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
   const onErrorRef = useRef(onError);
@@ -100,13 +100,13 @@ export function useRealtimeUpdates(
         };
         setLastEvent(sseEvent);
 
-        // イベントタイプに基づいてハンドラを呼び出す
+        // Dispatch to handlers registered for this event type
         const handlers = handlersRef.current.get(sseEvent.type);
         if (handlers) {
           handlers.forEach((handler) => handler(data));
         }
 
-        // ワイルドカードハンドラ
+        // Wildcard handlers receive all events
         const wildcardHandlers = handlersRef.current.get('*');
         if (wildcardHandlers) {
           wildcardHandlers.forEach((handler) => handler(sseEvent));
@@ -116,7 +116,7 @@ export function useRealtimeUpdates(
       }
     };
 
-    // 特定のイベントタイプをリッスン
+    // Listen for specific event types
     const eventTypes = [
       'execution_output',
       'execution_status',
@@ -163,8 +163,8 @@ export function useRealtimeUpdates(
   }, []);
 
   const subscribe = useCallback((channel: string) => {
-    // 新しいチャンネルに購読するには再接続が必要
-    // この実装では簡略化のため、初期接続時のチャンネルのみサポート
+    // Reconnection required to subscribe to new channels
+    // For simplicity, this implementation only supports channels from initial connection
     logger.debug(`Subscribing to channel: ${channel}`);
   }, []);
 

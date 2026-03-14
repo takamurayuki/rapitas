@@ -1,5 +1,5 @@
 /**
- * タスク専用のAPI最適化関数
+ * Task-specific API optimization functions
  */
 
 import {
@@ -16,8 +16,8 @@ type RequestOptions = {
 };
 
 /**
- * タスクの一括取得（カテゴリ別）
- * 複数カテゴリのタスクを並列で取得
+ * Bulk fetch tasks by category
+ * Fetch tasks from multiple categories in parallel
  */
 export async function fetchTasksByCategories(
   categoryIds: number[],
@@ -28,7 +28,7 @@ export async function fetchTasksByCategories(
     (acc, categoryId) => {
       acc[`category_${categoryId}`] = {
         path: `/tasks?categoryId=${categoryId}`,
-        options: { cacheTime: 30000 }, // 30秒キャッシュ
+        options: { cacheTime: 30000 }, // 30 second cache
       };
       return acc;
     },
@@ -38,7 +38,7 @@ export async function fetchTasksByCategories(
   const results =
     await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
 
-  // レスポンスを整形
+  // Format response
   const tasksByCategory: Record<number, Task[]> = {};
   Object.entries(results).forEach(([key, value]) => {
     const categoryId = parseInt(key.replace('category_', ''));
@@ -53,8 +53,8 @@ export async function fetchTasksByCategories(
 }
 
 /**
- * タスクのステータス一括更新
- * 複数のタスクのステータスを1回のリクエストで更新
+ * Bulk update task status
+ * Update status of multiple tasks in a single request
  */
 export async function updateTaskStatusBatch(
   updates: Array<{ id: number; status: Status }>,
@@ -66,30 +66,30 @@ export async function updateTaskStatusBatch(
 }
 
 /**
- * タスクの検索（デバウンス付き）
- * 検索ボックスでの入力に対応
+ * Task search with debouncing
+ * Handle search box input
  */
 export async function searchTasks(query: string): Promise<Task[]> {
   if (!query.trim()) return [];
 
   return debouncedFetch<Task[]>(
     `/tasks/search?q=${encodeURIComponent(query)}`,
-    { cacheTime: 60000 }, // 1分キャッシュ
-    500, // 500msデバウンス
+    { cacheTime: 60000 }, // 1 minute cache
+    500, // 500ms debounce
   );
 }
 
 /**
- * タスクのプリロード
- * 画面遷移前に次の画面で必要なタスクをプリロード
+ * Task preload
+ * Preload tasks needed for next screen before navigation
  */
 export async function preloadTaskDetails(taskIds: number[]): Promise<void> {
   const paths = taskIds.map((id) => `/tasks/${id}`);
-  await apiClient.prefetch(paths, 300000); // 5分キャッシュ
+  await apiClient.prefetch(paths, 300000); // 5 minute cache
 }
 
 /**
- * タスクの統計情報取得（キャッシュ重視）
+ * Fetch task statistics (cache-first)
  */
 export async function fetchTaskStatistics(): Promise<{
   total: number;
@@ -98,19 +98,19 @@ export async function fetchTaskStatistics(): Promise<{
 }> {
   try {
     return await apiFetch('/tasks/statistics', {
-      cacheTime: 300000, // 5分キャッシュ
+      cacheTime: 300000, // 5 minute cache
     });
   } catch (error) {
-    // エンドポイントがまだ実装されていない場合のフォールバック
+    // Fallback if endpoint not yet implemented
     console.warn(
       'Statistics endpoint not available, using fallback data:',
       error,
     );
 
-    // 基本的なタスク情報を取得して統計を計算
+    // Fetch basic task info and calculate statistics
     try {
       const tasks: Task[] = await apiFetch('/tasks', {
-        cacheTime: 60000, // 1分キャッシュ
+        cacheTime: 60000, // 1 minute cache
       });
 
       const total = tasks.length;
@@ -124,19 +124,19 @@ export async function fetchTaskStatistics(): Promise<{
       const byCategory: Record<number, number> = {};
 
       for (const task of tasks) {
-        // ステータス別カウント
+        // Count by status
         if (task.status in byStatus) {
           byStatus[task.status as Status]++;
         }
 
-        // カテゴリ別カウント
+        // Count by category
         const categoryId = task.theme?.categoryId ?? 0;
         byCategory[categoryId] = (byCategory[categoryId] || 0) + 1;
       }
 
       return { total, byStatus, byCategory };
     } catch (fallbackError) {
-      // フォールバックも失敗した場合はデフォルト値を返す
+      // Return default values if fallback also fails
       console.error(
         'Failed to fetch tasks for statistics fallback:',
         fallbackError,
@@ -157,16 +157,16 @@ export async function fetchTaskStatistics(): Promise<{
 }
 
 /**
- * 最近のタスク取得（頻繁にアクセスされる）
+ * Fetch recent tasks (frequently accessed)
  */
 export async function fetchRecentTasks(limit: number = 10): Promise<Task[]> {
   return apiFetch(`/tasks/recent?limit=${limit}`, {
-    cacheTime: 60000, // 1分キャッシュ
+    cacheTime: 60000, // 1 minute cache
   });
 }
 
 /**
- * タスクの依存関係一括取得
+ * Bulk fetch task dependencies
  */
 export async function fetchTaskDependencies(
   taskIds: number[],
@@ -177,7 +177,7 @@ export async function fetchTaskDependencies(
     (acc, taskId) => {
       acc[`task_${taskId}`] = {
         path: `/tasks/${taskId}/dependencies`,
-        options: { cacheTime: 120000 }, // 2分キャッシュ
+        options: { cacheTime: 120000 }, // 2 minute cache
       };
       return acc;
     },
@@ -189,7 +189,7 @@ export async function fetchTaskDependencies(
       requests,
     );
 
-  // レスポンスを整形
+  // Format response
   const dependencies: Record<number, number[]> = {};
   Object.entries(results).forEach(([key, value]) => {
     const taskId = parseInt(key.replace('task_', ''));
@@ -204,8 +204,8 @@ export async function fetchTaskDependencies(
 }
 
 /**
- * スマートプリフェッチ
- * ユーザーの操作パターンに基づいて次に必要になりそうなデータをプリフェッチ
+ * Smart prefetch
+ * Prefetch data likely needed next based on user behavior patterns
  */
 export async function smartPrefetchTasks(
   currentTaskId?: number,
@@ -214,18 +214,18 @@ export async function smartPrefetchTasks(
   const prefetchPaths: string[] = [];
 
   if (currentTaskId) {
-    // 現在のタスクの関連タスク
+    // Related tasks of current task
     prefetchPaths.push(`/tasks/${currentTaskId}/related`);
     prefetchPaths.push(`/tasks/${currentTaskId}/dependencies`);
   }
 
   if (currentCategoryId) {
-    // 現在のカテゴリの次のページ
+    // Next page of current category
     prefetchPaths.push(`/tasks?categoryId=${currentCategoryId}&page=2`);
   }
 
-  // 統計情報（ダッシュボードで使用）
+  // Statistics (used in dashboard)
   prefetchPaths.push('/tasks/statistics');
 
-  await apiClient.prefetch(prefetchPaths, 120000); // 2分キャッシュ
+  await apiClient.prefetch(prefetchPaths, 120000); // 2 minute cache
 }

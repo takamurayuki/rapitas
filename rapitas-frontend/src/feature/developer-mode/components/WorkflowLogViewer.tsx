@@ -19,10 +19,10 @@ import {
   type ExecutionLogStatus,
 } from './ExecutionLogViewer';
 
-/** ワークフローフェーズの定義 */
+/** Workflow phase definition */
 export type WorkflowPhase = 'research' | 'plan' | 'implement' | 'verify';
 
-/** フェーズの状態 */
+/** Phase status */
 export type PhaseStatus =
   | 'waiting'
   | 'running'
@@ -31,7 +31,7 @@ export type PhaseStatus =
   | 'skipped'
   | 'approved';
 
-/** フェーズごとのログ */
+/** Logs per phase */
 export interface PhaseLogGroup {
   phase: WorkflowPhase;
   status: PhaseStatus;
@@ -41,21 +41,21 @@ export interface PhaseLogGroup {
 }
 
 interface WorkflowLogViewerProps {
-  /** サブタスクのタイトル */
+  /** Subtask title */
   taskTitle: string;
-  /** サブタスクのID */
+  /** Subtask ID */
   taskId: number;
-  /** 全ログメッセージ */
+  /** All log messages */
   logs: Array<{ timestamp: string; message: string; level: string }>;
-  /** ワークフローステータス（DBのworkflowStatus） */
+  /** Workflow status (DB workflowStatus) */
   workflowStatus?: string;
-  /** 実行中かどうか */
+  /** Whether running */
   isRunning?: boolean;
-  /** 最大高さ */
+  /** Max height */
   maxHeight?: number;
 }
 
-/** フェーズの表示情報 */
+/** Phase display config */
 const PHASE_CONFIG: Record<
   WorkflowPhase,
   {
@@ -114,7 +114,7 @@ const PHASE_ORDER: WorkflowPhase[] = [
 ];
 
 /**
- * ログメッセージからワークフローフェーズを検出する
+ * Detect workflow phase from log message
  */
 function detectPhase(message: string): WorkflowPhase | null {
   const lowerMsg = message.toLowerCase();
@@ -128,7 +128,7 @@ function detectPhase(message: string): WorkflowPhase | null {
 }
 
 /**
- * ワークフローステータスからフェーズステータスのマップを生成
+ * Generate phase status map from workflow status
  */
 function getPhaseStatuses(
   workflowStatus?: string,
@@ -178,7 +178,7 @@ function getPhaseStatuses(
   return statusMap;
 }
 
-/** フェーズステータスに応じたアイコンを返す */
+/** Return icon based on phase status */
 function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
   switch (status) {
     case 'completed':
@@ -195,7 +195,7 @@ function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
   }
 }
 
-/** フェーズステータスのラベル */
+/** Phase status label */
 function getStatusLabel(status: PhaseStatus): string {
   switch (status) {
     case 'completed':
@@ -214,7 +214,7 @@ function getStatusLabel(status: PhaseStatus): string {
 }
 
 /**
- * WorkflowLogViewer - ワークフローフェーズごとにログをグルーピング表示
+ * WorkflowLogViewer - Group and display logs by workflow phase
  */
 export function WorkflowLogViewer({
   taskTitle,
@@ -245,7 +245,7 @@ export function WorkflowLogViewer({
     [workflowStatus],
   );
 
-  // ログをフェーズごとにグルーピング
+  // Group logs by phase
   const phaseGroups = useMemo(() => {
     const groups: Record<WorkflowPhase, string[]> = {
       research: [],
@@ -267,7 +267,7 @@ export function WorkflowLogViewer({
     return groups;
   }, [logs]);
 
-  // 現在アクティブなフェーズを特定（最初のrunning状態のフェーズ）
+  // Identify the currently active phase (first phase with running status)
   const activePhase = useMemo(() => {
     return PHASE_ORDER.find((p) => phaseStatuses[p] === 'running');
   }, [phaseStatuses]);
@@ -314,7 +314,6 @@ export function WorkflowLogViewer({
                     : 'border-zinc-700/50 bg-zinc-900/30'
             }`}
           >
-            {/* フェーズヘッダー */}
             <button
               onClick={() => togglePhase(phase)}
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-zinc-800/30 rounded-t-lg transition-colors"
@@ -367,7 +366,6 @@ export function WorkflowLogViewer({
               </div>
             </button>
 
-            {/* フェーズのログ内容 */}
             {isExpanded && phaseLogs.length > 0 && (
               <div className="px-1 pb-1">
                 <ExecutionLogViewer
@@ -381,7 +379,6 @@ export function WorkflowLogViewer({
               </div>
             )}
 
-            {/* ログが空のフェーズ */}
             {isExpanded && phaseLogs.length === 0 && status !== 'waiting' && (
               <div className="px-4 pb-2 text-[10px] text-zinc-500 italic">
                 ログなし

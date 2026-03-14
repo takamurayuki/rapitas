@@ -1,8 +1,8 @@
 /**
- * ナレッジ自動リマインドサービス
+ * Knowledge Auto-Reminder Service
  *
- * 忘却曲線のdecayScoreを監視し、忘れかけているナレッジを
- * 通知として能動的にリマインドする
+ * Monitors forgetting-curve decay scores and proactively reminds
+ * users about knowledge entries at risk of being forgotten.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -11,11 +11,11 @@ import { appendEvent } from './timeline';
 
 const log = createLogger('memory:reminder');
 
-// decayScoreがこの値を下回ったらリマインド対象
+// Entries below this decay score become reminder candidates
 const REMINDER_THRESHOLD = 0.55;
-// 1回のスキャンでリマインドする最大数
+// Max reminders per scan
 const MAX_REMINDERS_PER_SCAN = 5;
-// 同じエントリのリマインド間隔（日数）
+// Min interval (days) between reminders for the same entry
 const MIN_REMINDER_INTERVAL_DAYS = 3;
 
 interface ReminderEntry {
@@ -37,18 +37,18 @@ interface ReminderScanResult {
 }
 
 /**
- * 忘れかけているナレッジをスキャンし、リマインド通知を作成
+ * Scan for at-risk knowledge entries and create reminder notifications.
  */
 export async function scanAndRemind(): Promise<ReminderScanResult> {
   try {
     const now = new Date();
 
-    // アクティブだがdecayScoreが閾値に近いエントリを取得
+    // Fetch active entries with decay score near the threshold
     const atRiskEntries = await prisma.knowledgeEntry.findMany({
       where: {
         forgettingStage: 'active',
         decayScore: { lte: REMINDER_THRESHOLD, gt: 0.1 },
-        // ピン留めされていないもの
+        // Exclude pinned entries
         OR: [{ pinnedUntil: null }, { pinnedUntil: { lt: now } }],
       },
       select: {
@@ -61,11 +61,11 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
         lastAccessedAt: true,
         themeId: true,
       },
-      orderBy: { decayScore: 'asc' }, // 最もリスクの高いものから
+      orderBy: { decayScore: 'asc' }, // Most at-risk first
       take: MAX_REMINDERS_PER_SCAN * 2,
     });
 
-    // 最近リマインド済みのエントリを除外
+    // Exclude recently reminded entries
     const minInterval = MIN_REMINDER_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
     const recentReminders = await prisma.notification.findMany({
       where: {
@@ -104,7 +104,7 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
         daysSinceAccess,
       });
 
-      // 通知作成
+      // Create notification
       await prisma.notification.create({
         data: {
           type: 'knowledge_reminder',
@@ -148,7 +148,7 @@ export async function scanAndRemind(): Promise<ReminderScanResult> {
 }
 
 /**
- * ナレッジを復習済みとしてマーク（decayScore回復）
+ * Mark a knowledge entry as reviewed (boosts decay score).
  */
 export async function markAsReviewed(entryId: number): Promise<{
   success: boolean;
@@ -187,7 +187,7 @@ export async function markAsReviewed(entryId: number): Promise<{
 }
 
 /**
- * リマインド対象のサマリー（ダッシュボード表示用）
+ * Retrieve a reminder summary for the dashboard.
  */
 export async function getReminderSummary(): Promise<{
   atRiskCount: number;

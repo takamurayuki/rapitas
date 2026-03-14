@@ -47,7 +47,7 @@ type LogLine = {
   ts: number;
 };
 
-// ターミナルの最大行数（メモリリーク防止）
+// Max terminal lines to prevent memory leaks
 const MAX_TERMINAL_LINES = 1000;
 
 function classifyLine(line: string): LogLine['type'] {

@@ -1,6 +1,7 @@
 /**
- * リアルタイム通信サービス
- * SSE (Server-Sent Events) でエージェント実行状況やGitHubイベントをストリーミング
+ * Real-time Communication Service
+ *
+ * Streams agent execution status and GitHub events via SSE (Server-Sent Events).
  */
 
 import { createLogger } from '../config/logger';
@@ -35,7 +36,7 @@ export type EventChannel =
   | `task:${number}`;
 
 /**
- * リアルタイムサービスクラス
+ * Realtime service class
  */
 export class RealtimeService {
   private static instance: RealtimeService;
@@ -44,11 +45,11 @@ export class RealtimeService {
   private maxHistorySize: number = 100;
   private pingInterval: NodeJS.Timeout | null = null;
   private nextClientId: number = 1;
-  /** SSE接続のReadableStreamController管理用マップ（明示的にcloseするため） */
+  /** Map for managing SSE ReadableStreamControllers (for explicit close) */
   private streamControllers: Map<string, ReadableStreamDefaultController<Uint8Array>> = new Map();
 
   private constructor() {
-    // 定期的なping送信を開始（30秒ごと）
+    // Start periodic ping (every 30 seconds)
     this.startPingInterval();
   }
 
@@ -60,7 +61,7 @@ export class RealtimeService {
   }
 
   /**
-   * 新しいSSEクライアントを登録
+   * Register a new SSE client.
    */
   registerClient(response: SSEClient['response'], subscriptions: string[] = []): string {
     const clientId = `client-${this.nextClientId++}`;
@@ -74,7 +75,7 @@ export class RealtimeService {
 
     this.clients.set(clientId, client);
 
-    // 接続成功メッセージを送信
+    // Send connection success message
     this.sendToClient(clientId, {
       type: 'connected',
       data: { clientId, subscriptions },
@@ -85,17 +86,17 @@ export class RealtimeService {
   }
 
   /**
-   * クライアントを削除
+   * Remove a client.
    */
   removeClient(clientId: string): void {
     this.clients.delete(clientId);
-    // ストリームコントローラーも削除（すでにcloseされている場合もある）
+    // Also remove stream controller (may already be closed)
     this.streamControllers.delete(clientId);
   }
 
   /**
-   * SSE接続のStreamControllerを登録
-   * シャットダウン時に明示的にcloseするために使用
+   * Register an SSE StreamController.
+   * Used for explicit close during shutdown.
    */
   registerStreamController(
     clientId: string,
@@ -105,14 +106,14 @@ export class RealtimeService {
   }
 
   /**
-   * SSE接続のStreamControllerを削除
+   * Remove an SSE StreamController.
    */
   removeStreamController(clientId: string): void {
     this.streamControllers.delete(clientId);
   }
 
   /**
-   * クライアントの購読を更新
+   * Update client subscriptions.
    */
   updateSubscriptions(clientId: string, subscriptions: string[]): void {
     const client = this.clients.get(clientId);
@@ -122,7 +123,7 @@ export class RealtimeService {
   }
 
   /**
-   * 購読を追加
+   * Add a subscription.
    */
   addSubscription(clientId: string, channel: string): void {
     const client = this.clients.get(clientId);
@@ -132,7 +133,7 @@ export class RealtimeService {
   }
 
   /**
-   * 購読を削除
+   * Remove a subscription.
    */
   removeSubscription(clientId: string, channel: string): void {
     const client = this.clients.get(clientId);
@@ -142,7 +143,7 @@ export class RealtimeService {
   }
 
   /**
-   * 特定のクライアントにイベントを送信
+   * Send an event to a specific client.
    */
   private sendToClient(clientId: string, event: SSEEvent): boolean {
     const client = this.clients.get(clientId);
@@ -165,7 +166,7 @@ export class RealtimeService {
   }
 
   /**
-   * SSEイベントをフォーマット
+   * Format an SSE event.
    */
   private formatSSEEvent(event: SSEEvent): string {
     let result = '';
@@ -178,7 +179,7 @@ export class RealtimeService {
   }
 
   /**
-   * チャンネルにイベントを送信
+   * Send an event to a channel.
    */
   broadcast(channel: EventChannel | string, eventType: string, data: unknown): void {
     const event: SSEEvent = {
@@ -188,10 +189,10 @@ export class RealtimeService {
       timestamp: new Date(),
     };
 
-    // 履歴に追加
+    // Add to history
     this.addToHistory(channel, event);
 
-    // 購読しているクライアントに送信
+    // Send to subscribed clients
     for (const client of this.clients.values()) {
       if (client.subscriptions.has(channel) || client.subscriptions.has('*')) {
         this.sendToClient(client.id, event);
@@ -200,7 +201,7 @@ export class RealtimeService {
   }
 
   /**
-   * 全クライアントにイベントを送信
+   * Send an event to all clients.
    */
   broadcastAll(eventType: string, data: unknown): void {
     const event: SSEEvent = {
@@ -216,7 +217,7 @@ export class RealtimeService {
   }
 
   /**
-   * エージェント実行出力を送信
+   * Send agent execution output.
    */
   sendExecutionOutput(executionId: number, output: string, isError: boolean = false): void {
     this.broadcast(`execution:${executionId}`, 'execution_output', {
@@ -228,7 +229,7 @@ export class RealtimeService {
   }
 
   /**
-   * エージェント実行ステータス更新を送信
+   * Send agent execution status update.
    */
   sendExecutionStatusUpdate(
     executionId: number,
@@ -242,7 +243,7 @@ export class RealtimeService {
       timestamp: new Date().toISOString(),
     });
 
-    // agent_executionチャンネルにも送信
+    // Also send to agent_execution channel
     this.broadcast('agent_execution', 'execution_status', {
       executionId,
       status,
@@ -252,14 +253,14 @@ export class RealtimeService {
   }
 
   /**
-   * GitHub イベントを送信
+   * Send a GitHub event.
    */
   sendGitHubEvent(eventType: string, data: unknown): void {
     this.broadcast('github_events', eventType, data);
   }
 
   /**
-   * 通知を送信
+   * Send a notification.
    */
   sendNotification(notification: {
     id: number;
@@ -272,7 +273,7 @@ export class RealtimeService {
   }
 
   /**
-   * タスク更新を送信
+   * Send a task update.
    */
   sendTaskUpdate(taskId: number, updateType: string, data: unknown): void {
     this.broadcast(`task:${taskId}`, updateType, {
@@ -283,7 +284,7 @@ export class RealtimeService {
   }
 
   /**
-   * 履歴に追加
+   * Add to history
    */
   private addToHistory(channel: string, event: SSEEvent): void {
     if (!this.eventHistory.has(channel)) {
@@ -292,14 +293,14 @@ export class RealtimeService {
     const history = this.eventHistory.get(channel)!;
     history.push(event);
 
-    // 最大サイズを超えたら古いものを削除
+    // Remove old entries when max size is exceeded
     while (history.length > this.maxHistorySize) {
       history.shift();
     }
   }
 
   /**
-   * チャンネルの履歴を取得
+   * Get channel history.
    */
   getChannelHistory(channel: string, since?: Date): SSEEvent[] {
     const history = this.eventHistory.get(channel) || [];
@@ -310,7 +311,7 @@ export class RealtimeService {
   }
 
   /**
-   * pingインターバルを開始
+   * Start ping interval.
    */
   private startPingInterval(): void {
     this.pingInterval = setInterval(() => {
@@ -327,8 +328,8 @@ export class RealtimeService {
   }
 
   /**
-   * サービスを停止
-   * 全てのSSE接続を明示的にクローズしてソケットを解放する
+   * Shut down the service.
+   * Explicitly close all SSE connections to release sockets.
    */
   shutdown(): void {
     if (this.pingInterval) {
@@ -336,17 +337,17 @@ export class RealtimeService {
       this.pingInterval = null;
     }
 
-    // 全クライアントに切断通知を送信
+    // Send disconnect notification to all clients
     this.broadcastAll('shutdown', { reason: 'Server shutting down' });
 
-    // 全てのSSEストリームを明示的にclose（CLOSE_WAIT蓄積を防止）
+    // Explicitly close all SSE streams (prevents CLOSE_WAIT accumulation)
     const controllerCount = this.streamControllers.size;
     for (const [clientId, controller] of this.streamControllers) {
       try {
         controller.close();
         log.info(`[SSE] Closed stream for client ${clientId}`);
       } catch (error) {
-        // 既にcloseされている場合は無視
+        // Ignore if already closed
       }
     }
     if (controllerCount > 0) {
@@ -358,14 +359,14 @@ export class RealtimeService {
   }
 
   /**
-   * 接続中のクライアント数を取得
+   * Get the number of connected clients.
    */
   getClientCount(): number {
     return this.clients.size;
   }
 
   /**
-   * クライアント情報を取得
+   * Get client information.
    */
   getClients(): Array<{
     id: string;
@@ -380,5 +381,5 @@ export class RealtimeService {
   }
 }
 
-// シングルトンインスタンスをエクスポート
+// Export singleton instance
 export const realtimeService = RealtimeService.getInstance();

@@ -62,7 +62,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     cardsCreated: number;
   } | null>(null);
 
-  // ノートからフラッシュカードを生成
   const handleGenerateFlashcards = useCallback(async () => {
     const content = contentRef.current?.innerHTML;
     if (!content || content.trim().length < 20) return;
@@ -95,19 +94,15 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     }
   }, [note.title, locale]);
 
-  // 現在アクティブな色のspanを追跡
   const activeColorSpanRef = useRef<HTMLSpanElement | null>(null);
-  // 現在選択されている文字色を保持（常に適用するため）
   const selectedTextColorRef = useRef<string | null>(null);
 
-  // Bundled refs for extracted modules
   const editorRefs = {
     contentRef,
     activeColorSpanRef,
     selectedTextColorRef,
   };
 
-  // ---- Helper: close all popups ----
   const closeAllPopups = useCallback(() => {
     setShowColorPicker(false);
     setShowBorderPicker(false);
@@ -118,7 +113,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     setShowTextColorPicker(false);
   }, []);
 
-  // ポップアップの外側をクリックした時に閉じる処理
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -168,12 +162,10 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     closeAllPopups,
   ]);
 
-  // コンテンツ変更（ダーティフラグのみ）
   const handleContentChange = useCallback(() => {
     setIsDirty(true);
   }, []);
 
-  // 現在の選択範囲のフォーマットを検出
   const handleDetectFormat = useCallback(() => {
     const format = detectCurrentFormat();
     if (format) {
@@ -183,7 +175,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     }
   }, []);
 
-  // ノート切り替え時・初回マウント時にコンテンツをセット
   useEffect(() => {
     setDraftTitle(note.title);
     setIsDirty(false);
@@ -193,13 +184,11 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     }
   }, [note.id]);
 
-  // タイトル変更
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDraftTitle(e.target.value);
     setIsDirty(true);
   };
 
-  // タイトルペースト時にHTMLタグを除去
   const handleTitlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
@@ -215,7 +204,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     }, 0);
   };
 
-  // 手動保存
   const handleSave = useCallback(() => {
     if (!isDirty) return;
     const content = contentRef.current?.innerHTML ?? note.content;
@@ -223,7 +211,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     setIsDirty(false);
   }, [isDirty, draftTitle, note.id, note.content, updateNote]);
 
-  // Ctrl+S で保存
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -235,7 +222,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [handleSave]);
 
-  // 選択変更時にフォーマット検出
   useEffect(() => {
     const handleSelectionChange = () => {
       if (contentRef.current?.contains(document.activeElement)) {
@@ -247,7 +233,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleDetectFormat]);
 
-  // ---- Toolbar action callbacks ----
 
   const onApplyFormat = useCallback(
     (command: string, value?: string) => {
@@ -297,7 +282,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     [handleContentChange],
   );
 
-  // 文字色適用 -- delegates to extracted module
   const applyTextColor = useCallback(
     (color: string) => {
       applyTextColorUtil(color, editorRefs, {
@@ -309,7 +293,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     [handleContentChange],
   );
 
-  // ---- Link / Code / Table insertion ----
 
   const openLinkInput = useCallback(() => {
     if (isInTitleInput()) return;
@@ -452,7 +435,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       contentRef.current.appendChild(frag);
     }
 
-    // Wire up delete handlers
     if (contentRef.current) {
       const newBlocks = contentRef.current.querySelectorAll(
         '[data-needs-delete-handler="1"]',
@@ -476,7 +458,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     savedSelectionRef.current = null;
   }, [codeLanguage, handleContentChange]);
 
-  // ---- Text color button / reset ----
 
   const handleTextColorButtonClick = useCallback(() => {
     const wasOpen = showTextColorPicker;
@@ -528,7 +509,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     setShowTextColorPicker(false);
   }, []);
 
-  // ---- Editor event handlers (delegating to extracted modules) ----
 
   const onEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
     handleEditorInputUtil(e, editorRefs, handleContentChange);
@@ -554,7 +534,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* タイトル + 保存 */}
+      {/* Title + Save */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <input
           type="text"
@@ -616,7 +596,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         </button>
       </div>
 
-      {/* フラッシュカード生成結果 */}
+      {/* Flashcard generation result */}
       {flashcardResult && (
         <div className="mx-4 mb-2 flex items-center justify-between px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700">
           <span className="text-sm text-violet-700 dark:text-violet-300">
@@ -633,7 +613,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         </div>
       )}
 
-      {/* ツールバー */}
+      {/* Toolbar */}
       <EditorToolbar
         currentFont={currentFont}
         currentFontSize={currentFontSize}
@@ -678,7 +658,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         onTextColorButtonClick={handleTextColorButtonClick}
       />
 
-      {/* エディター本体 */}
+      {/* Editor body */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <div
           ref={contentRef}
@@ -691,7 +671,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         />
       </div>
 
-      {/* フッター */}
+      {/* Footer */}
       <div className="flex items-center justify-between p-2 border-t border-zinc-200 dark:border-zinc-700 text-xs text-zinc-500 dark:text-zinc-400">
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />

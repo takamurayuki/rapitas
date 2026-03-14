@@ -1,15 +1,16 @@
 /**
- * Gemini CLI エージェント
- * Google Gemini CLIを子プロセスとして起動し、タスクを実行する
+ * GeminiCliAgent
+ *
+ * Spawns Google Gemini CLI as a child process to execute tasks.
  *
  * Gemini CLI: @google/gemini-cli (npm install -g @google/gemini-cli)
  * https://github.com/google-gemini/gemini-cli
  *
- * 主な機能:
- * - -p フラグで非インタラクティブモードでプロンプトを渡す
- * - --output-format stream-json でJSONストリーミング出力
- * - --checkpoint でセッション継続
- * - GoogleSearch, Shell, ReadFile, WriteFile などのビルトインツール
+ * Key features:
+ * - `-p` flag for non-interactive prompt input
+ * - `--output-format stream-json` for JSON streaming output
+ * - `--checkpoint` for session continuation
+ * - Built-in tools: GoogleSearch, Shell, ReadFile, WriteFile, etc.
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -37,21 +38,21 @@ const logger = createLogger('gemini-cli-agent');
 
 export type GeminiCliAgentConfig = {
   workingDirectory?: string;
-  model?: string; // gemini-2.0-flash, gemini-1.5-flash など
-  timeout?: number; // milliseconds
+  model?: string;
+  timeout?: number;
   maxTokens?: number;
-  projectId?: string; // Google Cloud Project ID
-  location?: string; // Google Cloud region (e.g., us-central1)
-  apiKey?: string; // Gemini API Key (環境変数から取得可能)
-  sandboxMode?: boolean; // サンドボックスモードで実行
-  checkpointId?: string; // チェックポイントIDで会話を再開
-  allowedTools?: string[]; // 許可するツール
-  disallowedTools?: string[]; // 禁止するツール
-  yolo?: boolean; // 自動承認モード
+  projectId?: string;
+  location?: string;
+  apiKey?: string;
+  sandboxMode?: boolean;
+  checkpointId?: string;
+  allowedTools?: string[];
+  disallowedTools?: string[];
+  yolo?: boolean;
 };
 
 /**
- * Gemini CLI stream-json イベント型
+ * Gemini CLI stream-json event type.
  */
 type GeminiStreamEvent = {
   type: 'assistant' | 'user' | 'result' | 'system' | 'tool_use' | 'tool_result';
@@ -89,7 +90,6 @@ function resolveCliPath(cliName: string): string {
       return resolved;
     }
   } catch {
-    // フォールバック
   }
   return cliName;
 }
@@ -100,12 +100,10 @@ export class GeminiCliAgent extends BaseAgent {
   private outputBuffer: string = '';
   private errorBuffer: string = '';
   private lineBuffer: string = '';
-  /** 質問待機状態 */
   private detectedQuestion: QuestionWaitingState = createInitialWaitingState();
   private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
-  /** Gemini CLIのセッションID */
   private geminiSessionId: string | null = null;
-  /** チェックポイントID（セッション継続用） */
+  /** Checkpoint ID for session continuation. */
   private checkpointId: string | null = null;
 
   constructor(id: string, name: string, config: GeminiCliAgentConfig = {}) {
@@ -143,7 +141,6 @@ export class GeminiCliAgent extends BaseAgent {
     const fs = await import('fs/promises');
     const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    // 作業ディレクトリの存在確認
     try {
       const stats = await fs.stat(workDir);
       if (!stats.isDirectory()) {
@@ -165,7 +162,6 @@ export class GeminiCliAgent extends BaseAgent {
       };
     }
 
-    // Gemini CLIが利用可能か確認
     const isGeminiAvailable = await this.isAvailable();
     if (!isGeminiAvailable) {
       this.status = 'failed';
@@ -177,7 +173,6 @@ export class GeminiCliAgent extends BaseAgent {
       };
     }
 
-    // チェックポイントIDをリセット
     this.checkpointId = null;
 
     return new Promise((resolve) => {
@@ -189,44 +184,35 @@ export class GeminiCliAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`);
       }
 
-      // Gemini CLI コマンドを構築
-      // 公式ドキュメント: https://geminicli.com/docs/
+      // Build Gemini CLI command (docs: https://geminicli.com/docs/)
       const args: string[] = [];
 
-      // 非インタラクティブモード: -p フラグでプロンプトを渡す
       args.push('-p', prompt);
 
-      // JSON形式で出力（stream-json形式）
       args.push('--output-format', 'stream-json');
 
-      // サンドボックスモード
       if (this.config.sandboxMode) {
         args.push('--sandbox');
       }
 
-      // 自動承認モード（yolo）
       if (this.config.yolo) {
         args.push('--yolo');
       }
 
-      // モデル指定
       if (this.config.model) {
         args.push('-m', this.config.model);
       }
 
-      // チェックポイントIDで会話を再開
       const resumeId = this.config.checkpointId || task.resumeSessionId;
       if (resumeId) {
         args.push('--checkpoint', resumeId);
         logger.info(`${this.logPrefix} Resuming from checkpoint: ${resumeId}`);
       }
 
-      // 許可するツール
       if (this.config.allowedTools && this.config.allowedTools.length > 0) {
         args.push('--allowlist', this.config.allowedTools.join(','));
       }
 
-      // 禁止するツール
       if (this.config.disallowedTools && this.config.disallowedTools.length > 0) {
         args.push('--denylist', this.config.disallowedTools.join(','));
       }
@@ -278,7 +264,6 @@ export class GeminiCliAgent extends BaseAgent {
 
         logger.info(`${this.logPrefix} Final command: ${finalCommand.substring(0, 100)}...`);
 
-        // 環境変数の準備
         const env: NodeJS.ProcessEnv = {
           ...process.env,
           FORCE_COLOR: '0',
@@ -287,12 +272,10 @@ export class GeminiCliAgent extends BaseAgent {
           TERM: 'dumb',
         };
 
-        // APIキーを環境変数に設定
         if (this.config.apiKey) {
           env.GEMINI_API_KEY = this.config.apiKey;
         }
 
-        // Google Cloud設定
         if (this.config.projectId) {
           env.GOOGLE_CLOUD_PROJECT = this.config.projectId;
         }
@@ -300,7 +283,6 @@ export class GeminiCliAgent extends BaseAgent {
           env.GOOGLE_CLOUD_LOCATION = this.config.location;
         }
 
-        // Windows用UTF-8設定
         if (isWindows) {
           env.LANG = 'en_US.UTF-8';
           env.PYTHONIOENCODING = 'utf-8';
@@ -325,8 +307,7 @@ export class GeminiCliAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
 
-        // -p フラグでプロンプトを渡しているので、stdinへの書き込みは不要
-        // stdinを閉じる
+        // NOTE: Prompt passed via -p flag, so stdin is not needed
         if (this.process.stdin) {
           this.process.stdin.end();
         }
@@ -415,7 +396,6 @@ export class GeminiCliAgent extends BaseAgent {
           for (const line of lines) {
             if (!line.trim()) continue;
 
-            // stream-json形式の出力をパース
             try {
               const json = JSON.parse(line) as GeminiStreamEvent;
               const timestamp = new Date().toISOString();
@@ -424,13 +404,11 @@ export class GeminiCliAgent extends BaseAgent {
               let displayOutput = '';
               switch (json.type) {
                 case 'assistant':
-                  // アシスタントのメッセージ
                   if (json.message?.content) {
                     for (const block of json.message.content) {
                       if (block.type === 'text' && block.text) {
                         displayOutput += block.text;
                       } else if (block.type === 'tool_use') {
-                        // Gemini CLI の質問ツールを検出
                         if (
                           block.name === 'AskUserQuestion' ||
                           block.name === 'ask_user' ||
@@ -458,7 +436,7 @@ export class GeminiCliAgent extends BaseAgent {
 
                           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
 
-                          // 質問検出時はプロセスを停止
+                          // NOTE: Kill process to wait for user response before continuing
                           logger.info(
                             `${this.logPrefix} Stopping process to wait for user response`,
                           );
@@ -466,7 +444,6 @@ export class GeminiCliAgent extends BaseAgent {
                             this.process.kill('SIGTERM');
                           }
                         } else {
-                          // 通常のツール呼び出し
                           const toolInfo = this.formatToolInfo(
                             block.name || 'unknown',
                             block.input,
@@ -486,7 +463,6 @@ export class GeminiCliAgent extends BaseAgent {
                   break;
 
                 case 'user':
-                  // ユーザーメッセージ（ツール結果など）
                   if (json.message?.content) {
                     for (const block of json.message.content) {
                       if (block.type === 'tool_result' && block.tool_use_id) {
@@ -508,7 +484,6 @@ export class GeminiCliAgent extends BaseAgent {
                   break;
 
                 case 'result':
-                  // 最終結果
                   if (json.result) {
                     const duration = json.duration_ms
                       ? ` (${(json.duration_ms / 1000).toFixed(1)}s)`
@@ -522,7 +497,6 @@ export class GeminiCliAgent extends BaseAgent {
                   break;
 
                 case 'system':
-                  // セッションIDとチェックポイントIDをキャプチャ
                   if (json.session_id) {
                     this.geminiSessionId = json.session_id;
                     logger.info(`${this.logPrefix} Session ID: ${this.geminiSessionId}`);
@@ -552,7 +526,7 @@ export class GeminiCliAgent extends BaseAgent {
                 this.emitOutput(displayOutput);
               }
             } catch (e) {
-              // JSONパース失敗時: chcpコマンドの出力など不要な行をフィルタリング
+              // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
               const trimmedLine = line.trim();
               if (
                 !trimmedLine ||
@@ -615,7 +589,7 @@ export class GeminiCliAgent extends BaseAgent {
           const artifacts = this.parseArtifacts(this.outputBuffer);
           const commits = this.parseCommits(this.outputBuffer);
 
-          // 質問検出
+          // Question detection
           const hasQuestion = this.detectedQuestion.hasQuestion;
           const question = this.detectedQuestion.question;
           const questionKey = this.detectedQuestion.questionKey;
@@ -637,7 +611,7 @@ export class GeminiCliAgent extends BaseAgent {
               questionType,
               questionDetails,
               questionKey,
-              // claudeSessionIdフィールドをセッション継続用に使用（チェックポイントID優先）
+              // NOTE: Re-using claudeSessionId field for session continuation (checkpoint ID takes priority)
               claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
             });
             return;
@@ -804,7 +778,6 @@ export class GeminiCliAgent extends BaseAgent {
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    // Gemini CLIが利用可能か確認
     const available = await this.isAvailable();
     if (!available) {
       errors.push(
@@ -812,9 +785,7 @@ export class GeminiCliAgent extends BaseAgent {
       );
     }
 
-    // APIキーの確認（Gemini CLIは無料版でもGoogleアカウントログインで利用可能）
-    // GEMINI_API_KEY は必須ではない（Google認証でも動作する）
-    // ただし、プロジェクトでAPIキーを使用する設定の場合は警告
+    // NOTE: GEMINI_API_KEY is optional — Gemini CLI also supports Google account authentication
     if (this.config.apiKey) {
       logger.info(`${this.logPrefix} Using provided API key`);
     } else if (process.env.GEMINI_API_KEY) {
@@ -823,7 +794,6 @@ export class GeminiCliAgent extends BaseAgent {
       logger.info(`${this.logPrefix} No API key provided - will use Google account authentication`);
     }
 
-    // 作業ディレクトリの検証
     if (this.config.workingDirectory) {
       try {
         const fs = await import('fs/promises');
@@ -843,10 +813,9 @@ export class GeminiCliAgent extends BaseAgent {
   }
 
   /**
-   * タスクから構造化プロンプトを生成
+   * Generate a structured prompt from a task.
    */
   private buildStructuredPrompt(task: AgentTask): string {
-    // 最適化されたプロンプトがある場合はそれを使用
     if (task.optimizedPrompt) {
       logger.info(
         `${this.logPrefix} Using optimized prompt (${task.optimizedPrompt.length} chars)`,
@@ -940,7 +909,7 @@ export class GeminiCliAgent extends BaseAgent {
   }
 
   /**
-   * 出力からファイル変更などの成果物を解析
+   * Parse artifacts (file changes, etc.) from output.
    */
   private parseArtifacts(output: string): AgentArtifact[] {
     const artifacts: AgentArtifact[] = [];
@@ -981,7 +950,7 @@ export class GeminiCliAgent extends BaseAgent {
   }
 
   /**
-   * 出力からGitコミット情報を解析
+   * Parse Git commit info from output.
    */
   private parseCommits(output: string): GitCommitInfo[] {
     const commits: GitCommitInfo[] = [];
@@ -1003,14 +972,14 @@ export class GeminiCliAgent extends BaseAgent {
   }
 
   /**
-   * ツール情報を人間が読みやすい形式にフォーマット
+   * Format tool info into a human-readable string.
    */
   private formatToolInfo(toolName: string, input: Record<string, unknown> | undefined): string {
     if (!input) return '';
 
     try {
       switch (toolName) {
-        // Gemini CLI のビルトインツール
+        // Gemini CLI built-in tools
         case 'ReadFile':
         case 'Read':
           return input.file_path || input.path
@@ -1061,14 +1030,14 @@ export class GeminiCliAgent extends BaseAgent {
   }
 
   /**
-   * チェックポイントIDを取得（セッション継続用）
+   * Get the checkpoint ID (for session continuation).
    */
   getCheckpointId(): string | null {
     return this.checkpointId;
   }
 
   /**
-   * セッションIDを取得
+   * Get the session ID.
    */
   getSessionId(): string | null {
     return this.geminiSessionId;

@@ -160,13 +160,12 @@ export default function FlashcardsPage() {
         body: JSON.stringify({ quality }),
       });
 
-      // 次のカードへ
       setSchedulePreview(null);
       if (currentCardIndex < (selectedDeck.cards?.length || 0) - 1) {
         setCurrentCardIndex(currentCardIndex + 1);
         setIsFlipped(false);
       } else {
-        // 復習完了
+        // Review session complete
         setIsStudyMode(false);
         setCurrentCardIndex(0);
         fetchDeck(selectedDeck.id);
@@ -274,7 +273,6 @@ export default function FlashcardsPage() {
     );
   }
 
-  // 学習モード
   if (isStudyMode && selectedDeck?.cards) {
     const card = selectedDeck.cards[currentCardIndex];
     if (!card) return null;
@@ -297,7 +295,6 @@ export default function FlashcardsPage() {
           </span>
         </div>
 
-        {/* カード */}
         <div
           onClick={() => {
             if (!isFlipped) {
@@ -325,7 +322,6 @@ export default function FlashcardsPage() {
           </div>
         </div>
 
-        {/* 評価ボタン */}
         {isFlipped && (
           <div className="mt-6 grid grid-cols-4 gap-3">
             <button
@@ -382,7 +378,6 @@ export default function FlashcardsPage() {
     );
   }
 
-  // デッキ詳細
   if (selectedDeck) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -439,7 +434,6 @@ export default function FlashcardsPage() {
           </div>
         </div>
 
-        {/* カードリスト */}
         <div className="space-y-3">
           {selectedDeck.cards?.map((card, index) => (
             <div
@@ -501,7 +495,6 @@ export default function FlashcardsPage() {
           </div>
         )}
 
-        {/* カード追加モーダル */}
         {isCardModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
@@ -553,7 +546,6 @@ export default function FlashcardsPage() {
           </div>
         )}
 
-        {/* AI生成モーダル */}
         {isGenerateModalOpen && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
@@ -689,7 +681,6 @@ export default function FlashcardsPage() {
     );
   }
 
-  // デッキ一覧
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
@@ -757,7 +748,6 @@ export default function FlashcardsPage() {
         </div>
       )}
 
-      {/* デッキ作成モーダル */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">

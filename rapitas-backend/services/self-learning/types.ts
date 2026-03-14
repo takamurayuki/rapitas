@@ -1,5 +1,5 @@
 /**
- * 自己学習型AIエージェント - 型定義
+ * Self-learning AI Agent - Type Definitions
  */
 
 // --- Experiment ---
@@ -241,7 +241,7 @@ export interface MemoryOverview {
     experiments: number;
   };
   growthRate: {
-    weekly: number; // パーセンテージ
+    weekly: number; // Percentage
     monthly: number;
   };
   currentSuccessRate: number;

@@ -1,10 +1,10 @@
 /**
- * AIエージェントプロバイダー - エントリーポイント
+ * Agent Providers - Entry Point
  *
- * 各AIプロバイダーの実装とレジストリへの登録を管理
+ * Manages provider implementations and their registration with the registry.
  */
 
-// プロバイダー実装のエクスポート
+// Provider implementation exports
 export { ClaudeCodeProvider, claudeCodeProvider } from './claude-code-provider';
 export { ClaudeCodeAgentAdapter } from './claude-code-agent-adapter';
 
@@ -12,12 +12,12 @@ import { createLogger } from '../../../../config/logger';
 
 const log = createLogger('abstraction-providers');
 
-// レジストリ
+// Registry
 import { AgentRegistry } from '../registry';
 import { ClaudeCodeProvider } from './claude-code-provider';
 
 /**
- * 全ての組み込みプロバイダーをレジストリに登録
+ * Registers all built-in providers with the registry.
  */
 export function registerBuiltinProviders(): void {
   const registry = AgentRegistry.getInstance();
@@ -30,7 +30,7 @@ export function registerBuiltinProviders(): void {
 }
 
 /**
- * 特定のプロバイダーのみを登録
+ * Registers a specific provider.
  */
 export function registerProvider(
   providerId: 'claude-code' | 'openai-codex' | 'gemini' | 'anthropic-api',
@@ -56,8 +56,8 @@ export function registerProvider(
 }
 
 /**
- * プロバイダーの自動初期化
- * アプリケーション起動時に呼び出す
+ * Auto-initializes providers.
+ * Should be called at application startup.
  */
 export async function initializeProviders(): Promise<{
   registered: string[];
@@ -75,7 +75,7 @@ export async function initializeProviders(): Promise<{
     registry.registerProvider(claudeProvider);
     registered.push('claude-code');
 
-    // 利用可能かチェック
+    // Check availability
     const isAvailable = await claudeProvider.isAvailable();
     if (isAvailable) {
       available.push('claude-code');
@@ -86,8 +86,7 @@ export async function initializeProviders(): Promise<{
     );
   }
 
-  // 将来の追加プロバイダー用のプレースホルダー
-  // OpenAI Codex, Gemini等の実装時にここに追加
+  // TODO: Add OpenAI Codex, Gemini, etc. providers here when implemented.
 
   log.info(
     `[Agent Providers] Initialization complete: ${registered.length} registered, ${available.length} available`,

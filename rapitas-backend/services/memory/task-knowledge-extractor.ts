@@ -1,8 +1,9 @@
 /**
- * タスク完了時ナレッジ自動抽出サービス
+ * Task Knowledge Auto-Extraction Service
  *
- * タスク完了時にverify.md/コメント/実行ログから学んだことを
- * KnowledgeEntryとして自動登録し、類似タスク作成時に関連ナレッジを提示する
+ * On task completion, extracts lessons learned from verify.md, comments, and
+ * execution logs, registers them as KnowledgeEntry records, and presents
+ * related knowledge when similar tasks are created.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -14,7 +15,10 @@ import { memoryTaskQueue } from './index';
 const log = createLogger('memory:task-knowledge');
 
 /**
- * タスク完了時にナレッジを自動抽出して登録
+ * Auto-extract and register knowledge on task completion.
+ *
+ * @param taskId - Completed task ID
+ * @returns Array of created KnowledgeEntry IDs
  */
 export async function extractKnowledgeFromTask(taskId: number): Promise<number[]> {
   const entryIds: number[] = [];
@@ -34,10 +38,10 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
       return entryIds;
     }
 
-    // verify.mdの内容を読み取り
+    // Load verify.md content
     const verifyContent = await loadVerifyContent(taskId, task.theme?.categoryId, task.themeId);
 
-    // 抽出に使うコンテキストを構築
+    // Build extraction context
     const context = buildExtractionContext(task, verifyContent);
 
     if (context.length < 50) {
@@ -45,11 +49,11 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
       return entryIds;
     }
 
-    // AIでナレッジ抽出
+    // Extract knowledge via AI
     const extracted = await extractWithAI(context, task.title);
 
     for (const item of extracted) {
-      // 重複チェック（同じタイトルのエントリが既にあるか）
+      // Duplicate check by content hash
       const existing = await prisma.knowledgeEntry.findFirst({
         where: {
           contentHash: createContentHash(item.content),
@@ -80,7 +84,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
 
       entryIds.push(entry.id);
 
-      // バックグラウンドでembedding生成
+      // Queue background embedding generation
       await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: item.content }, 10);
       await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
       await memoryTaskQueue.enqueue('detect_contradiction', { entryId: entry.id }, 3);
@@ -93,7 +97,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
         payload: { taskId, entriesCreated: entryIds.length, entryIds },
       });
 
-      // 通知作成
+      // Create notification
       await prisma.notification.create({
         data: {
           type: 'knowledge_extracted',
@@ -114,7 +118,7 @@ export async function extractKnowledgeFromTask(taskId: number): Promise<number[]
 }
 
 /**
- * タスク作成/編集時に関連ナレッジを検索して返す
+ * Search and return related knowledge when creating/editing a task.
  */
 export async function findRelatedKnowledge(
   title: string,
@@ -132,7 +136,7 @@ export async function findRelatedKnowledge(
   }>
 > {
   try {
-    // キーワードベース検索（ベクトル検索が利用不可の場合のフォールバック）
+    // Keyword-based search (fallback when vector search is unavailable)
     const searchText = `${title} ${description || ''}`.toLowerCase();
     const keywords = searchText
       .split(/[\s\-_\/\\:;,.\(\)\[\]{}]+/)
@@ -141,7 +145,7 @@ export async function findRelatedKnowledge(
 
     if (keywords.length === 0) return [];
 
-    // テーマ一致 + アクティブなナレッジを検索
+    // Search active knowledge with theme matching
     const where: Record<string, unknown> = {
       forgettingStage: { in: ['active', 'dormant'] },
       OR: keywords.map((kw) => ({
@@ -165,24 +169,24 @@ export async function findRelatedKnowledge(
         tags: true,
       },
       orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
-      take: limit * 3, // 多めに取得してスコアリング
+      take: limit * 3, // Fetch extra for post-scoring
     });
 
-    // 関連度スコアリング
+    // Relevance scoring
     const scored = entries.map((entry) => {
       let relevanceScore = 0;
 
-      // キーワードマッチ数
+      // Keyword match count
       const entryText = `${entry.title} ${entry.content}`.toLowerCase();
       const matchCount = keywords.filter((kw) => entryText.includes(kw)).length;
       relevanceScore += (matchCount / keywords.length) * 50;
 
-      // テーマ一致ボーナス
+      // Theme match bonus
       if (themeId && entry.themeId === themeId) {
         relevanceScore += 30;
       }
 
-      // 信頼度と減衰スコア
+      // Confidence and decay score
       relevanceScore += entry.confidence * 10;
       relevanceScore += entry.decayScore * 10;
 
@@ -203,7 +207,7 @@ export async function findRelatedKnowledge(
   }
 }
 
-// ──── ヘルパー関数 ────
+// ──── Helper Functions ────
 
 async function loadVerifyContent(
   taskId: number,
@@ -290,7 +294,7 @@ ${context}
     });
 
     const text = response.content.trim();
-    // JSON部分を抽出
+    // Extract JSON portion
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return [];
 

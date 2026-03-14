@@ -9,7 +9,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useParallelExecutionStatus');
 
 /**
- * サブタスクの実行ステータス
+ * Subtask execution status
  */
 export interface SubtaskExecutionState {
   taskId: number;
@@ -22,7 +22,7 @@ export interface SubtaskExecutionState {
 }
 
 /**
- * 並列実行セッションの状態
+ * Parallel execution session state
  */
 export interface ParallelSessionState {
   sessionId: string;
@@ -40,7 +40,7 @@ export interface ParallelSessionState {
 }
 
 /**
- * SSEイベントの型
+ * SSE event type
  */
 interface ParallelExecutionEvent {
   type:
@@ -71,41 +71,41 @@ interface ParallelExecutionEvent {
 }
 
 interface UseParallelExecutionStatusOptions {
-  /** タスクID */
+  /** Task ID */
   taskId: number;
-  /** SSE接続を有効にするか */
+  /** Whether to enable SSE connection */
   enableSSE?: boolean;
-  /** ポーリング間隔（ミリ秒） */
+  /** Polling interval in milliseconds */
   pollingInterval?: number;
 }
 
 interface UseParallelExecutionStatusReturn {
-  /** セッションID */
+  /** Session ID */
   sessionId: string | null;
-  /** セッション状態 */
+  /** Session state */
   sessionState: ParallelSessionState | null;
-  /** 接続中かどうか */
+  /** Whether connected */
   isConnected: boolean;
-  /** 実行中かどうか */
+  /** Whether running */
   isRunning: boolean;
-  /** エラー */
+  /** Error */
   error: string | null;
-  /** サブタスクの実行ステータスを取得 */
+  /** Get subtask execution status */
   getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
-  /** セッションを開始 */
+  /** Start session */
   startSession: (config?: {
     maxConcurrentAgents?: number;
   }) => Promise<string | null>;
-  /** セッションを停止 */
+  /** Stop session */
   stopSession: () => Promise<void>;
-  /** ステータスを更新（手動） */
+  /** Update status (manual) */
   refreshStatus: () => Promise<void>;
 }
 
 /**
- * 並列実行セッションのステータスを監視するフック
+ * Hook to monitor parallel execution session status
  *
- * SSEまたはポーリングを使用して、リアルタイムでサブタスクの実行状況を取得します。
+ * Retrieves subtask execution status in real-time via SSE or polling.
  */
 export function useParallelExecutionStatus({
   taskId,
@@ -121,13 +121,12 @@ export function useParallelExecutionStatus({
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // sessionIdをrefでも保持（クロージャの古い値参照を防ぐ）
+  // NOTE: Also hold sessionId in ref to prevent stale closure references
   const sessionIdRef = useRef<string | null>(null);
 
-  // グローバル実行状態ストアへのアクセス
+  // Access global execution state store
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
 
-  // サブタスクのステータスを取得
   const getSubtaskStatus = useCallback(
     (subtaskId: number): ParallelExecutionStatus | undefined => {
       return sessionState?.subtaskStates.get(subtaskId)?.status;
@@ -135,15 +134,15 @@ export function useParallelExecutionStatus({
     [sessionState],
   );
 
-  // 実行中かどうか
+  // Check if execution is currently running
   const isRunning =
     sessionState?.status === 'running' || sessionState?.status === 'scheduled';
 
-  // SSEイベントを処理
+  // Process SSE events
   const handleSSEEvent = useCallback((event: ParallelExecutionEvent) => {
     setSessionState((prev) => {
       if (!prev) {
-        // 初期状態を作成
+        // Create initial state
         prev = {
           sessionId: event.sessionId,
           status: 'running',
@@ -188,11 +187,9 @@ export function useParallelExecutionStatus({
               status: 'running',
               startedAt: new Date(event.timestamp),
             });
-            // runningTasksに追加
             if (!newState.runningTasks.includes(event.taskId)) {
               newState.runningTasks = [...newState.runningTasks, event.taskId];
             }
-            // pendingTasksから削除
             newState.pendingTasks = newState.pendingTasks.filter(
               (id) => id !== event.taskId,
             );
@@ -210,14 +207,12 @@ export function useParallelExecutionStatus({
               executionTimeMs: event.data?.executionTimeMs,
               tokensUsed: event.data?.tokensUsed,
             });
-            // completedTasksに追加
             if (!newState.completedTasks.includes(event.taskId)) {
               newState.completedTasks = [
                 ...newState.completedTasks,
                 event.taskId,
               ];
             }
-            // runningTasksから削除
             newState.runningTasks = newState.runningTasks.filter(
               (id) => id !== event.taskId,
             );
@@ -234,11 +229,9 @@ export function useParallelExecutionStatus({
               completedAt: new Date(event.timestamp),
               error: event.data?.errorMessage,
             });
-            // failedTasksに追加
             if (!newState.failedTasks.includes(event.taskId)) {
               newState.failedTasks = [...newState.failedTasks, event.taskId];
             }
-            // runningTasksから削除
             newState.runningTasks = newState.runningTasks.filter(
               (id) => id !== event.taskId,
             );
@@ -252,7 +245,6 @@ export function useParallelExecutionStatus({
           break;
 
         case 'level_completed':
-          // レベル完了時の処理（必要に応じて）
           break;
 
         case 'progress_updated':
@@ -276,7 +268,6 @@ export function useParallelExecutionStatus({
               newState.blockedTasks = event.data.blocked;
             }
 
-            // subtaskStatesも更新
             event.data.completed?.forEach((id) => {
               if (!newState.subtaskStates.has(id)) {
                 newState.subtaskStates.set(id, {
@@ -348,7 +339,7 @@ export function useParallelExecutionStatus({
     });
   }, []);
 
-  // ステータスをポーリングで取得（refを使用してクロージャの古い値参照を防ぐ）
+  // NOTE: Fetch status via polling (uses ref to prevent stale closure references)
   const fetchStatus = useCallback(async () => {
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) return;
@@ -433,17 +424,16 @@ export function useParallelExecutionStatus({
     }
   }, []);
 
-  // ステータスを手動で更新
   const refreshStatus = useCallback(async () => {
     await fetchStatus();
   }, [fetchStatus]);
 
-  // SSE接続を開始
+  // Start SSE connection
   const connectSSE = useCallback(
     (sId: string) => {
       if (!enableSSE) return;
 
-      // 既存の接続をクローズ
+      // Close existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -470,7 +460,7 @@ export function useParallelExecutionStatus({
 
       eventSource.onerror = () => {
         setIsConnected(false);
-        // SSE切断時にポーリングを即座に開始（useEffectの依存配列更新を待たない）
+        // NOTE: Start polling immediately on SSE disconnect (don't wait for useEffect)
         if (sessionIdRef.current && !pollingIntervalRef.current) {
           logger.info('[SSE] Connection lost, starting polling fallback');
           fetchStatus();
@@ -486,7 +476,7 @@ export function useParallelExecutionStatus({
     [enableSSE, handleSSEEvent, fetchStatus, pollingInterval],
   );
 
-  // セッションを開始
+  // Start session
   const startSession = useCallback(
     async (config?: {
       maxConcurrentAgents?: number;
@@ -510,11 +500,11 @@ export function useParallelExecutionStatus({
         const result = await res.json();
         if (result.success && result.data?.sessionId) {
           const newSessionId = result.data.sessionId;
-          // refを先に同期的に更新（fetchStatusがすぐ使えるように）
+          // NOTE: Update ref synchronously first so fetchStatus can use it immediately
           sessionIdRef.current = newSessionId;
           setSessionId(newSessionId);
 
-          // 初期状態を設定
+          // Set initial state
           setSessionState({
             sessionId: newSessionId,
             status: 'running',
@@ -530,10 +520,10 @@ export function useParallelExecutionStatus({
             totalExecutionTimeMs: 0,
           });
 
-          // SSE接続を開始
+          // Start SSE connection
           connectSSE(newSessionId);
 
-          // グローバルストアに実行中タスクを記録
+          // Record running tasks in global store
           setExecutingTask({
             taskId,
             status: 'running',
@@ -552,7 +542,7 @@ export function useParallelExecutionStatus({
     [taskId, connectSSE, setExecutingTask],
   );
 
-  // セッションを停止
+  // Stop session
   const stopSession = useCallback(async () => {
     if (!sessionId) return;
 
@@ -568,13 +558,11 @@ export function useParallelExecutionStatus({
         throw new Error('セッションの停止に失敗しました');
       }
 
-      // SSE接続をクローズ
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
 
-      // ポーリングも停止
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -589,34 +577,30 @@ export function useParallelExecutionStatus({
           : null,
       );
 
-      // sessionIdRefもクリア
       sessionIdRef.current = null;
 
-      // グローバルストアから削除
       removeExecutingTask(taskId);
     } catch (err) {
       logger.error('[StopSession] Error:', err);
     }
   }, [sessionId, removeExecutingTask, taskId]);
 
-  // セッション状態の変化を監視してストアを更新
+  // Watch session state changes and update store
   useEffect(() => {
     if (
       sessionState?.status === 'completed' ||
       sessionState?.status === 'failed' ||
       sessionState?.status === 'cancelled'
     ) {
-      // 終了状態になったらストアから削除
+      // Remove from store when execution completes
       removeExecutingTask(taskId);
 
-      // SSE接続も確実に切断
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
         setIsConnected(false);
       }
 
-      // ポーリングも停止
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -624,15 +608,15 @@ export function useParallelExecutionStatus({
     }
   }, [sessionState?.status, removeExecutingTask, taskId]);
 
-  // ポーリングを開始/停止
+  // Start/stop polling
   useEffect(() => {
     if (sessionId && isRunning && !isConnected) {
-      // SSEが接続されていない場合はポーリング（既にonerrorで開始されていない場合のみ）
+      // NOTE: Poll only when SSE is not connected (and not already started by onerror)
       if (!pollingIntervalRef.current) {
         pollingIntervalRef.current = setInterval(fetchStatus, pollingInterval);
       }
     } else if (!isRunning || isConnected) {
-      // 実行完了またはSSE接続復帰時はポーリング停止
+      // Stop polling when execution completes or SSE connection is restored
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -647,7 +631,7 @@ export function useParallelExecutionStatus({
     };
   }, [sessionId, isRunning, isConnected, pollingInterval, fetchStatus]);
 
-  // クリーンアップ
+  // Cleanup
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {

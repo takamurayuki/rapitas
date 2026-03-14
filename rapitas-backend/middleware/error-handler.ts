@@ -25,7 +25,7 @@ export class AppError extends Error {
  * Not Found Error
  */
 export class NotFoundError extends AppError {
-  constructor(message: string = 'リソースが見つかりません', code?: string) {
+  constructor(message: string = 'Resource not found', code?: string) {
     super(404, message, code);
     this.name = 'NotFoundError';
   }
@@ -35,7 +35,7 @@ export class NotFoundError extends AppError {
  * Validation Error
  */
 export class ValidationError extends AppError {
-  constructor(message: string = 'バリデーションエラー', code?: string) {
+  constructor(message: string = 'Validation error', code?: string) {
     super(400, message, code);
     this.name = 'ValidationError';
   }
@@ -45,7 +45,7 @@ export class ValidationError extends AppError {
  * Conflict Error (duplicate resource, unique constraint violation)
  */
 export class ConflictError extends AppError {
-  constructor(message: string = 'リソースが既に存在します', code?: string) {
+  constructor(message: string = 'Resource already exists', code?: string) {
     super(409, message, code);
     this.name = 'ConflictError';
   }
@@ -55,7 +55,7 @@ export class ConflictError extends AppError {
  * Authentication Error
  */
 export class AuthenticationError extends AppError {
-  constructor(message: string = '認証が必要です', code?: string) {
+  constructor(message: string = 'Authentication required', code?: string) {
     super(401, message, code);
     this.name = 'AuthenticationError';
   }
@@ -82,13 +82,11 @@ function isPrismaError(error: unknown): boolean {
   const name = error.name || '';
   const message = error.message || '';
 
-  // Prismaエラーのクラス名検出
   if (name.includes('PrismaClient')) return true;
   if (name.includes('PrismaKnown')) return true;
   if (name.includes('PrismaUnknown')) return true;
   if (name.includes('PrismaValidation')) return true;
 
-  // Prismaエラーメッセージの検出
   if (message.includes('Invalid `prisma')) return true;
   if (message.includes('prisma.') && message.includes('invocation')) return true;
   if (message.includes('Prisma schema')) return true;
@@ -96,19 +94,17 @@ function isPrismaError(error: unknown): boolean {
   if (message.includes('Database connection')) return true;
   if (message.includes('prisma client')) return true;
 
-  // 追加のPrismaエラーパターン
   if (message.includes('PrismaClientKnownRequestError')) return true;
   if (message.includes('PrismaClientUnknownRequestError')) return true;
   if (message.includes('PrismaClientRustPanicError')) return true;
   if (message.includes('PrismaClientInitializationError')) return true;
   if (message.includes('PrismaClientValidationError')) return true;
 
-  // スタックトレースベースのフォールバック検出
+  // NOTE: Fallback - Prisma errors may not always have recognizable class names or messages
   const stack = error.stack || '';
   if (stack.includes('@prisma/client')) return true;
   if (stack.includes('PrismaClient')) return true;
 
-  // Prisma固有のエラーコードプロパティ（P2001-P2034等）
   if ('code' in error && typeof (error as Record<string, unknown>).code === 'string') {
     const code = (error as Record<string, unknown>).code as string;
     if (/^P\d{4}$/.test(code)) return true;
@@ -138,7 +134,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     if (code === 'VALIDATION') {
       set.status = 400;
       return {
-        error: 'バリデーションエラー',
+        error: 'Validation error',
         details:
           'message' in error && typeof error.message === 'string' ? error.message : String(error),
       };
@@ -147,7 +143,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     // Not found
     if (code === 'NOT_FOUND') {
       set.status = 404;
-      return { error: 'リソースが見つかりません' };
+      return { error: 'Resource not found' };
     }
 
     // Prisma related errors (all types)
@@ -155,7 +151,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
       log.error({ err: error }, 'Prisma Error');
       set.status = 400;
       return {
-        error: 'データベースクエリエラー',
+        error: 'Database query error',
       };
     }
 
@@ -164,7 +160,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     set.status = 500;
 
     return {
-      error: 'サーバーエラーが発生しました',
+      error: 'Server error occurred',
     };
   },
 );

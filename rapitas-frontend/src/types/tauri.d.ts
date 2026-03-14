@@ -1,4 +1,4 @@
-// Tauri API の型定義
+// Tauri API type definitions
 declare global {
   interface Window {
     __TAURI__?: {
@@ -18,12 +18,12 @@ declare global {
           args?: Record<string, unknown>,
         ) => Promise<unknown>;
       };
-      // 他のTauri APIも必要に応じて追加
+      // Add other Tauri APIs as needed
     };
   }
 }
 
-// Tauri Windowオブジェクトの基本型定義
+// Basic type definition for Tauri Window object
 interface TauriWindow {
   label: string;
   scaleFactor: number;

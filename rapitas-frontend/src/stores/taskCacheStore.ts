@@ -41,7 +41,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   lastError: null,
 
   fetchAll: async () => {
-    // 既に初期化済みなら、fetchUpdatesを使用する
+    // If already initialized, use fetchUpdates
     if (get().initialized) {
       logger.debug(
         '[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead',
@@ -72,7 +72,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       logger.error('[taskCacheStore] fetchAll error:', e);
-      // エラー時でもinitializedをtrueにして、空のリストを表示
+      // Set initialized to true even on error and display empty list
       set({
         initialized: true,
         loading: false,
@@ -149,17 +149,17 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         // Merge updates into existing cache
         const taskMap = new Map(tasks.map((t) => [t.id, t]));
 
-        // 更新されたタスクを適用
+        // Apply updated tasks
         for (const updated of updatedTasks) {
           taskMap.set(updated.id, updated);
         }
 
-        // activeIdsが提供されている場合、削除されたタスクを検出
+        // If activeIds provided, detect deleted tasks
         if (activeIds.length > 0) {
           const activeIdSet = new Set(activeIds);
           const beforeCount = taskMap.size;
 
-          // ローカルに存在するが、サーバーには存在しないタスクを削除
+          // Delete tasks that exist locally but not on server
           for (const [id] of taskMap) {
             if (!activeIdSet.has(id)) {
               taskMap.delete(id);
@@ -173,7 +173,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
             );
           }
         } else if (taskMap.size > serverTotalCount) {
-          // activeIdsがない場合は従来の方法（全件再取得）
+          // If activeIds not available, use traditional method (refetch all)
           logger.info(
             `[taskCacheStore] fetchUpdates: Local count (${taskMap.size}) > server count (${serverTotalCount}), refetching all`,
           );

@@ -15,7 +15,7 @@ import type {
 } from './types';
 
 /**
- * ステータスごとの設定マップ
+ * Status configuration map
  */
 const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
   processing: {
@@ -51,7 +51,7 @@ const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
 };
 
 /**
- * サイズ設定
+ * Size configuration
  */
 const SIZE_CONFIG: Record<
   StatusCardSize,
@@ -75,7 +75,7 @@ const SIZE_CONFIG: Record<
 };
 
 /**
- * デフォルトアイコンの取得
+ * Get default icon for a status type
  */
 const getDefaultIcon = (
   status: AgentStatusType,
@@ -102,9 +102,9 @@ const getDefaultIcon = (
 };
 
 /**
- * StatusCard - AIエージェントのステータス表示コンポーネント
+ * StatusCard - AI agent status display component
  *
- * 4つのステータス（実行中、入力待ち、エラー、完了）に対応
+ * Supports four statuses: processing, waiting for input, error, and completed.
  */
 export const StatusCard: React.FC<StatusCardProps> = ({
   status,
@@ -122,7 +122,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   const config = useMemo(() => STATUS_CONFIG[status], [status]);
   const sizeConfig = useMemo(() => SIZE_CONFIG[size], [size]);
 
-  // ステータス変更時のコールバック
+  // Callback on status change
   useEffect(() => {
     if (prevStatusRef.current !== status) {
       onStatusChange?.(status);
@@ -130,7 +130,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
     }
   }, [status, onStatusChange]);
 
-  // ステータス変更時のアニメーション
+  // Animation on status change
   useEffect(() => {
     if (!animated || !cardRef.current) return;
 

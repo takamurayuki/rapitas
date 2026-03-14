@@ -1,6 +1,6 @@
 /**
- * 認証セッション管理フック
- * セッション状態の確認・トークンリフレッシュ・ログイン/ログアウト
+ * Authentication session management hook
+ * Session state verification, token refresh, login/logout
  */
 
 import { useState, useEffect, useCallback } from 'react';

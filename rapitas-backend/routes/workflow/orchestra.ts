@@ -1,6 +1,6 @@
 /**
  * Orchestra Routes
- * AIオーケストラの制御・状態管理APIエンドポイント
+ * AI Orchestra control and state management API endpoints
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../config';
@@ -74,7 +74,7 @@ export const orchestraRoutes = new Elysia()
     const queueService = WorkflowQueueService.getInstance();
     const state = await queueService.getQueueState(sessionId);
 
-    // タスク情報を付与
+    // Enrich with task info
     const allItems = [
       ...state.queued,
       ...state.running,
@@ -190,7 +190,7 @@ export const orchestraRoutes = new Elysia()
    * GET /workflow/orchestra/events - SSEエンドポイント
    */
   .get('/workflow/orchestra/events', () => {
-    // 初回ダミー登録（後でReadableStream内で再登録）
+    // NOTE: Temp registration, re-registered inside ReadableStream
     const tempClientId = realtimeService.registerClient({ write: () => {} }, ['orchestra']);
 
     let activeClientId = tempClientId;
@@ -208,7 +208,7 @@ export const orchestraRoutes = new Elysia()
             },
           };
 
-          // ダミーを削除して本物を登録
+          // Remove temp and register real client
           realtimeService.removeClient(tempClientId);
           activeClientId = realtimeService.registerClient(client, ['orchestra']);
           realtimeService.registerStreamController(activeClientId, controller);

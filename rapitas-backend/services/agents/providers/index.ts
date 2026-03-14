@@ -1,14 +1,14 @@
 /**
- * AIエージェントプロバイダー - エントリーポイント
+ * AI Agent Providers - Entry Point
  *
- * 各AIプロバイダーの実装をエクスポート
+ * Exports implementations of each AI provider.
  */
 
-// Claude Code プロバイダー
+// Claude Code provider
 export { ClaudeCodeProvider, ClaudeCodeAgentV2, claudeCodeProvider } from './claude-code-provider';
 export type { ClaudeCodeConfig } from './claude-code-provider';
 
-// Anthropic API プロバイダー
+// Anthropic API provider
 export {
   AnthropicApiProvider,
   AnthropicApiAgent,
@@ -17,15 +17,15 @@ export {
 } from './anthropic-api-provider';
 export type { AnthropicApiConfig } from './anthropic-api-provider';
 
-// OpenAI プロバイダー（スタブ）
+// OpenAI provider (stub)
 export { OpenAIProvider, OpenAIAgent, openaiProvider, OPENAI_MODELS } from './openai-provider';
 export type { OpenAIConfig } from './openai-provider';
 
-// Gemini API プロバイダー（スタブ）
+// Gemini API provider (stub)
 export { GeminiProvider, GeminiAgent, geminiProvider, GEMINI_MODELS } from './gemini-provider';
 export type { GeminiConfig } from './gemini-provider';
 
-// Gemini CLI プロバイダー
+// Gemini CLI provider
 export { GeminiCliProvider, GeminiCliAgentV2, geminiCliProvider } from './gemini-cli-provider';
 export type { GeminiCliConfig } from './gemini-cli-provider';
 
@@ -41,7 +41,7 @@ import { geminiProvider } from './gemini-provider';
 import { geminiCliProvider } from './gemini-cli-provider';
 
 /**
- * プロバイダー登録オプション
+ * Provider registration options
  */
 export interface RegisterProvidersOptions {
   claudeCode?: boolean;
@@ -52,15 +52,15 @@ export interface RegisterProvidersOptions {
 }
 
 /**
- * デフォルトプロバイダーを登録
+ * Registers default providers with the agent registry.
  */
 export function registerDefaultProviders(options?: RegisterProvidersOptions): void {
   const opts: RegisterProvidersOptions = {
     claudeCode: true,
     anthropicApi: true,
-    openai: false, // スタブなのでデフォルトでは無効
-    gemini: false, // API版はスタブなのでデフォルトでは無効
-    geminiCli: true, // CLI版は実装済みなのでデフォルトで有効
+    openai: false, // Disabled by default — stub implementation
+    gemini: false, // Disabled by default — API version is stub
+    geminiCli: true, // Enabled by default — CLI version is fully implemented
     ...options,
   };
 
@@ -99,7 +99,7 @@ export function registerDefaultProviders(options?: RegisterProvidersOptions): vo
 }
 
 /**
- * すべてのプロバイダーを登録（スタブ含む）
+ * Registers all providers including stubs.
  */
 export function registerAllProviders(): void {
   registerDefaultProviders({
@@ -112,7 +112,7 @@ export function registerAllProviders(): void {
 }
 
 /**
- * 利用可能なプロバイダーIDの一覧
+ * List of available provider IDs
  */
 export const AVAILABLE_PROVIDERS = [
   'claude-code',
@@ -123,7 +123,7 @@ export const AVAILABLE_PROVIDERS = [
 ] as const;
 
 /**
- * プロバイダーの表示情報
+ * Provider display information
  */
 export const PROVIDER_INFO = {
   'claude-code': {

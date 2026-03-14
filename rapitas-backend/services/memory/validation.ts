@@ -1,7 +1,8 @@
 /**
- * 知識検証（Validation）
- * Stage 1: ヒューリスティック（重複検出、コサイン類似度）
- * Stage 2: LLM（整合性判定）
+ * Knowledge Validation
+ *
+ * Stage 1: Heuristic (hash duplicate detection, cosine similarity)
+ * Stage 2: LLM (consistency judgment)
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -11,7 +12,7 @@ import { vectorSearch } from './rag/search';
 const log = createLogger('memory:validation');
 
 /**
- * 知識エントリを検証
+ * Validate a knowledge entry against duplicates and conflicts.
  */
 export async function validateEntry(entryId: number): Promise<{
   status: 'validated' | 'rejected' | 'conflict';
@@ -26,7 +27,7 @@ export async function validateEntry(entryId: number): Promise<{
     throw new Error(`KnowledgeEntry not found: ${entryId}`);
   }
 
-  // Stage 1: ヒューリスティック - contentHashで完全重複検出
+  // Stage 1: Heuristic - exact duplicate detection by contentHash
   const duplicateByHash = await prisma.knowledgeEntry.findFirst({
     where: {
       contentHash: entry.contentHash,
@@ -51,7 +52,7 @@ export async function validateEntry(entryId: number): Promise<{
     };
   }
 
-  // Stage 1: コサイン類似度による重複チェック
+  // Stage 1: Cosine similarity duplicate check
   try {
     const searchResults = await vectorSearch({
       query: entry.content,
@@ -59,14 +60,14 @@ export async function validateEntry(entryId: number): Promise<{
       minSimilarity: 0.7,
     });
 
-    // 自分自身を除外
+    // Exclude self
     const similarEntries = searchResults.filter((r) => r.knowledgeEntryId !== entryId);
 
     if (similarEntries.length > 0) {
       const topMatch = similarEntries[0];
 
       if (topMatch.similarity > 0.92) {
-        // 非常に高い類似度: 重複として拒否
+        // Very high similarity: reject as duplicate
         await prisma.knowledgeEntry.update({
           where: { id: entryId },
           data: {
@@ -86,7 +87,7 @@ export async function validateEntry(entryId: number): Promise<{
         };
       }
 
-      // Stage 2: 類似度0.7-0.92の場合、LLMで整合性判定
+      // Stage 2: For similarity 0.7-0.92, use LLM for consistency check
       const similarEntry = await prisma.knowledgeEntry.findUnique({
         where: { id: topMatch.knowledgeEntryId },
       });
@@ -155,11 +156,11 @@ export async function validateEntry(entryId: number): Promise<{
       }
     }
   } catch (error) {
-    // ベクトル検索が利用できない場合はスキップ
+    // Skip if vector search is unavailable
     log.debug({ err: error, entryId }, 'Vector search unavailable for validation');
   }
 
-  // 検証通過
+  // Validation passed
   await prisma.knowledgeEntry.update({
     where: { id: entryId },
     data: {

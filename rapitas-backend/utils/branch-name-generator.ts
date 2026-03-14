@@ -4,7 +4,7 @@ import { createLogger } from '../config/logger';
 const log = createLogger('branch-name-generator');
 
 /**
- * タスクの内容に基づいて適切なブランチ名をAIで生成する
+ * Generate a suitable branch name using AI based on task content.
  */
 export async function generateBranchName(
   taskTitle: string,
@@ -39,7 +39,7 @@ Examples:
 
     let branchName = extractBranchName(response.content);
 
-    // サニタイズとバリデーション
+    // Sanitize and validate
     branchName = sanitizeBranchName(branchName);
 
     if (!isValidBranchName(branchName)) {
@@ -49,39 +49,39 @@ Examples:
     return branchName;
   } catch (error) {
     log.error({ err: error }, 'Error generating branch name with AI');
-    // フォールバック: タスクタイトルベースの命名
+    // Fallback: generate name from task title
     return generateFallbackBranchName(taskTitle);
   }
 }
 
 /**
- * LLMの出力からブランチ名部分を抽出する
+ * Extract the branch name portion from raw LLM output.
  */
 export function extractBranchName(raw: string): string {
   let text = raw.trim();
 
-  // マークダウンのコードブロックを除去
+  // Strip markdown code blocks
   text = text.replace(/```[^\n]*\n?/g, '').replace(/```/g, '');
 
-  // バッククォートを除去
+  // Strip backticks
   text = text.replace(/`/g, '');
 
-  // 最初の行のみ取得（LLMが説明文を付加した場合）
+  // Take only the first line (in case LLM appended explanatory text)
   text = text.split('\n')[0].trim();
 
-  // 前後の引用符を削除
+  // Remove surrounding quotes
   text = text.replace(/^["']+|["']+$/g, '');
 
-  // "branch name: xxx" のようなプレフィックスを除去
+  // Remove "branch name: xxx" style prefixes
   text = text.replace(/^(branch\s*name\s*[:：]\s*)/i, '');
 
-  // 有効なプレフィックスで始まる部分を抽出
+  // Extract the portion starting with a valid prefix
   const prefixMatch = text.match(/((?:feature|bugfix|chore|fix|refactor|docs)\/[\w-]+)/);
   if (prefixMatch) {
     text = prefixMatch[1];
   }
 
-  // fix/ を bugfix/ に正規化
+  // Normalize fix/ to bugfix/
   if (text.startsWith('fix/')) {
     text = 'bugfix/' + text.slice(4);
   }
@@ -90,36 +90,36 @@ export function extractBranchName(raw: string): string {
 }
 
 /**
- * ブランチ名をGit互換の形式にサニタイズする
+ * Sanitize a branch name to a Git-compatible format.
  */
 export function sanitizeBranchName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9\-\/]/g, '-') // Git互換文字のみ許可
-    .replace(/-+/g, '-') // 連続するハイフンを1つに
-    .replace(/^-|-$/g, '') // 先頭・末尾のハイフンを削除
-    .substring(0, 50) // 長さ制限
-    .replace(/-$/, ''); // 末尾のハイフンを再度チェック
+    .replace(/[^a-z0-9\-\/]/g, '-') // Allow only Git-compatible characters
+    .replace(/-+/g, '-') // Collapse consecutive hyphens
+    .replace(/^-|-$/g, '') // Strip leading/trailing hyphens
+    .substring(0, 50) // Enforce length limit
+    .replace(/-$/, ''); // Re-check trailing hyphen after truncation
 }
 
 /**
- * ブランチ名がGitの命名規則に従っているかチェック
+ * Check whether a branch name follows Git naming conventions.
  */
 export function isValidBranchName(name: string): boolean {
   if (!name || name.length === 0) return false;
   if (name.length > 50) return false;
 
-  // 有効なプレフィックスをチェック
+  // Check for valid prefix
   const validPrefixes = ['feature/', 'bugfix/', 'chore/', 'refactor/', 'docs/'];
   if (!validPrefixes.some((prefix) => name.startsWith(prefix))) {
     return false;
   }
 
-  // Git命名規則: 特殊文字やスペース、連続するドットなどを禁止
+  // Git naming rules: disallow special characters, spaces, consecutive dots, etc.
   const invalidChars = /[\s~^:?*\[\\@{;`"'<>|]/;
   if (invalidChars.test(name)) return false;
 
-  // 連続するドット、先頭末尾のドットやハイフンを禁止
+  // Disallow consecutive dots, leading/trailing dots or hyphens
   if (
     name.includes('..') ||
     name.startsWith('.') ||
@@ -134,21 +134,20 @@ export function isValidBranchName(name: string): boolean {
 }
 
 /**
- * AI生成が失敗した場合のフォールバックブランチ名を生成
+ * Generate a fallback branch name when AI generation fails.
  */
 export function generateFallbackBranchName(taskTitle: string): string {
-  // タスクタイトルからブランチ名を生成
   const sanitizedTitle = taskTitle
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '') // 英数字とスペースのみ
+    .replace(/[^a-z0-9\s]/g, '') // Keep only alphanumeric and spaces
     .trim()
-    .replace(/\s+/g, '-') // スペースをハイフンに
-    .substring(0, 40); // 長さ制限（feature/を考慮）
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .substring(0, 40); // Length limit (accounting for feature/ prefix)
 
-  // デフォルトは feature/ プレフィックス
+  // Default to feature/ prefix
   let prefix = 'feature/';
 
-  // キーワードベースでプレフィックスを決定
+  // Determine prefix based on keywords
   const bugKeywords = ['fix', 'bug', 'error', '修正', 'バグ', 'エラー'];
   const choreKeywords = [
     'refactor',

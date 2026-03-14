@@ -1,7 +1,8 @@
 /**
  * AI Orchestra Service
- * AIオーケストラ（指揮者）が複数タスクの実行を調整・管理する。
- * タスクの優先順位付け、依存関係分析、並行実行管理を担う。
+ *
+ * Coordinates and manages multi-task execution like a conductor.
+ * Handles task prioritization, dependency analysis, and concurrent execution.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -79,17 +80,17 @@ export class AIOrchestra {
   }
 
   /**
-   * 複数タスクのオーケストレーションを開始
+   * Start orchestration for multiple tasks.
    */
   async conductWorkflow(taskIds: number[], config: OrchestraConfig = {}): Promise<ConductResult> {
     const { maxConcurrency = 3, autoStart = true, priorityStrategy = 'dependency_aware' } = config;
 
-    // 既存のアクティブセッションがあれば停止
+    // Stop existing active session if any
     if (this.currentSessionId) {
       await this.stop();
     }
 
-    // セッション作成
+    // Create session
     const session = await prisma.orchestraSession.create({
       data: {
         status: 'conducting',
@@ -101,27 +102,27 @@ export class AIOrchestra {
     });
     this.currentSessionId = session.id;
 
-    // キューの並行数設定
+    // Set queue concurrency
     this.queue.setMaxConcurrency(maxConcurrency);
 
-    // タスク情報を取得
+    // Fetch task information
     const tasks = (await prisma.task.findMany({
       where: { id: { in: taskIds } },
     })) as TaskWithRelations[];
 
-    // 依存関係を分析
+    // Analyze dependencies
     const dependencyMap = await this.analyzeDependencies(tasks);
 
-    // 優先順位を計算
+    // Calculate priorities
     const prioritizedTasks = this.prioritizeTasks(tasks, dependencyMap, priorityStrategy);
 
-    // キューに追加
+    // Enqueue tasks
     const errors: Array<{ taskId: number; error: string }> = [];
     let enqueuedCount = 0;
     let skippedCount = 0;
 
     for (const { task, priority, dependencies } of prioritizedTasks) {
-      // 完了済みタスクはスキップ
+      // Skip completed tasks
       if (task.status === 'done' || task.workflowStatus === 'completed') {
         skippedCount++;
         continue;
@@ -142,7 +143,7 @@ export class AIOrchestra {
       }
     }
 
-    // セッション更新
+    // Update session
     await prisma.orchestraSession.update({
       where: { id: session.id },
       data: { totalTasks: enqueuedCount },
@@ -152,7 +153,7 @@ export class AIOrchestra {
       `[AIOrchestra] Session ${session.id}: enqueued ${enqueuedCount}, skipped ${skippedCount}, errors ${errors.length}`,
     );
 
-    // ランナー開始
+    // Start runner
     if (autoStart && enqueuedCount > 0) {
       this.runner.startProcessing();
     }
@@ -168,13 +169,13 @@ export class AIOrchestra {
   }
 
   /**
-   * オーケストレーションを停止
+   * Stop orchestration.
    */
   async stop(): Promise<void> {
     await this.runner.stopProcessing();
 
     if (this.currentSessionId) {
-      // 完了・失敗数を集計
+      // Tally completed and failed counts
       const items = await this.queue.getSessionItems(this.currentSessionId);
       const completed = items.filter((i) => i.status === 'completed').length;
       const failed = items.filter((i) => i.status === 'failed').length;
@@ -194,11 +195,11 @@ export class AIOrchestra {
   }
 
   /**
-   * 停止したオーケストレーションを再開
+   * Resume a paused orchestration.
    */
   async resume(): Promise<boolean> {
     if (!this.currentSessionId) {
-      // 最新のpausedセッションを探す
+      // Find the latest paused session
       const session = await prisma.orchestraSession.findFirst({
         where: { status: 'paused' },
         orderBy: { updatedAt: 'desc' },
@@ -218,7 +219,7 @@ export class AIOrchestra {
   }
 
   /**
-   * 現在のオーケストラ状態を取得
+   * Get the current orchestra state.
    */
   async getState(): Promise<OrchestraState> {
     let sessionData = null;
@@ -228,7 +229,7 @@ export class AIOrchestra {
         where: { id: this.currentSessionId },
       });
       if (session) {
-        // 最新の集計を取得
+        // Get latest counts
         const items = await this.queue.getSessionItems(this.currentSessionId);
         const completed = items.filter((i) => i.status === 'completed').length;
         const failed = items.filter((i) => i.status === 'failed').length;
@@ -265,7 +266,7 @@ export class AIOrchestra {
   }
 
   /**
-   * 単一タスクをキューに追加
+   * Enqueue a single task.
    */
   async enqueueTask(
     options: EnqueueOptions,
@@ -276,7 +277,7 @@ export class AIOrchestra {
       }
       const item = await this.queue.enqueue(options);
 
-      // セッションの総タスク数を更新
+      // Update session total task count
       if (this.currentSessionId) {
         await prisma.orchestraSession.update({
           where: { id: this.currentSessionId },
@@ -284,7 +285,7 @@ export class AIOrchestra {
         });
       }
 
-      // ランナーが停止中なら開始
+      // Start runner if stopped
       if (!this.runner.getStatus().isRunning) {
         this.runner.startProcessing();
       }
@@ -297,7 +298,7 @@ export class AIOrchestra {
   }
 
   /**
-   * タスク間の依存関係を分析（循環依存検出付き）
+   * Analyze inter-task dependencies (with cycle detection).
    */
   private async analyzeDependencies(tasks: TaskWithRelations[]): Promise<Map<number, number[]>> {
     const depMap = new Map<number, number[]>();
@@ -306,15 +307,15 @@ export class AIOrchestra {
     for (const task of tasks) {
       const deps: number[] = [];
 
-      // 親タスクへの依存
+      // Dependency on parent task
       if (task.parentId && taskIdSet.has(task.parentId)) {
         deps.push(task.parentId);
       }
 
-      // TODO: TaskDependencyモデル追加時にDB依存関係取得を実装
-      // 現時点ではparent-child関係と同一テーマ順序のみで依存関係を管理
+      // TODO: Implement DB-based dependency fetching when TaskDependency model is added.
+      // Currently manages dependencies via parent-child and same-theme ordering only.
 
-      // 同一テーマの先行タスク（同テーマではgit競合を避けるため逐次実行）
+      // Same-theme preceding tasks (sequential to avoid git conflicts)
       if (task.themeId) {
         const sameThemeTasks = tasks.filter(
           (t) => t.themeId === task.themeId && t.id !== task.id && t.id < task.id,
@@ -329,7 +330,7 @@ export class AIOrchestra {
       depMap.set(task.id, deps);
     }
 
-    // 循環依存検出
+    // Cycle detection
     const cycles = this.detectCyclicDependencies(depMap);
     if (cycles.length > 0) {
       const cycleStrings = cycles.map((cycle) => cycle.join(' -> '));
@@ -341,25 +342,25 @@ export class AIOrchestra {
   }
 
   /**
-   * 循環依存を検出（DFS + White/Gray/Black状態管理）
+   * Detect cyclic dependencies (DFS with White/Gray/Black state tracking).
    */
   private detectCyclicDependencies(depMap: Map<number, number[]>): number[][] {
-    const WHITE = 0; // 未訪問
-    const GRAY = 1; // 訪問中（スタック上）
-    const BLACK = 2; // 訪問完了
+    const WHITE = 0; // Unvisited
+    const GRAY = 1; // In progress (on stack)
+    const BLACK = 2; // Completed
 
     const colors = new Map<number, number>();
     const cycles: number[][] = [];
     const currentPath: number[] = [];
 
-    // 全ノードを初期化
+    // Initialize all nodes
     for (const taskId of depMap.keys()) {
       colors.set(taskId, WHITE);
     }
 
     const dfs = (taskId: number): boolean => {
       if (colors.get(taskId) === GRAY) {
-        // 循環検出
+        // Cycle detected
         const cycleStart = currentPath.indexOf(taskId);
         if (cycleStart >= 0) {
           cycles.push([...currentPath.slice(cycleStart), taskId]);
@@ -368,7 +369,7 @@ export class AIOrchestra {
       }
 
       if (colors.get(taskId) === BLACK) {
-        return false; // 既に処理済み
+        return false; // Already processed
       }
 
       colors.set(taskId, GRAY);
@@ -377,7 +378,7 @@ export class AIOrchestra {
       const dependencies = depMap.get(taskId) || [];
       for (const depTaskId of dependencies) {
         if (dfs(depTaskId)) {
-          return true; // 循環検出済み
+          return true; // Cycle already detected
         }
       }
 
@@ -386,7 +387,7 @@ export class AIOrchestra {
       return false;
     };
 
-    // 全ノードを探索
+    // Explore all nodes
     for (const taskId of depMap.keys()) {
       if (colors.get(taskId) === WHITE) {
         dfs(taskId);
@@ -397,7 +398,7 @@ export class AIOrchestra {
   }
 
   /**
-   * タスクの優先順位を計算
+   * Calculate task priorities.
    */
   private prioritizeTasks(
     tasks: TaskWithRelations[],
@@ -405,14 +406,14 @@ export class AIOrchestra {
     strategy: string,
   ): Array<{ task: TaskWithRelations; priority: number; dependencies: number[] }> {
     const result = tasks.map((task) => {
-      let priority = 50; // デフォルト
+      let priority = 50; // Default
 
       if (strategy === 'fifo') {
-        // FIFO: IDが小さいものが先
+        // FIFO: lower ID goes first
         priority = Math.max(0, 100 - task.id);
       } else {
         // priority/dependency_aware
-        // タスクのpriority文字列をスコアに変換
+        // Convert task priority string to numeric score
         const priorityScore: Record<string, number> = {
           urgent: 90,
           high: 75,
@@ -421,12 +422,12 @@ export class AIOrchestra {
         };
         priority = priorityScore[task.priority] || 50;
 
-        // 推定工数が短いものを少し優先（スモールタスクファースト）
+        // Slight priority boost for short-estimate tasks (small-task-first)
         if (task.estimatedHours && task.estimatedHours <= 1) {
           priority += 10;
         }
 
-        // 依存関係が少ないものを優先
+        // Fewer dependencies = higher priority
         const deps = dependencyMap.get(task.id) || [];
         priority += Math.max(0, 10 - deps.length * 3);
       }
@@ -438,13 +439,13 @@ export class AIOrchestra {
       };
     });
 
-    // 優先度降順でソート
+    // Sort by priority descending
     result.sort((a, b) => b.priority - a.priority);
     return result;
   }
 
   /**
-   * plan承認時にキューを再開
+   * Resume queue processing after plan approval.
    */
   async handlePlanApproved(taskId: number): Promise<void> {
     const resumed = await this.runner.resumeAfterApproval(taskId);
@@ -454,13 +455,13 @@ export class AIOrchestra {
   }
 
   /**
-   * サーバー起動時のリカバリ
+   * Recover state on server startup.
    */
   async recoverOnStartup(): Promise<void> {
-    // スタック中のキューアイテムを復元
+    // Recover stale queue items
     const recovered = await this.queue.recoverStaleItems();
 
-    // アクティブなセッションを復元
+    // Restore active session
     const activeSession = await prisma.orchestraSession.findFirst({
       where: { status: 'conducting' },
       orderBy: { updatedAt: 'desc' },
@@ -471,13 +472,13 @@ export class AIOrchestra {
       this.queue.setMaxConcurrency(activeSession.maxConcurrency);
       log.info(`[AIOrchestra] Recovered session ${activeSession.id} with ${recovered} stale items`);
 
-      // 自動再開
+      // Auto-resume
       this.runner.startProcessing();
     }
   }
 
   /**
-   * SSE経由で状態ブロードキャスト
+   * Broadcast state via SSE.
    */
   private async broadcastState(event: string): Promise<void> {
     try {
@@ -487,7 +488,7 @@ export class AIOrchestra {
         timestamp: new Date().toISOString(),
       });
     } catch {
-      // SSEエラーは無視
+      // Ignore SSE errors
     }
   }
 }

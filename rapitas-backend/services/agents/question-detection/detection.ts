@@ -1,7 +1,7 @@
 /**
- * 質問判定システム - コア検出ロジック
+ * Question Detection System - Core Detection Logic
  *
- * AIエージェントからの質問を構造化されたキーフォーマットで判定・管理する
+ * Detects and manages questions from AI agents using structured key format.
  */
 
 import type {
@@ -14,7 +14,7 @@ import type {
 import { normalizeTimeoutSeconds } from './timeout';
 
 /**
- * 一意の質問IDを生成
+ * Generates a unique question ID.
  */
 export function generateQuestionId(): string {
   const timestamp = Date.now().toString(36);
@@ -23,7 +23,7 @@ export function generateQuestionId(): string {
 }
 
 /**
- * AskUserQuestionツールの入力から質問カテゴリを推測
+ * Infers question category from AskUserQuestion tool input.
  */
 export function inferQuestionCategory(
   input: Record<string, unknown> | undefined,
@@ -32,7 +32,6 @@ export function inferQuestionCategory(
     return 'clarification';
   }
 
-  // questionsフィールドを確認
   const questions = input.questions as
     | Array<{
         options?: unknown[];
@@ -44,7 +43,7 @@ export function inferQuestionCategory(
   if (questions && Array.isArray(questions) && questions.length > 0) {
     const firstQuestion = questions[0];
 
-    // 選択肢がある場合は selection
+    // Has options -> selection type
     if (
       firstQuestion?.options &&
       Array.isArray(firstQuestion.options) &&
@@ -53,7 +52,7 @@ export function inferQuestionCategory(
       return 'selection';
     }
 
-    // 質問テキストに確認系のキーワードが含まれる場合は confirmation
+    // Contains confirmation keywords -> confirmation type
     const questionText = firstQuestion?.question || '';
     const confirmationKeywords = [
       'よろしいですか',
@@ -78,13 +77,12 @@ export function inferQuestionCategory(
     }
   }
 
-  // デフォルトは clarification
   return 'clarification';
 }
 
 /**
- * AskUserQuestionツールの入力から質問情報を抽出
- * 既存のClaudeCodeAgent.extractQuestionInfoメソッドと互換性を維持
+ * Extracts question info from AskUserQuestion tool input.
+ * Maintains backward compatibility with ClaudeCodeAgent.extractQuestionInfo.
  */
 export function extractQuestionInfo(input: Record<string, unknown> | undefined): {
   questionText: string;
@@ -97,7 +95,6 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
   let questionText = '';
   const questionDetails: QuestionDetails = {};
 
-  // questionsフィールドがある場合（配列形式）
   if (input.questions && Array.isArray(input.questions)) {
     const questions = input.questions as Array<{
       question?: string;
@@ -106,19 +103,16 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
       multiSelect?: boolean;
     }>;
 
-    // 質問テキストを抽出
     questionText = questions
       .map((q) => q.question || q.header || '')
       .filter((q) => q)
       .join('\n');
 
-    // ヘッダーを抽出
     const headers = questions.map((q) => q.header).filter((h): h is string => !!h);
     if (headers.length > 0) {
       questionDetails.headers = headers;
     }
 
-    // 最初の質問から選択肢とmultiSelectを取得
     const firstQuestion = questions[0];
     if (firstQuestion) {
       if (firstQuestion.options && Array.isArray(firstQuestion.options)) {
@@ -132,12 +126,10 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
       }
     }
   }
-  // 単一のquestionフィールドがある場合
   else if (input.question && typeof input.question === 'string') {
     questionText = input.question;
   }
 
-  // questionDetailsが空でなければ返す
   const hasDetails =
     questionDetails.headers?.length ||
     questionDetails.options?.length ||
@@ -150,13 +142,12 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
 }
 
 /**
- * AskUserQuestionツール呼び出しから構造化キーを生成
+ * Creates a structured question key from an AskUserQuestion tool call.
  */
 export function createQuestionKeyFromToolCall(
   input: Record<string, unknown> | undefined,
   timeoutSeconds?: number,
 ): QuestionKey {
-  // タイムアウト秒数を正規化（範囲内に収める）
   const normalizedTimeout = normalizeTimeoutSeconds(timeoutSeconds);
 
   return {
@@ -169,15 +160,13 @@ export function createQuestionKeyFromToolCall(
 }
 
 /**
- * 質問検出結果を生成
- * AskUserQuestionツール呼び出しから完全な検出結果を構築
+ * Builds a complete detection result from an AskUserQuestion tool call.
  */
 export function detectQuestionFromToolCall(
   toolName: string,
   input: Record<string, unknown> | undefined,
   timeoutSeconds?: number,
 ): QuestionDetectionResult {
-  // AskUserQuestion以外のツールは質問なし
   if (toolName !== 'AskUserQuestion') {
     return {
       hasQuestion: false,
@@ -186,10 +175,8 @@ export function detectQuestionFromToolCall(
     };
   }
 
-  // 質問情報を抽出
   const { questionText, questionDetails } = extractQuestionInfo(input);
 
-  // 構造化キーを生成
   const questionKey = createQuestionKeyFromToolCall(input, timeoutSeconds);
 
   return {
@@ -202,7 +189,7 @@ export function detectQuestionFromToolCall(
 }
 
 /**
- * 質問待機状態を初期化
+ * Creates an initial (empty) question waiting state.
  */
 export function createInitialWaitingState(): QuestionWaitingState {
   return {
@@ -213,7 +200,7 @@ export function createInitialWaitingState(): QuestionWaitingState {
 }
 
 /**
- * 質問検出結果から待機状態を更新
+ * Updates waiting state from a detection result.
  */
 export function updateWaitingStateFromDetection(
   result: QuestionDetectionResult,

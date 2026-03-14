@@ -21,7 +21,7 @@ const logger = createLogger('TabbedExecutionLogViewer');
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 
 /**
- * サブタスク情報
+ * Subtask info
  */
 interface SubtaskInfo {
   id: number;
@@ -30,29 +30,29 @@ interface SubtaskInfo {
 }
 
 /**
- * TabbedExecutionLogViewerのProps
+ * TabbedExecutionLogViewer props
  */
 export interface TabbedExecutionLogViewerProps {
-  /** 並列実行セッションID */
+  /** Parallel execution session ID */
   sessionId: string;
-  /** サブタスク一覧 */
+  /** List of subtasks */
   subtasks: SubtaskInfo[];
-  /** 全体のログ（親タスク用） */
+  /** Overall logs (for parent task) */
   overallLogs: string[];
-  /** 全体のステータス */
+  /** Overall status */
   overallStatus: ExecutionLogStatus;
-  /** SSE接続状態 */
+  /** SSE connection state */
   isConnected?: boolean;
-  /** 実行中かどうか */
+  /** Whether running */
   isRunning?: boolean;
-  /** ログの最大高さ（px） */
+  /** Max log height in pixels */
   maxHeight?: number;
-  /** カスタムクラス名 */
+  /** Custom class name */
   className?: string;
 }
 
 /**
- * ステータスに応じたアイコンを返す
+ * Return icon based on status
  */
 function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
   switch (status) {
@@ -75,7 +75,7 @@ function getStatusIcon(status: ParallelExecutionStatus | ExecutionLogStatus) {
 }
 
 /**
- * ステータスをExecutionLogStatusに変換
+ * Convert status to ExecutionLogStatus
  */
 function toLogStatus(status: ParallelExecutionStatus): ExecutionLogStatus {
   switch (status) {
@@ -94,9 +94,9 @@ function toLogStatus(status: ParallelExecutionStatus): ExecutionLogStatus {
 }
 
 /**
- * TabbedExecutionLogViewer - サブタスク別のタブ付きログビューアー
+ * TabbedExecutionLogViewer - Tabbed log viewer per subtask
  *
- * 並列実行時に各サブタスクのログをタブで切り替えて表示します。
+ * Displays logs for each subtask with tab switching during parallel execution.
  */
 export const TabbedExecutionLogViewer: React.FC<
   TabbedExecutionLogViewerProps
@@ -110,14 +110,14 @@ export const TabbedExecutionLogViewer: React.FC<
   maxHeight = 200,
   className = '',
 }) => {
-  // 選択中のタブ（null = 全体、数値 = サブタスクID）
+  // Selected tab (null = overall, number = subtask ID)
   const [selectedTab, setSelectedTab] = useState<number | null>(null);
-  // サブタスク別のログキャッシュ
+  // Per-subtask log cache
   const [subtaskLogs, setSubtaskLogs] = useState<Record<number, string[]>>({});
-  // ログ取得中のサブタスクID
+  // Subtask ID currently being fetched
   const [loadingSubtaskId, setLoadingSubtaskId] = useState<number | null>(null);
 
-  // サブタスクのログを取得
+  // Fetch subtask logs
   const fetchSubtaskLogs = useCallback(
     async (taskId: number) => {
       if (!sessionId || subtaskLogs[taskId]) return;
@@ -150,14 +150,14 @@ export const TabbedExecutionLogViewer: React.FC<
     [sessionId, subtaskLogs],
   );
 
-  // タブ選択時にログを取得
+  // Fetch logs on tab selection
   useEffect(() => {
     if (selectedTab !== null && !subtaskLogs[selectedTab]) {
       fetchSubtaskLogs(selectedTab);
     }
   }, [selectedTab, subtaskLogs, fetchSubtaskLogs]);
 
-  // 現在選択中のログとステータス
+  // Currently selected logs and status
   const currentLogs = useMemo(() => {
     if (selectedTab === null) {
       return overallLogs;
@@ -181,7 +181,7 @@ export const TabbedExecutionLogViewer: React.FC<
     return subtask?.status === 'running';
   }, [selectedTab, isRunning, subtasks]);
 
-  // タブがない場合は通常のログビューアーを表示
+  // Show standard log viewer when no tabs
   if (subtasks.length === 0) {
     return (
       <ExecutionLogViewer
@@ -198,9 +198,7 @@ export const TabbedExecutionLogViewer: React.FC<
 
   return (
     <div className={`bg-zinc-800/50 rounded-lg overflow-hidden ${className}`}>
-      {/* タブヘッダー */}
       <div className="flex items-center gap-1 px-2 py-1.5 bg-zinc-800 border-b border-zinc-700 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-600">
-        {/* 全体タブ */}
         <button
           onClick={() => setSelectedTab(null)}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
@@ -214,7 +212,6 @@ export const TabbedExecutionLogViewer: React.FC<
           {getStatusIcon(overallStatus)}
         </button>
 
-        {/* サブタスクタブ */}
         {subtasks.map((subtask) => (
           <button
             key={subtask.id}
@@ -232,7 +229,6 @@ export const TabbedExecutionLogViewer: React.FC<
         ))}
       </div>
 
-      {/* ログビューアー */}
       <div className="relative">
         {loadingSubtaskId === selectedTab && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-10">

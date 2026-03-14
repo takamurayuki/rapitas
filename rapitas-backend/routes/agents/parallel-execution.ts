@@ -1,6 +1,7 @@
 /**
- * 並列実行APIルート
- * サブタスクの依存関係分析と並列実行のためのAPIエンドポイント
+ * ParallelExecutionRoutes
+ *
+ * API endpoints for subtask dependency analysis and parallel execution.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -17,7 +18,6 @@ import {
 import { SSEStreamController, getUserFriendlyErrorMessage } from '../../services/sse-utils';
 import { AIOrchestra } from '../../services/workflow/ai-orchestra';
 
-// パラレル実行オーケストレーターのシングルトンインスタンス
 let parallelExecutor: ReturnType<typeof createParallelExecutor> | null = null;
 
 function getParallelExecutor() {
@@ -28,7 +28,11 @@ function getParallelExecutor() {
 }
 
 /**
- * タスクからDependencyAnalysisInputを生成
+ * Build a DependencyAnalysisInput from a task and its subtasks.
+ *
+ * @param taskId - Task ID to analyze / 分析対象のタスクID
+ * @returns DependencyAnalysisInput for the analyzer / アナライザー用の依存関係分析入力
+ * @throws {Error} When the task is not found / タスクが見つからない場合
  */
 async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInput> {
   const task = await prisma.task.findUnique({
@@ -44,15 +48,12 @@ async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInp
   });
 
   if (!task) {
-    throw new Error(`タスクが見つかりません: ${taskId}`);
+    throw new Error(`Task not found: ${taskId}`);
   }
 
-  // サブタスクの情報を変換
   const subtasks = task.subtasks.map((subtask: (typeof task.subtasks)[number]) => {
-    // 説明とプロンプトからファイルパスを抽出
     const files: string[] = [];
 
-    // プロンプトからファイル情報を抽出
     for (const prompt of subtask.prompts) {
       files.push(...extractFilePaths(prompt.optimizedPrompt));
       files.push(...extractFilePaths(prompt.originalDescription));
@@ -66,7 +67,8 @@ async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInp
       priority: (subtask.priority || 'medium') as TaskPriority,
       estimatedHours: subtask.estimatedHours || 1,
       files: [...new Set(files)],
-      explicitDependencies: [], // 明示的な依存関係（将来的にDBから取得）
+      // TODO: Load explicit dependencies from DB once the dependency table is implemented.
+      explicitDependencies: [],
     };
   });
 
@@ -77,7 +79,10 @@ async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInp
 }
 
 /**
- * ファイルパスを抽出するヘルパー関数
+ * Extract file paths from text content.
+ *
+ * @param text - Source text to scan / スキャン対象のテキスト
+ * @returns Array of unique file paths found / 検出されたユニークなファイルパスの配列
  */
 function extractFilePaths(text: string | null | undefined): string[] {
   if (!text) return [];
@@ -104,7 +109,7 @@ function extractFilePaths(text: string | null | undefined): string[] {
 
 export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   /**
-   * 依存関係を分析してツリーマップを取得
+   * Analyze dependencies and retrieve a tree map.
    */
   .get(
     '/tasks/:id/analyze',
@@ -117,7 +122,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
         const analyzer = createDependencyAnalyzer();
         const result = analyzer.analyze(input);
 
-        // ツリーマップをシリアライズ可能な形式に変換
         const nodes = Array.from(result.treeMap.nodes.entries()).map(([_id, node]) => ({
           ...node,
         }));
@@ -161,7 +165,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * SSEストリームで依存関係分析
+   * Analyze dependencies via SSE stream.
    */
   .get(
     '/tasks/:id/analyze/stream',
@@ -187,20 +191,20 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
       (async () => {
         try {
           sseController.sendStart({ taskId });
-          sseController.sendProgress(10, 'タスク情報を取得中...');
+          sseController.sendProgress(10, 'Fetching task information...');
 
           const input = await buildAnalysisInput(taskId);
-          sseController.sendProgress(30, '依存関係を分析中...');
+          sseController.sendProgress(30, 'Analyzing dependencies...');
 
           const analyzer = createDependencyAnalyzer();
           const result = analyzer.analyze(input);
-          sseController.sendProgress(70, 'ツリーマップを生成中...');
+          sseController.sendProgress(70, 'Generating tree map...');
 
           const nodes = Array.from(result.treeMap.nodes.entries()).map(([_id, node]) => ({
             ...node,
           }));
 
-          sseController.sendProgress(90, '結果をまとめています...');
+          sseController.sendProgress(90, 'Compiling results...');
 
           sseController.sendData({
             parentTaskId: taskId,
@@ -249,7 +253,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションを開始
+   * Start a parallel execution session.
    */
   .post(
     '/tasks/:id/execute',
@@ -261,7 +265,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           | Partial<ParallelExecutionConfig>
           | undefined;
 
-        // タスク情報を取得
         const task = await prisma.task.findUnique({
           where: { id: taskId },
           include: {
@@ -282,7 +285,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           return { success: false, error: 'サブタスクがありません' };
         }
 
-        // 依存関係を分析
         const input = await buildAnalysisInput(taskId);
         const analyzer = createDependencyAnalyzer();
         const analysisResult = analyzer.analyze({
@@ -290,7 +292,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           config,
         });
 
-        // DeveloperModeConfigを確認/作成
         let devConfig = await prisma.developerModeConfig.findUnique({
           where: { taskId },
         });
@@ -304,7 +305,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           });
         }
 
-        // AgentSessionを作成
         const agentSession = await prisma.agentSession.create({
           data: {
             configId: devConfig.id,
@@ -318,19 +318,16 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           },
         });
 
-        // useWorkflow フラグ判定（デフォルトtrue）
         const useWorkflow = (body as Record<string, unknown>).useWorkflow !== false;
         const subtaskIds = task.subtasks.map((s) => s.id);
 
         if (useWorkflow) {
-          // ワークフロー経由で実行
           const userSettings = await prisma.userSettings.findFirst();
           const autoApprove =
             ((userSettings as Record<string, unknown> | null)?.autoApproveSubtaskPlan as
               | boolean
               | undefined) ?? true;
 
-          // サブタスクにworkflowMode + autoApprovePlan設定
           await prisma.task.updateMany({
             where: { id: { in: subtaskIds } },
             data: {
@@ -340,7 +337,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
             },
           });
 
-          // AIOrchestra.conductWorkflow() で実行
           const orchestra = AIOrchestra.getInstance();
           const result = await orchestra.conductWorkflow(subtaskIds, {
             maxConcurrency: config?.maxConcurrentAgents || 3,
@@ -375,7 +371,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           };
         }
 
-        // 従来のParallelExecutor動作
         const executor = getParallelExecutor();
         const session = await executor.startSession(
           taskId,
@@ -430,7 +425,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションの状態を取得
+   * Get the status of a parallel execution session.
    */
   .get(
     '/sessions/:sessionId/status',
@@ -464,7 +459,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションを停止
+   * Stop a parallel execution session.
    */
   .post(
     '/sessions/:sessionId/stop',
@@ -494,7 +489,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * セッションの実行ログを取得
+   * Get execution logs for a session.
    */
   .get(
     '/sessions/:sessionId/logs',
@@ -534,7 +529,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * SSEストリームで実行ログをリアルタイムに取得
+   * Stream execution logs in real-time via SSE.
    */
   .get(
     '/sessions/:sessionId/logs/stream',
@@ -573,7 +568,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           timestamp: event.timestamp.toISOString(),
         });
 
-        // セッション完了時にストリームを閉じる
         if (event.type === 'session_completed' || event.type === 'session_failed') {
           sseController.sendComplete({ status: event.type });
           sseController.close();
@@ -582,7 +576,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
 
       executor.addEventListener(eventHandler);
 
-      // ReadableStreamをラップしてクリーンアップハンドラを追加
       const wrappedStream = new ReadableStream({
         start(controller) {
           const reader = stream.getReader();

@@ -1,78 +1,78 @@
 /**
- * AIエージェント抽象化レイヤー - エージェント識別・基本型定義
+ * Agent Abstraction Layer - Agent Identification and Base Types
  */
 
 /**
- * エージェントの種類を識別するID
+ * Agent provider identifier.
  */
 export type AgentProviderId =
-  | 'claude-code' // Claude Code CLI
-  | 'openai-codex' // OpenAI Codex API
-  | 'gemini' // Google Gemini API
-  | 'google-gemini' // Gemini CLI
-  | 'anthropic-api' // Anthropic Messages API (直接)
-  | 'custom'; // カスタム実装
+  | 'claude-code' 
+  | 'openai-codex' 
+  | 'gemini' 
+  | 'google-gemini' 
+  | 'anthropic-api' 
+  | 'custom'; 
 
 /**
- * エージェントの実行状態
+ * Agent execution state.
  */
 export type AgentState =
-  | 'idle' // 待機中
-  | 'initializing' // 初期化中
-  | 'running' // 実行中
-  | 'waiting_for_input' // ユーザー入力待ち
-  | 'paused' // 一時停止中
-  | 'completing' // 完了処理中
-  | 'completed' // 完了
-  | 'failed' // 失敗
-  | 'cancelled' // キャンセル
-  | 'timeout'; // タイムアウト
+  | 'idle' 
+  | 'initializing' 
+  | 'running' 
+  | 'waiting_for_input' 
+  | 'paused' 
+  | 'completing' 
+  | 'completed' 
+  | 'failed' 
+  | 'cancelled' 
+  | 'timeout'; 
 
 /**
- * エージェントの能力定義
+ * Agent capability flags.
  */
 export interface AgentCapabilities {
-  // コア機能
-  codeGeneration: boolean; // コード生成
-  codeReview: boolean; // コードレビュー
-  codeExecution: boolean; // コード実行
+  // Core capabilities
+  codeGeneration: boolean; 
+  codeReview: boolean; 
+  codeExecution: boolean; 
 
-  // ファイル操作
-  fileRead: boolean; // ファイル読み取り
-  fileWrite: boolean; // ファイル書き込み
-  fileEdit: boolean; // ファイル編集（差分適用）
+  // File operations
+  fileRead: boolean; 
+  fileWrite: boolean; 
+  fileEdit: boolean; 
 
-  // 外部連携
-  terminalAccess: boolean; // ターミナル/シェルアクセス
-  gitOperations: boolean; // Git操作
-  webSearch: boolean; // Web検索
-  webFetch: boolean; // Webページ取得
+  // External integration
+  terminalAccess: boolean; 
+  gitOperations: boolean; 
+  webSearch: boolean; 
+  webFetch: boolean; 
 
-  // タスク管理
-  taskAnalysis: boolean; // タスク分析・分解
-  taskPlanning: boolean; // 実行計画作成
-  parallelExecution: boolean; // 並列実行サポート
+  // Task management
+  taskAnalysis: boolean; 
+  taskPlanning: boolean; 
+  parallelExecution: boolean; 
 
-  // 対話機能
-  questionAsking: boolean; // ユーザーへの質問
-  conversationMemory: boolean; // 会話履歴の保持
-  sessionContinuation: boolean; // セッション継続
+  // Interaction
+  questionAsking: boolean; 
+  conversationMemory: boolean; 
+  sessionContinuation: boolean; 
 
-  // 追加のカスタム能力
+  // Additional custom capabilities
   [key: string]: boolean | undefined;
 }
 
 /**
- * エージェントのメタ情報
+ * Agent metadata.
  */
 export interface AgentMetadata {
-  id: string; // ユニークID
-  providerId: AgentProviderId; // プロバイダーID
-  name: string; // 表示名
-  version?: string; // バージョン
-  description?: string; // 説明
-  modelId?: string; // 使用モデルID
-  endpoint?: string; // APIエンドポイント
-  createdAt: Date; // 作成日時
-  lastUsedAt?: Date; // 最終使用日時
+  id: string; 
+  providerId: AgentProviderId;
+  name: string; 
+  version?: string; 
+  description?: string; 
+  modelId?: string; 
+  endpoint?: string; 
+  createdAt: Date; 
+  lastUsedAt?: Date; 
 }

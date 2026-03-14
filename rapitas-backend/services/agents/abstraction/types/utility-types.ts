@@ -1,9 +1,9 @@
 /**
- * ユーティリティ型定義
+ * Utility type definitions.
  */
 
 /**
- * 継続実行用のコンテキスト
+ * Context for continuing a previous execution.
  */
 export interface ContinuationContext {
   sessionId: string;
@@ -13,22 +13,22 @@ export interface ContinuationContext {
 }
 
 /**
- * バッチ実行用の設定
+ * Batch execution options.
  */
 export interface BatchExecutionOptions {
-  maxConcurrency: number; // 最大同時実行数
-  continueOnError: boolean; // エラー時も続行
-  timeout?: number; // 全体タイムアウト
+  maxConcurrency: number; 
+  continueOnError: boolean; 
+  timeout?: number; 
   ordering?: 'sequential' | 'parallel' | 'dependency-based';
 }
 
 /**
- * エージェントヘルスチェック結果
+ * Agent health check result.
  */
 export interface AgentHealthStatus {
   healthy: boolean;
   available: boolean;
-  latency?: number; // レスポンス時間（ms）
+  latency?: number; 
   errors?: string[];
   lastCheck: Date;
   details?: Record<string, unknown>;

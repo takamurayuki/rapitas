@@ -1,11 +1,11 @@
 /**
- * 質問判定システム - キーベース判定方式
+ * Question Detection System - Key-Based Detection
  *
- * AIエージェントからの質問を構造化されたキーフォーマットで判定・管理する
- * パターンマッチングから特定キー返却方式への移行を実現
+ * Detects and manages questions from AI agents using structured key format.
+ * Migrated from pattern matching to specific key return approach.
  */
 
-// 型定義
+// Types
 export type {
   QuestionStatus,
   QuestionCategory,
@@ -16,14 +16,14 @@ export type {
   QuestionWaitingState,
 } from './types';
 
-// 定数
+// Constants
 export {
   DEFAULT_QUESTION_TIMEOUT_SECONDS,
   MIN_QUESTION_TIMEOUT_SECONDS,
   MAX_QUESTION_TIMEOUT_SECONDS,
 } from './constants';
 
-// コア検出ロジック
+// Core detection logic
 export {
   generateQuestionId,
   inferQuestionCategory,
@@ -34,7 +34,7 @@ export {
   updateWaitingStateFromDetection,
 } from './detection';
 
-// タイムアウト管理
+// Timeout management
 export {
   normalizeTimeoutSeconds,
   calculateTimeoutDeadline,
@@ -42,12 +42,12 @@ export {
   getRemainingTimeoutSeconds,
 } from './timeout';
 
-// バリデーション & パース
+// Validation & parsing
 export {
   validateQuestionKey,
   parseQuestionKeyFromString,
   extractQuestionKeyFromObject,
 } from './validation';
 
-// 後方互換性レイヤー
+// Backward compatibility layer
 export { tolegacyQuestionType, toExecutionResultFormat } from './legacy';

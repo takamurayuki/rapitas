@@ -1,5 +1,5 @@
 /**
- * AIエージェントのステータス種別
+ * AI agent status types
  */
 export type AgentStatusType =
   | 'processing'
@@ -8,53 +8,53 @@ export type AgentStatusType =
   | 'completed';
 
 /**
- * ステータスカードのサイズ
+ * Status card size variants
  */
 export type StatusCardSize = 'sm' | 'md' | 'lg';
 
 /**
- * ステータスカードのテーマ
+ * Status card theme options
  */
 export type StatusCardTheme = 'light' | 'dark' | 'auto';
 
 /**
- * ステータスの設定情報
+ * Status configuration
  */
 export type StatusConfig = {
-  /** アイコンの色クラス */
+  /** Icon color class */
   iconColor: string;
-  /** 背景色クラス */
+  /** Background color class */
   bgColor: string;
-  /** ボーダー色クラス */
+  /** Border color class */
   borderColor: string;
-  /** テキスト色クラス */
+  /** Text color class */
   textColor: string;
-  /** ステータスラベル */
+  /** Status label */
   label: string;
-  /** アニメーションクラス（オプション） */
+  /** Animation class (optional) */
   animation?: string;
 };
 
 /**
- * StatusCardコンポーネントのプロパティ
+ * StatusCard component props
  */
 export type StatusCardProps = {
-  /** ステータス種別 */
+  /** Status type */
   status: AgentStatusType;
-  /** 表示メッセージ（オプション） */
+  /** Display message (optional) */
   message?: string;
-  /** カードサイズ */
+  /** Card size */
   size?: StatusCardSize;
-  /** テーマ */
+  /** Theme */
   theme?: StatusCardTheme;
-  /** カスタムクラス名 */
+  /** Custom class name */
   className?: string;
-  /** ステータス変更時のコールバック */
+  /** Callback on status change */
   onStatusChange?: (status: AgentStatusType) => void;
-  /** アニメーション有効化 */
+  /** Enable animation */
   animated?: boolean;
-  /** カスタムアイコン（オプション） */
+  /** Custom icon (optional) */
   icon?: React.ReactNode;
-  /** aria-label（アクセシビリティ） */
+  /** aria-label (accessibility) */
   ariaLabel?: string;
 };

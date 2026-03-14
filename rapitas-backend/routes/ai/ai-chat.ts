@@ -1,6 +1,6 @@
 /**
  * AI Chat API Routes
- * マルチプロバイダー対応（Claude / ChatGPT / Gemini）
+ * Multi-provider support (Claude / ChatGPT / Gemini)
  */
 import { Elysia, t } from 'elysia';
 import {
@@ -16,7 +16,6 @@ import { aiRateLimiter } from '../../middleware/rate-limiter';
 const log = createLogger('routes:ai-chat');
 
 export const aiChatRoutes = new Elysia()
-  // AIチャット（非ストリーミング）
   .post('/ai/chat', async (context) => {
     const { body, set } = context;
     const ip = context.headers?.['x-forwarded-for'] || 'local';
@@ -42,7 +41,7 @@ export const aiChatRoutes = new Elysia()
       return { error: 'メッセージが必要です' };
     }
 
-    // AI入力サイズ制限（100KB）
+    // AI input size limit (100KB)
     if (message.length > 100_000) {
       set.status = 400;
       return { error: 'メッセージが長すぎます（最大100,000文字）' };
@@ -80,7 +79,6 @@ export const aiChatRoutes = new Elysia()
     }
   })
 
-  // AIチャット（ストリーミング）
   .post('/ai/chat/stream', async (context) => {
     const { body, set } = context;
     const ip = context.headers?.['x-forwarded-for'] || 'local';
@@ -106,7 +104,7 @@ export const aiChatRoutes = new Elysia()
       return { error: 'メッセージが必要です' };
     }
 
-    // AI入力サイズ制限（100KB）
+    // AI input size limit (100KB)
     if (message.length > 100_000) {
       set.status = 400;
       return { error: 'メッセージが長すぎます（最大100,000文字）' };
@@ -156,7 +154,6 @@ export const aiChatRoutes = new Elysia()
     }
   })
 
-  // 設定済みプロバイダー一覧を取得
   .get('/ai/providers', async () => {
     const configured = await getConfiguredProviders();
     return { providers: configured };

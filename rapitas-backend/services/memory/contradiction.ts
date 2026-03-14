@@ -1,6 +1,8 @@
 /**
- * 矛盾検出・解決（Contradiction Detection & Resolution）
- * 新規/更新エントリに対して類似エントリとの矛盾を検出し、解決策を提示
+ * Contradiction Detection & Resolution
+ *
+ * Detects contradictions between new/updated entries and similar existing entries,
+ * and provides resolution options.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -12,7 +14,10 @@ import type { ContradictionResolution } from './types';
 const log = createLogger('memory:contradiction');
 
 /**
- * 新規/更新エントリに対して矛盾を検出
+ * Detect contradictions for a new or updated entry.
+ *
+ * @param entryId - Knowledge entry ID to check
+ * @returns Number of contradictions detected
  */
 export async function detectContradictions(entryId: number): Promise<number> {
   const entry = await prisma.knowledgeEntry.findUnique({
@@ -24,18 +29,18 @@ export async function detectContradictions(entryId: number): Promise<number> {
   let detectCount = 0;
 
   try {
-    // top-10類似エントリを取得
+    // Retrieve top-10 similar entries
     const searchResults = await vectorSearch({
       query: entry.content,
       limit: 10,
       minSimilarity: 0.6,
     });
 
-    // 自分自身と既にチェック済みのペアを除外
+    // Exclude self
     const candidates = searchResults.filter((r) => r.knowledgeEntryId !== entryId);
 
     for (const candidate of candidates) {
-      // 既存の矛盾レコードがあるかチェック
+      // Check for existing contradiction record
       const existing = await prisma.knowledgeContradiction.findFirst({
         where: {
           OR: [
@@ -51,7 +56,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
       });
       if (!candidateEntry) continue;
 
-      // LLMで矛盾判定
+      // Determine contradiction via LLM
       try {
         const response = await sendAIMessage({
           provider: 'ollama',
@@ -94,7 +99,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
             },
           });
 
-          // エントリのvalidationStatusをconflictに更新
+          // Mark both entries as conflicting
           await prisma.knowledgeEntry.updateMany({
             where: { id: { in: [entryId, candidate.knowledgeEntryId] } },
             data: { validationStatus: 'conflict' },
@@ -135,7 +140,10 @@ export async function detectContradictions(entryId: number): Promise<number> {
 }
 
 /**
- * 矛盾を解決
+ * Resolve a detected contradiction.
+ *
+ * @param contradictionId - Contradiction record ID
+ * @param resolution - Resolution strategy (keep_a, keep_b, merge, dismiss)
  */
 export async function resolveContradiction(
   contradictionId: number,
@@ -164,14 +172,14 @@ export async function resolveContradiction(
       });
       break;
     case 'merge':
-      // マージの場合は両方をvalidatedに
+      // Merge: mark both as validated
       await prisma.knowledgeEntry.updateMany({
         where: { id: { in: [contradiction.entryAId, contradiction.entryBId] } },
         data: { validationStatus: 'validated' },
       });
       break;
     case 'dismiss':
-      // 無視の場合はvalidatedに戻す
+      // Dismiss: revert both to validated
       await prisma.knowledgeEntry.updateMany({
         where: { id: { in: [contradiction.entryAId, contradiction.entryBId] } },
         data: { validationStatus: 'validated' },
@@ -193,7 +201,7 @@ export async function resolveContradiction(
 }
 
 /**
- * 未解決の矛盾一覧を取得
+ * Retrieve unresolved contradictions.
  */
 export async function getUnresolvedContradictions(limit = 20) {
   return prisma.knowledgeContradiction.findMany({

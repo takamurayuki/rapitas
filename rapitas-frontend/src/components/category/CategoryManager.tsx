@@ -32,12 +32,12 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('CategoryManager');
 import { IconGrid } from './IconGrid';
 
-// 後方互換性のためにICON_MAPをエクスポート
+// Export ICON_MAP for backward compatibility
 export const ICON_MAP: Record<string, LucideIcon> = Object.fromEntries(
   ICON_NAMES.map((name) => [name, ICON_DATA[name].component]),
 );
 
-// 共通のカテゴリアイテム型
+// Common category item type
 export type CategoryItem = {
   id: number;
   name: string;
@@ -48,19 +48,19 @@ export type CategoryItem = {
   _count?: { tasks: number };
 };
 
-// 設定オプション
+// Configuration options
 export type CategoryManagerConfig = {
-  // 表示名
+  // Display names
   title: string;
   titleIcon: LucideIcon;
-  itemName: string; // "テーマ" or "ラベル"
+  itemName: string; // "Theme" or "Label"
   // API
   endpoint: string;
-  // スタイル
+  // Styling
   accentColor: string; // "purple" or "indigo"
   defaultColor: string; // "#8B5CF6" or "#6366F1"
   defaultIcon: string; // "SwatchBook" or "Tag"
-  // 機能
+  // Features
   showDefaultButton?: boolean;
 };
 
@@ -271,10 +271,10 @@ export default function CategoryManager({ config }: Props) {
     }
   };
 
-  // デバウンスされた検索クエリ
+  // Debounced search query
   const debouncedIconSearchQuery = useDebounce(iconSearchQuery, 300);
 
-  // メモ化されたアイコン検索結果（最大50個に制限）
+  // Memoized icon search results (limited to max 50 items)
   const filteredIcons = useMemo(() => {
     const results = searchIcons(debouncedIconSearchQuery);
     return results.slice(0, 50);
@@ -428,7 +428,7 @@ export default function CategoryManager({ config }: Props) {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <div className="mx-auto max-w-5xl px-4 py-6">
-        {/* ヘッダー */}
+        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1
@@ -452,7 +452,7 @@ export default function CategoryManager({ config }: Props) {
           )}
         </div>
 
-        {/* 新規追加フォーム */}
+        {/* New item form */}
         {isAdding && (
           <div
             className={`mb-4 rounded-xl border-2 ${accent.border} bg-white dark:bg-zinc-900 p-4 shadow-xl`}
@@ -465,7 +465,7 @@ export default function CategoryManager({ config }: Props) {
           </div>
         )}
 
-        {/* リスト */}
+        {/* List */}
         {loading ? (
           <ListSkeleton count={4} />
         ) : items.length === 0 ? (

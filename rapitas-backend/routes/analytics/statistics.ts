@@ -15,7 +15,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
     const monthAgo = new Date(today);
     monthAgo.setDate(monthAgo.getDate() - 30);
 
-    // タスク統計
     const totalTasks = await prisma.task.count({ where: { parentId: null } });
     const completedTasks = await prisma.task.count({
       where: { parentId: null, status: 'done' },
@@ -35,7 +34,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       },
     });
 
-    // 学習時間統計
     const weekTimeEntries = await prisma.timeEntry.findMany({
       where: { startedAt: { gte: weekAgo } },
     });
@@ -52,7 +50,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       0,
     );
 
-    // 試験目標
     const upcomingExams = await prisma.examGoal.findMany({
       where: {
         examDate: { gte: today },
@@ -62,7 +59,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       take: 5,
     });
 
-    // ストリーク
     const streakData = await prisma.studyStreak.findMany({
       where: { date: { gte: weekAgo } },
       orderBy: { date: 'asc' },
@@ -85,7 +81,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
     };
   })
 
-  // 日別学習時間
   .get('/daily-study', async (context) => {
     const { query } = context;
     const daysNum = query.days ? parseInt(query.days) : 7;
@@ -99,7 +94,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       orderBy: { startedAt: 'asc' },
     });
 
-    // 日別に集計
     const dailyData: Record<string, number> = {};
     for (let i = 0; i < daysNum; i++) {
       const date = new Date(startDate);
@@ -121,7 +115,6 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
     }));
   })
 
-  // 科目別学習時間
   .get('/subject-breakdown', async (context) => {
     const { query } = context;
     const daysNum = query.days ? parseInt(query.days) : 30;
@@ -164,7 +157,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       .sort((a, b) => b.hours - a.hours);
   })
 
-  // バーンダウンチャートデータ
+  // Burndown chart data
   .get(
     '/burndown',
     async ({ query }: { query: { days?: string; themeId?: string; projectId?: string } }) => {
@@ -179,14 +172,13 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       const endDate = new Date();
       endDate.setHours(23, 59, 59, 999);
 
-      // フィルター条件を構築
       const whereBase = {
         parentId: null,
         ...(themeId && { themeId }),
         ...(projectId && { projectId }),
       };
 
-      // 期間開始時点での総タスク数（期間開始前に作成された未完了タスク + 期間中に作成されたタスク）
+      // Total tasks at period start: incomplete tasks created before start + tasks created during period
       const tasksAtStart = await prisma.task.count({
         where: {
           ...whereBase,
@@ -195,7 +187,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         },
       });
 
-      // 期間中に作成されたタスク
+      // Tasks created during the period
       const tasksCreatedInPeriod = await prisma.task.findMany({
         where: {
           ...whereBase,
@@ -204,7 +196,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         select: { id: true, createdAt: true },
       });
 
-      // 期間中に完了したタスク
+      // Tasks completed during the period
       const tasksCompletedInPeriod = await prisma.task.findMany({
         where: {
           ...whereBase,
@@ -214,7 +206,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         select: { id: true, completedAt: true },
       });
 
-      // 日別データを構築
+      // Build daily data
       const dailyData: {
         date: string;
         remaining: number;
@@ -232,7 +224,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         date.setDate(date.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
 
-        // この日に追加されたタスク数
+        // Tasks added today
         const addedToday = tasksCreatedInPeriod.filter(
           (t: (typeof tasksCreatedInPeriod)[number]) => {
             const created = t.createdAt.toISOString().split('T')[0];
@@ -240,7 +232,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
           },
         ).length;
 
-        // この日に完了したタスク数
+        // Tasks completed today
         const completedToday = tasksCompletedInPeriod.filter(
           (t: (typeof tasksCompletedInPeriod)[number]) => {
             if (!t.completedAt) return false;
@@ -252,7 +244,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         totalTasks += addedToday;
         remainingTasks = remainingTasks + addedToday - completedToday;
 
-        // 理想線（初日から最終日まで線形減少）
+        // Ideal line (linear decrease from start to end)
         const idealRemaining = Math.max(0, initialTotal - (initialTotal / daysNum) * i);
 
         dailyData.push({
@@ -264,7 +256,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         });
       }
 
-      // 集計情報
+      // Summary
       const totalCompleted = tasksCompletedInPeriod.length;
       const totalAdded = tasksCreatedInPeriod.length;
       const currentRemaining = remainingTasks;
@@ -294,7 +286,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
     },
   )
 
-  // バーンアップチャートデータ
+  // Burnup chart data
   .get(
     '/burnup',
     async ({ query }: { query: { days?: string; themeId?: string; projectId?: string } }) => {
@@ -309,14 +301,14 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
       const endDate = new Date();
       endDate.setHours(23, 59, 59, 999);
 
-      // フィルター条件を構築
+      // Build filter conditions
       const whereBase = {
         parentId: null,
         ...(themeId && { themeId }),
         ...(projectId && { projectId }),
       };
 
-      // 期間中に完了したタスク
+      // Tasks completed during the period
       const tasksCompletedInPeriod = await prisma.task.findMany({
         where: {
           ...whereBase,
@@ -327,7 +319,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         orderBy: { completedAt: 'asc' },
       });
 
-      // 期間中に作成されたタスク
+      // Tasks created during the period
       const tasksCreatedInPeriod = await prisma.task.findMany({
         where: {
           ...whereBase,
@@ -336,7 +328,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         select: { id: true, createdAt: true },
       });
 
-      // 現在の残りタスク数
+      // Current remaining task count
       const currentRemaining = await prisma.task.count({
         where: {
           ...whereBase,
@@ -344,12 +336,12 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         },
       });
 
-      // 日別データを構築
+      // Build daily data
       const dailyData: {
         date: string;
-        completed: number; // その日の完了数
-        cumulativeCompleted: number; // 累積完了数
-        added: number; // その日の追加数
+        completed: number;
+        cumulativeCompleted: number;
+        added: number;
       }[] = [];
 
       let cumulativeCompleted = 0;
@@ -359,7 +351,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         date.setDate(date.getDate() + i);
         const dateStr = date.toISOString().split('T')[0];
 
-        // この日に完了したタスク数
+        // Tasks completed today
         const completedToday = tasksCompletedInPeriod.filter(
           (t: (typeof tasksCompletedInPeriod)[number]) => {
             if (!t.completedAt) return false;
@@ -368,7 +360,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
           },
         ).length;
 
-        // この日に追加されたタスク数
+        // Tasks added today
         const addedToday = tasksCreatedInPeriod.filter(
           (t: (typeof tasksCreatedInPeriod)[number]) => {
             const created = t.createdAt.toISOString().split('T')[0];
@@ -386,7 +378,7 @@ export const statisticsRoutes = new Elysia({ prefix: '/statistics' })
         });
       }
 
-      // 集計情報
+      // Summary
       const totalCompleted = tasksCompletedInPeriod.length;
       const totalAdded = tasksCreatedInPeriod.length;
 

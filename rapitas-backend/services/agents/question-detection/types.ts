@@ -1,94 +1,73 @@
 /**
- * 質問判定システム - 型定義
+ * Question Detection System - Type Definitions
  *
- * 質問検出・管理で使用する型、インターフェース、列挙型を定義
+ * Types, interfaces, and enums for question detection and management.
  */
 
 /**
- * 質問の状態を表すステータス
+ * Question status
  */
 export type QuestionStatus =
-  | 'awaiting_user_input' // ユーザーの入力待ち
-  | 'processing' // 処理中
-  | 'completed'; // 完了
+  | 'awaiting_user_input'
+  | 'processing'
+  | 'completed';
 
 /**
- * 質問のタイプ（意味的分類）
+ * Question category (semantic classification)
  */
 export type QuestionCategory =
-  | 'clarification' // 要件の明確化
-  | 'confirmation' // 確認（Yes/No）
-  | 'selection'; // 選択肢からの選択
+  | 'clarification'
+  | 'confirmation'
+  | 'selection';
 
 /**
- * 質問検出の方法（技術的分類）
- * 後方互換性のため既存のQuestionTypeを維持
+ * Question detection method (technical classification).
+ * Maintains backward compatibility with existing QuestionType.
  */
 export type QuestionDetectionMethod = 'tool_call' | 'key_based' | 'none';
 
 /**
- * 質問の構造化キーフォーマット
- * AIエージェントが返却する特定キー形式
+ * Structured question key format returned by AI agents.
  */
 export type QuestionKey = {
-  /** 質問の状態 */
   status: QuestionStatus;
-  /** 質問の一意識別子 */
   question_id: string;
-  /** 質問のタイプ（意味的分類） */
   question_type: QuestionCategory;
-  /** ユーザー応答が必要かどうか */
   requires_response: boolean;
-  /** タイムアウト秒数（オプション） */
   timeout_seconds?: number;
 };
 
 /**
- * 質問の詳細情報
- * 選択肢やヘッダーなどのUI表示用情報
+ * Question details for UI rendering (options, headers, etc.)
  */
 export type QuestionDetails = {
-  /** 質問のヘッダー（短いラベル） */
   headers?: string[];
-  /** 選択肢がある場合の選択肢リスト */
   options?: Array<{
     label: string;
     description?: string;
   }>;
-  /** 複数選択が可能かどうか */
   multiSelect?: boolean;
 };
 
 /**
- * 質問検出結果
- * 検出ロジックの出力形式
+ * Question detection result
  */
 export type QuestionDetectionResult = {
-  /** 質問が検出されたか */
   hasQuestion: boolean;
-  /** 質問テキスト */
   questionText: string;
-  /** 構造化キー情報 */
   questionKey?: QuestionKey;
-  /** 質問の詳細情報 */
   questionDetails?: QuestionDetails;
-  /** 検出方法 */
   detectionMethod: QuestionDetectionMethod;
 };
 
 /**
- * 質問待機状態
- * 質問検出後の状態管理用
+ * Question waiting state for post-detection state management.
  */
 export type QuestionWaitingState = {
-  /** 質問が存在するか */
   hasQuestion: boolean;
-  /** 質問テキスト */
   question: string;
-  /** 検出方法（後方互換性のため維持） */
+  /** Kept for backward compatibility */
   questionType: QuestionDetectionMethod;
-  /** 質問の詳細情報 */
   questionDetails?: QuestionDetails;
-  /** 構造化キー情報（新方式） */
   questionKey?: QuestionKey;
 };

@@ -103,12 +103,12 @@ export default function TaskSuggestions({
   const [showDetail, setShowDetail] = useState(false);
   const [deletedIndices, setDeletedIndices] = useState<Set<number>>(new Set());
 
-  // themeId変更時の処理 - 自動読み込みを削除
+  // Handle themeId changes - auto-loading removed
   useEffect(() => {
     logger.debug('[TaskSuggestions] Theme changed to:', themeId);
 
     if (!themeId) {
-      // テーマが選択されていない場合はリセット
+      // Reset when no theme is selected
       setAiSuggestions([]);
       setAiAnalysis(null);
       setIsCached(false);
@@ -118,7 +118,7 @@ export default function TaskSuggestions({
     }
   }, [themeId]);
 
-  // AI提案をフェッチ（ボタン押下時のみ実行）
+  // Fetch AI suggestions (only on button click)
   const fetchAiSuggestions = useCallback(
     async (forceRefresh = false) => {
       if (!themeId) return;
@@ -130,7 +130,7 @@ export default function TaskSuggestions({
       setIsAiLoading(true);
       setAiError(false);
 
-      // キャッシュ確認（強制リフレッシュでない場合）
+      // Check cache (unless force refresh)
       if (!forceRefresh) {
         try {
           const cacheRes = await fetch(
@@ -152,7 +152,7 @@ export default function TaskSuggestions({
             }
           }
         } catch (e) {
-          // キャッシュ取得失敗時はAI生成にフォールバック
+          // Fall back to AI generation when cache fetch fails
           logger.error('[TaskSuggestions] Cache fetch error:', e);
         }
       }
@@ -174,7 +174,7 @@ export default function TaskSuggestions({
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
             setAiAnalysis(data.analysis);
-            setIsCached(false); // 新規生成なのでキャッシュフラグはfalse
+            setIsCached(false); // New generation, so cache flag is false
             setIsExpanded(true);
           } else {
             setAiSuggestions([]);
@@ -222,7 +222,7 @@ export default function TaskSuggestions({
   }, [themeId]);
 
   const handleApply = (suggestion: TaskSuggestion) => {
-    // 詳細情報がある場合は、完了条件などを説明に追加
+    // Add completion criteria and other details to description if available
     let enhancedDescription = suggestion.description ?? '';
 
     if (suggestion.completionCriteria) {
@@ -294,7 +294,7 @@ export default function TaskSuggestions({
         </div>
 
         <div className="flex items-center gap-1">
-          {/* AI提案生成ボタン（コンパクトデザイン） */}
+          {/* AI suggestion generate button (compact design) */}
           {!isAiLoading && !hasSuggestions && (
             <button
               type="button"
@@ -311,7 +311,7 @@ export default function TaskSuggestions({
             </button>
           )}
 
-          {/* ローディング状態 */}
+          {/* Loading state */}
           {isAiLoading && (
             <div className="flex items-center gap-1 px-2 py-0.5">
               <SkeletonBlock className="w-3 h-3 rounded" />
@@ -319,7 +319,7 @@ export default function TaskSuggestions({
             </div>
           )}
 
-          {/* アクションボタン（提案がある場合） */}
+          {/* Action buttons (when suggestions exist) */}
           {!isAiLoading && hasSuggestions && (
             <>
               <button
@@ -349,7 +349,7 @@ export default function TaskSuggestions({
             </>
           )}
 
-          {/* 展開アイコン */}
+          {/* Expand icon */}
           {canExpand && (
             <div
               className={`transition-transform duration-200 text-zinc-400 dark:text-zinc-500 ${isExpanded ? 'rotate-180' : ''}`}

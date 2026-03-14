@@ -1,20 +1,21 @@
 /**
  * Pomodoro Service
- * ポモドーロタイマーのビジネスロジック
+ *
+ * Business logic for the pomodoro timer.
  */
 import { prisma } from '../config/database';
 
-// デフォルト設定
-const WORK_DURATION = 25 * 60; // 25分
-const SHORT_BREAK_DURATION = 5 * 60; // 5分
-const LONG_BREAK_DURATION = 15 * 60; // 15分
+// Default settings
+const WORK_DURATION = 25 * 60; // 25 minutes
+const SHORT_BREAK_DURATION = 5 * 60; // 5 minutes
+const LONG_BREAK_DURATION = 15 * 60; // 15 minutes
 const POMODOROS_BEFORE_LONG_BREAK = 4;
 
 export type PomodoroStatus = 'active' | 'paused' | 'completed' | 'cancelled';
 export type PomodoroType = 'work' | 'short_break' | 'long_break';
 
 /**
- * アクティブなセッションを取得（現在のelapsedを計算して返す）
+ * Get the active session (calculates current elapsed time).
  */
 export async function getActiveSession() {
   const session = await prisma.pomodoroSession.findFirst({
@@ -25,7 +26,7 @@ export async function getActiveSession() {
 
   if (!session) return null;
 
-  // activeな場合は現在の経過時間を計算
+  // If active, calculate current elapsed time
   const currentElapsed =
     session.status === 'active'
       ? session.elapsed + Math.floor((Date.now() - session.startedAt.getTime()) / 1000)
@@ -39,7 +40,7 @@ export async function getActiveSession() {
 }
 
 /**
- * ポモドーロ開始
+ * Start a pomodoro.
  */
 export async function startPomodoro(params: {
   taskId?: number;
@@ -47,7 +48,7 @@ export async function startPomodoro(params: {
   type?: PomodoroType;
   completedPomodoros?: number;
 }) {
-  // 既存のアクティブセッションをキャンセル
+  // Cancel existing active sessions
   await prisma.pomodoroSession.updateMany({
     where: { status: { in: ['active', 'paused'] } },
     data: { status: 'cancelled', completedAt: new Date() },
@@ -82,7 +83,7 @@ export async function startPomodoro(params: {
 }
 
 /**
- * ポモドーロ一時停止
+ * Pause a pomodoro.
  */
 export async function pausePomodoro(sessionId: number) {
   const session = await prisma.pomodoroSession.findUnique({
@@ -93,7 +94,7 @@ export async function pausePomodoro(sessionId: number) {
     throw new Error('アクティブなセッションが見つかりません');
   }
 
-  // 現在までの経過時間を保存
+  // Save elapsed time up to now
   const additionalElapsed = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
   const newElapsed = Math.min(session.elapsed + additionalElapsed, session.duration);
 
@@ -115,7 +116,7 @@ export async function pausePomodoro(sessionId: number) {
 }
 
 /**
- * ポモドーロ再開
+ * Resume a pomodoro.
  */
 export async function resumePomodoro(sessionId: number) {
   const session = await prisma.pomodoroSession.findUnique({
@@ -130,7 +131,7 @@ export async function resumePomodoro(sessionId: number) {
     where: { id: sessionId },
     data: {
       status: 'active',
-      startedAt: new Date(), // 再開時刻をstartedAtに更新（elapsed+新startedAtで計算）
+      startedAt: new Date(), // Update startedAt to resume time (calculated from elapsed + new startedAt)
       pausedAt: null,
     },
     include: { task: { select: { id: true, title: true, status: true } } },
@@ -144,7 +145,7 @@ export async function resumePomodoro(sessionId: number) {
 }
 
 /**
- * ポモドーロ完了
+ * Complete a pomodoro.
  */
 export async function completePomodoro(sessionId: number) {
   const session = await prisma.pomodoroSession.findUnique({
@@ -169,7 +170,7 @@ export async function completePomodoro(sessionId: number) {
     include: { task: { select: { id: true, title: true, status: true } } },
   });
 
-  // 作業セッション完了時にTimeEntryを自動記録
+  // Auto-record TimeEntry when a work session completes
   if (session.type === 'work' && session.taskId) {
     const startTime = new Date(Date.now() - session.duration * 1000);
     await prisma.timeEntry.create({
@@ -178,12 +179,12 @@ export async function completePomodoro(sessionId: number) {
         duration: session.duration / 3600, // hours
         startedAt: startTime,
         endedAt: new Date(),
-        note: `ポモドーロ完了 (${Math.round(session.duration / 60)}分)`,
+        note: `Complete a pomodoro. (${Math.round(session.duration / 60)}分)`,
       },
     });
   }
 
-  // 次のセッションタイプを判定
+  // Determine next session type
   let nextType: PomodoroType = 'short_break';
   if (session.type === 'work') {
     if (newCompletedPomodoros % POMODOROS_BEFORE_LONG_BREAK === 0) {
@@ -205,7 +206,7 @@ export async function completePomodoro(sessionId: number) {
 }
 
 /**
- * ポモドーロキャンセル
+ * Cancel a pomodoro.
  */
 export async function cancelPomodoro(sessionId: number) {
   return await prisma.pomodoroSession.update({
@@ -218,7 +219,7 @@ export async function cancelPomodoro(sessionId: number) {
 }
 
 /**
- * 統計情報を取得
+ * Get statistics.
  */
 export async function getStatistics(params: { startDate?: Date; endDate?: Date; taskId?: number }) {
   const { startDate, endDate, taskId } = params;
@@ -247,7 +248,7 @@ export async function getStatistics(params: { startDate?: Date; endDate?: Date; 
   const totalPomodoros = sessions.length;
   const totalMinutes = sessions.reduce((sum, s) => sum + s.duration / 60, 0);
 
-  // 日別集計
+  // Daily aggregation
   const dailyMap = new Map<string, { count: number; minutes: number }>();
   for (const s of sessions) {
     const dateKey = (s.completedAt ?? s.createdAt).toISOString().split('T')[0]!;
@@ -261,7 +262,7 @@ export async function getStatistics(params: { startDate?: Date; endDate?: Date; 
     .map(([date, data]) => ({ date, ...data }))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  // タスク別集計
+  // Per-task aggregation
   const taskMap = new Map<
     number,
     { taskId: number; title: string; count: number; minutes: number }
@@ -293,7 +294,7 @@ export async function getStatistics(params: { startDate?: Date; endDate?: Date; 
 }
 
 /**
- * セッション履歴を取得
+ * Get session history.
  */
 export async function getHistory(params: { limit?: number; offset?: number }) {
   const { limit = 20, offset = 0 } = params;

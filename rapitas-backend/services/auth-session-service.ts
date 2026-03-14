@@ -1,16 +1,17 @@
 /**
  * Auth Session Service
- * セッションの検証・リフレッシュ・期限切れクリーンアップ
+ *
+ * Validates, refreshes, and cleans up expired sessions.
  */
 import { prisma } from '../config/database';
 import { createLogger } from '../config/logger';
 
 const log = createLogger('auth-session-service');
 
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7日
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * セッショントークンを検証する
+ * Validate a session token and return the associated user.
  */
 export async function validateSession(token: string) {
   // @ts-expect-error Session model not yet defined in Prisma schema
@@ -35,7 +36,7 @@ export async function validateSession(token: string) {
 }
 
 /**
- * セッションの有効期限を延長する
+ * Extend a session's expiration time.
  */
 export async function refreshSession(token: string) {
   const result = await validateSession(token);
@@ -53,7 +54,7 @@ export async function refreshSession(token: string) {
 }
 
 /**
- * 期限切れセッションを一括削除する
+ * Bulk-delete all expired sessions.
  */
 export async function cleanupExpiredSessions(): Promise<number> {
   // @ts-expect-error Session model not yet defined in Prisma schema

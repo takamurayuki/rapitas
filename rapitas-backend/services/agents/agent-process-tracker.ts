@@ -1,9 +1,9 @@
 /**
- * Agent Process Tracker
+ * AgentProcessTracker
  *
- * エージェント関連プロセスのPIDをファイルとして永続化し、
- * プロセスクラッシュ後もゾンビプロセスを追跡・クリーンアップ可能にする。
- * ポート3001（バックエンドサーバー）のプロセスは絶対にkillしない。
+ * Persists agent-related process PIDs to files so that zombie processes
+ * can be tracked and cleaned up after a crash.
+ * NOTE: Never kills processes listening on port 3001 (backend server) — per CLAUDE.md constraint.
  */
 
 import { existsSync, mkdirSync, writeFileSync, unlinkSync, readdirSync, readFileSync } from 'fs';
@@ -13,7 +13,7 @@ import { createLogger } from '../../config/logger';
 
 const logger = createLogger('agent-process-tracker');
 
-/** PIDファイルに記録するプロセス情報 */
+/** Process info recorded in PID files. */
 interface ProcessInfo {
   pid: number;
   role: 'worker' | 'cli-agent';
@@ -26,7 +26,7 @@ interface ProcessInfo {
 const PID_DIR = join(process.cwd(), '.agent-pids');
 
 /**
- * PIDディレクトリが存在しなければ作成する。
+ * Ensure the PID directory exists.
  */
 function ensurePidDir(): void {
   if (!existsSync(PID_DIR)) {
@@ -35,10 +35,10 @@ function ensurePidDir(): void {
 }
 
 /**
- * プロセスが生存しているかチェックする（Windows対応）。
+ * Check whether a process is still alive (cross-platform).
  *
- * @param pid - チェック対象のプロセスID / 対象プロセスID
- * @returns 生存していれば true / 生存していれば true
+ * @param pid - Process ID to check / チェック対象のプロセスID
+ * @returns true if the process is alive / 生存していれば true
  */
 function isProcessAlive(pid: number): boolean {
   try {
@@ -47,10 +47,10 @@ function isProcessAlive(pid: number): boolean {
         stdio: 'pipe',
         timeout: 5000,
       }).toString();
-      // tasklist は該当なしの場合 "情報: 指定された条件に一致するタスクは実行されていません。" を返す
+      // NOTE: tasklist returns a Japanese message when no matching process is found
       return result.includes(String(pid));
     }
-    // Unix: signal 0 で生存確認
+    // Unix: signal 0 checks if process is alive without sending a real signal
     process.kill(pid, 0);
     return true;
   } catch {
@@ -59,11 +59,11 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
- * 指定PIDがポート3001をLISTENしているかチェックする。
- * kill前の安全確認用 — CLAUDE.md制約遵守。
+ * Check whether a PID is listening on port 3001.
+ * Safety check before kill — enforces the CLAUDE.md constraint.
  *
- * @param pid - チェック対象のプロセスID / 対象プロセスID
- * @returns ポート3001をLISTENしていれば true / LISTENしていれば true
+ * @param pid - Process ID to check / チェック対象のプロセスID
+ * @returns true if listening on port 3001 / ポート3001をLISTENしていれば true
  */
 function isListeningOnBackendPort(pid: number): boolean {
   try {
@@ -74,7 +74,6 @@ function isListeningOnBackendPort(pid: number): boolean {
       }).toString();
       return result.includes(String(pid));
     }
-    // Unix
     const result = execSync(`lsof -iTCP:3001 -sTCP:LISTEN -t 2>/dev/null`, {
       stdio: 'pipe',
       timeout: 5000,
@@ -86,9 +85,9 @@ function isListeningOnBackendPort(pid: number): boolean {
 }
 
 /**
- * エージェント関連プロセスのPIDファイルを書き込む。
+ * Write a PID file for an agent-related process.
  *
- * @param info - 登録するプロセス情報 / 登録対象のプロセス情報
+ * @param info - Process info to register / 登録対象のプロセス情報
  */
 export function registerProcess(info: ProcessInfo): void {
   try {
@@ -103,9 +102,9 @@ export function registerProcess(info: ProcessInfo): void {
 }
 
 /**
- * PIDファイルを削除してプロセス追跡を解除する。
+ * Remove a PID file to stop tracking a process.
  *
- * @param pid - 解除対象のプロセスID / 対象プロセスID
+ * @param pid - Process ID to unregister / 対象プロセスID
  */
 export function unregisterProcess(pid: number): void {
   try {
@@ -123,10 +122,10 @@ export function unregisterProcess(pid: number): void {
 }
 
 /**
- * 全PIDファイルを走査し、ゾンビプロセスをkillしてPIDファイルを削除する。
- * ポート3001をLISTENしているプロセスは保護する。
+ * Scan all PID files, kill zombie processes, and remove their PID files.
+ * Protects any process listening on port 3001.
  *
- * @returns killしたプロセス数 / killしたプロセス数
+ * @returns Number of processes killed / killしたプロセス数
  */
 export function cleanupZombieProcesses(): number {
   let killedCount = 0;
@@ -153,7 +152,6 @@ export function cleanupZombieProcesses(): number {
         const info: ProcessInfo = JSON.parse(content);
 
         if (!isProcessAlive(info.pid)) {
-          // プロセスは既に終了済み — PIDファイルだけ残っていた
           unlinkSync(filepath);
           logger.info(
             { pid: info.pid, role: info.role },
@@ -162,7 +160,7 @@ export function cleanupZombieProcesses(): number {
           continue;
         }
 
-        // NOTE: ポート3001をLISTENしているプロセスはバックエンド本体の可能性があるため保護
+        // NOTE: Protect processes listening on port 3001 — they may be the backend server itself
         if (isListeningOnBackendPort(info.pid)) {
           logger.warn(
             { pid: info.pid },
@@ -172,7 +170,6 @@ export function cleanupZombieProcesses(): number {
           continue;
         }
 
-        // ゾンビプロセスをkill
         logger.info({ pid: info.pid, role: info.role }, '[ProcessTracker] Killing zombie process');
         try {
           if (process.platform === 'win32') {
@@ -182,7 +179,7 @@ export function cleanupZombieProcesses(): number {
           }
           killedCount++;
         } catch (killError) {
-          // kill失敗はプロセスが既に終了した可能性 — 致命的ではない
+          // NOTE: Kill failure likely means the process already exited — non-fatal
           logger.debug(
             { err: killError, pid: info.pid },
             '[ProcessTracker] Kill failed (process may have exited)',
@@ -191,7 +188,6 @@ export function cleanupZombieProcesses(): number {
 
         unlinkSync(filepath);
       } catch (fileError) {
-        // 不正なPIDファイルは削除
         logger.warn({ err: fileError, file }, '[ProcessTracker] Invalid PID file, removing');
         try {
           unlinkSync(filepath);
@@ -212,8 +208,7 @@ export function cleanupZombieProcesses(): number {
 }
 
 /**
- * PIDディレクトリ内の全ファイルを削除する（dev.js起動時クリーンアップ用）。
- * プロセスのkillは行わず、ファイルのみ削除する。
+ * Delete all PID files without killing processes (for dev.js startup cleanup).
  */
 export function clearAllPidFiles(): void {
   try {

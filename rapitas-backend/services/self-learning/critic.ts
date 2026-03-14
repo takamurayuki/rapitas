@@ -1,7 +1,6 @@
 /**
- * Critic System - 独立した評価エージェント
+ * Critic System -
  *
- * 仮説の妥当性、計画の不足、実装の品質をチェックする。
  */
 
 import { prisma } from '../../config/database';
@@ -11,7 +10,6 @@ import type { CriticReviewInput, CriticReviewResult, CriticScore, CriticPhase } 
 const log = createLogger('self-learning:critic');
 
 /**
- * レビューを実行
  */
 export async function performReview(input: CriticReviewInput): Promise<CriticReviewResult> {
   const score = evaluateContent(input.phase, input.targetContent, input.context);
@@ -21,7 +19,7 @@ export async function performReview(input: CriticReviewInput): Promise<CriticRev
   const suggestions = generateSuggestions(input.phase, score);
   const issues = detectIssues(input.phase, input.targetContent);
 
-  // DBに保存
+  // DB
   await prisma.criticReview.create({
     data: {
       experimentId: input.experimentId,
@@ -57,27 +55,23 @@ export async function performReview(input: CriticReviewInput): Promise<CriticRev
 }
 
 /**
- * コンテンツを評価してスコアを算出
  */
 function evaluateContent(phase: CriticPhase, content: string, context?: string): CriticScore {
   const contentLength = content.length;
   const hasStructure = content.includes('\n') || content.includes('{');
 
-  // 基本スコアをコンテンツの充実度から算出
   let accuracy = Math.min(1.0, contentLength / 500);
   let logic = hasStructure ? 0.7 : 0.4;
   let coverage = 0.5;
 
   switch (phase) {
     case 'hypothesis':
-      // 仮説には根拠と具体性が必要
       if (content.includes('because') || content.includes('理由')) accuracy += 0.2;
       if (content.includes('if') || content.includes('もし')) logic += 0.15;
       coverage = content.split(',').length > 2 ? 0.8 : 0.5;
       break;
 
     case 'plan':
-      // 計画にはステップと順序が必要
       const stepCount = (content.match(/\d+\./g) || []).length;
       accuracy = Math.min(1.0, stepCount / 5);
       logic = stepCount > 1 ? 0.7 : 0.3;
@@ -86,7 +80,6 @@ function evaluateContent(phase: CriticPhase, content: string, context?: string):
       break;
 
     case 'execution':
-      // 実行結果には成果物とステータスが必要
       if (content.includes('success') || content.includes('成功')) accuracy = 0.9;
       if (content.includes('error') || content.includes('エラー')) accuracy = 0.4;
       logic = context ? 0.7 : 0.5;
@@ -102,7 +95,6 @@ function evaluateContent(phase: CriticPhase, content: string, context?: string):
 }
 
 /**
- * スコアに基づくフィードバック生成
  */
 function generateFeedback(phase: CriticPhase, score: CriticScore, content: string): string {
   const parts: string[] = [];
@@ -131,7 +123,6 @@ function generateFeedback(phase: CriticPhase, score: CriticScore, content: strin
 }
 
 /**
- * 改善提案の生成
  */
 function generateSuggestions(phase: CriticPhase, score: CriticScore): string[] {
   const suggestions: string[] = [];
@@ -162,7 +153,6 @@ function generateSuggestions(phase: CriticPhase, score: CriticScore): string[] {
 }
 
 /**
- * 問題点の検出
  */
 function detectIssues(phase: CriticPhase, content: string): string[] {
   const issues: string[] = [];
@@ -183,7 +173,6 @@ function detectIssues(phase: CriticPhase, content: string): string[] {
 }
 
 /**
- * 実験のレビュー一覧を取得
  */
 export async function getReviews(experimentId: number) {
   return prisma.criticReview.findMany({
@@ -193,7 +182,6 @@ export async function getReviews(experimentId: number) {
 }
 
 /**
- * フェーズ別の平均スコアを取得
  */
 export async function getAverageScores(phase?: CriticPhase) {
   const where: Record<string, unknown> = {};

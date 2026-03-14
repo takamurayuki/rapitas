@@ -1,6 +1,7 @@
 /**
- * Claude Code プロバイダー
- * 新しい抽象化レイヤーに対応したClaude Codeエージェントプロバイダー
+ * Claude Code Provider
+ *
+ * Claude Code agent provider compatible with the abstraction layer.
  */
 
 import { spawn, execSync } from 'child_process';
@@ -22,7 +23,7 @@ import { createAgentEventEmitter } from '../abstraction/event-emitter';
 import { generateAgentId } from '../abstraction';
 
 /**
- * Claude Code プロバイダー設定
+ * Claude Code provider configuration
  */
 export interface ClaudeCodeConfig extends ClaudeCodeProviderConfig {
   workingDirectory?: string;
@@ -34,7 +35,7 @@ export interface ClaudeCodeConfig extends ClaudeCodeProviderConfig {
 }
 
 /**
- * Claude Code エージェント（新抽象化レイヤー対応版）
+ * Claude Code Agent (v2 - abstraction layer compatible)
  */
 export class ClaudeCodeAgentV2 extends AbstractAgent {
   private config: ClaudeCodeConfig;
@@ -156,7 +157,7 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     const prompt = continuation.userResponse || '';
     const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    // 継続実行フラグを設定
+    // Temporarily set continuation flags for this execution
     const originalContinue = this.config.continueConversation;
     this.config.continueConversation = true;
     this.config.resumeSessionId = continuation.sessionId;
@@ -270,10 +271,10 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
       const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
 
       if (this.config.resumeSessionId) {
-        // セッションIDが指定されている場合は --resume で正確にそのセッションを再開
+        // --resume resumes a specific session by ID
         args.push('--resume', this.config.resumeSessionId);
       } else if (this.config.continueConversation) {
-        // セッションIDがない場合は --continue で最新の会話を継続
+        // --continue resumes the most recent conversation when no session ID is available
         args.push('--continue');
       }
 
@@ -325,14 +326,12 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
           this.process.stderr.setEncoding('utf8');
         }
 
-        // プロンプトを書き込み
         this.writePromptToStdin(prompt);
 
         let lastOutputTime = Date.now();
         let hasDetectedQuestion = false;
         let detectedQuestionText = '';
 
-        // タイムアウト監視
         const timeoutCheck = setInterval(() => {
           if (Date.now() - lastOutputTime >= timeout) {
             clearInterval(timeoutCheck);
@@ -381,13 +380,13 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
                 hasDetectedQuestion = true;
                 detectedQuestionText = result.questionText || '';
 
-                // 質問検出時にプロセスを停止
+                // Stop process on question detection to hand control back to user
                 if (this.process && !this.process.killed) {
                   this.process.kill('SIGTERM');
                 }
               }
             } catch {
-              // chcpコマンドの出力など不要な行をフィルタリング
+              // Filter out non-JSON lines (e.g. Windows chcp output)
               const trimmedLine = line.trim();
               if (
                 !trimmedLine ||
@@ -562,8 +561,8 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
 }
 
 /**
- * Windows環境でCLIコマンドの絶対パスを解決する。
- * PATH解決に失敗した場合はフォールバックとして元のパスを返す。
+ * Resolves the absolute path of a CLI command on Windows.
+ * Falls back to the original path if PATH resolution fails.
  */
 function resolveCliPath(cliName: string): string {
   if (process.platform !== 'win32') return cliName;
@@ -579,13 +578,13 @@ function resolveCliPath(cliName: string): string {
       return resolved;
     }
   } catch {
-    // フォールバック
+    // Fallback to original path
   }
   return cliName;
 }
 
 /**
- * Claude Code プロバイダー
+ * Claude Code Provider
  */
 export class ClaudeCodeProvider implements IAgentProvider {
   readonly providerId = 'claude-code' as const;
@@ -700,6 +699,6 @@ export class ClaudeCodeProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトのClaude Codeプロバイダーインスタンス
+ * Default Claude Code provider instance
  */
 export const claudeCodeProvider = new ClaudeCodeProvider();

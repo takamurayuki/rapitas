@@ -1,110 +1,110 @@
-# 並列実行システム仕様書
+# Parallel Execution System Specification
 
-## 概要
+## Overview
 
-並列実行システムは、サブタスク間の依存関係を分析し、Claude Codeのサブエージェントによる並列実行を実現するシステムです。
+The parallel execution system analyzes dependencies between subtasks and realizes parallel execution by Claude Code sub-agents.
 
-## アーキテクチャ
+## Architecture
 
-### コンポーネント構成
+### Component Structure
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    ParallelExecutor                          │
-│  (メインオーケストレーター)                                    │
+│  (Main orchestrator)                                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐                  │
 │  │ DependencyAnalyzer │  │ ParallelScheduler │                │
-│  │ (依存関係分析)     │  │ (スケジューリング) │                │
+│  │ (Dependency Analysis) │  │ (Scheduling)       │                │
 │  └─────────────────┘  └─────────────────┘                  │
 │                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐                  │
 │  │ SubAgentController│  │ AgentCoordinator │                 │
-│  │ (サブエージェント) │  │ (エージェント連携) │                │
+│  │ (Sub-agent)        │  │ (Agent Coordination) │             │
 │  └─────────────────┘  └─────────────────┘                  │
 │                                                             │
 │  ┌─────────────────┐                                        │
 │  │  LogAggregator   │                                        │
-│  │ (ログ集約)       │                                        │
+│  │ (Log Aggregation)│                                        │
 │  └─────────────────┘                                        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 依存関係分析
+## Dependency Analysis
 
-### 依存関係の種類
+### Types of Dependencies
 
-| タイプ | 説明 | 検出方法 |
-|--------|------|----------|
-| `file_sharing` | ファイル共有による依存 | 説明・プロンプトからファイルパスを抽出 |
-| `sequential` | 明示的な順序依存 | `explicitDependencies`フィールド |
-| `data_flow` | データフローによる依存 | 将来実装予定 |
-| `resource` | リソース競合 | ファイルロック機構で検出 |
+| Type | Description | Detection Method |
+|------|-------------|------------------|
+| `file_sharing` | File sharing dependency | Extract file paths from descriptions/prompts |
+| `sequential` | Explicit order dependency | `explicitDependencies` field |
+| `data_flow` | Data flow dependency | Future implementation |
+| `resource` | Resource conflict | Detected by file locking mechanism |
 
-### 重みづけアルゴリズム
+### Weighting Algorithm
 
-依存関係の強度（重み）は以下の要素で計算されます：
+The strength (weight) of dependencies is calculated from the following factors:
 
-1. **共有ファイルの割合**: 各タスクの関連ファイル数に対する共有ファイルの割合
-2. **ファイルタイプ**: 重要なファイル（index.ts, schema.prisma等）は重みが高い
-3. **優先度**: 高優先度タスクは依存関係において先に実行される
+1. **Shared file ratio**: Ratio of shared files to related files per task
+2. **File type**: Important files (index.ts, schema.prisma, etc.) have higher weights
+3. **Priority**: High-priority tasks are executed first in dependencies
 
 ```typescript
-// 重み計算式
+// Weight calculation formula
 weight = (sharedFileRatio * 100) * fileTypeWeight
 
-// ファイルタイプの重み
+// File type weights
 - index.* : 1.5
 - schema.*, config.* : 1.3
 - *.ts, *.tsx : 1.2
 - *.css, *.scss : 1.1
 ```
 
-### 並列実行可能性の判定
+### Determining Parallel Execution Feasibility
 
-タスクの並列実行可能性は以下で判定されます：
+Task parallel execution feasibility is determined by:
 
-1. **independenceScore**: 独立性スコア（0-100）
-   - 70以上: 並列実行可能
-   - 30未満: 高依存性（警告）
+1. **independenceScore**: Independence score (0-100)
+   - 70 or above: Parallel execution possible
+   - Below 30: High dependency (warning)
 
-2. **parallelizability**: 並列化可能性スコア（0-100）
-   - 依存・被依存タスク数から計算
+2. **parallelizability**: Parallelizability score (0-100)
+   - Calculated from number of dependent/dependee tasks
 
-## 並列実行グループ
+## Parallel Execution Groups
 
-### グループ構造
+### Group Structure
 
 ```typescript
 type ParallelGroup = {
   groupId: number;
-  level: number;           // 実行レベル（0から開始）
-  taskIds: number[];       // グループ内のタスクID
-  canRunParallel: boolean; // グループ内で並列実行可能か
+  level: number;           // Execution level (starting from 0)
+  taskIds: number[];       // Task IDs within group
+  canRunParallel: boolean; // Whether parallel execution is possible within group
   estimatedDuration: number;
   internalDependencies: DependencyEdge[];
   dependsOnGroups: number[];
 };
 ```
 
-### 実行順序
+### Execution Order
 
-1. level 0 のグループから順に実行
-2. 各グループ内のタスクは `maxConcurrentAgents` に従って並列実行
-3. 依存グループが完了するまで次のレベルは開始されない
+1. Execute sequentially starting from level 0 groups
+2. Tasks within each group are executed in parallel according to `maxConcurrentAgents`
+3. Next level does not start until dependent groups complete
 
-## API仕様
+## API Specification
 
-### エンドポイント
+### Endpoints
 
-#### 依存関係分析
+#### Dependency Analysis
 
 ```
 GET /parallel/tasks/:id/analyze
 ```
 
-**レスポンス:**
+**Response:**
 ```json
 {
   "success": true,
@@ -114,7 +114,7 @@ GET /parallel/tasks/:id/analyze
     "nodes": [
       {
         "id": 101,
-        "title": "タスク1",
+        "title": "Task 1",
         "priority": "high",
         "depth": 0,
         "independenceScore": 85,
@@ -141,19 +141,19 @@ GET /parallel/tasks/:id/analyze
       "parallelEfficiency": 55,
       "maxConcurrency": 3
     },
-    "recommendations": ["5個のタスクを3グループで並列実行できます"],
+    "recommendations": ["5 tasks can be executed in parallel across 3 groups"],
     "warnings": []
   }
 }
 ```
 
-#### 並列実行開始
+#### Start Parallel Execution
 
 ```
 POST /parallel/tasks/:id/execute
 ```
 
-**リクエスト:**
+**Request:**
 ```json
 {
   "config": {
@@ -167,7 +167,7 @@ POST /parallel/tasks/:id/execute
 }
 ```
 
-**レスポンス:**
+**Response:**
 ```json
 {
   "success": true,
@@ -185,13 +185,13 @@ POST /parallel/tasks/:id/execute
 }
 ```
 
-#### セッション状態取得
+#### Get Session Status
 
 ```
 GET /parallel/sessions/:sessionId/status
 ```
 
-**レスポンス:**
+**Response:**
 ```json
 {
   "success": true,
@@ -207,53 +207,53 @@ GET /parallel/sessions/:sessionId/status
 }
 ```
 
-#### 実行ログ取得
+#### Get Execution Logs
 
 ```
 GET /parallel/sessions/:sessionId/logs?taskId=101&level=error&limit=100
 ```
 
-#### リアルタイムログストリーム
+#### Real-time Log Stream
 
 ```
 GET /parallel/sessions/:sessionId/logs/stream
 ```
 
-SSE形式でリアルタイムにログを配信します。
+Delivers logs in real-time using SSE format.
 
-## エージェント間連携
+## Inter-agent Coordination
 
-### リソースロック
+### Resource Locking
 
-ファイル競合を防ぐため、リソースロック機構を提供：
+Provides resource locking mechanism to prevent file conflicts:
 
 ```typescript
-// ロック要求
+// Lock request
 const lock = coordinator.requestResourceLock(agentId, taskId, "file.ts");
 if (lock.status === "granted") {
-  // ファイルを安全に操作
+  // Safely manipulate file
 }
 
-// ロック解放
+// Release lock
 coordinator.releaseResourceLock(agentId, "file.ts");
 ```
 
-### データ共有
+### Data Sharing
 
-エージェント間でデータを共有：
+Share data between agents:
 
 ```typescript
-// データを共有
+// Share data
 coordinator.shareData("api-schema", schema, agentId);
 
-// 他のエージェントで取得
+// Get from other agent
 const schema = coordinator.getSharedData("api-schema");
 ```
 
-### メッセージング
+### Messaging
 
 ```typescript
-// ブロードキャスト
+// Broadcast
 coordinator.broadcastMessage({
   type: "task_completed",
   fromAgentId: "agent-1",
@@ -261,93 +261,93 @@ coordinator.broadcastMessage({
   payload: { taskId: 101 }
 });
 
-// 特定エージェントに送信
+// Send to specific agent
 coordinator.sendMessage("agent-2", "agent-1", "data_share", { key: "value" });
 ```
 
-## ログ集約
+## Log Aggregation
 
-### フィルタリング
+### Filtering
 
 ```typescript
-// タスク別
+// By task
 aggregator.getLogsByTask(taskId, limit);
 
-// エージェント別
+// By agent
 aggregator.getLogsByAgent(agentId, limit);
 
-// レベル別
+// By level
 aggregator.getErrorLogs(limit);
 
-// タグ別
+// By tag
 aggregator.getLogsByTag("git", limit);
 ```
 
-### 自動タグ付け
+### Auto-tagging
 
-メッセージから自動的にタグを抽出：
+Automatically extract tags from messages:
 
-- `error`, `warning`: エラー・警告メッセージ
-- `start`, `complete`: 開始・完了メッセージ
-- `file`: ファイル操作
-- `git`: Git操作
-- `test`: テスト関連
-- `build`: ビルド関連
+- `error`, `warning`: Error and warning messages
+- `start`, `complete`: Start and completion messages
+- `file`: File operations
+- `git`: Git operations
+- `test`: Test related
+- `build`: Build related
 
-## 設定オプション
+## Configuration Options
 
 ```typescript
 type ParallelExecutionConfig = {
-  maxConcurrentAgents: number;      // 最大同時実行エージェント数（デフォルト: 3）
-  questionTimeoutSeconds: number;   // 質問タイムアウト（デフォルト: 300）
-  taskTimeoutSeconds: number;       // タスクタイムアウト（デフォルト: 900）
-  retryOnFailure: boolean;          // 失敗時リトライ（デフォルト: true）
-  maxRetries: number;               // 最大リトライ回数（デフォルト: 2）
-  logSharing: boolean;              // ログ共有有効（デフォルト: true）
-  coordinationEnabled: boolean;     // エージェント連携有効（デフォルト: true）
+  maxConcurrentAgents: number;      // Maximum concurrent agent count (default: 3)
+  questionTimeoutSeconds: number;   // Question timeout (default: 300)
+  taskTimeoutSeconds: number;       // Task timeout (default: 900)
+  retryOnFailure: boolean;          // Retry on failure (default: true)
+  maxRetries: number;               // Maximum retry count (default: 2)
+  logSharing: boolean;              // Log sharing enabled (default: true)
+  coordinationEnabled: boolean;     // Agent coordination enabled (default: true)
 };
 ```
 
-## 実行フロー
+## Execution Flow
 
 ```
-1. 依存関係分析
+1. Dependency analysis
    ↓
-2. ツリーマップ生成
+2. Tree map generation
    ↓
-3. 並列グループ生成
+3. Parallel group generation
    ↓
-4. 実行プラン作成
+4. Execution plan creation
    ↓
-5. セッション開始
+5. Session start
    ↓
-6. レベル0のタスクを開始
+6. Start level 0 tasks
    ↓
-7. タスク完了 → 依存解決 → 次のタスクをスケジュール
+7. Task completion → Dependency resolution → Schedule next task
    ↓
-8. すべてのタスク完了 → セッション終了
+8. All tasks complete → Session end
 ```
 
-## トラブルシューティング
+## Troubleshooting
 
-### 循環依存が検出された
+### Circular Dependency Detected
 
-- 警告メッセージが出力されます
-- タスクの依存関係を見直してください
+- Warning message will be output
+- Review task dependencies
 
-### タスクがブロック状態
+### Task in Blocked State
 
-- 依存タスクが失敗している可能性があります
-- `getSessionStatus` でfailedタスクを確認してください
+- Dependent tasks may have failed
+- Check failed tasks with `getSessionStatus`
 
-### 並列効率が低い
+### Low Parallel Efficiency
 
-- クリティカルパスが長い可能性があります
-- タスクの分割を検討してください
+- Critical path may be long
+- Consider task splitting
 
-## 将来の拡張予定
+## Future Expansion Plans
 
-1. **データフロー依存の自動検出**: タスク間のデータ依存を自動検出
-2. **動的優先度調整**: 実行状況に応じた優先度の動的変更
-3. **リトライ戦略**: 失敗タスクの自動リトライ機能
-4. **コスト最適化**: API使用量を考慮したスケジューリング
+1. **Auto-detection of data flow dependencies**: Automatically detect data dependencies between tasks
+2. **Dynamic priority adjustment**: Dynamic priority changes based on execution status
+3. **Retry strategies**: Auto-retry functionality for failed tasks
+4. **Cost optimization**: Scheduling considering API usage

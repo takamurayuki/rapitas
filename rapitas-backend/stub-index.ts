@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
- * CI/CD用のスタブバックエンドサーバー
- * 最小限のAPIエンドポイントを提供して、フロントエンドが動作するようにする
+ * Stub Backend Server for CI/CD
+ *
+ * Provides minimal API endpoints so the frontend can operate during CI/CD builds.
  */
 import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
@@ -11,23 +12,19 @@ const log = createLogger('stub-server');
 
 const app = new Elysia();
 
-// CORS設定
 app.use(cors());
 
-// ヘルスチェックエンドポイント
 app.get('/health', () => ({
   status: 'ok',
   message: 'CI/CD Stub Backend',
   timestamp: new Date().toISOString(),
 }));
 
-// 基本的なAPIレスポンス
 const stubResponse = {
   message: 'This is a stub response from CI/CD build. Database not connected.',
   data: [],
 };
 
-// タスク関連のスタブエンドポイント
 app.get('/tasks', () => stubResponse);
 app.get('/tasks/:id', (context) => ({
   ...stubResponse,
@@ -35,7 +32,6 @@ app.get('/tasks/:id', (context) => ({
   title: 'Stub Task',
 }));
 
-// テーマ関連のスタブエンドポイント
 app.get('/themes', () => stubResponse);
 app.get('/themes/:id', (context) => ({
   ...stubResponse,
@@ -43,7 +39,6 @@ app.get('/themes/:id', (context) => ({
   name: 'Stub Theme',
 }));
 
-// プロジェクト関連のスタブエンドポイント
 app.get('/projects', () => stubResponse);
 app.get('/projects/:id', (context) => ({
   ...stubResponse,
@@ -51,9 +46,8 @@ app.get('/projects/:id', (context) => ({
   name: 'Stub Project',
 }));
 
-// 設定関連のスタブエンドポイント
 app.get('/settings', () => ({
-  autoResumeInterruptedTasks: false, // 自動再開を無効化（スタブ環境では不要）
+  autoResumeInterruptedTasks: false, // Disabled — not needed in stub environment
   enableDeveloperMode: false,
   enableAgentExecution: false,
   enableParallelExecution: false,
@@ -62,8 +56,7 @@ app.get('/settings', () => ({
   rateLimitRetryDelay: 5,
 }));
 
-// エージェント実行関連のスタブエンドポイント
-app.get('/agents/resumable-executions', () => []); // 再開可能な実行はなし
+app.get('/agents/resumable-executions', () => []);
 
 app.post('/agents/executions/:id/resume', (context) => ({
   success: false,
@@ -77,7 +70,6 @@ app.post('/agents/executions/:id/acknowledge', (context) => ({
   executionId: context.params.id,
 }));
 
-// SSEスタブエンドポイント
 app.get('/sse', (context) => {
   const { set } = context;
   set.headers['Content-Type'] = 'text/event-stream';
@@ -100,7 +92,6 @@ app.get('/sse', (context) => {
   );
 });
 
-// 404ハンドラー
 app.onError(({ code, error }) => {
   if (code === 'NOT_FOUND') {
     return {
@@ -125,7 +116,6 @@ if (process.argv.includes('--version') || process.argv.includes('-v')) {
 const isCI = process.env.CI === 'true';
 const CI_TIMEOUT = 5000; // 5 seconds timeout in CI
 
-// サーバー起動
 const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({
   port: PORT,
@@ -145,7 +135,6 @@ if (isCI) {
   }, CI_TIMEOUT);
 }
 
-// グレースフルシャットダウン
 process.on('SIGTERM', () => {
   log.info('Received SIGTERM, shutting down...');
   process.exit(0);

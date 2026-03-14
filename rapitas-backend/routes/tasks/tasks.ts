@@ -1,7 +1,7 @@
 /**
  * Tasks API Routes
  * Core task CRUD operations
- * ビジネスロジックは task-service.ts に委譲
+ * Business logic is delegated to task-service.ts
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -44,7 +44,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
       const byCategory = Object.fromEntries(
         categoryCounts.map((c: { categoryId: number | null; _count: { categoryId: number } }) => [
-          c.categoryId ?? 0, // null categoryId を 0 として扱う
+          c.categoryId ?? 0, // Treat null categoryId as 0
           c._count.categoryId,
         ]),
       );
@@ -73,22 +73,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         return [];
       }
 
-      // マルチワード検索のためにクエリを分割
+      // Split query for multi-word search
       const words = searchQuery.split(/\s+/).filter(w => w.length > 0);
 
-      // 動的 where 条件構築
+      
       const whereCondition: any = {
         parentId: null,
         AND: []
       };
 
-      // マルチワード検索（タイトル + 説明文オプション）
+      // Multi-word search (title + optional description)
       const searchConditions = words.map(word => {
         const conditions: any[] = [
           { title: { contains: word, mode: "insensitive" } }
         ];
 
-        // searchDescription が true の場合、description も検索対象に含める
+        // Include description in search when searchDescription is true
         if (searchDescription === 'true') {
           conditions.push({ description: { contains: word, mode: "insensitive" } });
         }
@@ -98,7 +98,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
       whereCondition.AND.push(...searchConditions);
 
-      // フィルター条件追加
+      
       if (themeId) {
         whereCondition.themeId = parseInt(themeId);
       }
@@ -131,7 +131,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         take: resultLimit,
       });
 
-      // 簡易関連度スコアでソート（OR検索の場合）
+      // Sort by relevance score for multi-word queries
       if (words.length > 1) {
         const scored = tasks.map(task => {
           let score = 0;
@@ -139,11 +139,11 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           const lowerDesc = task.description?.toLowerCase() || '';
           const lowerQuery = searchQuery.toLowerCase();
 
-          // 完全一致
+          
           if (lowerTitle.includes(lowerQuery)) score += 50;
           if (searchDescription === 'true' && lowerDesc.includes(lowerQuery)) score += 30;
 
-          // 個別ワード一致
+          
           for (const word of words) {
             if (lowerTitle.includes(word.toLowerCase())) score += 10;
             if (searchDescription === 'true' && lowerDesc.includes(word.toLowerCase())) score += 5;
@@ -386,7 +386,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           orderBy: { createdAt: 'desc' },
         }),
         prisma.task.count({ where: baseWhere }),
-        // 現在存在する全タスクのIDを取得（削除検出用）
+        // Get all current task IDs (for deletion detection)
         prisma.task.findMany({
           where: baseWhere,
           select: { id: true },
@@ -396,7 +396,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       return {
         tasks: updated,
         totalCount,
-        activeIds: allIds.map((t) => t.id), // 現在アクティブなタスクIDのリスト
+        activeIds: allIds.map((t) => t.id), // List of currently active task IDs
         since: sinceDate.toISOString(),
         incremental: true,
       };
@@ -529,7 +529,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     });
   })
 
-  // 重複サブタスクを削除（特定のタスク配下）
+  // Delete duplicate subtasks (under a specific task)
   .post('/:id/cleanup-duplicates', async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
@@ -554,7 +554,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     };
   })
 
-  // 全タスクの重複サブタスクを一括削除
+  // Bulk delete duplicate subtasks across all tasks
   .post('/cleanup-all-duplicates', async () => {
     const { deletedIds, affectedParents } = await cleanupAllDuplicateSubtasks(prisma);
     return {
@@ -570,7 +570,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     };
   })
 
-  // サブタスクの一括削除（特定のタスク配下のすべてのサブタスクを削除）
+  // Bulk delete all subtasks under a specific task
   .delete('/:id/subtasks', async (context) => {
     const { params } = context;
     const parentId = parseInt(params.id);
@@ -578,7 +578,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('無効なIDです');
     }
 
-    // 親タスクの存在確認
+    
     const parentTask = await prisma.task.findUnique({
       where: { id: parentId },
     });
@@ -587,7 +587,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('タスクが見つかりません');
     }
 
-    // サブタスクを取得して削除数を確認
+    
     const subtasks = await prisma.task.findMany({
       where: { parentId },
       select: { id: true },
@@ -595,7 +595,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
     const deletedCount = subtasks.length;
 
-    // 一括削除
+    
     await prisma.task.deleteMany({
       where: { parentId },
     });
@@ -612,7 +612,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     };
   })
 
-  // サブタスクの選択削除（指定されたIDのサブタスクを一括削除）
+  // Delete selected subtasks by ID
   .post(
     '/:id/subtasks/delete-selected',
     async ({ params, body }) => {
@@ -627,7 +627,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError('削除するサブタスクが指定されていません');
       }
 
-      // 親タスクの存在確認
+      
       const parentTask = await prisma.task.findUnique({
         where: { id: parentId },
       });
@@ -636,7 +636,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError('タスクが見つかりません');
       }
 
-      // 指定されたサブタスクが実際にこの親タスクに属しているか確認
+      // Verify subtasks belong to this parent
       const validSubtasks = await prisma.task.findMany({
         where: {
           id: { in: subtaskIds },
@@ -654,7 +654,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         );
       }
 
-      // 有効なサブタスクのみ削除
+      // Delete only valid subtasks
       const deleteResult = await prisma.task.deleteMany({
         where: {
           id: { in: validIds },

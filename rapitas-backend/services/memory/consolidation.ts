@@ -1,6 +1,8 @@
 /**
- * 知識固定化（Consolidation）
- * 24時間分のKnowledgeEntryをグループ化し、LLMで要約して統合エントリを作成
+ * Knowledge Consolidation
+ *
+ * Groups KnowledgeEntries from the last 24 hours by category + theme,
+ * then uses LLM to summarize and create consolidated entries.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -11,8 +13,11 @@ import { createContentHash } from './utils';
 const log = createLogger('memory:consolidation');
 
 /**
- * 固定化処理を実行
- * category + themeId でグループ化し、3件以上のグループをLLMで要約
+ * Run the consolidation process.
+ *
+ * Groups entries by category + themeId and summarizes groups with 3+ entries via LLM.
+ *
+ * @returns Run ID, processed/merged/created counts
  */
 export async function runConsolidation(): Promise<{
   runId: number;
@@ -32,7 +37,7 @@ export async function runConsolidation(): Promise<{
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // 24h以内のactiveエントリを取得
+    // Fetch active entries from the last 24 hours
     const entries = await prisma.knowledgeEntry.findMany({
       where: {
         createdAt: { gte: since },
@@ -42,7 +47,7 @@ export async function runConsolidation(): Promise<{
       orderBy: { createdAt: 'asc' },
     });
 
-    // category + themeId でグループ化
+    // Group by category + themeId
     const groups = new Map<string, typeof entries>();
     for (const entry of entries) {
       const key = `${entry.category}:${entry.themeId ?? 'null'}`;
@@ -64,7 +69,7 @@ export async function runConsolidation(): Promise<{
         const [category, themeIdStr] = key.split(':');
         const themeId = themeIdStr === 'null' ? null : parseInt(themeIdStr, 10);
 
-        // LLMで要約を生成
+        // Generate summary via LLM
         const entrySummaries = groupEntries
           .map((e, i) => `[${i + 1}] ${e.title}: ${e.content}`)
           .join('\n\n');
@@ -96,7 +101,7 @@ ${entrySummaries}
         const title = titleMatch?.[1]?.trim() ?? `Consolidated: ${category}`;
         const content = contentMatch?.[1]?.trim() ?? responseText;
 
-        // 統合エントリを作成
+        // Create the consolidated entry
         const consolidated = await prisma.knowledgeEntry.create({
           data: {
             sourceType: 'consolidated',
@@ -136,7 +141,7 @@ ${entrySummaries}
       }
     }
 
-    // 実行記録を更新
+    // Update the run record
     const durationMs = Date.now() - run.createdAt.getTime();
     await prisma.consolidationRun.update({
       where: { id: run.id },
@@ -183,7 +188,7 @@ ${entrySummaries}
 }
 
 /**
- * 固定化実行履歴を取得
+ * Retrieve consolidation run history.
  */
 export async function getConsolidationRuns(limit = 20) {
   return prisma.consolidationRun.findMany({

@@ -81,7 +81,7 @@ export default function SystemPromptsPage() {
       if (res.ok) {
         const data = await res.json();
         setPrompts(data);
-        // まだデータがない場合はシードを実行
+        // Seed defaults if no data exists yet
         if (data.length === 0) {
           await seedPrompts();
         }
@@ -179,7 +179,6 @@ export default function SystemPromptsPage() {
     return true;
   });
 
-  // カテゴリごとにグループ化
   const groupedPrompts = filteredPrompts.reduce(
     (acc, prompt) => {
       if (!acc[prompt.category]) {
@@ -198,7 +197,6 @@ export default function SystemPromptsPage() {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-3">
@@ -218,7 +216,6 @@ export default function SystemPromptsPage() {
           </button>
         </div>
 
-        {/* フィルター・検索 */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -257,7 +254,6 @@ export default function SystemPromptsPage() {
           </div>
         </div>
 
-        {/* プロンプト一覧 */}
         {Object.keys(groupedPrompts).length === 0 ? (
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <MessageSquare className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
@@ -316,7 +312,6 @@ export default function SystemPromptsPage() {
         )}
       </div>
 
-      {/* 追加モーダル */}
       {showAddModal && (
         <AddPromptModal
           onClose={() => setShowAddModal(false)}
@@ -384,7 +379,6 @@ function PromptCard({
           : 'border-zinc-200 dark:border-zinc-700 opacity-60'
       }`}
     >
-      {/* ヘッダー */}
       <div
         className="flex items-center justify-between p-4 cursor-pointer"
         onClick={() => !isEditing && onToggleExpand()}
@@ -425,7 +419,6 @@ function PromptCard({
           className="flex items-center gap-2 shrink-0 ml-3"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 有効/無効トグル */}
           <button
             onClick={onToggleActive}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -441,7 +434,6 @@ function PromptCard({
         </div>
       </div>
 
-      {/* 展開コンテンツ */}
       {isExpanded && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 p-4">
           {isEditing ? (
@@ -592,7 +584,7 @@ function AddPromptModal({
       return;
     }
 
-    // キーのバリデーション
+    // Validate key format
     if (!/^[a-z0-9_]+$/.test(key)) {
       setError(t('keyValidation'));
       return;

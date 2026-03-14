@@ -1,57 +1,57 @@
 /**
- * 実行コンテキスト・タスク定義
+ * Execution context and task definitions.
  */
 
 import type { TaskAnalysisResult, TaskConstraints } from './task-definition';
 
 /**
- * エージェント実行時のコンテキスト情報
+ * Context information for agent execution.
  */
 export interface AgentExecutionContext {
-  // 実行識別
-  executionId: string; // 実行ID
-  sessionId?: string; // セッションID（継続実行用）
-  parentExecutionId?: string; // 親実行ID（サブタスク用）
+  // Execution identification
+  executionId: string; 
+  sessionId?: string; 
+  parentExecutionId?: string; 
 
-  // 作業環境
-  workingDirectory: string; // 作業ディレクトリ
-  repositoryUrl?: string; // リポジトリURL
-  branch?: string; // ブランチ名
+  // Working environment
+  workingDirectory: string; 
+  repositoryUrl?: string; 
+  branch?: string; 
 
-  // 実行オプション
-  timeout?: number; // タイムアウト（ミリ秒）
-  maxRetries?: number; // 最大リトライ回数
+  // Execution options
+  timeout?: number; 
+  maxRetries?: number; 
   priority?: 'low' | 'normal' | 'high' | 'urgent';
 
-  // フラグ
-  dryRun?: boolean; // ドライラン（変更を実際には適用しない）
-  verbose?: boolean; // 詳細ログ出力
-  autoApprove?: boolean; // 自動承認
-  dangerouslySkipPermissions?: boolean; // パーミッションチェックをスキップ
+  // Flags
+  dryRun?: boolean; 
+  verbose?: boolean; 
+  autoApprove?: boolean; 
+  dangerouslySkipPermissions?: boolean; 
 
-  // メタデータ
+  // Metadata
   metadata?: Record<string, unknown>;
 }
 
 /**
- * タスク定義
+ * Task definition.
  */
 export interface AgentTaskDefinition {
-  // 基本情報
+  // Basic info
   id: string | number;
   title: string;
   description?: string;
 
-  // プロンプト
-  prompt?: string; // 直接プロンプト
-  optimizedPrompt?: string; // 最適化されたプロンプト
+  // Prompts
+  prompt?: string; 
+  optimizedPrompt?: string; 
 
-  // タスク分析情報
+  // Task analysis
   analysis?: TaskAnalysisResult;
 
-  // 依存関係
+  // Dependencies
   dependencies?: Array<string | number>;
 
-  // 制約
+  // Constraints
   constraints?: TaskConstraints;
 }

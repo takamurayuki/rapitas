@@ -238,7 +238,7 @@ AIOrchestra.getInstance()
     log.error({ err: error }, 'AI Orchestra startup recovery failed');
   });
 
-// Initialize Agent Worker Manager（エージェント実行を別プロセスで処理）
+// Initialize Agent Worker Manager for processing agent execution in separate processes
 workerManager.initialize().catch((error) => {
   log.error({ err: error }, 'Failed to initialize Agent Worker Manager');
 });
@@ -247,19 +247,19 @@ workerManager.initialize().catch((error) => {
 const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({
   port: PORT,
-  hostname: '0.0.0.0', // IPv4 only - IPv6ゾンビソケットの干渉を回避
-  idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
-  reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
+  hostname: '0.0.0.0', // IPv4 only - prevents IPv6 zombie socket interference
+  idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
+  reusePort: true, // allows binding even with TIME_WAIT zombie sockets
 });
 log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
 
-// サーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
+// Set server stop callback for proper port release during graceful shutdown
 setServerStopCallback(() => {
   app.stop();
 });
 
-// bun --watch からのシグナル処理（dev:simpleモード用）
-// SIGTERM/SIGINT受信時にSSE接続を即座に閉じてCLOSE_WAIT蓄積を防止
+// Signal handling from bun --watch (for dev:simple mode)
+// Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
 let isShuttingDown = false;
 const handleProcessSignal = async (signal: string) => {
   if (isShuttingDown) return;
@@ -267,14 +267,14 @@ const handleProcessSignal = async (signal: string) => {
 
   log.info(`Received ${signal}, initiating graceful shutdown...`);
 
-  // 強制終了タイマー（8秒後に強制終了）
+  // Force exit timer (force exit after 8 seconds)
   const forceExitTimer = setTimeout(() => {
     log.error('Graceful shutdown timeout, forcing exit...');
     process.exit(1);
   }, 8000);
 
   try {
-    // Step 1: まずリスニングソケットを閉じる（新規接続を拒否）
+    // Step 1: First close the listening socket (reject new connections)
     log.info('Step 1: Stopping listener (no new connections)...');
     try {
       app.stop();
@@ -295,14 +295,14 @@ const handleProcessSignal = async (signal: string) => {
     log.info('Step 1.6: Stopping memory system...');
     shutdownMemorySystem();
 
-    // Step 2: SSE接続を全て閉じる（既存接続のクリーンアップ）
+    // Step 2: Close all SSE connections (cleanup existing connections)
     log.info('Step 2: Closing SSE connections...');
     const clientCount = realtimeService.getClientCount();
     realtimeService.shutdown();
     log.info({ clientCount }, `Closed ${clientCount} SSE client(s).`);
 
-    // Step 3: 接続がドレインされるのを待つ
-    // TCPソケットが完全に閉じるまでに少し時間が必要
+    // Step 3: Wait for connections to drain
+    // Need some time for TCP sockets to close completely
     log.info('Step 3: Waiting for connections to drain...');
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -315,7 +315,7 @@ const handleProcessSignal = async (signal: string) => {
       // ignore if module not loaded
     }
 
-    // Step 4: Agent Worker Manager のシャットダウン
+    // Step 4: Shutdown Agent Worker Manager
     log.info('Step 4: Shutting down Agent Worker Manager...');
     try {
       await workerManager.gracefulShutdown();
@@ -324,7 +324,7 @@ const handleProcessSignal = async (signal: string) => {
       log.error({ err: error }, 'Error shutting down Agent Worker Manager');
     }
 
-    // Step 5: データベース接続を閉じる
+    // Step 5: Close database connection
     log.info('Step 5: Closing database connection...');
     try {
       await prisma.$disconnect();
@@ -335,7 +335,7 @@ const handleProcessSignal = async (signal: string) => {
 
     clearTimeout(forceExitTimer);
 
-    // TCPスタックがソケットを解放する時間を確保
+    // Give TCP stack time to release sockets
     log.info('Waiting for socket cleanup...');
     setTimeout(() => {
       log.info('Shutdown complete.');
@@ -354,10 +354,10 @@ process.on('SIGINT', () => handleProcessSignal('SIGINT'));
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
-  // ワーカープロセスが起動するまで待機
+  // Wait for worker process to start
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
-  // ワーカーが準備完了するまで追加の待機
+  // Additional wait until worker is ready
   let retries = 0;
   while (!workerManager.getIsWorkerReady() && retries < 20) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -387,7 +387,7 @@ const startupRecovery = async () => {
     try {
       const settings = await prisma.userSettings.findFirst();
       if (settings?.autoResumeInterruptedTasks) {
-        // 自動再開前にサーバーが安定するまで追加の待機
+        // Additional wait for server to stabilize before auto-resume
         log.info(
           { count: result.interruptedExecutionIds.length },
           `Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
@@ -430,8 +430,8 @@ const startupRecovery = async () => {
           .create({
             data: {
               type: 'agent_execution_resumed',
-              title: '自動再開完了',
-              message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
+              title: 'Auto-resume completed',
+              message: `After server restart, ${result.interruptedExecutionIds.length} interrupted tasks were automatically resumed.`,
               link: '/',
             },
           })

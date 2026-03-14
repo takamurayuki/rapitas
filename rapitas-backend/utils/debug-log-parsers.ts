@@ -1,11 +1,12 @@
 /**
- * 追加のログパーサー実装
- * Nginx、Apache Combined、Windows Event Log、カスタムフォーマット対応
+ * Additional Log Parser Implementations
+ *
+ * Supports Nginx, Apache Combined, Windows Event Log, and custom formats.
  */
 
 import { LogParser, LogType, LogLevel, ParsedLogEntry } from './debug-log-analyzer';
 
-// Nginxログパーサー
+// Nginx log parser
 export class NginxLogParser implements LogParser {
   type = LogType.NGINX;
 
@@ -83,7 +84,7 @@ export class NginxLogParser implements LogParser {
   }
 }
 
-// Apache Combined Logパーサー（Common Logの拡張）
+// Apache Combined Log parser (extension of Common Log)
 export class ApacheCombinedLogParser implements LogParser {
   type = LogType.APACHE_COMBINED;
 
@@ -160,7 +161,7 @@ export class ApacheCombinedLogParser implements LogParser {
   }
 }
 
-// Windows Event Logパーサー（簡易版）
+// Windows Event Log parser (simplified)
 export class WindowsEventLogParser implements LogParser {
   type = LogType.CUSTOM;
 
@@ -191,7 +192,7 @@ export class WindowsEventLogParser implements LogParser {
       };
     }
 
-    // Event[システムログ]形式
+    // Event[...] format
     const eventMatch = logLine.match(/Event\[([^\]]+)\]:\s*(.+)/);
     if (eventMatch) {
       const [, source, message] = eventMatch;
@@ -234,7 +235,7 @@ export class WindowsEventLogParser implements LogParser {
   }
 }
 
-// Dockerログパーサー
+// Docker log parser
 export class DockerLogParser implements LogParser {
   type = LogType.CUSTOM;
 
@@ -252,7 +253,7 @@ export class DockerLogParser implements LogParser {
   }
 
   parse(logLine: string): ParsedLogEntry | null {
-    // Docker JSONログ形式
+    // Docker JSON log format
     if (this.isDockerJsonLog(logLine)) {
       try {
         const json = JSON.parse(logLine);
@@ -274,7 +275,7 @@ export class DockerLogParser implements LogParser {
       }
     }
 
-    // Docker compose形式: container_name | message
+    // Docker compose format: container_name | message
     const composeMatch = logLine.match(/^([^\|]+)\s*\|\s*(.+)$/);
     if (composeMatch) {
       const [, container, message] = composeMatch;
@@ -305,7 +306,7 @@ export class DockerLogParser implements LogParser {
   }
 }
 
-// PostgreSQLログパーサー
+// PostgreSQL log parser
 export class PostgreSQLLogParser implements LogParser {
   type = LogType.CUSTOM;
 
@@ -363,7 +364,7 @@ export class PostgreSQLLogParser implements LogParser {
   }
 }
 
-// カスタムフォーマットパーサー（ユーザー定義可能）
+// Custom format parser (user-definable)
 export class CustomFormatParser implements LogParser {
   type = LogType.CUSTOM;
 
@@ -386,7 +387,7 @@ export class CustomFormatParser implements LogParser {
       metadata: {},
     };
 
-    // マッチしたグループを対応するフィールドにマップ
+    // Map matched groups to their corresponding fields
     match.slice(1).forEach((value, index) => {
       const fieldName = this.fieldMap.groups[index];
       if (!fieldName || !value) return;
@@ -413,12 +414,11 @@ export class CustomFormatParser implements LogParser {
   }
 
   private parseTimestamp(value: string, format?: string): Date {
-    // ISO8601形式の場合
     if (!format || format === 'ISO8601') {
       return new Date(value);
     }
 
-    // その他のフォーマットはそのままDateコンストラクタに渡す
+    // Fall back to the Date constructor for other formats
     return new Date(value);
   }
 
@@ -447,13 +447,13 @@ export class CustomFormatParser implements LogParser {
   }
 }
 
-// カスタムフィールドマッピング
+// Custom field mapping
 export interface CustomFieldMapping {
   groups: string[];
   timestampFormat?: string;
 }
 
-// Pythonログパーサー
+// Python log parser
 export class PythonLogParser implements LogParser {
   type = LogType.CUSTOM;
 
@@ -503,7 +503,7 @@ export class PythonLogParser implements LogParser {
   }
 }
 
-// パーサーファクトリー
+// Parser factory
 export class LogParserFactory {
   static createAllParsers(): LogParser[] {
     return [

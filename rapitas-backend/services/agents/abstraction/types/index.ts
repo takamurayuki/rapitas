@@ -1,8 +1,8 @@
 /**
- * AIエージェント抽象化レイヤー - 型定義エントリーポイント
+ * Agent Abstraction Layer - Type Definitions Entry Point
  */
 
-// エージェント基本型
+// Agent base types
 export type {
   AgentProviderId,
   AgentState,
@@ -10,13 +10,13 @@ export type {
   AgentMetadata,
 } from './agent-identification';
 
-// タスク定義
+// Task definitions
 export type { TaskAnalysisResult, SubtaskDefinition, TaskConstraints } from './task-definition';
 
-// 実行コンテキスト
+// Execution context
 export type { AgentExecutionContext, AgentTaskDefinition } from './execution-context';
 
-// 実行結果
+// Execution results
 export type {
   AgentExecutionResult,
   AgentArtifact,
@@ -29,7 +29,7 @@ export type {
   ToolCallInfo,
 } from './execution-result';
 
-// イベント
+// Events
 export type {
   AgentEventType,
   AgentEventBase,
@@ -47,7 +47,7 @@ export type {
   AgentEventHandler,
 } from './events';
 
-// プロバイダー設定
+// Provider config
 export type {
   AgentProviderConfigBase,
   ClaudeCodeProviderConfig,
@@ -58,10 +58,10 @@ export type {
   AgentProviderConfig,
 } from './provider-config';
 
-// ライフサイクル
+// Lifecycle
 export type { AgentLifecycleHooks } from './lifecycle-hooks';
 
-// ユーティリティ
+// Utilities
 export type {
   ContinuationContext,
   BatchExecutionOptions,

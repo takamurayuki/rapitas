@@ -1,6 +1,6 @@
-/* ノートエディタの拡張スタイル */
+/* Note editor enhanced styles */
 
-/* タグのアニメーション */
+/* Tag animation */
 .note-tag {
   animation: tagEnter 0.2s ease-out;
 }
@@ -16,7 +16,7 @@
   }
 }
 
-/* 保存インジケーターアニメーション */
+/* Save indicator animation */
 .save-indicator-enter {
   animation: saveIndicatorPulse 0.5s ease-out;
 }
@@ -35,13 +35,13 @@
   }
 }
 
-/* エディタのフォーカススタイル */
+/* Editor focus styles */
 .note-editor:focus-within {
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
   transition: box-shadow 0.2s ease-out;
 }
 
-/* 選択テキストのハイライト */
+/* Selected text highlights */
 .note-editor .highlight-yellow {
   background-color: #fef08a;
   padding: 0 2px;
@@ -78,7 +78,7 @@
   border-radius: 2px;
 }
 
-/* コードブロックスタイル */
+/* Code block styles */
 .note-editor pre {
   background-color: #f3f4f6;
   border: 1px solid #e5e7eb;
@@ -105,7 +105,7 @@
   background-color: #1f2937;
 }
 
-/* 引用ブロックスタイル */
+/* Quote block styles */
 .note-editor blockquote {
   border-left: 4px solid #6366f1;
   padding-left: 16px;

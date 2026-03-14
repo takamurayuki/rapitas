@@ -100,7 +100,7 @@ describe('GET /debug-logs/supported-types', () => {
     expect(body.types).toBeDefined();
     expect(Array.isArray(body.types)).toBe(true);
     expect(body.types.length).toBeGreaterThan(0);
-    // 各タイプにid, name, descriptionがあること
+    // Each type should have id, name, and description
     for (const type of body.types) {
       expect(type.id).toBeDefined();
       expect(type.name).toBeDefined();

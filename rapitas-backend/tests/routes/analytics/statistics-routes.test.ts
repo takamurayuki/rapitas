@@ -133,7 +133,7 @@ describe('GET /statistics/daily-study', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
-    // デフォルトは7日分
+    // Default is 7 days
     expect(body.length).toBe(7);
   });
 

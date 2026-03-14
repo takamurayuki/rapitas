@@ -10,7 +10,7 @@ export default function ApprovalDetailClient() {
   const id = params.id as string;
 
   useEffect(() => {
-    // /approvals ページにリダイレクトし、expandパラメータで該当IDを展開
+    // Redirect to /approvals page and expand the target ID via query param
     router.replace(`/approvals?expand=${id}`);
   }, [router, id]);
 

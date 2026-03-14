@@ -66,7 +66,7 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkBreaks]}
               components={{
-                // ヘッダー
+                // Headers
                 h1: ({ children }) => (
                   <h1 className="text-xl font-bold mt-4 mb-2 text-zinc-900 dark:text-zinc-100">
                     {children}
@@ -82,13 +82,13 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                     {children}
                   </h3>
                 ),
-                // パラグラフ
+                // Paragraphs
                 p: ({ children }) => (
                   <p className="mb-3 text-zinc-700 dark:text-zinc-300 leading-relaxed">
                     {children}
                   </p>
                 ),
-                // リスト
+                // Lists
                 ul: ({ children }) => (
                   <ul className="list-disc list-inside mb-3 space-y-1 text-zinc-700 dark:text-zinc-300">
                     {children}
@@ -104,7 +104,7 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                     <span className="ml-1">{children}</span>
                   </li>
                 ),
-                // コードブロック
+                // Code blocks
                 code: ({
                   inline,
                   className,
@@ -153,7 +153,7 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                           {codeString}
                         </SyntaxHighlighter>
                       </div>
-                      {/* コピーボタン */}
+                      {/* Copy button */}
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(codeString);
@@ -179,13 +179,13 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                   );
                 },
                 pre: ({ children }) => <>{children}</>,
-                // 引用
+                // Blockquotes
                 blockquote: ({ children }) => (
                   <blockquote className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 my-3 text-zinc-600 dark:text-zinc-400 italic">
                     {children}
                   </blockquote>
                 ),
-                // テーブル
+                // Tables
                 table: ({ children }) => (
                   <div className="overflow-x-auto mb-3">
                     <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -214,11 +214,11 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                     {children}
                   </td>
                 ),
-                // 水平線
+                // Horizontal rules
                 hr: () => (
                   <hr className="my-4 border-zinc-300 dark:border-zinc-600" />
                 ),
-                // リンク
+                // Links
                 a: ({ href, children }) => (
                   <a
                     href={href}
@@ -229,7 +229,7 @@ function ChatMessage({ message }: { message: AIChatMessage }) {
                     {children}
                   </a>
                 ),
-                // 強調
+                // Emphasis
                 strong: ({ children }) => (
                   <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
                     {children}
@@ -330,7 +330,7 @@ function AITabContent() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* AI設定バー */}
+      {/* AI settings bar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
         <div className="flex items-center gap-2">
           {configuredProviders.length > 0 && (
@@ -363,7 +363,7 @@ function AITabContent() {
         </div>
       </div>
 
-      {/* プロバイダー/モデル選択 */}
+      {/* Provider/model selection */}
       {showSettings && (
         <div className="px-3 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 space-y-3">
           <div>
@@ -436,7 +436,7 @@ function AITabContent() {
         </div>
       )}
 
-      {/* メッセージエリア */}
+      {/* Message area */}
       <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
@@ -474,7 +474,7 @@ function AITabContent() {
         )}
       </div>
 
-      {/* エラー表示 */}
+      {/* Error display */}
       {error && (
         <div className="px-3 py-2 border-t border-zinc-200 dark:border-zinc-700 bg-red-50 dark:bg-red-900/30">
           <div className="flex items-start gap-1.5 text-red-600 dark:text-red-400">
@@ -484,7 +484,7 @@ function AITabContent() {
         </div>
       )}
 
-      {/* 入力エリア */}
+      {/* Input area */}
       <div className="p-3 border-t border-zinc-200 dark:border-zinc-700">
         <div className="flex items-end gap-2">
           <textarea
@@ -517,7 +517,7 @@ function AITabContent() {
   );
 }
 
-/** ドラッグ/リサイズ中に背景を覆い、マウスイベントを奪うオーバーレイ */
+/** Overlay that covers the background during drag/resize to capture mouse events */
 function DragOverlay({ cursor }: { cursor: string }) {
   return (
     <div
@@ -570,17 +570,17 @@ export default function NoteModal() {
     sidebarTimerRef.current = setTimeout(() => setIsSidebarHovered(false), 200);
   };
 
-  // --- ドラッグ ---
+  // --- Drag handling ---
   const dragOriginRef = useRef({ x: 0, y: 0 });
-  const DRAG_THRESHOLD = 3; // px — この距離を超えて初めてドラッグ開始
+  const DRAG_THRESHOLD = 3; // px — drag starts only after exceeding this distance
   const rafRef = useRef<number | null>(null);
   const tempPositionRef = useRef({ x: 0, y: 0 });
 
   const handleDragStart = (e: React.MouseEvent) => {
-    // input, select, textareaなどのフォーム要素は除外（ヘッダー内の検索バー用）
+    // Exclude form elements like input, select, textarea (for search bar in header)
     if ((e.target as HTMLElement).closest('input, select, textarea')) return;
 
-    // マウスダウンイベントをマーク（クリック判定用）
+    // Mark mousedown event (for click detection)
     e.preventDefault();
     didDragRef.current = false;
     dragOriginRef.current = { x: e.clientX, y: e.clientY };
@@ -598,14 +598,14 @@ export default function NoteModal() {
 
     const onMove = (e: MouseEvent) => {
       if (isDragPending && !isDragging) {
-        // しきい値を超えたら実際にドラッグ開始（DragOverlay表示）
+        // Start actual drag when threshold exceeded (show DragOverlay)
         const dx = e.clientX - dragOriginRef.current.x;
         const dy = e.clientY - dragOriginRef.current.y;
         if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
           didDragRef.current = true;
           setIsDragPending(false);
           setIsDragging(true);
-          // モーダルにwill-changeを適用
+          // Apply will-change to modal
           if (modalRef.current) {
             modalRef.current.style.willChange = 'transform';
           }
@@ -614,7 +614,7 @@ export default function NoteModal() {
       }
       didDragRef.current = true;
 
-      // transformで即座に更新
+      // Update immediately with transform
       tempPositionRef.current = {
         x: e.clientX - dragStartRef.current.x,
         y: e.clientY - dragStartRef.current.y,
@@ -625,7 +625,7 @@ export default function NoteModal() {
         modalRef.current.style.top = `${tempPositionRef.current.y}px`;
       }
 
-      // requestAnimationFrameでstateを更新
+      // Update state with requestAnimationFrame
       if (rafRef.current === null) {
         rafRef.current = requestAnimationFrame(() => {
           setModalPosition(
@@ -640,18 +640,18 @@ export default function NoteModal() {
       setIsDragPending(false);
       setIsDragging(false);
 
-      // will-changeをリセット
+      // Reset will-change
       if (modalRef.current) {
         modalRef.current.style.willChange = 'auto';
       }
 
-      // rafをキャンセル
+      // Cancel raf
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
 
-      // 最終位置を確定
+      // Finalize position
       if (didDragRef.current && tempPositionRef.current) {
         setModalPosition(tempPositionRef.current.x, tempPositionRef.current.y);
       }
@@ -668,7 +668,7 @@ export default function NoteModal() {
     };
   }, [isDragging, isDragPending, setModalPosition, modalState.isMaximized]);
 
-  // --- リサイズ ---
+  // --- Resize handling ---
   const resizeRafRef = useRef<number | null>(null);
   const tempSizeRef = useRef({ width: 0, height: 0 });
 
@@ -685,7 +685,7 @@ export default function NoteModal() {
     tempSizeRef.current = { ...modalState.size };
     bringToFront();
 
-    // リサイズ中もwill-changeを適用
+    // Apply will-change during resize
     if (modalRef.current) {
       modalRef.current.style.willChange = 'width, height';
     }
@@ -700,13 +700,13 @@ export default function NoteModal() {
         height: Math.max(300, s.height + e.clientY - s.y),
       };
 
-      // 即座にスタイルを更新
+      // Update style immediately
       if (modalRef.current && !modalState.isMaximized) {
         modalRef.current.style.width = `${tempSizeRef.current.width}px`;
         modalRef.current.style.height = `${tempSizeRef.current.height}px`;
       }
 
-      // requestAnimationFrameでstateを更新
+      // Update state with requestAnimationFrame
       if (resizeRafRef.current === null) {
         resizeRafRef.current = requestAnimationFrame(() => {
           setModalSize(tempSizeRef.current.width, tempSizeRef.current.height);
@@ -717,18 +717,18 @@ export default function NoteModal() {
     const onUp = () => {
       setIsResizing(false);
 
-      // will-changeをリセット
+      // Reset will-change
       if (modalRef.current) {
         modalRef.current.style.willChange = 'auto';
       }
 
-      // rafをキャンセル
+      // Cancel raf
       if (resizeRafRef.current !== null) {
         cancelAnimationFrame(resizeRafRef.current);
         resizeRafRef.current = null;
       }
 
-      // 最終サイズを確定
+      // Finalize size
       if (tempSizeRef.current.width && tempSizeRef.current.height) {
         setModalSize(tempSizeRef.current.width, tempSizeRef.current.height);
       }
@@ -745,7 +745,7 @@ export default function NoteModal() {
     };
   }, [isResizing, setModalSize, modalState.isMaximized]);
 
-  // ショートカットキー
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -756,7 +756,7 @@ export default function NoteModal() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [closeModal]);
 
-  // モーダルが開かれたときに位置をセット
+  // Set position when modal is opened
   useEffect(() => {
     if (modalState.isOpen && modalRef.current && !modalState.isMaximized) {
       modalRef.current.style.left = `${modalState.position.x}px`;
@@ -773,7 +773,7 @@ export default function NoteModal() {
 
   if (!modalState.isOpen) return null;
 
-  // ─── 通常表示 ───
+  // ─── Normal display ───
   return (
     <>
       {(isDragging || isResizing) && (
@@ -809,7 +809,7 @@ export default function NoteModal() {
               }
         }
       >
-        {/* ヘッダー */}
+        {/* Header */}
         <div
           className={`relative h-12 bg-linear-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 flex items-center justify-between px-3 select-none ${
             modalState.isMaximized ? 'cursor-default' : 'cursor-move'
@@ -830,7 +830,7 @@ export default function NoteModal() {
               aria-controls="note-tab-panel"
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
-                // ドラッグ中はクリックイベントを無視
+                // Ignore click events during drag
                 if (didDragRef.current) {
                   e.preventDefault();
                   return;
@@ -852,7 +852,7 @@ export default function NoteModal() {
               aria-controls="ai-tab-panel"
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
-                // ドラッグ中はクリックイベントを無視
+                // Ignore click events during drag
                 if (didDragRef.current) {
                   e.preventDefault();
                   return;
@@ -870,7 +870,7 @@ export default function NoteModal() {
             </button>
           </div>
 
-          {/* 中央検索バー（ノートタブ時のみ） */}
+          {/* Center search bar (only for note tab) */}
           {activeTab === 'note' && (
             <div className="relative flex-1 flex items-center justify-center px-4">
               <div className="relative w-full max-w-xs">
@@ -890,14 +890,14 @@ export default function NoteModal() {
             </div>
           )}
 
-          {/* AIタブ時は右側に余白を確保 */}
+          {/* Reserve right margin for AI tab */}
           {activeTab === 'ai' && <div className="relative flex-1" />}
 
           <div className="relative flex items-center gap-1">
             <button
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
-                // ドラッグ中はクリックイベントを無視
+                // Ignore click events during drag
                 if (didDragRef.current) {
                   e.preventDefault();
                   return;
@@ -916,7 +916,7 @@ export default function NoteModal() {
             <button
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
-                // ドラッグ中はクリックイベントを無視
+                // Ignore click events during drag
                 if (didDragRef.current) {
                   e.preventDefault();
                   return;
@@ -931,7 +931,7 @@ export default function NoteModal() {
           </div>
         </div>
 
-        {/* コンテンツ */}
+        {/* Content */}
         <div
           className={`h-[calc(100%-48px)] ${
             isDragging || isResizing
@@ -941,13 +941,13 @@ export default function NoteModal() {
         >
           {activeTab === 'note' ? (
             <div className="relative flex h-full">
-              {/* ホバー展開サイドバー */}
+              {/* Hover-expandable sidebar */}
               <div
                 className="absolute left-0 top-0 h-full z-10"
                 onMouseEnter={handleSidebarEnter}
                 onMouseLeave={handleSidebarLeave}
               >
-                {/* ホバートリガー（常に表示される細い帯） */}
+                {/* Hover trigger (thin strip always visible) */}
                 <div
                   className={`h-full flex items-center transition-all duration-200 ${
                     isSidebarHovered ? 'w-0 opacity-0' : 'w-6 opacity-100'
@@ -957,7 +957,7 @@ export default function NoteModal() {
                     <PanelLeftOpen className="w-3.5 h-3.5 text-zinc-400" />
                   </div>
                 </div>
-                {/* 展開されるサイドバー */}
+                {/* Expandable sidebar */}
                 <div
                   className={`absolute left-0 top-0 h-full bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-700 shadow-xl transition-all duration-200 overflow-hidden ${
                     isSidebarHovered ? 'w-64 opacity-100' : 'w-0 opacity-0'
@@ -968,7 +968,7 @@ export default function NoteModal() {
                   </div>
                 </div>
               </div>
-              {/* エディター */}
+              {/* Editor */}
               <div className="flex-1 pl-6">
                 {currentNote ? (
                   <NoteEditor note={currentNote} />
@@ -996,7 +996,7 @@ export default function NoteModal() {
           )}
         </div>
 
-        {/* リサイズハンドル（最大化時は非表示） */}
+        {/* Resize handle (hidden when maximized) */}
         {!modalState.isMaximized && (
           <div
             className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"

@@ -10,39 +10,39 @@ export class BehaviorScheduler {
   private static intervalIds: NodeJS.Timeout[] = [];
 
   /**
-   * スケジューラーを開始
+   * Start scheduler
    */
   static start() {
     log.info('[BehaviorScheduler] Starting behavior summary update scheduler');
 
-    // 毎時0分に日次サマリーを更新
+    // Update daily summary at the top of every hour
     const dailyInterval = setInterval(async () => {
       const now = new Date();
       if (now.getMinutes() === 0) {
         log.info('[BehaviorScheduler] Updating daily behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'daily');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
-    // 毎日0時に週次サマリーを更新
+    // Update weekly summary at midnight daily
     const weeklyInterval = setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 0 && now.getMinutes() === 0) {
         log.info('[BehaviorScheduler] Updating weekly behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'weekly');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
-    // 毎月1日0時に月次サマリーを更新
+    // Update monthly summary at midnight on the 1st of each month
     const monthlyInterval = setInterval(async () => {
       const now = new Date();
       if (now.getDate() === 1 && now.getHours() === 0 && now.getMinutes() === 0) {
         log.info('[BehaviorScheduler] Updating monthly behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'monthly');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
-    // 毎日0時に知識固定化を実行
+    // Execute knowledge consolidation at midnight daily
     const consolidationInterval = setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 0 && now.getMinutes() === 0) {
@@ -53,7 +53,7 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
-    // 毎日2時に忘却スイープを実行
+    // Execute forgetting sweep at 2 AM daily
     const forgettingSweepInterval = setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 2 && now.getMinutes() === 0) {
@@ -64,7 +64,7 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
-    // 毎日9時にナレッジリマインドスキャンを実行
+    // Execute knowledge reminder scan at 9 AM daily
     const knowledgeReminderInterval = setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 9 && now.getMinutes() === 0) {
@@ -75,7 +75,7 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
-    // 毎日3時にワークフロー最適化ルールを生成
+    // Generate workflow optimization rules at 3 AM daily
     const workflowLearningInterval = setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 3 && now.getMinutes() === 0) {
@@ -96,12 +96,12 @@ export class BehaviorScheduler {
       workflowLearningInterval,
     );
 
-    // 初回実行（サーバー起動時）
+    // Initial execution (at server startup)
     this.runInitialUpdate();
   }
 
   /**
-   * 初回更新を実行
+   * Execute initial update
    */
   private static async runInitialUpdate() {
     log.info('[BehaviorScheduler] Running initial behavior summary update');
@@ -117,7 +117,7 @@ export class BehaviorScheduler {
   }
 
   /**
-   * スケジューラーを停止
+   * Stop scheduler
    */
   static stop() {
     log.info('[BehaviorScheduler] Stopping behavior summary update scheduler');

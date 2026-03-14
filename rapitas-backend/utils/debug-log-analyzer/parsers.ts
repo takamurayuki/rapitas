@@ -1,11 +1,11 @@
 /**
- * デバッグログ解析ツール - パーサー実装
- * 各種ログ形式のパーサークラスを定義
+ * Debug Log Analyzer - Parser Implementations
+ *
+ * Defines parser classes for JSON, Syslog, Apache Common Log, and Node.js log formats.
  */
 
 import { LogType, LogLevel, type ParsedLogEntry, type LogParser } from './types';
 
-// JSONログパーサー
 export class JSONLogParser implements LogParser {
   type = LogType.JSON;
 
@@ -62,7 +62,6 @@ export class JSONLogParser implements LogParser {
   }
 }
 
-// Syslogパーサー
 export class SyslogParser implements LogParser {
   type = LogType.SYSLOG;
 
@@ -118,7 +117,6 @@ export class SyslogParser implements LogParser {
   }
 }
 
-// Apache Common Logパーサー
 export class ApacheCommonLogParser implements LogParser {
   type = LogType.APACHE_COMMON;
 
@@ -193,7 +191,6 @@ export class ApacheCommonLogParser implements LogParser {
   }
 }
 
-// Node.jsログパーサー
 export class NodeJSLogParser implements LogParser {
   type = LogType.NODEJS;
 

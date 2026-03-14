@@ -1,5 +1,5 @@
 /**
- * AIプロバイダーAPIキー管理・認証情報
+ * AI Provider API Key Management and Authentication
  */
 import { prisma } from '../../config/database';
 import { decrypt } from '../encryption';
@@ -16,7 +16,7 @@ const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 const log = createLogger('ai-client:credentials');
 
 /**
- * APIキーの基本的な形式を検証
+ * Validate basic format of an API key.
  */
 export function isValidApiKeyFormat(apiKey: string, provider: AIProvider): boolean {
   const trimmed = apiKey.trim();
@@ -35,16 +35,16 @@ export function isValidApiKeyFormat(apiKey: string, provider: AIProvider): boole
 }
 
 /**
- * 指定プロバイダーのAPIキーをDBから取得・復号化
- * DBに保存されたキーを優先し、存在しない場合のみ環境変数にフォールバック
+ * Retrieve and decrypt the API key for the specified provider from the DB.
+ * DB-stored keys take priority; falls back to environment variables only if absent.
  */
 export async function getApiKeyForProvider(provider: AIProvider): Promise<string | null> {
-  // OllamaはAPIキー不要 - URLを返す
+  // Ollama does not require an API key - return URL instead
   if (provider === 'ollama') {
     return await getOllamaUrl();
   }
 
-  // まずDBから取得を試みる（ユーザーが設定画面で登録したキーを優先）
+  // Try DB first (prefer user-configured keys from settings UI)
   const settings = await prisma.userSettings.findFirst();
   if (settings) {
     const column = PROVIDER_KEY_COLUMNS[provider];
@@ -55,7 +55,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
         if (decrypted && isValidApiKeyFormat(decrypted, provider)) {
           return decrypted;
         }
-        // 復号できたが形式が不正な場合はログ出力して環境変数にフォールバック
+        // Decrypted but invalid format - log warning and fall back to env var
         log.warn(`DB stored ${provider} API key has invalid format, falling back to env var`);
       } catch (error) {
         log.warn(
@@ -69,7 +69,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
     }
   }
 
-  // DBにキーがない場合、Claude のみ環境変数にフォールバック
+  // If no key in DB, fall back to env var for Claude only
   if (provider === 'claude' && process.env.CLAUDE_API_KEY) {
     const envKey = process.env.CLAUDE_API_KEY;
     if (isValidApiKeyFormat(envKey, provider)) {
@@ -82,7 +82,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
 }
 
 /**
- * OllamaのURLをDBから取得
+ * Retrieve the Ollama URL from the DB.
  */
 export async function getOllamaUrl(): Promise<string> {
   const settings = await prisma.userSettings.findFirst();
@@ -90,7 +90,7 @@ export async function getOllamaUrl(): Promise<string> {
 }
 
 /**
- * 指定プロバイダーのデフォルトモデルをDBから取得
+ * Retrieve the default model for the specified provider from the DB.
  */
 export async function getDefaultModel(provider: AIProvider): Promise<string> {
   const settings = await prisma.userSettings.findFirst();
@@ -103,7 +103,7 @@ export async function getDefaultModel(provider: AIProvider): Promise<string> {
 }
 
 /**
- * ユーザーのデフォルトAIプロバイダーを取得
+ * Retrieve the user's default AI provider.
  */
 export async function getDefaultProvider(): Promise<AIProvider> {
   const settings = await prisma.userSettings.findFirst();
@@ -114,7 +114,7 @@ export async function getDefaultProvider(): Promise<AIProvider> {
 }
 
 /**
- * デフォルトプロバイダーのAPIキーが設定されているか確認
+ * Check whether an API key is configured for the default provider.
  */
 export async function isAnyApiKeyConfigured(): Promise<boolean> {
   const provider = await getDefaultProvider();
@@ -123,7 +123,7 @@ export async function isAnyApiKeyConfigured(): Promise<boolean> {
 }
 
 /**
- * どのプロバイダーが設定済みか返す
+ * Return the list of providers that have been configured.
  */
 export async function getConfiguredProviders(): Promise<AIProvider[]> {
   const providers: AIProvider[] = ['claude', 'chatgpt', 'gemini'];
@@ -132,7 +132,7 @@ export async function getConfiguredProviders(): Promise<AIProvider[]> {
     const key = await getApiKeyForProvider(p);
     if (key) configured.push(p);
   }
-  // Ollamaは常に利用可能（ローカルサーバーが起動していれば）
+  // Ollama is always available (if the local server is running)
   configured.push('ollama');
   return configured;
 }

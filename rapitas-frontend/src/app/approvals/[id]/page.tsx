@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import ApprovalDetailClient from './ApprovalDetailClient';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
-// 静的エクスポート用 - プレースホルダーIDを生成
+// NOTE: Required for static export — generates placeholder route params at build time.
 export async function generateStaticParams() {
   return [{ id: '_placeholder' }];
 }

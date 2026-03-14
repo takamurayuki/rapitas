@@ -15,13 +15,13 @@ export type ShortcutId =
 export type ShortcutBinding = {
   id: ShortcutId;
   label: string;
-  /** キー（例: "N", "D", "/"） */
+  /** Key (e.g. 'N', 'D', '/') */
   key: string;
-  /** Ctrl/Cmd を使用するか */
+  /** Whether to use Ctrl/Cmd */
   meta: boolean;
-  /** Shift を使用するか */
+  /** Whether to use Shift */
   shift: boolean;
-  /** Ctrl のみ（meta=false のとき） */
+  /** Ctrl only (when meta=false) */
   ctrl: boolean;
 };
 
@@ -106,7 +106,7 @@ interface ShortcutState {
   resetShortcut: (id: ShortcutId) => void;
   resetAll: () => void;
   getDefault: (id: ShortcutId) => ShortcutBinding | undefined;
-  /** 重複チェック: 指定 id 以外で同じキーバインドが存在するか */
+  /** Duplicate check: check if same key binding exists for other ids */
   findDuplicate: (
     id: ShortcutId,
     binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>,

@@ -1,23 +1,7 @@
 /**
  * AI Agent Main Router
- * 機能別ルーターを統合したメインエントリーポイント
  *
- * このファイルは以下の機能別ルーターを統合：
- * - agent-config-router: エージェント設定管理（一覧、デフォルト、トグル、スキーマ）
- * - agent-execution-router: タスク実行機能（実行、停止、応答、継続、リセット）
- * - agent-session-router: セッション管理（セッション詳細、停止、再開可能実行）
- * - agent-audit-router: 監査・ログ機能（監査ログ、実行ログ）
- * - agent-system-router: システム・診断機能（暗号化、診断、シャットダウン、再起動）
- *
- * 以下のルートはこのファイルに残留（将来のリファクタリング対象）：
- * - エージェントCRUD（作成、更新、取得、削除）
- * - APIキー管理
- * - 接続テスト
- * - エージェントタイプ・モデル取得
- * - 開発/レビューエージェント設定
- * - バリデーション
- * - 実行 acknowledge/resume
- * - 実行中タスク一覧
+ * Aggregates sub-routers and hosts legacy routes not yet migrated to dedicated modules.
  */
 import { Elysia, t } from 'elysia';
 import { prisma, getProjectRoot } from '../../config';
@@ -40,14 +24,12 @@ import {
 import { captureScreenshotsForDiff } from '../../services/screenshot-service';
 import type { ScreenshotResult } from '../../services/screenshot-service';
 
-// 機能別ルーターのインポート
 import { agentConfigRouter } from './agent-config-router';
 import { agentExecutionRouter } from './agent-execution-router';
 import { agentSessionRouter } from './agent-session-router';
 import { agentAuditRouter, taskExecutionLogsRouter } from './agent-audit-router';
 import { agentSystemRouter } from './agent-system-router';
 
-// Parallel executor instance
 let parallelExecutor: ParallelExecutor | null = null;
 function getParallelExecutor(): ParallelExecutor {
   if (!parallelExecutor) {
@@ -57,9 +39,6 @@ function getParallelExecutor(): ParallelExecutor {
 }
 
 export const aiAgentRoutes = new Elysia()
-  // ============================================================
-  // 機能別サブルーターの統合
-  // ============================================================
   .use(agentConfigRouter)
   .use(agentExecutionRouter)
   .use(agentSessionRouter)
@@ -67,11 +46,7 @@ export const aiAgentRoutes = new Elysia()
   .use(taskExecutionLogsRouter)
   .use(agentSystemRouter)
 
-  // ============================================================
-  // 以下: サブルーター未移行のルート（将来のリファクタリング対象）
-  // ============================================================
-
-  // Create agent configuration
+  // TODO: Migrate remaining routes below to dedicated sub-routers.
   .post(
     '/agents',
     async (context) => {
@@ -93,7 +68,6 @@ export const aiAgentRoutes = new Elysia()
         });
       }
 
-      // APIキーが提供された場合は暗号化して保存
       let apiKeyEncrypted: string | null = null;
       if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
@@ -116,7 +90,6 @@ export const aiAgentRoutes = new Elysia()
         },
       });
 
-      // 監査ログを記録
       await logAgentConfigChange({
         agentConfigId: created.id,
         action: 'create',
@@ -145,7 +118,6 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Update agent configuration
   .patch(
     '/agents/:id',
     async (context) => {
@@ -169,12 +141,10 @@ export const aiAgentRoutes = new Elysia()
         });
       }
 
-      // 更新前の値を取得
       const previous = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
       });
 
-      // APIキーの処理
       let apiKeyEncrypted: string | null | undefined = undefined;
       if (clearApiKey) {
         apiKeyEncrypted = null;
@@ -202,7 +172,6 @@ export const aiAgentRoutes = new Elysia()
         },
       });
 
-      // 監査ログを記録
       if (previous) {
         const changes = calculateChanges(
           {
@@ -265,7 +234,6 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Get single agent configuration with masked API key
   .get(
     '/agents/:id',
     async (context) => {
@@ -283,7 +251,6 @@ export const aiAgentRoutes = new Elysia()
         return { error: 'Agent not found' };
       }
 
-      // APIキーが設定されているかどうかと、マスクされた値を返す
       let maskedApiKey: string | null = null;
       let hasApiKey = false;
       if (agent.apiKeyEncrypted) {
@@ -301,9 +268,9 @@ export const aiAgentRoutes = new Elysia()
       return {
         ...agent,
         capabilities: fromJsonString(agent.capabilities) ?? {},
-        apiKeyEncrypted: undefined, // 暗号化されたキーは返さない
+        apiKeyEncrypted: undefined, // NOTE: Never expose the encrypted key to the client.
         maskedApiKey,
-        apiKeyMasked: maskedApiKey, // フロントエンド互換のフィールド名
+        apiKeyMasked: maskedApiKey, // NOTE: Alias kept for frontend backward compatibility.
         hasApiKey,
       };
     },
@@ -314,13 +281,11 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Delete agent configuration
   .delete(
     '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
 
-      // 削除前の値を取得
       const previous = await prisma.aIAgentConfig.findUnique({
         where: { id: parseInt(id) },
       });
@@ -330,7 +295,6 @@ export const aiAgentRoutes = new Elysia()
         data: { isActive: false },
       });
 
-      // 監査ログを記録
       if (previous) {
         await logAgentConfigChange({
           agentConfigId: parseInt(id),
@@ -352,7 +316,6 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Save API key for agent
   .post(
     '/agents/:id/api-key',
     async (context) => {
@@ -387,7 +350,6 @@ export const aiAgentRoutes = new Elysia()
         data: { apiKeyEncrypted },
       });
 
-      // 監査ログを記録
       await logAgentConfigChange({
         agentConfigId: parseInt(id),
         action: 'api_key_set',
@@ -412,7 +374,6 @@ export const aiAgentRoutes = new Elysia()
     },
   )
 
-  // Delete API key for agent
   .delete(
     '/agents/:id/api-key',
     async (context) => {
@@ -433,7 +394,7 @@ export const aiAgentRoutes = new Elysia()
         data: { apiKeyEncrypted: null },
       });
 
-      // 監査ログを記録
+      // Log audit record
       await logAgentConfigChange({
         agentConfigId: parseInt(id),
         action: 'api_key_delete',
@@ -520,7 +481,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'anthropic-api': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: 'APIキーが設定されていません' };
+              return { success: false, message: 'API key is not configured' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
@@ -539,7 +500,7 @@ export const aiAgentRoutes = new Elysia()
             });
 
             if (response.ok) {
-              return { success: true, message: 'Anthropic API接続成功' };
+              return { success: true, message: 'Anthropic API connection successful' };
             } else {
               const errorBody = await response.json().catch(() => ({}));
               const errorMessage =
@@ -555,7 +516,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'openai': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: 'APIキーが設定されていません' };
+              return { success: false, message: 'API key is not configured' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
@@ -609,7 +570,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'gemini': {
             if (!agent.apiKeyEncrypted) {
-              // Gemini CLIの場合はAPIキーなしでもCLI確認を実施
+              // Gemini CLI can be verified without an API key
               const { spawn } = await import('child_process');
               const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
               const cliResult = await new Promise<{
@@ -731,7 +692,7 @@ export const aiAgentRoutes = new Elysia()
             };
         }
       } catch (error) {
-        // 接続テスト失敗時も監査ログを記録
+        // Record audit log on connection test failure too
         await logAgentConfigChange({
           agentConfigId: parseInt(id),
           action: 'test_connection',
@@ -906,7 +867,7 @@ export const aiAgentRoutes = new Elysia()
 
     const errors: string[] = [];
 
-    // APIキーのバリデーション
+    // API key validation
     if (apiKey) {
       const apiKeyResult = validateApiKeyFormat(agentType, apiKey);
       if (!apiKeyResult.valid && apiKeyResult.message) {
@@ -914,7 +875,7 @@ export const aiAgentRoutes = new Elysia()
       }
     }
 
-    // 設定のバリデーション
+    
     const configResult = validateAgentConfig(agentType, {
       endpoint,
       modelId,
@@ -945,10 +906,9 @@ export const aiAgentRoutes = new Elysia()
       return { success: false, error: 'Agent not found' };
     }
 
-    // エージェントタイプに応じた接続テスト
     try {
       if (agent.agentType === 'claude-code') {
-        // Claude Code CLIは--versionで動作確認
+        // Claude Code CLI: verify with --version
         const { spawn } = await import('child_process');
         const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
@@ -998,7 +958,7 @@ export const aiAgentRoutes = new Elysia()
         };
       }
 
-      // APIキーを使用するエージェントタイプの場合
+      // Agent types that require an API key
       if (!agent.apiKeyEncrypted) {
         return {
           success: false,
@@ -1007,7 +967,7 @@ export const aiAgentRoutes = new Elysia()
         };
       }
 
-      // 将来のプロバイダー用のプレースホルダー
+      // Placeholder for future providers
       return {
         success: true,
         agentType: agent.agentType,
@@ -1041,7 +1001,7 @@ export const aiAgentRoutes = new Elysia()
       return { success: false, error: 'Execution is not interrupted' };
     }
 
-    // ステータスを「確認済み」として更新
+    // Update status to "acknowledged"
     await prisma.agentExecution.update({
       where: { id: executionId },
       data: {
@@ -1060,7 +1020,7 @@ export const aiAgentRoutes = new Elysia()
     const executionId = parseInt(params.id);
 
     try {
-      // 中断された実行を取得して情報を確認
+      // Get interrupted execution details
       const execution = await prisma.agentExecution.findUnique({
         where: { id: executionId },
         include: {
@@ -1105,11 +1065,11 @@ export const aiAgentRoutes = new Elysia()
 
       const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
-      // サブタスクの存在を確認（進行中のサブタスクのみ）
+      // Check for in-progress subtasks
       const subtasks = await prisma.task.findMany({
         where: {
           parentId: task.id,
-          status: 'in-progress', // 進行中のサブタスクのみ
+          status: 'in-progress',
         },
         orderBy: { id: 'asc' },
       });
@@ -1117,7 +1077,7 @@ export const aiAgentRoutes = new Elysia()
       const hasSubtasks = subtasks.length > 0;
       log.info(`[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`);
 
-      // 通知を作成
+      
       await prisma.notification.create({
         data: {
           type: 'agent_execution_resumed',
@@ -1133,16 +1093,16 @@ export const aiAgentRoutes = new Elysia()
         },
       });
 
-      // 進行中のサブタスクがある場合は並列実行
+      // Parallel execution if in-progress subtasks exist
       if (hasSubtasks) {
         log.info(
           `[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`,
         );
 
-        // 並列実行を開始
+        
         const executor = getParallelExecutor();
 
-        // サブタスクの依存関係を分析
+        // Analyze subtask dependencies
         const analysisResult = await executor.analyzeDependencies({
           parentTaskId: task.id,
           subtasks: subtasks.map((st: (typeof subtasks)[number]) => ({
@@ -1155,7 +1115,7 @@ export const aiAgentRoutes = new Elysia()
           })),
         });
 
-        // 非同期で並列実行を開始
+        // Start parallel execution asynchronously
         executor
           .startSession(
             task.id,
@@ -1189,7 +1149,6 @@ export const aiAgentRoutes = new Elysia()
         };
       }
 
-      // タスクのステータスを in-progress に更新
       await prisma.task.update({
         where: { id: task.id },
         data: {
@@ -1199,14 +1158,14 @@ export const aiAgentRoutes = new Elysia()
       });
       log.info(`[resume] Updated task ${task.id} status to 'in-progress'`);
 
-      // サブタスクがない場合は通常の再開
+      // Normal resume if no subtasks
       orchestrator
         .resumeInterruptedExecution(executionId, {
           timeout: body?.timeout || 900000,
         })
         .then(async (result) => {
           if (result.success && !result.waitingForInput) {
-            // ワークフローステータスに基づいてタスクステータスを決定
+            // Determine task status based on workflow status
             const currentTask = await prisma.task.findUnique({
               where: { id: task.id },
             });
@@ -1237,7 +1196,6 @@ export const aiAgentRoutes = new Elysia()
               );
             }
 
-            // セッションのステータスも完了に更新
             await prisma.agentSession
               .update({
                 where: { id: execution.sessionId },
@@ -1260,7 +1218,7 @@ export const aiAgentRoutes = new Elysia()
                 result.output || '再開した作業が完了しました。',
               );
 
-              // UI変更がある場合はスクリーンショットを撮影
+              // Capture screenshots when UI changes are detected
               let screenshots: ScreenshotResult[] = [];
               try {
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
@@ -1333,7 +1291,7 @@ export const aiAgentRoutes = new Elysia()
           } else if (result.waitingForInput) {
             log.info(`[resume] Task ${task.id} is waiting for input after resume`);
           } else {
-            // 失敗の場合はタスクステータスを todo に戻す
+            // Revert task status to todo on failure
             await prisma.task.update({
               where: { id: task.id },
               data: { status: 'todo' },

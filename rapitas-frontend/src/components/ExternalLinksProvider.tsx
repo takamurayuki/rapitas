@@ -8,32 +8,34 @@ interface ExternalLinksProviderProps {
 }
 
 /**
- * 外部リンクの分割表示処理をグローバルに適用するプロバイダー
- * ページ読み込み時と動的コンテンツ変更時に外部リンクハンドラーを設定
- * Escキーで分割表示を終了する機能も提供
+ * ExternalLinksProvider
+ *
+ * Globally applies split-view handling for external links.
+ * Sets up external link handlers on page load and dynamic content changes.
+ * Also provides Esc key to exit split view.
  */
 export default function ExternalLinksProvider({
   children,
 }: ExternalLinksProviderProps) {
-  // 分割表示の終了機能を有効化
+  // Enable split view exit functionality
   useSplitViewExit();
 
   useEffect(() => {
-    // 初期読み込み時にハンドラーを設定
+    // Set up handlers on initial load
     setupExternalLinkHandlers();
 
-    // デバウンス用のタイマー
+    // Debounce timer
     let debounceTimer: NodeJS.Timeout | null = null;
 
-    // MutationObserverを使って動的に追加されるリンクも監視
+    // Use MutationObserver to watch for dynamically added links
     const observer = new MutationObserver((mutations) => {
-      // リンクを含む可能性のある新しいノードがあるかチェック
+      // Check if any newly added nodes contain anchor tags
       const hasNewLinks = mutations.some((mutation) => {
         if (mutation.type !== 'childList' || mutation.addedNodes.length === 0) {
           return false;
         }
 
-        // 追加されたノードの中にaタグが含まれているかチェック
+        // Check added nodes for anchor elements
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as Element;
@@ -46,12 +48,12 @@ export default function ExternalLinksProvider({
       });
 
       if (hasNewLinks) {
-        // 既存のタイマーをクリア
+        // Clear existing timer
         if (debounceTimer) {
           clearTimeout(debounceTimer);
         }
 
-        // デバウンスして実行（短期間に複数回の変更があっても一度だけ実行）
+        // Debounce execution so multiple rapid DOM changes trigger only one handler call
         debounceTimer = setTimeout(() => {
           setupExternalLinkHandlers();
           debounceTimer = null;
@@ -59,13 +61,13 @@ export default function ExternalLinksProvider({
       }
     });
 
-    // DOM全体を監視
+    // Observe the entire DOM
     observer.observe(document.body, {
       childList: true,
       subtree: true,
     });
 
-    // クリーンアップ
+    // Cleanup
     return () => {
       observer.disconnect();
       if (debounceTimer) {

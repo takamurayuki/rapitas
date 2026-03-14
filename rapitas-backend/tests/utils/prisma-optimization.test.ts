@@ -1,6 +1,7 @@
 /**
- * Prisma Optimization テスト
- * クエリ最適化ユーティリティのテスト
+ * Prisma Optimization Test
+ *
+ * Tests for query optimization utilities.
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
@@ -271,7 +272,7 @@ describe('Advanced PrismaOptimizer Tests', () => {
       });
 
       expect(errorCount).toBe(1);
-      expect(processedCount).toBe(4); // 1,2 と 4,5 が処理される
+      expect(processedCount).toBe(4); // Batches [1,2] and [4,5] are processed
     });
 
     test('大量データのメモリ効率的な処理', async () => {
@@ -280,7 +281,7 @@ describe('Advanced PrismaOptimizer Tests', () => {
 
       await PrismaOptimizer.batchOperation(largeDataset, 100, async (batch) => {
         totalProcessed += batch.length;
-        // メモリリークを防ぐためのガベージコレクション推奨
+        // Recommend garbage collection to prevent memory leaks
         if (totalProcessed % 1000 === 0) {
           global.gc?.();
         }
@@ -305,7 +306,7 @@ describe('Advanced PrismaOptimizer Tests', () => {
       expect(result.fast).toBe('fast');
       expect(result.medium).toBe('medium');
       expect(result.slow).toBe('slow');
-      expect(totalTime).toBeLessThan(150); // 並列実行なので最も遅いクエリの時間程度
+      expect(totalTime).toBeLessThan(150); // Parallel execution should take ~slowest query time
     });
 
     test('クエリエラーを適切にハンドリングすること', async () => {
@@ -338,14 +339,14 @@ describe('Advanced PrismaOptimizer Tests', () => {
     });
 
     test('結果フォーマットで境界値を正しく処理すること', () => {
-      // ちょうどlimit数のアイテム
+      // Exactly limit items
       const exactItems = Array.from({ length: 10 }, (_, i) => ({ id: i + 1 }));
       const exactResult = PrismaOptimizer.formatCursorResults(exactItems, 10);
 
       expect(exactResult.hasNextPage).toBe(false);
       expect(exactResult.data).toHaveLength(10);
 
-      // limit + 1のアイテム
+      // limit + 1 items
       const overItems = Array.from({ length: 11 }, (_, i) => ({ id: i + 1 }));
       const overResult = PrismaOptimizer.formatCursorResults(overItems, 10);
 
@@ -370,11 +371,11 @@ describe('PrismaDataLoader 詳細テスト', () => {
       10,
     );
 
-    // 複数のIDを同時にロード
+    // Load multiple IDs concurrently
     const promises = ['1', '2', '3', '4', '5'].map((id) => loader.load(id));
     const results = await Promise.all(promises);
 
-    expect(batchLoadCalls).toBe(1); // 1回のバッチ呼び出しで全て処理
+    expect(batchLoadCalls).toBe(1); // All processed in a single batch call
     expect(results).toHaveLength(5);
     expect(results[0]?.value).toBe(2);
     expect(results[4]?.value).toBe(10);
@@ -396,12 +397,12 @@ describe('PrismaDataLoader 詳細テスト', () => {
     const firstLoad = await shortTTLLoader.load('test');
     expect(firstLoad?.name).toBe('item-test-1');
 
-    // TTL内での再ロード（キャッシュヒット）
+    // Reload within TTL (cache hit)
     const secondLoad = await shortTTLLoader.load('test');
     expect(secondLoad?.name).toBe('item-test-1');
     expect(loadCallCount).toBe(1);
 
-    // TTL経過後の再ロード
+    // Reload after TTL expires
     await new Promise((resolve) => setTimeout(resolve, 60));
     const thirdLoad = await shortTTLLoader.load('test');
     expect(thirdLoad?.name).toBe('item-test-2');
@@ -415,15 +416,15 @@ describe('PrismaDataLoader 詳細テスト', () => {
         ids.forEach((id) => map.set(id, { data: `data-${id}` }));
         return map;
       },
-      10000, // 10秒 TTL
-      3, // 最大3エントリ
+      10000, // 10s TTL
+      3, // Max 3 entries
     );
 
-    // キャッシュ容量を超える数のアイテムをロード
+    // Load more items than cache capacity
     await smallCacheLoader.load('1');
     await smallCacheLoader.load('2');
     await smallCacheLoader.load('3');
-    await smallCacheLoader.load('4'); // これで"1"がエビクションされるはず
+    await smallCacheLoader.load('4'); // This should evict "1" from cache
 
     expect(smallCacheLoader.getCacheSize()).toBe(3);
   });
@@ -437,7 +438,7 @@ describe('QueryOptimizers 拡張テスト', () => {
     expect(minimalResult.include).toBeDefined();
     expect(fullResult.include).toBeDefined();
 
-    // minimalの方がinclude項目が少ないはず
+    // Minimal should have fewer include items
     const minimalKeys = Object.keys(minimalResult.include);
     const fullKeys = Object.keys(fullResult.include);
     expect(minimalKeys.length).toBeLessThanOrEqual(fullKeys.length);
@@ -461,7 +462,7 @@ describe('QueryOptimizers 拡張テスト', () => {
     const adminResult = QueryOptimizers.userWithPreferences({ role: 'admin' });
     const userResult = QueryOptimizers.userWithPreferences({ role: 'user' });
 
-    // 管理者はより多くの情報にアクセスできるはず
+    // Admin should have access to more fields
     const adminSelectKeys = Object.keys(adminResult.select);
     const userSelectKeys = Object.keys(userResult.select);
 
@@ -470,7 +471,7 @@ describe('QueryOptimizers 拡張テスト', () => {
 
   test('projectWithStatsで期間ベースの統計を計算できること', () => {
     const thisMonth = new Date();
-    thisMonth.setDate(1); // 月初
+    thisMonth.setDate(1); // First of the month
 
     const statsResult = QueryOptimizers.projectWithStats({
       period: 'thisMonth',
@@ -492,7 +493,7 @@ describe('QueryOptimizers 拡張テスト', () => {
     expect(optimizedTaskQuery.take).toBe(50);
     expect(optimizedTaskQuery.select).toBeDefined();
 
-    // カウントクエリが無効になっていることを確認
+    // Verify count query is disabled
     expect(optimizedTaskQuery.include?._count).toBeUndefined();
   });
 });
@@ -521,27 +522,27 @@ describe('エラーハンドリングと堅牢性', () => {
 
     await PrismaOptimizer.batchOperation(
       items,
-      1000, // 適度なバッチサイズ
+      1000, // Reasonable batch size
       async (batch) => {
         processedBatches++;
-        totalMemoryUsed += batch.length * 1000; // 概算メモリ使用量
+        totalMemoryUsed += batch.length * 1000;
 
-        // メモリ使用量の監視（実際の実装では process.memoryUsage() を使用）
+        // Monitor memory usage (in real implementation, use process.memoryUsage())
         if (totalMemoryUsed > 50000000) {
-          // 50MB制限の例
+          // Example 50MB limit
           throw new Error('Memory limit exceeded');
         }
       },
     );
 
-    expect(processedBatches).toBe(100); // 100バッチ処理
+    expect(processedBatches).toBe(100); // 100 batches processed
   });
 
   test('並行処理での競合状態の回避', async () => {
     let sharedCounter = 0;
     const incrementPromises = [];
 
-    // 100個の並行処理でカウンタを増加
+    // Increment counter with 100 concurrent operations
     for (let i = 0; i < 100; i++) {
       incrementPromises.push(
         PrismaOptimizer.parallelQueries({
@@ -560,7 +561,7 @@ describe('エラーハンドリングと堅牢性', () => {
 
     await Promise.all(incrementPromises);
 
-    // 競合状態があるため、100に達しない可能性が高い
+    // Due to race conditions, it likely won't reach 100
     expect(sharedCounter).toBeLessThanOrEqual(100);
     expect(sharedCounter).toBeGreaterThan(0);
   });

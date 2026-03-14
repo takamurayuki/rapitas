@@ -1,5 +1,5 @@
 /**
- * ライフサイクルフック定義
+ * Lifecycle hook definitions.
  */
 
 import type { AgentState } from './agent-identification';
@@ -7,12 +7,12 @@ import type { AgentExecutionContext, AgentTaskDefinition } from './execution-con
 import type { AgentExecutionResult, AgentArtifact, PendingQuestion } from './execution-result';
 
 /**
- * ライフサイクルフック定義
+ * Lifecycle hooks.
  */
 export interface AgentLifecycleHooks {
   /**
-   * 実行開始前に呼び出される
-   * falseを返すと実行をキャンセル
+   * Called before execution starts.
+   * Return false to cancel execution.
    */
   beforeExecute?: (
     context: AgentExecutionContext,
@@ -20,13 +20,13 @@ export interface AgentLifecycleHooks {
   ) => Promise<boolean | void>;
 
   /**
-   * 実行完了後に呼び出される
+   * Called after execution completes.
    */
   afterExecute?: (context: AgentExecutionContext, result: AgentExecutionResult) => Promise<void>;
 
   /**
-   * エラー発生時に呼び出される
-   * 戻り値でリトライするかを制御
+   * Called on error.
+   * Return value controls retry behavior.
    */
   onError?: (
     context: AgentExecutionContext,
@@ -35,8 +35,8 @@ export interface AgentLifecycleHooks {
   ) => Promise<{ retry: boolean; delay?: number }>;
 
   /**
-   * 質問発生時に呼び出される
-   * 自動応答を返すか、nullでユーザー入力を待つ
+   * Called when a question is generated.
+   * Return a string for auto-response, or null to wait for user input.
    */
   onQuestion?: (
     context: AgentExecutionContext,
@@ -44,7 +44,7 @@ export interface AgentLifecycleHooks {
   ) => Promise<string | null>;
 
   /**
-   * 状態変更時に呼び出される
+   * Called on state change.
    */
   onStateChange?: (
     context: AgentExecutionContext,
@@ -53,8 +53,8 @@ export interface AgentLifecycleHooks {
   ) => Promise<void>;
 
   /**
-   * ツール実行前に呼び出される
-   * falseを返すとツール実行をスキップ
+   * Called before tool execution.
+   * Return false to skip the tool call.
    */
   beforeToolCall?: (
     context: AgentExecutionContext,
@@ -63,7 +63,7 @@ export interface AgentLifecycleHooks {
   ) => Promise<boolean | void>;
 
   /**
-   * ツール実行後に呼び出される
+   * Called after tool execution.
    */
   afterToolCall?: (
     context: AgentExecutionContext,
@@ -74,12 +74,12 @@ export interface AgentLifecycleHooks {
   ) => Promise<void>;
 
   /**
-   * 成果物生成時に呼び出される
+   * Called when an artifact is generated.
    */
   onArtifact?: (context: AgentExecutionContext, artifact: AgentArtifact) => Promise<void>;
 
   /**
-   * シャットダウン時に呼び出される
+   * Called on shutdown.
    */
   onShutdown?: (
     context: AgentExecutionContext,

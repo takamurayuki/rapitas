@@ -91,7 +91,7 @@ export const commentsRoutes = new Elysia()
 
       const { content, parentId } = body;
 
-      // 親コメントが指定されている場合、存在確認
+      // Validate parent comment exists if specified
       if (parentId !== undefined) {
         const parentComment = await prisma.comment.findUnique({
           where: { id: parentId },

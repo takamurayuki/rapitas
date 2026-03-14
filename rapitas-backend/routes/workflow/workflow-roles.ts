@@ -1,6 +1,6 @@
 /**
  * Workflow Roles Routes
- * ワークフローの各フェーズ（調査・計画・レビュー・実装・検証）に割り当てるAIエージェントのロール設定API
+ * AI agent role configuration for each workflow phase (research, plan, review, implement, verify)
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../config';
@@ -25,7 +25,7 @@ const DEFAULT_PROMPT_KEYS: Record<WorkflowRole, string> = {
 };
 
 /**
- * 未作成のロールをデフォルト値で初期化する
+ * Initialize missing roles with default values.
  */
 async function ensureRolesExist() {
   const existing = await prisma.workflowRoleConfig.findMany({
@@ -47,7 +47,7 @@ async function ensureRolesExist() {
 }
 
 export const workflowRolesRoutes = new Elysia()
-  // 全ロール設定を取得
+  
   .get('/workflow-roles', async () => {
     await ensureRolesExist();
 
@@ -66,7 +66,7 @@ export const workflowRolesRoutes = new Elysia()
       orderBy: { id: 'asc' },
     });
 
-    // ロール順序を保証
+    // Ensure role ordering
     const roleOrder: WorkflowRole[] = [
       'researcher',
       'planner',
@@ -80,7 +80,7 @@ export const workflowRolesRoutes = new Elysia()
     return sorted;
   })
 
-  // 特定ロールの設定を取得
+  
   .get('/workflow-roles/:role', async ({ params, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {
@@ -113,7 +113,7 @@ export const workflowRolesRoutes = new Elysia()
     return config;
   })
 
-  // ロール設定を更新
+  
   .put('/workflow-roles/:role', async ({ params, body, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {
@@ -131,7 +131,7 @@ export const workflowRolesRoutes = new Elysia()
       metadata?: string;
     };
 
-    // agentConfigIdが指定された場合、存在確認
+    // Check existence when agentConfigId is specified
     if (agentConfigId !== undefined && agentConfigId !== null) {
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: agentConfigId },
@@ -146,7 +146,7 @@ export const workflowRolesRoutes = new Elysia()
       }
     }
 
-    // systemPromptKeyが指定された場合、存在確認
+    // Check existence when systemPromptKey is specified
     if (systemPromptKey !== undefined && systemPromptKey !== null) {
       const prompt = await prisma.systemPrompt.findUnique({
         where: { key: systemPromptKey },
@@ -183,7 +183,7 @@ export const workflowRolesRoutes = new Elysia()
     return updated;
   })
 
-  // 全ロールをデフォルトにリセット
+  // Reset all roles to defaults
   .post('/workflow-roles/initialize', async () => {
     await ensureRolesExist();
 

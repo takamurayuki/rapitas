@@ -142,14 +142,14 @@ type Props = {
   } | null>;
   onStopExecution?: () => void;
   onExecutionComplete?: () => void;
-  // 並列実行関連
+  // Parallel execution
   subtasks?: Task[];
   onStartParallelExecution?: (config?: {
     maxConcurrentAgents?: number;
   }) => Promise<string | null>;
   isParallelExecutionRunning?: boolean;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
-  // 並列実行ログ関連
+  // Parallel execution logs
   parallelSessionId?: string | null;
   subtaskLogs?: Map<
     number,
@@ -196,12 +196,12 @@ export function AIAccordionPanel({
   onRestoreExecutionState,
   onStopExecution,
   onExecutionComplete,
-  // 並列実行関連
+  // Parallel execution
   subtasks,
   onStartParallelExecution,
   isParallelExecutionRunning,
   getSubtaskStatus,
-  // 並列実行ログ関連
+  // Parallel execution logs
   parallelSessionId,
   subtaskLogs,
   onRefreshSubtaskLogs,
@@ -211,7 +211,7 @@ export function AIAccordionPanel({
   const [expandedSection, setExpandedSection] =
     useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>('subtasks');
-  // 分析パネルの状態
+  // Analysis panel state
   const [selectedSubtasks, setSelectedSubtasks] = useState<number[]>([]);
   const [isCreatingSubtasks, setIsCreatingSubtasks] = useState(false);
   const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
@@ -224,7 +224,7 @@ export function AIAccordionPanel({
   >({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
-  // 実行パネルの状態
+  // Execution panel state
   const [showLogs, setShowLogs] = useState(true);
   const [instruction, setInstruction] = useState('');
   const [branchName, setBranchName] = useState('');
@@ -237,9 +237,9 @@ export function AIAccordionPanel({
   const prevTaskIdRef = useRef(taskId);
   const [continueInstruction, setContinueInstruction] = useState('');
   const previousLogsLengthRef = useRef(0);
-  // 実行履歴とタブ表示機能を削除
+  // Execution history and tab display features removed
 
-  // SSEベースのリアルタイムログ取得
+  // SSE-based real-time log retrieval
   const {
     logs: sseLogs,
     status: sseStatus,
@@ -249,7 +249,7 @@ export function AIAccordionPanel({
     clearLogs: clearSseLogs,
   } = useExecutionStream(sessionId);
 
-  // ポーリングベースのログ取得
+  // Polling-based log retrieval
   const {
     logs: pollingLogs,
     status: pollingStatus,
@@ -275,7 +275,7 @@ export function AIAccordionPanel({
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
 
-  // taskId変更時に状態をリセットし、復元を再トリガーする
+  // Reset state and re-trigger restoration when taskId changes
   useEffect(() => {
     if (prevTaskIdRef.current !== taskId) {
       prevTaskIdRef.current = taskId;
@@ -293,7 +293,7 @@ export function AIAccordionPanel({
     setExpandedSection((prev) => (prev === section ? null : section));
   };
 
-  // プロンプト生成
+  // Prompt generation
   const generatePrompt = useCallback(
     async (clarificationAnswers?: Record<string, string>) => {
       setIsGeneratingPrompt(true);
@@ -331,11 +331,11 @@ export function AIAccordionPanel({
     [taskId, onPromptGenerated],
   );
 
-  // 質問への回答を送信
+  // Submit answers to clarification questions
   const handleSubmitAnswers = useCallback(async () => {
     if (!promptResult?.clarificationQuestions) return;
 
-    // 必須質問の回答チェック
+    // Check that all required questions are answered
     const requiredQuestions = promptResult.clarificationQuestions.filter(
       (q) => q.isRequired,
     );
@@ -350,7 +350,7 @@ export function AIAccordionPanel({
     setIsSubmittingAnswers(true);
     setPromptError(null);
 
-    // 質問IDをキーにした回答を質問テキストをキーにした回答に変換
+    // Convert answers from question-ID-keyed to question-text-keyed format
     const clarificationAnswers: Record<string, string> = {};
     promptResult.clarificationQuestions.forEach((q) => {
       if (questionAnswers[q.id]) {
@@ -366,7 +366,7 @@ export function AIAccordionPanel({
     }
   }, [promptResult, questionAnswers, generatePrompt]);
 
-  // カテゴリラベル取得
+  // Get category label
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
       scope: 'スコープ',
@@ -394,11 +394,11 @@ export function AIAccordionPanel({
     }
   }, [promptResult, onPromptGenerated]);
 
-  // マウント時に実行状態を復元
+  // Restore execution state on mount
   useEffect(() => {
     const restoreState = async () => {
       if (hasRestoredRef.current || !onRestoreExecutionState) return;
-      // 外部で既に実行が開始されている場合はスキップ（autoExecuteとの競合防止）
+      // Skip if already executing externally (prevents conflict with autoExecute)
       if (isExecuting) return;
       if (sessionId || executionResult?.sessionId) return;
 
@@ -414,14 +414,14 @@ export function AIAccordionPanel({
             restoredState.status === 'running' ||
             restoredState.status === 'waiting_for_input'
           ) {
-            // 実行中の場合：ログを復元してポーリングを開始
+            // Running: restore logs and start polling
             startPolling({
               initialOutput: restoredState.output,
               preserveLogs: false,
             });
           } else if (restoredState.output) {
-            // 中断/完了/失敗：ログだけ表示（ポーリング不要）
-            // startPollingでログを設定し、初回pollで終了ステータスを検出して自動停止
+            // Interrupted/completed/failed: display logs only (no polling needed).
+            // startPolling sets logs; the first poll detects terminal status and auto-stops.
             startPolling({
               initialOutput: restoredState.output,
               preserveLogs: false,
@@ -432,7 +432,7 @@ export function AIAccordionPanel({
           setExpandedSection('execution');
         }
       } catch (err) {
-        // 復元失敗
+        // Restoration failed
       } finally {
         setIsRestoring(false);
       }
@@ -441,24 +441,29 @@ export function AIAccordionPanel({
     restoreState();
   }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 実行開始時（復元ではなく新規実行の場合のみ）
+  // On execution start (new execution only, not restoration)
   const executionSessionId = executionResult?.sessionId;
   const executionOutput = executionResult?.output;
 
   useEffect(() => {
-    // 復元処理中 or 復元直後は、restore ロジック内で既にstartPollingを呼んでいるためスキップ
+    // Skip during/after restoration — startPolling is already called in the restore logic
     if (isRestoring) return;
     if (executionSessionId) {
       setSessionId(executionSessionId);
-      // まだポーリングが開始されていない場合のみ開始
+      // Start polling only if not already running
       if (!isPollingRunning) {
         if (executionOutput) {
           startPolling({
             initialOutput: executionOutput,
             preserveLogs: false,
+            // NOTE: New executions take time to create in the worker, so set a grace period
+            // to ignore the previous completed execution's terminal status
+            terminalGraceMs: 5000,
           });
         } else {
-          startPolling();
+          // NOTE: On new execution start, ignore previous completed execution's terminal
+          // status until the worker creates a new DB execution
+          startPolling({ terminalGraceMs: 5000 });
         }
       }
       setExpandedSection('execution');
@@ -473,14 +478,16 @@ export function AIAccordionPanel({
 
   useEffect(() => {
     if (isExecuting && !isPollingRunning && !isRestoring) {
-      startPolling();
+      // NOTE: On new execution start, ignore previous completed execution's terminal
+      // status until the worker creates a new DB execution
+      startPolling({ terminalGraceMs: 5000 });
     }
   }, [isExecuting, isPollingRunning, startPolling, isRestoring]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  // Update parent component once when polling status becomes terminal (completed/failed/cancelled)
   const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
-    // 同じ terminal ステータスを二度処理しない
+    // Prevent processing the same terminal status twice
     if (handledTerminalStatusRef.current === pollingStatus) return;
 
     if (pollingStatus === 'completed') {
@@ -492,7 +499,7 @@ export function AIAccordionPanel({
       onStopExecution?.();
       removeExecutingTask(taskId);
     } else {
-      // running / waiting_for_input 等に戻ったらリセット
+      // Reset when returning to running / waiting_for_input
       handledTerminalStatusRef.current = null;
     }
   }, [
@@ -503,13 +510,13 @@ export function AIAccordionPanel({
     taskId,
   ]);
 
-  // サブタスクが存在するかどうか
+  // Whether subtasks exist
   const hasSubtasks = subtasks && subtasks.length > 0;
 
   const handleExecute = async () => {
     clearLogs();
 
-    // サブタスクがある場合は並列実行
+    // Use parallel execution when subtasks are present
     if (hasSubtasks && onStartParallelExecution) {
       const parallelSessionId = await onStartParallelExecution();
       if (parallelSessionId) {
@@ -519,8 +526,7 @@ export function AIAccordionPanel({
       return;
     }
 
-    // サブタスクがない場合は通常実行
-    // ファイルリソースを添付情報として送信
+    // Standard execution when no subtasks exist; send file resources as attachments
     const fileResources = resources?.filter(
       (r) =>
         r.filePath ||
@@ -587,7 +593,7 @@ export function AIAccordionPanel({
     }
   };
 
-  // 送信中のリクエストIDを追跡（重複送信防止）
+  // Track in-flight request to prevent duplicate submissions
   const sendingResponseRef = useRef(false);
 
   const handleSendResponse = async () => {
@@ -595,7 +601,7 @@ export function AIAccordionPanel({
     if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
       return;
 
-    // 即座にrefをセットして重複送信を防止
+    // Immediately set ref to prevent duplicate submissions
     sendingResponseRef.current = true;
     setIsSendingResponse(true);
 
@@ -610,16 +616,16 @@ export function AIAccordionPanel({
       });
 
       if (res.ok) {
-        // API成功後に質問UIをクリア（楽観的UI更新を廃止し、確認後にクリア）
+        // Clear question UI after API success (no optimistic updates)
         clearPollingQuestion();
       } else {
-        // エラー時は質問を復元（ユーザーが再試行できるように）
+        // Restore question on error so the user can retry
         logger.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
       logger.error('Error sending response:', error);
-      // エラー時は回答を復元
+      // Restore response on error
       setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
@@ -656,67 +662,61 @@ export function AIAccordionPanel({
     onReset();
   };
 
-  // リセット後に実行を開始する
+  // Re-run execution after reset
   const handleRerunExecution = async () => {
     handleReset();
-    // リセット後に実行を開始
     await handleExecute();
   };
 
-  // 継続実行のハンドラー
+  // Continue execution handler
   const handleContinueExecution = async () => {
     if (!continueInstruction.trim() || !sessionId) return;
 
-    // 前回の実行内容をサマリーとして追加
+    // Append previous execution summary as context
     const previousSummary = `\n【前回の実施内容】\n${logs.slice(-30).join('')}\n\n【追加指示】\n`;
     const fullInstruction = previousSummary + continueInstruction.trim();
 
-    // 継続実行の開始
+    // Start continued execution
     const result = await onExecute({
       instruction: fullInstruction,
       branchName: branchName.trim() || undefined,
-      useTaskAnalysis: false, // 継続実行時は分析結果は使わない
+      useTaskAnalysis: false, // Don't use analysis results for continuation
       agentConfigId: agentConfigId ?? undefined,
-      sessionId: sessionId, // 既存のセッションIDを使って継続
+      sessionId: sessionId, // Continue with existing session ID
     });
 
     if (result?.sessionId) {
-      // 入力欄をクリア
       setContinueInstruction('');
-      // ログ表示を継続
       setShowLogs(true);
       setExpandedSection('execution');
-      // 旧ポーリングを停止して残留ステータスをクリア
+      // Stop old polling and clear stale status
       stopPolling();
-      // 既存のセッションIDで実行を再開
       setSessionId(result.sessionId);
-      // ポーリングを即座に再開（ログを保持）
-      // startPolling内で即座にstatus='running'を設定し、旧completedステータスを上書きする
-      // terminalGraceMs(デフォルト2000ms)がバックエンドの処理開始を待つ
+      // Restart polling immediately (preserve logs).
+      // startPolling sets status='running' immediately, overwriting old completed status.
+      // terminalGraceMs (default 2000ms) waits for the backend to start processing.
       startPolling({
         preserveLogs: true,
       });
     }
   };
 
-  // 質問検出（APIからのステータスのみを使用、パターンマッチングは廃止）
-  // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
+  // Question detection (API status only — pattern matching removed).
+  // Only recognize questions when the AI agent calls the AskUserQuestion tool.
   const { hasQuestion, question, questionType } = useMemo(() => {
-    // APIから質問待ち状態が返されている場合のみ質問として認識
-    // pollingWaitingForInputはDBのstatus === "waiting_for_input"を反映
-    // pollingQuestionTypeはAIエージェントからのAskUserQuestionツール呼び出しを反映
+    // NOTE: pollingWaitingForInput reflects DB status === "waiting_for_input"
+    // pollingQuestionType reflects the AskUserQuestion tool call from the AI agent
     if (pollingWaitingForInput && pollingQuestion) {
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        // tool_callの場合のみ質問として認識、それ以外はnone
+        // Only tool_call is treated as a question; all others are "none"
         questionType:
           pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
 
-    // APIから質問状態が返されていない場合は質問なし
-    // パターンマッチングによるフォールバックは削除
+    // No question when API does not report waiting state (pattern matching fallback removed)
     return { hasQuestion: false, question: '', questionType: 'none' as const };
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
@@ -727,8 +727,8 @@ export function AIAccordionPanel({
     sseStatus === 'completed' ||
     sseStatus === 'failed' ||
     sseStatus === 'cancelled';
-  // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
-  // hasQuestion（旧パターンマッチング結果）は判定に使用しない
+  // NOTE: Only uses explicit agent status (DB status, API waitingForInput).
+  // hasQuestion (legacy pattern matching result) is not used for determination.
   const isWaitingForInput =
     !isTerminalStatus &&
     (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
@@ -739,13 +739,13 @@ export function AIAccordionPanel({
       : pollingStatus !== 'idle'
         ? pollingStatus
         : executionStatus;
-  // 完了判定: ステータスが完了であれば完了とみなす（ポーリング状態に依存しない）
+  // Completion check: treat as completed when status is completed (independent of polling)
   const isCompleted = finalStatus === 'completed' && !isWaitingForInput;
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
     !isCompleted &&
     (finalStatus === 'failed' || executionError || pollingError || sseError);
-  // 中断判定: 復元した実行が interrupted だった場合（ログがあり、executionResultがある）
+  // Interruption check: restored execution that was interrupted (has logs and executionResult)
   const isInterrupted =
     !isCompleted &&
     !isFailed &&
@@ -756,7 +756,7 @@ export function AIAccordionPanel({
     !isPollingRunning &&
     !isSseRunning &&
     finalStatus === 'idle';
-  // 実行中判定: 終了ステータスの場合は実行中ではない（並列実行も含む）
+  // Running check: not running if in terminal status (includes parallel execution)
   const isRunning =
     !isTerminalStatus &&
     !isInterrupted &&
@@ -776,7 +776,7 @@ export function AIAccordionPanel({
     return 'idle';
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
-  // ステータス計算
+  // Status computation
   const getAnalysisStatus = () => {
     if (isAnalyzing || isGeneratingPrompt) return 'loading';
     if (analysisError || promptError) return 'error';
@@ -802,7 +802,7 @@ export function AIAccordionPanel({
       role="region"
       aria-label="AI アシスタントパネル"
     >
-      {/* メインヘッダー */}
+      {/* Main header */}
       <div className="px-4 py-3 bg-linear-to-r from-violet-50 via-indigo-50 to-purple-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-violet-100 dark:bg-violet-900/40 rounded-lg">
@@ -816,7 +816,7 @@ export function AIAccordionPanel({
               分析・最適化・自動実装
             </p>
           </div>
-          {/* ステータスバッジ */}
+          {/* Status badge */}
           <div className="flex items-center gap-1.5">
             {optimizedPrompt && (
               <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-[10px] font-medium">
@@ -830,7 +830,7 @@ export function AIAccordionPanel({
                 <span className="hidden sm:inline">分析完了</span>
               </span>
             )}
-            {/* 設定ボタン */}
+            {/* Settings button */}
             <button
               onClick={onOpenSettings}
               className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
@@ -843,7 +843,7 @@ export function AIAccordionPanel({
         </div>
       </div>
 
-      {/* タスク分析・プロンプト最適化セクション */}
+      {/* Task analysis / prompt optimization section */}
       <div className="border-b border-zinc-100 dark:border-zinc-800">
         <button
           onClick={() => toggleSection('analysis')}
@@ -875,7 +875,7 @@ export function AIAccordionPanel({
 
         {expandedSection === 'analysis' && (
           <div id="analysis-section-content" className="px-4 pb-3 space-y-3">
-            {/* タブメニュー */}
+            {/* Tab menu */}
             <div
               className="flex border-b border-zinc-200 dark:border-zinc-700"
               role="tablist"
@@ -920,7 +920,7 @@ export function AIAccordionPanel({
               </button>
             </div>
 
-            {/* サブタスクパネル */}
+            {/* Subtask panel */}
             {analysisTab === 'subtasks' && (
               <div id="subtasks-panel" role="tabpanel" className="space-y-2">
                 {isAnalyzing ? (
@@ -937,7 +937,7 @@ export function AIAccordionPanel({
                   </div>
                 ) : analysisResult ? (
                   <div className="space-y-2">
-                    {/* 分析サマリー */}
+                    {/* Analysis summary */}
                     <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
                       <p className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">
                         {analysisResult.summary}
@@ -1097,7 +1097,7 @@ export function AIAccordionPanel({
               </div>
             )}
 
-            {/* プロンプトパネル */}
+            {/* Prompt panel */}
             {analysisTab === 'prompt' && (
               <div id="prompt-panel" role="tabpanel" className="space-y-2">
                 {isGeneratingPrompt ? (
@@ -1128,7 +1128,7 @@ export function AIAccordionPanel({
                 ) : promptResult?.hasQuestions &&
                   promptResult.clarificationQuestions &&
                   promptResult.clarificationQuestions.length > 0 ? (
-                  /* 質問がある場合 */
+                  /* Has questions */
                   <div className="space-y-3">
                     <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                       <HelpCircle className="w-3.5 h-3.5" />
@@ -1217,7 +1217,7 @@ export function AIAccordionPanel({
                     </div>
                   </div>
                 ) : promptResult ? (
-                  /* 質問がない場合（通常の結果表示） */
+                  /* No questions (normal result display) */
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
@@ -1283,7 +1283,7 @@ export function AIAccordionPanel({
         )}
       </div>
 
-      {/* AIエージェント実行セクション */}
+      {/* AI agent execution section */}
       {showAgentPanel && (
         <div>
           <div
@@ -1326,7 +1326,7 @@ export function AIAccordionPanel({
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              {/* 実行中: 停止ボタン */}
+              {/* Running: stop button */}
               {isRunning && (
                 <button
                   onClick={(e) => {
@@ -1340,7 +1340,7 @@ export function AIAccordionPanel({
                   停止
                 </button>
               )}
-              {/* 完了: リセット、承認ページ */}
+              {/* Completed: reset, approval page */}
               {isCompleted && (
                 <>
                   <button
@@ -1363,7 +1363,7 @@ export function AIAccordionPanel({
                   </Link>
                 </>
               )}
-              {/* キャンセル: 再実行 */}
+              {/* Cancelled: re-run */}
               {isCancelled && (
                 <button
                   onClick={(e) => {
@@ -1376,7 +1376,7 @@ export function AIAccordionPanel({
                   再実行
                 </button>
               )}
-              {/* 中断: リセット + 再実行 */}
+              {/* Interrupted: reset + re-run */}
               {isInterrupted && (
                 <>
                   <button
@@ -1401,7 +1401,7 @@ export function AIAccordionPanel({
                   </button>
                 </>
               )}
-              {/* エラー: リセット + 再試行 */}
+              {/* Error: reset + retry */}
               {isFailed && !isRunning && !isCompleted && (
                 <>
                   <button
@@ -1426,7 +1426,7 @@ export function AIAccordionPanel({
                   </button>
                 </>
               )}
-              {/* 初期状態: 実行開始 */}
+              {/* Initial state: start execution */}
               {!isRunning &&
                 !isCompleted &&
                 !isCancelled &&
@@ -1455,10 +1455,10 @@ export function AIAccordionPanel({
 
           {expandedSection === 'execution' && (
             <div id="execution-section-content" className="px-4 pb-3 space-y-3">
-              {/* 実行中 */}
+              {/* Running */}
               {isRunning ? (
                 <div className="space-y-2">
-                  {/* 質問入力 */}
+                  {/* Question input */}
                   {hasQuestion && (
                     <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                       <p className="text-[10px] text-amber-800 dark:text-amber-200 font-mono mb-1.5 whitespace-pre-wrap line-clamp-3">
@@ -1496,9 +1496,9 @@ export function AIAccordionPanel({
                     </div>
                   )}
 
-                  {/* ログ表示 */}
+                  {/* Log display */}
                   {hasSubtasks && subtaskLogs && parallelSessionId ? (
-                    /* サブタスクがある場合はタブ表示 */
+                    /* Show tabs when subtasks exist */
                     <div id="execution-logs">
                       <SubtaskLogTabs
                         subtasks={subtasks || []}
@@ -1510,7 +1510,7 @@ export function AIAccordionPanel({
                       />
                     </div>
                   ) : logs.length > 0 ? (
-                    /* 通常のログ表示 */
+                    /* Standard log display */
                     <div id="execution-logs">
                       <ExecutionLogViewer
                         logs={logs}
@@ -1524,7 +1524,7 @@ export function AIAccordionPanel({
                   ) : null}
                 </div>
               ) : isCompleted ? (
-                /* 完了 */
+                /* Completed */
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
@@ -1544,7 +1544,7 @@ export function AIAccordionPanel({
                     </span>
                   </div>
                   {hasSubtasks && subtaskLogs && parallelSessionId ? (
-                    /* サブタスクがある場合はタブ表示 */
+                    /* Show tabs when subtasks exist */
                     <SubtaskLogTabs
                       subtasks={subtasks || []}
                       getSubtaskStatus={getSubtaskStatus}
@@ -1563,7 +1563,7 @@ export function AIAccordionPanel({
                       maxHeight={150}
                     />
                   ) : null}
-                  {/* 継続実行用の入力欄 */}
+                  {/* Continuation input field */}
                   <div className="p-3 bg-linear-to-br from-indigo-50 via-violet-50 to-purple-50 dark:from-indigo-900/20 dark:via-violet-900/20 dark:to-purple-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800/50 space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded">
@@ -1606,7 +1606,7 @@ export function AIAccordionPanel({
                   </div>
                 </div>
               ) : isCancelled ? (
-                /* キャンセル */
+                /* Cancelled */
                 <div className="flex items-center gap-1.5 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                   <Square className="w-3.5 h-3.5 text-yellow-500" />
                   <span className="text-xs text-yellow-700 dark:text-yellow-300">
@@ -1614,7 +1614,7 @@ export function AIAccordionPanel({
                   </span>
                 </div>
               ) : isInterrupted ? (
-                /* 中断（サーバー再起動等で中断された実行） */
+                /* Interrupted (execution interrupted by server restart etc.) */
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                     <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
@@ -1634,7 +1634,7 @@ export function AIAccordionPanel({
                   )}
                 </div>
               ) : isFailed ? (
-                /* エラー */
+                /* Error */
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                     <AlertCircle className="w-3.5 h-3.5 text-red-500" />
@@ -1654,7 +1654,7 @@ export function AIAccordionPanel({
                   )}
                 </div>
               ) : (
-                /* 初期状態 */
+                /* Initial state */
                 <div className="space-y-2">
                   {optimizedPrompt && (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
@@ -1665,7 +1665,7 @@ export function AIAccordionPanel({
                     </div>
                   )}
 
-                  {/* 詳細オプション - 常時表示 */}
+                  {/* Advanced options - always visible */}
                   <div className="space-y-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg">
                     <div>
                       <label className="text-[10px] text-zinc-600 dark:text-zinc-400 mb-1 block">

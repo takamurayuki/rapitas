@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - インターフェース定義
- * 各AIエージェントプロバイダーが実装すべきインターフェースを定義
+ * Agent Abstraction Layer - Interface Definitions
+ *
+ * Defines the contracts that AI agent providers must implement.
  */
 
 import type {
@@ -22,91 +23,91 @@ import type {
 import type { AgentEventEmitter } from './event-emitter';
 
 // ============================================================================
-// プロバイダーインターフェース
+// Provider interface
 // ============================================================================
 
 /**
- * エージェントプロバイダーインターフェース
- * 各AIエージェント（Claude, OpenAI, Gemini等）の実装が満たすべき契約
+ * Agent provider interface.
+ * Contract that AI agent implementations (Claude, OpenAI, Gemini, etc.) must satisfy.
  */
 export interface IAgentProvider {
   /**
-   * プロバイダーID
+   * Provider identifier.
    */
   readonly providerId: AgentProviderId;
 
   /**
-   * プロバイダー名
+   * Provider display name.
    */
   readonly providerName: string;
 
   /**
-   * バージョン情報
+   * Version string.
    */
   readonly version: string;
 
   /**
-   * プロバイダーの能力を取得
+   * Returns provider capabilities.
    */
   getCapabilities(): AgentCapabilities;
 
   /**
-   * プロバイダーが利用可能かチェック
+   * Checks if the provider is available.
    */
   isAvailable(): Promise<boolean>;
 
   /**
-   * 設定を検証
+   * Validates the configuration.
    */
   validateConfig(config: AgentProviderConfig): Promise<{ valid: boolean; errors: string[] }>;
 
   /**
-   * ヘルスチェック
+   * Performs a health check.
    */
   healthCheck(): Promise<AgentHealthStatus>;
 
   /**
-   * エージェントインスタンスを作成
+   * Creates an agent instance.
    */
   createAgent(config: AgentProviderConfig): IAgent;
 }
 
 // ============================================================================
-// エージェントインターフェース
+// Agent interface
 // ============================================================================
 
 /**
- * エージェントインターフェース
- * 個々のエージェントインスタンスが実装すべき契約
+ * Agent interface.
+ * Contract for individual agent instances.
  */
 export interface IAgent {
   /**
-   * メタデータを取得
+   * Returns agent metadata.
    */
   readonly metadata: AgentMetadata;
 
   /**
-   * 現在の状態を取得
+   * Returns the current state.
    */
   readonly state: AgentState;
 
   /**
-   * 能力を取得
+   * Returns agent capabilities.
    */
   readonly capabilities: AgentCapabilities;
 
   /**
-   * イベントエミッター
+   * Event emitter.
    */
   readonly events: AgentEventEmitter;
 
   /**
-   * タスクを実行
+   * Executes a task.
    */
   execute(task: AgentTaskDefinition, context: AgentExecutionContext): Promise<AgentExecutionResult>;
 
   /**
-   * 継続実行（質問への回答後など）
+   * Continues execution (e.g., after answering a question).
    */
   continue(
     continuation: ContinuationContext,
@@ -114,42 +115,42 @@ export interface IAgent {
   ): Promise<AgentExecutionResult>;
 
   /**
-   * 実行を停止
+   * Stops execution.
    */
   stop(): Promise<void>;
 
   /**
-   * 実行を一時停止
+   * Pauses execution.
    */
   pause(): Promise<boolean>;
 
   /**
-   * 実行を再開
+   * Resumes execution.
    */
   resume(): Promise<boolean>;
 
   /**
-   * ライフサイクルフックを設定
+   * Sets lifecycle hooks.
    */
   setLifecycleHooks(hooks: AgentLifecycleHooks): void;
 
   /**
-   * リソースを解放
+   * Releases resources.
    */
   dispose(): Promise<void>;
 }
 
 // ============================================================================
-// 実行マネージャーインターフェース
+// Execution manager interface
 // ============================================================================
 
 /**
- * 実行マネージャーインターフェース
- * 複数エージェントの実行を管理
+ * Execution manager interface.
+ * Manages execution of multiple agents.
  */
 export interface IAgentExecutionManager {
   /**
-   * タスクを実行
+   * Executes a task.
    */
   executeTask(
     agentId: string,
@@ -158,22 +159,22 @@ export interface IAgentExecutionManager {
   ): Promise<AgentExecutionResult>;
 
   /**
-   * 実行を継続
+   * Continues execution.
    */
   continueExecution(executionId: string, userResponse: string): Promise<AgentExecutionResult>;
 
   /**
-   * 実行を停止
+   * Stops execution.
    */
   stopExecution(executionId: string): Promise<void>;
 
   /**
-   * 実行状態を取得
+   * Returns execution state.
    */
   getExecutionStatus(executionId: string): AgentState | null;
 
   /**
-   * アクティブな実行一覧を取得
+   * Returns active executions.
    */
   getActiveExecutions(): Array<{
     executionId: string;
@@ -184,11 +185,11 @@ export interface IAgentExecutionManager {
 }
 
 // ============================================================================
-// レジストリインターフェース
+// Registry interface
 // ============================================================================
 
 /**
- * プロバイダー情報
+ * Provider information.
  */
 export interface ProviderInfo {
   providerId: AgentProviderId;
@@ -200,145 +201,145 @@ export interface ProviderInfo {
 }
 
 /**
- * エージェントレジストリインターフェース
- * プロバイダーとエージェントの管理
+ * Agent registry interface.
+ * Manages providers and agents.
  */
 export interface IAgentRegistry {
   /**
-   * プロバイダーを登録
+   * Registers a provider.
    */
   registerProvider(provider: IAgentProvider): void;
 
   /**
-   * プロバイダーを取得
+   * Returns a provider.
    */
   getProvider(providerId: AgentProviderId): IAgentProvider | undefined;
 
   /**
-   * 全プロバイダーを取得
+   * Returns all providers.
    */
   getAllProviders(): IAgentProvider[];
 
   /**
-   * 利用可能なプロバイダーを取得
+   * Returns available providers.
    */
   getAvailableProviders(): Promise<ProviderInfo[]>;
 
   /**
-   * 特定の能力を持つプロバイダーを取得
+   * Returns providers with a specific capability.
    */
   getProvidersByCapability(capability: keyof AgentCapabilities): IAgentProvider[];
 
   /**
-   * エージェントを作成
+   * Creates an agent.
    */
   createAgent(config: AgentProviderConfig): IAgent;
 
   /**
-   * アクティブなエージェントを取得
+   * Returns an active agent.
    */
   getAgent(agentId: string): IAgent | undefined;
 
   /**
-   * 全アクティブエージェントを取得
+   * Returns all active agents.
    */
   getAllAgents(): Map<string, IAgent>;
 
   /**
-   * エージェントを解放
+   * Disposes an agent.
    */
   disposeAgent(agentId: string): Promise<void>;
 
   /**
-   * 全エージェントを解放
+   * Disposes all agents.
    */
   disposeAllAgents(): Promise<void>;
 }
 
 // ============================================================================
-// ストリーミングインターフェース
+// Streaming interface
 // ============================================================================
 
 /**
- * 出力ストリームハンドラ
+ * Output stream handler.
  */
 export interface IOutputStreamHandler {
   /**
-   * 出力を受信
+   * Receives output.
    */
   onOutput(content: string, isError: boolean): void;
 
   /**
-   * ストリーム終了
+   * Stream ended.
    */
   onEnd(): void;
 
   /**
-   * エラー発生
+   * Error occurred.
    */
   onError(error: Error): void;
 }
 
 /**
- * イベントストリームハンドラ
+ * Event stream handler.
  */
 export interface IEventStreamHandler {
   /**
-   * イベントを受信
+   * Receives an event.
    */
   onEvent(event: AgentEvent): void;
 
   /**
-   * 特定タイプのイベントのみ購読
+   * Subscribes to specific event types.
    */
   subscribe(types: AgentEventType[]): void;
 
   /**
-   * 購読解除
+   * Unsubscribes.
    */
   unsubscribe(): void;
 }
 
 // ============================================================================
-// メトリクスインターフェース
+// Metrics interface
 // ============================================================================
 
 /**
- * メトリクスコレクターインターフェース
+ * Metrics collector interface.
  */
 export interface IMetricsCollector {
   /**
-   * 実行を開始
+   * Starts execution tracking.
    */
   startExecution(executionId: string, agentId: string): void;
 
   /**
-   * 実行を終了
+   * Ends execution tracking.
    */
   endExecution(executionId: string, success: boolean): void;
 
   /**
-   * トークン使用量を記録
+   * Records token usage.
    */
   recordTokenUsage(executionId: string, input: number, output: number): void;
 
   /**
-   * ツール呼び出しを記録
+   * Records a tool call.
    */
   recordToolCall(executionId: string, toolName: string, durationMs: number, success: boolean): void;
 
   /**
-   * ファイル変更を記録
+   * Records file changes.
    */
   recordFileChange(executionId: string, added: number, deleted: number): void;
 
   /**
-   * コストを記録
+   * Records cost.
    */
   recordCost(executionId: string, costUsd: number): void;
 
   /**
-   * メトリクスを取得
+   * Returns metrics.
    */
   getMetrics(executionId: string): {
     durationMs: number;
@@ -349,7 +350,7 @@ export interface IMetricsCollector {
   } | null;
 
   /**
-   * 集計メトリクスを取得
+   * Returns aggregated metrics.
    */
   getAggregateMetrics(
     agentId: string,
@@ -364,70 +365,70 @@ export interface IMetricsCollector {
 }
 
 // ============================================================================
-// ロギングインターフェース
+// Logging interface
 // ============================================================================
 
 /**
- * ログレベル
+ * Log level.
  */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 /**
- * ロガーインターフェース
+ * Logger interface.
  */
 export interface IAgentLogger {
   /**
-   * ログを出力
+   * Outputs a log entry.
    */
   log(level: LogLevel, message: string, context?: Record<string, unknown>): void;
 
   /**
-   * デバッグログ
+   * Debug log.
    */
   debug(message: string, context?: Record<string, unknown>): void;
 
   /**
-   * 情報ログ
+   * Info log.
    */
   info(message: string, context?: Record<string, unknown>): void;
 
   /**
-   * 警告ログ
+   * Warning log.
    */
   warn(message: string, context?: Record<string, unknown>): void;
 
   /**
-   * エラーログ
+   * Error log.
    */
   error(message: string, error?: Error, context?: Record<string, unknown>): void;
 
   /**
-   * 子ロガーを作成（コンテキスト付き）
+   * Creates a child logger with additional context.
    */
   child(context: Record<string, unknown>): IAgentLogger;
 }
 
 // ============================================================================
-// エラーハンドリングインターフェース
+// Error handling interface
 // ============================================================================
 
 /**
- * エージェントエラーの種類
+ * Agent error type classification.
  */
 export type AgentErrorType =
-  | 'configuration' // 設定エラー
-  | 'authentication' // 認証エラー
-  | 'rate_limit' // レート制限
-  | 'timeout' // タイムアウト
-  | 'network' // ネットワークエラー
-  | 'execution' // 実行エラー
-  | 'validation' // バリデーションエラー
-  | 'resource' // リソースエラー
-  | 'permission' // パーミッションエラー
-  | 'internal'; // 内部エラー
+  | 'configuration' 
+  | 'authentication' 
+  | 'rate_limit' 
+  | 'timeout' 
+  | 'network' 
+  | 'execution' 
+  | 'validation' 
+  | 'resource' 
+  | 'permission' 
+  | 'internal'; 
 
 /**
- * エージェントエラー
+ * Agent error class.
  */
 export class AgentError extends Error {
   constructor(
@@ -443,7 +444,7 @@ export class AgentError extends Error {
   }
 
   /**
-   * JSON表現を取得
+   * Returns a JSON representation.
    */
   toJSON(): Record<string, unknown> {
     return {
@@ -459,11 +460,11 @@ export class AgentError extends Error {
 }
 
 /**
- * エラーハンドラインターフェース
+ * Error handler interface.
  */
 export interface IErrorHandler {
   /**
-   * エラーを処理
+   * Handles an error.
    */
   handleError(
     error: Error | AgentError,
@@ -476,7 +477,7 @@ export interface IErrorHandler {
   }>;
 
   /**
-   * リトライ戦略を取得
+   * Returns the retry strategy.
    */
   getRetryStrategy(
     errorType: AgentErrorType,

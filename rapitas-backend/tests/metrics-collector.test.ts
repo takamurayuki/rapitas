@@ -118,7 +118,7 @@ describe('DefaultMetricsCollector', () => {
 
       collector.startExecution('exec-2', 'agent-2');
       collector.recordTokenUsage('exec-2', 200, 100);
-      // exec-2はまだ実行中
+      // exec-2 is still running
 
       const stats = collector.getGlobalStats();
       expect(stats.totalExecutions).toBe(2);
@@ -186,7 +186,7 @@ describe('DefaultMetricsCollector', () => {
         smallCollector.startExecution(`exec-${i}`, 'agent-1');
       }
 
-      // 最初の2つは削除されているはず
+      // The first two should have been pruned
       expect(smallCollector.getMetrics('exec-0')).toBeNull();
       expect(smallCollector.getMetrics('exec-1')).toBeNull();
       expect(smallCollector.getMetrics('exec-2')).not.toBeNull();

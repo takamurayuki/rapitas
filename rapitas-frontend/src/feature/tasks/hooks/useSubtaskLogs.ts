@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 
 /**
- * サブタスクのログエントリ
+ * Subtask log entry
  */
 export interface SubtaskLogEntry {
   timestamp: string;
@@ -14,7 +14,7 @@ export interface SubtaskLogEntry {
 }
 
 /**
- * データオブジェクトを人間が読みやすい形式にフォーマットする
+ * Format data object into a human-readable string
  */
 export function formatLogData(data: unknown): string {
   if (data === null || data === undefined) return '';
@@ -23,31 +23,31 @@ export function formatLogData(data: unknown): string {
 
   const obj = data as Record<string, unknown>;
 
-  // よく使われるフィールドを優先的に抽出して整形
+  // Extract and format commonly used fields first
   const parts: string[] = [];
 
-  // メッセージ系フィールド
+  // Message fields
   const msgField = obj.message || obj.msg || obj.description || obj.text;
   if (msgField && typeof msgField === 'string') {
     parts.push(msgField);
   }
 
-  // ステータス系フィールド
+  // Status fields
   if (obj.status && typeof obj.status === 'string') {
     parts.push(`ステータス: ${obj.status}`);
   }
 
-  // タイプ系フィールド
+  // Type fields
   if (obj.type && typeof obj.type === 'string') {
     parts.push(`タイプ: ${obj.type}`);
   }
 
-  // エラー系フィールド
+  // Error fields
   if (obj.error && typeof obj.error === 'string') {
     parts.push(`エラー: ${obj.error}`);
   }
 
-  // その他のフィールドをkey: value形式で追加
+  // Add other fields in key: value format
   const skipKeys = new Set([
     'message',
     'msg',
@@ -73,7 +73,7 @@ export function formatLogData(data: unknown): string {
 }
 
 /**
- * サブタスクのログ状態
+ * Subtask log state
  */
 export interface SubtaskLogState {
   taskId: number;
@@ -84,15 +84,15 @@ export interface SubtaskLogState {
 }
 
 interface UseSubtaskLogsOptions {
-  /** 並列実行セッションID */
+  /** Parallel execution session ID */
   sessionId: string | null;
-  /** サブタスクのリスト（IDとタイトル） */
+  /** Subtask list (ID and title) */
   subtasks: Array<{ id: number; title: string }>;
-  /** ポーリング間隔（ミリ秒） */
+  /** Polling interval in milliseconds */
   pollingInterval?: number;
-  /** 自動更新を有効にするか */
+  /** Whether to enable auto-refresh */
   autoRefresh?: boolean;
-  /** 並列実行セッションの状態 */
+  /** Parallel execution session state */
   sessionStatus?:
     | 'pending'
     | 'scheduled'
@@ -104,20 +104,20 @@ interface UseSubtaskLogsOptions {
 }
 
 interface UseSubtaskLogsReturn {
-  /** サブタスクごとのログ状態 */
+  /** Log state for each subtask */
   subtaskLogs: Map<number, SubtaskLogState>;
-  /** 特定のサブタスクのログを取得 */
+  /** Get logs for a specific subtask */
   getSubtaskLogs: (taskId: number) => SubtaskLogState | undefined;
-  /** ログを手動で更新 */
+  /** Manually refresh logs */
   refreshLogs: (taskId?: number) => Promise<void>;
-  /** 全ログをクリア */
+  /** Clear all logs */
   clearLogs: () => void;
-  /** 読み込み中かどうか */
+  /** Whether loading is in progress */
   isLoading: boolean;
 }
 
 /**
- * サブタスクごとの実行ログを取得するフック
+ * Hook to fetch execution logs per subtask
  */
 export function useSubtaskLogs({
   sessionId,
@@ -132,7 +132,7 @@ export function useSubtaskLogs({
   const [isLoading, setIsLoading] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // サブタスクリストが変更されたら初期化
+  // Initialize when subtask list changes
   useEffect(() => {
     const initialLogs = new Map<number, SubtaskLogState>();
     subtasks.forEach((subtask) => {
@@ -147,7 +147,7 @@ export function useSubtaskLogs({
     setSubtaskLogs(initialLogs);
   }, [subtasks]);
 
-  // 特定のサブタスクのログを取得
+  // Fetch logs for a specific subtask
   const fetchSubtaskLogs = useCallback(
     async (taskId: number) => {
       if (!sessionId) return;
@@ -219,7 +219,7 @@ export function useSubtaskLogs({
     [sessionId],
   );
 
-  // 全てのサブタスクのログを取得
+  // Fetch logs for all subtasks
   const fetchAllLogs = useCallback(async () => {
     if (!sessionId || subtasks.length === 0) return;
 
@@ -228,7 +228,7 @@ export function useSubtaskLogs({
     setIsLoading(false);
   }, [sessionId, subtasks, fetchSubtaskLogs]);
 
-  // ログを手動で更新
+  // Manually refresh logs
   const refreshLogs = useCallback(
     async (taskId?: number) => {
       if (taskId !== undefined) {
@@ -240,7 +240,7 @@ export function useSubtaskLogs({
     [fetchSubtaskLogs, fetchAllLogs],
   );
 
-  // 特定のサブタスクのログを取得
+  // Fetch logs for a specific subtask
   const getSubtaskLogs = useCallback(
     (taskId: number): SubtaskLogState | undefined => {
       return subtaskLogs.get(taskId);
@@ -248,7 +248,7 @@ export function useSubtaskLogs({
     [subtaskLogs],
   );
 
-  // 全ログをクリア
+  // Clear all logs
   const clearLogs = useCallback(() => {
     setSubtaskLogs((prev) => {
       const newMap = new Map<number, SubtaskLogState>();
@@ -259,7 +259,7 @@ export function useSubtaskLogs({
     });
   }, []);
 
-  // セッション完了時のローディング状態クリア
+  // Clear loading state on session completion
   useEffect(() => {
     const isCompleted =
       sessionStatus === 'completed' ||
@@ -267,7 +267,7 @@ export function useSubtaskLogs({
       sessionStatus === 'cancelled';
 
     if (isCompleted) {
-      // 完了時は全サブタスクのローディング状態を確実に解除
+      // Clear loading state for all subtasks when completed
       setSubtaskLogs((prev) => {
         const newMap = new Map(prev);
         prev.forEach((state, taskId) => {
@@ -276,25 +276,24 @@ export function useSubtaskLogs({
         return newMap;
       });
 
-      // グローバルローディング状態も解除
       setIsLoading(false);
     }
   }, [sessionStatus]);
 
-  // 自動更新（ポーリング）
+  // Auto-refresh (polling)
   useEffect(() => {
     if (!autoRefresh || !sessionId) return;
 
-    // 実行が完了している場合は最後に一度だけログを取得してポーリング停止
+    // If execution is completed, fetch logs one last time and stop polling
     const isCompleted =
       sessionStatus === 'completed' ||
       sessionStatus === 'failed' ||
       sessionStatus === 'cancelled';
 
     if (isCompleted) {
-      // 最終的なログを取得（非同期で実行してローディング状態を適切に管理）
+      // Fetch final logs (executed asynchronously to properly manage loading state)
       fetchAllLogs().finally(() => {
-        // ログ取得完了後、ローディング状態を確実に解除
+        // Ensure loading state is cleared after log fetch
         setIsLoading(false);
         setSubtaskLogs((prev) => {
           const newMap = new Map(prev);
@@ -305,7 +304,6 @@ export function useSubtaskLogs({
         });
       });
 
-      // ポーリングが動いていれば停止
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -313,12 +311,12 @@ export function useSubtaskLogs({
       return;
     }
 
-    // 実行中の場合のみポーリング開始
+    // Start polling only when execution is running
     if (sessionStatus === 'running' || sessionStatus === 'scheduled') {
-      // 初回取得
+      // Initial fetch
       fetchAllLogs();
 
-      // ポーリング開始
+      // Start polling
       if (!pollingIntervalRef.current) {
         pollingIntervalRef.current = setInterval(fetchAllLogs, pollingInterval);
       }
@@ -332,7 +330,7 @@ export function useSubtaskLogs({
     };
   }, [autoRefresh, sessionId, pollingInterval, fetchAllLogs, sessionStatus]);
 
-  // クリーンアップ
+  // Cleanup
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {

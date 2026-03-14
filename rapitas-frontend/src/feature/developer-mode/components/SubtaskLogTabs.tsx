@@ -22,26 +22,26 @@ import {
 import { WorkflowLogViewer } from './WorkflowLogViewer';
 
 interface SubtaskLogTabsProps {
-  /** サブタスクのリスト */
+  /** List of subtasks */
   subtasks: Task[];
-  /** サブタスクのステータスを取得する関数 */
+  /** Function to get subtask status */
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
-  /** サブタスクごとのログ */
+  /** Logs per subtask */
   subtaskLogs: Map<
     number,
     { logs: Array<{ timestamp: string; message: string; level: string }> }
   >;
-  /** 全体の実行中かどうか */
+  /** Whether overall execution is running */
   isRunning: boolean;
-  /** ログを更新する関数 */
+  /** Function to refresh logs */
   onRefreshLogs?: (taskId?: number) => void;
-  /** 最大高さ */
+  /** Max height */
   maxHeight?: number;
-  /** ワークフローモードで実行中か */
+  /** Whether running in workflow mode */
   useWorkflow?: boolean;
 }
 
-/** ワークフローステータスからフェーズラベルを取得 */
+/** Get phase label from workflow status */
 function getPhaseLabel(workflowStatus?: string): string {
   switch (workflowStatus) {
     case 'draft':
@@ -61,7 +61,7 @@ function getPhaseLabel(workflowStatus?: string): string {
   }
 }
 
-/** ワークフローステータスに応じたスタイル */
+/** Style based on workflow status */
 function getPhaseStyle(workflowStatus?: string): string {
   switch (workflowStatus) {
     case 'completed':
@@ -81,7 +81,7 @@ function getPhaseStyle(workflowStatus?: string): string {
 }
 
 /**
- * サブタスク実行ログのタブ表示コンポーネント
+ * Subtask execution log tabbed display component
  */
 export function SubtaskLogTabs({
   subtasks,
@@ -92,12 +92,12 @@ export function SubtaskLogTabs({
   maxHeight = 200,
   useWorkflow = false,
 }: SubtaskLogTabsProps) {
-  // 「全体」タブ + サブタスクタブ
+  // "All" tab + subtask tabs
   const [activeTab, setActiveTab] = useState<number | 'all'>('all');
-  // ワークフロー表示モード切り替え
+  // Toggle workflow view mode
   const [showWorkflowView, setShowWorkflowView] = useState(useWorkflow);
 
-  // ステータスに応じたアイコンを取得
+  // Get icon for status
   const getStatusIcon = (status?: ParallelExecutionStatus) => {
     const iconClass = 'w-3 h-3';
     switch (status) {
@@ -121,7 +121,7 @@ export function SubtaskLogTabs({
     }
   };
 
-  // 全体のログを統合
+  // Merge all logs
   const allLogs = useMemo(() => {
     const logs: Array<{
       timestamp: string;
@@ -134,14 +134,14 @@ export function SubtaskLogTabs({
         logs.push({ ...log, taskId });
       });
     });
-    // タイムスタンプでソート
+    // Sort by timestamp
     return logs.sort(
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
   }, [subtaskLogs]);
 
-  // 現在選択されているタブのログ
+  // Logs for the currently selected tab
   const currentLogs = useMemo((): Array<{
     timestamp: string;
     message: string;
@@ -152,14 +152,14 @@ export function SubtaskLogTabs({
       return allLogs;
     }
     const subtaskLog = subtaskLogs.get(activeTab);
-    // 単一サブタスクのログにもtaskIdを追加
+    // Add taskId to single subtask logs
     return (subtaskLog?.logs || []).map((log) => ({
       ...log,
       taskId: activeTab as number,
     }));
   }, [activeTab, allLogs, subtaskLogs]);
 
-  // ExecutionLogViewer用のログ形式に変換
+  // Convert to ExecutionLogViewer log format
   const formattedLogs = useMemo(() => {
     return currentLogs.map((log) => {
       const subtask = log.taskId
@@ -171,7 +171,7 @@ export function SubtaskLogTabs({
     });
   }, [currentLogs, activeTab, subtasks]);
 
-  // 全体のステータスを計算
+  // Compute overall status
   const overallStatus: ExecutionLogStatus = useMemo(() => {
     if (isRunning) return 'running';
 
@@ -189,7 +189,7 @@ export function SubtaskLogTabs({
     return 'idle';
   }, [isRunning, subtasks, getSubtaskStatus]);
 
-  // タブのステータスを取得
+  // Get tab status
   const getTabStatus = (taskId: number): ExecutionLogStatus => {
     const status = getSubtaskStatus?.(taskId);
     switch (status) {
@@ -206,18 +206,18 @@ export function SubtaskLogTabs({
     }
   };
 
-  // 完了数
+  // Completed count
   const completedCount = subtasks.filter(
     (s) => getSubtaskStatus?.(s.id) === 'completed',
   ).length;
 
-  // 開始時間の推定（最初のログのタイムスタンプ）
+  // Estimate start time (from first log timestamp)
   const startTime = useMemo(() => {
     if (allLogs.length === 0) return null;
     return new Date(allLogs[0].timestamp);
   }, [allLogs]);
 
-  // 経過時間の計算
+  // Calculate elapsed time
   const elapsedTime = useMemo(() => {
     if (!startTime) return null;
     const now = new Date();
@@ -233,9 +233,7 @@ export function SubtaskLogTabs({
 
   return (
     <div className="space-y-2">
-      {/* タブヘッダー */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700">
-        {/* 全体タブ */}
         <button
           onClick={() => setActiveTab('all')}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-medium rounded-t-lg border-b-2 transition-colors whitespace-nowrap shrink-0 ${
@@ -252,7 +250,6 @@ export function SubtaskLogTabs({
           </span>
         </button>
 
-        {/* サブタスクタブ */}
         {subtasks.map((subtask) => {
           const status = getSubtaskStatus?.(subtask.id);
           const logs = subtaskLogs.get(subtask.id)?.logs || [];
@@ -280,7 +277,6 @@ export function SubtaskLogTabs({
           );
         })}
 
-        {/* ワークフロー表示切り替えボタン */}
         {useWorkflow && (
           <button
             onClick={() => setShowWorkflowView((prev) => !prev)}
@@ -297,7 +293,6 @@ export function SubtaskLogTabs({
           </button>
         )}
 
-        {/* 更新ボタン */}
         {onRefreshLogs && (
           <button
             onClick={() =>
@@ -311,10 +306,9 @@ export function SubtaskLogTabs({
         )}
       </div>
 
-      {/* ログ表示エリア */}
       <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
         {activeTab !== 'all' && showWorkflowView && useWorkflow ? (
-          // ワークフローフェーズ別表示（個別タブ選択時）
+          // Workflow phase view (when individual tab is selected)
           <div className="p-2">
             <WorkflowLogViewer
               taskTitle={subtasks.find((s) => s.id === activeTab)?.title || ''}
@@ -354,7 +348,6 @@ export function SubtaskLogTabs({
         )}
       </div>
 
-      {/* 強化されたサブタスク進捗サマリー */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[10px] text-zinc-500 dark:text-zinc-400">
           <span className="font-medium">進捗:</span>
@@ -366,7 +359,6 @@ export function SubtaskLogTabs({
           </span>
         </div>
 
-        {/* 詳細な進捗表示 */}
         <div className="space-y-1">
           {subtasks.map((subtask) => {
             const status = getSubtaskStatus?.(subtask.id);
@@ -374,7 +366,7 @@ export function SubtaskLogTabs({
               subtask as Task & { workflowStatus?: string }
             ).workflowStatus;
             const hasWorkflowInfo = useWorkflow && workflowStatus;
-            // 依存関係の表示（parentIdがあるかで簡易的に判定）
+            // Show dependency info (simplified check via parentId)
             const parentTask = subtask.parentId
               ? subtasks.find((s) => s.id === subtask.parentId)
               : null;

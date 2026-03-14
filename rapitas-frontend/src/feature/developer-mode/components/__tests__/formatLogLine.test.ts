@@ -1,13 +1,13 @@
 /**
  * ExecutionLogViewer formatLogLine Function Test
- * ログ行のJSONフォーマット機能のテスト
+ * Tests for log line JSON formatting
  */
 
 import { test, describe, expect } from '@jest/globals';
 
-// formatLogLine関数をテスト用に抽出
+// Extracted formatLogLine function for testing
 function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
-  // JSON文字列を含むかチェック（{...} または [...] パターン）
+  // Check for JSON strings ({...} or [...] pattern)
   const jsonMatch = log.match(/^(.*?)(\{[\s\S]*\}|\[[\s\S]*\])(.*)$/);
   if (!jsonMatch) return { formatted: log, hasJson: false };
 
@@ -18,11 +18,11 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
       return { formatted: log, hasJson: false };
     }
 
-    // オブジェクトをkey: value形式で整形
+    // Format object as key: value pairs
     const parts: string[] = [];
     const obj = parsed as Record<string, unknown>;
 
-    // よく使うフィールドを先に表示
+    // Display frequently used fields first
     const priorityKeys = [
       'message',
       'msg',
@@ -40,7 +40,7 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
       }
     }
 
-    // 残りのフィールド
+    // Remaining fields
     const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;

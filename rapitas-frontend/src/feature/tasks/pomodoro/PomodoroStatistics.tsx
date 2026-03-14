@@ -75,7 +75,6 @@ export default function PomodoroStatistics() {
 
   return (
     <div className="space-y-4">
-      {/* 期間切り替え */}
       <div className="flex gap-2">
         <button
           onClick={() => setPeriod('week')}
@@ -99,7 +98,6 @@ export default function PomodoroStatistics() {
         </button>
       </div>
 
-      {/* サマリーカード */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-1">
@@ -132,7 +130,6 @@ export default function PomodoroStatistics() {
         </div>
       </div>
 
-      {/* 日別チャート */}
       {stats.dailyStats.length > 0 && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
           <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
@@ -161,7 +158,6 @@ export default function PomodoroStatistics() {
         </div>
       )}
 
-      {/* タスク別ランキング */}
       {stats.taskStats.length > 0 && (
         <div className="bg-white dark:bg-zinc-800 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
           <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">

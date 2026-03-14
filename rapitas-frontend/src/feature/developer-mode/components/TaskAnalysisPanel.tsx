@@ -91,7 +91,7 @@ export function TaskAnalysisPanel({
     complex: '複雑',
   };
 
-  // 分析前の状態
+  // Pre-analysis state
   if (!analysisResult && !isAnalyzing && !error) {
     return (
       <div className="bg-linear-to-br from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-violet-100 dark:border-violet-800">
@@ -131,7 +131,7 @@ export function TaskAnalysisPanel({
     );
   }
 
-  // 分析中
+  // Analyzing
   if (isAnalyzing) {
     return (
       <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-xl p-8 border border-zinc-200 dark:border-zinc-700">
@@ -151,7 +151,7 @@ export function TaskAnalysisPanel({
     );
   }
 
-  // エラー
+  // Error
   if (error) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-6 border border-red-200 dark:border-red-800">
@@ -176,11 +176,10 @@ export function TaskAnalysisPanel({
     );
   }
 
-  // 分析結果
+  // Analysis results
   if (analysisResult) {
     return (
       <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        {/* ヘッダー */}
         <div className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -189,7 +188,7 @@ export function TaskAnalysisPanel({
               </div>
               <div>
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  AI分析結果
+                  AIAnalysis results
                 </h3>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   {analysisResult.suggestedSubtasks.length}個のサブタスクを提案
@@ -219,14 +218,12 @@ export function TaskAnalysisPanel({
           </div>
         </div>
 
-        {/* サマリー */}
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
           <p className="text-zinc-700 dark:text-zinc-300">
             {analysisResult.summary}
           </p>
         </div>
 
-        {/* サブタスク一覧 */}
         <div className="px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -256,7 +253,6 @@ export function TaskAnalysisPanel({
           </div>
         </div>
 
-        {/* 理由・ヒント */}
         {(analysisResult.reasoning || analysisResult.tips?.length) && (
           <div className="px-6 py-4 bg-zinc-50 dark:bg-indigo-dark-800/50 border-t border-zinc-200 dark:border-zinc-800">
             {analysisResult.reasoning && (
@@ -280,7 +276,6 @@ export function TaskAnalysisPanel({
           </div>
         )}
 
-        {/* アクションボタン */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800">
           <button
             onClick={onReject}

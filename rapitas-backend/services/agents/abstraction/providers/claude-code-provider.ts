@@ -1,6 +1,7 @@
 /**
  * Claude Code Provider
- * Claude Code CLIを使用するエージェントプロバイダー
+ *
+ * Agent provider that uses the Claude Code CLI.
  */
 
 import type {
@@ -30,14 +31,14 @@ function resolveCliPath(cliName: string): string {
       return resolved;
     }
   } catch {
-    // フォールバック
+    // fallback
   }
   return cliName;
 }
 
 /**
- * Claude Code Provider
- * Claude Code CLIを使用したエージェントを提供
+ * Claude Code Provider.
+ * Provides agents backed by the Claude Code CLI.
  */
 export class ClaudeCodeProvider implements IAgentProvider {
   readonly providerId: AgentProviderId = 'claude-code';
@@ -50,7 +51,7 @@ export class ClaudeCodeProvider implements IAgentProvider {
   constructor(config?: Partial<ClaudeCodeProviderConfig>) {
     this.defaultConfig = config || {};
 
-    // Claude Code CLIの能力を設定
+    // Set Claude Code CLI capabilities
     this.capabilities = createDefaultCapabilities({
       codeGeneration: true,
       codeReview: true,
@@ -64,7 +65,7 @@ export class ClaudeCodeProvider implements IAgentProvider {
       webFetch: true,
       taskAnalysis: true,
       taskPlanning: true,
-      parallelExecution: false, // 単一エージェントとしては並列実行しない
+      parallelExecution: false, // single agent does not support parallel execution
       questionAsking: true,
       conversationMemory: true,
       sessionContinuation: true,
@@ -72,14 +73,14 @@ export class ClaudeCodeProvider implements IAgentProvider {
   }
 
   /**
-   * プロバイダーの能力を取得
+   * Returns provider capabilities.
    */
   getCapabilities(): AgentCapabilities {
     return { ...this.capabilities };
   }
 
   /**
-   * プロバイダーが利用可能かチェック
+   * Checks if the Claude Code CLI is available.
    */
   async isAvailable(): Promise<boolean> {
     try {
@@ -114,26 +115,26 @@ export class ClaudeCodeProvider implements IAgentProvider {
   }
 
   /**
-   * 設定を検証
+   * Validates the configuration.
    */
   async validateConfig(config: AgentProviderConfig): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    // プロバイダーIDの確認
+    // Verify provider ID
     if (config.providerId !== 'claude-code') {
       errors.push(`Invalid provider ID: expected 'claude-code', got '${config.providerId}'`);
     }
 
-    // Claude CLIが利用可能かチェック
+    // Check if Claude CLI is available
     const available = await this.isAvailable();
     if (!available) {
       errors.push('Claude Code CLI is not installed or not available in PATH');
     }
 
-    // Claude Code固有の設定を検証
+    // Validate Claude Code specific settings
     const claudeConfig = config as ClaudeCodeProviderConfig;
 
-    // cliPathが指定されている場合、存在チェック
+    // Verify cliPath exists if specified
     if (claudeConfig.cliPath) {
       try {
         const fs = await import('fs/promises');
@@ -150,7 +151,7 @@ export class ClaudeCodeProvider implements IAgentProvider {
   }
 
   /**
-   * ヘルスチェック
+   * Performs a health check.
    */
   async healthCheck(): Promise<AgentHealthStatus> {
     const startTime = Date.now();
@@ -189,12 +190,12 @@ export class ClaudeCodeProvider implements IAgentProvider {
   }
 
   /**
-   * エージェントインスタンスを作成
+   * Creates a new agent instance.
    */
   createAgent(config: AgentProviderConfig): IAgent {
     const claudeConfig = config as ClaudeCodeProviderConfig;
 
-    // デフォルト設定とマージ
+    // Merge with default config
     const mergedConfig: ClaudeCodeProviderConfig = {
       ...this.defaultConfig,
       ...claudeConfig,
@@ -205,6 +206,6 @@ export class ClaudeCodeProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトのClaude Code Providerインスタンス
+ * Default Claude Code Provider singleton.
  */
 export const claudeCodeProvider = new ClaudeCodeProvider();

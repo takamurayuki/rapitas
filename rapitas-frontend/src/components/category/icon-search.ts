@@ -1,15 +1,15 @@
 import type { LucideIcon } from 'lucide-react';
 import { ICON_DATA } from './icon-registry';
 
-// アイコン名の配列を取得
+// Array of all available icon names
 export const ICON_NAMES = Object.keys(ICON_DATA);
 
-// アイコンコンポーネントを取得する関数
+// Get icon component by name
 export const getIconComponent = (name: string): LucideIcon | undefined => {
   return ICON_DATA[name]?.component;
 };
 
-// 検索用インデックスの作成（初回のみ実行）
+// Build search index (executed once on first use)
 const createSearchIndex = () => {
   const index = new Map<string, Set<string>>();
 
@@ -17,7 +17,7 @@ const createSearchIndex = () => {
     const iconInfo = ICON_DATA[name];
     const lowerName = name.toLowerCase();
 
-    // 英語名のn-gramインデックス（2-3文字）
+    // N-gram index for English names (2-3 chars)
     for (let i = 0; i < lowerName.length - 1; i++) {
       const bigram = lowerName.slice(i, i + 2);
       if (!index.has(bigram)) index.set(bigram, new Set());
@@ -30,7 +30,7 @@ const createSearchIndex = () => {
       }
     }
 
-    // 日本語キーワードのインデックス
+    // Japanese keyword index
     iconInfo.keywords.forEach((keyword) => {
       for (let i = 0; i < keyword.length; i++) {
         for (let j = i + 1; j <= keyword.length; j++) {
@@ -45,16 +45,16 @@ const createSearchIndex = () => {
   return index;
 };
 
-// 検索インデックス（遅延初期化）
+// Search index (lazily initialized)
 let searchIndex: Map<string, Set<string>> | null = null;
 
-// 検索関数（日本語・英語両対応）
+// Search icons (supports both Japanese and English queries)
 export const searchIcons = (query: string): string[] => {
   if (!query.trim()) {
     return ICON_NAMES;
   }
 
-  // インデックスの遅延初期化
+  // Lazy initialization of index
   if (!searchIndex) {
     searchIndex = createSearchIndex();
   }
@@ -62,7 +62,7 @@ export const searchIcons = (query: string): string[] => {
   const lowerQuery = query.toLowerCase();
   const resultSet = new Set<string>();
 
-  // 短いクエリの場合は通常の検索
+  // For short queries, use linear search
   if (query.length <= 2) {
     return ICON_NAMES.filter((name) => {
       if (name.toLowerCase().includes(lowerQuery)) return true;
@@ -71,7 +71,7 @@ export const searchIcons = (query: string): string[] => {
     });
   }
 
-  // インデックスを使用した検索
+  // Index-based search
   if (searchIndex.has(query)) {
     searchIndex.get(query)!.forEach((name) => resultSet.add(name));
   }
@@ -80,7 +80,7 @@ export const searchIcons = (query: string): string[] => {
     searchIndex.get(lowerQuery)!.forEach((name) => resultSet.add(name));
   }
 
-  // 部分一致も確認
+  // Also check partial matches
   ICON_NAMES.forEach((name) => {
     if (name.toLowerCase().includes(lowerQuery)) {
       resultSet.add(name);

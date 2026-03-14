@@ -19,22 +19,22 @@ export default function TaskDescription({
 }: TaskDescriptionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // 説明文が長いかどうかを判定
+  // Determine if description is long
   const isLongDescription = description.length > maxInitialLength;
 
-  // 表示する説明文を決定
+  // Determine description to display
   const displayDescription = useMemo(() => {
     if (!isLongDescription || isExpanded) {
       return description;
     }
 
-    // 最初の段落または指定文字数で切り取る
+    // Truncate at first paragraph or specified character count
     const firstParagraphEnd = description.indexOf('\n\n');
     if (firstParagraphEnd > 0 && firstParagraphEnd <= maxInitialLength) {
       return description.substring(0, firstParagraphEnd);
     }
 
-    // 単語の境界で切り取る
+    // Truncate at word boundary
     let cutoffIndex = maxInitialLength;
     while (
       cutoffIndex > 0 &&

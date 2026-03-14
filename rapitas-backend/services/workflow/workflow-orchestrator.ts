@@ -1,8 +1,9 @@
 /**
  * Workflow Orchestrator
- * ワークフローフェーズの自動進行を管理し、各フェーズに割り当てられたAIエージェントを実行する。
- * CLIエージェント（claude-code, gemini, codex）は既存のAgentOrchestrator経由で実行し、
- * APIエージェント（anthropic-api, openai等）は直接API呼び出しでテキスト出力を取得→ファイル保存を代行する。
+ *
+ * Manages automatic progression of workflow phases and executes AI agents assigned to each phase.
+ * CLI agents (claude-code, gemini, codex) run via AgentOrchestrator.
+ * API agents (anthropic-api, openai, etc.) call APIs directly and save output files on their behalf.
  */
 import { readFile, writeFile, mkdir, stat, readdir, unlink } from 'fs/promises';
 import { join } from 'path';
@@ -37,7 +38,7 @@ interface RoleTransition {
   nextStatus: WorkflowStatus;
 }
 
-// 詳細モード (comprehensive) - 既存の5ステップワークフロー
+// Comprehensive mode - existing 5-step workflow
 const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
@@ -46,7 +47,7 @@ const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// 標準モード (standard) - 4ステップワークフロー
+// Standard mode - 4-step workflow
 const STANDARD_MODE: Record<string, RoleTransition> = {
   draft: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
   plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
@@ -54,13 +55,13 @@ const STANDARD_MODE: Record<string, RoleTransition> = {
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// 軽量モード (lightweight) - 2ステップワークフロー
+// Lightweight mode - 2-step workflow
 const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
   draft: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
   in_progress: { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// 後方互換性のため既存のSTATUS_TO_ROLEを詳細モードとして保持
+// Keep existing STATUS_TO_ROLE as comprehensive mode for backward compatibility
 const STATUS_TO_ROLE = COMPREHENSIVE_MODE;
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
@@ -75,7 +76,7 @@ export interface WorkflowAdvanceResult {
 }
 
 /**
- * タスクIDからワークフローディレクトリのパスを解決する
+ * Resolve the workflow directory path from a task ID.
  */
 async function resolveWorkflowDir(taskId: number) {
   const task = await prisma.task.findUnique({
@@ -98,7 +99,7 @@ async function resolveWorkflowDir(taskId: number) {
 }
 
 /**
- * ワークフローファイルの内容を読み取る
+ * Read the content of a workflow file.
  */
 async function readWorkflowFile(dir: string, fileType: WorkflowFileType): Promise<string | null> {
   try {
@@ -110,7 +111,7 @@ async function readWorkflowFile(dir: string, fileType: WorkflowFileType): Promis
 }
 
 /**
- * ワークフローファイルに書き込む
+ * Write to a workflow file.
  */
 async function writeWorkflowFile(
   dir: string,
@@ -119,7 +120,7 @@ async function writeWorkflowFile(
 ): Promise<void> {
   await mkdir(dir, { recursive: true });
 
-  // 文字化け検出・修正処理
+  // Mojibake detection and correction
   const sanitizeResult = sanitizeMarkdownContent(content);
   if (sanitizeResult.wasFixed) {
     log.info(
@@ -143,7 +144,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * タスクのAgentSession作成に必要なDeveloperModeConfigを取得/作成する
+   * Get or create the DeveloperModeConfig required for AgentSession creation.
    */
   private async getOrCreateDevConfig(taskId: number) {
     let devConfig = await prisma.developerModeConfig.findUnique({
@@ -158,10 +159,10 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * ワークフローの次のフェーズを実行する
+   * Execute the next phase of the workflow.
    */
   async advanceWorkflow(taskId: number): Promise<WorkflowAdvanceResult> {
-    // タスク取得
+    // Fetch task
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: { theme: { include: { category: true } } },
@@ -175,7 +176,7 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // ワークフローモードに基づいて適切な遷移マップを選択
+    // Select the appropriate transition map based on workflow mode
     const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
     let modeTransitions: Record<string, RoleTransition>;
 
@@ -192,7 +193,7 @@ export class WorkflowOrchestrator {
         break;
     }
 
-    // 現在のステータスから次のロールを決定
+    // Determine next role from current status
     const currentStatus = (task.workflowStatus as string) || 'draft';
     const transition = modeTransitions[currentStatus];
     if (!transition) {
@@ -204,7 +205,7 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // ロール設定を取得
+    // Get role configuration
     const roleConfig = await prisma.workflowRoleConfig.findUnique({
       where: { role: transition.role },
       include: { agentConfig: true },
@@ -226,7 +227,7 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // システムプロンプトを取得
+    // Get system prompt
     let systemPromptContent = '';
     if (roleConfig.systemPromptKey) {
       const sp = await prisma.systemPrompt.findUnique({
@@ -237,7 +238,7 @@ export class WorkflowOrchestrator {
       }
     }
 
-    // ワークフローディレクトリ解決
+    // Resolve workflow directory
     const workflowInfo = await resolveWorkflowDir(taskId);
     if (!workflowInfo) {
       return {
@@ -248,14 +249,14 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // 出力ファイルが既に存在する場合はスキップしてステータスだけ進める
+    // If output file already exists, skip agent execution and advance status only
     if (transition.outputFile) {
       const existingContent = await readWorkflowFile(workflowInfo.dir, transition.outputFile);
       if (existingContent) {
         log.info(
           `[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`,
         );
-        // ステータスだけ進める
+        // Advance status only
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: transition.nextStatus },
@@ -269,17 +270,17 @@ export class WorkflowOrchestrator {
       }
     }
 
-    // ロールのコンテキスト（前フェーズのアーティファクト）を構築
+    // Build role context (artifacts from previous phases)
     const context = await this.buildRoleContext(taskId, transition.role, workflowInfo.dir, task);
 
     const agentConfig = roleConfig.agentConfig;
     const agentType = agentConfig.agentType;
     const isCLI = CLI_AGENT_TYPES.has(agentType);
-    // ロール固有のモデルIDがあればオーバーライド
+    // Override with role-specific model ID if available
     const effectiveModelId =
       (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
 
-    // workflowStatusを更新（実行開始を示す）
+    // Update workflowStatus to indicate execution start
     if (currentStatus === 'draft') {
       await prisma.task.update({
         where: { id: taskId },
@@ -289,7 +290,7 @@ export class WorkflowOrchestrator {
 
     try {
       if (isCLI) {
-        // CLIエージェント: AgentOrchestrator経由で実行
+        // CLI agent: execute via AgentOrchestrator
         const result = await this.executeCLIAgent(
           taskId,
           task,
@@ -301,7 +302,7 @@ export class WorkflowOrchestrator {
         );
         return result;
       } else {
-        // APIエージェント: 直接API呼び出し→ファイル保存代行
+        // API agent: direct API call -> save file on behalf
         const result = await this.executeAPIAgent(
           taskId,
           task,
@@ -326,7 +327,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * ロールに応じたコンテキストを構築する
+   * Build context appropriate for the role.
    */
   private async buildRoleContext(
     taskId: number,
@@ -392,7 +393,7 @@ export class WorkflowOrchestrator {
         if (plan) {
           ctx += `\n\n# 実装計画 (plan.md)\n\n${plan}`;
         }
-        // git diffを取得（可能であれば）
+        // Get git diff if available
         try {
           const { execSync } = await import('child_process');
           const diff = execSync('git diff HEAD~1', {
@@ -404,7 +405,7 @@ export class WorkflowOrchestrator {
             ctx += `\n\n# 変更差分 (git diff)\n\n\`\`\`diff\n${diff.substring(0, 50000)}\n\`\`\``;
           }
         } catch {
-          // git diffが失敗しても続行
+          // Continue even if git diff fails
         }
         ctx +=
           '\n\n上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。';
@@ -417,7 +418,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * CLIエージェントをAgentOrchestrator経由で実行する
+   * Execute a CLI agent via AgentOrchestrator.
    */
   private async executeCLIAgent(
     taskId: number,
@@ -430,7 +431,6 @@ export class WorkflowOrchestrator {
   ): Promise<WorkflowAdvanceResult> {
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
-    // セッション作成（DeveloperModeConfigが必要）
     const devConfig = await this.getOrCreateDevConfig(taskId);
     const session = await prisma.agentSession.create({
       data: {
@@ -440,22 +440,22 @@ export class WorkflowOrchestrator {
       },
     });
 
-    // ワークフローディレクトリを事前に作成（エージェントがWriteツールで書き込めるよう）
+    // Pre-create workflow directory so agents can write files
     await mkdir(workflowDir, { recursive: true });
 
-    // ワークフローファイルの保存先パスを構築
+    // Build output file path
     const outputFilePath = transition.outputFile
       ? join(workflowDir, `${transition.outputFile}.md`).replace(/\\/g, '/')
       : null;
 
-    // プロンプトを構築
+    // Build prompt
     let fullPrompt = '';
     if (systemPrompt) {
       fullPrompt += `## システム指示\n${systemPrompt}\n\n`;
     }
     fullPrompt += context;
 
-    // CLIエージェントにはAPI経由でのファイル保存を指示
+    // Instruct CLI agents to save files via API
     if (outputFilePath) {
       fullPrompt += `\n\n## 重要: 結果ファイルの保存\n`;
       fullPrompt += `調査・分析が完了したら、結果を以下のAPI経由で保存してください。\n`;
@@ -485,7 +485,7 @@ export class WorkflowOrchestrator {
       },
     );
 
-    // ワークフローステータス更新
+    // Update workflow status
     const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
     const currentWfStatus = updatedTask?.workflowStatus || 'draft';
 
@@ -493,8 +493,8 @@ export class WorkflowOrchestrator {
     if (transition.outputFile) {
       let fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
 
-      // フォールバック: エージェントがWriteツールでファイル保存しなかった場合、
-      // エージェントの出力からMarkdownコンテンツを抽出してファイルに保存する
+      // Fallback: if the agent didn't save via Write tool,
+      // extract Markdown content from agent output and save to file
       if (!fileContent && result.output && result.output.trim().length > 100) {
         log.info(
           `[WorkflowOrchestrator] ${transition.outputFile}.md not found, extracting content from agent output (${result.output.length} chars)`,
@@ -519,7 +519,7 @@ export class WorkflowOrchestrator {
             data: { workflowStatus: transition.nextStatus },
           });
         }
-        // ファイルが保存されていれば、エージェントの成否に関わらずワークフローとしては成功
+        // If file was saved, treat as workflow success regardless of agent status
         if (!effectiveSuccess) {
           log.info(
             `[WorkflowOrchestrator] Agent reported failure but ${transition.outputFile}.md exists, treating as success`,
@@ -529,12 +529,12 @@ export class WorkflowOrchestrator {
       }
     }
 
-    // クリーンアップ処理: プロジェクトルートの残存ワークフロー関連ファイルを削除
+    // Cleanup: remove leftover workflow files from project root
     try {
       await this.cleanupRootWorkflowFiles(taskId);
     } catch (cleanupError) {
       log.warn({ err: cleanupError }, '[WorkflowOrchestrator] Cleanup warning');
-      // クリーンアップエラーはワークフローの成否に影響しない
+      // Cleanup errors do not affect workflow success/failure
     }
 
     const finalResult = {
@@ -545,16 +545,16 @@ export class WorkflowOrchestrator {
       error: effectiveSuccess ? undefined : result.errorMessage,
     };
 
-    // implementer完了後は自動的に検証フェーズを実行
+    // Auto-start verification phase after implementer completes
     if (effectiveSuccess && transition.role === 'implementer') {
       log.info(
         '[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...',
       );
       try {
-        // 非同期で検証フェーズを開始（レスポンスは即座に返す）
+        // Start verification phase async (return response immediately)
         setTimeout(async () => {
           await this.advanceWorkflow(taskId);
-        }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
+        }, 1000); // 1s delay to ensure DB updates have committed
       } catch (error) {
         log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');
       }
@@ -564,7 +564,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * APIエージェントを直接呼び出してテキスト出力を取得、ファイル保存を代行する
+   * Call an API agent directly, get text output, and save files on its behalf.
    */
   private async executeAPIAgent(
     taskId: number,
@@ -582,7 +582,6 @@ export class WorkflowOrchestrator {
     transition: RoleTransition,
     workflowDir: string,
   ): Promise<WorkflowAdvanceResult> {
-    // セッション作成（DeveloperModeConfigが必要）
     const devConfig = await this.getOrCreateDevConfig(taskId);
     const session = await prisma.agentSession.create({
       data: {
@@ -592,7 +591,7 @@ export class WorkflowOrchestrator {
       },
     });
 
-    // 実行レコード作成
+    // Create execution record
     const execution = await prisma.agentExecution.create({
       data: {
         sessionId: session.id,
@@ -603,13 +602,13 @@ export class WorkflowOrchestrator {
     });
 
     try {
-      // APIキーの復号化
+      // Decrypt API key
       let apiKey = '';
       if (agentConfig.apiKeyEncrypted) {
         apiKey = await this.decryptApiKey(agentConfig.apiKeyEncrypted);
       }
 
-      // APIタイプに応じて呼び出し
+      // Call based on API type
       let output = '';
       const startTime = Date.now();
 
@@ -641,23 +640,23 @@ export class WorkflowOrchestrator {
 
       const executionTimeMs = Date.now() - startTime;
 
-      // 出力をワークフローファイルに保存
+      // Save output to workflow file
       if (transition.outputFile && output.trim()) {
         await writeWorkflowFile(workflowDir, transition.outputFile, output);
 
-        // workflowStatusを更新
+        // Update workflowStatus
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: transition.nextStatus },
         });
       }
 
-      // 実行レコード更新
+      // Update execution record
       await prisma.agentExecution.update({
         where: { id: execution.id },
         data: {
           status: 'completed',
-          output: output.substring(0, 10000), // DB保存は先頭10000文字まで
+          output: output.substring(0, 10000), // Truncate to 10000 chars for DB
           executionTimeMs,
         },
       });
@@ -671,20 +670,20 @@ export class WorkflowOrchestrator {
         success: true,
         role: transition.role,
         status: transition.nextStatus,
-        output: output.substring(0, 2000), // レスポンスは先頭2000文字まで
+        output: output.substring(0, 2000), // Truncate to 2000 chars for response
         executionId: execution.id,
       };
 
-      // implementer完了後は自動的に検証フェーズを実行
+      // Auto-start verification phase after implementer completes
       if (transition.role === 'implementer') {
         log.info(
           '[WorkflowOrchestrator] Implementer completed successfully, automatically starting verifier...',
         );
         try {
-          // 非同期で検証フェーズを開始（レスポンスは即座に返す）
+          // Start verification phase async (return response immediately)
           setTimeout(async () => {
             await this.advanceWorkflow(taskId);
-          }, 1000); // 1秒後に実行（DBの更新が確実に完了するまで待機）
+          }, 1000); // 1s delay to ensure DB updates have committed
         } catch (error) {
           log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');
         }
@@ -708,7 +707,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * Anthropic API呼び出し
+   * Call the Anthropic API.
    */
   private async callAnthropicAPI(
     apiKey: string,
@@ -744,7 +743,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * OpenAI API呼び出し
+   * Call the OpenAI API.
    */
   private async callOpenAIAPI(
     apiKey: string,
@@ -780,30 +779,30 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * 暗号化されたAPIキーを復号化する
+   * Decrypt an encrypted API key.
    */
   private async decryptApiKey(encrypted: string): Promise<string> {
-    // 既存の暗号化ユーティリティを使用
+    // Use existing encryption utility
     try {
       const { decrypt } = await import('../../utils/encryption');
       return decrypt(encrypted);
     } catch {
-      // 暗号化されていない場合はそのまま返す
+      // Return as-is if not encrypted
       return encrypted;
     }
   }
 
   /**
-   * プロジェクトルートの残存ワークフロー関連ファイルを削除する
+   * Remove leftover workflow-related files from the project root.
    */
   private async cleanupRootWorkflowFiles(taskId: number): Promise<void> {
     const fs = await import('fs');
     const path = await import('path');
 
-    // プロジェクトルートパス
+    // Project root path
     const projectRoot = process.cwd();
 
-    // 削除対象のファイルパターン
+    // File patterns to delete
     const workflowPatterns = [
       /^.*research.*\.md$/i,
       /^.*plan.*\.md$/i,
@@ -828,10 +827,10 @@ export class WorkflowOrchestrator {
         const filePath = path.join(projectRoot, file);
         const stat = await fs.promises.stat(filePath);
 
-        // ディレクトリは除外
+        // Skip directories
         if (stat.isDirectory()) continue;
 
-        // パターンマッチング
+        // Pattern matching
         let shouldDelete = false;
 
         for (const pattern of workflowPatterns) {
@@ -855,23 +854,23 @@ export class WorkflowOrchestrator {
       }
     } catch (error) {
       log.warn(`[WorkflowOrchestrator] Cleanup error: ${error}`);
-      // エラーは投げずに警告のみ
+      // Warn only, do not throw
     }
   }
 
   /**
-   * エージェント出力からMarkdownコンテンツを抽出する
-   * CLIエージェントの出力にはツール呼び出しログ等が含まれるため、
-   * 実際のMarkdownコンテンツ部分を抽出する。
+   * Extract Markdown content from agent output.
+   *
+   * CLI agent output contains tool call logs, so this extracts the actual Markdown portion.
    */
   private extractMarkdownFromOutput(output: string, fileType: string): string | null {
-    // ツール呼び出しログを除去（[Tool: ...] や [Result: ...] 等のパターン）
+    // Remove tool call logs ([Tool: ...], [Result: ...], etc.)
     const lines = output.split('\n');
     const contentLines: string[] = [];
     let inToolBlock = false;
 
     for (const line of lines) {
-      // ツール呼び出しの開始/終了を検出
+      // Detect tool call start/end
       if (line.match(/^\[Tool:\s/)) {
         inToolBlock = true;
         continue;
@@ -884,7 +883,7 @@ export class WorkflowOrchestrator {
         inToolBlock = false;
         continue;
       }
-      // ステータス行をスキップ
+      // Skip status lines
       if (line.match(/^⏺|^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)) {
         continue;
       }
@@ -895,11 +894,11 @@ export class WorkflowOrchestrator {
 
     const content = contentLines.join('\n').trim();
 
-    // Markdownとして妥当かチェック（見出しやリスト等が含まれるか）
+    // Verify content is valid Markdown (contains headings, lists, etc.)
     if (content.length < 50) return null;
     if (!content.match(/^#+\s|^\-\s|^\*\s|^\d+\.\s/m)) {
-      // Markdown構造が見つからない場合、出力全体をそのまま使用
-      // （エージェントがMarkdownを出力したがツールログがなかった場合）
+      // If no Markdown structure found, use entire output as-is
+      // (agent output Markdown but had no tool logs to strip)
       if (output.trim().length > 100 && output.match(/^#+\s|^\-\s|^\*\s/m)) {
         return output.trim();
       }

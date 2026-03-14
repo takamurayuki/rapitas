@@ -1,6 +1,7 @@
 /**
- * Agent Config Schema テスト
- * エージェント設定スキーマのバリデーション関数のテスト
+ * Agent Config Schema Test
+ *
+ * Tests for agent configuration schema validation functions.
  */
 import { describe, test, expect } from 'bun:test';
 import {
@@ -190,10 +191,10 @@ describe('validateAgentConfig', () => {
   });
 
   test('文字列フィールドの長さバリデーション', () => {
-    const shortString = 'a'.repeat(4); // 5文字未満
-    const longString = 'a'.repeat(1001); // 1000文字超
+    const shortString = 'a'.repeat(4); // Less than 5 chars
+    const longString = 'a'.repeat(1001); // Over 1000 chars
 
-    // maxTokensは数値フィールドなので、文字列フィールドがあるかチェック
+    // maxTokens is a numeric field, so check if any text fields with length validation exist
     const schemas = getAllAgentConfigSchemas();
     const schemaWithStringField = schemas.find((s) =>
       s.additionalFields?.some((f) => f.type === 'text' && f.validation?.minLength),
@@ -246,7 +247,7 @@ describe('validateAgentConfig', () => {
         const result = validateAgentConfig(schemaWithSelectField.agentType, {
           additionalConfig: { [selectField.name]: 'invalid-option' },
         });
-        // 現在の実装ではadditionalConfigのバリデーションは行われていない
+        // Current implementation does not validate additionalConfig
         expect(result.valid).toBe(true);
       }
     }
@@ -264,13 +265,13 @@ describe('validateAgentConfig', () => {
       );
 
       if (booleanField) {
-        // 有効なboolean値
+        // Valid boolean value
         const validResult = validateAgentConfig(schemaWithBooleanField.agentType, {
           additionalConfig: { [booleanField.name]: true },
         });
         expect(validResult.valid).toBe(true);
 
-        // 無効な値 (現在の実装ではadditionalConfigのバリデーションは行われていない)
+        // Invalid value (current implementation does not validate additionalConfig)
         const invalidResult = validateAgentConfig(schemaWithBooleanField.agentType, {
           additionalConfig: { [booleanField.name]: 'not-boolean' },
         });
@@ -335,7 +336,7 @@ describe('パフォーマンステスト', () => {
       getAllAgentConfigSchemas();
     }
     const end = performance.now();
-    expect(end - start).toBeLessThan(100); // 100ms以内
+    expect(end - start).toBeLessThan(100); // Within 100ms
   });
 
   test('大量のバリデーションの性能', () => {
@@ -344,7 +345,7 @@ describe('パフォーマンステスト', () => {
       validateApiKeyFormat('claude-code', 'sk-ant-api03-validkey1234567890');
     }
     const end = performance.now();
-    expect(end - start).toBeLessThan(100); // 100ms以内
+    expect(end - start).toBeLessThan(100); // Within 100ms
   });
 });
 
@@ -353,11 +354,11 @@ describe('統合テスト', () => {
     const schemas = getAllAgentConfigSchemas();
 
     schemas.forEach((schema) => {
-      // スキーマが正しく取得できる
+      // Schema should be retrieved correctly
       const retrievedSchema = getAgentConfigSchema(schema.agentType);
       expect(retrievedSchema).toEqual(schema);
 
-      // APIキーが必要な場合のバリデーション
+      // Validation when API key is required
       if (schema.apiKeyRequired) {
         const apiKey = schema.apiKeyPrefix
           ? `${schema.apiKeyPrefix}validkey1234567890`
@@ -367,7 +368,7 @@ describe('統合テスト', () => {
         expect(keyValidation.valid).toBe(true);
       }
 
-      // 基本設定のバリデーション
+      // Basic configuration validation
       const basicConfig = {
         endpoint: schema.defaultEndpoint,
         modelId: schema.defaultModel,
@@ -379,20 +380,20 @@ describe('統合テスト', () => {
   });
 
   test('設定変更シナリオのバリデーション', () => {
-    // 空の設定から完全な設定へのステップバイステップ
+    // Step by step from empty config to complete config
     const agentType = 'azure-openai';
 
-    // Step 1: 空設定（エラーあり）
+    // Step 1: Empty config (should have errors)
     const emptyResult = validateAgentConfig(agentType, {});
     expect(emptyResult.valid).toBe(false);
 
-    // Step 2: エンドポイント追加
+    // Step 2: Add endpoint
     const withEndpoint = validateAgentConfig(agentType, {
       endpoint: 'https://my-service.openai.azure.com',
     });
     expect(withEndpoint.valid).toBe(true);
 
-    // Step 3: モデル追加
+    // Step 3: Add model
     const withModel = validateAgentConfig(agentType, {
       endpoint: 'https://my-service.openai.azure.com',
       modelId: 'gpt-4',
@@ -454,12 +455,12 @@ describe('データ整合性テスト', () => {
     const schemas = getAllAgentConfigSchemas();
 
     schemas.forEach((schema) => {
-      // デフォルトエンドポイントがある場合のURL形式チェック
+      // Check URL format when a default endpoint exists
       if (schema.defaultEndpoint) {
         expect(() => new URL(schema.defaultEndpoint)).not.toThrow();
       }
 
-      // デフォルトモデルが利用可能モデルに含まれているかチェック
+      // Check that default model is included in available models
       if (schema.defaultModel && schema.availableModels) {
         const modelExists = schema.availableModels.some((m) => m.value === schema.defaultModel);
         expect(modelExists).toBe(true);
@@ -471,15 +472,15 @@ describe('データ整合性テスト', () => {
     const schemas = getAllAgentConfigSchemas();
 
     schemas.forEach((schema) => {
-      // APIキー必須なのにプレフィックスがない場合の警告
+      // Warning when API key is required but no prefix is defined
       if (schema.apiKeyRequired && !schema.apiKeyPrefix) {
-        // これは警告であってエラーではない（カスタムエージェントなど）
+        // This is a warning, not an error (e.g., custom agents)
         expect(typeof schema.apiKeyRequired).toBe('boolean');
       }
 
-      // エンドポイント必須なのにデフォルトがない場合
+      // Endpoint is required but no default is provided
       if (schema.endpointRequired && !schema.defaultEndpoint) {
-        // これも必ずしもエラーではない（Azure OpenAIなど）
+        // This is not necessarily an error (e.g., Azure OpenAI)
         expect(typeof schema.endpointRequired).toBe('boolean');
       }
     });

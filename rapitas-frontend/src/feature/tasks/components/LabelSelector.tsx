@@ -119,7 +119,7 @@ export default function LabelSelector({
   );
 }
 
-// 選択済みラベルを表示するコンポーネント
+// Component to display selected labels
 type SelectedLabelsDisplayProps = {
   labels: Label[];
   className?: string;

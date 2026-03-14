@@ -5,7 +5,7 @@ const log = createLogger('user-behavior-service');
 const prisma = new PrismaClient();
 
 /**
- * タスク関連データを含むタスク型
+ * Task type containing task-related data
  */
 interface TaskWithRelations {
   title: string;
@@ -30,7 +30,7 @@ export interface BehaviorContext {
 
 export class UserBehaviorService {
   /**
-   * ユーザー行動を記録
+   * Record user behavior
    */
   static async recordBehavior(
     actionType: string,
@@ -45,7 +45,7 @@ export class UserBehaviorService {
     const { userId = 1, taskId, themeId, context, metadata } = options;
 
     try {
-      // 現在の時刻情報を取得
+      // Get current time information
       const now = new Date();
       const hour = now.getHours();
       let timeOfDay: BehaviorContext['timeOfDay'];
@@ -83,12 +83,12 @@ export class UserBehaviorService {
       });
     } catch (error) {
       log.error({ err: error }, 'Failed to record user behavior');
-      // エラーをスローしない（ユーザー行動記録の失敗がメイン処理を妨げないように）
+      // Don't throw errors (prevent user behavior logging failures from blocking main process)
     }
   }
 
   /**
-   * タスク作成時の行動を記録
+   * Record behavior when task is created
    */
   static async recordTaskCreated(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_created', {
@@ -104,7 +104,7 @@ export class UserBehaviorService {
   }
 
   /**
-   * タスク開始時の行動を記録
+   * Record behavior when task is started
    */
   static async recordTaskStarted(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_started', {
@@ -116,14 +116,14 @@ export class UserBehaviorService {
             ? (new Date(task.startedAt).getTime() - new Date(task.createdAt).getTime()) /
               1000 /
               60 /
-              60 // 時間単位
+              60 // time unit
             : null,
       },
     });
   }
 
   /**
-   * タスク完了時の行動を記録・パターンを更新
+   * Record behavior when task is completed and update pattern
    */
   static async recordTaskCompleted(taskId: number, task: TaskWithRelations) {
     await this.recordBehavior('task_completed', {
@@ -136,20 +136,20 @@ export class UserBehaviorService {
             ? (new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime()) /
               1000 /
               60 /
-              60 // 時間単位
+              60 // time unit
             : null,
       },
     });
 
-    // タスクパターンを更新
+    // Update task pattern
     await this.updateTaskPattern(task);
   }
 
   /**
-   * タスクパターンを更新
+   * Update task pattern
    */
   private static async updateTaskPattern(task: TaskWithRelations) {
-    const userId = 1; // 現在は固定
+    const userId = 1; // Currently fixed
     const labelIds = task.taskLabels?.map((tl) => tl.labelId) || [];
 
     const existingPattern = await prisma.taskPattern.findUnique({
@@ -176,7 +176,7 @@ export class UserBehaviorService {
         : null;
 
     if (existingPattern) {
-      // 既存パターンを更新
+      // Update existing pattern
       const newFrequency = existingPattern.frequency + 1;
       const avgTimeToStart = existingPattern.averageTimeToStart || 0;
       const avgTimeToComplete = existingPattern.averageTimeToComplete || 0;
@@ -199,7 +199,7 @@ export class UserBehaviorService {
         },
       });
     } else {
-      // 新規パターンを作成
+      // Create new pattern
       await prisma.taskPattern.create({
         data: {
           userId,
@@ -219,7 +219,7 @@ export class UserBehaviorService {
   }
 
   /**
-   * 行動サマリーを生成・更新
+   * Generate and update behavior summary
    */
   static async updateBehaviorSummary(
     userId: number = 1,
@@ -245,7 +245,7 @@ export class UserBehaviorService {
         break;
     }
 
-    // この期間の行動を集計
+    // Aggregate behavior for this period
     const behaviors = await prisma.userBehavior.findMany({
       where: {
         userId,
@@ -263,7 +263,7 @@ export class UserBehaviorService {
       },
     });
 
-    // テーマごとに集計
+    // Aggregate by theme
     const themeGroups = new Map<number | null, typeof behaviors>();
     behaviors.forEach((b) => {
       const key = b.themeId;
@@ -277,7 +277,7 @@ export class UserBehaviorService {
       const taskCreated = themeBehaviors.filter((b) => b.actionType === 'task_created').length;
       const taskCompleted = themeBehaviors.filter((b) => b.actionType === 'task_completed').length;
 
-      // ラベル使用頻度を計算
+      // Calculate label usage frequency
       const labelCounts = new Map<number, number>();
       themeBehaviors.forEach((b) => {
         if (b.task?.taskLabels) {
@@ -287,7 +287,7 @@ export class UserBehaviorService {
         }
       });
 
-      // 優先度別タスク数を計算
+      // Calculate task count by priority
       const priorityCounts: Record<string, number> = {};
       themeBehaviors.forEach((b) => {
         if (b.task?.priority) {
@@ -295,7 +295,7 @@ export class UserBehaviorService {
         }
       });
 
-      // 時間帯の好みを計算
+      // Calculate time preference
       const timeOfDayCounts: Record<string, number> = {};
       themeBehaviors.forEach((b) => {
         const context = b.context ? JSON.parse(b.context) : {};
@@ -306,7 +306,7 @@ export class UserBehaviorService {
       const preferredTimeOfDay =
         Object.entries(timeOfDayCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
 
-      // 既存のサマリーを探す
+      // Find existing summary
       const existingSummary = await prisma.userBehaviorSummary.findFirst({
         where: {
           userId,

@@ -1,11 +1,11 @@
 /**
- * Google Gemini APIプロバイダー
+ * Google Gemini API Provider
  */
 import { type AIMessage, type AIResponse } from './types';
 import { formatApiError } from './error-handler';
 
 /**
- * Google Gemini APIを呼び出す（非ストリーミング）
+ * Call Google Gemini API (non-streaming).
  */
 export async function callGemini(
   apiKey: string,
@@ -27,7 +27,7 @@ export async function callGemini(
     },
   });
 
-  // Gemini のチャット形式に変換
+  // Convert to Gemini's chat format
   const history = messages
     .filter((m) => m.role !== 'system')
     .slice(0, -1)
@@ -46,7 +46,7 @@ export async function callGemini(
   const response = result.response;
   const content = response.text();
 
-  // Gemini はトークン使用量の取得方法が異なる
+  // Gemini reports token usage differently
   const tokensUsed =
     (response.usageMetadata?.promptTokenCount || 0) +
     (response.usageMetadata?.candidatesTokenCount || 0);
@@ -55,7 +55,7 @@ export async function callGemini(
 }
 
 /**
- * Gemini ストリーミング呼び出し
+ * Gemini streaming call.
  */
 export async function callGeminiStream(
   apiKey: string,

@@ -3,14 +3,14 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useLocalStorageState');
 
-// LocalStorageの読み書きを最適化するカスタムフック
+// Custom hook for optimized localStorage read/write operations
 export function useLocalStorageState<T>(
   key: string,
   defaultValue: T,
 ): [T, (value: T) => void] {
-  // 初回のみLocalStorageから読み込み（クライアントサイドのみ）
+  // Read from localStorage only on initial load (client-side only)
   const [state, setState] = useState<T>(() => {
-    // サーバーサイドレンダリング時はデフォルト値を返す
+    // Return default value during server-side rendering
     if (typeof window === 'undefined') {
       return defaultValue;
     }
@@ -24,7 +24,7 @@ export function useLocalStorageState<T>(
     }
   });
 
-  // クライアントサイドでマウント時にlocalStorageから値を再読み込み
+  // Re-read value from localStorage on client-side mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -45,12 +45,12 @@ export function useLocalStorageState<T>(
     return () => clearTimeout(timer);
   }, [key]);
 
-  // LocalStorageへの書き込みを最適化（デバウンスなし、即時書き込み）
+  // Optimize localStorage write (no debounce, immediate write)
   const setValue = useCallback(
     (value: T) => {
       try {
         setState(value);
-        // サーバーサイドでは何もしない
+        // Do nothing on server-side
         if (typeof window === 'undefined') return;
 
         if (value === null || value === undefined) {
@@ -65,7 +65,7 @@ export function useLocalStorageState<T>(
     [key],
   );
 
-  // 他のタブでの変更を検知
+  // Detect changes in other tabs
   useEffect(() => {
     if (typeof window === 'undefined') return;
 

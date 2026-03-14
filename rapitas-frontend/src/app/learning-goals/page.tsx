@@ -32,7 +32,6 @@ import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('LearningGoalsPage');
 
-// ウィザードのステップ
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';
 
 export default function LearningGoalsPage() {
@@ -62,7 +61,6 @@ export default function LearningGoalsPage() {
   const [currentStep, setCurrentStep] = useState<WizardStep>('goal');
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
 
-  // ウィザードフォームデータ
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -214,7 +212,7 @@ export default function LearningGoalsPage() {
         showToast(t('goalCreated'), 'success');
         resetWizard();
         await fetchGoals();
-        // 自動的にプラン生成を開始
+        // Auto-start plan generation
         handleGeneratePlan(newGoal.id);
       }
     } catch (e) {
@@ -225,7 +223,6 @@ export default function LearningGoalsPage() {
 
   const handleGeneratePlan = async (goalId: number) => {
     setGenerating(true);
-    // 対象の目標を選択状態にする
     const targetGoal = goals.find((g) => g.id === goalId);
     if (targetGoal) setSelectedGoal(targetGoal);
 
@@ -244,7 +241,6 @@ export default function LearningGoalsPage() {
           'success',
         );
         await fetchGoals();
-        // 更新された目標を選択
         const updated = await fetch(`${API_BASE_URL}/learning-goals/${goalId}`);
         if (updated.ok) {
           setSelectedGoal(await updated.json());
@@ -391,7 +387,6 @@ export default function LearningGoalsPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      {/* ヘッダー */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <BookMarked className="w-8 h-8 text-emerald-500" />
@@ -415,16 +410,14 @@ export default function LearningGoalsPage() {
         )}
       </div>
 
-      {/* ウィザード */}
       {showWizard && (
         <div className="mb-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-          {/* ステップインジケーター */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
             {WIZARD_STEPS.map((step, idx) => (
               <button
                 key={step.key}
                 onClick={() => {
-                  // 現在のステップ以前のステップには自由に戻れる
+                  // Allow free navigation to previous steps
                   if (idx <= getStepIndex(currentStep)) {
                     goToStep(step.key);
                   }
@@ -459,9 +452,7 @@ export default function LearningGoalsPage() {
             ))}
           </div>
 
-          {/* ステップコンテンツ */}
           <div className="p-6">
-            {/* Step 1: 学習目標 */}
             {currentStep === 'goal' && (
               <div className="space-y-4">
                 <div>
@@ -504,7 +495,6 @@ export default function LearningGoalsPage() {
               </div>
             )}
 
-            {/* Step 2: レベル設定 */}
             {currentStep === 'level' && (
               <div className="space-y-4">
                 <div>
@@ -547,7 +537,6 @@ export default function LearningGoalsPage() {
               </div>
             )}
 
-            {/* Step 3: 期間・時間 */}
             {currentStep === 'schedule' && (
               <div className="space-y-4">
                 <div>
@@ -630,7 +619,6 @@ export default function LearningGoalsPage() {
               </div>
             )}
 
-            {/* Step 4: 確認 */}
             {currentStep === 'confirm' && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
@@ -706,7 +694,6 @@ export default function LearningGoalsPage() {
               </div>
             )}
 
-            {/* ナビゲーションボタン */}
             <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-700">
               <div>
                 {currentStep !== 'goal' ? (
@@ -751,9 +738,7 @@ export default function LearningGoalsPage() {
         </div>
       )}
 
-      {/* メインコンテンツ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左: 目標一覧 */}
         <div className="lg:col-span-1">
           {goals.length > 0 ? (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
@@ -828,7 +813,6 @@ export default function LearningGoalsPage() {
           )}
         </div>
 
-        {/* 右: 詳細・プラン表示 */}
         <div className="lg:col-span-2">
           {generating ? (
             <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-12 text-center">
@@ -871,7 +855,6 @@ export default function LearningGoalsPage() {
   );
 }
 
-// 目標詳細パネルコンポーネント
 function GoalDetailPanel({
   goal,
   plan,
@@ -902,7 +885,6 @@ function GoalDetailPanel({
   const dateLocale = toDateLocale(locale);
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
-      {/* ヘッダー */}
       <div className="flex items-start justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
@@ -957,7 +939,6 @@ function GoalDetailPanel({
         </div>
       </div>
 
-      {/* メタ情報 */}
       <div className="mb-6 flex flex-wrap items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
         {goal.currentLevel && (
           <div className="flex items-center gap-1.5">
@@ -984,7 +965,6 @@ function GoalDetailPanel({
         </div>
       </div>
 
-      {/* 進捗バー + アクションボタン */}
       {goal.isApplied && progress && (
         <div className="mb-6 space-y-3">
           <div>
@@ -1030,10 +1010,8 @@ function GoalDetailPanel({
         </div>
       )}
 
-      {/* 学習プラン */}
       {plan ? (
         <>
-          {/* フェーズ一覧 */}
           <div className="space-y-3 mb-6">
             {plan.phases.map((phase, index) => (
               <div
@@ -1105,7 +1083,6 @@ function GoalDetailPanel({
                                 </span>
                               )}
                             </div>
-                            {/* サブタスク */}
                             {task.subtasks && task.subtasks.length > 0 && (
                               <div className="mt-2 pl-3 border-l-2 border-emerald-200 dark:border-emerald-800 space-y-1.5">
                                 {task.subtasks.map((sub, subIndex) => (
@@ -1139,7 +1116,6 @@ function GoalDetailPanel({
             ))}
           </div>
 
-          {/* おすすめリソース */}
           {plan.recommendedResources &&
             plan.recommendedResources.length > 0 && (
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
@@ -1198,7 +1174,6 @@ function GoalDetailPanel({
               </div>
             )}
 
-          {/* ヒント */}
           {plan.tips && plan.tips.length > 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 mb-4">
               <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2 flex items-center gap-2">
@@ -1218,7 +1193,6 @@ function GoalDetailPanel({
             </div>
           )}
 
-          {/* タスク適用の案内 */}
           {!goal.isApplied && (
             <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
               <p className="text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">

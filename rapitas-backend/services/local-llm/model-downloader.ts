@@ -1,7 +1,8 @@
 /**
- * ローカルLLMモデル & llama-serverバイナリのダウンロード管理
- * - Qwen2.5-0.5B Q4_K_M GGUF形式モデル
- * - llama-server バイナリ (llama.cpp GitHub releases)
+ * Local LLM Model & llama-server Binary Download Manager
+ *
+ * Manages downloading of Qwen2.5-0.5B Q4_K_M GGUF model
+ * and llama-server binary from llama.cpp GitHub releases.
  */
 import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync, chmodSync } from 'fs';
 import { join } from 'path';
@@ -15,7 +16,7 @@ const DEFAULT_MODEL_URL =
 const DEFAULT_MODEL_FILENAME = 'qwen2.5-0.5b-instruct-q4_k_m.gguf';
 const EXPECTED_SIZE_MB = 400;
 
-// llama-server バイナリ
+// llama-server binary
 const LLAMA_CPP_VERSION = 'b5280';
 const LLAMA_SERVER_BINARY = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
 
@@ -53,7 +54,7 @@ let currentProgress: DownloadProgress = {
 };
 
 /**
- * rapitas専用ディレクトリのルートを取得
+ * Get the root rapitas data directory.
  */
 function getRapitasDir(): string {
   const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
@@ -61,7 +62,7 @@ function getRapitasDir(): string {
 }
 
 /**
- * モデルの保存先ディレクトリを取得
+ * Get the models directory path.
  */
 export function getModelsDir(): string {
   const modelsDir = join(getRapitasDir(), 'models');
@@ -72,7 +73,7 @@ export function getModelsDir(): string {
 }
 
 /**
- * バイナリの保存先ディレクトリを取得
+ * Get the binaries directory path.
  */
 export function getBinDir(): string {
   const binDir = join(getRapitasDir(), 'bin');
@@ -83,55 +84,55 @@ export function getBinDir(): string {
 }
 
 /**
- * モデルファイルのパスを取得
+ * Get the model file path.
  */
 export function getModelPath(filename?: string): string {
   return join(getModelsDir(), filename || DEFAULT_MODEL_FILENAME);
 }
 
 /**
- * llama-serverバイナリのパスを取得
+ * Get the llama-server binary path.
  */
 export function getLlamaServerPath(): string {
   return join(getBinDir(), LLAMA_SERVER_BINARY);
 }
 
 /**
- * モデルがダウンロード済みかチェック
+ * Check if the model is downloaded.
  */
 export function isModelDownloaded(filename?: string): boolean {
   const modelPath = getModelPath(filename);
   if (!existsSync(modelPath)) return false;
 
-  // ファイルサイズが極端に小さい場合は不完全なダウンロード
+  // If file size is too small, the download is incomplete
   const stats = statSync(modelPath);
-  return stats.size > 100 * 1024 * 1024; // 100MB以上あればOK
+  return stats.size > 100 * 1024 * 1024; // 100MB+ means valid
 }
 
 /**
- * llama-serverバイナリがダウンロード済みかチェック
+ * Check if the llama-server binary is downloaded.
  */
 export function isLlamaServerDownloaded(): boolean {
   const binaryPath = getLlamaServerPath();
   if (!existsSync(binaryPath)) return false;
   const stats = statSync(binaryPath);
-  return stats.size > 100 * 1024; // 100KB以上あればOK
+  return stats.size > 100 * 1024; // 100KB+ means valid
 }
 
 /**
- * 現在のダウンロード進捗を取得
+ * Get the current download progress.
  */
 export function getDownloadProgress(): DownloadProgress {
   return { ...currentProgress };
 }
 
 /**
- * 汎用ファイルダウンロード（進捗追跡付き）
+ * Generic file download with progress tracking.
  */
 async function downloadFile(url: string, destPath: string, expectedSizeMB: number): Promise<void> {
   const response = await fetch(url, {
     redirect: 'follow',
-    signal: AbortSignal.timeout(600000), // 10分タイムアウト
+    signal: AbortSignal.timeout(600000), // 10 minute timeout
   });
 
   if (!response.ok) {
@@ -186,7 +187,7 @@ async function downloadFile(url: string, destPath: string, expectedSizeMB: numbe
 }
 
 /**
- * ZIPからllama-serverを抽出
+ * Extract llama-server from a ZIP archive.
  */
 async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
   const { execSync } = await import('child_process');
@@ -195,7 +196,7 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
   const targetPath = join(binDir, targetName);
 
   if (process.platform === 'win32') {
-    // PowerShellで展開してllama-server.exe + 依存DLLをコピー
+    // Extract with PowerShell and copy llama-server.exe + dependency DLLs
     const extractDir = join(binDir, '_llama_tmp');
     mkdirSync(extractDir, { recursive: true });
 
@@ -205,7 +206,7 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
         { timeout: 60000 },
       );
 
-      // llama-server.exe を再帰的に探す
+      // Recursively search for llama-server.exe
       const found = execSync(
         `powershell -Command "Get-ChildItem -Path '${extractDir}' -Recurse -Filter '${targetName}' | Select-Object -First 1 -ExpandProperty FullName"`,
         { timeout: 10000, encoding: 'utf-8' },
@@ -218,10 +219,10 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
       const { copyFileSync, readdirSync } = await import('fs');
       const { dirname } = await import('path');
 
-      // llama-server.exe をコピー
+      // Copy llama-server.exe
       copyFileSync(found, targetPath);
 
-      // 同じディレクトリにある .dll ファイルもすべてコピー（ggml.dll等の依存ライブラリ）
+      // Copy all .dll files in the same directory (dependency libraries like ggml.dll)
       const serverDir = dirname(found);
       const files = readdirSync(serverDir);
       for (const file of files) {
@@ -233,12 +234,12 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
         }
       }
 
-      // 一時ディレクトリとZIPを削除
+      // Delete temp directory and ZIP
       execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
         timeout: 10000,
       });
     } catch (error) {
-      // クリーンアップ
+      // Cleanup
       try {
         if (existsSync(extractDir)) {
           execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
@@ -251,14 +252,14 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
       throw error;
     }
   } else {
-    // Unix: unzipで展開
+    // Unix: extract with unzip
     const extractDir = join(binDir, '_llama_tmp');
     mkdirSync(extractDir, { recursive: true });
 
     try {
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
 
-      // llama-server を探す
+      // Search for llama-server
       const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
         timeout: 10000,
         encoding: 'utf-8',
@@ -274,7 +275,7 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
       copyFileSync(found, targetPath);
       chmodSync(targetPath, 0o755);
 
-      // 同じディレクトリの .so / .dylib もコピー
+      // Also copy .so/.dylib from the same directory
       const serverDir = dirname(found);
       const files = readdirSync(serverDir);
       for (const file of files) {
@@ -297,7 +298,7 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
     }
   }
 
-  // ZIPを削除
+  // Delete the ZIP
   try {
     unlinkSync(zipPath);
   } catch {
@@ -308,7 +309,7 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
 }
 
 /**
- * llama-serverバイナリをダウンロード
+ * Download the llama-server binary.
  */
 export async function downloadLlamaServer(): Promise<{
   success: boolean;
@@ -344,7 +345,7 @@ export async function downloadLlamaServer(): Promise<{
 }
 
 /**
- * モデルをダウンロード（llama-serverも自動でダウンロード）
+ * Download the model (also auto-downloads llama-server).
  */
 export async function downloadModel(
   url?: string,
@@ -362,7 +363,7 @@ export async function downloadModel(
       downloadedMB: EXPECTED_SIZE_MB,
       totalMB: EXPECTED_SIZE_MB,
     };
-    // モデルがあってもllama-serverがなければダウンロード
+    // Download llama-server even if model already exists
     if (!isLlamaServerDownloaded()) {
       await downloadLlamaServer();
     }
@@ -390,7 +391,7 @@ export async function downloadModel(
 
     log.info(`Model downloaded successfully: ${modelPath}`);
 
-    // llama-serverバイナリもダウンロード
+    // Also download the llama-server binary
     if (!isLlamaServerDownloaded()) {
       log.info('Also downloading llama-server binary...');
       const serverResult = await downloadLlamaServer();
@@ -412,7 +413,7 @@ export async function downloadModel(
       error: errMsg,
     };
 
-    // 不完全な一時ファイルを削除
+    // Delete incomplete temp file
     const tmpPath = modelPath + '.tmp';
     try {
       if (existsSync(tmpPath)) unlinkSync(tmpPath);
@@ -425,7 +426,7 @@ export async function downloadModel(
 }
 
 /**
- * モデルを削除
+ * Delete the model file.
  */
 export function deleteModel(filename?: string): boolean {
   const modelPath = getModelPath(filename);

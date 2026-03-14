@@ -34,7 +34,7 @@ interface CompactTaskDetailCardProps {
   onStatusUpdate: (taskId: number, newStatus: string) => void;
   resources?: Resource[];
   onResourcesChange?: () => void;
-  // メモ関連のprops
+  // Memo-related props
   comments?: Comment[];
   newComment?: string;
   isAddingComment?: boolean;

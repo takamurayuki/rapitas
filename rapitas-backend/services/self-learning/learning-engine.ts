@@ -1,7 +1,6 @@
 /**
- * Learning Engine - 学習エンジン
+ * Learning Engine -
  *
- * 失敗パターン分析、成功戦略抽出、プロンプト改善を行う。
  */
 
 import { prisma } from '../../config/database';
@@ -20,7 +19,6 @@ import type {
 const log = createLogger('self-learning:learning');
 
 /**
- * 失敗パターンを分析
  */
 export async function analyzeFailure(experimentId: number): Promise<string[]> {
   const experiment = await prisma.experiment.findUnique({
@@ -45,7 +43,6 @@ export async function analyzeFailure(experimentId: number): Promise<string[]> {
     }
   }
 
-  // 類似の失敗パターンがあるか検索
   const similarPatterns = await prisma.learningPattern.findMany({
     where: { patternType: 'failure_pattern' },
     orderBy: { occurrences: 'desc' },
@@ -58,7 +55,6 @@ export async function analyzeFailure(experimentId: number): Promise<string[]> {
       failureReasons.some((r) => r.toLowerCase().includes(c.value.toLowerCase())),
     );
     if (matchesAny) {
-      // 既知パターンの発生回数を更新
       await prisma.learningPattern.update({
         where: { id: pattern.id },
         data: {
@@ -75,7 +71,6 @@ export async function analyzeFailure(experimentId: number): Promise<string[]> {
 }
 
 /**
- * 成功戦略を抽出
  */
 export async function extractStrategy(experimentId: number): Promise<string[]> {
   const experiment = await prisma.experiment.findUnique({
@@ -86,7 +81,6 @@ export async function extractStrategy(experimentId: number): Promise<string[]> {
 
   const strategies: string[] = [];
 
-  // 仮説の検証結果から
   const validatedHypotheses = await prisma.hypothesis.findMany({
     where: { experimentId, status: 'validated' },
   });
@@ -94,7 +88,7 @@ export async function extractStrategy(experimentId: number): Promise<string[]> {
     strategies.push(`Validated approach: ${h.content}`);
   }
 
-  // 高評価のCriticレビューから
+  // Critic
   const goodReviews = await prisma.criticReview.findMany({
     where: { experimentId, overallScore: { gte: 0.7 } },
   });
@@ -102,7 +96,6 @@ export async function extractStrategy(experimentId: number): Promise<string[]> {
     strategies.push(`High-quality ${r.phase}: ${r.feedback.slice(0, 100)}`);
   }
 
-  // 成功パターンとして保存
   if (strategies.length > 0 && experiment.status === 'completed') {
     await createPattern({
       patternType: 'success_strategy',
@@ -128,7 +121,7 @@ export async function extractStrategy(experimentId: number): Promise<string[]> {
 }
 
 /**
- * 学習パターンを作成/更新
+ * /
  */
 export async function createPattern(input: CreatePatternInput) {
   return prisma.learningPattern.create({
@@ -144,7 +137,6 @@ export async function createPattern(input: CreatePatternInput) {
 }
 
 /**
- * パターン一覧を取得
  */
 export async function listPatterns(
   options: {
@@ -192,7 +184,6 @@ export async function listPatterns(
 }
 
 /**
- * プロンプト改善を記録
  */
 export async function recordPromptEvolution(input: CreatePromptEvolutionInput) {
   return prisma.promptEvolution.create({
@@ -208,7 +199,6 @@ export async function recordPromptEvolution(input: CreatePromptEvolutionInput) {
 }
 
 /**
- * プロンプト進化履歴を取得
  */
 export async function getPromptEvolutionHistory(category?: string) {
   const where: Record<string, unknown> = {};
@@ -222,7 +212,7 @@ export async function getPromptEvolutionHistory(category?: string) {
 }
 
 /**
- * 学習統計を取得
+ * Statistics
  */
 export async function getLearningStats(): Promise<LearningStats> {
   const [
@@ -245,7 +235,6 @@ export async function getLearningStats(): Promise<LearningStats> {
     prisma.knowledgeGraphEdge.count(),
   ]);
 
-  // 最近の学習内容
   const recentExperiments = await prisma.experiment.findMany({
     where: { status: 'completed', learning: { not: null } },
     orderBy: { completedAt: 'desc' },
@@ -271,12 +260,10 @@ export async function getLearningStats(): Promise<LearningStats> {
 }
 
 /**
- * 成長タイムラインを取得（日別の蓄積データ）
  */
 export async function getGrowthTimeline(
   period: '7d' | '30d' | 'all' = '30d',
 ): Promise<GrowthTimeline> {
-  // 期間計算
   const now = new Date();
   let startDate: Date;
 
@@ -288,7 +275,6 @@ export async function getGrowthTimeline(
       startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       break;
     case 'all':
-      // 最初の実験の日付を取得
       const firstExperiment = await prisma.experiment.findFirst({
         orderBy: { createdAt: 'asc' },
         select: { createdAt: true },
@@ -297,7 +283,6 @@ export async function getGrowthTimeline(
       break;
   }
 
-  // 日付範囲の配列を生成
   const dates: string[] = [];
   const currentDate = new Date(startDate);
   while (currentDate <= now) {
@@ -305,13 +290,11 @@ export async function getGrowthTimeline(
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  // 各日付の累積データを計算
   const timeline: GrowthTimelineEntry[] = [];
 
   for (const date of dates) {
     const endOfDay = new Date(`${date}T23:59:59.999Z`);
 
-    // その日時点での累積データを取得
     const [
       nodeCount,
       edgeCount,
@@ -374,10 +357,8 @@ export async function getGrowthTimeline(
 }
 
 /**
- * 記憶の概要を取得
  */
 export async function getMemoryOverview(): Promise<MemoryOverview> {
-  // 現在の記憶サイズ
   const [nodeCount, patternCount, episodeCount, experimentCount] = await Promise.all([
     prisma.knowledgeGraphNode.count(),
     prisma.learningPattern.count(),
@@ -385,7 +366,7 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
     prisma.experiment.count(),
   ]);
 
-  // 1週間前、1ヶ月前の記憶サイズ（成長率計算用）
+  // 11（）
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -405,7 +386,6 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
       }),
     ]);
 
-  // 成長率計算
   const totalMemoryNow = nodeCount + patternCount;
   const totalMemoryWeekAgo = nodeCountWeekAgo + patternCountWeekAgo;
   const totalMemoryMonthAgo = nodeCountMonthAgo + patternCountMonthAgo;
@@ -417,14 +397,12 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
       ? ((totalMemoryNow - totalMemoryMonthAgo) / totalMemoryMonthAgo) * 100
       : 0;
 
-  // 現在の成功率
   const [completedExperiments, totalExperiments] = await Promise.all([
     prisma.experiment.count({ where: { status: 'completed' } }),
     prisma.experiment.count(),
   ]);
   const currentSuccessRate = totalExperiments > 0 ? completedExperiments / totalExperiments : 0;
 
-  // 記憶強度スコア（複合指標）
   const memoryScore = Math.min(
     100,
     Math.floor(
@@ -441,7 +419,6 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
   else if (memoryScore < 75) memoryLevel = 'advanced';
   else memoryLevel = 'expert';
 
-  // 最近のハイライト
   const [recentPatterns, recentNodes] = await Promise.all([
     prisma.learningPattern.findMany({
       orderBy: { createdAt: 'desc' },
@@ -466,7 +443,6 @@ export async function getMemoryOverview(): Promise<MemoryOverview> {
     }),
   ]);
 
-  // 知識分布（ノードタイプ別）
   const nodeDistribution = await prisma.knowledgeGraphNode.groupBy({
     by: ['nodeType'],
     _count: { nodeType: true },

@@ -31,7 +31,7 @@ export function useWorkflowFiles(taskId: number | null) {
   const fetchFiles = useCallback(async () => {
     if (!taskId) return;
 
-    // 初回取得時のみローディング表示（refetch時は前のデータを保持したまま更新）
+    // NOTE: Show loading only on initial fetch (keep previous data during refetch)
     if (isInitialFetch.current) {
       setIsLoading(true);
     }
@@ -63,7 +63,7 @@ export function useWorkflowFiles(taskId: number | null) {
     }
   }, [taskId]);
 
-  // taskIdが変わった場合はinitial fetchに戻す
+  // Reset to initial fetch when taskId changes
   useEffect(() => {
     isInitialFetch.current = true;
     setFiles(null);

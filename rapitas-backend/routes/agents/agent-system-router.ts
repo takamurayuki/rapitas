@@ -1,6 +1,7 @@
 /**
  * Agent System Router
- * 診断・システム状態・暗号化・シャットダウン機能
+ *
+ * Handles diagnostics, system status, encryption checks, and graceful shutdown.
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
@@ -13,17 +14,15 @@ const log = createLogger('routes:agent-system');
 
 export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
-  // Get encryption configuration status
   .get('/encryption-status', async () => {
     return {
       isConfigured: isEncryptionKeyConfigured(),
       message: isEncryptionKeyConfigured()
-        ? '暗号化キーが正しく設定されています'
-        : '警告: 暗号化キーが環境変数に設定されていません。本番環境では必ず設定してください。',
+        ? 'Encryption key is properly configured'
+        : 'Warning: Encryption key is not set in environment variables. Must be configured for production.',
     };
   })
 
-  // Claude CLI diagnosis endpoint
   .get('/diagnose', async () => {
     const { spawn } = await import('child_process');
     const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
@@ -40,7 +39,6 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
       duration?: number;
     }[] = [];
 
-    // Step 1: Test claude --version
     const versionResult = await new Promise<{
       success: boolean;
       output?: string;
@@ -91,7 +89,6 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
     results.push({ step: 'claude --version', ...versionResult });
     log.info({ versionResult }, '[Diagnose] Version check');
 
-    // Step 2: Test simple prompt with spawn and explicit cmd.exe
     if (versionResult.success) {
       const promptResult = await new Promise<{
         success: boolean;
@@ -176,26 +173,27 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
     };
   })
 
-  // Get system status (including shutdown state)
   .get('/system-status', async () => {
-    const activeExecutions = orchestrator.getActiveExecutionCount?.() || 0;
+    // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
+    // Use the async version when available to get the accurate count from the worker.
+    const workerMgr = orchestrator as unknown as { getActiveExecutionCountAsync?: () => Promise<number> };
+    const activeExecutions = workerMgr.getActiveExecutionCountAsync
+      ? await workerMgr.getActiveExecutionCountAsync()
+      : (orchestrator.getActiveExecutionCount?.() || 0);
     const isShuttingDown = orchestrator.isInShutdown();
 
-    // 実行中の状態が残っている実行を取得
     const runningExecutions = await prisma.agentExecution.count({
       where: {
         status: { in: ['running', 'pending'] },
       },
     });
 
-    // 中断された実行を取得
     const interruptedExecutions = await prisma.agentExecution.count({
       where: {
         status: 'interrupted',
       },
     });
 
-    // システムステータスの判定
     let status = 'healthy';
     if (isShuttingDown) status = 'shutting_down';
     else if (activeExecutions > 0) status = 'busy';
@@ -214,7 +212,6 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
   // Validate agent configuration
   .get('/validate-config', async () => {
     try {
-      // エージェント設定の基本的なバリデーション
       const agentConfigs = await prisma.aIAgentConfig.findMany({
         select: {
           id: true,
@@ -227,14 +224,12 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
       let isValid = true;
       const errors: string[] = [];
 
-      // 最低1つのアクティブなエージェントが必要
       const activeConfigs = agentConfigs.filter((config) => config.isActive);
       if (activeConfigs.length === 0) {
         isValid = false;
         errors.push('No active agent configurations found');
       }
 
-      // 暗号化キー設定の確認
       if (!isEncryptionKeyConfigured()) {
         isValid = false;
         errors.push('Encryption key not configured');
@@ -259,7 +254,6 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
   // Health check endpoint
   .get('/health', async () => {
     try {
-      // データベース接続確認
       await prisma.$queryRaw`SELECT 1`;
 
       return {
@@ -287,31 +281,25 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      // レスポンス送信後に即座にリスニングソケットを閉じ、その後エージェントを停止する
-      // ポートを素早く解放することで、次回起動時のポート競合を防止
       setTimeout(async () => {
         try {
-          // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
           log.info('[shutdown] Closing all SSE connections...');
           realtimeService.shutdown();
 
-          // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
           log.info('[shutdown] Closing listening socket first for quick port release...');
           await stopServer();
           log.info('[shutdown] Listening socket closed, port released.');
 
-          // Step 3: エージェント停止とDB保存
           log.info('[shutdown] Stopping agents and saving state...');
           await orchestrator.gracefulShutdown({ skipServerStop: true });
           log.info('[shutdown] Agent shutdown completed.');
         } catch (error) {
           log.error({ err: error }, '[shutdown] Graceful shutdown error');
         } finally {
-          // Step 4: プロセス終了
           log.info('[shutdown] Exiting process...');
           setTimeout(() => process.exit(0), 200);
         }
-      }, 300); // レスポンス送信の時間を確保
+      }, 300);
 
       return {
         success: true,
@@ -335,30 +323,25 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
       const activeCount = orchestrator.getActiveExecutionCount();
 
-      // レスポンス送信後に即座にリスニングソケットを閉じ、その後エージェントを停止する
       setTimeout(async () => {
         try {
-          // Step 1: SSE接続を全て閉じる（CLOSE_WAIT蓄積を防止）
           log.info('[restart] Closing all SSE connections...');
           realtimeService.shutdown();
 
-          // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
           log.info('[restart] Closing listening socket first for quick port release...');
           await stopServer();
           log.info('[restart] Listening socket closed, port released.');
 
-          // Step 3: エージェント停止とDB保存
           log.info('[restart] Stopping agents and saving state...');
           await orchestrator.gracefulShutdown({ skipServerStop: true });
           log.info('[restart] Agent shutdown completed.');
         } catch (error) {
           log.error({ err: error }, '[restart] Graceful shutdown error');
         } finally {
-          // Step 4: 終了コード75でdev.jsに再起動を通知
           log.info('[restart] Exiting with restart code...');
           setTimeout(() => process.exit(75), 200);
         }
-      }, 300); // レスポンス送信の時間を確保
+      }, 300);
 
       return {
         success: true,

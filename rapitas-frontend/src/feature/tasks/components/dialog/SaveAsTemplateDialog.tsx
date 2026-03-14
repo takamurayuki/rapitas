@@ -8,7 +8,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('SaveAsTemplateDialog');
 
-// デフォルトカテゴリ
+// Default categories
 const DEFAULT_CATEGORIES = [
   '開発',
   'デザイン',
@@ -41,7 +41,7 @@ export default function SaveAsTemplateDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // モーダルが開かれたときにタスク情報をもとに初期値を設定
+  // Set initial values from task info when modal opens
   useEffect(() => {
     if (isOpen && task) {
       setName(task.title);
@@ -50,14 +50,14 @@ export default function SaveAsTemplateDialog({
     }
   }, [isOpen, task]);
 
-  // 既存カテゴリを取得
+  // Fetch existing categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/templates/categories`);
         if (res.ok) {
           const data = await res.json();
-          // デフォルトカテゴリと既存カテゴリをマージ
+          // Merge default and existing categories
           const merged = [...new Set([...DEFAULT_CATEGORIES, ...data])];
           setCategories(merged);
         }
@@ -108,7 +108,6 @@ export default function SaveAsTemplateDialog({
       onSuccess?.(template);
       onClose();
 
-      // フォームをリセット
       setName('');
       setDescription('');
       setCategory('');
@@ -159,7 +158,6 @@ export default function SaveAsTemplateDialog({
             </div>
           )}
 
-          {/* テンプレート名 */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               テンプレート名 <span className="text-red-500">*</span>
@@ -173,7 +171,6 @@ export default function SaveAsTemplateDialog({
             />
           </div>
 
-          {/* 説明 */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               説明（任意）
@@ -187,7 +184,6 @@ export default function SaveAsTemplateDialog({
             />
           </div>
 
-          {/* カテゴリ選択 */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               カテゴリ <span className="text-red-500">*</span>
@@ -250,7 +246,6 @@ export default function SaveAsTemplateDialog({
             )}
           </div>
 
-          {/* 保存される情報のプレビュー */}
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
             <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               テンプレートに含まれる情報

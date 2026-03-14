@@ -28,7 +28,6 @@ mod release {
     pub fn setup_sidecar(app: &tauri::App) {
         let shell = app.shell();
 
-        // プラットフォーム別のバックエンドファイル名を取得
         let backend_filename = if cfg!(target_os = "windows") {
             "rapitas-backend.exe"
         } else if cfg!(target_os = "macos") {
@@ -37,11 +36,9 @@ mod release {
             "rapitas-backend"
         };
 
-        // リソースディレクトリまたはアプリディレクトリからバックエンドexeを探す
-        // 開発モード: src-tauri/binaries/rapitas-backend-*.exe
-        // リリースモード: $INSTDIR/binaries/rapitas-backend-*.exe
+        // Dev mode: src-tauri/binaries/rapitas-backend-*.exe
+        // Release mode: $INSTDIR/binaries/rapitas-backend-*.exe
         let resource_path = {
-            // まず、リソースディレクトリ（開発モード）を確認
             let dev_resource_dir = app
                 .path()
                 .resource_dir()
@@ -66,7 +63,7 @@ mod release {
                 }
             }
 
-            // リリースモード: アプリディレクトリの binaries サブディレクトリを確認
+            // Release mode: check the binaries subdirectory next to the app executable
             if backend_path.is_none() {
                 let app_dir = std::env::current_exe()
                     .expect("failed to get current exe path")
@@ -97,7 +94,7 @@ mod release {
 
         println!("[Backend] Found backend: {:?}", resource_path);
 
-        // バックエンドをアプリデータディレクトリにコピー
+        // Copy backend to app data directory
         let app_data_dir = app
             .path()
             .app_data_dir()
@@ -107,23 +104,23 @@ mod release {
 
         let backend_path = app_data_dir.join(backend_filename);
 
-        // リソースをコピー（更新時に上書き）
+        // Copy resource (overwrite on update)
         std::fs::copy(&resource_path, &backend_path)
             .expect("failed to copy backend executable");
         println!("[Backend] Copied to: {:?}", backend_path);
 
-        // バックエンドを起動
+        // Launch the backend process
         let backend_command = shell
             .command(backend_path.to_string_lossy().to_string())
             .env("TAURI_BUILD", "true");
 
         let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
 
-        // 状態にchildを保存（後でクリーンアップ用）
+        // Store child process handle for cleanup on exit
         let state = app.state::<Mutex<BackendState>>();
         state.lock().unwrap().child = Some(child);
 
-        // バックエンドの出力をログに記録
+        // Forward backend output to logs
         tauri::async_runtime::spawn(async move {
             use tauri_plugin_shell::process::CommandEvent;
             while let Some(event) = rx.recv().await {
@@ -162,7 +159,7 @@ use std::path::PathBuf;
 
 const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+R";
 
-/// ショートカット設定ファイルのパスを取得
+/// Get the path to the shortcut configuration file.
 fn shortcut_config_path(app: &tauri::AppHandle) -> PathBuf {
     let app_dir = app
         .path()
@@ -172,7 +169,7 @@ fn shortcut_config_path(app: &tauri::AppHandle) -> PathBuf {
     app_dir.join("shortcut.json")
 }
 
-/// 保存された設定からショートカット文字列を読み込み
+/// Load the shortcut string from saved configuration.
 fn load_shortcut_config(app: &tauri::AppHandle) -> String {
     let path = shortcut_config_path(app);
     if let Ok(content) = std::fs::read_to_string(&path) {
@@ -185,7 +182,7 @@ fn load_shortcut_config(app: &tauri::AppHandle) -> String {
     DEFAULT_SHORTCUT.to_string()
 }
 
-/// 文字列ショートカットをパースして Shortcut に変換
+/// Parse a shortcut string and convert it to a Shortcut instance.
 fn parse_shortcut_from_config(config: &str) -> Option<tauri_plugin_global_shortcut::Shortcut> {
     use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
@@ -272,18 +269,15 @@ fn parse_shortcut_from_config(config: &str) -> Option<tauri_plugin_global_shortc
     Some(Shortcut::new(mods, code))
 }
 
-/// Tauriコマンド: ウィンドウの装飾情報を取得
+/// Tauri command: get window decoration info.
 #[tauri::command]
 fn get_window_decorations(window: tauri::Window) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     {
         use serde_json::json;
 
-        // Windowsの標準タイトルバーの高さ（DPI考慮なし）
+        // NOTE: Fixed value without DPI scaling; sufficient for current use case
         let title_bar_height = 32;
-
-        // 実際のDPIを考慮した高さの計算も可能
-        // ただし、ここではシンプルに固定値を返す
         Ok(json!({
             "titleBarHeight": title_bar_height,
             "hasDecorations": window.is_decorated().unwrap_or(true),
@@ -300,63 +294,56 @@ fn get_window_decorations(window: tauri::Window) -> Result<serde_json::Value, St
     }
 }
 
-// Tauriコマンド: 現在のショートカット設定を取得
+/// Tauri command: get the current shortcut configuration.
 #[tauri::command]
 fn get_global_shortcut(app: tauri::AppHandle) -> String {
     load_shortcut_config(&app)
 }
 
-/// Tauriコマンド: グローバルショートカットを変更して保存
+/// Tauri command: change the global shortcut and persist it.
 #[tauri::command]
 fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String, String> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-    // パースの検証
     let new_shortcut = parse_shortcut_from_config(&shortcut)
-        .ok_or_else(|| format!("無効なショートカット: {}", shortcut))?;
+        .ok_or_else(|| format!("Invalid shortcut: {}", shortcut))?;
 
-    // 既存のすべてのショートカットを解除
     app.global_shortcut()
         .unregister_all()
-        .map_err(|e| format!("ショートカットの解除に失敗: {}", e))?;
+        .map_err(|e| format!("Failed to unregister shortcuts: {}", e))?;
 
-    // 新しいショートカットを登録
     app.global_shortcut()
         .register(new_shortcut)
-        .map_err(|e| format!("ショートカットの登録に失敗: {}", e))?;
+        .map_err(|e| format!("Failed to register shortcut: {}", e))?;
 
-    // 設定ファイルに保存
     let path = shortcut_config_path(&app);
     let json = serde_json::json!({ "shortcut": shortcut });
     std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap())
-        .map_err(|e| format!("設定の保存に失敗: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     println!("[Shortcut] Global shortcut changed to: {}", shortcut);
     Ok(shortcut)
 }
 
-/// Tauriコマンド: 画面分割表示でURLを開く（ネイティブブラウザを使用）
+/// Tauri command: open a URL in split-screen view using the native browser.
 #[tauri::command]
 async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let monitor = app
         .primary_monitor()
-        .map_err(|e| format!("モニター取得失敗: {}", e))?
-        .ok_or("モニターが見つかりません")?;
+        .map_err(|e| format!("Failed to get monitor: {}", e))?
+        .ok_or("No monitor found")?;
 
     let screen_size = monitor.size();
     let screen_width = screen_size.width as i32;
     let screen_height = screen_size.height as i32;
 
-    // Windows環境で統合された画面分割処理を使用
     #[cfg(target_os = "windows")]
     {
         split_screen_manager::split_screen_with_browser(&url, screen_width, screen_height)?;
     }
 
-    // 他のOS環境では既存の方法を使用
     #[cfg(not(target_os = "windows"))]
     {
-        // メインウィンドウを右半分に移動
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.unmaximize().ok();
             main_window
@@ -374,10 +361,9 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
             main_window.show().ok();
         }
 
-        // ブラウザでURLを開く
-        open::that(&url).map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+        open::that(&url).map_err(|e| format!("Failed to launch browser: {}", e))?;
 
-        // フォーカスを戻す
+        // Return focus to the main window after the browser opens
         std::thread::sleep(std::time::Duration::from_millis(1000));
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.set_focus().ok();
@@ -387,11 +373,12 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
     Ok(())
 }
 
-/// メインウィンドウを表示してフォーカスする
-/// Windows では hide → show → unminimize → set_focus の順序で呼ぶ必要がある
+/// Show and focus the main window.
+///
+/// On Windows, the hide -> show -> unminimize -> set_focus sequence is required
+/// to reliably bring the window to the foreground.
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        // Windows で確実に最前面に表示するため、一旦 hide してから show する
         let _ = window.hide();
         let _ = window.show();
         let _ = window.unminimize();
@@ -399,10 +386,10 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// システムトレイをセットアップする
+/// Set up the system tray icon and menu.
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let show_item = MenuItem::with_id(app, "show", "ウィンドウを表示", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let tray_icon_bytes = include_bytes!("../icons/32x32.png");
@@ -440,13 +427,13 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// グローバルショートカットをセットアップする (Ctrl+Alt+R でウィンドウを最前面に表示)
+/// Set up the global shortcut (default: Ctrl+Alt+R to bring window to foreground).
 fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_global_shortcut::{
         Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
     };
 
-    // 保存された設定からショートカットを読み込み、なければデフォルト (Ctrl+Alt+R)
+    // Load saved shortcut config, falling back to default (Ctrl+Alt+R)
     let shortcut_config = load_shortcut_config(app.handle());
     let shortcut = parse_shortcut_from_config(&shortcut_config)
         .unwrap_or_else(|| Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyR));
@@ -462,7 +449,7 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             .build(),
     )?;
 
-    // 前回のクラッシュ等でOSに残っている場合に備え、先にunregisterする
+    // Unregister first in case the OS still holds a stale registration from a previous crash
     let _ = app.global_shortcut().unregister(shortcut);
     app.global_shortcut().register(shortcut)?;
     println!("Global shortcut registered: {}", shortcut_config);
@@ -490,7 +477,7 @@ fn main() {
                 Ok(())
             })
             .on_window_event(|window, event| {
-                // 閉じるボタンでウィンドウを隠す（トレイに格納）
+                // Hide window to system tray instead of closing
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
@@ -518,7 +505,7 @@ fn main() {
                 Ok(())
             })
             .on_window_event(|window, event| {
-                // 閉じるボタンでウィンドウを隠す（トレイに格納）
+                // Hide window to system tray instead of closing
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();

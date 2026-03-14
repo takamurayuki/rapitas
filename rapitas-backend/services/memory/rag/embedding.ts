@@ -1,7 +1,8 @@
 /**
- * ローカルEmbedding生成
- * @xenova/transformers の all-MiniLM-L6-v2 モデルで384次元のembeddingを生成
- * Bun互換性問題がある場合はNode.jsサブプロセスにフォールバック
+ * Local Embedding Generation
+ *
+ * Generates 384-dimensional embeddings using @xenova/transformers all-MiniLM-L6-v2.
+ * Falls back to a Node.js subprocess if Bun compatibility issues arise.
  */
 import { createLogger } from '../../../config/logger';
 import type { EmbeddingResult } from '../types';
@@ -13,7 +14,7 @@ const log = createLogger('memory:rag:embedding');
 const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2';
 const DIMENSION = 384;
 
-// @xenova/transformersのパイプライン型定義
+// Pipeline type definition for @xenova/transformers
 interface EmbeddingPipeline {
   (
     text: string,
@@ -29,7 +30,7 @@ let embeddingDisabled = false;
 let initAttempted = false;
 
 /**
- * 埋め込みパイプラインをリセット（再初期化のため）
+ * Reset the embedding pipeline for re-initialization.
  */
 export function resetEmbeddingPipeline(): void {
   pipeline = null;
@@ -40,20 +41,20 @@ export function resetEmbeddingPipeline(): void {
 }
 
 /**
- * embeddingパイプラインを初期化
+ * Initialize the embedding pipeline.
  */
 async function initPipeline(): Promise<void> {
   if (pipeline || initAttempted) return;
   initAttempted = true;
 
   try {
-    // @xenova/transformersを動的インポート
+    // Dynamic import of @xenova/transformers
     // @ts-expect-error @xenova/transformers has no type declarations
     const { pipeline: createPipeline } = await import('@xenova/transformers');
     pipeline = await createPipeline('feature-extraction', MODEL_NAME);
     log.info('Embedding pipeline initialized (direct)');
   } catch (_directError) {
-    // 直接importが失敗した場合、サブプロセスでもモジュールが必要なためチェック
+    // If direct import fails, check if the module exists for subprocess fallback
     try {
       require.resolve('@xenova/transformers');
       log.warn('Direct embedding init failed, using subprocess fallback');
@@ -68,7 +69,7 @@ async function initPipeline(): Promise<void> {
 }
 
 /**
- * Node.jsサブプロセスでembeddingを生成（フォールバック）
+ * Generate embedding via Node.js subprocess (fallback for Bun compatibility).
  */
 async function generateEmbeddingSubprocess(text: string): Promise<number[]> {
   const workerPath = join(__dirname, '../../../workers/embedding-worker.cjs');
@@ -99,7 +100,7 @@ async function generateEmbeddingSubprocess(text: string): Promise<number[]> {
 }
 
 /**
- * テキストからembeddingを生成
+ * Generate an embedding from text.
  */
 export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
   await initPipeline();
@@ -125,7 +126,7 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
 }
 
 /**
- * 複数テキストのembeddingをバッチ生成
+ * Generate embeddings for multiple texts in batch.
  */
 export async function generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
   const results: EmbeddingResult[] = [];

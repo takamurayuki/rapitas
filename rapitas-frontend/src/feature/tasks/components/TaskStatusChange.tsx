@@ -24,7 +24,7 @@ export default function TaskStatusChange({
 }: TaskStatusChangeProps) {
   const isCurrent = currentStatus === status;
 
-  // ラベル付きの大きなボタン（編集モード用）
+  // Large button with label (for edit mode)
   if (showLabel) {
     const ringColor =
       status === 'todo'
@@ -55,10 +55,10 @@ export default function TaskStatusChange({
     );
   }
 
-  // アイコンのみのコンパクトなボタン（一覧・表示モード用）
+  // Compact icon-only button (for list/view mode)
   const sizeClass = size === 'sm' ? 'w-6 h-6' : 'w-7 h-7';
 
-  // ボーダー色の設定
+  // Border color configuration
   const borderColor = config.borderColor.replace('border-l-', 'border-');
 
   return (

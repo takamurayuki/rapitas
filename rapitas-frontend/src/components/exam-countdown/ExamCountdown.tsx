@@ -59,19 +59,19 @@ export function ExamCountdown({
   if (compact) {
     return (
       <div className="flex items-center gap-3">
-        {/* ミニ日めくり */}
+        {/* Mini day calendar */}
         <div
           className="relative flex flex-col items-center rounded-lg overflow-hidden shadow-sm border border-zinc-200 dark:border-zinc-600"
           style={{ minWidth: 52 }}
         >
-          {/* 上部: 月 */}
+          {/* Top: Month */}
           <div
             className="w-full text-center text-[10px] font-bold text-white py-0.5 leading-tight"
             style={{ backgroundColor: statusColor }}
           >
             {t('monthLabel', { month })}
           </div>
-          {/* 日付 */}
+          {/* Date */}
           <div className="w-full text-center bg-white dark:bg-zinc-800 py-1 px-1">
             <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50 leading-none">
               {day}
@@ -81,7 +81,7 @@ export function ExamCountdown({
             </span>
           </div>
         </div>
-        {/* 残り日数 */}
+        {/* Days remaining */}
         <div>
           <span className="text-lg font-bold" style={{ color: statusColor }}>
             {isToday
@@ -97,19 +97,19 @@ export function ExamCountdown({
 
   return (
     <div className="flex items-center gap-4">
-      {/* 日めくりカレンダー */}
+      {/* Day calendar */}
       <div
         className="relative flex flex-col items-center rounded-xl overflow-hidden shadow-md border border-zinc-200 dark:border-zinc-600"
         style={{ minWidth: 80 }}
       >
-        {/* 上部: 年月ヘッダー */}
+        {/* Top: Year/month header */}
         <div
           className="w-full text-center text-xs font-bold text-white py-1"
           style={{ backgroundColor: statusColor }}
         >
           {t('yearMonthLabel', { year, month })}
         </div>
-        {/* 中央: 日付（大きく） */}
+        {/* Center: Date (large) */}
         <div className="w-full text-center bg-white dark:bg-zinc-800 py-2 px-2">
           <div className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-50 leading-none">
             {day}
@@ -119,7 +119,7 @@ export function ExamCountdown({
             {t('weekdayLabel')}
           </div>
         </div>
-        {/* 下部: ちぎり線風の装飾 */}
+        {/* Bottom: Tear-line style decoration */}
         <div
           className="w-full h-1"
           style={{
@@ -128,7 +128,7 @@ export function ExamCountdown({
         />
       </div>
 
-      {/* カウントダウン数字 */}
+      {/* Countdown number */}
       <div className="flex flex-col items-start">
         {isToday ? (
           <div className="flex items-baseline gap-1">

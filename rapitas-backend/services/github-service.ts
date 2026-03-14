@@ -1,6 +1,7 @@
 /**
- * GitHub連携サービス
- * gh CLI を使用してGitHub操作を行う
+ * GitHub Integration Service
+ *
+ * Performs GitHub operations via the gh CLI.
  */
 
 import { exec } from 'child_process';
@@ -181,7 +182,7 @@ export interface GitHubWebhookPayload {
 }
 
 /**
- * GitHub Service クラス
+ * GitHub Service class
  */
 export class GitHubService {
   private prisma: PrismaClientInstance;
@@ -191,10 +192,10 @@ export class GitHubService {
   }
 
   /**
-   * gh CLI コマンドを実行
+   * Execute a gh CLI command.
    */
   private async runGhCommand(args: string[], cwd?: string): Promise<string> {
-    // Windows環境でのghコマンドのフルパス
+    // Full path to gh on Windows
     const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
     const command = `${ghPath} ${args.join(' ')}`;
     try {
@@ -216,7 +217,7 @@ export class GitHubService {
   }
 
   /**
-   * gh CLI が利用可能か確認
+   * Check if gh CLI is available
    */
   async isGhAvailable(): Promise<boolean> {
     try {
@@ -228,7 +229,7 @@ export class GitHubService {
   }
 
   /**
-   * gh CLI の認証状態を確認
+   * Check gh CLI authentication status
    */
   async isAuthenticated(): Promise<boolean> {
     try {
@@ -239,10 +240,10 @@ export class GitHubService {
     }
   }
 
-  // ==================== Pull Request 操作 ====================
+  // ==================== Pull Request Operations ====================
 
   /**
-   * PRリストを取得
+   * Get list of pull requests
    */
   async getPullRequests(
     repo: string,
@@ -283,7 +284,7 @@ export class GitHubService {
   }
 
   /**
-   * PR詳細を取得
+   * Get pull request details
    */
   async getPullRequest(repo: string, prNumber: number): Promise<PullRequest | null> {
     try {
@@ -320,7 +321,7 @@ export class GitHubService {
   }
 
   /**
-   * PRの差分を取得
+   * Get pull request file diffs
    */
   async getPullRequestDiff(repo: string, prNumber: number): Promise<FileDiff[]> {
     const output = await this.runGhCommand([
@@ -330,7 +331,7 @@ export class GitHubService {
       '.[].filename, .[].status, .[].additions, .[].deletions, .[].patch',
     ]);
 
-    // gh api はJSONで取得
+    // Fetch as JSON via gh api
     const filesOutput = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/files`]);
 
     const files = JSON.parse(filesOutput);
@@ -344,7 +345,7 @@ export class GitHubService {
   }
 
   /**
-   * PRのレビューを取得
+   * Get pull request reviews
    */
   async getPullRequestReviews(repo: string, prNumber: number): Promise<PullRequestReview[]> {
     const output = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/reviews`]);
@@ -360,7 +361,7 @@ export class GitHubService {
   }
 
   /**
-   * PRのコメントを取得
+   * Get pull request comments
    */
   async getPullRequestComments(repo: string, prNumber: number): Promise<PullRequestComment[]> {
     const output = await this.runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/comments`]);
@@ -377,7 +378,7 @@ export class GitHubService {
   }
 
   /**
-   * PRにコメントを投稿
+   * Post a comment on a pull request
    */
   async createPullRequestComment(
     repo: string,
@@ -385,7 +386,7 @@ export class GitHubService {
     input: CreatePRCommentInput,
   ): Promise<PullRequestComment> {
     if (input.path && input.line) {
-      // レビューコメント（特定ファイル・行に対するコメント）
+      // Review comment (on a specific file/line)
       const output = await this.runGhCommand([
         'api',
         `repos/${repo}/pulls/${prNumber}/comments`,
@@ -409,7 +410,7 @@ export class GitHubService {
         createdAt: comment.created_at,
       };
     } else {
-      // 一般コメント（Issue comment）
+      // General comment (Issue comment)
       const output = await this.runGhCommand([
         'pr',
         'comment',
@@ -421,7 +422,7 @@ export class GitHubService {
       ]);
 
       return {
-        id: 0, // gh pr comment は ID を返さない
+        id: 0, // gh pr comment does not return an ID
         body: input.body,
         authorLogin: 'rapitas',
         createdAt: new Date().toISOString(),
@@ -430,7 +431,7 @@ export class GitHubService {
   }
 
   /**
-   * PRを承認
+   * Approve a pull request
    */
   async approvePullRequest(repo: string, prNumber: number, body?: string): Promise<void> {
     const args = ['pr', 'review', String(prNumber), '--repo', repo, '--approve'];
@@ -441,7 +442,7 @@ export class GitHubService {
   }
 
   /**
-   * PRに変更をリクエスト
+   * Request changes on a pull request
    */
   async requestChanges(repo: string, prNumber: number, body: string): Promise<void> {
     await this.runGhCommand([
@@ -457,7 +458,7 @@ export class GitHubService {
   }
 
   /**
-   * 作業ディレクトリからPRを作成
+   * Create a pull request from the working directory
    */
   async createPullRequest(
     workingDirectory: string,
@@ -472,12 +473,12 @@ export class GitHubService {
     error?: string;
   }> {
     try {
-      // 現在のブランチをプッシュ
+      // Push the current branch
       await execAsync(`git push -u origin ${headBranch}`, {
         cwd: workingDirectory,
       });
 
-      // PRを作成
+      // Create the PR
       const output = await this.runGhCommand(
         [
           'pr',
@@ -494,7 +495,7 @@ export class GitHubService {
         workingDirectory,
       );
 
-      // PR URLからPR番号を抽出
+      // Extract PR number from URL
       const prUrl = output.trim();
       const prMatch = prUrl.match(/\/pull\/(\d+)/);
       const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
@@ -507,10 +508,10 @@ export class GitHubService {
     }
   }
 
-  // ==================== Issue 操作 ====================
+  // ==================== Issue Operations ====================
 
   /**
-   * Issueリストを取得
+   * Get list of issues
    */
   async getIssues(
     repo: string,
@@ -547,7 +548,7 @@ export class GitHubService {
   }
 
   /**
-   * Issue詳細を取得
+   * Get issue details
    */
   async getIssue(repo: string, issueNumber: number): Promise<Issue | null> {
     try {
@@ -579,7 +580,7 @@ export class GitHubService {
   }
 
   /**
-   * Issueを作成
+   * Create an issue
    */
   async createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
     const args = ['issue', 'create', '--repo', repo, '--title', input.title];
@@ -594,10 +595,10 @@ export class GitHubService {
       args.push('--assignee', input.assignees.join(','));
     }
 
-    // URL を取得
+    // Get the URL
     const url = await this.runGhCommand(args);
 
-    // 作成されたIssueの番号を抽出
+    // Extract the created issue number
     const match = url.match(/\/issues\/(\d+)/);
     if (!match) {
       throw new Error('Failed to parse created issue URL');
@@ -613,7 +614,7 @@ export class GitHubService {
   }
 
   /**
-   * Issueにコメントを追加
+   * Add a comment to an issue
    */
   async addIssueComment(
     repo: string,
@@ -631,15 +632,15 @@ export class GitHubService {
     ]);
 
     return {
-      id: 0, // gh issue comment は ID を返さない
+      id: 0, // gh issue comment does not return an ID
       body,
     };
   }
 
-  // ==================== 同期機能 ====================
+  // ==================== Sync Features ====================
 
   /**
-   * PRを同期
+   * Sync pull requests
    */
   async syncPullRequests(integrationId: number): Promise<number> {
     const integration = await this.prisma.gitHubIntegration.findUnique({
@@ -688,7 +689,7 @@ export class GitHubService {
       syncedCount++;
     }
 
-    // 同期完了通知を送信
+    // Send sync completion notification
     realtimeService.sendGitHubEvent('pr_sync_complete', {
       integrationId,
       syncedCount,
@@ -699,7 +700,7 @@ export class GitHubService {
   }
 
   /**
-   * Issueを同期
+   * Sync issues
    */
   async syncIssues(integrationId: number): Promise<number> {
     const integration = await this.prisma.gitHubIntegration.findUnique({
@@ -746,7 +747,7 @@ export class GitHubService {
       syncedCount++;
     }
 
-    // 同期完了通知を送信
+    // Send sync completion notification
     realtimeService.sendGitHubEvent('issue_sync_complete', {
       integrationId,
       syncedCount,
@@ -756,10 +757,10 @@ export class GitHubService {
     return syncedCount;
   }
 
-  // ==================== Webhook 処理 ====================
+  // ==================== Webhook Handling ====================
 
   /**
-   * Webhookイベントを処理
+   * Handle a webhook event
    */
   async handleWebhook(event: string, payload: GitHubWebhookPayload): Promise<void> {
     switch (event) {
@@ -786,7 +787,7 @@ export class GitHubService {
     const { action, pull_request, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
-    // リアルタイム通知
+    // Real-time notification
     realtimeService.sendGitHubEvent('pull_request', {
       action,
       prNumber: pull_request.number,
@@ -795,7 +796,7 @@ export class GitHubService {
       timestamp: new Date().toISOString(),
     });
 
-    // DBを更新
+    // Update DB
     const integration = await this.prisma.gitHubIntegration.findFirst({
       where: { repositoryUrl: repository.html_url },
     });
@@ -837,7 +838,7 @@ export class GitHubService {
     const { action, review, pull_request, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
-    // リアルタイム通知
+    // Real-time notification
     realtimeService.sendGitHubEvent('pull_request_review', {
       action,
       prNumber: pull_request.number,
@@ -847,7 +848,7 @@ export class GitHubService {
       timestamp: new Date().toISOString(),
     });
 
-    // 通知を作成（レビューリクエスト時など）
+    // Create notification (e.g. on review request)
     if (action === 'submitted') {
       await this.prisma.notification.create({
         data: {
@@ -871,7 +872,7 @@ export class GitHubService {
     const repo = `${repository.owner.login}/${repository.name}`;
     const number = pull_request?.number || issue?.number;
 
-    // リアルタイム通知
+    // Real-time notification
     realtimeService.sendGitHubEvent(event, {
       action,
       number,
@@ -887,7 +888,7 @@ export class GitHubService {
     const { action, issue, repository } = payload;
     const repo = `${repository.owner.login}/${repository.name}`;
 
-    // リアルタイム通知
+    // Real-time notification
     realtimeService.sendGitHubEvent('issue', {
       action,
       issueNumber: issue.number,
@@ -896,7 +897,7 @@ export class GitHubService {
       timestamp: new Date().toISOString(),
     });
 
-    // DBを更新
+    // Update DB
     const integration = await this.prisma.gitHubIntegration.findFirst({
       where: { repositoryUrl: repository.html_url },
     });

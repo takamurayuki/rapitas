@@ -135,7 +135,7 @@ export default function PaidLeaveDialog({
       if (isAllDay) {
         startAt = toUTCISO(startDate);
         if (isMultiDay && endDate > startDate) {
-          // 終日イベントは翌日の00:00で終了
+          // All-day events end at 00:00 the next day
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
           const [year, month, day] = nextDay

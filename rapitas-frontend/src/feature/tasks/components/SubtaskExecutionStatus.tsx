@@ -4,39 +4,32 @@ import React from 'react';
 import { CheckCircle2, Circle, XCircle, Clock, Pause } from 'lucide-react';
 
 /**
- * 並列実行時のサブタスクステータス
+ * Subtask status during parallel execution.
  */
 export type ParallelExecutionStatus =
-  | 'pending' // 待機中
-  | 'scheduled' // スケジュール済み
-  | 'running' // 実行中
-  | 'completed' // 完了
-  | 'failed' // 失敗
-  | 'cancelled' // キャンセル
-  | 'blocked'; // ブロック（依存タスク未完了）
+  | 'pending' // Waiting
+  | 'scheduled' // Scheduled
+  | 'running' // Running
+  | 'completed' // Completed
+  | 'failed' // Failed
+  | 'cancelled' // Cancelled
+  | 'blocked'; // Blocked (dependency not completed)
 
 interface SubtaskExecutionStatusProps {
-  /** 並列実行のステータス */
+  /** Parallel execution status */
   executionStatus?: ParallelExecutionStatus;
-  /** コンパクト表示（アイコンのみ） */
+  /** Compact display (icon only) */
   compact?: boolean;
-  /** サイズ */
+  /** Size */
   size?: 'sm' | 'md' | 'lg';
-  /** クラス名 */
+  /** Class name */
   className?: string;
 }
 
 /**
- * サブタスク並列実行ステータス表示コンポーネント
+ * Subtask parallel execution status display component.
  *
- * 並列実行中のサブタスクの進行状況を視覚的に表示します。
- * - pending: グレーの円形アイコン（待機中）
- * - scheduled: 時計アイコン（スケジュール済み）
- * - running: 回転するローディングアイコン（実行中）
- * - completed: 緑のチェックマーク（完了）
- * - failed: 赤のXアイコン（失敗）
- * - cancelled: 黄色の一時停止アイコン（キャンセル）
- * - blocked: オレンジの一時停止アイコン（ブロック中）
+ * Visually displays the progress of subtasks during parallel execution.
  */
 export function SubtaskExecutionStatus({
   executionStatus,
@@ -44,7 +37,7 @@ export function SubtaskExecutionStatus({
   size = 'sm',
   className = '',
 }: SubtaskExecutionStatusProps) {
-  // ステータスがない場合は何も表示しない
+  // Render nothing when no status is provided
   if (!executionStatus) {
     return null;
   }
@@ -170,15 +163,15 @@ export function SubtaskExecutionStatus({
 }
 
 /**
- * サブタスクタイトル用のローディングインジケーター
- * タイトルの前に表示して、実行中であることを示します
+ * Loading indicator for subtask titles.
+ * Displayed before the title to indicate execution is in progress.
  */
 interface SubtaskTitleIndicatorProps {
-  /** 並列実行のステータス */
+  /** Parallel execution status */
   executionStatus?: ParallelExecutionStatus;
-  /** サイズ */
+  /** Size */
   size?: 'sm' | 'md';
-  /** クラス名 */
+  /** Class name */
   className?: string;
 }
 

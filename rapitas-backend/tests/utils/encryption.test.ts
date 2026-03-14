@@ -21,11 +21,11 @@ describe('encrypt / decrypt', () => {
     const encrypted = encrypt('test');
     const parts = encrypted.split(':');
     expect(parts.length).toBe(3);
-    // IVは32文字のHex（16バイト）
+    // IV is 32-char hex (16 bytes)
     expect(parts[0]!.length).toBe(32);
-    // AuthTagは32文字のHex（16バイト）
+    // AuthTag is 32-char hex (16 bytes)
     expect(parts[1]!.length).toBe(32);
-    // 暗号文は存在すること
+    // Ciphertext should exist
     expect(parts[2]!.length).toBeGreaterThan(0);
   });
 
@@ -34,7 +34,7 @@ describe('encrypt / decrypt', () => {
     const encrypted1 = encrypt(plainText);
     const encrypted2 = encrypt(plainText);
     expect(encrypted1).not.toBe(encrypted2);
-    // しかし両方とも同じ平文に復号化できること
+    // But both should decrypt to the same plaintext
     expect(decrypt(encrypted1)).toBe(plainText);
     expect(decrypt(encrypted2)).toBe(plainText);
   });
@@ -64,7 +64,7 @@ describe('maskApiKey', () => {
     expect(result.startsWith('sk-a')).toBe(true);
     expect(result.endsWith('2345')).toBe(true);
     expect(result).toContain('*');
-    // 先頭4文字 + マスク + 末尾4文字
+    // First 4 chars + mask + last 4 chars
     expect(result.length).toBe('sk-ant-api03-test-key-12345'.length);
   });
 
@@ -81,7 +81,7 @@ describe('maskApiKey', () => {
 
 describe('isEncryptionKeyConfigured', () => {
   test('ENCRYPTION_KEYが設定されている場合trueを返すこと', () => {
-    // テスト環境ではENCRYPTION_KEYが設定されている前提
+    // Assumes ENCRYPTION_KEY is set in the test environment
     expect(isEncryptionKeyConfigured()).toBe(true);
   });
 });

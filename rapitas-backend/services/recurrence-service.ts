@@ -1,6 +1,7 @@
 /**
  * Recurrence Service
- * RRULE形式の繰り返しルールを解析し、イベントインスタンスを仮想展開
+ *
+ * Parses RRULE-format recurrence rules and virtually expands event instances.
  */
 
 export interface RRule {
@@ -23,8 +24,8 @@ const DAY_MAP: Record<string, number> = {
 };
 
 /**
- * RRULE文字列をパース
- * 例: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR"
+ * Parse an RRULE string.
+ * e.g.: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR"
  */
 export function parseRRule(rule: string): RRule {
   const parts = rule.split(';');
@@ -60,7 +61,7 @@ export function parseRRule(rule: string): RRule {
 }
 
 /**
- * RRULE オブジェクトを文字列にシリアライズ
+ * Serialize an RRULE object to a string.
  */
 export function serializeRRule(rule: RRule): string {
   const parts: string[] = [`FREQ=${rule.freq}`];
@@ -75,7 +76,7 @@ export function serializeRRule(rule: RRule): string {
 }
 
 /**
- * 繰り返しルールに基づいて日付リストを生成
+ * Generate a list of dates based on a recurrence rule.
  */
 export function expandRecurrence(
   startDate: Date,
@@ -104,7 +105,7 @@ export function expandRecurrence(
 
     if (current >= rangeStart) {
       if (rule.freq === 'WEEKLY' && rule.byday?.length) {
-        // 週の特定曜日
+        // Specific days of the week
         const dayOfWeek = current.getDay();
         const dayName = Object.entries(DAY_MAP).find(([, v]) => v === dayOfWeek)?.[0];
         if (dayName && rule.byday.includes(dayName)) {
@@ -112,7 +113,7 @@ export function expandRecurrence(
           count++;
         }
       } else if (rule.freq === 'MONTHLY' && rule.bymonthday?.length) {
-        // 月の特定日
+        // Specific days of the month
         if (rule.bymonthday.includes(current.getDate())) {
           dates.push(new Date(current));
           count++;
@@ -123,16 +124,16 @@ export function expandRecurrence(
       }
     }
 
-    // 次の日付に進む
+    // Advance to the next date
     switch (rule.freq) {
       case 'DAILY':
         current.setDate(current.getDate() + rule.interval);
         break;
       case 'WEEKLY':
         if (rule.byday?.length) {
-          // 次の曜日に進む
+          // Advance to the next weekday
           current.setDate(current.getDate() + 1);
-          // 週をまたぐ場合はintervalを考慮
+          // Account for interval when crossing weeks
           const startDay = startDate.getDay();
           if (current.getDay() === startDay && rule.interval > 1) {
             current.setDate(current.getDate() + 7 * (rule.interval - 1));
@@ -158,7 +159,7 @@ export function expandRecurrence(
 }
 
 /**
- * よく使う繰り返しパターンのプリセット
+ * Commonly used recurrence pattern presets
  */
 export const RECURRENCE_PRESETS = {
   daily: 'FREQ=DAILY;INTERVAL=1',

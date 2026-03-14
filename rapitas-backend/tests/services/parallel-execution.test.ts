@@ -82,7 +82,7 @@ describe('DependencyAnalyzer', () => {
 
     const result = analyzer.analyze(input);
 
-    // 共有ファイルによるエッジがあるはず
+    // There should be edges from shared files
     const edges = result.treeMap.edges.filter((e) => e.type === 'file_sharing');
     expect(edges.length).toBeGreaterThan(0);
   });
@@ -114,7 +114,7 @@ describe('DependencyAnalyzer', () => {
 
     const result = analyzer.analyze(input);
 
-    // 独立したタスクは同じグループに入るべき
+    // Independent tasks should be in the same group
     expect(result.treeMap.parallelGroups.length).toBeGreaterThan(0);
     const firstGroup = result.treeMap.parallelGroups[0];
     expect(firstGroup.canRunParallel).toBe(true);
@@ -147,7 +147,7 @@ describe('DependencyAnalyzer', () => {
 
     const result = analyzer.analyze(input);
 
-    // 並列化効率が計算されているはず
+    // Parallelization efficiency should be calculated
     expect(result.plan.parallelEfficiency).toBeGreaterThanOrEqual(0);
     expect(result.plan.estimatedSequentialDuration).toBe(6); // 2+3+1
   });
@@ -252,10 +252,10 @@ describe('ParallelScheduler', () => {
   it('should return executable tasks respecting dependencies', () => {
     const executable = scheduler.getNextExecutableTasks();
 
-    // レベル0のタスク（101, 103）が実行可能
+    // Level 0 tasks (101, 103) should be executable
     expect(executable).toContain(101);
     expect(executable).toContain(103);
-    // レベル1のタスク（102）は依存があるので実行不可
+    // Level 1 task (102) has dependencies, so it should not be executable
     expect(executable).not.toContain(102);
   });
 
@@ -269,7 +269,7 @@ describe('ParallelScheduler', () => {
     scheduler.startTask(101);
     scheduler.completeTask(101);
 
-    // タスク101が完了すると、102が実行可能になる
+    // When task 101 completes, task 102 becomes executable
     const executable = scheduler.getNextExecutableTasks();
     expect(executable).toContain(102);
   });
@@ -289,7 +289,7 @@ describe('ParallelScheduler', () => {
     scheduler.startTask(101);
     scheduler.failTask(101);
 
-    // タスク101が失敗すると、102はブロックされる
+    // When task 101 fails, task 102 should be blocked
     expect(scheduler.getTaskStatus(102)).toBe('blocked');
   });
 });
@@ -377,7 +377,7 @@ describe('LogAggregator', () => {
   it('should handle ring buffer overflow', () => {
     const smallAggregator = createLogAggregator(5);
 
-    // 10件のログを追加
+    // Add 10 log entries
     for (let i = 0; i < 10; i++) {
       smallAggregator.addLog({
         timestamp: new Date(),
@@ -388,7 +388,7 @@ describe('LogAggregator', () => {
       });
     }
 
-    // 最大5件のログしか保持されない
+    // Only a maximum of 5 logs should be retained
     const summary = smallAggregator.getSummary();
     expect(summary.totalLogs).toBe(5);
   });
@@ -405,14 +405,14 @@ describe('AgentCoordinator', () => {
     const lock1 = coordinator.requestResourceLock('agent-1', 101, 'file.ts');
     expect(lock1.status).toBe('granted');
 
-    // 同じリソースを別のエージェントがロックしようとすると拒否される
+    // Another agent trying to lock the same resource should be denied
     const lock2 = coordinator.requestResourceLock('agent-2', 102, 'file.ts');
     expect(lock2.status).toBe('denied');
 
-    // ロックを解放
+    // Release the lock
     coordinator.releaseResourceLock('agent-1', 'file.ts');
 
-    // 今度はロックできる
+    // Now the lock can be acquired
     const lock3 = coordinator.requestResourceLock('agent-2', 102, 'file.ts');
     expect(lock3.status).toBe('granted');
   });
@@ -491,11 +491,11 @@ describe('Integration: Dependency Analysis to Scheduling', () => {
 
     const result = analyzer.analyze(input);
 
-    // プランが正しく生成されているか
+    // Verify the plan was generated correctly
     expect(result.plan.groups.length).toBeGreaterThan(0);
     expect(result.plan.executionOrder.length).toBeGreaterThan(0);
 
-    // スケジューラーを作成して実行順序を検証
+    // Create a scheduler and verify execution order
     const config: ParallelExecutionConfig = {
       maxConcurrentAgents: 2,
       questionTimeoutSeconds: 300,
@@ -508,14 +508,14 @@ describe('Integration: Dependency Analysis to Scheduling', () => {
 
     const scheduler = createParallelScheduler(result.plan, result.treeMap.nodes, config);
 
-    // 最初に実行可能なタスク
+    // First batch of executable tasks
     const firstBatch = scheduler.getNextExecutableTasks();
 
-    // 101と103は依存がないので実行可能（maxConcurrency=2なので2つまで）
+    // 101 and 103 have no dependencies so are executable (maxConcurrency=2, so up to 2)
     expect(firstBatch.length).toBeLessThanOrEqual(2);
     expect(firstBatch.some((id) => id === 101 || id === 103)).toBe(true);
 
-    // 105は依存があるので最初は実行不可
+    // 105 has dependencies so it should not be executable initially
     expect(firstBatch).not.toContain(105);
   });
 });

@@ -1,10 +1,10 @@
 /**
- * AIプロバイダーエラーハンドリング
+ * AI Provider Error Handling
  */
 import { type AIProvider, PROVIDER_NAMES } from './types';
 
 /**
- * エラーメッセージからエラー種別を判定し、ユーザー向けメッセージに変換
+ * Classify an error by its message and convert it to a user-facing message.
  */
 export function formatApiError(error: unknown, provider: AIProvider): string {
   const message = error instanceof Error ? error.message : String(error);
@@ -54,13 +54,13 @@ export function formatApiError(error: unknown, provider: AIProvider): string {
 }
 
 /**
- * APIエラーを判定し、わかりやすいエラーメッセージに変換
+ * Evaluate an API error and re-throw with a user-friendly message.
  */
 export function handleApiError(error: unknown, provider: AIProvider): never {
   const userMessage = formatApiError(error, provider);
   const originalMessage = error instanceof Error ? error.message : String(error);
 
-  // ユーザー向けメッセージに変換された場合は新しいErrorを投げる
+  // If the message was translated to a user-facing version, throw a new Error
   if (userMessage !== originalMessage) {
     throw new Error(userMessage);
   }

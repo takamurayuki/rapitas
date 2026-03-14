@@ -124,7 +124,7 @@ describe('質問検出ロジック', () => {
       };
       const result = extractQuestionInfo(input);
 
-      // questionがない場合はheaderを質問テキストとして使用
+      // When question is absent, header is used as the question text
       expect(result.questionText).toBe('Database Type');
       expect(result.questionDetails?.headers).toEqual(['Database Type']);
     });
@@ -496,7 +496,7 @@ describe('質問検出ロジック', () => {
 });
 
 describe('stream-json形式のAskUserQuestionツール検出', () => {
-  // stream-jsonイベントのシミュレーション
+  // Simulates stream-json events
   const simulateStreamJsonEvent = (toolName: string, input: Record<string, unknown>) => {
     return {
       type: 'assistant',
@@ -526,7 +526,7 @@ describe('stream-json形式のAskUserQuestionツール検出', () => {
     expect(block.name).toBe('AskUserQuestion');
     expect(block.type).toBe('tool_use');
 
-    // 新しいキーベース判定システムで検出
+    // Detected via the new key-based detection system
     const result = detectQuestionFromToolCall(block.name, block.input);
     expect(result.hasQuestion).toBe(true);
     expect(result.questionKey).toBeDefined();
@@ -569,7 +569,7 @@ describe('stream-json形式のAskUserQuestionツール検出', () => {
 
 describe('質問待機状態の管理', () => {
   it('AgentExecutionResultの型が正しい', () => {
-    // 型チェックテスト
+    // Type check test
     const result = {
       success: true,
       output: 'テスト出力',
@@ -620,7 +620,7 @@ describe('質問待機状態の管理', () => {
 
 describe('QuestionKeyの完全性チェック', () => {
   it('要件で指定されたフォーマットを満たす', () => {
-    // 要件で指定されたキーフォーマット:
+    // Key format specified in requirements:
     // {
     //   "status": "awaiting_user_input" | "processing" | "completed",
     //   "question_id": "unique_identifier",

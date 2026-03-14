@@ -1,6 +1,7 @@
 /**
- * 再固定化（Reconsolidation）
- * 予測誤差に基づいて既存の知識を更新
+ * Knowledge Reconsolidation
+ *
+ * Updates existing knowledge based on prediction errors.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -11,9 +12,10 @@ import { createContentHash } from './utils';
 const log = createLogger('memory:reconsolidation');
 
 /**
- * 予測誤差を検出し、知識を再固定化
- * errorMagnitude > 0.3: LLMで知識更新 + 再embedding
- * errorMagnitude ≤ 0.3: confidence微減のみ
+ * Detect prediction errors and reconsolidate knowledge.
+ *
+ * errorMagnitude > 0.3: Update knowledge via LLM + re-embed.
+ * errorMagnitude <= 0.3: Slightly reduce confidence only.
  */
 export async function triggerReconsolidation(params: {
   entryId: number;
@@ -36,7 +38,7 @@ export async function triggerReconsolidation(params: {
   let updated = false;
 
   if (errorMagnitude > 0.3) {
-    // 大きな予測誤差: LLMで知識を更新
+    // Large prediction error: update knowledge via LLM
     try {
       const response = await sendAIMessage({
         messages: [
@@ -76,14 +78,14 @@ ${predictionError}
       log.info({ entryId, errorMagnitude }, 'Knowledge reconsolidated with LLM update');
     } catch (error) {
       log.error({ err: error, entryId }, 'Failed to reconsolidate with LLM');
-      // フォールバック: confidence微減のみ
+      // Fallback: slightly reduce confidence only
       await prisma.knowledgeEntry.update({
         where: { id: entryId },
         data: { confidence: Math.max(0.1, entry.confidence - 0.05) },
       });
     }
   } else {
-    // 小さな予測誤差: confidence微減のみ
+    // Small prediction error: slightly reduce confidence only
     await prisma.knowledgeEntry.update({
       where: { id: entryId },
       data: { confidence: Math.max(0.1, entry.confidence - 0.05) },
@@ -91,7 +93,7 @@ ${predictionError}
     log.debug({ entryId, errorMagnitude }, 'Knowledge confidence slightly reduced');
   }
 
-  // 再固定化記録を作成
+  // Create reconsolidation record
   const record = await prisma.knowledgeReconsolidation.create({
     data: {
       entryId,

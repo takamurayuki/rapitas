@@ -1,6 +1,7 @@
 /**
- * Anthropic API プロバイダー
- * @anthropic-ai/sdk を使用してClaude APIを直接呼び出すプロバイダー
+ * Anthropic API Provider
+ *
+ * Provider that directly calls the Claude API using @anthropic-ai/sdk.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -23,7 +24,7 @@ import { AgentError } from '../abstraction/interfaces';
 import { generateAgentId } from '../abstraction';
 
 /**
- * Anthropic API プロバイダー設定
+ * Anthropic API provider configuration
  */
 export interface AnthropicApiConfig extends AnthropicAPIProviderConfig {
   model?: string;
@@ -33,7 +34,7 @@ export interface AnthropicApiConfig extends AnthropicAPIProviderConfig {
 }
 
 /**
- * Claude モデル情報
+ * Claude model information
  */
 export const CLAUDE_MODELS = {
   'claude-opus-4-5-20251101': {
@@ -69,7 +70,7 @@ export const CLAUDE_MODELS = {
 type ClaudeModelId = keyof typeof CLAUDE_MODELS;
 
 /**
- * 会話履歴のメッセージ型
+ * Conversation history message type
  */
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -77,7 +78,7 @@ interface ConversationMessage {
 }
 
 /**
- * Anthropic API エージェント
+ * Anthropic API Agent
  */
 export class AnthropicApiAgent extends AbstractAgent {
   private config: AnthropicApiConfig;
@@ -131,7 +132,7 @@ export class AnthropicApiAgent extends AbstractAgent {
       }
 
       const client = new Anthropic({ apiKey });
-      // 簡単なAPIコールでテスト
+      // Lightweight API call to verify connectivity
       await client.messages.create({
         model: this.config.model || 'claude-sonnet-4-20250514',
         max_tokens: 10,
@@ -192,7 +193,6 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       this.log('info', `Executing with model: ${modelId}`, { promptLength: prompt.length });
 
-      // ユーザーメッセージを履歴に追加
       this.conversationHistory.push({ role: 'user', content: prompt });
 
       const response = await client.messages.create({
@@ -209,7 +209,6 @@ export class AnthropicApiAgent extends AbstractAgent {
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
 
-      // アシスタントの応答を取得
       let output = '';
       for (const block of response.content) {
         if (block.type === 'text') {
@@ -217,7 +216,6 @@ export class AnthropicApiAgent extends AbstractAgent {
         }
       }
 
-      // アシスタントの応答を履歴に追加
       this.conversationHistory.push({ role: 'assistant', content: output });
 
       await this.emitOutput(output, false, false);
@@ -232,7 +230,6 @@ export class AnthropicApiAgent extends AbstractAgent {
         apiCalls: 1,
       };
 
-      // コスト計算
       if (modelInfo) {
         metrics.costUsd =
           (response.usage.input_tokens / 1000) * modelInfo.inputCostPer1k +
@@ -290,7 +287,6 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       const maxTokens = this.config.maxTokens || modelInfo?.maxOutputTokens || 8192;
 
-      // ユーザーの応答を履歴に追加
       this.conversationHistory.push({ role: 'user', content: userResponse });
 
       this.log('info', 'Continuing conversation', {
@@ -311,7 +307,6 @@ export class AnthropicApiAgent extends AbstractAgent {
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();
 
-      // アシスタントの応答を取得
       let output = '';
       for (const block of response.content) {
         if (block.type === 'text') {
@@ -319,7 +314,6 @@ export class AnthropicApiAgent extends AbstractAgent {
         }
       }
 
-      // アシスタントの応答を履歴に追加
       this.conversationHistory.push({ role: 'assistant', content: output });
 
       await this.emitOutput(output, false, false);
@@ -384,12 +378,10 @@ export class AnthropicApiAgent extends AbstractAgent {
   }
 
   private async getApiKey(): Promise<string | undefined> {
-    // config に直接指定されたキーを最優先
+    // Priority: config > DB-stored key (decrypted via getApiKeyForProvider) > env var
     if (this.config.apiKey) return this.config.apiKey;
-    // DB保存キーを優先取得（getApiKeyForProvider経由で復号化・検証・環境変数フォールバック含む）
     const dbKey = await getApiKeyForProvider('claude');
     if (dbKey) return dbKey;
-    // 最後にANTHROPIC_API_KEY環境変数
     return process.env.ANTHROPIC_API_KEY;
   }
 
@@ -485,7 +477,7 @@ Current time: ${new Date().toISOString()}`;
 }
 
 /**
- * Anthropic API プロバイダー
+ * Anthropic API Provider
  */
 export class AnthropicApiProvider implements IAgentProvider {
   readonly providerId = 'anthropic-api' as const;
@@ -576,7 +568,7 @@ export class AnthropicApiProvider implements IAgentProvider {
 
       const client = new Anthropic({ apiKey });
 
-      // 軽量なAPIコールでヘルスチェック
+      // NOTE: Uses cheapest model (Haiku) for health check to minimize cost
       await client.messages.create({
         model: 'claude-3-5-haiku-20241022',
         max_tokens: 5,
@@ -611,7 +603,7 @@ export class AnthropicApiProvider implements IAgentProvider {
   }
 
   /**
-   * 利用可能なモデル一覧を取得
+   * Returns the list of available models with pricing info.
    */
   getAvailableModels(): Array<{
     id: string;
@@ -629,6 +621,6 @@ export class AnthropicApiProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトの Anthropic API プロバイダーインスタンス
+ * Default Anthropic API provider instance
  */
 export const anthropicApiProvider = new AnthropicApiProvider();

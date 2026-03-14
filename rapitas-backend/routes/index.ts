@@ -3,7 +3,7 @@
  * Import all route modules here for centralized management
  */
 
-// Organization - 分類・構造管理
+// Organization
 export { categoriesRoutes } from './organization/categories';
 export { themesRoutes } from './organization/themes';
 export { labelsRoutes, taskLabelsRoutes } from './organization/labels';
@@ -11,7 +11,7 @@ export { projectsRoutes } from './organization/projects';
 export { milestonesRoutes } from './organization/milestones';
 export { templatesRoutes } from './organization/templates';
 
-// Tasks - タスク管理
+// Tasks
 export { tasksRoutes } from './tasks/tasks';
 export { taskStatisticsRoutes } from './tasks/task-statistics';
 export { tempStatisticsRoutes } from './tasks/temp-statistics';
@@ -19,7 +19,7 @@ export { taskDependencyRoutes } from './tasks/task-dependency';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';
 
-// Agents - エージェント関連
+// Agents
 export { approvalsRoutes } from './agents/approvals';
 export { orchestrator } from '../services/orchestrator-instance';
 export { aiAgentRoutes } from './agents/ai-agent';
@@ -30,25 +30,25 @@ export { agentMetricsRouter } from './agents/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/agent-version-management';
 export { cliToolsManagementRoutes } from './agents/cli-tools-management';
 
-// AI - AI機能
+// AI
 export { aiChatRoutes } from './ai/ai-chat';
 export { promptsRoutes } from './ai/prompts';
 export { systemPromptsRoutes } from './ai/system-prompts';
 
-// Scheduling - 時間・スケジュール管理
+// Scheduling
 export { schedulesRoutes } from './scheduling/schedules';
 export { dailyScheduleRoutes } from './scheduling/daily-schedule';
 export { pomodoroRoutes } from './scheduling/pomodoro';
 export { timeEntriesRoutes } from './scheduling/time-entries';
 
-// Learning - 学習関連
+// Learning
 export { examGoalsRoutes } from './learning/exam-goals';
 export { studyStreaksRoutes } from './learning/study-streaks';
 export { learningGoalsRoutes } from './learning/learning-goals';
 export { flashcardsRoutes } from './learning/flashcards';
 export { resourcesRoutes } from './learning/resources';
 
-// System - システム基盤
+// System
 export { settingsRoutes } from './system/settings';
 export { authRoutes } from './system/auth';
 export { sseRoutes } from './system/sse';
@@ -62,30 +62,30 @@ export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
 
-// Workflow - ワークフロー関連
+// Workflow
 export { workflowRoutes } from './workflow/workflow';
 export { workflowRolesRoutes } from './workflow/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
 
-// Social - コミュニケーション・外部連携
+// Social
 export { commentsRoutes } from './social/comments';
 export { githubRoutes, taskGithubRoutes } from './social/github';
 
-// Analytics - 分析・レポート
+// Analytics
 export { statisticsRoutes } from './analytics/statistics';
 export { reportsRoutes } from './analytics/reports';
 export { intelligentSuggestionsRoutes } from './analytics/intelligent-suggestions';
 
-// Lifestyle - 生活管理
+// Lifestyle
 export { habitsRoutes } from './lifestyle/habits';
 export { paidLeaveRoutes } from './lifestyle/paid-leave';
 
-// Memory - メモリ/知識管理
+// Memory
 export { knowledgeRoutes } from './memory/knowledge';
 export { memorySystemRoutes } from './memory/memory-system';
 
-// Self-Learning - 自己学習エージェント
+// Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';
 export { knowledgeGraphRoutes } from './self-learning/knowledge-graph';
 export { learningRoutes } from './self-learning/learning';

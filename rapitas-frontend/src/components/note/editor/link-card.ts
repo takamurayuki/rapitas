@@ -102,7 +102,7 @@ export function normalizeLinkCards(
     }
   }
 
-  // コードブロックのイベントハンドラを再設定
+  // Re-attach event handlers for code blocks
   const codeBlocks = Array.from(
     root.querySelectorAll("[data-rapitas-code-block='1']"),
   );

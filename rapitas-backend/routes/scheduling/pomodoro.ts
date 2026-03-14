@@ -1,6 +1,6 @@
 /**
  * Pomodoro API Routes
- * ポモドーロタイマー管理エンドポイント
+ * Pomodoro timer management endpoints.
  */
 import { Elysia, t } from 'elysia';
 import {
@@ -18,7 +18,6 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('routes:pomodoro');
 
 export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
-  // アクティブセッション取得
   .get('/active', async ({ set }) => {
     try {
       const session = await getActiveSession();
@@ -30,7 +29,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // ポモドーロ開始
   .post(
     '/start',
     async ({ body, set }) => {
@@ -66,7 +64,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     },
   )
 
-  // ポモドーロ一時停止
   .post('/sessions/:id/pause', async ({ params, set }) => {
     try {
       const sessionId = parseInt(params.id);
@@ -86,7 +83,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // ポモドーロ再開
   .post('/sessions/:id/resume', async ({ params, set }) => {
     try {
       const sessionId = parseInt(params.id);
@@ -106,7 +102,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // ポモドーロ完了
   .post('/sessions/:id/complete', async ({ params, set }) => {
     try {
       const sessionId = parseInt(params.id);
@@ -126,7 +121,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // ポモドーロキャンセル
   .post('/sessions/:id/cancel', async ({ params, set }) => {
     try {
       const sessionId = parseInt(params.id);
@@ -146,7 +140,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // 統計情報取得
   .get('/statistics', async ({ query, set }) => {
     try {
       const startDate = query.startDate ? new Date(query.startDate) : undefined;
@@ -162,7 +155,6 @@ export const pomodoroRoutes = new Elysia({ prefix: '/pomodoro' })
     }
   })
 
-  // セッション履歴取得
   .get('/history', async ({ query, set }) => {
     try {
       const limit = query.limit ? parseInt(query.limit) : 20;

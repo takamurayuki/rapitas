@@ -1,6 +1,7 @@
 /**
- * 継続実行
- * 質問への回答後の継続実行、タイムアウトハンドリングを担当
+ * ContinuationExecutor
+ *
+ * Handles continuation execution after question responses and timeout handling.
  */
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput, AgentType } from '../agent-factory';
@@ -28,7 +29,7 @@ import {
 const logger = createLogger('continuation-executor');
 
 /**
- * フォールバックエージェントにハンドラを設定する共通関数
+ * Set up handlers on a fallback agent.
  */
 function setupFallbackAgentHandlers(
   agent: ReturnType<typeof agentFactory.createAgent>,
@@ -107,7 +108,7 @@ function setupFallbackAgentHandlers(
 }
 
 /**
- * セッション再開失敗かどうかを判定
+ * Determine if the result indicates a session resume failure.
  */
 function isSessionResumeFailure(
   result: AgentExecutionResult,
@@ -124,7 +125,7 @@ function isSessionResumeFailure(
 }
 
 /**
- * 会話を継続（質問への回答）- 外部API用
+ * Continue conversation (answer to question) - for external API.
  */
 export async function executeContinuation(
   ctx: OrchestratorContext,
@@ -194,7 +195,7 @@ export async function executeContinuation(
 }
 
 /**
- * 会話を継続（質問への回答）- ロック取得済みの場合用
+ * Continue conversation (answer to question) - when lock is already acquired.
  */
 export async function executeContinuationWithLock(
   ctx: OrchestratorContext,
@@ -210,7 +211,7 @@ export async function executeContinuationWithLock(
 }
 
 /**
- * 会話を継続（質問への回答）- 内部用
+ * Continue conversation (answer to question) - internal implementation.
  */
 export async function executeContinuationInternal(
   ctx: OrchestratorContext,
@@ -241,7 +242,6 @@ export async function executeContinuationInternal(
   const claudeSessionId = execution.claudeSessionId;
   logger.info(`[ContinuationExecutor] Resuming execution with claudeSessionId: ${claudeSessionId}`);
 
-  // エージェント設定を取得
   let agentConfig: AgentConfigInput = {
     type: 'claude-code',
     name: 'Claude Code Agent',
@@ -288,7 +288,6 @@ export async function executeContinuationInternal(
   let agent = agentFactory.createAgent(agentConfig);
   const taskId = execution.session.config?.taskId || 0;
 
-  // ファイルロガーを初期化
   const fileLogger = new ExecutionFileLogger(
     execution.id,
     execution.sessionId,
@@ -304,7 +303,6 @@ export async function executeContinuationInternal(
   });
   fileLogger.logQuestionAnswered(response, 'user');
 
-  // 実行状態を追跡
   const state: ExecutionState = {
     executionId: execution.id,
     sessionId: execution.sessionId,
@@ -336,7 +334,6 @@ export async function executeContinuationInternal(
     throw new Error('Server is shutting down, cannot continue execution');
   }
 
-  // 質問検出ハンドラを設定
   setupQuestionDetectedHandler(agent, {
     prisma: ctx.prisma,
     executionId: execution.id,
@@ -350,7 +347,6 @@ export async function executeContinuationInternal(
     getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
   });
 
-  // ログチャンク管理
   const existingLogs = await ctx.prisma.agentExecutionLog.findMany({
     where: { executionId: execution.id },
     orderBy: { sequenceNumber: 'desc' },
@@ -365,7 +361,6 @@ export async function executeContinuationInternal(
 
   const cleanupLogHandler = logManager.cleanup;
 
-  // 出力ハンドラを設定
   setupOutputHandler(
     agent,
     {
@@ -382,7 +377,6 @@ export async function executeContinuationInternal(
     logManager,
   );
 
-  // 継続メッセージを追加
   const continueMessage = `\n[継続] ユーザーからの回答を受け取りました。実行を継続します...\n`;
   state.output += continueMessage;
 
@@ -407,7 +401,7 @@ export async function executeContinuationInternal(
 
     let result = await agent.execute(agentTask);
 
-    // --resume 失敗時のフォールバック処理
+    // Fallback on --resume failure
     if (isSessionResumeFailure(result, claudeSessionId)) {
       result = await handleResumeFailureFallbacks(
         ctx,
@@ -424,7 +418,6 @@ export async function executeContinuationInternal(
       );
     }
 
-    // 結果をDB保存・イベント発火
     await saveExecutionResult(
       ctx.prisma,
       execution.id,
@@ -467,8 +460,8 @@ export async function executeContinuationInternal(
 }
 
 /**
- * --resume 失敗時のフォールバック処理
- * --resume リトライ → --continue → 新規セッション の順で試行
+ * Fallback handling when --resume fails.
+ * Tries in order: --resume retry -> --continue -> new session with context.
  */
 async function handleResumeFailureFallbacks(
   ctx: OrchestratorContext,
@@ -496,7 +489,7 @@ async function handleResumeFailureFallbacks(
   await agentFactory.removeAgent(currentAgent.id);
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
-  // --resume で再試行
+  // Retry with --resume
   const retryAgent = agentFactory.createAgent(agentConfig);
   setupFallbackAgentHandlers(
     retryAgent,
@@ -531,7 +524,7 @@ async function handleResumeFailureFallbacks(
     return retryResult;
   }
 
-  // --continue にフォールバック
+  // Fall back to --continue
   logger.info(
     `[ContinuationExecutor] --resume retry also failed. Attempting fallback with --continue...`,
   );
@@ -577,7 +570,7 @@ async function handleResumeFailureFallbacks(
     return fallbackResult;
   }
 
-  // 新規セッションで最終フォールバック
+  // Final fallback: start new session with context
   logger.info(
     `[ContinuationExecutor] --continue fallback also failed. Starting new session with context...`,
   );
@@ -606,7 +599,6 @@ async function handleResumeFailureFallbacks(
 
   agentInfo.agent = newAgent;
 
-  // コンテキスト付きのプロンプトを構築
   const previousContext = (execution.output || '').slice(-2000);
   const contextPrompt = `以下は前回のタスク実行の継続です。前回のコンテキスト（最後の部分）:\n\n${previousContext}\n\n前回の質問に対するユーザーの回答: ${agentTask.title}\n\n上記の回答を踏まえて、タスクの実行を継続してください。`;
 
@@ -632,7 +624,7 @@ async function handleResumeFailureFallbacks(
 }
 
 /**
- * 質問タイムアウト発生時の処理
+ * Handle question timeout.
  */
 export async function handleQuestionTimeout(
   ctx: OrchestratorContext,
@@ -702,7 +694,6 @@ export async function handleQuestionTimeout(
         timeout: 900000,
       });
 
-      // 結果に応じてタスクとセッションのステータスを更新
       if (result.success && !result.waitingForInput) {
         try {
           await ctx.prisma.task.update({

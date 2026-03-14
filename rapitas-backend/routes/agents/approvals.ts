@@ -23,7 +23,7 @@ const githubService = new GitHubService(prisma);
 // Re-export orchestrator for backward compatibility
 export { orchestrator };
 
-// Prisma の String 型で保存された JSON フィールドをパースするヘルパー
+// Helper to parse JSON fields stored as Prisma String type
 interface ApprovalWithChanges {
   id: number;
   proposedChanges: string | Record<string, unknown> | null;
@@ -43,9 +43,9 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
     }
   }
 
-  // proposedChanges から diff（プレーンテキスト）を除外してレスポンスサイズを削減
-  // structuredDiff はフロントのDiffViewerで使用されるため残す
-  // diff は /approvals/:id/diff エンドポイントで別途取得可能
+  // NOTE: Exclude raw diff (plain text) from proposedChanges to reduce response size.
+  // structuredDiff is kept because the front-end DiffViewer uses it.
+  // Raw diff can be fetched separately via /approvals/:id/diff.
   const parsedChanges = (proposedChanges || {}) as Record<string, unknown>;
   const { diff: _diff, ...proposedChangesWithoutDiff } = parsedChanges;
 
@@ -53,7 +53,7 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
     typeof approval.estimatedChanges === 'string'
       ? fromJsonString(approval.estimatedChanges)
       : approval.estimatedChanges;
-  // estimatedChanges からも diff を除外
+  // Also exclude diff from estimatedChanges
   if (estimatedChanges && typeof estimatedChanges === 'object' && 'diff' in estimatedChanges) {
     const { diff: _estDiff, ...estWithoutDiff } = estimatedChanges as Record<string, unknown>;
     estimatedChanges = estWithoutDiff;
@@ -65,7 +65,7 @@ function parseApprovalJsonFields(approval: ApprovalWithChanges | null) {
     estimatedChanges,
   };
 
-  // スクリーンショットのデバッグログ
+  // Debug logging for screenshot presence
   const screenshots = parsed.proposedChanges?.screenshots as Array<{ url: string }> | undefined;
   if (screenshots && screenshots.length > 0) {
     log.info(
@@ -193,8 +193,8 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
       await prisma.notification.create({
         data: {
           type: 'agent_execution_started',
-          title: 'エージェント実行開始',
-          message: `承認されたタスク「${task.title}」の自動実行を開始しました`,
+          title: 'Agent Execution Started',
+          message: `Started automatic execution of approved task "${task.title}"`,
           link: `/tasks/${task.id}`,
           metadata: toJsonString({ sessionId: session.id, taskId: task.id }),
         },
@@ -221,10 +221,10 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
           await prisma.notification.create({
             data: {
               type: 'agent_execution_complete',
-              title: result.success ? 'エージェント実行完了' : 'エージェント実行失敗',
+              title: result.success ? 'Agent Execution Complete' : 'Agent Execution Failed',
               message: result.success
-                ? `「${task.title}」の自動実行が完了しました`
-                : `「${task.title}」の自動実行が失敗しました: ${result.errorMessage}`,
+                ? `Automatic execution of "${task.title}" completed successfully`
+                : `Automatic execution of "${task.title}" failed: ${result.errorMessage}`,
               link: `/tasks/${task.id}`,
               metadata: toJsonString({
                 sessionId: session.id,
@@ -246,8 +246,8 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
           await prisma.notification.create({
             data: {
               type: 'agent_error',
-              title: 'エージェント実行エラー',
-              message: `「${task.title}」の実行中にエラーが発生しました`,
+              title: 'Agent Execution Error',
+              message: `An error occurred during execution of "${task.title}"`,
               link: `/tasks/${task.id}`,
             },
           });
@@ -282,21 +282,21 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
         await prisma.notification.create({
           data: {
             type: 'agent_error',
-            title: 'コミット失敗',
-            message: `「${task.title}」のコミットに失敗しました: ${commitResult.error}`,
+            title: 'Commit Failed',
+            message: `Commit failed for "${task.title}": ${commitResult.error}`,
             link: `/tasks/${task.id}`,
           },
         });
         return { success: false, error: commitResult.error };
       }
 
-      const prBody = `## 概要
+      const prBody = `## Overview
 ${task.description || task.title}
 
-## 変更内容
-Claude Codeによる自動実装
+## Changes
+Automatic implementation by Claude Code
 
-## 関連タスク
+## Related Tasks
 Task ID: ${task.id}
 
 ---
@@ -315,8 +315,8 @@ Task ID: ${task.id}
         await prisma.notification.create({
           data: {
             type: 'pr_approved',
-            title: 'PR作成完了',
-            message: `「${task.title}」のPRが作成されました`,
+            title: 'PR Created Successfully',
+            message: `PR created for "${task.title}"`,
             link: prResult.prUrl || `/tasks/${task.id}`,
             metadata: toJsonString({
               taskId: task.id,
@@ -337,8 +337,8 @@ Task ID: ${task.id}
         await prisma.notification.create({
           data: {
             type: 'agent_error',
-            title: 'PR作成失敗',
-            message: `「${task.title}」のPR作成に失敗しました: ${prResult.error}`,
+            title: 'PR Creation Failed',
+            message: `PR creation failed for "${task.title}": ${prResult.error}`,
             link: `/tasks/${task.id}`,
             metadata: toJsonString({ commitHash: commitResult.commitHash }),
           },
@@ -363,10 +363,10 @@ Task ID: ${task.id}
         ? proposedChanges.subtasks.filter((_, i) => selectedSubtasks.includes(i))
         : proposedChanges.subtasks;
 
-      // トランザクションで重複チェックと作成を原子的に実行
+      // Atomically check for duplicates and create subtasks in a transaction
       const createdSubtasks = await prisma.$transaction(
         async (tx) => {
-          // トランザクション内で既存サブタスクを取得
+          // Fetch existing subtasks inside the transaction to prevent races
           const existingSubtasks = await tx.task.findMany({
             where: { parentId: approval.config.taskId },
             select: { title: true },
@@ -377,7 +377,7 @@ Task ID: ${task.id}
 
           const created = [];
           for (const subtask of subtasksToCreate) {
-            // タイトルが重複する場合はスキップ
+            // Skip subtasks with duplicate titles
             const normalizedTitle = subtask.title.toLowerCase().trim();
             if (existingTitles.has(normalizedTitle)) {
               log.info(`[approvals] Skipping duplicate subtask: ${subtask.title}`);
@@ -400,15 +400,15 @@ Task ID: ${task.id}
           return created;
         },
         {
-          isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
+          isolationLevel: 'Serializable', // NOTE: Serializable prevents concurrent duplicate creation
         },
       );
 
       await prisma.notification.create({
         data: {
           type: 'task_completed',
-          title: 'サブタスク作成完了',
-          message: `「${approval.config.task.title}」に${createdSubtasks.length}個のサブタスクが作成されました`,
+          title: 'Subtask Creation Complete',
+          message: `${createdSubtasks.length} subtasks were created for "${approval.config.task.title}"`,
           link: `/tasks/${approval.config.taskId}`,
         },
       });
@@ -420,8 +420,8 @@ Task ID: ${task.id}
     await prisma.notification.create({
       data: {
         type: 'approval_request',
-        title: '承認完了',
-        message: `リクエストが承認されました`,
+        title: 'Approval Complete',
+        message: `Request has been approved`,
         link: `/tasks/${approval.config.taskId}`,
       },
     });
@@ -624,8 +624,8 @@ Task ID: ${task.id}
       await prisma.notification.create({
         data: {
           type: 'pr_changes_requested',
-          title: 'コードレビュー却下',
-          message: `「${approval.config.task.title}」の変更を破棄しました${reason ? `: ${reason}` : ''}`,
+          title: 'Code Review Rejected',
+          message: `Changes for "${approval.config.task.title}" have been discarded${reason ? `: ${reason}` : ''}`,
           link: `/tasks/${approval.config.taskId}`,
         },
       });
@@ -690,18 +690,18 @@ Task ID: ${task.id}
       const feedbackInstructions = [];
 
       if (feedback) {
-        feedbackInstructions.push(`## 全体的なフィードバック\n${feedback}`);
+        feedbackInstructions.push(`## Overall Feedback\n${feedback}`);
       }
 
       if (comments && comments.length > 0) {
-        feedbackInstructions.push('\n## 具体的な修正依頼:');
+        feedbackInstructions.push('\n## Specific Change Requests:');
         comments.forEach((comment, index) => {
           const typeLabel =
             comment.type === 'change_request'
-              ? '修正'
+              ? 'Fix'
               : comment.type === 'question'
-                ? '質問'
-                : 'コメント';
+                ? 'Question'
+                : 'Comment';
           const fileInfo = comment.file ? ` (${comment.file})` : '';
           feedbackInstructions.push(`${index + 1}. [${typeLabel}]${fileInfo}: ${comment.content}`);
         });
@@ -710,20 +710,20 @@ Task ID: ${task.id}
       const additionalInstructions = feedbackInstructions.join('\n');
 
       const previousImplementation = proposedChanges?.implementationSummary
-        ? `\n\n## 前回の実装内容（参考）:\n${proposedChanges.implementationSummary.substring(0, 1000)}`
+        ? `\n\n## Previous Implementation (Reference):\n${proposedChanges.implementationSummary.substring(0, 1000)}`
         : '';
 
       const fullInstruction = `
-以下のタスクを実装してください。前回の実装に対してフィードバックがありますので、それを踏まえて修正・改善してください。
+Please implement the following task. There is feedback on the previous implementation, so please fix and improve based on that feedback.
 
-## タスク
+## Task
 ${task.title}
 ${task.description || ''}
 
 ${additionalInstructions}
 ${previousImplementation}
 
-上記のフィードバックを反映した実装をお願いします。
+Please implement the changes reflecting the above feedback.
 `;
 
       // Update approval status
@@ -782,7 +782,7 @@ ${previousImplementation}
             if (diff && diff !== 'No changes detected') {
               const implementationSummary = result.output || '修正が完了しました。';
 
-              // UI変更がある場合はスクリーンショットを撮影
+              // Capture screenshots when UI-related files changed
               let screenshots: ScreenshotResult[] = [];
               try {
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
@@ -801,7 +801,7 @@ ${previousImplementation}
                 );
               }
 
-              // path（ファイルシステムパス）を除外してフロントに安全なデータのみ保存
+              // Strip filesystem paths before storing — only keep front-end-safe data
               const screenshotData = screenshots.map(({ path, ...rest }) => rest);
               const newApprovalRequest = await prisma.approvalRequest.create({
                 data: {
@@ -978,7 +978,7 @@ ${previousImplementation}
             subtasks: SubtaskProposal[];
           }>(approval.proposedChanges);
 
-          // トランザクションで重複チェックと作成を原子的に実行
+          // Atomically check for duplicates and create subtasks in a transaction
           const createdSubtasks = await prisma.$transaction(
             async (tx) => {
               const existingSubtasks = await tx.task.findMany({

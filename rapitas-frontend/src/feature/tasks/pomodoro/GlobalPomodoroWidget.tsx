@@ -21,12 +21,12 @@ export default function GlobalPomodoroWidget() {
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // SSR時はnull、クライアントサイドでのみ状態を読み込む
+  // NOTE: null during SSR, only read state on client side
   const [state, setState] = useState<Partial<PomodoroState> | null>(null);
 
   const stopTimer = usePomodoroStore((s) => s.stopTimer);
 
-  // クライアントサイドでのみ状態を監視
+  // Only monitor state on client side
   useEffect(() => {
     const timer = setTimeout(() => setMounted(true), 0);
 
@@ -44,10 +44,10 @@ export default function GlobalPomodoroWidget() {
       });
     };
 
-    // 初期値を設定
+    // Set initial values
     updateState(usePomodoroStore.getState());
 
-    // 変更を監視
+    // Monitor changes
     const unsubscribe = usePomodoroStore.subscribe(updateState);
 
     return () => {
@@ -56,7 +56,7 @@ export default function GlobalPomodoroWidget() {
     };
   }, []);
 
-  // タスクが削除されていないか定期的に確認（全てのhookは条件付きreturnの前に配置）
+  // NOTE: All hooks must be placed before conditional returns
   useEffect(() => {
     if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId)
       return;
@@ -69,21 +69,21 @@ export default function GlobalPomodoroWidget() {
           signal: controller.signal,
         });
         if (!res.ok) {
-          // タスクが見つからない場合はタイマーを停止
+          // Stop timer if task not found
           logger.info('Task not found, stopping timer');
           stopTimer();
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
-        // ネットワークエラーなどの場合はタイマーを停止しない
+        // Don't stop timer on network errors
         logger.warn('Failed to check task existence:', err);
       }
     };
 
-    // 初回チェック
+    // Initial check
     checkTaskExists();
 
-    // 30秒ごとにチェック
+    // Check every 30 seconds
     const intervalId = setInterval(checkTaskExists, 30000);
 
     return () => {
@@ -92,7 +92,7 @@ export default function GlobalPomodoroWidget() {
     };
   }, [state?._hasHydrated, state?.isTimerRunning, state?.taskId, stopTimer]);
 
-  // マウント前またはstate未設定の場合は何も表示しない（Hydration対策）
+  // NOTE: Render nothing before mount or when state is unset (hydration safety)
   if (!mounted || !state) return null;
 
   const {
@@ -107,13 +107,12 @@ export default function GlobalPomodoroWidget() {
     settings,
   } = state;
 
-  // Hydration完了まで何も表示しない
+  // NOTE: Render nothing until hydration completes
   if (!_hasHydrated) return null;
 
-  // タイマーが動いていない場合は何も表示しない
   if (!isTimerRunning) return null;
 
-  // 残り時間を計算
+  // Calculate remaining time
   const getRemainingTimeLocal = () => {
     const pomodoroDuration =
       settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
@@ -131,7 +130,7 @@ export default function GlobalPomodoroWidget() {
 
   const remainingTime = getRemainingTimeLocal();
 
-  // 現在のステータスに基づいてアイコンを選択
+  // Select icon based on current status
   const getIcon = () => {
     if (isBreakTime) {
       return <Coffee className="w-4 h-4 text-green-500" />;
@@ -142,14 +141,13 @@ export default function GlobalPomodoroWidget() {
     }
   };
 
-  // ステータスに基づいてスタイルを決定
   const getButtonStyle = () => {
     if (isBreakTime) {
       return 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700';
     } else if (isPaused) {
       return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
-    // 作業中（アクティブ）状態
+    // Working (active) state
     return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
   };
 

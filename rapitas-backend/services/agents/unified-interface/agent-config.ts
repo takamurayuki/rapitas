@@ -1,91 +1,50 @@
 /**
- * エージェント設定・実行オプションの型定義
+ * Agent Configuration & Execution Options
  *
- * エージェントインスタンスの構成と実行時オプションを定義
+ * Defines agent instance configuration and runtime execution options.
  */
 
-// ==================== エージェント設定 ====================
+// ==================== Agent Configuration ====================
 
 /**
- * エージェントインスタンス設定
+ * Agent instance configuration
  */
 export type AgentInstanceConfig = {
-  /** エージェントID（省略時は自動生成） */
+  /** Auto-generated if omitted */
   id?: string;
-
-  /** エージェント名 */
   name: string;
-
-  /** 使用するモデルID */
   modelId?: string;
-
-  /** 作業ディレクトリ */
   workingDirectory?: string;
-
-  /** タイムアウト（ミリ秒） */
+  /** Timeout in milliseconds */
   timeout?: number;
-
-  /** ファイル操作の自動承認 */
   autoApproveFileOperations?: boolean;
-
-  /** ターミナルコマンドの自動承認 */
   autoApproveTerminalCommands?: boolean;
-
-  /** 会話を継続するか */
   continueConversation?: boolean;
-
-  /** 再開するセッションID */
   resumeSessionId?: string;
-
-  /** カスタム設定 */
   custom?: Record<string, unknown>;
 };
 
-// ==================== 実行オプション ====================
+// ==================== Execution Options ====================
 
 /**
- * エージェント実行オプション
+ * Agent execution options
  */
 export type ExecutionOptions = {
-  /** 作業ディレクトリ */
   workingDirectory?: string;
-
-  /** 使用するモデルID */
   modelId?: string;
-
-  /** タイムアウト（ミリ秒） */
+  /** Timeout in milliseconds */
   timeout?: number;
-
-  /** ファイル操作の自動承認 */
   autoApproveFileOperations?: boolean;
-
-  /** ターミナルコマンドの自動承認 */
   autoApproveTerminalCommands?: boolean;
-
-  /** 会話を継続するか */
   continueConversation?: boolean;
-
-  /** 再開するセッションID */
   resumeSessionId?: string;
-
-  /** ストリーミング出力を有効にするか */
   enableStreaming?: boolean;
-
-  /** 質問タイムアウト（秒） */
+  /** Question timeout in seconds */
   questionTimeoutSeconds?: number;
-
-  /** 最大トークン数 */
   maxTokens?: number;
-
-  /** 温度パラメータ（0.0-1.0） */
+  /** Temperature parameter (0.0-1.0) */
   temperature?: number;
-
-  /** システムプロンプト追加 */
   systemPromptAddition?: string;
-
-  /** コンテキストファイル（参照用） */
   contextFiles?: string[];
-
-  /** 環境変数 */
   environmentVariables?: Record<string, string>;
 };

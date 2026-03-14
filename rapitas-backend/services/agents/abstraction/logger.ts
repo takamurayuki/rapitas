@@ -1,13 +1,14 @@
 /**
- * AIエージェント抽象化レイヤー - ロガー
- * エージェント実行のログ出力を管理
+ * Agent Abstraction Layer - Logger
+ *
+ * Manages log output for agent execution.
  */
 
 import type { IAgentLogger, LogLevel } from './interfaces';
 import { createLogger } from '../../../config/logger';
 
 /**
- * ログエントリ
+ * Log entry.
  */
 interface LogEntry {
   timestamp: Date;
@@ -17,7 +18,7 @@ interface LogEntry {
 }
 
 /**
- * ロガーオプション
+ * Logger options.
  */
 interface LoggerOptions {
   minLevel?: LogLevel;
@@ -29,7 +30,7 @@ interface LoggerOptions {
 }
 
 /**
- * ログレベルの優先度
+ * Log level priorities.
  */
 const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   debug: 0,
@@ -39,7 +40,7 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 /**
- * デフォルトのフォーマッター
+ * Default log formatter.
  */
 function defaultFormatter(entry: LogEntry): string {
   const timestamp = entry.timestamp.toISOString();
@@ -54,7 +55,7 @@ function defaultFormatter(entry: LogEntry): string {
 }
 
 /**
- * コンソールロガー実装
+ * Console logger implementation.
  */
 export class ConsoleLogger implements IAgentLogger {
   private minLevel: LogLevel;
@@ -79,10 +80,10 @@ export class ConsoleLogger implements IAgentLogger {
   }
 
   /**
-   * ログを出力
+   * Outputs a log entry.
    */
   log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
-    // ログレベルのチェック
+    // Check log level threshold
     if (LOG_LEVEL_PRIORITY[level] < LOG_LEVEL_PRIORITY[this.minLevel]) {
       return;
     }
@@ -94,7 +95,7 @@ export class ConsoleLogger implements IAgentLogger {
       context: { ...this.baseContext, ...context },
     };
 
-    // 履歴に追加
+    // Add to history
     if (this.enableHistory) {
       this.history.push(entry);
       if (this.history.length > this.maxHistorySize) {
@@ -102,7 +103,7 @@ export class ConsoleLogger implements IAgentLogger {
       }
     }
 
-    // pinoで出力
+    // Output via pino
     if (this.enableConsole) {
       const ctx =
         entry.context && Object.keys(entry.context).length > 0 ? entry.context : undefined;
@@ -123,28 +124,28 @@ export class ConsoleLogger implements IAgentLogger {
   }
 
   /**
-   * デバッグログ
+   * Debug log.
    */
   debug(message: string, context?: Record<string, unknown>): void {
     this.log('debug', message, context);
   }
 
   /**
-   * 情報ログ
+   * Info log.
    */
   info(message: string, context?: Record<string, unknown>): void {
     this.log('info', message, context);
   }
 
   /**
-   * 警告ログ
+   * Warning log.
    */
   warn(message: string, context?: Record<string, unknown>): void {
     this.log('warn', message, context);
   }
 
   /**
-   * エラーログ
+   * Error log.
    */
   error(message: string, error?: Error, context?: Record<string, unknown>): void {
     const errorContext = error
@@ -162,14 +163,14 @@ export class ConsoleLogger implements IAgentLogger {
   }
 
   /**
-   * 子ロガーを作成（コンテキスト付き）
+   * Creates a child logger with additional context.
    */
   child(context: Record<string, unknown>): IAgentLogger {
     const childLoggerInstance = new ConsoleLogger({
       minLevel: this.minLevel,
       prefix: this.prefix,
       enableConsole: this.enableConsole,
-      enableHistory: false, // 子ロガーは履歴を持たない
+      enableHistory: false, // child loggers do not keep their own history
       formatter: this.formatter,
     });
 
@@ -180,7 +181,7 @@ export class ConsoleLogger implements IAgentLogger {
   }
 
   /**
-   * ログ履歴を取得
+   * Returns the log history.
    */
   getHistory(options?: { level?: LogLevel; since?: Date; limit?: number }): LogEntry[] {
     let entries = [...this.history];
@@ -203,35 +204,35 @@ export class ConsoleLogger implements IAgentLogger {
   }
 
   /**
-   * 履歴をクリア
+   * Clears the log history.
    */
   clearHistory(): void {
     this.history = [];
   }
 
   /**
-   * ログレベルを設定
+   * Sets the minimum log level.
    */
   setMinLevel(level: LogLevel): void {
     this.minLevel = level;
   }
 
   /**
-   * プレフィックスを設定
+   * Sets the log prefix.
    */
   setPrefix(prefix: string): void {
     this.prefix = prefix;
   }
 
   /**
-   * コンソール出力を有効/無効
+   * Enables or disables console output.
    */
   setConsoleEnabled(enabled: boolean): void {
     this.enableConsole = enabled;
   }
 
   /**
-   * 履歴を有効/無効
+   * Enables or disables history recording.
    */
   setHistoryEnabled(enabled: boolean): void {
     this.enableHistory = enabled;
@@ -239,27 +240,27 @@ export class ConsoleLogger implements IAgentLogger {
 }
 
 /**
- * サイレントロガー（何も出力しない）
+ * Silent logger (no-op).
  */
 export class SilentLogger implements IAgentLogger {
   log(_level: LogLevel, _message: string, _context?: Record<string, unknown>): void {
-    // 何もしない
+    // no-op
   }
 
   debug(_message: string, _context?: Record<string, unknown>): void {
-    // 何もしない
+    // no-op
   }
 
   info(_message: string, _context?: Record<string, unknown>): void {
-    // 何もしない
+    // no-op
   }
 
   warn(_message: string, _context?: Record<string, unknown>): void {
-    // 何もしない
+    // no-op
   }
 
   error(_message: string, _error?: Error, _context?: Record<string, unknown>): void {
-    // 何もしない
+    // no-op
   }
 
   child(_context: Record<string, unknown>): IAgentLogger {
@@ -268,7 +269,7 @@ export class SilentLogger implements IAgentLogger {
 }
 
 /**
- * バッファリングロガー（後でまとめて出力）
+ * Buffering logger (collects entries for later output).
  */
 export class BufferingLogger implements IAgentLogger {
   private buffer: LogEntry[] = [];
@@ -319,12 +320,12 @@ export class BufferingLogger implements IAgentLogger {
   }
 
   child(context: Record<string, unknown>): IAgentLogger {
-    // バッファリングロガーは子を持たない
+    // Buffering logger does not create children
     return this;
   }
 
   /**
-   * バッファを取得してクリア
+   * Flushes and returns the buffer.
    */
   flush(): LogEntry[] {
     const entries = [...this.buffer];
@@ -333,7 +334,7 @@ export class BufferingLogger implements IAgentLogger {
   }
 
   /**
-   * バッファを別のロガーに流す
+   * Flushes the buffer to another logger.
    */
   flushTo(logger: IAgentLogger): void {
     for (const entry of this.buffer) {
@@ -344,7 +345,7 @@ export class BufferingLogger implements IAgentLogger {
 }
 
 /**
- * デフォルトのロガーインスタンス
+ * Default logger singleton.
  */
 let defaultLogger: IAgentLogger | null = null;
 
@@ -363,7 +364,7 @@ export function setDefaultLogger(logger: IAgentLogger): void {
 }
 
 /**
- * エージェント用のロガーを作成
+ * Creates a logger for a specific agent.
  */
 export function createAgentLogger(agentId: string, options?: LoggerOptions): IAgentLogger {
   return new ConsoleLogger({
@@ -374,7 +375,7 @@ export function createAgentLogger(agentId: string, options?: LoggerOptions): IAg
 }
 
 /**
- * 実行用のロガーを作成
+ * Creates a logger for a specific execution.
  */
 export function createExecutionLogger(
   executionId: string,

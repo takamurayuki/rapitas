@@ -1,15 +1,16 @@
 /**
- * Codex CLI エージェント
- * OpenAI Codex CLIを子プロセスとして起動し、タスクを実行する
+ * CodexCliAgent
+ *
+ * Spawns OpenAI Codex CLI as a child process to execute tasks.
  *
  * Codex CLI: @openai/codex (npm install -g @openai/codex)
  * https://github.com/openai/codex
  *
- * 主な機能:
- * - codex exec で非インタラクティブモードで実行
- * - --json でJSONストリーミング出力
- * - --full-auto で自動実行モード
- * - codex exec resume [SESSION_ID] でセッション再開
+ * Key features:
+ * - `codex exec` for non-interactive execution
+ * - `--json` for JSON streaming output
+ * - `--full-auto` for auto-execution mode
+ * - `codex exec resume [SESSION_ID]` for session resumption
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -37,12 +38,12 @@ const logger = createLogger('codex-cli-agent');
 
 export type CodexCliAgentConfig = {
   workingDirectory?: string;
-  model?: string; // gpt-5-codex, gpt-5 など
-  timeout?: number; // milliseconds
-  apiKey?: string; // OpenAI API Key
-  fullAuto?: boolean; // --full-auto モード
-  yolo?: boolean; // --yolo (--dangerously-bypass-approvals-and-sandbox)
-  resumeSessionId?: string; // セッション再開用ID
+  model?: string;
+  timeout?: number;
+  apiKey?: string;
+  fullAuto?: boolean;
+  yolo?: boolean;
+  resumeSessionId?: string;
   sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
 };
 
@@ -60,7 +61,6 @@ function resolveCliPath(cliName: string): string {
       return resolved;
     }
   } catch {
-    // フォールバック
   }
   return cliName;
 }
@@ -71,10 +71,8 @@ export class CodexCliAgent extends BaseAgent {
   private outputBuffer: string = '';
   private errorBuffer: string = '';
   private lineBuffer: string = '';
-  /** 質問待機状態 */
   private detectedQuestion: QuestionWaitingState = createInitialWaitingState();
   private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
-  /** Codex CLIのセッションID */
   private codexSessionId: string | null = null;
 
   constructor(id: string, name: string, config: CodexCliAgentConfig = {}) {
@@ -112,7 +110,6 @@ export class CodexCliAgent extends BaseAgent {
     const fs = await import('fs/promises');
     const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    // 作業ディレクトリの存在確認
     try {
       const stats = await fs.stat(workDir);
       if (!stats.isDirectory()) {
@@ -134,7 +131,6 @@ export class CodexCliAgent extends BaseAgent {
       };
     }
 
-    // Codex CLIが利用可能か確認
     const isCodexAvailable = await this.isAvailable();
     if (!isCodexAvailable) {
       this.status = 'failed';
@@ -155,39 +151,32 @@ export class CodexCliAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`);
       }
 
-      // Codex CLI コマンドを構築
-      // codex exec PROMPT [options]
+      // Build codex CLI command: codex exec PROMPT [options]
       const args: string[] = ['exec'];
 
-      // セッション再開の場合
       const resumeId = this.config.resumeSessionId || task.resumeSessionId;
       if (resumeId) {
         args.push('resume', resumeId);
         logger.info(`${this.logPrefix} Resuming session: ${resumeId}`);
       } else {
-        // プロンプトを引数として渡す
         args.push(prompt);
       }
 
-      // JSON出力
       args.push('--json');
 
-      // 作業ディレクトリ
       args.push('--cd', workDir);
 
-      // 自動実行モード
+      // NOTE: Default to full-auto since this is intended for automated execution
       if (this.config.yolo) {
         args.push('--yolo');
       } else if (this.config.fullAuto) {
         args.push('--full-auto');
       } else {
-        // デフォルトはfull-auto（自動実行用途のため）
         args.push('--full-auto');
       }
 
-      // モデル指定
       if (this.config.model) {
-        // ChatGPTアカウントでgpt-4oが指定された場合は、gpt-4-turboに置き換える
+        // NOTE: gpt-4o is not available on ChatGPT accounts without API key; fall back to gpt-4-turbo
         let model = this.config.model;
         if (model === 'gpt-4o' && !this.config.apiKey && !process.env.OPENAI_API_KEY) {
           logger.info(`${this.logPrefix} Replacing gpt-4o with gpt-4-turbo for ChatGPT account`);
@@ -196,7 +185,6 @@ export class CodexCliAgent extends BaseAgent {
         args.push('-m', model);
       }
 
-      // サンドボックスモード
       if (this.config.sandboxMode) {
         args.push('-s', this.config.sandboxMode);
       }
@@ -252,7 +240,6 @@ export class CodexCliAgent extends BaseAgent {
 
         logger.info(`${this.logPrefix} Final command: ${finalCommand.substring(0, 100)}...`);
 
-        // 環境変数の準備
         const env: NodeJS.ProcessEnv = {
           ...process.env,
           FORCE_COLOR: '0',
@@ -261,12 +248,10 @@ export class CodexCliAgent extends BaseAgent {
           TERM: 'dumb',
         };
 
-        // APIキーを環境変数に設定
         if (this.config.apiKey) {
           env.OPENAI_API_KEY = this.config.apiKey;
         }
 
-        // Windows用UTF-8設定
         if (isWindows) {
           env.LANG = 'en_US.UTF-8';
           env.PYTHONIOENCODING = 'utf-8';
@@ -291,7 +276,7 @@ export class CodexCliAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
 
-        // stdinを閉じる（codex exec はプロンプトを引数で受け取る）
+        // NOTE: codex exec receives the prompt via args, so stdin is not needed
         if (this.process.stdin) {
           this.process.stdin.end();
         }
@@ -380,7 +365,6 @@ export class CodexCliAgent extends BaseAgent {
           for (const line of lines) {
             if (!line.trim()) continue;
 
-            // JSON形式の出力をパース
             try {
               const json = JSON.parse(line);
               const timestamp = new Date().toISOString();
@@ -390,13 +374,11 @@ export class CodexCliAgent extends BaseAgent {
               switch (json.type) {
                 case 'assistant':
                 case 'message':
-                  // アシスタントのメッセージ
                   if (json.message?.content) {
                     for (const block of json.message.content) {
                       if (block.type === 'text' && block.text) {
                         displayOutput += block.text;
                       } else if (block.type === 'tool_use' || block.type === 'function_call') {
-                        // 質問ツールの検出
                         const toolName = block.name || block.function?.name;
                         if (toolName === 'AskUserQuestion' || toolName === 'ask_user') {
                           logger.info(`${this.logPrefix} Question tool detected: ${toolName}`);
@@ -422,7 +404,7 @@ export class CodexCliAgent extends BaseAgent {
 
                           displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
 
-                          // 質問検出時はプロセスを停止
+                          // NOTE: Kill process to wait for user response before continuing
                           logger.info(
                             `${this.logPrefix} Stopping process to wait for user response`,
                           );
@@ -430,7 +412,6 @@ export class CodexCliAgent extends BaseAgent {
                             this.process.kill('SIGTERM');
                           }
                         } else {
-                          // 通常のツール呼び出し
                           const toolInfo = this.formatToolInfo(
                             toolName || 'unknown',
                             block.input || block.function?.arguments,
@@ -447,14 +428,13 @@ export class CodexCliAgent extends BaseAgent {
                       }
                     }
                   }
-                  // contentが文字列の場合（簡易メッセージ形式）
+                  // Handle simple string content format
                   if (typeof json.content === 'string') {
                     displayOutput += json.content;
                   }
                   break;
 
                 case 'user':
-                  // ユーザーメッセージ（ツール結果など）
                   if (json.message?.content) {
                     for (const block of json.message.content) {
                       if (block.type === 'tool_result' && block.tool_use_id) {
@@ -476,7 +456,6 @@ export class CodexCliAgent extends BaseAgent {
                   break;
 
                 case 'result':
-                  // 最終結果
                   if (json.result) {
                     const duration = json.duration_ms
                       ? ` (${(json.duration_ms / 1000).toFixed(1)}s)`
@@ -490,7 +469,6 @@ export class CodexCliAgent extends BaseAgent {
                   break;
 
                 case 'system':
-                  // セッションIDをキャプチャ
                   if (json.session_id) {
                     this.codexSessionId = json.session_id;
                     logger.info(`${this.logPrefix} Session ID: ${this.codexSessionId}`);
@@ -499,7 +477,7 @@ export class CodexCliAgent extends BaseAgent {
                   if (json.subtype === 'error' || json.error) {
                     logger.error({ systemError: json }, `${this.logPrefix} System error`);
 
-                    // gpt-4oモデルエラーの特別処理
+                    // NOTE: Special handling for gpt-4o model unavailability on ChatGPT accounts
                     if (
                       json.error &&
                       json.error.includes('gpt-4o') &&
@@ -527,7 +505,7 @@ export class CodexCliAgent extends BaseAgent {
                 this.emitOutput(displayOutput);
               }
             } catch (e) {
-              // JSONパース失敗時: chcpコマンドの出力など不要な行をフィルタリング
+              // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
               const trimmedLine = line.trim();
               if (
                 !trimmedLine ||
@@ -590,7 +568,6 @@ export class CodexCliAgent extends BaseAgent {
           const artifacts = this.parseArtifacts(this.outputBuffer);
           const commits = this.parseCommits(this.outputBuffer);
 
-          // 質問検出
           const hasQuestion = this.detectedQuestion.hasQuestion;
           const question = this.detectedQuestion.question;
           const questionKey = this.detectedQuestion.questionKey;
@@ -785,7 +762,6 @@ export class CodexCliAgent extends BaseAgent {
       );
     }
 
-    // APIキーの確認
     if (this.config.apiKey) {
       logger.info(`${this.logPrefix} Using provided API key`);
     } else if (process.env.OPENAI_API_KEY) {
@@ -796,7 +772,6 @@ export class CodexCliAgent extends BaseAgent {
       );
     }
 
-    // 作業ディレクトリの検証
     if (this.config.workingDirectory) {
       try {
         const fs = await import('fs/promises');
@@ -816,7 +791,7 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   /**
-   * タスクから構造化プロンプトを生成
+   * Generate a structured prompt from a task.
    */
   private buildStructuredPrompt(task: AgentTask): string {
     if (task.optimizedPrompt) {
@@ -912,7 +887,7 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   /**
-   * 出力からファイル変更などの成果物を解析
+   * Parse artifacts (file changes, etc.) from output.
    */
   private parseArtifacts(output: string): AgentArtifact[] {
     const artifacts: AgentArtifact[] = [];
@@ -953,7 +928,7 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   /**
-   * 出力からGitコミット情報を解析
+   * Parse Git commit info from output.
    */
   private parseCommits(output: string): GitCommitInfo[] {
     const commits: GitCommitInfo[] = [];
@@ -975,7 +950,7 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   /**
-   * ツール情報を人間が読みやすい形式にフォーマット
+   * Format tool info into a human-readable string.
    */
   private formatToolInfo(toolName: string, input: Record<string, unknown> | undefined): string {
     if (!input) return '';
@@ -1026,7 +1001,7 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   /**
-   * セッションIDを取得
+   * Get the session ID.
    */
   getSessionId(): string | null {
     return this.codexSessionId;

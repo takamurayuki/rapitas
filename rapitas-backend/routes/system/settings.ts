@@ -231,8 +231,8 @@ async function fetchAvailableModels(): Promise<
 }
 
 /**
- * プロバイダ別APIキーバリデーション
- * 各プロバイダのAPIキー形式を検証し、不正なキーの保存を防止する
+ * Per-provider API key validation.
+ * Validates the API key format for each provider to prevent saving invalid keys.
  */
 function validateApiKeyFormat(
   apiKey: string,
@@ -264,7 +264,7 @@ function validateApiKeyFormat(
           error: 'OpenAI APIキーは「sk-」で始まる必要があります',
         };
       }
-      // Claude APIキーとの誤入力を防止
+      // Prevent accidental use of Claude API key
       if (trimmed.startsWith('sk-ant-api')) {
         return {
           valid: false,
@@ -297,7 +297,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
     const claudeApiKey = await getApiKeyForProvider('claude');
     const apiKeyConfigured = !!claudeApiKey;
 
-    // ChatGPT/Gemini APIキーの設定状態を判定
+    // Check ChatGPT/Gemini API key configuration status
     const chatgptConfigured = !!settings.chatgptApiKeyEncrypted;
     const geminiConfigured = !!settings.geminiApiKeyEncrypted;
 
@@ -517,7 +517,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         return { error: `無効なプロバイダです: ${provider}` };
       }
 
-      // プロバイダ別のAPIキー形式バリデーション
+      
       const validation = validateApiKeyFormat(apiKey, provider);
       if (!validation.valid) {
         set.status = 400;
@@ -527,7 +527,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
       const column = PROVIDER_COLUMNS[provider];
       const encrypted = encrypt(apiKey.trim());
 
-      // upsertで安全に保存（他プロバイダのキーを上書きしない）
+      // Save via upsert (does not overwrite other providers keys)
       const existing = await prisma.userSettings.findFirst();
       if (existing) {
         await prisma.userSettings.update({
@@ -639,7 +639,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         return { error: `無効なプロバイダです: ${provider}` };
       }
 
-      // モデルIDのバリデーション
+      
       const availableModels = await fetchAvailableModels();
       const providerModels = availableModels[provider];
       if (providerModels && model) {

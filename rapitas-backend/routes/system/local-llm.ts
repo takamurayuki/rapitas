@@ -1,6 +1,6 @@
 /**
- * ローカルLLM管理ルート
- * Ollama / llama-server の状態確認、モデルダウンロード等
+ * Local LLM Management Routes
+ * Status checks, model downloads, and connection tests for Ollama / llama-server.
  */
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../config/logger';
@@ -17,7 +17,7 @@ const log = createLogger('routes:local-llm');
 
 export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
 
-  // ローカルLLMの状態取得
+  // Get local LLM status
   .get('/status', async () => {
     try {
       const status = await getLocalLLMStatus();
@@ -37,7 +37,7 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
     }
   })
 
-  // モデルのダウンロード開始
+  // Start model download
   .post('/download-model', async ({ set }) => {
     try {
       const progress = getDownloadProgress();
@@ -46,7 +46,7 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
         return { error: 'ダウンロードが既に進行中です', progress };
       }
 
-      // 非同期でダウンロード開始（即座にレスポンスを返す）
+      // Fire-and-forget — return response immediately
       downloadModel().catch((err) => {
         log.error({ err }, 'Model download failed');
       });
@@ -59,12 +59,12 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
     }
   })
 
-  // ダウンロード進捗取得
+  // Get download progress
   .get('/download-progress', () => {
     return getDownloadProgress();
   })
 
-  // モデル削除
+  // Delete model
   .delete('/model', ({ set }) => {
     const deleted = deleteModel();
     if (!deleted) {
@@ -74,7 +74,7 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
     return { message: 'モデルを削除しました' };
   })
 
-  // ローカルLLMの接続テスト
+  // Test local LLM connection
   .post(
     '/test-connection',
     async ({ body }) => {

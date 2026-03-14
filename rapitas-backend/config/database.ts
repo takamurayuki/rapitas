@@ -12,8 +12,8 @@ log.info('Connecting to PostgreSQL');
 export const prisma = new PrismaClient();
 
 /**
- * DB接続を確認し、接続できるまでリトライする
- * サーバー起動前に呼び出すことで、DB未接続状態でリクエストを受けることを防ぐ
+ * Verify DB connection and retry until successful.
+ * Called before server startup to prevent receiving requests while DB is disconnected.
  */
 export async function ensureDatabaseConnection(maxRetries = 5, retryDelayMs = 1000): Promise<void> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
