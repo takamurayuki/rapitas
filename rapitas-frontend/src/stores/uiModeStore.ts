@@ -4,14 +4,14 @@ import { persist } from 'zustand/middleware';
 export type UIMode = 'task' | 'ai' | 'note';
 
 interface UIModeState {
-  /** 現在のUIモード */
+  /** Current UI mode */
   currentMode: UIMode;
-  /** 特定のモードに設定する */
+  /** Set to specific mode */
   setMode: (mode: UIMode) => void;
 }
 
 /**
- * UIのモード（タスク/AI/ノート）を管理するストア
+ * Store managing UI mode (task/AI/note)
  */
 export const useUIModeStore = create<UIModeState>()(
   persist(

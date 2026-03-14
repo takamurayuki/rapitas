@@ -111,7 +111,7 @@ export const useNoteStore = create<NoteState>()(
             ),
           };
 
-          // ノートが保存されて内容が空でない場合、空のノートが存在しなければ新規ノートを自動作成
+          // If note is saved and content is not empty, auto-create new note if no empty one exists
           const updatedNote = newState.notes.find((n) => n.id === id);
           if (
             updatedNote &&
@@ -149,7 +149,7 @@ export const useNoteStore = create<NoteState>()(
           const currentNote =
             state.currentNoteId === id ? null : state.currentNoteId;
 
-          // 削除後に空のノートが存在しなければ新規作成
+          // After deletion, create new empty note if none exists
           const hasEmptyNote = newNotes.some(
             (n) => n.content.trim() === '' && n.title === '新しいノート',
           );
@@ -174,7 +174,7 @@ export const useNoteStore = create<NoteState>()(
       setCurrentNote: (id) => {
         set({ currentNoteId: id });
 
-        // 空のノートに切り替えたときに、他に空のノートがなければ新規作成
+        // When switching to empty note, create new one if no others exist
         if (id) {
           const state = get();
           const currentNote = state.notes.find((n) => n.id === id);
@@ -219,7 +219,7 @@ export const useNoteStore = create<NoteState>()(
               zIndex: ++nextZIndex,
             },
           });
-          // ノートが無い場合は新規作成
+          // Create new note if none exists
           if (state.notes.length === 0) {
             get().createNote();
           }
@@ -236,6 +236,7 @@ export const useNoteStore = create<NoteState>()(
           },
         }));
         const state = get();
+        // Create new note if none exists
         if ((!tab || tab === 'note') && state.notes.length === 0) {
           get().createNote();
         }

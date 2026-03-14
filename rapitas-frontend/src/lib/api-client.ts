@@ -1,6 +1,6 @@
 /**
- * 高速化されたAPIクライアント
- * バッチリクエスト、キャッシング、デバウンス、スロットリングをサポート
+ * Optimized API client
+ * Supports batch requests, caching, debouncing, and throttling
  */
 
 import { API_BASE_URL } from '@/utils/api';
@@ -10,7 +10,7 @@ const logger = createLogger('ApiClient');
 
 type RequestOptions = RequestInit & {
   skipCache?: boolean;
-  cacheTime?: number; // ミリ秒
+  cacheTime?: number; // milliseconds
 };
 
 type BatchRequest = {
@@ -45,19 +45,19 @@ class APIClient {
   >();
   private requestQueue = new Map<string, Promise<unknown>>();
 
-  // デバウンス用のマップ
+  // Map for debouncing
   private debounceTimers = new Map<string, NodeJS.Timeout>();
 
-  // スロットリング用のマップ
+  // Map for throttling
   private throttleLastCall = new Map<string, number>();
 
   constructor() {
-    // 起動時にlocalStorageから永続化されたキャッシュを読み込む
+    // Load persisted cache from localStorage on startup
     this.loadPersistentCache();
   }
 
   /**
-   * 基本的なfetchラッパー（キャッシング付き）
+   * Basic fetch wrapper with caching
    */
   async fetch<T = unknown>(
     path: string,
@@ -66,7 +66,7 @@ class APIClient {
     const url = `${API_BASE_URL}${path}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.body || {})}`;
 
-    // キャッシュチェック（method未指定もGETとして扱う）
+    // Check cache (treat unspecified method as GET)
     if (!options.skipCache && (!options.method || options.method === 'GET')) {
       const cached = this.getFromCache<T>(cacheKey);
       if (cached) {
@@ -74,7 +74,7 @@ class APIClient {
       }
     }
 
-    // 同一リクエストの重複排除
+    // Deduplicate identical requests
     const existingRequest = this.requestQueue.get(cacheKey);
     if (existingRequest) {
       return existingRequest as Promise<T>;
@@ -82,7 +82,7 @@ class APIClient {
 
     const request = this.performFetch<T>(url, options)
       .then((data) => {
-        // GETリクエストの結果をキャッシュ
+        // Cache GET request results
         if (options.method === 'GET' || !options.method) {
           this.setCache(cacheKey, data, options.cacheTime);
         }
@@ -99,8 +99,8 @@ class APIClient {
   }
 
   /**
-   * バッチリクエスト
-   * 複数のAPIリクエストを1つのHTTPリクエストにまとめる
+   * Batch request
+   * Combine multiple API requests into a single HTTP request
    */
   async batchFetch<T = unknown>(
     path: string,
@@ -121,12 +121,12 @@ class APIClient {
       });
       this.pendingBatch.push(request);
 
-      // バッチタイマーをリセット
+      // Reset batch timer
       if (this.batchTimeout) {
         clearTimeout(this.batchTimeout);
       }
 
-      // 10ms待ってからバッチを送信（他のリクエストを待つ）
+      // Wait 10ms before sending batch (wait for other requests)
       this.batchTimeout = setTimeout(() => {
         this.sendBatch();
       }, 10);
@@ -134,8 +134,8 @@ class APIClient {
   }
 
   /**
-   * デバウンス付きfetch
-   * 連続した同じリクエストを最後の1つだけ実行
+   * Debounced fetch
+   * Execute only the last of consecutive identical requests
    */
   async debouncedFetch<T = unknown>(
     path: string,
@@ -145,7 +145,7 @@ class APIClient {
     const key = `${path}:${JSON.stringify(options)}`;
 
     return new Promise((resolve, reject) => {
-      // 既存のタイマーをキャンセル
+      // Cancel existing timer
       const existingTimer = this.debounceTimers.get(key);
       if (existingTimer) {
         clearTimeout(existingTimer);
@@ -167,8 +167,8 @@ class APIClient {
   }
 
   /**
-   * スロットリング付きfetch
-   * 一定時間内に1回だけリクエストを実行
+   * Throttled fetch
+   * Execute request only once within specified interval
    */
   async throttledFetch<T = unknown>(
     path: string,
@@ -180,13 +180,13 @@ class APIClient {
     const lastCall = this.throttleLastCall.get(key) || 0;
 
     if (now - lastCall < interval) {
-      // インターバル内の場合は前回の結果をキャッシュから返す
+      // Return previous result from cache if within interval
       const cacheKey = `${options.method || 'GET'}:${API_BASE_URL}${path}:${JSON.stringify(options.body || {})}`;
       const cached = this.getFromCache<T>(cacheKey);
       if (cached) {
         return cached;
       }
-      // キャッシュがない場合はエラー
+      // Error if no cache available
       throw new Error('Request throttled and no cache available');
     }
 
@@ -195,8 +195,8 @@ class APIClient {
   }
 
   /**
-   * 並列リクエストの最適化
-   * Promise.allSettledを使用して、一部が失敗しても他のリクエストは継続
+   * Optimize parallel requests
+   * Use Promise.allSettled so other requests continue even if some fail
    */
   async parallelFetch<T extends Record<string, unknown>>(
     requests: Record<string, { path: string; options?: RequestOptions }>,
@@ -220,8 +220,8 @@ class APIClient {
   }
 
   /**
-   * プリフェッチ
-   * 事前にデータを取得してキャッシュに保存
+   * Prefetch
+   * Fetch data in advance and save to cache
    */
   async prefetch(paths: string[], cacheTime?: number): Promise<void> {
     await Promise.allSettled(
@@ -230,7 +230,7 @@ class APIClient {
   }
 
   /**
-   * キャッシュクリア
+   * Clear cache
    */
   clearCache(pattern?: string): void {
     if (pattern) {
@@ -242,7 +242,7 @@ class APIClient {
         });
     } else {
       this.cache.clear();
-      // 永続化キャッシュも全削除
+      // Delete all persisted cache too
       if (this.persistentCacheEnabled && typeof window !== 'undefined') {
         localStorage.removeItem(this.localStorageKey);
       }
@@ -250,7 +250,7 @@ class APIClient {
   }
 
   /**
-   * キャッシュ統計情報を取得
+   * Get cache statistics
    */
   getCacheStats(): {
     size: number;
@@ -269,7 +269,7 @@ class APIClient {
   }
 
   /**
-   * 実際のfetch処理
+   * Actual fetch processing
    */
   private async performFetch<T>(
     url: string,
@@ -293,7 +293,7 @@ class APIClient {
   }
 
   /**
-   * バッチリクエストの送信
+   * Send batch request
    */
   private async sendBatch(): Promise<void> {
     if (this.pendingBatch.length === 0) return;
@@ -318,7 +318,7 @@ class APIClient {
 
       const results: BatchResponse[] = await response.json();
 
-      // 各リクエストの結果を対応するリゾルバーに送信
+      // Send each request result to corresponding resolver
       results.forEach((result) => {
         const resolver = this.batchResolvers.get(result.id);
         if (resolver) {
@@ -331,7 +331,7 @@ class APIClient {
         }
       });
     } catch (error) {
-      // バッチ全体が失敗した場合、個別のリクエストとして再試行
+      // Retry as individual requests if entire batch fails
       batch.forEach(async (request) => {
         const resolver = this.batchResolvers.get(request.id);
         if (resolver) {
@@ -351,13 +351,13 @@ class APIClient {
   }
 
   /**
-   * キャッシュから取得
+   * Get from cache
    */
   private getFromCache<T>(key: string): T | null {
     const cached = this.cache.get(key);
     if (!cached) return null;
 
-    // キャッシュの有効期限をチェック
+    // Check cache expiration
     const isExpired = Date.now() > cached.expiry;
     if (isExpired) {
       this.cache.delete(key);
@@ -369,14 +369,14 @@ class APIClient {
   }
 
   /**
-   * キャッシュに保存
+   * Save to cache
    */
   private setCache(
     key: string,
     data: unknown,
     cacheTime: number = 24 * 60 * 60 * 1000,
   ): void {
-    // デフォルトで24時間キャッシュ（従来の5分から大幅延長）
+    // Default 24-hour cache (significantly extended from previous 5 minutes)
     const expiry = Date.now() + cacheTime;
 
     const cacheEntry = {
@@ -387,14 +387,14 @@ class APIClient {
 
     this.cache.set(key, cacheEntry);
 
-    // 永続化（タスク詳細などの重要なデータのみ）
+    // Persist (only important data like task details)
     if (this.persistentCacheEnabled && key.includes('/tasks/')) {
       this.savePersistentCacheEntry(key, cacheEntry);
     }
 
-    // キャッシュサイズ制限（200エントリーに増加）
+    // Cache size limit (increased to 200 entries)
     if (this.cache.size > 200) {
-      // 最も古いエントリーを削除
+      // Delete oldest entry
       const entries = Array.from(this.cache.entries());
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
       const oldestKey = entries[0][0];
@@ -404,7 +404,7 @@ class APIClient {
   }
 
   /**
-   * 永続化されたキャッシュを読み込む
+   * Load persisted cache
    */
   private loadPersistentCache(): void {
     if (!this.persistentCacheEnabled || typeof window === 'undefined') return;
@@ -416,7 +416,7 @@ class APIClient {
       const persistentCache = JSON.parse(stored);
       const now = Date.now();
 
-      // 有効なキャッシュエントリーのみメモリに読み込む
+      // Load only valid cache entries to memory
       (
         Object.entries(persistentCache) as [
           string,
@@ -428,7 +428,7 @@ class APIClient {
         }
       });
 
-      // 期限切れのエントリーをクリーンアップ
+      // Cleanup expired entries
       this.cleanupPersistentCache();
     } catch (error) {
       logger.warn('Failed to load persistent cache:', error);
@@ -436,7 +436,7 @@ class APIClient {
   }
 
   /**
-   * 単一のキャッシュエントリーを永続化
+   * Persist single cache entry
    */
   private savePersistentCacheEntry(
     key: string,
@@ -448,12 +448,12 @@ class APIClient {
       const stored = localStorage.getItem(this.localStorageKey) || '{}';
       const persistentCache = JSON.parse(stored);
 
-      // タスク詳細キャッシュは最大50個まで保存
+      // Save max 50 task detail caches
       const taskCacheKeys = Object.keys(persistentCache).filter((k) =>
         k.includes('/tasks/'),
       );
       if (taskCacheKeys.length >= 50) {
-        // 最も古いものから削除
+        // Delete from oldest
         const sorted = taskCacheKeys.sort(
           (a, b) => persistentCache[a].timestamp - persistentCache[b].timestamp,
         );
@@ -466,7 +466,7 @@ class APIClient {
         JSON.stringify(persistentCache),
       );
     } catch (error) {
-      // localStorage容量エラーの場合はクリーンアップ
+      // Cleanup on localStorage quota error
       if (
         error instanceof DOMException &&
         error.name === 'QuotaExceededError'
@@ -478,7 +478,7 @@ class APIClient {
   }
 
   /**
-   * 単一のキャッシュエントリーを永続化から削除
+   * Remove single cache entry from persistence
    */
   private removePersistentCacheEntry(key: string): void {
     if (!this.persistentCacheEnabled || typeof window === 'undefined') return;
@@ -497,7 +497,7 @@ class APIClient {
   }
 
   /**
-   * 期限切れの永続化キャッシュをクリーンアップ
+   * Cleanup expired persisted cache
    */
   private cleanupPersistentCache(): void {
     if (!this.persistentCacheEnabled || typeof window === 'undefined') return;
@@ -525,10 +525,10 @@ class APIClient {
   }
 }
 
-// シングルトンインスタンス
+// Singleton instance
 export const apiClient = new APIClient();
 
-// 便利な関数をエクスポート
+// Export convenience functions
 export const apiFetch = apiClient.fetch.bind(apiClient);
 export const batchFetch = apiClient.batchFetch.bind(apiClient);
 export const debouncedFetch = apiClient.debouncedFetch.bind(apiClient);

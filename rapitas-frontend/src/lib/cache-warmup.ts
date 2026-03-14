@@ -1,6 +1,6 @@
 /**
- * キャッシュのウォームアップ処理
- * アプリケーション起動時に重要なデータを事前キャッシュ
+ * Cache warmup processing
+ * Pre-cache important data on application startup
  */
 
 import { apiClient } from './api-client';
@@ -10,21 +10,21 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('CacheWarmup');
 
 /**
- * アプリケーション起動時のキャッシュウォームアップ
+ * Cache warmup on application startup
  */
 export async function warmupApplicationCache(): Promise<void> {
   logger.info('[Cache] Starting application cache warmup...');
 
   try {
-    // 最近アクセスしたタスクのIDを取得（localStorageから）
+    // Fetch recently accessed task IDs (from localStorage)
     const recentTaskIds = getRecentTaskIds();
 
-    // ユーザー設定を事前キャッシュ（6時間）
+    // Pre-cache user settings (6 hours)
     await apiClient.fetch('/settings', {
       cacheTime: 6 * 60 * 60 * 1000,
     });
 
-    // よく使うカテゴリやラベルを事前キャッシュ（24時間）
+    // Pre-cache frequently used categories and labels (24 hours)
     const coreEndpoints = [
       '/categories',
       '/labels',
@@ -41,7 +41,7 @@ export async function warmupApplicationCache(): Promise<void> {
       ),
     );
 
-    // 最近アクセスしたタスクをプリロード（24時間キャッシュ）
+    // Preload recently accessed tasks (24 hour cache)
     if (recentTaskIds.length > 0) {
       const taskPrefetchPromises = recentTaskIds.slice(0, 10).map((id) =>
         apiClient.fetch(`/tasks/${id}`, {
@@ -52,7 +52,7 @@ export async function warmupApplicationCache(): Promise<void> {
       await Promise.allSettled(taskPrefetchPromises);
     }
 
-    // アクティブなタスク（todoとprogress）を事前キャッシュ（12時間）
+    // Pre-cache active tasks (todo and progress) (12 hours)
     await apiClient.fetch('/tasks?status=todo,progress', {
       cacheTime: 12 * 60 * 60 * 1000,
     });
@@ -64,7 +64,7 @@ export async function warmupApplicationCache(): Promise<void> {
 }
 
 /**
- * 最近アクセスしたタスクIDを取得
+ * Fetch recently accessed task IDs
  */
 function getRecentTaskIds(): number[] {
   try {
@@ -79,7 +79,7 @@ function getRecentTaskIds(): number[] {
 }
 
 /**
- * 最近アクセスしたタスクIDを記録
+ * Record recently accessed task ID
  */
 export function recordTaskAccess(taskId: number): void {
   try {
@@ -88,11 +88,11 @@ export function recordTaskAccess(taskId: number): void {
 
     const ids: number[] = recentTasks.ids || [];
 
-    // 既存のIDを削除して先頭に追加
+    // Delete existing ID and add to front
     const filteredIds = ids.filter((id) => id !== taskId);
     filteredIds.unshift(taskId);
 
-    // 最大20個まで保持
+    // Keep max 20 items
     const limitedIds = filteredIds.slice(0, 20);
 
     localStorage.setItem(
@@ -108,7 +108,7 @@ export function recordTaskAccess(taskId: number): void {
 }
 
 /**
- * キャッシュ統計情報の取得
+ * Fetch cache statistics
  */
 export async function getCacheStatistics() {
   const apiStats = apiClient.getCacheStats?.() || { size: 0, entries: [] };
@@ -123,12 +123,12 @@ export async function getCacheStatistics() {
 }
 
 /**
- * キャッシュのクリーンアップ（期限切れデータの削除）
+ * Cache cleanup (remove expired data)
  */
 export function cleanupExpiredCache(): void {
-  // APIクライアントのキャッシュクリーンアップは自動で行われる
+  // API client cache cleanup is done automatically
 
-  // 永続化されたキャッシュのクリーンアップ
+  // Cleanup persisted cache
   try {
     const stored = localStorage.getItem('rapitas-api-cache');
     if (!stored) return;

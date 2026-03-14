@@ -17,7 +17,7 @@ interface FilterDataState {
   error: string | null;
 
   // キャッシュ設定
-  cacheExpireTime: number; // ミリ秒（デフォルト: 1時間）
+  cacheExpireTime: number; // milliseconds (default: 1 hour)
 }
 
 interface FilterDataActions {
@@ -42,18 +42,18 @@ interface FilterDataActions {
 
 type FilterDataStore = FilterDataState & FilterDataActions;
 
-// デフォルトのキャッシュ期限（1時間）
+// Default cache expiration (1 hour)
 const DEFAULT_CACHE_EXPIRE_TIME = 60 * 60 * 1000;
 
-// バックグラウンド更新の閾値（期限の80%経過時に更新開始）
+// Background refresh threshold (start refresh when 80% of expiration elapsed)
 const BACKGROUND_REFRESH_THRESHOLD = 0.8;
 
-// リトライ設定
+// Retry settings
 const RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 1000; // 1秒
+const RETRY_DELAY = 1000; // 1 second
 
-// タイムアウト設定
-const FETCH_TIMEOUT = 10000; // 10秒
+// Timeout settings
+const FETCH_TIMEOUT = 10000; // 10 seconds
 
 /**
  * 指定した時間待機するユーティリティ関数
@@ -92,7 +92,7 @@ const fetchWithRetry = async <T>(
         throw error;
       }
 
-      // 指数バックオフで待機
+      // Wait with exponential backoff
       await delay(delayMs * Math.pow(2, i));
     }
   }
@@ -115,7 +115,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
       initializeData: async () => {
         const state = get();
 
-        // 既に初期化済みで、データが新しい場合はスキップ
+        // Skip if already initialized and data is fresh
         if (state.isInitialized && state.isDataFresh()) {
           logger.debug('[filterDataStore] initializeData: Using cached data');
           return;
@@ -127,7 +127,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         set({ isLoading: true, error: null });
 
         try {
-          // 並列でカテゴリ・テーマを取得
+          // Fetch categories and themes in parallel
           const [categoriesResult, themesResult] = await Promise.allSettled([
             fetchWithRetry(() =>
               apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
@@ -181,7 +181,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
           set({
             isLoading: false,
             error: `Failed to load filter data: ${errorMessage}`,
-            // エラーが発生してもキャッシュデータがある場合は使用を継続
+            // Continue using cache data even if error occurs
             isInitialized:
               state.categories.length > 0 || state.themes.length > 0,
           });
@@ -204,10 +204,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
           logger.info(
             '[filterDataStore] refreshData: Force refresh - clearing caches',
           );
-          // api-clientのキャッシュもクリア
+          // Also clear api-client cache
           clearApiCache('/categories');
           clearApiCache('/themes');
-          // lastUpdatedをリセットしてinitializeData内のフレッシュネスチェックをバイパス
+          // Reset lastUpdated to bypass freshness check in initializeData
           set({ lastUpdated: null, isInitialized: false });
         }
 
@@ -286,7 +286,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         );
 
         try {
-          // 並列でカテゴリ・テーマを取得（ローディング状態は変更しない）
+          // Fetch categories and themes in parallel (don't change loading state)
           const [categoriesResult, themesResult] = await Promise.allSettled([
             fetchWithRetry(() =>
               apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
@@ -334,7 +334,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             '[filterDataStore] backgroundRefresh: Background update failed (silently ignored):',
             error,
           );
-          // バックグラウンド更新のエラーはサイレントに処理（ユーザーには表示しない）
+          // Background update errors handled silently (not shown to user)
         }
       },
 
@@ -351,7 +351,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
     {
       name: 'filter-data-store', // localStorage key
       partialize: (state) => ({
-        // 永続化するデータを選択
+        // Select data to persist
         categories: state.categories,
         themes: state.themes,
         lastUpdated: state.lastUpdated,

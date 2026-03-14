@@ -1,16 +1,16 @@
 import { create } from 'zustand';
 
 interface TaskDetailVisibilityState {
-  /** タスク詳細パネルが表示されているかどうか */
+  /** Whether task detail panel is displayed */
   isTaskDetailVisible: boolean;
-  /** タスク詳細パネルを表示する */
+  /** Show task detail panel */
   showTaskDetail: () => void;
-  /** タスク詳細パネルを非表示にする */
+  /** Hide task detail panel */
   hideTaskDetail: () => void;
 }
 
 /**
- * タスク詳細パネルの表示状態を管理するストア
+ * Store managing task detail panel visibility
  */
 export const useTaskDetailVisibilityStore = create<TaskDetailVisibilityState>()(
   (set) => ({

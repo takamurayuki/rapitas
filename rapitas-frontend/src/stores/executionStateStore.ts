@@ -7,17 +7,17 @@ interface ExecutingTask {
 }
 
 interface ExecutionStateStore {
-  /** 現在実行中のタスク一覧 */
+  /** List of currently executing tasks */
   executingTasks: Map<number, ExecutingTask>;
-  /** 実行中のタスクを追加/更新 */
+  /** Add/update executing task */
   setExecutingTask: (task: ExecutingTask) => void;
-  /** 実行が完了したタスクを除去 */
+  /** Remove completed tasks */
   removeExecutingTask: (taskId: number) => void;
-  /** 全てクリア */
+  /** Clear all */
   clearAll: () => void;
-  /** 指定タスクが実行中かどうか */
+  /** Whether specified task is executing */
   isTaskExecuting: (taskId: number) => boolean;
-  /** 指定タスクの実行状態を取得 */
+  /** Get execution status of specified task */
   getExecutingTaskStatus: (
     taskId: number,
   ) => 'running' | 'waiting_for_input' | null;
