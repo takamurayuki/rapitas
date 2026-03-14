@@ -51,9 +51,10 @@ export async function generateTaskTitle(
 
 タイトルのルール:
 1. 日本語で記述する
-2. 30文字以内を推奨
+2. 必ず40文字以内に収めること（これは厳守）
 3. 動詞を含めて何をするか明確にする
 4. 余計な装飾や説明は不要
+5. 説明が長くても要点だけを抽出して短くまとめる
 
 出力形式: タイトルのみを出力してください。`;
 
@@ -68,8 +69,12 @@ export async function generateTaskTitle(
     provider: 'ollama',
     messages,
     systemPrompt,
-    maxTokens: 100,
+    maxTokens: 50,
   });
 
-  return { title: response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, '') };
+  let title = response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, '');
+  if (title.length > 40) {
+    title = title.slice(0, 40);
+  }
+  return { title };
 }

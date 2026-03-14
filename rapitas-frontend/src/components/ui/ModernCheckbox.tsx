@@ -7,6 +7,7 @@ interface ModernCheckboxProps {
   onChange: () => void;
   onClick?: (e: React.MouseEvent) => void;
   className?: string;
+  'aria-label'?: string;
 }
 
 export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
@@ -14,12 +15,14 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
   onChange,
   onClick,
   className = '',
+  'aria-label': ariaLabel,
 }) => {
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={checked}
+      aria-label={ariaLabel}
       onClick={(e) => {
         if (onClick) onClick(e);
         onChange();

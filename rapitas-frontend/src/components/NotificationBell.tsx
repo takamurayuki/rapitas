@@ -132,7 +132,7 @@ export default function NotificationBell() {
 
       {isOpen && (
         <div
-          role="region"
+          role="menu"
           aria-label={t('title')}
           className="absolute right-0 mt-2 w-80 bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden z-50"
         >
@@ -188,6 +188,7 @@ export default function NotificationBell() {
                   {notification.link ? (
                     <Link
                       href={notification.link}
+                      role="menuitem"
                       onClick={() => handleNotificationClick(notification)}
                       className="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                     >
@@ -197,7 +198,7 @@ export default function NotificationBell() {
                       />
                     </Link>
                   ) : (
-                    <div className="px-4 py-3">
+                    <div className="px-4 py-3" role="menuitem">
                       <NotificationContent
                         notification={notification}
                         formatTime={formatTime}
@@ -237,7 +238,10 @@ export default function NotificationBell() {
 
                   {/* Unread indicator */}
                   {!notification.isRead && (
-                    <div className="absolute left-[42px] top-2.5 w-2 h-2 bg-violet-500 rounded-full" />
+                    <div
+                      className="absolute left-[42px] top-2.5 w-2 h-2 bg-violet-500 rounded-full"
+                      aria-hidden="true"
+                    />
                   )}
                 </div>
               ))
