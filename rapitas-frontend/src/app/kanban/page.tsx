@@ -109,21 +109,21 @@ export default function KanbanPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
 
-  // フィルター状態
+  // Filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [labels, setLabels] = useState<Label[]>([]);
 
-  // 週間表示の状態
-  const [currentWeek, setCurrentWeek] = useState(0); // 0 = 今週, -1 = 先週, 1 = 来週
+  // Week display state
+  const [currentWeek, setCurrentWeek] = useState(0); // 0 = current week, -1 = last week, 1 = next week
 
-  // 週の開始日と終了日を計算
+  // Calculate week start and end dates
   const getWeekDateRange = (weekOffset: number) => {
     const now = new Date();
     const currentDay = now.getDay();
-    const diff = currentDay === 0 ? -6 : 1 - currentDay; // 月曜日を週の始まりとする
+    const diff = currentDay === 0 ? -6 : 1 - currentDay; // Set Monday as start of week
 
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() + diff + weekOffset * 7);
@@ -136,18 +136,18 @@ export default function KanbanPage() {
     return { start: weekStart, end: weekEnd };
   };
 
-  // 現在の週の日付範囲を取得
+  // Get current week date range
   const currentWeekRange = useMemo(() => {
     return getWeekDateRange(currentWeek);
   }, [currentWeek]);
 
-  // フィルタリングされたタスク
+  // Filtered tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // 週フィルター:
-      // 1. 進行中のタスクは常に表示
-      // 2. 期日が現在の週に含まれるタスク
-      // 3. 作成日が現在の週に含まれるタスク
+      // Week filter:
+      // 1. In-progress tasks are always shown
+      // 2. Tasks with due date within current week
+      // 3. Tasks created within current week
       const taskCreatedAt = new Date(task.createdAt);
       const taskDueDate = task.dueDate ? new Date(task.dueDate) : null;
 
@@ -164,7 +164,7 @@ export default function KanbanPage() {
 
       if (!isInWeek) return false;
 
-      // 検索フィルター
+      // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesTitle = task.title.toLowerCase().includes(query);
@@ -174,13 +174,13 @@ export default function KanbanPage() {
         if (!matchesTitle && !matchesDescription) return false;
       }
 
-      // 優先度フィルター
+      // Priority filter
       if (selectedPriorities.length > 0) {
         if (!task.priority || !selectedPriorities.includes(task.priority))
           return false;
       }
 
-      // ラベルフィルター
+      // Label filter
       if (selectedLabelIds.length > 0) {
         const taskLabelIds =
           task.taskLabels
@@ -246,7 +246,7 @@ export default function KanbanPage() {
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
-  // 自動同期を有効化
+  // Enable auto-sync
   useTaskAutoSync({
     enabled: true,
     interval: 30000,
@@ -303,8 +303,8 @@ export default function KanbanPage() {
     setTimeout(() => setSelectedTaskId(null), 300);
   }, [hideTaskDetail]);
 
-  // 実行中タスクのポーリング: 実行中タスクが検出されたら自動的にパネルを開く
-  // パネルが既に開いている場合は別タスクに切り替えない
+  // Executing task polling: automatically open panel when executing task is detected
+  // Don't switch to different task if panel is already open
   const handleExecutingTaskFound = useCallback(
     (taskId: number) => {
       if (!isPanelOpen) {
@@ -319,7 +319,7 @@ export default function KanbanPage() {
     onExecutingTaskFound: handleExecutingTaskFound,
   });
 
-  // タスクをページとして開く（ヘッダー表示モード）
+  // Open task as page (header display mode)
   const openTaskInPage = (taskId: number) => {
     router.push(`/tasks/${taskId}?showHeader=true`);
   };
@@ -338,7 +338,7 @@ export default function KanbanPage() {
   const getTasksByStatus = (status: string) =>
     filteredTasks.filter((t) => t.status === status && !t.parentId);
 
-  // 実行状態に応じたクラス名とバッジ情報を取得
+  // Get class names and badge info based on execution state
   const getKanbanExecutionClasses = (taskId: number) => {
     const executionStatus = getExecutingTaskStatus(taskId);
     switch (executionStatus) {
@@ -365,7 +365,7 @@ export default function KanbanPage() {
     }
   };
 
-  // 週の表示文字列を生成
+  // Generate week display text
   const getWeekDisplayText = () => {
     const start = currentWeekRange.start.toLocaleDateString(dateLocale, {
       month: 'numeric',
@@ -612,7 +612,7 @@ export default function KanbanPage() {
                                         {task.title}
                                       </h3>
                                       <div className="flex items-center gap-2">
-                                        {/* 実行状態バッジ */}
+                                        {/* Execution state badge */}
                                         {executionClasses && (
                                           <div
                                             className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${executionClasses.badgeClass}`}
@@ -641,9 +641,9 @@ export default function KanbanPage() {
                                       </div>
                                     </div>
 
-                                    {/* メタ情報 */}
+                                    {/* Meta information */}
                                     <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                                      {/* 日付 */}
+                                      {/* Date */}
                                       <span className="flex items-center gap-1">
                                         <svg
                                           className="w-3 h-3"
@@ -663,7 +663,7 @@ export default function KanbanPage() {
                                         ).toLocaleDateString(dateLocale)}
                                       </span>
 
-                                      {/* サブタスク */}
+                                      {/* Subtasks */}
                                       {task.subtasks &&
                                         task.subtasks.length > 0 && (
                                           <span className="flex items-center gap-1">
@@ -689,7 +689,7 @@ export default function KanbanPage() {
                                           </span>
                                         )}
 
-                                      {/* ラベル数 */}
+                                      {/* Label count */}
                                       {hasLabels(task.labels) && (
                                         <span className="flex items-center gap-1">
                                           <svg
@@ -709,7 +709,7 @@ export default function KanbanPage() {
                                         </span>
                                       )}
 
-                                      {/* 見積もり時間 */}
+                                      {/* Estimated hours */}
                                       {task.estimatedHours && (
                                         <span className="flex items-center gap-1">
                                           <svg
@@ -730,7 +730,7 @@ export default function KanbanPage() {
                                       )}
                                     </div>
 
-                                    {/* ラベル表示 */}
+                                    {/* Label display */}
                                     {hasLabels(task.labels) && (
                                       <div className="mt-2 flex flex-wrap gap-1">
                                         {getLabelsArray(task.labels)
@@ -770,7 +770,7 @@ export default function KanbanPage() {
         )}
       </div>
 
-      {/* タスク詳細スライドパネル */}
+      {/* Task detail slide panel */}
       <TaskSlidePanel
         taskId={selectedTaskId}
         isOpen={isPanelOpen}

@@ -174,7 +174,7 @@ export default function TaskSuggestions({
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
             setAiAnalysis(data.analysis);
-            setIsCached(false); // 新規生成なのでキャッシュフラグはfalse
+            setIsCached(false); // New generation, so cache flag is false
             setIsExpanded(true);
           } else {
             setAiSuggestions([]);
@@ -222,7 +222,7 @@ export default function TaskSuggestions({
   }, [themeId]);
 
   const handleApply = (suggestion: TaskSuggestion) => {
-    // 詳細情報がある場合は、完了条件などを説明に追加
+    // Add completion criteria and other details to description if available
     let enhancedDescription = suggestion.description ?? '';
 
     if (suggestion.completionCriteria) {

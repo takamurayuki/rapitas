@@ -26,7 +26,7 @@ export default function SubtaskStatusButtons({
   size = 'sm',
 }: SubtaskStatusButtonsProps) {
   const handleStatusChange = async (newStatus: string) => {
-    // 楽観的UI更新：即座にUI状態を更新
+    // Optimistic UI update: immediately update UI state
     if (onStatusChange) {
       onStatusChange(taskId, newStatus);
     }
@@ -39,7 +39,7 @@ export default function SubtaskStatusButtons({
       });
 
       if (response.ok) {
-        // 成功時：最終的な同期のためonTaskUpdatedを呼び出し
+        // On success: call onTaskUpdated for final synchronization
         if (onTaskUpdated) {
           onTaskUpdated();
         }

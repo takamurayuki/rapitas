@@ -59,7 +59,7 @@ export default function FocusClient() {
     const duration = customWorkTime / 60; // 時間単位
 
     try {
-      // タスクに紐づいている場合は時間を記録
+      // Record time if linked to a task
       if (taskId && startTime) {
         const res = await fetch(
           `${API_BASE_URL}/tasks/${taskId}/time-entries`,
@@ -84,7 +84,7 @@ export default function FocusClient() {
         }
       }
 
-      // 学習統計を更新
+      // Update study statistics
       await fetch(`${API_BASE_URL}/statistics/daily-study`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,7 +99,7 @@ export default function FocusClient() {
   }, [customWorkTime, taskId, startTime, sessionsCompleted, showToast]);
 
   const playNotificationSound = useCallback(() => {
-    // シンプルなビープ音を生成
+    // Generate simple beep sound
     const AudioContextClass =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
@@ -122,12 +122,12 @@ export default function FocusClient() {
   const handleTimerComplete = useCallback(() => {
     setIsRunning(false);
 
-    // 通知音
+    // Notification sound
     if (soundEnabled) {
       playNotificationSound();
     }
 
-    // ブラウザ通知
+    // Browser notification
     if (Notification.permission === 'granted') {
       new Notification(
         mode === 'work' ? t('workTimeFinished') : t('breakFinished'),
@@ -140,13 +140,13 @@ export default function FocusClient() {
     }
 
     if (mode === 'work') {
-      // 作業完了、記録を保存
+      // Work completed, save record
       saveTimeEntry();
       setSessions((prev) => prev + 1);
       setMode('break');
       setTimeLeft(customBreakTime * 60);
     } else {
-      // 休憩完了
+      // Break completed
       setMode('work');
       setTimeLeft(customWorkTime * 60);
     }
@@ -165,7 +165,7 @@ export default function FocusClient() {
     }
     setIsRunning(true);
 
-    // 通知許可をリクエスト
+    // Request notification permission
     if (Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -250,7 +250,7 @@ export default function FocusClient() {
           : 'bg-linear-to-br from-emerald-950 via-slate-900 to-teal-950'
       }`}
     >
-      {/* ヘッダー */}
+      {/* Header */}
       <div className="flex items-center justify-between p-4">
         <button
           onClick={() => router.back()}
@@ -277,7 +277,7 @@ export default function FocusClient() {
         className="flex flex-col items-center justify-center px-4 pb-8"
         style={{ minHeight: 'calc(100vh - 80px)' }}
       >
-        {/* タスク情報 */}
+        {/* Task information */}
         {task && (
           <div className="mb-8 text-center">
             <p className="text-white/60 text-sm mb-1">{t('currentTask')}</p>
@@ -285,7 +285,7 @@ export default function FocusClient() {
           </div>
         )}
 
-        {/* モード表示 */}
+        {/* Mode display */}
         <div
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 ${
             mode === 'work'
@@ -306,9 +306,9 @@ export default function FocusClient() {
           )}
         </div>
 
-        {/* タイマー */}
+        {/* Timer */}
         <div className="relative w-72 h-72 mb-8">
-          {/* プログレスリング */}
+          {/* Progress ring */}
           <svg className="w-full h-full -rotate-90">
             <circle
               cx="144"
@@ -335,7 +335,7 @@ export default function FocusClient() {
             />
           </svg>
 
-          {/* 時間表示 */}
+          {/* Time display */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-6xl font-bold text-white font-mono">
               {formatTime(timeLeft)}
@@ -346,7 +346,7 @@ export default function FocusClient() {
           </div>
         </div>
 
-        {/* コントロール */}
+        {/* Controls */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={resetTimer}
@@ -381,7 +381,7 @@ export default function FocusClient() {
           )}
         </div>
 
-        {/* 設定 */}
+        {/* Settings */}
         {!isRunning && (
           <div className="flex items-center gap-6 text-white/60">
             <div className="flex items-center gap-2">
@@ -423,7 +423,7 @@ export default function FocusClient() {
           </div>
         )}
 
-        {/* セッション数 */}
+        {/* Session count */}
         {sessionsCompleted > 0 && (
           <div className="mt-8 flex items-center gap-2">
             {Array.from({ length: sessionsCompleted }).map((_, i) => (

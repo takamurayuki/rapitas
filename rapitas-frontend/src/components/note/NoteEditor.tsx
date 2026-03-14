@@ -534,7 +534,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* タイトル + 保存 */}
+      {/* Title + Save */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <input
           type="text"
@@ -596,7 +596,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         </button>
       </div>
 
-      {/* フラッシュカード生成結果 */}
+      {/* Flashcard generation result */}
       {flashcardResult && (
         <div className="mx-4 mb-2 flex items-center justify-between px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700">
           <span className="text-sm text-violet-700 dark:text-violet-300">

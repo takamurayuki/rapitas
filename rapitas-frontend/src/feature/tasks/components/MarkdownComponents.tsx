@@ -33,7 +33,7 @@ type LinkProps = HTMLAttributes<HTMLAnchorElement> & {
 export const createMarkdownComponents = () => ({
   // pタグの処理をカスタマイズ（pre/codeを含む場合は div に変換）
   p({ node, children, ...props }: ParagraphProps) {
-    // 子要素に pre や code ブロックが含まれているかチェック
+    // Check if child elements contain pre or code blocks
     const hasCodeBlock = node?.children?.some(
       (child) =>
         child.type === 'element' &&
@@ -107,7 +107,7 @@ export const createMarkdownComponents = () => ({
   // リンクの処理をカスタマイズ（外部リンクを分割表示で開く）
   a({ href, children, ...props }: LinkProps) {
     // ExternalLinksProviderでグローバルにハンドラーが設定されるため、
-    // ここでは追加のハンドラーは設定せず、スタイリングのみ行う
+    // Only handle styling here, no additional handlers needed
     // target="_blank"を設定しないことで、デフォルトのブラウザ動作を防ぐ
     return (
       <a

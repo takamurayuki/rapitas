@@ -36,10 +36,10 @@ export default function TaskTimeTracking({
   const [accumulatedBreakSeconds, setAccumulatedBreakSeconds] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 親コンポーネントが休憩時間を取得できるようにする
+  // Allow parent component to retrieve break time
   useEffect(() => {
     if (getAccumulatedBreakTimeRef) {
-      // この関数が呼ばれたときに現在の累積休憩時間（時間単位）を返す
+      // Return current accumulated break time in hours when this function is called
       getAccumulatedBreakTimeRef.current = () => accumulatedBreakSeconds / 3600;
     }
   }, [accumulatedBreakSeconds, getAccumulatedBreakTimeRef]);
@@ -55,7 +55,7 @@ export default function TaskTimeTracking({
             setIsBreakTime(true);
             setShowBreakDialog(true);
             setPomodoroCount((c) => c + 1);
-            // 音を鳴らす
+            // Play notification sound
             if (audioRef.current) {
               audioRef.current.play().catch(() => {});
             }
@@ -69,10 +69,10 @@ export default function TaskTimeTracking({
       interval = setInterval(() => {
         setPomodoroSeconds((prev) => {
           const newSeconds = prev + 1;
-          // 休憩時間を累積
+          // Accumulate break time
           setAccumulatedBreakSeconds((acc) => acc + 1);
           if (newSeconds >= breakDuration) {
-            // 休憩終了
+            // End break
             setIsBreakTime(false);
             if (audioRef.current) {
               audioRef.current.play().catch(() => {});
@@ -112,15 +112,15 @@ export default function TaskTimeTracking({
     setIsBreakTime(false);
     setPomodoroSeconds(0);
     setShowBreakDialog(false);
-    // 休憩をスキップした場合は累積時間をリセット（スキップした分は記録しない）
+    // Reset accumulated time when break is skipped (don't record skipped time)
   };
 
-  // 休憩時間の合計を計算（時間単位に変換）
+  // Calculate total break time (convert to hours)
   const totalBreakHours =
     timeEntries.reduce((sum, entry) => sum + (entry.breakDuration || 0), 0) +
     accumulatedBreakSeconds / 3600;
 
-  // 総所要時間（作業時間 + 休憩時間）
+  // Total time spent (work time + break time)
   const totalElapsedHours = (actualHours || 0) + totalBreakHours;
 
   return (
@@ -272,7 +272,7 @@ export default function TaskTimeTracking({
                 onClick={() => {
                   const breakHours = accumulatedBreakSeconds / 3600;
                   onStopTimer(breakHours);
-                  setAccumulatedBreakSeconds(0); // 停止時にリセット
+                  setAccumulatedBreakSeconds(0); // Reset on stop
                 }}
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors flex items-center justify-center gap-2"
               >
@@ -342,7 +342,7 @@ export default function TaskTimeTracking({
               <button
                 onClick={() => {
                   setShowBreakDialog(false);
-                  // 休憩タイマーが自動的に開始される
+                  // Break timer will start automatically
                 }}
                 className="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition-colors"
               >

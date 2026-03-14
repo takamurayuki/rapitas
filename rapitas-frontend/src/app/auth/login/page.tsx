@@ -7,7 +7,7 @@ import { Eye, EyeOff, LogIn, User, Lock, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
-// Google アイコンコンポーネント
+// Google icon component
 function GoogleIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -46,7 +46,7 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // 既にログイン済みの場合はリダイレクト
+  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/');
@@ -76,7 +76,7 @@ export default function LoginPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // エラーをクリア
+    // Clear error
     if (error) setError(null);
   };
 
@@ -89,7 +89,7 @@ export default function LoginPage() {
       if (!result.success) {
         setError(result.error || t('loginFailed'));
       }
-      // 成功の場合は、AuthContextによってリダイレクトが自動的に処理される
+      // On success, redirect is automatically handled by AuthContext
     } catch (err) {
       setError(tc('unexpectedError'));
     } finally {
@@ -97,18 +97,18 @@ export default function LoginPage() {
     }
   };
 
-  // ローディング中の表示
+  // Loading display
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
         <div className="w-full max-w-md space-y-8">
-          {/* ヘッダースケルトン */}
+          {/* Header skeleton */}
           <div className="text-center">
             <div className="h-8 w-32 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto mb-2 animate-pulse" />
             <div className="h-4 w-48 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto animate-pulse" />
           </div>
 
-          {/* フォームスケルトン */}
+          {/* Form skeleton */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
             <div className="space-y-4">
               <div>
@@ -130,7 +130,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* ヘッダー */}
+        {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
             <LogIn className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
@@ -149,10 +149,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* フォーム */}
+        {/* Form */}
         <div className="bg-white dark:bg-zinc-800 py-8 px-4 shadow-lg rounded-lg border border-zinc-200 dark:border-zinc-700">
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* エラー表示 */}
+            {/* Error display */}
             {error && (
               <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
                 <div className="flex">
@@ -166,7 +166,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* ユーザー名 */}
+            {/* Username */}
             <div>
               <label
                 htmlFor="username"
@@ -192,7 +192,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* パスワード */}
+            {/* Password */}
             <div>
               <label
                 htmlFor="password"
@@ -229,7 +229,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* ログインボタン */}
+            {/* Login button */}
             <div>
               <button
                 type="submit"
@@ -250,7 +250,7 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* 区切り線 */}
+            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
@@ -262,7 +262,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Googleログインボタン */}
+            {/* Google login button */}
             <div>
               <button
                 type="button"
@@ -286,7 +286,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* フッター */}
+        {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             © 2026 Rapitas. All rights reserved.

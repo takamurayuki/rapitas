@@ -66,7 +66,7 @@ const TaskCard = memo(function TaskCard({
   const { showToast } = useToast();
   const prefetchedRef = useRef(false);
 
-  // 実行状態の取得
+  // Get execution status
   const executionStatus = useExecutionStateStore((state) =>
     state.getExecutingTaskStatus(task.id),
   );
@@ -81,7 +81,7 @@ const TaskCard = memo(function TaskCard({
 
   // サブタスクのステータス変更ハンドラー
   const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
-    // 楽観的UI更新：即座にローカル状態を更新
+    // Optimistic UI update: immediately update local state
     setLocalSubtasks((prevSubtasks) =>
       prevSubtasks.map((subtask) =>
         subtask.id === subtaskId
@@ -90,7 +90,7 @@ const TaskCard = memo(function TaskCard({
       ),
     );
 
-    // 親コンポーネントのonStatusChangeを呼び出し（APIリクエスト）
+    // Call parent component's onStatusChange (API request)
     onStatusChange(subtaskId, newStatus as Status);
   };
 
@@ -122,7 +122,7 @@ const TaskCard = memo(function TaskCard({
     return 'bg-gradient-to-r from-blue-500 to-orange-500';
   };
 
-  // 実行状態に応じたクラス名とバッジ情報
+  // CSS classes and badge info based on execution state
   const getExecutionClasses = () => {
     switch (executionStatus) {
       case 'running':
@@ -239,7 +239,7 @@ const TaskCard = memo(function TaskCard({
     setCardSize({ w: width, h: height });
   }, []);
 
-  // 周囲長の計算
+  // Calculate circumference for progress ring
   const perimeter =
     cardSize.w > 0 ? Math.round(2 * (cardSize.w + cardSize.h)) : 0;
 

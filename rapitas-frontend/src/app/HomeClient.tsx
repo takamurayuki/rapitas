@@ -142,9 +142,9 @@ function HomeClientPage() {
 
   useTaskAutoSync({
     enabled: true,
-    interval: 30000, // 30秒
+    interval: 30000, // 30 seconds
     silent: true,
-    skipDuringExecution: true, // AIエージェント実行中はスキップ
+    skipDuringExecution: true, // Skip during AI agent execution
   });
 
   const { filteredTasks, statusCounts, todayTasksCounts } = useFilteredTasks({
@@ -304,7 +304,7 @@ function HomeClientPage() {
           ...(themeFilter && { themeId: themeFilter }),
           ...(!themeFilter && defaultTheme && { themeId: defaultTheme.id }),
         }),
-        skipCache: true, // POSTリクエストはキャッシュスキップ
+        skipCache: true, // Skip cache for POST requests
       });
 
       setQuickTaskTitle('');
@@ -497,7 +497,7 @@ function HomeClientPage() {
     try {
       const data = await apiFetch<UserSettings>('/settings', {
         cacheTime: 300000,
-      }); // 5分キャッシュ
+      }); // 5 minute cache
       setGlobalSettings(data);
       return data;
     } catch (e) {
@@ -519,7 +519,7 @@ function HomeClientPage() {
         statistics: fetchTaskStatistics(),
       };
 
-      const INITIAL_LOAD_TIMEOUT = 15000; // 15秒
+      const INITIAL_LOAD_TIMEOUT = 15000; // 15 seconds
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error('Initial data load timed out')),
@@ -561,7 +561,7 @@ function HomeClientPage() {
       setHasInitialized(true);
     };
     initialLoad();
-  }, []); // 依存配列を空にして初回のみ実行
+  }, []); // Empty dependency array to run only on initial load
 
   useEffect(() => {
     if (themes.length > 0) {

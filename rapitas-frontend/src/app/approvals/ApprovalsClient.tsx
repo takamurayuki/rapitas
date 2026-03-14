@@ -64,7 +64,7 @@ export default function ApprovalsClient() {
     setCurrentPage(1);
   }, [filter, fetchApprovals]);
 
-  // URLパラメータからIDを読み取り、該当の承認リクエストを自動展開
+  // Read ID from URL parameter and auto-expand corresponding approval request
   useEffect(() => {
     if (expandParam && approvals.length > 0 && !hasAutoExpanded) {
       const targetId = parseInt(expandParam, 10);
@@ -74,7 +74,7 @@ export default function ApprovalsClient() {
         setExpandedId(targetId);
         setHasAutoExpanded(true);
 
-        // コードレビューの場合は差分も取得
+        // For code review, also fetch diff
         if (
           targetApproval.requestType === 'code_review' &&
           !codeReviewDiff.has(targetId)
@@ -93,10 +93,10 @@ export default function ApprovalsClient() {
           }
         }
       } else {
-        // 該当IDがpendingフィルターで見つからない場合、全フィルターを試す
+        // If target ID is not found in pending filter, try all filters
         if (filter === 'pending') {
-          // approvedとrejectedも確認するため一時的にフィルターを変更しない
-          // 代わりに、見つからないことをユーザーに伝えるか、他のステータスを探す
+          // Don't temporarily change filter to check approved and rejected
+          // Instead, inform user it wasn't found or search other statuses
         }
       }
     }
@@ -172,16 +172,16 @@ export default function ApprovalsClient() {
       setExpandedId(null);
     } else {
       setExpandedId(id);
-      // 差分がまだ取得されていない場合は取得
+      // Fetch diff if not yet retrieved
       if (!codeReviewDiff.has(id)) {
-        // まずproposedChangesのstructuredDiffを確認
+        // First check proposedChanges structuredDiff
         const approval = approvals.find((a) => a.id === id);
         if (approval?.proposedChanges?.structuredDiff?.length) {
           setCodeReviewDiff((prev) =>
             new Map(prev).set(id, approval.proposedChanges.structuredDiff!),
           );
         } else {
-          // APIから取得
+          // Fetch from API
           const files = await fetchDiff(id);
           setCodeReviewDiff((prev) => new Map(prev).set(id, files));
         }
@@ -401,7 +401,7 @@ export default function ApprovalsClient() {
                 ),
               )}
 
-              {/* ページネーション */}
+              {/* Pagination */}
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}

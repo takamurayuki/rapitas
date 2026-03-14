@@ -135,7 +135,7 @@ export function useParallelExecutionStatus({
     [sessionState],
   );
 
-  // 実行中かどうか
+  // Check if execution is currently running
   const isRunning =
     sessionState?.status === 'running' || sessionState?.status === 'scheduled';
 
@@ -143,7 +143,7 @@ export function useParallelExecutionStatus({
   const handleSSEEvent = useCallback((event: ParallelExecutionEvent) => {
     setSessionState((prev) => {
       if (!prev) {
-        // 初期状態を作成
+        // Create initial state
         prev = {
           sessionId: event.sessionId,
           status: 'running',
@@ -443,7 +443,7 @@ export function useParallelExecutionStatus({
     (sId: string) => {
       if (!enableSSE) return;
 
-      // 既存の接続をクローズ
+      // Close existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
@@ -514,7 +514,7 @@ export function useParallelExecutionStatus({
           sessionIdRef.current = newSessionId;
           setSessionId(newSessionId);
 
-          // 初期状態を設定
+          // Set initial state
           setSessionState({
             sessionId: newSessionId,
             status: 'running',
@@ -606,7 +606,7 @@ export function useParallelExecutionStatus({
       sessionState?.status === 'failed' ||
       sessionState?.status === 'cancelled'
     ) {
-      // 終了状態になったらストアから削除
+      // Remove from store when execution completes
       removeExecutingTask(taskId);
 
       // SSE接続も確実に切断
@@ -632,7 +632,7 @@ export function useParallelExecutionStatus({
         pollingIntervalRef.current = setInterval(fetchStatus, pollingInterval);
       }
     } else if (!isRunning || isConnected) {
-      // 実行完了またはSSE接続復帰時はポーリング停止
+      // Stop polling when execution completes or SSE connection is restored
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;

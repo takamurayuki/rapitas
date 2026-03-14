@@ -4,13 +4,13 @@
 @import '../styles/note-editor-enhanced.css';
 @plugin "@tailwindcss/typography";
 
-/* アイコンの外枠に沿って線が回転するアニメーション */
+/* Icon border rotation animation */
 @keyframes icon-outer-border-spin {
   0% {
     stroke-dashoffset: 0;
   }
   100% {
-    stroke-dashoffset: -107.96; /* 外枠の正確な周囲長: 直線64 + 2πr(r=7) = 64 + 43.96 */
+    stroke-dashoffset: -107.96; /* Exact border perimeter: line 64 + 2πr(r=7) = 64 + 43.96 */
   }
 }
 
@@ -20,7 +20,7 @@
   animation: svg-border-spin 2s linear infinite;
 }
 
-/* ノートホバーサイドバー用のアニメーション */
+/* Note hover sidebar animations */
 @keyframes slideIn {
   from {
     transform: translateX(-100%);
@@ -43,7 +43,7 @@
   }
 }
 
-/* クラスベースのダークモード切り替え */
+/* Class-based dark mode switching */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
@@ -103,7 +103,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* ダークモード: フォーム要素のテキストカラーを自動調整 */
+/* Dark mode: auto-adjust form element text color */
 html.dark input,
 html.dark textarea,
 html.dark select,
@@ -116,18 +116,18 @@ html.dark textarea::placeholder {
   color: var(--placeholder);
 }
 
-/* ダークモード: date/datetime-local inputのカレンダーアイコンを白色化 */
+/* Dark mode: invert calendar icon for date/datetime-local inputs */
 html.dark input[type='date']::-webkit-calendar-picker-indicator,
 html.dark input[type='datetime-local']::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
 
-/* ダークモード: リンクテキストの視認性向上 */
+/* Dark mode: improve link text visibility */
 html.dark a {
   color: inherit;
 }
 
-/* ダークモード: 背景のスムーズな切り替え */
+/* Dark mode: smooth background transitions */
 body,
 html {
   transition:
@@ -135,13 +135,13 @@ html {
     color 0.2s ease;
 }
 
-/* カスタムスクロールバースタイル - あふれる場合のみ表示 */
+/* Custom scrollbar styles - show only when overflow */
 .scrollbar-thin {
-  scrollbar-width: none; /* Firefox: デフォルトで非表示 */
-  -ms-overflow-style: none; /* IE/Edge: デフォルトで非表示 */
+  scrollbar-width: none; /* Firefox: hidden by default */
+  -ms-overflow-style: none; /* IE/Edge: hidden by default */
 }
 
-/* スクロール可能な場合のみスクロールバーを表示 */
+/* Show scrollbar only when scrollable */
 .scrollbar-thin:hover {
   scrollbar-width: thin;
   scrollbar-color: #d4d4d8 transparent;
@@ -151,13 +151,13 @@ html {
   scrollbar-color: #52525b transparent;
 }
 
-/* WebKit (Chrome, Safari, Edge): デフォルトで非表示 */
+/* WebKit (Chrome, Safari, Edge): hidden by default */
 .scrollbar-thin::-webkit-scrollbar {
   height: 0;
   width: 0;
 }
 
-/* ホバー時のみスクロールバーを表示 */
+/* Show scrollbar only on hover */
 .scrollbar-thin:hover::-webkit-scrollbar {
   height: 6px;
   width: 6px;
@@ -188,7 +188,7 @@ html {
   background: #71717a;
 }
 
-/* StatusCard アニメーション */
+/* StatusCard animations */
 .status-card-animated {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -211,7 +211,7 @@ html {
   }
 }
 
-/* StatusCard フェードイン */
+/* StatusCard fade in */
 @keyframes statusCardFadeIn {
   from {
     opacity: 0;
@@ -223,7 +223,7 @@ html {
   }
 }
 
-/* StatusCard フェードアウト */
+/* StatusCard fade out */
 @keyframes statusCardFadeOut {
   from {
     opacity: 1;
@@ -243,7 +243,7 @@ html {
   animation: statusCardFadeOut 0.25s ease-in forwards;
 }
 
-/* StatusCard パルスエフェクト（実行中用） */
+/* StatusCard pulse effect for execution */
 @keyframes statusCardPulse {
   0%,
   100% {
@@ -258,7 +258,7 @@ html {
   animation: statusCardPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* ステータスバッジのドットパルス */
+/* Status badge dot pulse */
 @keyframes execution-dot-pulse {
   0%,
   100% {
@@ -271,7 +271,7 @@ html {
   }
 }
 
-/* ダークモード対応のCSS変数 */
+/* Dark mode CSS variables */
 :root {
   --card-bg-light: white;
   --card-bg-dark: #1a2236;
@@ -285,11 +285,11 @@ html {
   --card-bg-color: var(--card-bg-light);
 }
 
-/* ===== 実行中タスクカードの回転ボーダー ===== */
+/* ===== Executing task card rotating border ===== */
 /*
- * AIエージェント実行中ボーダーアニメーション
- * conic-gradient ホールパンチ方式 + コメットテール効果
- * CSS はスタッキングコンテキスト、スピン、呼吸グローを担当
+ * AI agent execution border animation
+ * conic-gradient hole-punch method with comet tail effect
+ * CSS handles stacking context, spin, and breathing glow
  */
 .execution-pulse-blue,
 .execution-pulse-amber {
@@ -297,7 +297,7 @@ html {
   overflow: visible;
 }
 
-/* conic-gradient ボーダーの回転 */
+/* Conic-gradient border rotation */
 @keyframes exec-border-spin {
   to {
     transform: rotate(360deg);
@@ -337,7 +337,7 @@ html {
   }
 }
 
-/* ステータスバッジのドットパルス */
+/* Status badge dot pulse */
 .execution-dot-pulse {
   animation: execution-dot-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -352,7 +352,7 @@ html {
   }
 }
 
-/* Floating AI Menu アニメーション */
+/* Floating AI Menu animations */
 .floating-ai-menu-button {
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.3);
 }
@@ -381,7 +381,7 @@ html {
     0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-/* ダウンロード完了アニメーション */
+/* Download completion animation */
 @keyframes successPop {
   0% {
     transform: scale(0.5);
@@ -418,7 +418,7 @@ html {
   }
 }
 
-/* コメント/メモ セクション アニメーション */
+/* Comment/memo section animations */
 @keyframes commentFadeInUp {
   0% {
     opacity: 0;
@@ -434,7 +434,7 @@ html {
   animation: commentFadeInUp 0.3s ease-out forwards;
 }
 
-/* コメント投稿時のリップルエフェクト */
+/* Ripple effect on comment submission */
 @keyframes commentRipple {
   0% {
     transform: scale(0);
@@ -450,7 +450,7 @@ html {
   animation: commentRipple 0.4s ease-out forwards;
 }
 
-/* タスク完了オーバーレイ アニメーション */
+/* Task completion overlay animation */
 @keyframes task-complete-grow {
   0% {
     transform: scale(0) rotate(0deg);
@@ -516,7 +516,7 @@ html {
   animation: task-complete-fade-out 2.5s ease-in-out forwards;
 }
 
-/* Split View iFrameローディング */
+/* Split View iframe loading */
 .iframe-loading {
   pointer-events: none;
   opacity: 1;
@@ -528,7 +528,7 @@ iframe:not([src='']) + .iframe-loading {
   pointer-events: none;
 }
 
-/* ファイルダウンロード用アニメーション */
+/* File download animations */
 @keyframes successPop {
   0% {
     transform: scale(0);
@@ -565,7 +565,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* 追加のアニメーション用のキーフレーム */
+/* Additional animation keyframes */
 @keyframes animate-in {
   from {
     opacity: 0;
@@ -619,7 +619,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* contentEditableの基本スタイル */
+/* Basic contentEditable styles */
 [contenteditable='true'] {
   -webkit-user-modify: read-write;
   word-wrap: break-word;
@@ -627,7 +627,7 @@ iframe:not([src='']) + .iframe-loading {
   -webkit-line-break: after-white-space;
 }
 
-/* ノートエディタのスタイル修正 */
+/* Note editor style fixes */
 .note-editor[contenteditable='true'] {
   cursor: text;
   caret-color: currentColor;
@@ -635,7 +635,7 @@ iframe:not([src='']) + .iframe-loading {
   user-select: text;
 }
 
-/* contentEditable内での選択スタイル */
+/* Selection styles within contentEditable */
 .note-editor[contenteditable='true']::selection,
 .note-editor[contenteditable='true'] *::selection {
   background-color: #b3d4fc;
@@ -648,7 +648,7 @@ iframe:not([src='']) + .iframe-loading {
   color: #fff;
 }
 
-/* ノートエディタ内のテーブルスタイル */
+/* Table styles within note editor */
 .note-editor table {
   border-collapse: collapse;
   width: 100%;
@@ -684,12 +684,12 @@ iframe:not([src='']) + .iframe-loading {
   background-color: #1e293b;
 }
 
-/* テーブルコンテキストメニュー */
+/* Table context menu */
 .table-context-menu {
   animation: fade-in 0.1s ease-out;
 }
 
-/* ノートエディタのテーブル操作 */
+/* Note editor table operations */
 .note-table th[contenteditable='true'],
 .note-table td[contenteditable='true'] {
   cursor: text;
@@ -713,7 +713,7 @@ iframe:not([src='']) + .iframe-loading {
   background-color: rgba(129, 140, 248, 0.1);
 }
 
-/* ノートエディタ内のリンクスタイル */
+/* Link styles within note editor */
 .note-editor a {
   color: var(--accent);
   text-decoration: none;
@@ -725,7 +725,7 @@ iframe:not([src='']) + .iframe-loading {
   border-bottom-color: var(--accent);
 }
 
-/* アニメーションクラス */
+/* Animation classes */
 .animate-in {
   animation: animate-in 0.2s ease-out;
 }
@@ -746,7 +746,7 @@ iframe:not([src='']) + .iframe-loading {
   animation: zoom-in-95 0.2s ease-out;
 }
 
-/* コードブロックのスタイル */
+/* Code block styles */
 .code-block-container {
   margin: 16px 0;
 }
@@ -756,7 +756,7 @@ iframe:not([src='']) + .iframe-loading {
   -moz-tab-size: 2;
 }
 
-/* シンタックスハイライト基本色 */
+/* Basic syntax highlight colors */
 .code-block-container .token.comment,
 .code-block-container .token.prolog,
 .code-block-container .token.doctype,
@@ -818,7 +818,7 @@ iframe:not([src='']) + .iframe-loading {
   font-style: italic;
 }
 
-/* タスク完了アニメーション */
+/* Task completion animations */
 @keyframes task-particle-pulse {
   0% {
     transform: scale(1);
@@ -879,7 +879,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* アニメーションユーティリティクラス */
+/* Animation utility classes */
 .animate-task-particle-pulse {
   animation: task-particle-pulse 0.25s ease-in-out infinite alternate;
 }
@@ -902,7 +902,7 @@ iframe:not([src='']) + .iframe-loading {
   animation: task-complete-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* タスク完了時のトランジション */
+/* Task completion transitions */
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -929,7 +929,7 @@ iframe:not([src='']) + .iframe-loading {
   cursor: help;
 }
 
-/* コードブロックのスクロールバー */
+/* Code block scrollbar */
 .code-block-container pre::-webkit-scrollbar {
   height: 8px;
 }
@@ -947,7 +947,7 @@ iframe:not([src='']) + .iframe-loading {
   background: #64748b;
 }
 
-/* 言語別のシンタックスハイライト（JavaScript/TypeScript） */
+/* Language-specific syntax highlighting (JavaScript/TypeScript) */
 .code-block-container .language-javascript .token.keyword,
 .code-block-container .language-typescript .token.keyword {
   color: #c792ea;
@@ -1053,20 +1053,20 @@ iframe:not([src='']) + .iframe-loading {
   color: #dcdcaa;
 }
 
-/* コードブロック選択時のハイライト */
+/* Code block selection highlight */
 .code-block-container code::selection,
 .code-block-container code *::selection {
   background-color: rgba(33, 150, 243, 0.3);
   color: inherit;
 }
 
-/* 削除ボタンのホバーアニメーション */
+/* Delete button hover animation */
 .code-block-container button:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* 実行ログのアニメーション */
+/* Execution log animations */
 @keyframes fadeInSlide {
   from {
     opacity: 0;
@@ -1078,17 +1078,17 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* 実行ログのスムーズスクロール */
+/* Execution log smooth scrolling */
 .execution-log-container {
   scroll-behavior: smooth;
 }
 
-/* ログエントリのトランジション */
+/* Log entry transitions */
 .log-entry-new {
   animation: fadeInSlide 0.3s ease-out;
 }
 
-/* TodayTaskProgressBar のメカニカルデザイン用 */
+/* TodayTaskProgressBar mechanical design */
 @keyframes animate-stripes {
   from {
     background-position: 0 0;
@@ -1098,7 +1098,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* Completed! バッジのスライドインアニメーション */
+/* Completed! badge slide-in animation */
 @keyframes animate-slide-in {
   0% {
     opacity: 0;
@@ -1114,12 +1114,12 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* animate-slide-in の簡略版 */
+/* Simplified animate-slide-in */
 .animate-slide-in {
   animation: animate-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* スケルトンローダー用のシマー効果アニメーション */
+/* Skeleton loader shimmer effect animation */
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
@@ -1129,7 +1129,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* スケルトンローダー用のパルス効果（強化版） */
+/* Enhanced skeleton loader pulse effect */
 @keyframes skeletonPulse {
   0%,
   100% {
@@ -1140,7 +1140,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* スケルトンローダーのスムーズなフェードイン */
+/* Smooth skeleton loader fade-in */
 @keyframes skeletonFadeIn {
   0% {
     opacity: 0;
@@ -1152,7 +1152,7 @@ iframe:not([src='']) + .iframe-loading {
   }
 }
 
-/* スケルトンローダー用ユーティリティクラス */
+/* Skeleton loader utility classes */
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
@@ -1165,7 +1165,7 @@ iframe:not([src='']) + .iframe-loading {
   animation: skeletonFadeIn 0.3s ease-out forwards;
 }
 
-/* テーマスクロールエリア用のスクロールバー非表示 */
+/* Hide scrollbar for theme scroll area */
 .theme-scroll-hidden::-webkit-scrollbar {
   display: none;
 }

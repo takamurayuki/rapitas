@@ -16,7 +16,7 @@ import {
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
-// Google アイコンコンポーネント
+// Google icon component
 function GoogleIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -58,7 +58,7 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // パスワード強度チェック
+  // Password strength check
   const [passwordStrength, setPasswordStrength] = useState({
     length: false,
     lowercase: false,
@@ -67,14 +67,14 @@ export default function RegisterPage() {
     special: false,
   });
 
-  // 既にログイン済みの場合はリダイレクト
+  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, router]);
 
-  // パスワード強度をチェック
+  // Check password strength
   useEffect(() => {
     const { password } = formData;
     setPasswordStrength({
@@ -90,7 +90,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    // バリデーション
+    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError(t('passwordMismatch'));
       return;
@@ -130,7 +130,7 @@ export default function RegisterPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // エラーをクリア
+    // Clear error
     if (error) setError(null);
   };
 
@@ -143,7 +143,7 @@ export default function RegisterPage() {
       if (!result.success) {
         setError(result.error || t('googleConnectionFailed'));
       }
-      // 成功の場合は、AuthContextによってリダイレクトが自動的に処理される
+      // On success, redirect is automatically handled by AuthContext
     } catch (err) {
       setError(tc('unexpectedError'));
     } finally {
@@ -151,18 +151,18 @@ export default function RegisterPage() {
     }
   };
 
-  // ローディング中の表示
+  // Loading display
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4">
         <div className="w-full max-w-md space-y-8">
-          {/* ヘッダースケルトン */}
+          {/* Header skeleton */}
           <div className="text-center">
             <div className="h-8 w-32 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto mb-2 animate-pulse" />
             <div className="h-4 w-56 bg-zinc-200 dark:bg-zinc-700 rounded mx-auto animate-pulse" />
           </div>
 
-          {/* フォームスケルトン */}
+          {/* Form skeleton */}
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 space-y-6">
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
@@ -193,7 +193,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-indigo-50 to-white dark:from-zinc-900 dark:to-zinc-800 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* ヘッダー */}
+        {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
             <UserPlus className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
@@ -212,10 +212,10 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* フォーム */}
+        {/* Form */}
         <div className="bg-white dark:bg-zinc-800 py-8 px-4 shadow-lg rounded-lg border border-zinc-200 dark:border-zinc-700">
           <div className="space-y-6">
-            {/* エラー表示 */}
+            {/* Error display */}
             {error && (
               <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 border border-red-200 dark:border-red-800">
                 <div className="flex">
@@ -229,7 +229,7 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* Googleアカウントでアカウント作成 */}
+            {/* Create account with Google */}
             <div>
               <button
                 type="button"
@@ -251,7 +251,7 @@ export default function RegisterPage() {
               </button>
             </div>
 
-            {/* 区切り線 */}
+            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-zinc-300 dark:border-zinc-600" />
@@ -265,7 +265,7 @@ export default function RegisterPage() {
           </div>
 
           <form className="space-y-6 mt-6" onSubmit={handleSubmit}>
-            {/* ユーザー名 */}
+            {/* Username */}
             <div>
               <label
                 htmlFor="username"
@@ -291,7 +291,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* メールアドレス */}
+            {/* Email address */}
             <div>
               <label
                 htmlFor="email"
@@ -317,7 +317,7 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* パスワード */}
+            {/* Password */}
             <div>
               <label
                 htmlFor="password"
@@ -353,7 +353,7 @@ export default function RegisterPage() {
                 </button>
               </div>
 
-              {/* パスワード強度表示 */}
+              {/* Password strength display */}
               {formData.password && (
                 <div className="mt-2 space-y-1">
                   <div className="text-xs text-zinc-600 dark:text-zinc-400">
@@ -393,7 +393,7 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* パスワード確認 */}
+            {/* Password confirmation */}
             <div>
               <label
                 htmlFor="confirmPassword"
@@ -436,7 +436,7 @@ export default function RegisterPage() {
                 )}
             </div>
 
-            {/* 登録ボタン */}
+            {/* Register button */}
             <div>
               <button
                 type="submit"
@@ -459,7 +459,7 @@ export default function RegisterPage() {
           </form>
         </div>
 
-        {/* フッター */}
+        {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             © 2026 Rapitas. All rights reserved.

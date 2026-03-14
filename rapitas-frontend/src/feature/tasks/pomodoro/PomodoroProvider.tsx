@@ -15,12 +15,12 @@ export type { PomodoroStatus };
 
 export type GlobalPomodoroState = PomodoroState;
 
-// 後方互換性のためのProviderコンポーネント（実際には何もしない）
+// Provider component for backward compatibility (doesn't actually do anything)
 export function PomodoroProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-// 後方互換性のためのhook
+// Hook for backward compatibility
 export function usePomodoro() {
   const state = usePomodoroStore();
 
@@ -49,7 +49,7 @@ export function usePomodoro() {
   };
 }
 
-// ヘルパー関数をre-export
+// Re-export helper functions
 export {
   formatTime,
   getRemainingTime,

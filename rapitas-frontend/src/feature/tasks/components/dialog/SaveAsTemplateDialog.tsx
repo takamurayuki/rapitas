@@ -50,7 +50,7 @@ export default function SaveAsTemplateDialog({
     }
   }, [isOpen, task]);
 
-  // 既存カテゴリを取得
+  // Fetch existing categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {

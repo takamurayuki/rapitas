@@ -125,12 +125,12 @@ function getDurationParts(
   const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
 
-  // 翌日にまたがる場合の処理
+  // Handle case when it crosses to next day
   if (end <= start) {
     end += 1440;
   }
 
-  // ブロックの長さを24時間以内に制限
+  // Limit block length to within 24 hours
   const diff = Math.min(end - start, 1440);
   return { h: Math.floor(diff / 60), m: diff % 60 };
 }
@@ -436,22 +436,22 @@ export default function DailySchedulePage() {
     );
   };
 
-  // Calculate total scheduled time (各ブロックは24時間内に制限)
+  // Calculate total scheduled time (each block limited to within 24 hours)
   const totalMinutes = blocks.reduce((sum, block) => {
     const start = timeToMinutes(block.startTime);
     let end = timeToMinutes(block.endTime);
 
-    // 翌日にまたがる場合の処理
+    // Handle case when it crosses to next day
     if (end <= start) {
-      end += 1440; // 翌日として計算
+      end += 1440; // Calculate as next day
     }
 
-    // ブロック単体の長さを計算（最大24時間に制限）
+    // Calculate individual block duration (limit to max 24 hours)
     const blockDuration = Math.min(end - start, 1440);
     return sum + blockDuration;
   }, 0);
 
-  // 合計時間を24時間以内に制限
+  // Limit total time to within 24 hours
   const cappedTotalMinutes = Math.min(totalMinutes, 1440);
 
   const totalHours = Math.floor(cappedTotalMinutes / 60);
@@ -718,12 +718,12 @@ export default function DailySchedulePage() {
                   const s = timeToMinutes(block.startTime);
                   let e = timeToMinutes(block.endTime);
 
-                  // 翌日にまたがる場合の処理
+                  // Handle case when it crosses to next day
                   if (e <= s) {
                     e += 1440;
                   }
 
-                  // ブロック単体の長さを計算（最大24時間に制限）
+                  // Calculate individual block duration (limit to max 24 hours)
                   const blockDuration = Math.min(e - s, 1440);
                   return sum + blockDuration;
                 }, 0);

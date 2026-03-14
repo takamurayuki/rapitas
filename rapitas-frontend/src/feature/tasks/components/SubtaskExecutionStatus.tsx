@@ -7,11 +7,11 @@ import { CheckCircle2, Circle, XCircle, Clock, Pause } from 'lucide-react';
  * 並列実行時のサブタスクステータス
  */
 export type ParallelExecutionStatus =
-  | 'pending' // 待機中
+  | 'pending' // Waiting
   | 'scheduled' // スケジュール済み
-  | 'running' // 実行中
-  | 'completed' // 完了
-  | 'failed' // 失敗
+  | 'running' // Running
+  | 'completed' // Completed
+  | 'failed' // Failed
   | 'cancelled' // キャンセル
   | 'blocked'; // ブロック（依存タスク未完了）
 

@@ -116,7 +116,7 @@ export function useRealtimeUpdates(
       }
     };
 
-    // 特定のイベントタイプをリッスン
+    // Listen for specific event types
     const eventTypes = [
       'execution_output',
       'execution_status',
@@ -163,8 +163,8 @@ export function useRealtimeUpdates(
   }, []);
 
   const subscribe = useCallback((channel: string) => {
-    // 新しいチャンネルに購読するには再接続が必要
-    // この実装では簡略化のため、初期接続時のチャンネルのみサポート
+    // Reconnection required to subscribe to new channels
+    // For simplicity, this implementation only supports channels from initial connection
     logger.debug(`Subscribing to channel: ${channel}`);
   }, []);
 

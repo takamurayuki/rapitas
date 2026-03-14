@@ -56,7 +56,7 @@ export default function PomodoroTimer({
   const t = useTranslations('pomodoro');
   const store = usePomodoroStore();
 
-  // このタスクのタイマーかどうか
+  // Check if this is the timer for this task
   const isThisTask = store.taskId === taskId;
   const isTimerRunning = isThisTask && store.isTimerRunning;
   const isPaused = isThisTask && store.isPaused;
@@ -189,7 +189,7 @@ export default function PomodoroTimer({
     store.endBreak();
   };
 
-  // 円形プログレスバー用の計算
+  // Calculations for circular progress bar
   const breakDuration =
     pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
   const currentDuration = isBreakTime
@@ -210,7 +210,7 @@ export default function PomodoroTimer({
       ? t('longBreak')
       : t('shortBreak');
 
-  // 別のタスクでタイマーが動いている場合
+  // When timer is running for a different task
   const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
 
   return (

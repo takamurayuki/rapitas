@@ -1,6 +1,6 @@
-/* ノートモーダルの拡張スタイル */
+/* Note modal enhanced styles */
 
-/* モーダルのアニメーション */
+/* Modal animation */
 .note-modal-enter {
   animation: noteModalEnter 0.2s ease-out;
   animation-fill-mode: backwards;
@@ -17,18 +17,18 @@
   }
 }
 
-/* ドラッグ・リサイズのパフォーマンス最適化 */
+/* Drag and resize performance optimization */
 .note-modal-dragging,
 .note-modal-resizing {
-  /* GPUアクセラレーション */
+  /* GPU acceleration */
   transform: translateZ(0);
   backface-visibility: hidden;
 
-  /* レイアウトの再計算を防ぐ */
+  /* Prevent layout recalculation */
   contain: layout style paint;
 }
 
-/* スムーズな移動とリサイズのためのトランジション（ドラッグ中は無効） */
+/* Smooth transition for movement and resize (disabled during drag) */
 .note-modal-smooth {
   transition:
     left 0.1s ease-out,
@@ -37,7 +37,7 @@
     height 0.1s ease-out;
 }
 
-/* ドラッグ・リサイズ中のポインターイベント最適化 */
+/* Pointer event optimization during drag/resize */
 .note-modal-interactive {
   pointer-events: auto;
 }
@@ -46,7 +46,7 @@
   pointer-events: none;
 }
 
-/* 最小化時のアニメーション */
+/* Minimize animation */
 .note-modal-minimize {
   animation: noteModalMinimize 0.2s ease-out;
 }
@@ -60,7 +60,7 @@
   }
 }
 
-/* リップルエフェクト */
+/* Ripple effect */
 .ripple-effect {
   position: relative;
   overflow: hidden;
@@ -86,7 +86,7 @@
   height: 100px;
 }
 
-/* カスタムスクロールバー */
+/* Custom scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;

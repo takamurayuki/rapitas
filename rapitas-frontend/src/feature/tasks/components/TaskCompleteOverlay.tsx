@@ -15,7 +15,7 @@ export default function TaskCompleteOverlay({
 
   useEffect(() => {
     if (show) {
-      // 次のレンダリングサイクルで設定
+      // Set on next render cycle
       const showTimer = setTimeout(() => setVisible(true), 0);
       const hideTimer = setTimeout(() => {
         setVisible(false);

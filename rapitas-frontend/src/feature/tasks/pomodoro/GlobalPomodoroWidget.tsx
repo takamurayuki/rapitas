@@ -44,10 +44,10 @@ export default function GlobalPomodoroWidget() {
       });
     };
 
-    // 初期値を設定
+    // Set initial values
     updateState(usePomodoroStore.getState());
 
-    // 変更を監視
+    // Monitor changes
     const unsubscribe = usePomodoroStore.subscribe(updateState);
 
     return () => {
@@ -80,7 +80,7 @@ export default function GlobalPomodoroWidget() {
       }
     };
 
-    // 初回チェック
+    // Initial check
     checkTaskExists();
 
     // 30秒ごとにチェック
@@ -113,7 +113,7 @@ export default function GlobalPomodoroWidget() {
   // タイマーが動いていない場合は何も表示しない
   if (!isTimerRunning) return null;
 
-  // 残り時間を計算
+  // Calculate remaining time
   const getRemainingTimeLocal = () => {
     const pomodoroDuration =
       settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
@@ -131,7 +131,7 @@ export default function GlobalPomodoroWidget() {
 
   const remainingTime = getRemainingTimeLocal();
 
-  // 現在のステータスに基づいてアイコンを選択
+  // Select icon based on current status
   const getIcon = () => {
     if (isBreakTime) {
       return <Coffee className="w-4 h-4 text-green-500" />;
@@ -149,7 +149,7 @@ export default function GlobalPomodoroWidget() {
     } else if (isPaused) {
       return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
-    // 作業中（アクティブ）状態
+    // Working (active) state
     return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
   };
 

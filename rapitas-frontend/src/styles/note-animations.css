@@ -1,4 +1,4 @@
-/* ノートモーダルのアニメーション */
+/* Note modal animations */
 @keyframes noteModalOpen {
   from {
     opacity: 0;
@@ -30,7 +30,7 @@
   }
 }
 
-/* ハイライトマーカーのアニメーション */
+/* Highlight marker animation */
 @keyframes highlightPulse {
   0%,
   100% {
@@ -41,7 +41,7 @@
   }
 }
 
-/* ノートカードのホバーエフェクト */
+/* Note card hover effect */
 @keyframes noteCardHover {
   from {
     transform: translateX(0);
@@ -51,7 +51,7 @@
   }
 }
 
-/* 保存インジケーターのアニメーション */
+/* Save indicator animation */
 @keyframes saveIndicator {
   0% {
     opacity: 0;
@@ -67,7 +67,7 @@
   }
 }
 
-/* グローバルクラス */
+/* Global classes */
 .note-modal-enter {
   animation: noteModalOpen 0.3s ease-out;
 }
@@ -100,7 +100,7 @@
   animation: saveIndicator 0.4s ease-out;
 }
 
-/* スクロールバーのカスタマイズ */
+/* Scrollbar customization */
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -128,7 +128,7 @@
   background-color: rgba(82, 82, 91, 0.7);
 }
 
-/* エディターのスタイル改善 */
+/* Editor style improvements */
 .note-editor {
   caret-color: #6366f1;
 }
@@ -137,7 +137,7 @@
   caret-color: #818cf8;
 }
 
-/* 選択テキストのスタイル */
+/* Selected text styles */
 .note-editor::selection {
   background-color: rgba(99, 102, 241, 0.2);
 }
@@ -146,7 +146,7 @@
   background-color: rgba(129, 140, 248, 0.3);
 }
 
-/* タグのトランジション */
+/* Tag transitions */
 .note-tag {
   transition: all 0.2s ease;
 }
@@ -156,7 +156,7 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-/* ボタンのリップル効果 */
+/* Button ripple effect */
 @keyframes ripple {
   0% {
     transform: scale(0);

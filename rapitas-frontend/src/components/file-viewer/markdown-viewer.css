@@ -7,12 +7,12 @@
   text-rendering: optimizeLegibility;
 }
 
-/* コードブロックのシンタックスハイライト調整 */
+/* Code block syntax highlighting adjustments */
 .markdown-viewer pre code {
   @apply text-sm leading-relaxed;
 }
 
-/* スクロールバーのカスタマイズ */
+/* Scrollbar customization */
 .markdown-viewer pre::-webkit-scrollbar {
   @apply h-2;
 }
@@ -29,7 +29,7 @@
   @apply bg-zinc-500;
 }
 
-/* タスクリストのスタイル */
+/* Task list styles */
 .markdown-viewer input[type='checkbox'] {
   @apply mr-2 rounded border-zinc-300 dark:border-zinc-600;
 }
@@ -38,17 +38,17 @@
   @apply bg-blue-500 border-blue-500;
 }
 
-/* 画像のホバーエフェクト */
+/* Image hover effects */
 .markdown-viewer img:hover {
   @apply shadow-lg transition-shadow duration-200;
 }
 
-/* リンクのスタイル */
+/* Link styles */
 .markdown-viewer a {
   @apply transition-colors duration-200;
 }
 
-/* テーブルのレスポンシブ対応 */
+/* Responsive table support */
 @media (max-width: 640px) {
   .markdown-viewer table {
     @apply text-sm;
@@ -60,17 +60,17 @@
   }
 }
 
-/* ダークモード時のコードブロック背景色調整 */
+/* Dark mode code block background adjustment */
 .dark .markdown-viewer pre {
   @apply bg-zinc-950;
 }
 
-/* highlight.jsのテーマをダークモードに合わせて調整 */
+/* Adjust highlight.js theme for dark mode */
 .dark .markdown-viewer .hljs {
   @apply bg-zinc-950;
 }
 
-/* 見出しのホバーエフェクト */
+/* Heading hover effects */
 .markdown-viewer h1:hover,
 .markdown-viewer h2:hover,
 .markdown-viewer h3:hover,
@@ -78,7 +78,7 @@
   @apply transition-colors duration-200;
 }
 
-/* リストのカスタマイズ */
+/* List customization */
 .markdown-viewer ul li::marker {
   @apply text-blue-500 dark:text-blue-400;
 }
@@ -87,7 +87,7 @@
   @apply text-blue-500 dark:text-blue-400 font-semibold;
 }
 
-/* 引用ブロックの装飾 */
+/* Blockquote decoration */
 .markdown-viewer blockquote {
   @apply relative;
 }
@@ -97,23 +97,23 @@
   @apply absolute -left-3 -top-2 text-4xl text-zinc-300 dark:text-zinc-600 font-serif;
 }
 
-/* コードブロックの言語表示 */
+/* Code block language display */
 .markdown-viewer pre[class*='language-']::before {
   content: attr(data-language);
   @apply absolute top-0 right-0 px-2 py-1 text-xs text-zinc-400 bg-zinc-800 dark:bg-zinc-900 rounded-bl-md;
 }
 
-/* テーブルのストライプ */
+/* Table stripes */
 .markdown-viewer tbody tr:nth-child(even) {
   @apply bg-zinc-50 dark:bg-zinc-800/50;
 }
 
-/* フッドノート */
+/* Footnotes */
 .markdown-viewer .footnote-ref {
   @apply text-xs align-super text-blue-600 dark:text-blue-400;
 }
 
-/* カスタムスクロールバー */
+/* Custom scrollbar */
 .markdown-viewer {
   scrollbar-width: thin;
   scrollbar-color: var(--color-zinc-400) var(--color-zinc-100);
@@ -123,12 +123,12 @@
   scrollbar-color: var(--color-zinc-600) var(--color-zinc-900);
 }
 
-/* 目次のアニメーション */
+/* Table of contents animation */
 .markdown-viewer .toc-enter {
   @apply transition-all duration-300 ease-out;
 }
 
-/* プリント用スタイル */
+/* Print styles */
 @media print {
   .markdown-viewer {
     @apply text-black bg-white;

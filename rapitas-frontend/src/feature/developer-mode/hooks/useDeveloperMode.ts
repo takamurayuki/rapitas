@@ -99,7 +99,7 @@ export function useDeveloperMode(taskId: number) {
   useEffect(() => {
     if (prevTaskIdRef.current !== taskId) {
       prevTaskIdRef.current = taskId;
-      // 新しいtaskIdに切り替わった時、前のタスクの実行状態をリセット
+      // Reset previous task's execution state when switching to new taskId
       isExecutingRef.current = false;
       setIsExecuting(false);
       setExecutionStatus('idle');
@@ -143,12 +143,12 @@ export function useDeveloperMode(taskId: number) {
    * アプリ再起動後もログを復元できるようにDBからログ履歴を取得する
    */
   const restoreExecutionState = useCallback(async () => {
-    // 既に実行が開始されている場合はスキップ（autoExecuteとの競合防止）
+    // Skip if execution already started (prevent conflict with autoExecute)
     if (isExecutingRef.current) {
       return null;
     }
     try {
-      // まず実行ステータスを確認
+      // First check execution status
       const statusRes = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/execution-status`,
       );
@@ -156,12 +156,12 @@ export function useDeveloperMode(taskId: number) {
 
       const statusData = await statusRes.json();
 
-      // 実行データがない場合はスキップ
+      // Skip if no execution data
       if (!statusData.executionStatus || statusData.status === 'none') {
         return null;
       }
 
-      // 実行中、入力待ち、中断、または完了した実行がある場合はログ履歴を取得
+      // Fetch log history if there's running, input-waiting, interrupted, or completed execution
       if (
         statusData.executionStatus === 'running' ||
         statusData.executionStatus === 'waiting_for_input' ||
@@ -192,7 +192,7 @@ export function useDeveloperMode(taskId: number) {
           );
         }
 
-        // 実行中、入力待ちの場合はUI状態を「実行中」に更新
+        // Update UI state to "running" for running or input-waiting cases
         if (
           statusData.executionStatus === 'running' ||
           statusData.executionStatus === 'waiting_for_input'
@@ -209,8 +209,8 @@ export function useDeveloperMode(taskId: number) {
                 : 'running',
           });
         } else if (statusData.executionStatus === 'interrupted') {
-          // 中断された実行がある場合（サーバー再起動後など）
-          // 中断状態を適切に表示（failedではなくinterruptedとして扱う）
+          // Handle interrupted execution (e.g., after server restart)
+          // Display interrupted state properly (treat as interrupted, not failed)
           setIsExecuting(false);
           setExecutionStatus('idle');
         } else if (statusData.executionStatus === 'completed') {
@@ -355,7 +355,7 @@ export function useDeveloperMode(taskId: number) {
       const data = await res.json();
       if (res.ok) {
         setAnalysisResult(data.analysis);
-        // 承認リクエストIDを保存（自動承認でない場合）
+        // Save approval request ID (when not auto-approved)
         if (data.approvalRequestId && !data.autoApproved) {
           setAnalysisApprovalId(data.approvalRequestId);
         }
@@ -412,7 +412,7 @@ export function useDeveloperMode(taskId: number) {
         );
         const data = await res.json();
         if (res.ok) {
-          // 承認成功後、状態をクリア
+          // Clear state after successful approval
           setAnalysisApprovalId(null);
           return data;
         } else {
@@ -437,9 +437,9 @@ export function useDeveloperMode(taskId: number) {
       branchName?: string;
       workingDirectory?: string;
       useTaskAnalysis?: boolean; // AIタスク分析を使用するか
-      optimizedPrompt?: string; // 最適化されたプロンプト
-      agentConfigId?: number; // 使用するエージェント設定ID
-      sessionId?: number; // 既存のセッションID（継続実行時）
+      optimizedPrompt?: string; // Optimized prompt
+      agentConfigId?: number; // Agent configuration ID to use
+      sessionId?: number; // Existing session ID (for continuation)
       attachments?: Array<{
         id: number;
         title: string;
@@ -462,9 +462,9 @@ export function useDeveloperMode(taskId: number) {
       setExecutionResult(null);
       setError(null);
       try {
-        // 既存のセッションIDがある場合は継続実行エンドポイントを使用
+        // Use continuation endpoint if existing session ID is provided
         if (options?.sessionId && options?.instruction) {
-          // 継続実行用のエンドポイント
+          // Endpoint for continuation execution
           const res = await fetch(
             `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
             {
@@ -552,7 +552,7 @@ export function useDeveloperMode(taskId: number) {
             throw new Error((data.error as string) || '継続実行に失敗しました');
           }
         } else {
-          // 新規実行の場合は通常のエンドポイントを使用
+          // Use normal endpoint for new execution
           // agentConfigIdはoptions内の値を優先し、なければhookの状態値を使用
           const requestBody = {
             ...options,

@@ -28,13 +28,13 @@ export default function TaskSlidePanel({
   // タスク詳細可視性ストア
   const { showTaskDetail, hideTaskDetail } = useTaskDetailVisibilityStore();
 
-  // 開く時: isVisibleをtrueに & スクロール位置をリセット
+  // When opening: set isVisible to true & reset scroll position
   useEffect(() => {
     if (isOpen && taskId) {
       // タスク詳細が表示されることをストアに通知
       showTaskDetail();
 
-      // 次のレンダリングサイクルで設定
+      // Set on next render cycle
       const timer = setTimeout(() => {
         setIsAnimatingOut(false);
         setIsVisible(true);
@@ -56,10 +56,10 @@ export default function TaskSlidePanel({
     }
   }, [isOpen, taskId, showTaskDetail]);
 
-  // 閉じる時: アニメーション再生後にisVisibleをfalseに
+  // When closing: set isVisible to false after animation completes
   useEffect(() => {
     if (!isOpen && isVisible && !isAnimatingOut) {
-      // 次のレンダリングサイクルで設定
+      // Set on next render cycle
       const timer = setTimeout(() => setIsAnimatingOut(true), 0);
       closingTimerRef.current = setTimeout(() => {
         setIsVisible(false);

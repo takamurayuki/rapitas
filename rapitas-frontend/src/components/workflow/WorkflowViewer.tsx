@@ -45,7 +45,7 @@ export interface WorkflowViewerProps {
   className?: string;
 }
 
-// ワークフローモード別のタブ定義
+// Tab definitions by workflow mode
 const getWorkflowTabs = (workflowMode: string) => {
   const allTabs = [
     {
@@ -76,21 +76,21 @@ const getWorkflowTabs = (workflowMode: string) => {
 
   switch (workflowMode) {
     case 'lightweight':
-      // 軽量モード: 実装と検証のみ
+      // Lightweight mode: implementation and verification only
       return allTabs.filter((tab) => ['verify'].includes(tab.id));
     case 'standard':
-      // 標準モード: 計画、Q&A、検証
+      // Standard mode: plan, Q&A, verification
       return allTabs.filter((tab) =>
         ['question', 'plan', 'verify'].includes(tab.id),
       );
     case 'comprehensive':
     default:
-      // 詳細モード: 全てのタブ
+      // Comprehensive mode: all tabs
       return allTabs;
   }
 };
 
-// ワークフローモード別のステップマッピング
+// Step mapping by workflow mode
 const getStatusToNextRole = (workflowMode: string) => {
   const lightweightMode: Record<
     string,
@@ -144,7 +144,7 @@ const getStatusToNextRole = (workflowMode: string) => {
   }
 };
 
-// ステータスに対応するタブ自動選択マッピング
+// Auto-selection mapping for tabs corresponding to status
 const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> = {
   research_done: 'research',
   plan_created: 'plan',
@@ -184,8 +184,8 @@ export default function WorkflowViewer({
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevStatusRef = useRef<WorkflowStatus | null>(null);
 
-  // 実効ステータス: propが更新されたらすぐに反映し、fetchが追いつくのを待たない
-  // workflowStatusのStatusOrder比較で、propが進行していればpropを使う
+  // Effective status: reflects prop updates immediately without waiting for fetch to catch up
+  // Uses prop when it's ahead based on workflowStatus StatusOrder comparison
   const STATUS_ORDER: Record<string, number> = {
     draft: 0,
     research_done: 1,
@@ -199,13 +199,13 @@ export default function WorkflowViewer({
     if (!fetchedStatus && !workflowStatus) return null;
     if (!fetchedStatus) return workflowStatus || null;
     if (!workflowStatus) return fetchedStatus;
-    // propがfetchedStatusより進んでいればpropを優先
+    // Prioritize prop if it's ahead of fetchedStatus
     const propOrder = STATUS_ORDER[workflowStatus] ?? -1;
     const fetchOrder = STATUS_ORDER[fetchedStatus] ?? -1;
     return propOrder >= fetchOrder ? workflowStatus : fetchedStatus;
   })();
 
-  // fetchedStatusが変わったら親に通知
+  // Notify parent when fetchedStatus changes
   useEffect(() => {
     if (fetchedStatus && fetchedStatus !== prevStatusRef.current) {
       prevStatusRef.current = fetchedStatus;
@@ -215,7 +215,7 @@ export default function WorkflowViewer({
     }
   }, [fetchedStatus, workflowStatus, onStatusChange]);
 
-  // 親のworkflowStatus propが更新されたらWorkflowViewerのファイルもrefetch
+  // Refetch WorkflowViewer files when parent workflowStatus prop is updated
   const prevWorkflowStatusPropRef = useRef<WorkflowStatus | null | undefined>(
     workflowStatus,
   );
@@ -229,7 +229,7 @@ export default function WorkflowViewer({
     }
   }, [workflowStatus, refetch]);
 
-  // ステータス変更時にタブを自動切り替え
+  // Auto-switch tabs on status change
   useEffect(() => {
     if (effectiveStatus) {
       const tab = STATUS_TO_TAB[effectiveStatus];
@@ -239,7 +239,7 @@ export default function WorkflowViewer({
     }
   }, [effectiveStatus]);
 
-  // ロール設定を取得
+  // Fetch role configuration
   useEffect(() => {
     const fetchRoles = async () => {
       try {
@@ -254,7 +254,7 @@ export default function WorkflowViewer({
     fetchRoles();
   }, []);
 
-  // 自動複雑度分析設定を取得
+  // Fetch auto-complexity analysis settings
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -270,7 +270,7 @@ export default function WorkflowViewer({
     fetchSettings();
   }, []);
 
-  // ポーリング開始/停止ヘルパー
+  // Polling start/stop helpers
   const startPolling = useCallback(
     (intervalMs: number = 3000) => {
       stopPolling();
@@ -288,7 +288,7 @@ export default function WorkflowViewer({
     }
   }, []);
 
-  // コンポーネントアンマウント時にポーリング停止
+  // Stop polling on component unmount
   useEffect(() => {
     return () => stopPolling();
   }, [stopPolling]);
@@ -308,10 +308,10 @@ export default function WorkflowViewer({
       if (!res.ok || !data.success) {
         setAdvanceError(data.error || 'フェーズの実行に失敗しました');
       } else if (data.async) {
-        // 非同期実行: ポーリングで状態を監視
+        // Async execution: monitor state with polling
         startPolling(3000);
       } else {
-        // 同期完了: すぐにrefetch
+        // Sync completion: refetch immediately
         await refetch();
       }
     } catch (err) {
@@ -323,7 +323,7 @@ export default function WorkflowViewer({
     }
   }, [taskId, refetch, startPolling]);
 
-  // ステータスが最終状態に到達したらポーリング停止してrefetch
+  // Stop polling and refetch when status reaches final state
   const prevFetchedStatusRef = useRef<WorkflowStatus | null>(null);
   useEffect(() => {
     if (
@@ -332,11 +332,11 @@ export default function WorkflowViewer({
       pollingRef.current
     ) {
       prevFetchedStatusRef.current = fetchedStatus;
-      // 最終状態（completed, verify_done）に到達したらポーリング停止
+      // Stop polling when reaching final states (completed, verify_done)
       if (fetchedStatus === 'completed' || fetchedStatus === 'verify_done') {
         stopPolling();
       }
-      // ファイル内容を最新化
+      // Update file content
       refetch();
     }
     if (fetchedStatus && !prevFetchedStatusRef.current) {
@@ -344,7 +344,7 @@ export default function WorkflowViewer({
     }
   }, [fetchedStatus, stopPolling, refetch]);
 
-  // plan_approved になったらバックエンドが自動advanceするので、ポーリング開始
+  // Start polling when plan_approved as backend will auto-advance
   useEffect(() => {
     if (effectiveStatus === 'plan_approved' && !pollingRef.current) {
       startPolling(3000);
@@ -369,7 +369,7 @@ export default function WorkflowViewer({
 
   const workflowTabs = getWorkflowTabs(workflowMode || 'comprehensive');
 
-  // activeTabが現在のモードに存在しない場合、最初のタブにフォールバック
+  // Fallback to first tab if activeTab doesn't exist in current mode
   const validActiveTab = workflowTabs.some((t) => t.id === activeTab)
     ? activeTab
     : (workflowTabs[0]?.id ?? 'research');
@@ -380,28 +380,28 @@ export default function WorkflowViewer({
   }, [validActiveTab, activeTab]);
   const activeTabConfig = workflowTabs.find((t) => t.id === validActiveTab)!;
 
-  // plan_created 時は常に承認バナーを表示
+  // Always show approval banner during plan_created
   const isPlanAwaitingApproval =
     tabStatus.plan &&
     effectiveStatus === 'plan_created' &&
     onPlanApprovalRequest;
 
-  // 計画タブ内の承認ボタン
+  // Approval button within plan tab
   const showApprovalButton = activeTab === 'plan' && isPlanAwaitingApproval;
 
-  // 完了ボタン表示条件（検証完了後にユーザーが明示的に完了させる）
+  // Complete button display condition (user explicitly completes after verification)
   const showCompleteButton =
     activeTab === 'verify' &&
     tabStatus.verify &&
     effectiveStatus === 'verify_done' &&
     onCompleteRequest;
 
-  // 非同期実行中かどうか
+  // Whether async execution is in progress
   const isPolling = pollingRef.current !== null;
 
   return (
     <div className={className}>
-      {/* パス情報 */}
+      {/* Path information */}
       {workflowPath && (
         <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-100 dark:border-zinc-800">
           <FolderOpen className="h-3 w-3" />
@@ -409,7 +409,7 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* ワークフローモード選択セクション */}
+      {/* Workflow mode selection section */}
       {showWorkflowMode && (
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-100 dark:border-zinc-800">
           <CompactWorkflowSelector
@@ -420,7 +420,7 @@ export default function WorkflowViewer({
             autoComplexityAnalysis={autoComplexityAnalysis}
             onModeChange={onWorkflowModeChange}
             onAnalysisComplete={(analysis) => {
-              // 分析完了時に親コンポーネントに通知
+              // Notify parent component when analysis completes
               if (onWorkflowModeChange && !workflowModeOverride) {
                 onWorkflowModeChange(analysis.recommendedMode, false);
               }
@@ -432,7 +432,7 @@ export default function WorkflowViewer({
             showAnalyzeButton={true}
           />
 
-          {/* 計画自動承認設定 */}
+          {/* Auto-approval settings for plans */}
           <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -456,7 +456,7 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* 承認待ちバナー（plan_created時に常に表示） */}
+      {/* Approval pending banner (always shown during plan_created) */}
       {isPlanAwaitingApproval && (
         <div className="flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/50">
           <div className="flex items-center gap-2.5">
@@ -485,7 +485,7 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* 検証完了バナー（verify_done時に表示） */}
+      {/* Verification complete banner (shown during verify_done) */}
       {effectiveStatus === 'verify_done' &&
         tabStatus.verify &&
         onCompleteRequest && (
@@ -516,7 +516,7 @@ export default function WorkflowViewer({
           </div>
         )}
 
-      {/* 非同期実行中バナー */}
+      {/* Async execution in progress banner */}
       {isPolling && (
         <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/50">
           <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
@@ -531,7 +531,7 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* 次のフェーズ実行ボタン */}
+      {/* Next phase execution button */}
       {effectiveStatus &&
         effectiveStatus !== 'completed' &&
         effectiveStatus !== 'plan_created' &&
@@ -575,7 +575,7 @@ export default function WorkflowViewer({
           );
         })()}
 
-      {/* 実行エラー表示 */}
+      {/* Execution error display */}
       {advanceError && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
           <div className="flex items-center">
@@ -593,7 +593,7 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* エラー表示 */}
+      {/* Error display */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3">
           <div className="flex items-center justify-between">
@@ -616,14 +616,14 @@ export default function WorkflowViewer({
         </div>
       )}
 
-      {/* タブヘッダー */}
+      {/* Tab header */}
       <div className="border-b border-zinc-200 dark:border-zinc-700">
         <nav className="flex">
           {workflowTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             const hasContent = tabStatus[tab.id];
             const TabIcon = tab.icon;
-            // 承認待ちの計画タブにはバッジ表示
+            // Show badge for plan tab awaiting approval
             const needsAttention =
               tab.id === 'plan' &&
               effectiveStatus === 'plan_created' &&
@@ -661,7 +661,7 @@ export default function WorkflowViewer({
         </nav>
       </div>
 
-      {/* コンテンツエリア */}
+      {/* Content area */}
       <div className="p-5">
         {isLoading && !files ? (
           <div className="flex items-center justify-center h-32">
@@ -672,7 +672,7 @@ export default function WorkflowViewer({
           </div>
         ) : activeFile?.exists ? (
           <div className="space-y-3">
-            {/* ファイル情報 */}
+            {/* File information */}
             <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-100 dark:border-zinc-700/50">
               <span>
                 更新:{' '}
@@ -699,7 +699,7 @@ export default function WorkflowViewer({
               </div>
             </div>
 
-            {/* マークダウンコンテンツ */}
+            {/* Markdown content */}
             <div className="prose dark:prose-invert max-w-none prose-sm prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-p:text-zinc-700 dark:prose-p:text-zinc-300">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
@@ -732,7 +732,7 @@ export default function WorkflowViewer({
               </ReactMarkdown>
             </div>
 
-            {/* 計画承認ボタン */}
+            {/* Plan approval button */}
             {showApprovalButton && (
               <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
                 <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
@@ -754,7 +754,7 @@ export default function WorkflowViewer({
               </div>
             )}
 
-            {/* 実装完了ボタン */}
+            {/* Implementation complete button */}
             {showCompleteButton && (
               <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
                 <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
@@ -777,7 +777,7 @@ export default function WorkflowViewer({
             )}
           </div>
         ) : (
-          /* ファイル未作成状態 */
+          /* File not created state */
           <div className="text-center py-10">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
               <activeTabConfig.icon className="h-6 w-6 text-zinc-400" />
