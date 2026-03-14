@@ -15,12 +15,16 @@ interface DropdownMenuProps {
   items: DropdownMenuItem[];
   triggerClassName?: string;
   menuClassName?: string;
+  triggerLabel?: string;
+  menuLabel?: string;
 }
 
 export default function DropdownMenu({
   items,
   triggerClassName = '',
   menuClassName = '',
+  triggerLabel,
+  menuLabel,
 }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -74,6 +78,7 @@ export default function DropdownMenu({
         } border border-zinc-200 dark:border-zinc-700 ${triggerClassName}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
+        aria-label={triggerLabel}
       >
         <MoreVertical className="w-5 h-5" aria-hidden="true" />
       </button>
@@ -82,6 +87,7 @@ export default function DropdownMenu({
         <div
           ref={menuRef}
           role="menu"
+          aria-label={menuLabel}
           className={`absolute right-0 top-full mt-2 min-w-[180px] bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 py-1.5 z-50 ${menuClassName}`}
         >
           {items.map((item, index) => (
@@ -90,6 +96,7 @@ export default function DropdownMenu({
               role="menuitem"
               onClick={() => handleItemClick(item)}
               disabled={item.disabled}
+              aria-disabled={item.disabled || undefined}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors text-left ${
                 item.variant === 'danger'
                   ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'

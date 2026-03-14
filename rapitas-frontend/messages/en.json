@@ -803,7 +803,7 @@
     "modelCol": "Model",
     "executionCountCol": "Executions",
     "successRateCol": "Success Rate",
-    "avgExecutionTime": "Avg Execution Time",
+    "averageExecutionTime": "Avg Execution Time",
     "tokenUsage": "Token Usage",
     "tokensUsed": "Tokens Used",
     "lastExecution": "Last Execution",

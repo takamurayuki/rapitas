@@ -308,6 +308,7 @@ const TaskCard = memo(function TaskCard({
             onChange={() => onToggleSelect?.(task.id)}
             onClick={(e) => e.stopPropagation()}
             className="mr-1"
+            aria-label={`${t('select')} ${task.title}`}
           />
         ) : (
           <div
@@ -357,6 +358,7 @@ const TaskCard = memo(function TaskCard({
                     willChange: 'stroke-dashoffset',
                     transform: 'translateZ(0)',
                   }}
+                  aria-hidden="true"
                 />
               </svg>
             )}
@@ -383,6 +385,7 @@ const TaskCard = memo(function TaskCard({
                 >
                   <div
                     className={`w-1.5 h-1.5 rounded-full execution-dot-pulse ${executionClasses.dotClass}`}
+                    aria-hidden="true"
                   />
                   <span>{executionClasses.label}</span>
                 </div>
@@ -410,6 +413,7 @@ const TaskCard = memo(function TaskCard({
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"

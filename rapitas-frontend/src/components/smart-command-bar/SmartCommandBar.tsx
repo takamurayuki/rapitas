@@ -178,6 +178,7 @@ export default function SmartCommandBar() {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        aria-hidden="true"
         onClick={() => setIsOpen(false)}
       />
 
