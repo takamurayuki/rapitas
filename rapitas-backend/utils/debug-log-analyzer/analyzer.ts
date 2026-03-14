@@ -1,0 +1,247 @@
+/**
+ * Debug Log Analyzer - Main Analyzer
+ *
+ * Core class for parsing, filtering, and extracting patterns from debug logs.
+ */
+
+import {
+  LogType,
+  LogLevel,
+  type ParsedLogEntry,
+  type LogAnalysisResult,
+  type LogPattern,
+  type LogParser,
+  type AnalyzeOptions,
+  type LogFilter,
+} from './types';
+import { JSONLogParser, SyslogParser, ApacheCommonLogParser, NodeJSLogParser } from './parsers';
+
+export class DebugLogAnalyzer {
+  private parsers: LogParser[] = [
+    new JSONLogParser(),
+    new SyslogParser(),
+    new ApacheCommonLogParser(),
+    new NodeJSLogParser(),
+  ];
+
+  /** Registers a custom parser with highest priority. */
+  addParser(parser: LogParser): void {
+    this.parsers.unshift(parser);
+  }
+
+  /** Detects the log format type from content by sampling the first lines. */
+  detectLogType(logContent: string): LogType {
+    const lines = logContent.split('\n').filter((line) => line.trim());
+    if (lines.length === 0) return LogType.UNKNOWN;
+
+    const sampleLines = lines.slice(0, Math.min(10, lines.length));
+
+    for (const parser of this.parsers) {
+      const canParseAll = sampleLines.every((line) => parser.canParse(line));
+      if (canParseAll) return parser.type;
+    }
+
+    return LogType.UNKNOWN;
+  }
+
+  /** Parses log content and returns a structured analysis result. */
+  analyze(logContent: string, options?: AnalyzeOptions): LogAnalysisResult {
+    const lines = logContent.split('\n').filter((line) => line.trim());
+    const entries: ParsedLogEntry[] = [];
+
+    for (const line of lines) {
+      let parsed: ParsedLogEntry | null = null;
+
+      for (const parser of this.parsers) {
+        if (parser.canParse(line)) {
+          parsed = parser.parse(line);
+          if (parsed) break;
+        }
+      }
+
+      // Store unparseable lines as raw log entries
+      if (!parsed) {
+        parsed = {
+          raw: line,
+          type: LogType.UNKNOWN,
+          message: line,
+        };
+      }
+
+      entries.push(parsed);
+    }
+
+    let filteredEntries = entries;
+    if (options?.filter) {
+      filteredEntries = this.filterEntries(entries, options.filter);
+    }
+
+    return this.generateAnalysisResult(filteredEntries);
+  }
+
+  private filterEntries(entries: ParsedLogEntry[], filter: LogFilter): ParsedLogEntry[] {
+    return entries.filter((entry) => {
+      if (filter.level && entry.level) {
+        const levelPriority = this.getLogLevelPriority(entry.level);
+        const filterPriority = this.getLogLevelPriority(filter.level);
+        if (levelPriority < filterPriority) return false;
+      }
+
+      if (filter.startTime && entry.timestamp) {
+        if (entry.timestamp < filter.startTime) return false;
+      }
+
+      if (filter.endTime && entry.timestamp) {
+        if (entry.timestamp > filter.endTime) return false;
+      }
+
+      if (filter.source && entry.source) {
+        if (!entry.source.includes(filter.source)) return false;
+      }
+
+      if (filter.searchText && entry.message) {
+        if (!entry.message.toLowerCase().includes(filter.searchText.toLowerCase())) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  private getLogLevelPriority(level: LogLevel): number {
+    const priorities: Record<LogLevel, number> = {
+      [LogLevel.TRACE]: 0,
+      [LogLevel.DEBUG]: 1,
+      [LogLevel.INFO]: 2,
+      [LogLevel.WARN]: 3,
+      [LogLevel.ERROR]: 4,
+      [LogLevel.FATAL]: 5,
+    };
+    return priorities[level] ?? 2;
+  }
+
+  private generateAnalysisResult(entries: ParsedLogEntry[]): LogAnalysisResult {
+    const levelDistribution: Record<LogLevel, number> = {
+      [LogLevel.TRACE]: 0,
+      [LogLevel.DEBUG]: 0,
+      [LogLevel.INFO]: 0,
+      [LogLevel.WARN]: 0,
+      [LogLevel.ERROR]: 0,
+      [LogLevel.FATAL]: 0,
+    };
+
+    const sourceDistribution: Record<string, number> = {};
+    const messagePatterns = new Map<string, LogPattern>();
+    let errorCount = 0;
+    let warningCount = 0;
+    let minTime: Date | undefined;
+    let maxTime: Date | undefined;
+
+    for (const entry of entries) {
+      if (entry.level) {
+        levelDistribution[entry.level]++;
+        if (entry.level === LogLevel.ERROR || entry.level === LogLevel.FATAL) {
+          errorCount++;
+        } else if (entry.level === LogLevel.WARN) {
+          warningCount++;
+        }
+      }
+
+      if (entry.source) {
+        sourceDistribution[entry.source] = (sourceDistribution[entry.source] || 0) + 1;
+      }
+
+      if (entry.timestamp) {
+        if (!minTime || entry.timestamp < minTime) minTime = entry.timestamp;
+        if (!maxTime || entry.timestamp > maxTime) maxTime = entry.timestamp;
+      }
+
+      if (entry.message) {
+        const pattern = this.extractPattern(entry.message);
+        if (!messagePatterns.has(pattern)) {
+          messagePatterns.set(pattern, {
+            pattern,
+            count: 0,
+            samples: [],
+            severity: entry.level,
+          });
+        }
+        const patternData = messagePatterns.get(pattern)!;
+        patternData.count++;
+        if (patternData.samples.length < 3) {
+          patternData.samples.push(entry);
+        }
+      }
+    }
+
+    const patterns = Array.from(messagePatterns.values());
+    const errorPatterns = patterns.filter(
+      (p) => p.severity === LogLevel.ERROR || p.severity === LogLevel.FATAL,
+    );
+    const warningPatterns = patterns.filter((p) => p.severity === LogLevel.WARN);
+    const frequentPatterns = patterns.sort((a, b) => b.count - a.count).slice(0, 10);
+
+    return {
+      entries,
+      summary: {
+        totalEntries: entries.length,
+        errorCount,
+        warningCount,
+        timeRange: minTime && maxTime ? { start: minTime, end: maxTime } : undefined,
+        levelDistribution,
+        sourceDistribution,
+      },
+      patterns: {
+        errors: errorPatterns,
+        warnings: warningPatterns,
+        frequentMessages: frequentPatterns,
+      },
+    };
+  }
+
+  /** Normalizes a message into a pattern by replacing numbers, IPs, emails, and paths. */
+  private extractPattern(message: string): string {
+    return message
+      .replace(/\b\d+\b/g, '{NUMBER}')
+      .replace(/\b[0-9a-fA-F]{8,}\b/g, '{HEX}')
+      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '{IP}')
+      .replace(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g, '{EMAIL}')
+      .replace(/\/[^\/\s]+/g, '{PATH}');
+  }
+
+  /** Streaming log analysis for large files. */
+  async *analyzeStream(
+    logStream: AsyncIterable<string>,
+    options?: AnalyzeOptions,
+  ): AsyncGenerator<ParsedLogEntry> {
+    for await (const line of logStream) {
+      if (!line.trim()) continue;
+
+      let parsed: ParsedLogEntry | null = null;
+      for (const parser of this.parsers) {
+        if (parser.canParse(line)) {
+          parsed = parser.parse(line);
+          if (parsed) break;
+        }
+      }
+
+      if (!parsed) {
+        parsed = {
+          raw: line,
+          type: LogType.UNKNOWN,
+          message: line,
+        };
+      }
+
+      if (options?.filter) {
+        const filtered = this.filterEntries([parsed], options.filter);
+        if (filtered.length === 0) continue;
+      }
+
+      yield parsed;
+    }
+  }
+}
+
+export default DebugLogAnalyzer;

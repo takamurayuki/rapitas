@@ -1,0 +1,30 @@
+name: Shared Setup Actions
+
+on:
+  workflow_call:
+
+jobs:
+  setup-bun:
+    name: Setup Bun Environment
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 'latest'
+
+      - name: Configure Bun for CI
+        shell: bash
+        run: |
+          # Configure bun to ignore lockfile mismatches in CI
+          echo "BUN_LOCKFILE_SKIP=true" >> $GITHUB_ENV
+
+          # Alternative: set install flags
+          mkdir -p ~/.bunfig
+          echo "[install]" > ~/.bunfig/bunfig.toml
+          echo "save = false" >> ~/.bunfig/bunfig.toml
+          echo "frozen = false" >> ~/.bunfig/bunfig.toml

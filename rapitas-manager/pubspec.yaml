@@ -1,0 +1,57 @@
+name: rapitas_manager
+description: "Rapitas Manager - Remote management app for Rapitas desktop application"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # HTTP Client
+  dio: ^5.7.0
+
+  # Routing
+  go_router: ^14.6.2
+
+  # Local Storage
+  shared_preferences: ^2.3.4
+  flutter_secure_storage: ^9.2.3
+
+  # Date/Time
+  intl: ^0.19.0
+
+  # SSE (Server-Sent Events)
+  eventsource: ^0.4.0
+
+  # JSON Serialization
+  json_annotation: ^4.9.0
+  freezed_annotation: ^2.4.4
+
+  # Voice Input
+  speech_to_text: ^7.0.0
+  permission_handler: ^11.3.1
+
+  # Utilities
+  collection: ^1.18.0
+  connectivity_plus: ^6.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.13
+  json_serializable: ^6.8.0
+  freezed: ^2.5.7
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true

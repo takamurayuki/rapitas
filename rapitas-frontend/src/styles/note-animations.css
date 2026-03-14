@@ -1,0 +1,187 @@
+/* Note modal animations */
+@keyframes noteModalOpen {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes noteModalClose {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+}
+
+@keyframes noteModalMinimize {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(0.98);
+  }
+}
+
+/* Highlight marker animation */
+@keyframes highlightPulse {
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Note card hover effect */
+@keyframes noteCardHover {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(4px);
+  }
+}
+
+/* Save indicator animation */
+@keyframes saveIndicator {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Global classes */
+.note-modal-enter {
+  animation: noteModalOpen 0.3s ease-out;
+}
+
+.note-modal-exit {
+  animation: noteModalClose 0.2s ease-in;
+}
+
+.note-modal-minimize {
+  animation: noteModalMinimize 0.2s ease-in-out;
+}
+
+.highlight-marker {
+  animation: highlightPulse 2s infinite;
+  transition: background-color 0.2s ease;
+}
+
+.note-card-hover {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.note-card-hover:hover {
+  animation: noteCardHover 0.2s ease forwards;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.save-indicator-enter {
+  animation: saveIndicator 0.4s ease-out;
+}
+
+/* Scrollbar customization */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.5);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(82, 82, 91, 0.5);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(82, 82, 91, 0.7);
+}
+
+/* Editor style improvements */
+.note-editor {
+  caret-color: #6366f1;
+}
+
+.dark .note-editor {
+  caret-color: #818cf8;
+}
+
+/* Selected text styles */
+.note-editor::selection {
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+.dark .note-editor::selection {
+  background-color: rgba(129, 140, 248, 0.3);
+}
+
+/* Tag transitions */
+.note-tag {
+  transition: all 0.2s ease;
+}
+
+.note-tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Button ripple effect */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-effect::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  animation: ripple 0.6s ease-out;
+}

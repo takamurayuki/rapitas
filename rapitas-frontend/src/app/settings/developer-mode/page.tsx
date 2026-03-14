@@ -1,0 +1,566 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  Bot,
+  AlertCircle,
+  Loader2,
+  RotateCcw,
+  Zap,
+  Bug,
+  ShieldCheck,
+} from 'lucide-react';
+import type { UserSettings } from '@/types';
+import { useTranslations } from 'next-intl';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner, SkeletonBlock } from '@/components/ui/LoadingSpinner';
+import { ErrorAnalysisPanel } from '@/feature/developer-mode/components/ErrorAnalysisPanel';
+import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('DeveloperModePage');
+
+export default function DeveloperModeSettingsPage() {
+  const t = useTranslations('settings');
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  const { manualCaptureError } = useErrorCapture({
+    captureConsoleErrors: true,
+    captureUnhandledRejections: true,
+    captureNetworkErrors: true,
+    onError: (error) => {
+      logger.debug('Error captured:', error);
+    },
+  });
+
+  // NOTE: Local state for instant UI feedback; actual save is debounced.
+  const [localDelay, setLocalDelay] = useState<number | ''>(3);
+  const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [isSavingAutoResume, setIsSavingAutoResume] = useState(false);
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+        setLocalDelay(data.autoGenerateTitleDelay ?? 3);
+      }
+    } catch {
+      setError(t('fetchFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateSettings = async (updates: Partial<UserSettings>) => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSettings((prev) => (prev ? { ...prev, ...data } : data));
+      } else {
+        const errorData = await res.json().catch(() => null);
+        const errorMsg =
+          errorData?.message || errorData?.error || t('devUpdateFailed');
+        throw new Error(errorMsg);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('devErrorOccurred'));
+      showToast(
+        err instanceof Error ? err.message : t('devSaveFailed'),
+        'error',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveDelayDebounced = useCallback((val: number) => {
+    if (delayTimerRef.current) {
+      clearTimeout(delayTimerRef.current);
+    }
+    delayTimerRef.current = setTimeout(() => {
+      updateSettings({ autoGenerateTitleDelay: val });
+    }, 500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (delayTimerRef.current) {
+        clearTimeout(delayTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDelayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      setLocalDelay('');
+      return;
+    }
+    const num = Number(raw);
+    if (isNaN(num)) return;
+    const clamped = Math.max(1, Math.min(30, num));
+    setLocalDelay(clamped);
+    saveDelayDebounced(clamped);
+  };
+
+  const handleDelayBlur = () => {
+    // Reset to default if left empty on blur
+    if (localDelay === '' || localDelay < 1) {
+      setLocalDelay(3);
+      saveDelayDebounced(3);
+    }
+  };
+
+  const toggleAutoResume = async () => {
+    if (!settings) return;
+    const newValue = !settings.autoResumeInterruptedTasks;
+    setIsSavingAutoResume(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
+      });
+      if (res.ok) {
+        setSettings((prev) =>
+          prev ? { ...prev, autoResumeInterruptedTasks: newValue } : prev,
+        );
+      } else {
+        const errorData = await res.json().catch(() => null);
+        const errorMsg =
+          errorData?.message || errorData?.error || t('devSaveFailed');
+        setError(errorMsg);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('devSaveFailed'));
+    } finally {
+      setIsSavingAutoResume(false);
+    }
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center gap-3 mb-8">
+        <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
+          <Bot className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+            {t('devModeTitle')}
+          </h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {t('devModeSubtitle')}
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="ai-settings" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="ai-settings" className="flex items-center gap-2">
+            <Bot className="w-4 h-4" />
+            {t('devAiSettings')}
+          </TabsTrigger>
+          <TabsTrigger
+            value="error-analysis"
+            className="flex items-center gap-2"
+          >
+            <Bug className="w-4 h-4" />
+            {t('devErrorAnalysis')}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="ai-settings" className="mt-6">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <AlertCircle className="w-5 h-5" />
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <Bot className="w-5 h-5 text-violet-500" />
+                  <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {t('devAiAssistantSettings')}
+                  </h2>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                      {t('devEnableAiAssistant')}
+                    </h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                      {t('devEnableAiAssistantDescription')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      updateSettings({
+                        aiTaskAnalysisDefault: !settings?.aiTaskAnalysisDefault,
+                      })
+                    }
+                    disabled={isSaving}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      settings?.aiTaskAnalysisDefault
+                        ? 'bg-violet-500'
+                        : 'bg-zinc-300 dark:bg-zinc-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        settings?.aiTaskAnalysisDefault ? 'translate-x-5' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <Zap className="w-5 h-5 text-violet-500" />
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('devTaskCreationSettings')}
+                </h2>
+              </div>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('devAutoExecuteAfterCreate')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('devAutoExecuteDescription')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      updateSettings({
+                        autoExecuteAfterCreate:
+                          !settings?.autoExecuteAfterCreate,
+                      })
+                    }
+                    disabled={isSaving}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      settings?.autoExecuteAfterCreate
+                        ? 'bg-violet-500'
+                        : 'bg-zinc-300 dark:bg-zinc-600'
+                    }`}
+                    role="switch"
+                    aria-checked={settings?.autoExecuteAfterCreate ?? false}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        settings?.autoExecuteAfterCreate
+                          ? 'translate-x-5'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('devAutoGenerateTitle')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('devAutoGenerateTitleDescription')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      updateSettings({
+                        autoGenerateTitle: !settings?.autoGenerateTitle,
+                      })
+                    }
+                    disabled={isSaving}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      settings?.autoGenerateTitle
+                        ? 'bg-violet-500'
+                        : 'bg-zinc-300 dark:bg-zinc-600'
+                    }`}
+                    role="switch"
+                    aria-checked={settings?.autoGenerateTitle ?? false}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        settings?.autoGenerateTitle
+                          ? 'translate-x-5'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              {settings?.autoGenerateTitle && (
+                <>
+                  <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+                    <div>
+                      <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                        {t('devAutoGenerateDelay')}
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {t('devAutoGenerateDelayDescription')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={localDelay}
+                        onChange={handleDelayChange}
+                        onBlur={handleDelayBlur}
+                        className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      />
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        {t('devSeconds')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+                    <div>
+                      <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                        {t('devAutoCreateAfterTitle')}
+                      </h3>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {t('devAutoCreateAfterTitleDescription')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        updateSettings({
+                          autoCreateAfterTitleGeneration:
+                            !settings?.autoCreateAfterTitleGeneration,
+                        })
+                      }
+                      disabled={isSaving}
+                      className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        settings?.autoCreateAfterTitleGeneration
+                          ? 'bg-violet-500'
+                          : 'bg-zinc-300 dark:bg-zinc-600'
+                      }`}
+                      role="switch"
+                      aria-checked={
+                        settings?.autoCreateAfterTitleGeneration ?? false
+                      }
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          settings?.autoCreateAfterTitleGeneration
+                            ? 'translate-x-5'
+                            : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('devAutoFetchSuggestions')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('devAutoFetchSuggestionsDescription')}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoFetchTaskSuggestions:
+                        !settings?.autoFetchTaskSuggestions,
+                    })
+                  }
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoFetchTaskSuggestions
+                      ? 'bg-violet-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoFetchTaskSuggestions ?? true}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoFetchTaskSuggestions
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <RotateCcw className="w-5 h-5 text-violet-500" />
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('devAutoResumeSettings')}
+                </h2>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('devAutoResumeInterrupted')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('devAutoResumeDescription')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isSavingAutoResume && (
+                    <SkeletonBlock className="w-4 h-4 rounded" />
+                  )}
+                  <button
+                    onClick={toggleAutoResume}
+                    disabled={isSavingAutoResume}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      settings?.autoResumeInterruptedTasks
+                        ? 'bg-violet-600'
+                        : 'bg-zinc-300 dark:bg-zinc-600'
+                    }`}
+                    role="switch"
+                    aria-checked={settings?.autoResumeInterruptedTasks ?? false}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        settings?.autoResumeInterruptedTasks
+                          ? 'translate-x-5'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="w-5 h-5 text-violet-500" />
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  {t('workflowConfig')}
+                </h2>
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('autoApprovePlan')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('autoApproveDescription')}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoApprovePlan: !settings?.autoApprovePlan,
+                    })
+                  }
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoApprovePlan
+                      ? 'bg-violet-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoApprovePlan ?? false}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoApprovePlan
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+                    {t('autoComplexityAnalysis')}
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {t('autoComplexityDescription')}
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    updateSettings({
+                      autoComplexityAnalysis: !settings?.autoComplexityAnalysis,
+                    })
+                  }
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    settings?.autoComplexityAnalysis
+                      ? 'bg-violet-500'
+                      : 'bg-zinc-300 dark:bg-zinc-600'
+                  }`}
+                  role="switch"
+                  aria-checked={settings?.autoComplexityAnalysis ?? false}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      settings?.autoComplexityAnalysis
+                        ? 'translate-x-5'
+                        : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="error-analysis" className="mt-6">
+          <ErrorAnalysisPanel />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

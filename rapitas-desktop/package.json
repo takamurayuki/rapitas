@@ -1,0 +1,22 @@
+{
+  "name": "rapitas-desktop",
+  "version": "1.0.0",
+  "description": "Rapitas - AI-Powered Task Management Desktop App",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:watch": "node scripts/dev.js --watch",
+    "tauri": "tauri dev",
+    "tauri:only": "tauri dev --no-dev-server",
+    "build": "tauri build --features custom-protocol -c src-tauri/tauri.build.conf.json",
+    "ci:prepare": "node scripts/ci-build.js"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@tauri-apps/cli": "^2.10.0",
+    "jimp": "^1.6.0",
+    "sharp": "^0.34.5"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1"
+  }
+}

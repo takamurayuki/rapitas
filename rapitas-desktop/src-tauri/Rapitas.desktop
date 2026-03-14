@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Rapitas
+Comment=AI-Powered Task Management
+Exec=rapitas-desktop
+Icon=rapitas-desktop
+Terminal=false
+Categories=Utility;Office;
+StartupNotify=true
+MimeType=text/html;

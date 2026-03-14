@@ -1,0 +1,53 @@
+{
+  "name": "rapitas",
+  "version": "1.0.0",
+  "description": "階層型タスク管理システム",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/preflight-check.cjs",
+    "dev": "concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",
+    "dev:skip-check": "concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",
+    "dev:backend": "cd rapitas-backend && bun run dev",
+    "dev:backend:simple": "cd rapitas-backend && bun run dev:simple",
+    "dev:frontend": "cd rapitas-frontend && cross-env pnpm run dev",
+    "dev:tauri": "cd rapitas-desktop && node scripts/dev.js",
+    "dev:tauri:watch": "cd rapitas-desktop && node scripts/dev.js --watch",
+    "tauri": "cd rapitas-desktop && pnpm run tauri dev --watch",
+    "tauri:build": "cd rapitas-desktop && pnpm run tauri build",
+    "check": "node scripts/preflight-check.cjs",
+    "check:commit": "node scripts/pre-commit-check.cjs",
+    "build:web": "node scripts/switch-to-postgres.cjs && cd rapitas-frontend && pnpm run build",
+    "install:all": "cd rapitas-backend && bun install && cd ../rapitas-frontend && pnpm install && cd ../rapitas-desktop && pnpm install",
+    "test:all": "concurrently \"cd rapitas-backend && bun test\" \"cd rapitas-frontend && pnpm test\" --names \"BE-TEST,FE-TEST\" --prefix-colors \"cyan,magenta\"",
+    "lint:all": "concurrently \"cd rapitas-backend && bun run lint\" \"cd rapitas-frontend && pnpm run lint\" --names \"BE-LINT,FE-LINT\" --prefix-colors \"cyan,magenta\"",
+    "lint:fix": "cd rapitas-frontend && npx prettier --write \"src/**/*.{ts,tsx}\" && npx eslint --fix \"src/**/*.{ts,tsx}\" && cd ../rapitas-backend && npx prettier --write \"**/*.ts\"",
+    "prisma:migrate": "cd rapitas-backend && npx prisma migrate dev",
+    "prisma:push": "cd rapitas-backend && npx prisma db push",
+    "prisma:generate": "cd rapitas-backend && npx prisma generate",
+    "prisma:studio": "cd rapitas-backend && npx prisma studio",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.4.3",
+    "@commitlint/config-conventional": "^20.4.3",
+    "concurrently": "^9.1.2",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.39.4",
+    "get-port-cli": "^3.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.3.2",
+    "prettier": "^3.8.1"
+  },
+  "lint-staged": {
+    "rapitas-frontend/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix --no-warn-ignored --max-warnings=9999 --config rapitas-frontend/eslint.config.mjs"
+    ],
+    "rapitas-backend/**/*.ts": [
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "zustand": "^5.0.10"
+  }
+}

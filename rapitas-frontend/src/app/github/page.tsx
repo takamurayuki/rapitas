@@ -1,0 +1,474 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import {
+  GitBranch,
+  GitPullRequest,
+  CircleDot,
+  Plus,
+  RefreshCw,
+  Settings,
+  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from 'lucide-react';
+import type {
+  GitHubIntegration,
+  GitHubPullRequest,
+  GitHubIssue,
+} from '@/types';
+import { getLabelsArray } from '@/utils/labels';
+import { API_BASE_URL } from '@/utils/api';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('GitHubPage');
+
+export default function GitHubPage() {
+  const t = useTranslations('github');
+  const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
+  const [ghStatus, setGhStatus] = useState<{
+    ghAvailable: boolean;
+    authenticated: boolean;
+  } | null>(null);
+  const [recentPRs, setRecentPRs] = useState<GitHubPullRequest[]>([]);
+  const [recentIssues, setRecentIssues] = useState<GitHubIssue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState<number | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [statusRes, integrationsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/github/status`),
+        fetch(`${API_BASE_URL}/github/integrations`),
+      ]);
+
+      if (statusRes.ok) {
+        setGhStatus(await statusRes.json());
+      }
+
+      if (integrationsRes.ok) {
+        const data = await integrationsRes.json();
+        setIntegrations(data);
+
+        // Fetch PRs and issues for the first integration
+        if (data.length > 0) {
+          const [prsRes, issuesRes] = await Promise.all([
+            fetch(
+              `${API_BASE_URL}/github/integrations/${data[0].id}/pull-requests?state=open`,
+            ),
+            fetch(
+              `${API_BASE_URL}/github/integrations/${data[0].id}/issues?state=open`,
+            ),
+          ]);
+
+          if (prsRes.ok) setRecentPRs(await prsRes.json());
+          if (issuesRes.ok) setRecentIssues(await issuesRes.json());
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to fetch GitHub data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncIntegration = async (id: number) => {
+    setSyncing(id);
+    try {
+      await Promise.all([
+        fetch(`${API_BASE_URL}/github/integrations/${id}/sync-prs`, {
+          method: 'POST',
+        }),
+        fetch(`${API_BASE_URL}/github/integrations/${id}/sync-issues`, {
+          method: 'POST',
+        }),
+      ]);
+      await fetchData();
+    } catch (error) {
+      logger.error('Sync failed:', error);
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  return (
+    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+              {t('title')}
+            </h1>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
+              {t('subtitle')}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            {t('addIntegration')}
+          </button>
+        </div>
+
+        {ghStatus && (
+          <div
+            className={`mb-6 p-4 rounded-lg border ${
+              ghStatus.authenticated
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {ghStatus.authenticated ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <span className="text-green-700 dark:text-green-300">
+                    {t('cliAuthenticated')}
+                  </span>
+                </>
+              ) : ghStatus.ghAvailable ? (
+                <>
+                  <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                  <span className="text-yellow-700 dark:text-yellow-300">
+                    {t('cliNotAuthenticated')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <span className="text-red-700 dark:text-red-300">
+                    {t('cliNotInstalled')}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+            {t('linkedRepos')}
+          </h2>
+          {integrations.length === 0 ? (
+            <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
+              <GitBranch className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
+              <p className="text-zinc-500 dark:text-zinc-400">
+                {t('noLinkedRepos')}
+              </p>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {t('addRepo')}
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {integrations.map((integration) => (
+                <div
+                  key={integration.id}
+                  className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {integration.ownerName}/{integration.repositoryName}
+                      </h3>
+                      <a
+                        href={integration.repositoryUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {t('openInGitHub')}
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => syncIntegration(integration.id)}
+                        disabled={syncing === integration.id}
+                        className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
+                        title={t('sync')}
+                      >
+                        <RefreshCw
+                          className={`w-4 h-4 ${syncing === integration.id ? 'animate-spin' : ''}`}
+                        />
+                      </button>
+                      <Link
+                        href={`/github/integrations/${integration.id}/settings`}
+                        className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
+                        title={t('settings')}
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <Link
+                      href={`/github/pull-requests?integrationId=${integration.id}`}
+                      className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                    >
+                      <GitPullRequest className="w-4 h-4" />
+                      <span>{integration._count?.pullRequests || 0} PR</span>
+                    </Link>
+                    <Link
+                      href={`/github/issues?integrationId=${integration.id}`}
+                      className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                    >
+                      <CircleDot className="w-4 h-4" />
+                      <span>{integration._count?.issues || 0} Issues</span>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {recentPRs.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {t('recentPR')}
+              </h2>
+              <Link
+                href="/github/pull-requests"
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {t('viewAll')}
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {recentPRs.slice(0, 5).map((pr) => (
+                <Link
+                  key={pr.id}
+                  href={`/github/pull-requests/${pr.id}`}
+                  className="flex items-center gap-4 p-3 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
+                >
+                  <GitPullRequest
+                    className={`w-5 h-5 ${
+                      pr.state === 'open'
+                        ? 'text-green-500'
+                        : pr.state === 'merged'
+                          ? 'text-purple-500'
+                          : 'text-red-500'
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                      #{pr.prNumber} {pr.title}
+                    </p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {pr.authorLogin} • {pr.headBranch} → {pr.baseBranch}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs font-medium rounded ${
+                      pr.state === 'open'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : pr.state === 'merged'
+                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}
+                  >
+                    {pr.state}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* {t('recentIssue')} */}
+        {recentIssues.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                {t('recentIssue')}
+              </h2>
+              <Link
+                href="/github/issues"
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {t('viewAll')}
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {recentIssues.slice(0, 5).map((issue) => (
+                <Link
+                  key={issue.id}
+                  href={`/github/issues/${issue.id}`}
+                  className="flex items-center gap-4 p-3 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
+                >
+                  <CircleDot
+                    className={`w-5 h-5 ${
+                      issue.state === 'open'
+                        ? 'text-green-500'
+                        : 'text-purple-500'
+                    }`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                      #{issue.issueNumber} {issue.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        {issue.authorLogin}
+                      </span>
+                      {getLabelsArray(issue.labels)
+                        .slice(0, 3)
+                        .map((label) => (
+                          <span
+                            key={label}
+                            className="px-2 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs font-medium rounded ${
+                      issue.state === 'open'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                    }`}
+                  >
+                    {issue.state}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showAddModal && (
+          <AddIntegrationModal
+            onClose={() => setShowAddModal(false)}
+            onSuccess={() => {
+              setShowAddModal(false);
+              fetchData();
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddIntegrationModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const t = useTranslations('github');
+  const tc = useTranslations('common');
+  const [repositoryUrl, setRepositoryUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // Extract owner/repo from URL
+    const match = repositoryUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) {
+      setError(t('invalidRepoUrl'));
+      return;
+    }
+
+    const [, ownerName, repositoryName] = match;
+    const cleanRepoName = repositoryName.replace(/\.git$/, '');
+
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/integrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repositoryUrl: `https://github.com/${ownerName}/${cleanRepoName}`,
+          ownerName,
+          repositoryName: cleanRepoName,
+        }),
+      });
+
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json();
+        setError(data.error || t('addFailed'));
+      }
+    } catch {
+      setError(t('addFailed'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md bg-white dark:bg-zinc-800 rounded-lg shadow-xl">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
+            {t('addGitHubIntegration')}
+          </h2>
+          <form onSubmit={handleSubmit}>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                {t('repoUrl')}
+              </label>
+              <input
+                type="text"
+                value={repositoryUrl}
+                onChange={(e) => setRepositoryUrl(e.target.value)}
+                placeholder="https://github.com/owner/repository"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                {error}
+              </p>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                {tc('cancel')}
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {saving ? t('adding') : tc('add')}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
