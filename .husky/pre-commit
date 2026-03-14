@@ -1,2 +1,3 @@
-# 自動修正+コミット継続フック
+#!/bin/sh
+# Auto-fix and commit continuation hook
 node scripts/auto-fix-commit.cjs
