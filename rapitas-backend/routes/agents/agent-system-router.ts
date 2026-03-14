@@ -174,7 +174,12 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
   })
 
   .get('/system-status', async () => {
-    const activeExecutions = orchestrator.getActiveExecutionCount?.() || 0;
+    // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
+    // Use the async version when available to get the accurate count from the worker.
+    const workerMgr = orchestrator as unknown as { getActiveExecutionCountAsync?: () => Promise<number> };
+    const activeExecutions = workerMgr.getActiveExecutionCountAsync
+      ? await workerMgr.getActiveExecutionCountAsync()
+      : (orchestrator.getActiveExecutionCount?.() || 0);
     const isShuttingDown = orchestrator.isInShutdown();
 
     const runningExecutions = await prisma.agentExecution.count({

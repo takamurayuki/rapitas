@@ -1,12 +1,12 @@
 /**
- * 継続実行ロック機能のテスト
+ * Continuation Execution Lock Test
  *
- * executeContinuationの重複実行防止機能をテスト
+ * Tests the duplicate execution prevention mechanism of executeContinuation.
  */
 
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
-// ロック機能をテストするためのモッククラス
+// Mock class for testing the lock mechanism
 class ContinuationLockManager {
   private locks: Map<number, { source: string; lockedAt: Date }> = new Map();
 
@@ -97,29 +97,29 @@ describe('継続実行ロック機能', () => {
 
   describe('競合シナリオ', () => {
     it('ユーザー応答がタイムアウトより先にロックを取得', () => {
-      // ユーザー応答が先にロックを取得
+      // User response acquires the lock first
       const userResult = lockManager.tryAcquireLock(1, 'user_response');
       expect(userResult).toBe(true);
 
-      // タイムアウトハンドラがロック取得を試みる（失敗すべき）
+      // Timeout handler attempts to acquire the lock (should fail)
       const timeoutResult = lockManager.tryAcquireLock(1, 'auto_timeout');
       expect(timeoutResult).toBe(false);
 
-      // ロックの所有者はuser_response
+      // Lock owner should be user_response
       const info = lockManager.getLockInfo(1);
       expect(info?.source).toBe('user_response');
     });
 
     it('タイムアウトがユーザー応答より先にロックを取得', () => {
-      // タイムアウトハンドラが先にロックを取得
+      // Timeout handler acquires the lock first
       const timeoutResult = lockManager.tryAcquireLock(1, 'auto_timeout');
       expect(timeoutResult).toBe(true);
 
-      // ユーザー応答がロック取得を試みる（失敗すべき）
+      // User response attempts to acquire the lock (should fail)
       const userResult = lockManager.tryAcquireLock(1, 'user_response');
       expect(userResult).toBe(false);
 
-      // ロックの所有者はauto_timeout
+      // Lock owner should be auto_timeout
       const info = lockManager.getLockInfo(1);
       expect(info?.source).toBe('auto_timeout');
     });
@@ -142,7 +142,7 @@ describe('継続実行ロック機能', () => {
 });
 
 describe('タイムアウト処理の競合防止', () => {
-  // タイムアウト処理のシミュレーション
+  // Timeout processing simulation
   class TimeoutSimulator {
     private activeTimeouts: Map<number, NodeJS.Timeout> = new Map();
     private lockManager: ContinuationLockManager;
@@ -154,10 +154,10 @@ describe('タイムアウト処理の競合防止', () => {
 
     startTimeout(executionId: number, delayMs: number): void {
       const timer = setTimeout(async () => {
-        // ロックを取得してからコールバックを実行
+        // Acquire lock before executing callback
         if (this.lockManager.tryAcquireLock(executionId, 'auto_timeout')) {
           this.executedCallbacks.push({ executionId, source: 'auto_timeout' });
-          // 処理完了後にロックを解放
+          // Release lock after processing completes
           this.lockManager.releaseLock(executionId);
         }
         this.activeTimeouts.delete(executionId);
@@ -174,10 +174,10 @@ describe('タイムアウト処理の競合防止', () => {
     }
 
     async simulateUserResponse(executionId: number): Promise<boolean> {
-      // まずタイムアウトをキャンセル
+      // Cancel timeout first
       this.cancelTimeout(executionId);
 
-      // ロックを取得
+      // Acquire lock
       if (!this.lockManager.tryAcquireLock(executionId, 'user_response')) {
         return false;
       }
@@ -200,17 +200,17 @@ describe('タイムアウト処理の競合防止', () => {
     const lockManager = new ContinuationLockManager();
     const simulator = new TimeoutSimulator(lockManager);
 
-    // タイムアウトを開始（100ms後に発火）
+    // Start timeout (fires after 100ms)
     simulator.startTimeout(1, 100);
 
-    // すぐにユーザー応答（タイムアウト前）
+    // Immediate user response (before timeout)
     const result = await simulator.simulateUserResponse(1);
     expect(result).toBe(true);
 
-    // タイムアウトの発火時間を待つ
+    // Wait for the timeout to fire
     await new Promise((resolve) => setTimeout(resolve, 150));
 
-    // コールバックは1回のみ（user_responseのみ）
+    // Only one callback should have fired (user_response only)
     const callbacks = simulator.getExecutedCallbacks();
     expect(callbacks).toHaveLength(1);
     expect(callbacks[0].source).toBe('user_response');
@@ -220,17 +220,17 @@ describe('タイムアウト処理の競合防止', () => {
     const lockManager = new ContinuationLockManager();
     const simulator = new TimeoutSimulator(lockManager);
 
-    // タイムアウトを開始（10ms後に発火）
+    // Start timeout (fires after 10ms)
     simulator.startTimeout(1, 10);
 
-    // タイムアウト発火を待つ
+    // Wait for timeout to fire
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // タイムアウト後のユーザー応答
+    // User response after timeout
     const result = await simulator.simulateUserResponse(1);
     expect(result).toBe(true);
 
-    // 両方のコールバックが実行される（順番に）
+    // Both callbacks should have fired (sequentially)
     const callbacks = simulator.getExecutedCallbacks();
     expect(callbacks).toHaveLength(2);
     expect(callbacks[0].source).toBe('auto_timeout');
@@ -257,13 +257,13 @@ describe('エラーハンドリング', () => {
     try {
       await processWithError();
     } catch {
-      // エラーは無視
+      // Ignore error
     }
 
-    // ロックは解放されているはず
+    // Lock should have been released
     expect(lockManager.hasLock(executionId)).toBe(false);
 
-    // 新しいロック取得が可能
+    // A new lock acquisition should succeed
     const result = lockManager.tryAcquireLock(executionId, 'auto_timeout');
     expect(result).toBe(true);
   });

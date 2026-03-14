@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - 実行マネージャー
- * 複数エージェントの実行を管理・調整
+ * Agent Abstraction Layer - Execution Manager
+ *
+ * Manages and coordinates multiple agent executions.
  */
 
 import { createLogger } from '../../../config/logger';
@@ -19,7 +20,7 @@ import { AgentRegistry } from './registry';
 import { generateExecutionId } from './index';
 
 /**
- * 実行情報
+ * Execution tracking info.
  */
 interface ExecutionInfo {
   executionId: string;
@@ -32,7 +33,7 @@ interface ExecutionInfo {
 }
 
 /**
- * 実行マネージャーオプション
+ * Execution manager options.
  */
 interface ExecutionManagerOptions {
   maxConcurrentExecutions?: number;
@@ -41,8 +42,8 @@ interface ExecutionManagerOptions {
 }
 
 /**
- * エージェント実行マネージャー
- * 複数のエージェント実行を管理し、状態を追跡
+ * Agent execution manager.
+ * Manages multiple agent executions and tracks their state.
  */
 export class AgentExecutionManager implements IAgentExecutionManager {
   private executions: Map<string, ExecutionInfo> = new Map();
@@ -53,19 +54,19 @@ export class AgentExecutionManager implements IAgentExecutionManager {
 
   constructor(options: ExecutionManagerOptions = {}) {
     this.maxConcurrentExecutions = options.maxConcurrentExecutions ?? 10;
-    this.defaultTimeout = options.defaultTimeout ?? 900000; // 15分
+    this.defaultTimeout = options.defaultTimeout ?? 900000; // 15 minutes
     this.logger = options.logger;
   }
 
   /**
-   * タスクを実行
+   * Executes a task with a specific agent.
    */
   async executeTask(
     agentId: string,
     task: AgentTaskDefinition,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    // エージェントを取得
+    // Get agent from registry
     const registry = AgentRegistry.getInstance();
     const agent = registry.getAgent(agentId);
 
@@ -73,13 +74,13 @@ export class AgentExecutionManager implements IAgentExecutionManager {
       throw new Error(`Agent not found: ${agentId}`);
     }
 
-    // 同時実行数のチェック
+    // Check concurrent execution limit
     const activeCount = this.getActiveExecutionCount();
     if (activeCount >= this.maxConcurrentExecutions) {
       throw new Error(`Maximum concurrent executions (${this.maxConcurrentExecutions}) reached`);
     }
 
-    // 実行IDを生成
+    // Generate execution ID
     const executionId = context.executionId || generateExecutionId();
     const executionContext: AgentExecutionContext = {
       ...context,
@@ -87,7 +88,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
       timeout: context.timeout ?? this.defaultTimeout,
     };
 
-    // 実行情報を登録
+    // Register execution info
     const executionInfo: ExecutionInfo = {
       executionId,
       agentId,
@@ -104,25 +105,25 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     this.log('info', `Starting execution ${executionId} for agent ${agentId}`);
 
     try {
-      // 状態変更イベントを購読
+      // Subscribe to state change events
       const unsubscribe = agent.events.on('state_change', (event) => {
         if ('newState' in event) {
           executionInfo.state = event.newState;
         }
       });
 
-      // タスクを実行
+      // Execute task
       const result = await agent.execute(task, executionContext);
 
-      // 購読解除
+      // Unsubscribe
       unsubscribe();
 
-      // 実行情報を更新
+      // Update execution info
       executionInfo.state = result.state;
 
       this.log('info', `Execution ${executionId} completed with state: ${result.state}`);
 
-      // 完了した実行を一定時間後にクリーンアップ
+      // Schedule cleanup after completion
       if (
         result.state === 'completed' ||
         result.state === 'failed' ||
@@ -130,7 +131,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
       ) {
         setTimeout(() => {
           this.cleanupExecution(executionId);
-        }, 60000); // 1分後にクリーンアップ
+        }, 60000); // cleanup after 1 minute
       }
 
       return result;
@@ -142,7 +143,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
         `Execution ${executionId} failed: ${error instanceof Error ? error.message : String(error)}`,
       );
 
-      // エラー時も一定時間後にクリーンアップ
+      // Schedule cleanup even on error
       setTimeout(() => {
         this.cleanupExecution(executionId);
       }, 60000);
@@ -152,7 +153,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 実行を継続（質問への回答後）
+   * Continues execution after user response.
    */
   async continueExecution(
     executionId: string,
@@ -173,14 +174,14 @@ export class AgentExecutionManager implements IAgentExecutionManager {
     this.log('info', `Continuing execution ${executionId} with user response`);
 
     try {
-      // 継続コンテキストを作成
+      // Create continuation context
       const continuationContext = {
         sessionId: executionInfo.context.sessionId || executionId,
         previousExecutionId: executionId,
         userResponse,
       };
 
-      // 新しい実行IDを生成
+      // Generate new execution ID
       const newExecutionId = generateExecutionId();
       const newContext: AgentExecutionContext = {
         ...executionInfo.context,
@@ -188,10 +189,10 @@ export class AgentExecutionManager implements IAgentExecutionManager {
         parentExecutionId: executionId,
       };
 
-      // 継続実行
+      // Continue execution
       const result = await executionInfo.agent.continue(continuationContext, newContext);
 
-      // 実行情報を更新
+      // Update execution info
       executionInfo.state = result.state;
 
       this.log('info', `Continuation ${executionId} completed with state: ${result.state}`);
@@ -210,7 +211,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 実行を停止
+   * Stops a running execution.
    */
   async stopExecution(executionId: string): Promise<void> {
     const executionInfo = this.executions.get(executionId);
@@ -226,7 +227,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 実行状態を取得
+   * Returns the execution state.
    */
   getExecutionStatus(executionId: string): AgentState | null {
     const executionInfo = this.executions.get(executionId);
@@ -234,7 +235,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * アクティブな実行一覧を取得
+   * Returns all active executions.
    */
   getActiveExecutions(): Array<{
     executionId: string;
@@ -255,7 +256,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 特定エージェントの実行一覧を取得
+   * Returns executions for a specific agent.
    */
   getExecutionsByAgent(agentId: string): Array<{
     executionId: string;
@@ -279,14 +280,14 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 実行詳細を取得
+   * Returns detailed execution info.
    */
   getExecutionDetails(executionId: string): ExecutionInfo | null {
     return this.executions.get(executionId) ?? null;
   }
 
   /**
-   * アクティブな実行数を取得
+   * Returns the count of active executions.
    */
   getActiveExecutionCount(): number {
     const activeStates: AgentState[] = ['initializing', 'running', 'waiting_for_input', 'paused'];
@@ -296,7 +297,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 全実行を停止
+   * Stops all active executions.
    */
   async stopAllExecutions(): Promise<void> {
     const activeStates: AgentState[] = ['initializing', 'running', 'waiting_for_input', 'paused'];
@@ -310,7 +311,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   /**
-   * 古い実行をクリーンアップ
+   * Cleans up completed executions older than maxAgeMs.
    */
   cleanupOldExecutions(maxAgeMs: number = 3600000): number {
     const now = Date.now();
@@ -333,7 +334,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
   }
 
   // ============================================================================
-  // プライベートメソッド
+  // Private methods
   // ============================================================================
 
   private addAgentExecution(agentId: string, executionId: string): void {
@@ -378,7 +379,7 @@ export class AgentExecutionManager implements IAgentExecutionManager {
 }
 
 /**
- * デフォルトの実行マネージャーインスタンス
+ * Default execution manager singleton.
  */
 let defaultManager: AgentExecutionManager | null = null;
 

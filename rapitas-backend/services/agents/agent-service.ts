@@ -1,6 +1,7 @@
 /**
- * AIエージェント統一サービス
- * 複数のAIプロバイダーを統一的に管理・使用するためのファサード
+ * AgentService
+ *
+ * Unified facade for managing and using multiple AI providers.
  */
 
 import { createLogger } from '../../config/logger';
@@ -24,7 +25,7 @@ import type { IAgentProvider, IAgent, ProviderInfo } from './abstraction/interfa
 import { AgentRegistry, agentRegistry, generateExecutionId, isTerminalState } from './abstraction';
 
 /**
- * エージェント実行オプション
+ * Agent execution options.
  */
 export interface ExecuteOptions {
   workingDirectory: string;
@@ -35,7 +36,7 @@ export interface ExecuteOptions {
 }
 
 /**
- * プロバイダー選択基準
+ * Criteria for selecting a provider.
  */
 export interface ProviderSelectionCriteria {
   providerId?: AgentProviderId;
@@ -44,7 +45,7 @@ export interface ProviderSelectionCriteria {
 }
 
 /**
- * エージェントサービス設定
+ * Agent service configuration.
  */
 export interface AgentServiceConfig {
   defaultProviderId: AgentProviderId;
@@ -54,7 +55,7 @@ export interface AgentServiceConfig {
 }
 
 /**
- * アクティブなエージェント実行情報
+ * Active agent execution info.
  */
 export interface ActiveExecution {
   executionId: string;
@@ -66,8 +67,8 @@ export interface ActiveExecution {
 }
 
 /**
- * AIエージェント統一サービス
- * シングルトンパターンで複数のプロバイダーを統一的に管理
+ * Unified AI agent service.
+ * Singleton that manages multiple providers through a unified interface.
  */
 export class AgentService {
   private static instance: AgentService;
@@ -80,7 +81,7 @@ export class AgentService {
     this.registry = agentRegistry;
     this.config = {
       defaultProviderId: 'claude-code',
-      defaultTimeout: 900000, // 15分
+      defaultTimeout: 900000, // 15 minutes
       autoRegisterProviders: true,
       enableMetrics: true,
       ...config,
@@ -88,7 +89,7 @@ export class AgentService {
   }
 
   /**
-   * シングルトンインスタンスを取得
+   * Get the singleton instance.
    */
   static getInstance(config?: Partial<AgentServiceConfig>): AgentService {
     if (!AgentService.instance) {
@@ -98,7 +99,7 @@ export class AgentService {
   }
 
   /**
-   * インスタンスをリセット（テスト用）
+   * Reset the singleton instance (for testing).
    */
   static resetInstance(): void {
     if (AgentService.instance) {
@@ -108,7 +109,7 @@ export class AgentService {
   }
 
   /**
-   * サービスを初期化
+   * Initialize the service.
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -125,38 +126,37 @@ export class AgentService {
   }
 
   /**
-   * プロバイダーを登録
+   * Register a provider.
    */
   registerProvider(provider: IAgentProvider): void {
     this.registry.registerProvider(provider);
   }
 
   /**
-   * 利用可能なプロバイダー一覧を取得
+   * Get available providers.
    */
   async getAvailableProviders(): Promise<ProviderInfo[]> {
     return this.registry.getAvailableProviders();
   }
 
   /**
-   * 特定のプロバイダーを取得
+   * Get a specific provider.
    */
   getProvider(providerId: AgentProviderId): IAgentProvider | undefined {
     return this.registry.getProvider(providerId);
   }
 
   /**
-   * 特定の能力を持つプロバイダーを取得
+   * Get providers that have a specific capability.
    */
   getProvidersByCapability(capability: keyof AgentCapabilities): IAgentProvider[] {
     return this.registry.getProvidersByCapability(capability);
   }
 
   /**
-   * 最適なプロバイダーを選択
+   * Select the best provider based on criteria.
    */
   async selectProvider(criteria: ProviderSelectionCriteria): Promise<IAgentProvider | null> {
-    // 特定のプロバイダーが指定されている場合
     if (criteria.providerId) {
       const provider = this.registry.getProvider(criteria.providerId);
       if (provider) {
@@ -168,17 +168,15 @@ export class AgentService {
       return null;
     }
 
-    // 必要な能力に基づいて選択
     if (criteria.requiredCapabilities && criteria.requiredCapabilities.length > 0) {
       return this.registry.selectBestProvider(criteria.requiredCapabilities);
     }
 
-    // デフォルトプロバイダーを返す
     return this.registry.getProvider(this.config.defaultProviderId) || null;
   }
 
   /**
-   * タスクを実行
+   * Execute a task.
    */
   async executeTask(
     task: AgentTaskDefinition,
@@ -187,7 +185,6 @@ export class AgentService {
   ): Promise<AgentExecutionResult> {
     await this.ensureInitialized();
 
-    // プロバイダーを選択
     const provider = await this.selectProvider(criteria || {});
     if (!provider) {
       return {
@@ -198,7 +195,6 @@ export class AgentService {
       };
     }
 
-    // エージェントを作成
     const config: AgentProviderConfig = {
       providerId: provider.providerId,
       enabled: true,
@@ -207,7 +203,6 @@ export class AgentService {
     const agent = this.registry.createAgent(config);
     const executionId = generateExecutionId();
 
-    // 実行コンテキストを作成
     const context: AgentExecutionContext = {
       executionId,
       workingDirectory: options.workingDirectory,
@@ -217,7 +212,6 @@ export class AgentService {
       metadata: options.metadata,
     };
 
-    // アクティブな実行を追跡
     this.activeExecutions.set(executionId, {
       executionId,
       agentId: agent.metadata.id,
@@ -227,7 +221,6 @@ export class AgentService {
       task,
     });
 
-    // 状態変更を追跡
     const unsubscribe = agent.events.on<StateChangeEvent>('state_change', (event) => {
       const execution = this.activeExecutions.get(executionId);
       if (execution) {
@@ -238,7 +231,6 @@ export class AgentService {
     try {
       const result = await agent.execute(task, context);
 
-      // 終了状態の場合はアクティブな実行から削除
       if (isTerminalState(result.state)) {
         this.activeExecutions.delete(executionId);
       }
@@ -247,7 +239,6 @@ export class AgentService {
     } finally {
       unsubscribe();
 
-      // エージェントが完了状態の場合は解放
       if (isTerminalState(agent.state)) {
         await this.registry.disposeAgent(agent.metadata.id);
       }
@@ -255,7 +246,7 @@ export class AgentService {
   }
 
   /**
-   * 実行を継続（質問への回答後など）
+   * Continue execution (e.g., after answering a question).
    */
   async continueExecution(
     executionId: string,
@@ -304,7 +295,7 @@ export class AgentService {
   }
 
   /**
-   * 実行を停止
+   * Stop an execution.
    */
   async stopExecution(executionId: string): Promise<boolean> {
     const execution = this.activeExecutions.get(executionId);
@@ -325,28 +316,28 @@ export class AgentService {
   }
 
   /**
-   * アクティブな実行一覧を取得
+   * Get all active executions.
    */
   getActiveExecutions(): ActiveExecution[] {
     return Array.from(this.activeExecutions.values());
   }
 
   /**
-   * 実行状態を取得
+   * Get execution status by ID.
    */
   getExecutionStatus(executionId: string): ActiveExecution | null {
     return this.activeExecutions.get(executionId) || null;
   }
 
   /**
-   * 全プロバイダーのヘルスチェック
+   * Health check all providers.
    */
   async healthCheckAll(): Promise<Map<AgentProviderId, AgentHealthStatus>> {
     return this.registry.healthCheckAll();
   }
 
   /**
-   * 特定プロバイダーのヘルスチェック
+   * Health check a specific provider.
    */
   async healthCheck(providerId: AgentProviderId): Promise<AgentHealthStatus | null> {
     const provider = this.registry.getProvider(providerId);
@@ -357,7 +348,7 @@ export class AgentService {
   }
 
   /**
-   * サービス統計を取得
+   * Get service statistics.
    */
   getStats(): {
     initialized: boolean;
@@ -374,15 +365,13 @@ export class AgentService {
   }
 
   /**
-   * すべてのリソースを解放
+   * Release all resources.
    */
   async shutdown(): Promise<void> {
-    // すべてのアクティブな実行を停止
     for (const [executionId] of this.activeExecutions) {
       await this.stopExecution(executionId);
     }
 
-    // すべてのエージェントを解放
     await this.registry.disposeAllAgents();
 
     this.initialized = false;
@@ -397,12 +386,12 @@ export class AgentService {
 }
 
 /**
- * デフォルトのAgentServiceインスタンス
+ * Default AgentService instance.
  */
 export const agentService = AgentService.getInstance();
 
 /**
- * 簡易実行ヘルパー関数
+ * Convenience helper for executing a task with an agent.
  */
 export async function executeWithAgent(
   task: AgentTaskDefinition,
@@ -413,7 +402,7 @@ export async function executeWithAgent(
 }
 
 /**
- * 簡易継続実行ヘルパー関数
+ * Convenience helper for continuing an agent execution.
  */
 export async function continueWithAgent(
   executionId: string,

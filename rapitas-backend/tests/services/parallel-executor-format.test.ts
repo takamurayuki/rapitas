@@ -1,10 +1,11 @@
 /**
  * Parallel Executor Format Functions Test
- * 並列実行関連のフォーマット関数のテスト
+ *
+ * Tests for format functions related to parallel execution.
  */
 import { describe, test, expect, mock } from 'bun:test';
 
-// ロガーをモック化
+// Mock the logger
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
@@ -15,28 +16,28 @@ mock.module('../../config/logger', () => ({
 }));
 
 describe('formatCoordinatorPayload', () => {
-  // テスト対象関数を直接インポートできないため、関数を再定義してテスト
+  // Cannot import the function directly, so redefine it for testing
   function formatCoordinatorPayload(payload: unknown): string {
     if (!payload || typeof payload !== 'object') return String(payload ?? '');
 
     const obj = payload as Record<string, unknown>;
     const parts: string[] = [];
 
-    // メッセージ系
+    // Message fields
     const msg = obj.message || obj.msg || obj.description;
     if (msg && typeof msg === 'string') parts.push(msg);
 
-    // ステータス系
+    // Status fields
     if (obj.status && typeof obj.status === 'string') parts.push(`status=${obj.status}`);
 
-    // タスク・エージェント情報
+    // Task and agent info
     if (obj.taskId) parts.push(`task=${obj.taskId}`);
     if (obj.agentId && typeof obj.agentId === 'string') parts.push(`agent=${obj.agentId}`);
 
-    // エラー系
+    // Error fields
     if (obj.error && typeof obj.error === 'string') parts.push(`error: ${obj.error}`);
 
-    // その他のフィールド
+    // Other fields
     const skipKeys = new Set([
       'message',
       'msg',

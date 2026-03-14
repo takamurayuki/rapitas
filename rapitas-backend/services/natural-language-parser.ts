@@ -50,7 +50,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     const match = text.match(pattern);
     if (match) {
       const num = parseFloat(match[1]);
-      // If matched "分/minutes", convert to hours
+      // If matched "/minutes", convert to hours
       if (/分|minutes?|mins?|min/i.test(match[0])) {
         estimatedHours = Math.round((num / 60) * 10) / 10;
       } else {
@@ -113,7 +113,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
         remaining: s.replace(m[0], ' ').trim(),
       };
     }
-    // "午後3時30分", "午前10時", "3時半", "15時"
+    // Japanese time formats: "PM 3:30", "AM 10", "3:30 (half)", "15:00"
     m = s.match(/(午前|午後|AM|PM)?\s*(\d{1,2})\s*時\s*(?:(\d{1,2})\s*分|半)?/i);
     if (m) {
       let h = parseInt(m[2]);
@@ -123,7 +123,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
       } else if (m[1] === '午前' || (m[1] && /am/i.test(m[1]))) {
         if (h === 12) h = 0;
       } else if (h <= 6) {
-        // Ambiguous: assume PM for small numbers (e.g., "3時" → 15:00)
+        // Ambiguous: assume PM for small numbers (e.g., "3" → 15:00)
         h += 12;
       }
       return { hours: h, minutes: min, remaining: s.replace(m[0], ' ').trim() };
@@ -139,7 +139,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     return null;
   };
 
-  // Pattern: "今日", "本日", "今日中"
+  // Pattern: "", "", ""
   let dateMatch = text.match(/(?:^|\s)(今日中|今日|本日|today)(?:\s|に|まで|$)/i);
   if (dateMatch) {
     dueDate = new Date(now);
@@ -147,7 +147,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     text = text.replace(dateMatch[0], ' ').trim();
   }
 
-  // Pattern: "明日", "tomorrow"
+  // Pattern: "", "tomorrow"
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(明日|あした|tomorrow)(?:\s|に|まで|$)/i);
     if (dateMatch) {
@@ -158,7 +158,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     }
   }
 
-  // Pattern: "明後日", "あさって"
+  // Pattern: "", ""
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(明後日|あさって)(?:\s|に|まで|$)/i);
     if (dateMatch) {
@@ -169,7 +169,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     }
   }
 
-  // Pattern: "来週X曜日", "next Monday"
+  // Pattern: "X", "next Monday"
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)来週\s*([日月火水木金土])曜?(?:日)?(?:\s|に|まで|$)/);
     if (dateMatch) {
@@ -194,7 +194,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     }
   }
 
-  // Pattern: "X曜日", "Friday" (this week or next)
+  // Pattern: "X", "Friday" (this week or next)
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)([日月火水木金土])曜(?:日)?/);
     if (dateMatch) {
@@ -219,7 +219,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     }
   }
 
-  // Pattern: "N日後", "in N days"
+  // Pattern: "N", "in N days"
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(\d+)\s*日後(?:\s|に|まで|$)/);
     if (dateMatch) {
@@ -240,7 +240,7 @@ export function parseNaturalLanguageTask(input: string): ParsedTask {
     }
   }
 
-  // Pattern: "M月D日", "M/D"
+  // Pattern: "MD", "M/D"
   if (!dueDate) {
     dateMatch = text.match(/(?:^|\s)(\d{1,2})月(\d{1,2})日(?:\s|に|まで|$)/);
     if (dateMatch) {

@@ -19,7 +19,11 @@ import {
 const log = createLogger('routes:flashcards');
 
 /**
- * 難易度別のフラッシュカード生成ガイドラインを返す
+ * Return flashcard generation guidelines based on difficulty level.
+ *
+ * @param difficulty - Difficulty tier / 難易度レベル
+ * @param language - Output language / 出力言語
+ * @returns Guideline text for the AI prompt / AIプロンプト用ガイドラインテキスト
  */
 function getDifficultyGuidelines(difficulty: string, language: string): string {
   if (language === 'ja') {
@@ -236,7 +240,7 @@ export const flashcardsRoutes = new Elysia()
     return await prisma.flashcard.delete({ where: { id } });
   })
 
-  // フラッシュカード復習（FSRSアルゴリズム）
+  // Flashcard review (FSRS algorithm)
   .post(
     '/flashcards/:id/review',
     async (context) => {
@@ -280,7 +284,7 @@ export const flashcardsRoutes = new Elysia()
     },
   )
 
-  // FSRSスケジューリングプレビュー（各Rating選択時の次回復習日を返す）
+  // FSRS scheduling preview (returns next review date for each Rating choice)
   .get('/flashcards/:id/schedule-preview', async ({ params }) => {
     const id = parseId(params.id);
     const card = await prisma.flashcard.findUnique({ where: { id } });
@@ -310,7 +314,7 @@ export const flashcardsRoutes = new Elysia()
     };
   })
 
-  // 今日復習すべきカード
+  // Cards due for review today
   .get('/flashcards/due', async () => {
     const today = new Date();
     return await prisma.flashcard.findMany({
@@ -324,7 +328,7 @@ export const flashcardsRoutes = new Elysia()
     });
   })
 
-  // AIでフラッシュカードを自動生成
+  // Auto-generate flashcards using AI
   .post(
     '/flashcard-decks/:deckId/generate',
     async (context) => {
@@ -341,7 +345,7 @@ export const flashcardsRoutes = new Elysia()
         language?: string;
       };
 
-      // デッキの存在確認
+      // Verify deck exists
       const deck = await prisma.flashcardDeck.findUnique({
         where: { id: deckId },
       });
@@ -349,7 +353,7 @@ export const flashcardsRoutes = new Elysia()
         throw new NotFoundError('Deck not found');
       }
 
-      // APIキーの取得
+      // Retrieve API key
       const settings = await prisma.userSettings.findFirst();
       let apiKey: string | undefined;
 
@@ -369,7 +373,7 @@ export const flashcardsRoutes = new Elysia()
       }
 
       try {
-        // Claude APIを使用してフラッシュカードを生成
+        // Generate flashcards via Claude API
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -425,7 +429,7 @@ Output in the following JSON format:
         const data = (await response.json()) as ClaudeAPIResponse;
         const content = data.content[0].text;
 
-        // JSON部分を抽出
+        // Extract JSON portion from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
           throw new Error('Failed to parse AI response');
@@ -434,7 +438,7 @@ Output in the following JSON format:
         const generatedData = JSON.parse(jsonMatch[0]);
         const cards = generatedData.cards;
 
-        // フラッシュカードをDBに保存
+        // Save flashcards to DB
         const createdCards = await Promise.all(
           cards.map((card: { front: string; back: string }) =>
             prisma.flashcard.create({
@@ -470,7 +474,7 @@ Output in the following JSON format:
     },
   )
 
-  // ノートテキストからフラッシュカードを生成（新規デッキ作成 or 既存デッキに追加）
+  // Generate flashcards from note text (create new deck or add to existing)
   .post(
     '/flashcards/generate-from-text',
     async (context) => {
@@ -494,7 +498,7 @@ Output in the following JSON format:
         throw new ValidationError('Text content is too short for flashcard generation');
       }
 
-      // APIキーの取得
+      // Retrieve API key
       const settings = await prisma.userSettings.findFirst();
       let apiKey: string | undefined;
 
@@ -513,7 +517,7 @@ Output in the following JSON format:
         throw new ValidationError('API key not configured');
       }
 
-      // デッキの準備（既存 or 新規作成）
+      // Prepare target deck (use existing or create new)
       let targetDeckId: number;
       if (deckId) {
         const deck = await prisma.flashcardDeck.findUnique({ where: { id: deckId } });
@@ -534,7 +538,7 @@ Output in the following JSON format:
       }
 
       try {
-        // HTMLタグを除去してプレーンテキストに変換
+        // Strip HTML tags and convert to plain text
         const plainText = text
           .replace(/<[^>]*>/g, ' ')
           .replace(/&nbsp;/g, ' ')
@@ -545,7 +549,7 @@ Output in the following JSON format:
           .replace(/\s+/g, ' ')
           .trim();
 
-        // 文字数制限（トークン制限対策）
+        // Truncate to limit token usage
         const truncatedText = plainText.slice(0, 8000);
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {

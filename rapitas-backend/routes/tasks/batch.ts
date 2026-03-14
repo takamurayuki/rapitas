@@ -2,8 +2,8 @@ import { Elysia, t, type Context } from 'elysia';
 import { prisma } from '../../config';
 
 /**
- * バッチリクエスト処理
- * 複数のAPI呼び出しを1つのHTTPリクエストで処理
+ * Batch Request Processing
+ * Process multiple API calls in a single HTTP request
  */
 export const batchRoutes = new Elysia({ prefix: '/batch' }).post(
   '/',
@@ -14,7 +14,7 @@ export const batchRoutes = new Elysia({ prefix: '/batch' }).post(
     const results = await Promise.all(
       body.requests.map(async (request) => {
         try {
-          // リクエストタイプに基づいて処理を分岐
+          
           const result = await processRequest(request);
           return {
             id: request.id,
@@ -55,14 +55,14 @@ export const batchRoutes = new Elysia({ prefix: '/batch' }).post(
 );
 
 /**
- * 個別のリクエストを処理
+ * Process an individual request.
  */
 async function processRequest(request: { method: string; url: string; body?: unknown }) {
   const { method, url, body } = request;
 
-  // URLをパス部分とクエリ文字列に分離
+  
   const [rawPath, queryString] = url.split('?');
-  const path = rawPath.replace(/^\//, ''); // 先頭の/を削除
+  const path = rawPath.replace(/^\//, ''); 
   const pathParts = path.split('/');
   const [resource, ...rest] = pathParts;
   const query = new URLSearchParams(queryString || '');
@@ -82,7 +82,7 @@ async function processRequest(request: { method: string; url: string; body?: unk
 }
 
 /**
- * タスク関連のリクエスト処理
+ * Handle task-related requests.
  */
 async function handleTaskRequests(
   method: string,
@@ -104,7 +104,7 @@ async function handleTaskRequests(
       if (status) where.status = status;
 
       if (since) {
-        // インクリメンタル更新
+        // Incremental update
         const tasks = await prisma.task.findMany({
           where: {
             ...where,
@@ -163,7 +163,7 @@ async function handleTaskRequests(
 }
 
 /**
- * カテゴリ関連のリクエスト処理
+ * Handle category-related requests.
  */
 async function handleCategoryRequests(
   method: string,
@@ -178,7 +178,7 @@ async function handleCategoryRequests(
 }
 
 /**
- * テーマ関連のリクエスト処理
+ * Handle theme-related requests.
  */
 async function handleThemeRequests(
   method: string,
@@ -193,7 +193,7 @@ async function handleThemeRequests(
 }
 
 /**
- * 統計情報関連のリクエスト処理
+ * Handle statistics-related requests.
  */
 async function handleStatisticsRequests(
   method: string,

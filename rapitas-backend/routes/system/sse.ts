@@ -21,15 +21,14 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
     const clientId = realtimeService.registerClient(
       {
         write: (data: string) => {
-          // Elysiaでは直接ストリームを返す必要がある
-          // この実装は簡略化されている
+          // NOTE: simplified implementation
         },
       },
-      ['*'], // 全てのイベントを購読
+      ['*'],
     );
 
-    // 接続情報を返す
-    // クリーンアップ用にclientIdをクロージャで保持
+    
+    // Hold clientId in closure for cleanup
     let activeClientId = clientId;
 
     return new Response(
@@ -47,7 +46,7 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
 
           realtimeService.removeClient(clientId);
           activeClientId = realtimeService.registerClient(client, ['*']);
-          // シャットダウン時にストリームを閉じるためにcontrollerを登録
+          // Register controller to close stream on shutdown
           realtimeService.registerStreamController(activeClientId, controller);
         },
         cancel() {
@@ -96,16 +95,16 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
           };
 
           activeClientId = realtimeService.registerClient(client, [channel]);
-          // シャットダウン時にストリームを閉じるためにcontrollerを登録
+          // Register controller to close stream on shutdown
           realtimeService.registerStreamController(activeClientId, controller);
           log.info(`[SSE] Client ${activeClientId} registered for channel: ${channel}`);
 
-          // 接続確認イベントを即座に送信
+          // Send connection confirmation event immediately
           client.write(
             `event: connected\ndata: ${JSON.stringify({ channel, clientId: activeClientId })}\n\n`,
           );
 
-          // 過去のイベントを送信（lastEventIdがある場合）
+          // Send past events if lastEventId is provided
           if (lastEventId) {
             const history = realtimeService.getChannelHistory(channel);
             for (const event of history) {

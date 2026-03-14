@@ -251,20 +251,20 @@ export default function WorkflowRolesConfig({
 
         return (
           <div key={roleKey}>
-            {/* ロールカード */}
+            {/* Role card */}
             <div
               className={`border ${config.borderColor} rounded-xl overflow-hidden transition-all ${
                 !isEnabled ? 'opacity-50' : ''
               }`}
             >
-              {/* ヘッダー（常に表示） */}
+              {/* Header (always visible) */}
               <div
                 className={`${config.bgColor} px-4 py-3 cursor-pointer select-none`}
                 onClick={() => setExpandedRole(isExpanded ? null : roleKey)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    {/* ステップ番号 */}
+                    {/* Step number */}
                     <div
                       className={`w-7 h-7 rounded-full ${config.accentColor} flex items-center justify-center text-white text-xs font-bold`}
                     >
@@ -282,7 +282,7 @@ export default function WorkflowRolesConfig({
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* 設定済みエージェント表示 */}
+                    {/* Configured agent display */}
                     {selectedAgent && !isExpanded && (
                       <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
                         <Cpu className="h-3 w-3" />
@@ -295,13 +295,13 @@ export default function WorkflowRolesConfig({
                       </div>
                     )}
 
-                    {/* 保存中/保存済みインジケーター */}
+                    {/* Saving/saved indicator */}
                     {isSaving && (
                       <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
                     )}
                     {isSaved && <Save className="h-4 w-4 text-green-500" />}
 
-                    {/* 有効/無効トグル */}
+                    {/* Enable/disable toggle */}
                     <label
                       className="flex items-center cursor-pointer"
                       onClick={(e) => e.stopPropagation()}
@@ -329,7 +329,7 @@ export default function WorkflowRolesConfig({
                       </div>
                     </label>
 
-                    {/* 開閉アイコン */}
+                    {/* Expand/collapse icon */}
                     <ChevronDown
                       className={`h-4 w-4 text-zinc-400 transition-transform ${
                         isExpanded ? 'rotate-180' : ''
@@ -339,11 +339,11 @@ export default function WorkflowRolesConfig({
                 </div>
               </div>
 
-              {/* 展開時の設定パネル */}
+              {/* Settings panel (expanded) */}
               {isExpanded && (
                 <div className="bg-white dark:bg-zinc-800 px-4 py-4 border-t border-zinc-100 dark:border-zinc-700/50">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* エージェント選択 */}
+                    {/* Agent selector */}
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
                         AIエージェント
@@ -372,7 +372,7 @@ export default function WorkflowRolesConfig({
                       </div>
                     </div>
 
-                    {/* モデル選択 */}
+                    {/* Model selector */}
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
                         モデル
@@ -409,7 +409,7 @@ export default function WorkflowRolesConfig({
                       </div>
                     </div>
 
-                    {/* プロンプト選択 */}
+                    {/* Prompt selector */}
                     <div>
                       <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
                         システムプロンプト
@@ -436,7 +436,7 @@ export default function WorkflowRolesConfig({
                     </div>
                   </div>
 
-                  {/* フロー情報 */}
+                  {/* Flow info */}
                   <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
                     <span>
                       入力:{' '}
@@ -455,7 +455,7 @@ export default function WorkflowRolesConfig({
               )}
             </div>
 
-            {/* バトン矢印（最後のロール以外） */}
+            {/* Baton arrow (except last role) */}
             {index < ROLE_ORDER.length - 1 && (
               <div className="flex items-center justify-center py-1.5">
                 <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">

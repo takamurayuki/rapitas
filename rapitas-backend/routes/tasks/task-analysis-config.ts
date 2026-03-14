@@ -1,6 +1,6 @@
 /**
  * Task Analysis Config API Routes
- * タスク分析設定の保存・取得API
+ * Save and retrieve task analysis config
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";
@@ -8,7 +8,7 @@ import { prisma } from "../../config/database";
 export const taskAnalysisConfigRoutes = new Elysia({
   prefix: "/task-analysis-config",
 })
-  // タスク分析設定の取得
+  
   .get("/:taskId", async (context) => {
       const { params, set  } = context;
     const taskId = parseInt(params.taskId);
@@ -36,7 +36,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     return config;
   })
 
-  // タスク分析設定の作成または更新（upsert）
+  
   .put(
     "/:taskId",
     async (context) => {
@@ -61,14 +61,14 @@ export const taskAnalysisConfigRoutes = new Elysia({
       };
       const taskId = parseInt(params.taskId);
 
-      // タスクの存在確認
+      
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
         set.status = 404;
         return { error: "Task not found" };
       }
 
-      // バリデーション
+      
       if (body.analysisDepth && !["quick", "standard", "deep"].includes(body.analysisDepth)) {
         set.status = 400;
         return { error: "Invalid analysisDepth. Must be: quick, standard, deep" };
@@ -90,7 +90,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         return { error: "maxSubtasks must be between 1 and 50" };
       }
 
-      // agentConfigIdの存在確認
+      
       if (body.agentConfigId) {
         const agentConfig = await prisma.aIAgentConfig.findUnique({
           where: { id: body.agentConfigId },
@@ -157,7 +157,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     }
   )
 
-  // タスク分析設定の部分更新
+  
   .patch(
     "/:taskId",
     async (context) => {
@@ -191,7 +191,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
         return { error: "Task analysis config not found. Use PUT to create." };
       }
 
-      // バリデーション
+      
       if (body.analysisDepth && !["quick", "standard", "deep"].includes(body.analysisDepth)) {
         set.status = 400;
         return { error: "Invalid analysisDepth. Must be: quick, standard, deep" };
@@ -246,7 +246,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     }
   )
 
-  // タスク分析設定の削除（デフォルトに戻す）
+  // Delete task analysis config (reset to defaults)
   .delete("/:taskId", async (context) => {
       const { params, set  } = context;
     const taskId = parseInt(params.taskId);
@@ -267,7 +267,7 @@ export const taskAnalysisConfigRoutes = new Elysia({
     return { success: true, message: "Task analysis config deleted" };
   })
 
-  // デフォルト設定値の取得
+  // Get default config values
   .get("/defaults/values", async () => {
     return {
       analysisDepth: "standard",

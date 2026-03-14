@@ -1,8 +1,8 @@
 /**
- * エージェント間知識共有サービス
+ * AgentKnowledgeSharing
  *
- * あるエージェントの学習結果（成功パターン、失敗パターン、プロンプト進化）を
- * 別のエージェント実行時にコンテキストとして注入する
+ * Injects learning results (success/failure patterns, prompt evolutions) from
+ * previous agent executions as context for new agent runs.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -35,7 +35,10 @@ interface SharedKnowledge {
 }
 
 /**
- * タスク実行前に、関連する学習パターンとナレッジをコンテキストとして収集
+ * Gather relevant learning patterns and knowledge as context before task execution.
+ *
+ * @param taskId - Target task ID / 対象タスクID
+ * @returns Shared knowledge context / 共有知識コンテキスト
  */
 export async function gatherSharedKnowledge(taskId: number): Promise<SharedKnowledge> {
   const result: SharedKnowledge = {
@@ -56,16 +59,9 @@ export async function gatherSharedKnowledge(taskId: number): Promise<SharedKnowl
 
     if (!task) return result;
 
-    // 1. 関連する学習パターンを取得
     result.patterns = await findRelevantPatterns(task);
-
-    // 2. 関連するナレッジエントリを取得
     result.relevantKnowledge = await findRelevantKnowledgeForAgent(task);
-
-    // 3. 最新のプロンプト進化を取得
     result.promptEvolutions = await getLatestPromptEvolutions();
-
-    // 4. 失敗パターンから警告を生成
     result.warnings = await generateWarnings(task);
 
     log.info(
@@ -86,19 +82,18 @@ export async function gatherSharedKnowledge(taskId: number): Promise<SharedKnowl
 }
 
 /**
- * 共有知識をプロンプトテキストに変換（エージェント実行時に注入）
+ * Convert shared knowledge into prompt text for injection during agent execution.
  */
 export function formatKnowledgeContext(knowledge: SharedKnowledge): string {
   const sections: string[] = [];
 
-  // 警告（最優先）
+  // Warnings take highest priority
   if (knowledge.warnings.length > 0) {
     sections.push(
       '⚠️ 過去の失敗パターンに基づく警告:\n' + knowledge.warnings.map((w) => `- ${w}`).join('\n'),
     );
   }
 
-  // 成功パターン
   const successPatterns = knowledge.patterns.filter((p) => p.type === 'success_strategy');
   if (successPatterns.length > 0) {
     sections.push(
@@ -112,7 +107,6 @@ export function formatKnowledgeContext(knowledge: SharedKnowledge): string {
     );
   }
 
-  // 関連ナレッジ
   if (knowledge.relevantKnowledge.length > 0) {
     sections.push(
       '📚 関連する既存ナレッジ:\n' +
@@ -132,7 +126,7 @@ export function formatKnowledgeContext(knowledge: SharedKnowledge): string {
 }
 
 /**
- * エージェント実行完了後に学習パターンを更新
+ * Update learning patterns after agent execution completes.
  */
 export async function updatePatternsFromExecution(
   taskId: number,
@@ -149,14 +143,12 @@ export async function updatePatternsFromExecution(
 
     if (!task) return;
 
-    // タスクのカテゴリを推定
     const category = inferTaskCategory(
       task.title,
       task.taskLabels.map((tl) => tl.label.name),
     );
 
     if (success) {
-      // 成功パターンの更新/作成
       await upsertPattern({
         patternType: 'success_strategy',
         category,
@@ -170,7 +162,6 @@ export async function updatePatternsFromExecution(
         executionId,
       });
     } else {
-      // 失敗パターンの更新/作成
       const execution = await prisma.agentExecution.findUnique({
         where: { id: executionId },
         select: { errorMessage: true },
@@ -200,7 +191,7 @@ export async function updatePatternsFromExecution(
   }
 }
 
-// ──── 内部ヘルパー ────
+// ──── Internal helpers ────
 
 async function findRelevantPatterns(task: {
   title: string;
@@ -210,7 +201,6 @@ async function findRelevantPatterns(task: {
   const keywords = extractKeywords(task.title);
   const labels = task.taskLabels.map((tl) => tl.label.name);
 
-  // 高信頼度のパターンを取得
   const patterns = await prisma.learningPattern.findMany({
     where: {
       confidence: { gte: 0.4 },
@@ -219,14 +209,13 @@ async function findRelevantPatterns(task: {
     take: 30,
   });
 
-  // 関連度でフィルタ
+  // Filter and rank by relevance
   return patterns
     .map((p) => {
       let relevance = 0;
       try {
         const conditions = JSON.parse(p.conditions);
 
-        // キーワードマッチ
         if (conditions.titleKeywords) {
           const matchCount = (conditions.titleKeywords as string[]).filter((kw: string) =>
             keywords.includes(kw),
@@ -234,7 +223,6 @@ async function findRelevantPatterns(task: {
           relevance += matchCount * 10;
         }
 
-        // ラベルマッチ
         if (conditions.labels) {
           const matchCount = (conditions.labels as string[]).filter((l: string) =>
             labels.includes(l),
@@ -242,18 +230,16 @@ async function findRelevantPatterns(task: {
           relevance += matchCount * 15;
         }
 
-        // テーママッチ
         if (conditions.themeId && conditions.themeId === task.themeId) {
           relevance += 20;
         }
 
-        // カテゴリマッチ
         const taskCategory = inferTaskCategory(task.title, labels);
         if (p.category === taskCategory) {
           relevance += 10;
         }
       } catch {
-        // conditionsのパースに失敗した場合はカテゴリマッチのみ
+        // NOTE: On conditions parse failure, fall back to category match only
         const taskCategory = inferTaskCategory(task.title, labels);
         if (p.category === taskCategory) relevance += 10;
       }
@@ -312,7 +298,7 @@ async function findRelevantKnowledgeForAgent(task: {
     take: 5,
   });
 
-  // テーマ一致を優先
+  // Prioritize theme matches
   return entries
     .sort((a, b) => {
       const aBonus = a.themeId === task.themeId ? 100 : 0;
@@ -356,7 +342,6 @@ async function generateWarnings(task: {
   const warnings: string[] = [];
   const keywords = extractKeywords(task.title);
 
-  // 失敗パターンを検索
   const failurePatterns = await prisma.learningPattern.findMany({
     where: {
       patternType: { in: ['failure_pattern', 'anti_pattern'] },
@@ -371,7 +356,6 @@ async function generateWarnings(task: {
     try {
       const conditions = JSON.parse(pattern.conditions);
 
-      // キーワードマッチ
       if (conditions.titleKeywords) {
         const matchCount = (conditions.titleKeywords as string[]).filter((kw: string) =>
           keywords.includes(kw),
@@ -384,7 +368,6 @@ async function generateWarnings(task: {
         }
       }
 
-      // カテゴリマッチ
       const taskCategory = inferTaskCategory(
         task.title,
         task.taskLabels.map((tl) => tl.label.name),
@@ -463,7 +446,6 @@ async function upsertPattern(input: {
   actions: string;
   executionId: number;
 }): Promise<void> {
-  // 類似パターンを検索
   const existing = await prisma.learningPattern.findFirst({
     where: {
       patternType: input.patternType,
@@ -473,7 +455,6 @@ async function upsertPattern(input: {
   });
 
   if (existing) {
-    // 既存パターンの出現回数と信頼度を更新
     const newConfidence = Math.min(1.0, existing.confidence + 0.05 * (1 - existing.confidence));
 
     await prisma.learningPattern.update({

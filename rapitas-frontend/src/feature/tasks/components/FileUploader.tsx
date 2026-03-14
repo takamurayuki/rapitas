@@ -20,10 +20,9 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('FileUploader');
 
-// ダウンロード状態の型
+// Download state type
 type DownloadState = 'idle' | 'downloading' | 'completed';
 
-// ファイルをダウンロードする関数
 async function downloadFile(url: string, fileName: string) {
   try {
     const response = await fetch(url);
@@ -65,14 +64,14 @@ export default function FileUploader({
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ダウンロード処理（アニメーション付き）
+  // Download with animation feedback
   const handleDownload = useCallback(
     async (resourceId: number, url: string, fileName: string) => {
       setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
       try {
         await downloadFile(url, fileName);
         setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
-        // 2秒後にアイドル状態に戻す
+        // Reset to idle after 2 seconds
         setTimeout(() => {
           setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
         }, 2000);
@@ -84,7 +83,6 @@ export default function FileUploader({
     [],
   );
 
-  // ファイルをアップロード（FileList用）
   const uploadFiles = useCallback(
     async (files: FileList) => {
       setIsUploading(true);
@@ -118,7 +116,7 @@ export default function FileUploader({
     [taskId, onResourcesChange],
   );
 
-  // ブラウザのネイティブドラッグイベント（Tauri環境でもdragDropEnabled: trueで動作）
+  // NOTE: Native browser drag events (works in Tauri with dragDropEnabled: true)
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();

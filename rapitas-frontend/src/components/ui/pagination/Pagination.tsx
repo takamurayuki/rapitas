@@ -23,7 +23,7 @@ export default function Pagination({
 
   return (
     <div className="mt-6 flex items-center justify-center gap-3">
-      {/* 表示件数 */}
+      {/* Items per page */}
       <div className="flex items-center gap-1">
         {itemsPerPageOptions.map((count) => (
           <button
@@ -45,7 +45,7 @@ export default function Pagination({
 
       <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700"></div>
 
-      {/* ページネーションコントロール */}
+      {/* Pagination controls */}
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(1)}

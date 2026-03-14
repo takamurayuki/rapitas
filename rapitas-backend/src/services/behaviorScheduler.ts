@@ -22,7 +22,7 @@ export class BehaviorScheduler {
         log.info('[BehaviorScheduler] Updating daily behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'daily');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
     // Update weekly summary at midnight daily
     const weeklyInterval = setInterval(async () => {
@@ -31,7 +31,7 @@ export class BehaviorScheduler {
         log.info('[BehaviorScheduler] Updating weekly behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'weekly');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
     // Update monthly summary at midnight on the 1st of each month
     const monthlyInterval = setInterval(async () => {
@@ -40,7 +40,7 @@ export class BehaviorScheduler {
         log.info('[BehaviorScheduler] Updating monthly behavior summary');
         await UserBehaviorService.updateBehaviorSummary(1, 'monthly');
       }
-    }, 60 * 1000); // 1分ごとにチェック
+    }, 60 * 1000); // Check every minute
 
     // Execute knowledge consolidation at midnight daily
     const consolidationInterval = setInterval(async () => {

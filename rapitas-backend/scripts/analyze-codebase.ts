@@ -1342,27 +1342,27 @@ function collectDependencyMetrics(): AnalysisResult['dependencies'] {
 // ─── Feature Completeness (Enhanced Proportional Scoring) ─────────────────────
 
 const FEATURE_AREAS_CONFIG = [
-  { name: 'タスク管理', keywords: ['task', 'tasks'] },
-  { name: 'ポモドーロ/時間管理', keywords: ['pomodoro', 'time-entr', 'timer', 'time-management'] },
+  { name: 'Task Management', keywords: ['task', 'tasks'] },
+  { name: 'Pomodoro/Time Management', keywords: ['pomodoro', 'time-entr', 'timer', 'time-management'] },
   {
-    name: 'AIエージェント',
+    name: 'AI Agent',
     keywords: ['agent', 'ai-agent', 'ai-chat', 'claude'],
   },
-  { name: 'ワークフロー', keywords: ['workflow'] },
-  { name: 'GitHub連携', keywords: ['github'] },
-  { name: '認証', keywords: ['auth', 'login', 'register', 'session', 'authcontext'] },
-  { name: '通知', keywords: ['notification', 'notify', 'sse', 'realtime'] },
-  { name: '検索', keywords: ['search', 'filter', 'icon-search'] },
+  { name: 'Workflow', keywords: ['workflow'] },
+  { name: 'GitHub Integration', keywords: ['github'] },
+  { name: 'Authentication', keywords: ['auth', 'login', 'register', 'session', 'authcontext'] },
+  { name: 'Notifications', keywords: ['notification', 'notify', 'sse', 'realtime'] },
+  { name: 'Search', keywords: ['search', 'filter', 'icon-search'] },
   {
-    name: 'カレンダー/スケジュール',
+    name: 'Calendar/Schedule',
     keywords: ['calendar', 'schedule', 'daily-schedule'],
   },
   {
-    name: '学習/習慣',
+    name: 'Learning/Habits',
     keywords: ['habit', 'study', 'learning', 'flashcard', 'exam', 'streak'],
   },
   {
-    name: '分析/レポート',
+    name: 'Analytics/Reports',
     keywords: ['report', 'statistic', 'analytics', 'burnup', 'progress'],
   },
 ];
@@ -1782,105 +1782,105 @@ function computeScoring(
   const suggestions: string[] = [];
 
   // Strengths
-  if (qualityScore >= 70) strengths.push(`高い品質スコア（${qualityScore}/100）`);
-  if (maintainabilityScore >= 70) strengths.push(`良好な保守性（${maintainabilityScore}/100）`);
+  if (qualityScore >= 70) strengths.push(`High quality score (${qualityScore}/100)`);
+  if (maintainabilityScore >= 70) strengths.push(`Good maintainability (${maintainabilityScore}/100)`);
   if (maintainability.duplicationRatio < 0.03)
     strengths.push(
-      `コード重複が少ない（重複率: ${(maintainability.duplicationRatio * 100).toFixed(1)}%）`,
+      `Low code duplication (duplication ratio: ${(maintainability.duplicationRatio * 100).toFixed(1)}%)`,
     );
-  if (quality.anyUsage < 20) strengths.push(`型安全性が高い（any使用: ${quality.anyUsage}箇所）`);
-  if (quality.consoleLogCount < 10) strengths.push(`ログ出力が適切に管理されている`);
-  if (security.summary.high === 0) strengths.push(`重大なセキュリティリスクが検出されていない`);
-  if (archHealth.layerViolations.length === 0) strengths.push(`レイヤー間の依存関係が適切`);
+  if (quality.anyUsage < 20) strengths.push(`High type safety (any usage: ${quality.anyUsage} locations)`);
+  if (quality.consoleLogCount < 10) strengths.push(`Log output is properly managed`);
+  if (security.summary.high === 0) strengths.push(`No critical security risks detected`);
+  if (archHealth.layerViolations.length === 0) strengths.push(`Proper inter-layer dependencies`);
   if (assertionsPerTest >= 5)
     strengths.push(
-      `テストの品質が高い（平均${assertionsPerTest.toFixed(1)}アサーション/テストファイル）`,
+      `High test quality (average ${assertionsPerTest.toFixed(1)} assertions per test file)`,
     );
 
   const strongFeatures = features.filter((f) => f.score >= 75);
   if (strongFeatures.length > 0) {
-    strengths.push(`高カバレッジ機能: ${strongFeatures.map((f) => f.name).join(', ')}`);
+    strengths.push(`High coverage features: ${strongFeatures.map((f) => f.name).join(', ')}`);
   }
 
   // Weaknesses
   if (quality.testRatio < 0.3)
     weaknesses.push(
-      `テストカバレッジが不十分（テスト比率: ${(quality.testRatio * 100).toFixed(1)}%、推奨: 50%+）`,
+      `Insufficient test coverage (test ratio: ${(quality.testRatio * 100).toFixed(1)}%, recommended: 50%+)`,
     );
   if (maintainability.duplicationRatio > 0.05)
     weaknesses.push(
-      `コード重複が多い（重複率: ${(maintainability.duplicationRatio * 100).toFixed(1)}%、${maintainability.totalDuplicatedLines}行）`,
+      `High code duplication (duplication ratio: ${(maintainability.duplicationRatio * 100).toFixed(1)}%, ${maintainability.totalDuplicatedLines} lines)`,
     );
   if (maintainability.fileSizeScore < 70)
     weaknesses.push(
-      `大きすぎるファイルが多い（500行以下のファイル率: ${maintainability.fileSizeScore}%）`,
+      `Too many oversized files (files under 500 lines: ${maintainability.fileSizeScore}%)`,
     );
   if (maintainability.avgCyclomaticComplexity > 40)
-    weaknesses.push(`循環的複雑度が高い（平均: ${maintainability.avgCyclomaticComplexity}）`);
-  if (quality.anyUsage > 50) weaknesses.push(`any型の使用が多い（${quality.anyUsage}箇所）`);
+    weaknesses.push(`High cyclomatic complexity (average: ${maintainability.avgCyclomaticComplexity})`);
+  if (quality.anyUsage > 50) weaknesses.push(`High usage of any type (${quality.anyUsage} locations)`);
   if (quality.emptyTryCatchCount > 0)
     weaknesses.push(
-      `空のcatchブロック（${quality.emptyTryCatchCount}箇所）- エラーが無視されている`,
+      `Empty catch blocks (${quality.emptyTryCatchCount} locations) - errors are being ignored`,
     );
   if (complexity.godObjects.length > 0)
-    weaknesses.push(`God Object検出: ${complexity.godObjects.length}ファイル`);
+    weaknesses.push(`God Object detected: ${complexity.godObjects.length} files`);
   if (complexity.filesOver1000Lines > 5)
-    weaknesses.push(`1000行超のファイルが${complexity.filesOver1000Lines}個`);
+    weaknesses.push(`${complexity.filesOver1000Lines} files over 1000 lines`);
   if (archHealth.layerViolations.length > 0)
-    weaknesses.push(`レイヤー違反: ${archHealth.layerViolations.length}件`);
+    weaknesses.push(`Layer violations: ${archHealth.layerViolations.length} cases`);
   if (arch.prisma.oversizedModels.length > 0) {
     weaknesses.push(
-      `巨大なPrismaモデル: ${arch.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount}フィールド)`).join(', ')}`,
+      `Oversized Prisma models: ${arch.prisma.oversizedModels.map((m) => `${m.name}(${m.fieldCount} fields)`).join(', ')}`,
     );
   }
 
   const weakFeatures = features.filter((f) => f.score < 50);
   if (weakFeatures.length > 0) {
-    weaknesses.push(`低カバレッジ機能: ${weakFeatures.map((f) => f.name).join(', ')}`);
+    weaknesses.push(`Low coverage features: ${weakFeatures.map((f) => f.name).join(', ')}`);
   }
 
   // Suggestions (prioritized)
   if (quality.testRatio < 0.3) {
     const untestedCount = features.reduce((sum, f) => sum + f.untestedSourceFiles.length, 0);
     suggestions.push(
-      `[P0] テスト拡充 - ${untestedCount}個の未テストソースファイル（現在${(quality.testRatio * 100).toFixed(0)}% → 目標50%+）`,
+      `[P0] Expand testing - ${untestedCount} untested source files (current ${(quality.testRatio * 100).toFixed(0)}% → target 50%+)`,
     );
   }
   if (maintainability.duplicationRatio > 0.05) {
     suggestions.push(
-      `[P0] コード重複の解消 - ${maintainability.duplicatedBlocks.length}箇所の重複ブロックを共通化`,
+      `[P0] Eliminate code duplication - consolidate ${maintainability.duplicatedBlocks.length} duplicate blocks`,
     );
   }
   if (complexity.godObjects.length > 0) {
     suggestions.push(
-      `[P0] God Objectのリファクタリング - ${complexity.godObjects.slice(0, 3).join(', ')} を分割`,
+      `[P0] God Object refactoring - split ${complexity.godObjects.slice(0, 3).join(', ')}`,
     );
   }
   if (complexity.filesOver1000Lines > 10) {
     suggestions.push(
-      `[P0] 大ファイルの分割 - 1000行超のファイル${complexity.filesOver1000Lines}個を500行以下に分割`,
+      `[P0] Split large files - split ${complexity.filesOver1000Lines} files over 1000 lines to under 500 lines`,
     );
   }
   if (security.summary.high > 0) {
-    suggestions.push(`[P0] セキュリティ修正 - ${security.summary.high}件の高リスク検出を修正`);
+    suggestions.push(`[P0] Security fixes - fix ${security.summary.high} high-risk detections`);
   }
   if (quality.emptyTryCatchCount > 0) {
     suggestions.push(
-      `[P1] 空のcatchブロック${quality.emptyTryCatchCount}箇所にエラーハンドリングを追加`,
+      `[P1] Add error handling to ${quality.emptyTryCatchCount} empty catch blocks`,
     );
   }
   if (archHealth.layerViolations.length > 0) {
     suggestions.push(
-      `[P1] レイヤー違反の解消 - ${archHealth.layerViolations.length}件の不正なimportを修正`,
+      `[P1] Fix layer violations - fix ${archHealth.layerViolations.length} improper imports`,
     );
   }
   if (arch.prisma.oversizedModels.length > 0) {
     suggestions.push(
-      `[P2] 巨大Prismaモデルの正規化（${arch.prisma.oversizedModels[0]?.name}: ${arch.prisma.oversizedModels[0]?.fieldCount}フィールド）`,
+      `[P2] Normalize oversized Prisma models (${arch.prisma.oversizedModels[0]?.name}: ${arch.prisma.oversizedModels[0]?.fieldCount} fields)`,
     );
   }
   if (weakFeatures.length > 0) {
-    suggestions.push(`[P2] 機能拡充: ${weakFeatures.map((f) => f.name).join(', ')}`);
+    suggestions.push(`[P2] Feature enhancement: ${weakFeatures.map((f) => f.name).join(', ')}`);
   }
 
   return {
@@ -2289,18 +2289,18 @@ ${scoring.suggestions.length > 0 ? scoring.suggestions.map((s) => `- ${s}`).join
 Use the following prompt with \`analysis-result.json\` for detailed AI evaluation:
 
 \`\`\`
-以下はRapitasプロジェクトのコードベース自動分析結果です。
-このデータを基に、以下の観点で評価・提案を行ってください：
+Below are the automated analysis results for the Rapitas project codebase.
+Based on this data, please provide evaluations and proposals from the following perspectives:
 
-1. アーキテクチャの成熟度（1-10）と根拠
-2. コード品質の評価（1-10）と具体的な改善箇所
-3. 機能完成度の評価（1-10）と不足している機能
-4. 技術的負債の特定と優先順位付き解消計画
-5. スケーラビリティの評価と改善提案
-6. セキュリティリスクの特定
-7. 次の開発スプリントで取り組むべきTop5タスク
+1. Architecture maturity (1-10) and rationale
+2. Code quality evaluation (1-10) and specific improvement areas
+3. Feature completeness evaluation (1-10) and missing features
+4. Technical debt identification and prioritized resolution plan
+5. Scalability evaluation and improvement proposals
+6. Security risk identification
+7. Top 5 tasks to tackle in the next development sprint
 
-[analysis-result.json の内容をここに貼り付け]
+[Paste the contents of analysis-result.json here]
 \`\`\`
 `;
 

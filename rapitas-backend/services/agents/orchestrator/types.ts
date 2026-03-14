@@ -1,6 +1,8 @@
 /**
- * オーケストレーター共通型定義
- * 循環依存を防ぐため、全モジュールで使用する型をここに集約
+ * Orchestrator Shared Type Definitions
+ *
+ * All types used across orchestrator modules are centralized here
+ * to prevent circular dependencies.
  */
 import { PrismaClient } from '@prisma/client';
 export type PrismaClientInstance = InstanceType<typeof PrismaClient>;
@@ -18,9 +20,9 @@ export type ExecutionOptions = {
   timeout?: number;
   requireApproval?: boolean;
   onOutput?: AgentOutputHandler;
-  /** AIタスク分析結果（有効な場合に渡される） */
+  /** AI task analysis result (passed when analysis is enabled). */
   analysisInfo?: TaskAnalysisInfo;
-  /** 前回の実行からの継続であることを示すフラグ */
+  /** Flag indicating continuation from a previous execution. */
   continueFromPrevious?: boolean;
   branchName?: string;
 };
@@ -52,7 +54,7 @@ export type OrchestratorEvent = {
 export type EventListener = (event: OrchestratorEvent) => void;
 
 /**
- * アクティブなエージェントの追跡情報
+ * Tracking info for an active agent.
  */
 export type ActiveAgentInfo = {
   agent: BaseAgent;
@@ -66,8 +68,8 @@ export type ActiveAgentInfo = {
 };
 
 /**
- * オーケストレーターの共有コンテキスト
- * 各モジュールが必要とする共有状態とメソッドへのアクセスを提供
+ * Orchestrator shared context.
+ * Provides access to shared state and methods needed by each module.
  */
 export type OrchestratorContext = {
   prisma: PrismaClientInstance;

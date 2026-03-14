@@ -18,10 +18,10 @@ export default function DeleteNoteModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* オーバーレイ */}
+      {/* Overlay */}
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
-      {/* モーダルコンテンツ */}
+      {/* Modal content */}
       <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-shrink-0 w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">

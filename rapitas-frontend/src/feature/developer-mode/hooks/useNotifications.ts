@@ -143,7 +143,7 @@ export function useNotifications() {
     return false;
   }, []);
 
-  // 初回マウント時に未読数を取得
+  // Fetch unread count on initial mount
   useEffect(() => {
     fetchUnreadCount();
   }, [fetchUnreadCount]);

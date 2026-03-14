@@ -1,6 +1,7 @@
 /**
- * リカバリ管理
- * 中断された実行の検出、復旧、再開を担当
+ * RecoveryManager
+ *
+ * Detects, recovers, and resumes interrupted executions.
  */
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput, AgentType } from '../agent-factory';
@@ -26,7 +27,7 @@ import {
 const logger = createLogger('recovery-manager');
 
 /**
- * 中断されたセッションを取得
+ * Get interrupted executions.
  */
 export async function getInterruptedExecutions(prisma: OrchestratorContext['prisma']): Promise<
   Array<{
@@ -53,7 +54,7 @@ export async function getInterruptedExecutions(prisma: OrchestratorContext['pris
 }
 
 /**
- * サーバー起動時のリカバリ処理
+ * Recover stale executions on server startup.
  */
 export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<{
   recoveredExecutions: number;
@@ -136,7 +137,6 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       }
     }
 
-    // 影響を受けたセッションのステータスを更新
     for (const sessionId of affectedSessionIds) {
       try {
         const activeCount = await ctx.prisma.agentExecution.count({
@@ -162,7 +162,6 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       }
     }
 
-    // 影響を受けたタスクのステータスを更新
     for (const taskId of affectedTaskIds) {
       try {
         const task = await ctx.prisma.task.findUnique({
@@ -183,7 +182,6 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
       }
     }
 
-    // 通知を作成
     if (recoveredExecutions > 0) {
       try {
         await ctx.prisma.notification.create({
@@ -220,7 +218,7 @@ export async function recoverStaleExecutions(ctx: OrchestratorContext): Promise<
 }
 
 /**
- * 中断された実行を再開する
+ * Resume an interrupted execution.
  */
 export async function resumeInterruptedExecution(
   ctx: OrchestratorContext,
@@ -277,7 +275,6 @@ export async function resumeInterruptedExecution(
     );
   }
 
-  // 前回の実行ログを取得して要約を作成
   const previousOutput = execution.output || '';
   const lastOutput = previousOutput.slice(-3000);
 
@@ -293,7 +290,6 @@ export async function resumeInterruptedExecution(
     execution.errorMessage,
   );
 
-  // エージェント設定を取得
   let agentConfig: AgentConfigInput = {
     type: 'claude-code',
     name: 'Claude Code Agent',
@@ -340,7 +336,6 @@ export async function resumeInterruptedExecution(
   const agent = agentFactory.createAgent(agentConfig);
   const taskId = task.id;
 
-  // ファイルロガーを初期化
   const fileLogger = new ExecutionFileLogger(
     execution.id,
     execution.sessionId,
@@ -357,7 +352,6 @@ export async function resumeInterruptedExecution(
     errorMessage: execution.errorMessage,
   });
 
-  // 実行状態を追跡
   const state: ExecutionState = {
     executionId: execution.id,
     sessionId: execution.sessionId,
@@ -389,7 +383,6 @@ export async function resumeInterruptedExecution(
     throw new Error('Server is shutting down, cannot resume execution');
   }
 
-  // 質問検出ハンドラを設定
   setupQuestionDetectedHandler(agent, {
     prisma: ctx.prisma,
     executionId: execution.id,
@@ -403,7 +396,6 @@ export async function resumeInterruptedExecution(
     getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
   });
 
-  // ログチャンク管理
   const existingLogs = await ctx.prisma.agentExecutionLog.findMany({
     where: { executionId: execution.id },
     orderBy: { sequenceNumber: 'desc' },
@@ -418,7 +410,6 @@ export async function resumeInterruptedExecution(
 
   const cleanupLogHandler = logManager.cleanup;
 
-  // 出力ハンドラを設定
   setupOutputHandler(
     agent,
     {
@@ -435,7 +426,6 @@ export async function resumeInterruptedExecution(
     logManager,
   );
 
-  // 再開メッセージを追加
   const resumeMessage = `\n[再開] 中断された作業を再開します...\n`;
   state.output += resumeMessage;
 
@@ -448,7 +438,6 @@ export async function resumeInterruptedExecution(
     },
   });
 
-  // 実行開始イベント
   ctx.emitEvent({
     type: 'execution_started',
     executionId: execution.id,
@@ -510,7 +499,7 @@ export async function resumeInterruptedExecution(
 }
 
 /**
- * 再開用のプロンプトを構築
+ * Build a resume prompt with context from the previous execution.
  */
 export function buildResumePrompt(
   task: { title: string; description: string | null },

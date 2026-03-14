@@ -28,7 +28,7 @@ type FileViewerProps = {
   resource: Resource;
   isOpen: boolean;
   onClose: () => void;
-  resources?: Resource[]; // 同じタスクの他のリソース（ナビゲーション用）
+  resources?: Resource[]; // Other resources in the same task (for navigation)
   onNavigate?: (resource: Resource) => void;
 };
 
@@ -46,7 +46,7 @@ export default function FileViewer({
   const [imageRotation, setImageRotation] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ファイルURLを取得
+  // Get file URL
   const getFileUrl = (res: Resource) => {
     if (res.filePath) {
       return `${API_BASE_URL}/resources/file/${res.filePath}`;
@@ -55,7 +55,7 @@ export default function FileViewer({
     return res.url || '';
   };
 
-  // ダウンロードURLを取得
+  // Get download URL
   const getDownloadUrl = (res: Resource) => {
     if (res.filePath) {
       return `${API_BASE_URL}/resources/download/${res.filePath}`;
@@ -63,7 +63,7 @@ export default function FileViewer({
     return res.url || '';
   };
 
-  // ファイルタイプを判定
+  // Determine file type
   const getFileType = (res: Resource): string => {
     const mimeType = res.mimeType || '';
     const fileName = res.fileName || res.title || '';
@@ -75,7 +75,7 @@ export default function FileViewer({
     if (mimeType === 'application/pdf' || res.type === 'pdf') {
       return 'pdf';
     }
-    // マークダウンファイルを別途判定
+    // Detect markdown files separately
     if (ext === 'md' || mimeType === 'text/markdown') {
       return 'markdown';
     }
@@ -102,7 +102,7 @@ export default function FileViewer({
     return 'other';
   };
 
-  // テキストファイルを読み込み
+  // Load text file content
   useEffect(() => {
     const fileType = getFileType(resource);
     if (!isOpen || (fileType !== 'text' && fileType !== 'markdown')) return;
@@ -122,7 +122,7 @@ export default function FileViewer({
               'text/plain, text/markdown, text/html, application/json, text/*',
           },
           mode: 'cors',
-          credentials: 'omit', // 認証情報を送信しない
+          credentials: 'omit', // Do not send credentials for static file requests
         });
 
         if (!res.ok) {
@@ -144,12 +144,12 @@ export default function FileViewer({
     loadFile();
   }, [isOpen, resource]);
 
-  // 画像の読み込み完了時
+  // On image load complete
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     setIsLoading(false);
   };
 
-  // 画像の読み込みエラー時
+  // On image load error
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     logger.error('Image load error:', e);
     const url = getFileUrl(resource);
@@ -158,7 +158,7 @@ export default function FileViewer({
     setIsLoading(false);
   };
 
-  // ナビゲーション
+  // Navigation
   const currentIndex = resources.findIndex((r) => r.id === resource.id);
   const canNavigatePrev = currentIndex > 0;
   const canNavigateNext = currentIndex < resources.length - 1;
@@ -175,7 +175,7 @@ export default function FileViewer({
     }
   };
 
-  // キーボードナビゲーション
+  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 

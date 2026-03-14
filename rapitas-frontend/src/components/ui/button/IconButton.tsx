@@ -42,7 +42,7 @@ export default function IconButton({
   const base =
     'inline-flex items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-zinc-900';
 
-  // ghost バリアントは IconButton 専用のスタイルを使用
+  // ghost variant uses IconButton-specific styles
   const getVariantStyle = (v: IconButtonVariant): string => {
     if (v === 'ghost') {
       return iconButtonGhostStyle;

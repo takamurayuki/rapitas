@@ -1,6 +1,6 @@
 /**
- * 通知設定管理用カスタムフック
- * localStorageに設定を永続化し、トグル操作を提供する
+ * Custom hook for notification preferences management
+ * Persists settings to localStorage and provides toggle operations
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -39,7 +39,7 @@ export function useNotificationPreferences() {
   const [preferences, setPreferences] =
     useState<NotificationPreferences>(loadPreferences);
 
-  // クライアントサイドでマウント時にlocalStorageから再読み込み
+  // Reload from localStorage on client-side mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
     setPreferences(loadPreferences());

@@ -47,13 +47,13 @@ const extractFilePaths = (text: string | null): string[] => {
   if (!text) return [];
 
   const patterns = [
-    // Unix/Mac パス
+    // Unix/Mac paths
     /(?:^|\s|["'`])([\/][\w\-\.\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // Windows パス
+    // Windows paths
     /(?:^|\s|["'`])([A-Za-z]:[\\\/][\w\-\.\\\/]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // 相対パス
+    // Relative paths
     /(?:^|\s|["'`])(\.{0,2}[\/\\][\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
-    // src/components/... 形式
+    // src/components/... style paths
     /(?:^|\s|["'`])((?:src|lib|app|components|pages|features?|services?|utils?|hooks?|types?|api|routes?)[\w\-\.\/\\]+\.[a-zA-Z]{1,10})(?:\s|["'`]|$)/g,
   ];
 

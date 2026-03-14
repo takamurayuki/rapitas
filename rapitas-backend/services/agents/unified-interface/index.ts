@@ -1,19 +1,19 @@
 /**
- * AIエージェント統一インターフェース型定義
+ * AI Agent Unified Interface Type Definitions
  *
- * 複数AIプロバイダー（Claude, OpenAI, Gemini等）を
- * 同一インターフェースで操作するための型定義
+ * Provides a common interface for operating multiple AI providers
+ * (Claude, OpenAI, Gemini, etc.) through a single API.
  *
- * このモジュールは以下の責務に分割されている:
- * - provider-config: プロバイダー設定関連の型
- * - agent-config: エージェント設定・実行オプション
- * - handlers: イベントハンドラー・コールバック
- * - results: 実行結果・メトリクス
- * - errors: エラーハンドリング
- * - interfaces: プロバイダー・エージェントインターフェース
+ * This module is split into the following concerns:
+ * - provider-config: Provider configuration types
+ * - agent-config: Agent configuration & execution options
+ * - handlers: Event handlers & callbacks
+ * - results: Execution results & metrics
+ * - errors: Error handling
+ * - interfaces: Provider & agent interfaces
  */
 
-// プロバイダー設定
+// Provider configuration
 export type {
   ProviderId,
   ModelInfo,
@@ -25,10 +25,10 @@ export type {
   ValidationResult,
 } from './provider-config';
 
-// エージェント設定・実行オプション
+// Agent configuration & execution options
 export type { AgentInstanceConfig, ExecutionOptions } from './agent-config';
 
-// ハンドラー
+// Handlers
 export type {
   OutputHandler,
   QuestionInfo,
@@ -38,13 +38,13 @@ export type {
   ProgressHandler,
 } from './handlers';
 
-// 実行結果・メトリクス
+// Execution results & metrics
 export type { ExecutionMetrics, ExtendedExecutionResult } from './results';
 
-// エラー
+// Errors
 export { AgentErrorCode, AgentError, isAgentError, isRecoverableError } from './errors';
 
-// インターフェース
+// Interfaces
 export type {
   IAgentProvider,
   IAgent,
@@ -55,10 +55,10 @@ export type {
   ProviderRegistration,
 } from './interfaces';
 
-// ユーティリティ関数
+// Utility functions
 export { getDefaultExecutionOptions, mergeExecutionOptions } from './utilities';
 
-// 既存の型を再エクスポート（利便性のため）
+// Re-export existing types for convenience
 export type {
   AgentCapability,
   AgentStatus,

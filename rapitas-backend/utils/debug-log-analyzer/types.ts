@@ -1,9 +1,9 @@
 /**
- * デバッグログ解析ツール - 型定義
- * ログ解析に使用するすべての型、列挙型、インターフェースを定義
+ * Debug Log Analyzer - Type Definitions
+ *
+ * All types, enums, and interfaces used for log analysis.
  */
 
-// ログのタイプ定義
 export enum LogType {
   JSON = 'json',
   SYSLOG = 'syslog',
@@ -15,7 +15,6 @@ export enum LogType {
   UNKNOWN = 'unknown',
 }
 
-// ログレベルの定義
 export enum LogLevel {
   TRACE = 'trace',
   DEBUG = 'debug',
@@ -25,7 +24,6 @@ export enum LogLevel {
   FATAL = 'fatal',
 }
 
-// パースされたログエントリー
 export interface ParsedLogEntry {
   timestamp?: Date;
   level?: LogLevel;
@@ -36,7 +34,6 @@ export interface ParsedLogEntry {
   type: LogType;
 }
 
-// ログ解析結果
 export interface LogAnalysisResult {
   entries: ParsedLogEntry[];
   summary: {
@@ -57,7 +54,6 @@ export interface LogAnalysisResult {
   };
 }
 
-// ログパターン
 export interface LogPattern {
   pattern: string;
   count: number;
@@ -65,20 +61,17 @@ export interface LogPattern {
   severity?: LogLevel;
 }
 
-// ログパーサーインターフェース
 export interface LogParser {
   canParse(logLine: string): boolean;
   parse(logLine: string): ParsedLogEntry | null;
   type: LogType;
 }
 
-// 解析オプション
 export interface AnalyzeOptions {
   filter?: LogFilter;
   limit?: number;
 }
 
-// ログフィルター
 export interface LogFilter {
   level?: LogLevel;
   startTime?: Date;

@@ -1,28 +1,28 @@
 /**
  * Shared orchestrator singleton instance
  *
- * メインプロセスでは AgentWorkerManager を通じてワーカープロセスに委譲し、
- * エージェント実行をメインプロセスのイベントループから分離する。
+ * In the main process, delegates to worker processes via AgentWorkerManager,
+ * isolating agent execution from the main event loop.
  *
- * AgentWorkerManager は AgentOrchestrator と同じメソッドインターフェースを持ち、
- * IPC経由でワーカープロセスのオーケストレーターに処理を委譲する。
- * SSEブロードキャストはワーカーからのIPCイベントをマネージャーが受信し、
- * realtimeService に転送することで実現する。
+ * AgentWorkerManager shares the same method interface as AgentOrchestrator
+ * and delegates processing to the worker orchestrator via IPC.
+ * SSE broadcasts are achieved by the manager receiving IPC events from workers
+ * and forwarding them to realtimeService.
  */
 import { AgentWorkerManager } from './agents/agent-worker-manager';
 
-// メインプロセスでは AgentWorkerManager を使用
+// Use AgentWorkerManager in the main process
 const workerManager = AgentWorkerManager.getInstance();
 
-// ルーターとの後方互換性のため orchestrator としてエクスポート
+// Export as orchestrator for backward compatibility with routers
 export { workerManager as orchestrator };
 
-// ワーカーマネージャー自体もエクスポート（initialize/shutdown 呼び出し用）
+// Also export the worker manager itself (for initialize/shutdown calls)
 export { workerManager };
 
 /**
- * サーバー停止コールバック
- * index.ts で app.stop() を登録し、system-router のシャットダウンで呼び出す。
+ * Server stop callback.
+ * Registered with app.stop() in index.ts and invoked during system-router shutdown.
  */
 let _serverStopCallback: (() => Promise<void> | void) | null = null;
 

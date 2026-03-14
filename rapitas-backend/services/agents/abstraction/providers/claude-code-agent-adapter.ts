@@ -1,6 +1,7 @@
 /**
  * Claude Code Agent Adapter
- * 既存のClaudeCodeAgentを新しい抽象化レイヤーのIAgentインターフェースに適合させるアダプター
+ *
+ * Adapts the existing ClaudeCodeAgent to the IAgent interface of the abstraction layer.
  */
 
 import type {
@@ -24,8 +25,8 @@ import { ClaudeCodeAgent, ClaudeCodeAgentConfig } from '../../claude-code-agent'
 import type { AgentTask, AgentExecutionResult as LegacyExecutionResult } from '../../base-agent';
 
 /**
- * Claude Code Agent Adapter
- * 既存のClaudeCodeAgentを新しいIAgentインターフェースにアダプト
+ * Claude Code Agent Adapter.
+ * Adapts the legacy ClaudeCodeAgent to the new IAgent interface.
  */
 export class ClaudeCodeAgentAdapter implements IAgent {
   private _state: AgentState = 'idle';
@@ -36,7 +37,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   private _config: ClaudeCodeProviderConfig;
   private _isDisposed = false;
 
-  // 内部で使用する既存のClaudeCodeAgent
+  // Legacy ClaudeCodeAgent used internally
   private _legacyAgent: ClaudeCodeAgent | null = null;
   private _currentSessionId: string | null = null;
 
@@ -76,7 +77,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   // ============================================================================
-  // プロパティ
+  // Properties
   // ============================================================================
 
   get metadata(): AgentMetadata {
@@ -96,7 +97,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   // ============================================================================
-  // 状態管理
+  // State management
   // ============================================================================
 
   private async transitionState(newState: AgentState, reason?: string): Promise<void> {
@@ -106,7 +107,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
     await this._events.emitStateChange(previousState, newState, reason);
 
     if (this._lifecycleHooks.onStateChange) {
-      // コンテキストがない場合はダミーコンテキストを使用
+      // Use dummy context when no real context is available
       const dummyContext: AgentExecutionContext = {
         executionId: 'state-change',
         workingDirectory: process.cwd(),
@@ -116,11 +117,11 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   // ============================================================================
-  // 公開メソッド
+  // Public methods
   // ============================================================================
 
   /**
-   * タスクを実行
+   * Executes a task.
    */
   async execute(
     task: AgentTaskDefinition,
@@ -128,13 +129,13 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   ): Promise<AgentExecutionResult> {
     this.ensureNotDisposed();
 
-    // 実行IDを設定
+    // Set execution ID
     this._events.setExecutionId(context.executionId);
 
     const startTime = new Date();
 
     try {
-      // beforeExecuteフック
+      // beforeExecute hook
       if (this._lifecycleHooks.beforeExecute) {
         const shouldContinue = await this._lifecycleHooks.beforeExecute(context, task);
         if (shouldContinue === false) {
@@ -142,10 +143,10 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         }
       }
 
-      // 状態遷移: idle -> initializing -> running
+      // State transition: idle -> initializing -> running
       await this.transitionState('initializing');
 
-      // 既存のClaudeCodeAgentを作成
+      // Create legacy ClaudeCodeAgent
       const legacyConfig: ClaudeCodeAgentConfig = {
         workingDirectory: context.workingDirectory,
         timeout: context.timeout || this._config.defaultTimeout || 900000,
@@ -161,12 +162,12 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         legacyConfig,
       );
 
-      // 出力ハンドラを設定
+      // Set up output handler
       this._legacyAgent.setOutputHandler((output: string, isError?: boolean) => {
         this._events.emitOutput(output, isError || false, true);
       });
 
-      // 質問検出ハンドラを設定
+      // Set up question detection handler
       this._legacyAgent.setQuestionDetectedHandler((info) => {
         const question: PendingQuestion = {
           questionId: info.questionKey?.question_id || `q-${Date.now()}`,
@@ -185,8 +186,8 @@ export class ClaudeCodeAgentAdapter implements IAgent {
 
       await this.transitionState('running');
 
-      // レガシータスクを作成
-      // task.idがstringの場合は数値に変換（レガシーAPIはnumber型を期待）
+      // Create legacy task
+      // NOTE: Convert string ID to number since the legacy API expects number type
       const taskId = typeof task.id === 'string' ? parseInt(task.id, 10) || 0 : task.id;
 
       const legacyTask: AgentTask = {
@@ -217,18 +218,18 @@ export class ClaudeCodeAgentAdapter implements IAgent {
           : undefined,
       };
 
-      // タスクを実行
+      // Execute task
       const legacyResult = await this._legacyAgent.execute(legacyTask);
 
-      // 結果を変換
+      // Convert result
       const result = this.convertLegacyResult(legacyResult, startTime, context);
 
-      // セッションIDを保存
+      // Save session ID for continuation
       if (legacyResult.claudeSessionId) {
         this._currentSessionId = legacyResult.claudeSessionId;
       }
 
-      // 結果に基づいて状態遷移
+      // Transition state based on result
       if (result.pendingQuestion) {
         await this.transitionState('waiting_for_input');
       } else if (result.success) {
@@ -237,19 +238,19 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         await this.transitionState('failed');
       }
 
-      // afterExecuteフック
+      // afterExecute hook
       if (this._lifecycleHooks.afterExecute) {
         await this._lifecycleHooks.afterExecute(context, result);
       }
 
-      // メタデータ更新
+      // Update metadata
       this._metadata.lastUsedAt = new Date();
 
       return result;
     } catch (error) {
       const agentError = this.wrapError(error);
 
-      // onErrorフック
+      // onError hook
       if (this._lifecycleHooks.onError) {
         await this._lifecycleHooks.onError(context, agentError, 0);
       }
@@ -262,7 +263,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   /**
-   * 継続実行（質問への回答後）
+   * Continues execution after user response.
    */
   async continue(
     continuation: ContinuationContext,
@@ -285,7 +286,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
     try {
       await this.transitionState('running');
 
-      // 新しいClaudeCodeAgentを作成（--continueを使用）
+      // Create new ClaudeCodeAgent with --continue flag
       const legacyConfig: ClaudeCodeAgentConfig = {
         workingDirectory: context.workingDirectory,
         timeout: context.timeout || this._config.defaultTimeout || 900000,
@@ -301,13 +302,13 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         legacyConfig,
       );
 
-      // 出力ハンドラを設定
+      // Set up output handler
       this._legacyAgent.setOutputHandler((output: string, isError?: boolean) => {
         this._events.emitOutput(output, isError || false, true);
       });
 
-      // ユーザーの回答をタスクとして実行
-      // previousExecutionIdがstringの場合は数値に変換
+      // Execute user response as a task
+      // NOTE: Convert string previousExecutionId to number for legacy API
       const taskId =
         typeof continuation.previousExecutionId === 'string'
           ? parseInt(continuation.previousExecutionId, 10) || 0
@@ -323,12 +324,12 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       const legacyResult = await this._legacyAgent.execute(legacyTask);
       const result = this.convertLegacyResult(legacyResult, startTime, context);
 
-      // セッションIDを更新
+      // Update session ID
       if (legacyResult.claudeSessionId) {
         this._currentSessionId = legacyResult.claudeSessionId;
       }
 
-      // 結果に基づいて状態遷移
+      // Transition state based on result
       if (result.pendingQuestion) {
         await this.transitionState('waiting_for_input');
       } else if (result.success) {
@@ -347,7 +348,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   /**
-   * 実行を停止
+   * Stops execution.
    */
   async stop(): Promise<void> {
     if (this._state === 'idle' || this._state === 'completed' || this._state === 'failed') {
@@ -363,7 +364,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   /**
-   * 実行を一時停止
+   * Pauses execution.
    */
   async pause(): Promise<boolean> {
     if (this._state !== 'running' || !this._legacyAgent) {
@@ -378,7 +379,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   /**
-   * 実行を再開
+   * Resumes execution.
    */
   async resume(): Promise<boolean> {
     if (this._state !== 'paused' || !this._legacyAgent) {
@@ -393,32 +394,32 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   /**
-   * ライフサイクルフックを設定
+   * Sets lifecycle hooks.
    */
   setLifecycleHooks(hooks: AgentLifecycleHooks): void {
     this._lifecycleHooks = { ...this._lifecycleHooks, ...hooks };
   }
 
   /**
-   * リソースを解放
+   * Releases all resources.
    */
   async dispose(): Promise<void> {
     if (this._isDisposed) {
       return;
     }
 
-    // 実行中の場合は停止
+    // Stop if currently running
     if (this._state === 'running' || this._state === 'waiting_for_input') {
       await this.stop();
     }
 
-    // イベントリスナーを削除
+    // Remove event listeners
     this._events.removeAllListeners();
 
-    // レガシーエージェントをクリア
+    // Clear legacy agent reference
     this._legacyAgent = null;
 
-    // 状態をリセット
+    // Reset state
     this._state = 'idle';
     this._currentSessionId = null;
 
@@ -426,7 +427,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
   }
 
   // ============================================================================
-  // プライベートメソッド
+  // Private methods
   // ============================================================================
 
   private ensureNotDisposed(): void {
@@ -476,7 +477,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       durationMs,
     };
 
-    // 状態を決定
+    // Determine state
     let state: AgentState;
     if (legacyResult.waitingForInput) {
       state = 'waiting_for_input';
@@ -486,7 +487,7 @@ export class ClaudeCodeAgentAdapter implements IAgent {
       state = 'failed';
     }
 
-    // 保留中の質問を変換
+    // Convert pending question
     let pendingQuestion: PendingQuestion | undefined;
     if (legacyResult.waitingForInput && legacyResult.question) {
       pendingQuestion = {

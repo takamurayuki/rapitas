@@ -19,7 +19,7 @@ export default function TodayTaskProgressBarExample() {
           </h1>
         </div>
 
-        {/* 通常の状態 */}
+        {/* Normal state */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [001] NORMAL PROGRESS (40% COMPLETE)
@@ -43,7 +43,7 @@ export default function TodayTaskProgressBarExample() {
           </div>
         </div>
 
-        {/* 全てのタスクが完了 */}
+        {/* All tasks completed */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [002] MAXIMUM EFFICIENCY (100% COMPLETE)
@@ -51,7 +51,7 @@ export default function TodayTaskProgressBarExample() {
           <TodayTaskProgressBar completedCount={5} totalCount={5} />
         </div>
 
-        {/* タスクがない状態 */}
+        {/* No tasks */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [003] NO TASKS ASSIGNED
@@ -59,7 +59,7 @@ export default function TodayTaskProgressBarExample() {
           <TodayTaskProgressBar completedCount={0} totalCount={0} />
         </div>
 
-        {/* 全て未着手 */}
+        {/* All pending */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [004] ZERO PROGRESS (0% COMPLETE)
@@ -67,7 +67,7 @@ export default function TodayTaskProgressBarExample() {
           <TodayTaskProgressBar completedCount={0} totalCount={8} />
         </div>
 
-        {/* インタラクティブな例 */}
+        {/* Interactive example */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [005] INTERACTIVE DEMONSTRATION
@@ -108,7 +108,7 @@ export default function TodayTaskProgressBarExample() {
           </div>
         </div>
 
-        {/* Compact版の例 */}
+        {/* Compact version examples */}
         <div>
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [006] COMPACT VERSION (FOR TASK LIST HEADER)

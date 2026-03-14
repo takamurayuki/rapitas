@@ -132,7 +132,7 @@ describe('expandRecurrence', () => {
     const dates = expandRecurrence(start, rule, rangeStart, rangeEnd);
     // 1/1, 1/8, 1/15, 1/22, 1/29 = 5 Thursdays
     expect(dates.length).toBe(5);
-    // 各日付が7日間隔であること
+    // Each date should be 7 days apart
     for (let i = 1; i < dates.length; i++) {
       const diff = dates[i]!.getTime() - dates[i - 1]!.getTime();
       expect(diff).toBe(7 * 24 * 60 * 60 * 1000);
@@ -140,7 +140,7 @@ describe('expandRecurrence', () => {
   });
 
   test('WEEKLY BYDAY指定で特定曜日のみ生成すること', () => {
-    // 2026-01-05はMonday
+    // 2026-01-05 is a Monday
     const start = new Date('2026-01-05');
     const rangeStart = new Date('2026-01-05');
     const rangeEnd = new Date('2026-01-11'); // Sunday

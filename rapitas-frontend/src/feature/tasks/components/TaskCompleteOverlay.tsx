@@ -32,12 +32,12 @@ export default function TaskCompleteOverlay({
 
   return (
     <div className="fixed inset-0 grid place-items-center z-50 pointer-events-none overflow-hidden">
-      {/* 背景フラッシュ */}
+      {/* Background flash */}
       <div className="absolute inset-0 bg-white/30 animate-task-complete-fade-out"></div>
 
-      {/* コンテナ: グリッドで中央に重ねる */}
+      {/* Container: center-stacked via grid */}
       <div className="relative grid place-items-center w-full h-full">
-        {/* 波紋エフェクト (SVG) */}
+        {/* Ripple effect (SVG) */}
         {[0, 1, 2].map((i) => (
           <svg
             key={i}
@@ -46,7 +46,7 @@ export default function TaskCompleteOverlay({
             height="300"
             viewBox="0 0 100 100"
             style={{
-              // アニメーション名を triangle-ripple から task-complete-ripple に変更
+              // Renamed animation from triangle-ripple to task-complete-ripple
               animation: `task-complete-ripple 2.8s cubic-bezier(0.22, 1, 0.36, 1) forwards ${i * 0.28}s`,
             }}
           >
@@ -59,8 +59,8 @@ export default function TaskCompleteOverlay({
           </svg>
         ))}
 
-        {/* 拡大するメイン三角形とテキスト */}
-        {/* クラス名を animate-triangle-grow から animate-task-complete-grow に変更 */}
+        {/* Expanding main triangle and text */}
+        {/* Renamed class from animate-triangle-grow to animate-task-complete-grow */}
         <div className="relative grid place-items-center animate-task-complete-grow z-10">
           {/* Main SVG Triangle */}
           <svg
@@ -84,7 +84,7 @@ export default function TaskCompleteOverlay({
             <polygon points="50,5 5,95 95,95" fill="url(#triGradient)" />
           </svg>
 
-          {/* テキスト */}
+          {/* Text */}
           <span className="absolute top-[62%] text-white font-black text-xl tracking-[0.2em] uppercase drop-shadow-md whitespace-nowrap">
             Complete
           </span>

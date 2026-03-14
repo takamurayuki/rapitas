@@ -4,45 +4,45 @@ const logger = createLogger('Api');
 
 /**
  * API Base URL
- * 環境変数から取得し、設定されていない場合はデフォルト値を使用
+ * Retrieved from environment variable, falls back to default value
  */
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 /**
- * APIエンドポイントを構築するヘルパー関数
+ * Helper function to construct API endpoints
  */
 export function buildApiUrl(path: string): string {
-  // パスが / で始まっていない場合は追加
+  // Add leading / if missing
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
 }
 
 type FetchWithRetryOptions = {
-  /** trueの場合、最終リトライ失敗時のログをerror→warnにダウングレード */
+  /** When true, downgrade final retry failure log from error to warn */
   silent?: boolean;
 };
 
-/** HTTPステータスコードがリトライ対象かどうかを判定 */
+/** Determine if an HTTP status code is retryable */
 function isRetryableStatus(status: number): boolean {
-  // 5xx サーバーエラー + 429 Too Many Requests はリトライ対象
+  // 5xx server errors + 429 Too Many Requests are retryable
   return status >= 500 || status === 429;
 }
 
 /**
- * リトライ付きfetch
- * サーバー再起動中の一時的なネットワークエラー（TypeError: Failed to fetch）を自動リカバリ
- * Exponential backoffで段階的にリトライ間隔を延長し、過剰なリトライを防止
+ * Fetch with retry
+ * Automatically recovers from transient network errors (TypeError: Failed to fetch) during server restart
+ * Uses exponential backoff to gradually increase retry intervals, preventing excessive retries
  *
- * リトライ対象:
- * - ネットワークエラー（TypeError: Failed to fetch）
- * - タイムアウト（内部AbortController由来）
- * - サーバーエラー（5xx）
- * - レート制限（429 Too Many Requests）
+ * Retryable:
+ * - Network errors (TypeError: Failed to fetch)
+ * - Timeouts (from internal AbortController)
+ * - Server errors (5xx)
+ * - Rate limiting (429 Too Many Requests)
  *
- * リトライ対象外:
- * - クライアントエラー（4xx、429を除く）→ 即座にthrow
- * - 呼び出し元のAbortSignalによるキャンセル → 即座にthrow
+ * Not retryable:
+ * - Client errors (4xx, except 429) -> throw immediately
+ * - Cancellation via caller's AbortSignal -> throw immediately
  */
 export async function fetchWithRetry(
   input: RequestInfo | URL,
@@ -66,16 +66,16 @@ export async function fetchWithRetry(
         `[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`,
       );
 
-      // 呼び出し元のsignalが既にabortされている場合は即座にエラー
+      // Throw immediately if caller's signal is already aborted
       if (init?.signal?.aborted) {
         throw new DOMException('The operation was aborted.', 'AbortError');
       }
 
-      // タイムアウト処理のためのAbortController
+      // AbortController for timeout handling
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      // 呼び出し元のsignalとタイムアウトsignalを結合
+      // Combine caller's signal with timeout signal
       const signals: AbortSignal[] = [controller.signal];
       if (init?.signal) {
         signals.push(init.signal);
@@ -88,15 +88,14 @@ export async function fetchWithRetry(
         signal: combinedSignal,
       });
 
-      // タイムアウトをクリア
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // 4xxクライアントエラー（429除く）はリトライしても成功しないため即座にthrow
+        // NOTE: 4xx client errors (except 429) will not succeed on retry, throw immediately
         if (!isRetryableStatus(response.status)) {
           throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
-        // 5xx/429はリトライ対象としてエラーをthrow
+        // Throw for 5xx/429 as retryable errors
         const retryError = new Error(
           `HTTP ${response.status} ${response.statusText}`,
         );
@@ -109,7 +108,7 @@ export async function fetchWithRetry(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // エラーの種類を識別
+      // Identify error type
       const isCallerAbort =
         lastError.name === 'AbortError' && init?.signal?.aborted;
       const isTimeoutError =
@@ -124,7 +123,7 @@ export async function fetchWithRetry(
         isTimeoutError ||
         (lastError as Error & { retryable?: boolean }).retryable === true;
 
-      // 呼び出し元のキャンセルやリトライ不可のエラーは即座にthrow
+      // Throw immediately for caller cancellation or non-retryable errors
       if (isCallerAbort || !isRetryableError) {
         const logFn = options?.silent ? logger.warn : logger.error;
         logFn(

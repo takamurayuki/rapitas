@@ -1,6 +1,8 @@
 /**
- * 手続き知識蒸留（Distillation）
- * エージェント実行成功後に手続き知識を抽出してKnowledgeEntry作成
+ * Procedural Knowledge Distillation
+ *
+ * Extracts procedural knowledge from successful agent executions
+ * and creates KnowledgeEntry records.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -11,7 +13,10 @@ import { createContentHash } from './utils';
 const log = createLogger('memory:distillation');
 
 /**
- * エージェント実行結果から手続き知識を蒸留
+ * Distill procedural knowledge from an agent execution result.
+ *
+ * @param executionId - Agent execution ID to distill from
+ * @returns Created KnowledgeEntry ID, or null if skipped
  */
 export async function distillFromExecution(executionId: number): Promise<number | null> {
   const execution = await prisma.agentExecution.findUnique({
@@ -28,7 +33,7 @@ export async function distillFromExecution(executionId: number): Promise<number 
       },
       executionLogs: {
         orderBy: { sequenceNumber: 'asc' },
-        take: 50, // 最新50チャンクのみ
+        take: 50, // Latest 50 chunks only
       },
       gitCommits: true,
     },
@@ -46,11 +51,11 @@ export async function distillFromExecution(executionId: number): Promise<number 
   }
 
   try {
-    // ログとコミット情報を整理
+    // Prepare log and commit summaries
     const logSummary = execution.executionLogs
       .map((l) => l.logChunk)
       .join('')
-      .slice(0, 3000); // 最大3000文字
+      .slice(0, 3000); // Max 3000 characters
 
     const commitSummary = execution.gitCommits
       .map((c) => `- ${c.message} (${c.filesChanged} files, +${c.additions}/-${c.deletions})`)

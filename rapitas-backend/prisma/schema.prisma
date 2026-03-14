@@ -118,11 +118,11 @@ model Task {
   userBehaviors         UserBehavior[]
   workingDirectory      String?
   workflowStatus        String?
-  // ワークフロー柔軟化システム関連フィールド
+  // Workflow flexibility system fields
   workflowMode          String?   @default("comprehensive") // "lightweight", "standard", "comprehensive"
-  complexityScore       Float?    // 自動判定による複雑度スコア (0-100)
-  workflowModeOverride  Boolean   @default(false) // 手動でモード変更されたかどうか
-  autoApprovePlan       Boolean   @default(false) // タスクレベルでplan.mdを自動承認するか
+  complexityScore       Float?    // Auto-determined complexity score (0-100)
+  workflowModeOverride  Boolean   @default(false) // Whether mode was manually changed
+  autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
   workflowLearningRecords WorkflowLearningRecord[]
 
   @@index([status])
@@ -187,7 +187,7 @@ model CommentLink {
   toCommentId   Int
   fromComment   Comment  @relation("CommentLinkFrom", fields: [fromCommentId], references: [id], onDelete: Cascade)
   toComment     Comment  @relation("CommentLinkTo", fields: [toCommentId], references: [id], onDelete: Cascade)
-  label         String?  // Optional label for the link (e.g., "関連", "参照", "補足")
+  label         String?  // Optional label for the link (e.g., "related", "reference", "supplement")
   createdAt     DateTime @default(now())
 
   @@unique([fromCommentId, toCommentId])
@@ -206,24 +206,24 @@ model ActivityLog {
   createdAt DateTime @default(now())
 }
 
-// ユーザー行動データを記録
+// Records user behavior data
 model UserBehavior {
   id              Int       @id @default(autoincrement())
-  userId          Int       @default(1) // 将来のマルチユーザー対応用
+  userId          Int       @default(1) // For future multi-user support
   actionType      String    // task_created, task_completed, task_started, task_updated, theme_selected, label_used, etc.
   taskId          Int?
   task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   themeId         Int?
   theme           Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
-  context         String?   // JSON: 詳細な行動コンテキスト（時間帯、曜日、前後の行動など）
-  metadata        String?   // JSON: その他のメタデータ
+  context         String?   // JSON: Detailed behavior context (time of day, day of week, surrounding actions, etc.)
+  metadata        String?   // JSON: Other metadata
   createdAt       DateTime  @default(now())
 
   @@index([userId, actionType])
   @@index([createdAt])
 }
 
-// タスク完了パターンを記録
+// Records task completion patterns
 model TaskPattern {
   id                    Int       @id @default(autoincrement())
   userId                Int       @default(1)
@@ -234,10 +234,10 @@ model TaskPattern {
   priority             String
   estimatedHours       Float?
   actualHours          Float?
-  completionRate       Float?    // 完了率（0-1）
-  averageTimeToStart   Float?    // 作成から開始までの平均時間（時間）
-  averageTimeToComplete Float?   // 開始から完了までの平均時間（時間）
-  frequency            Int       @default(1) // このパターンの出現回数
+  completionRate       Float?    // Completion rate (0-1)
+  averageTimeToStart   Float?    // Average time from creation to start (hours)
+  averageTimeToComplete Float?   // Average time from start to completion (hours)
+  frequency            Int       @default(1) // Number of occurrences of this pattern
   labelIds             String    @default("[]") // JSON array of label IDs
   lastOccurrence       DateTime?
   createdAt            DateTime  @default(now())
@@ -247,7 +247,7 @@ model TaskPattern {
   @@index([userId, themeId])
 }
 
-// AI学習用の集計データ
+// Aggregated data for AI learning
 model UserBehaviorSummary {
   id                    Int       @id @default(autoincrement())
   userId                Int       @default(1)
@@ -258,7 +258,7 @@ model UserBehaviorSummary {
   theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
   totalTasks           Int       @default(0)
   completedTasks       Int       @default(0)
-  averageCompletionTime Float?    // 平均完了時間（時間）
+  averageCompletionTime Float?    // Average completion time (hours)
   preferredTimeOfDay   String?   // morning, afternoon, evening, night
   preferredDayOfWeek   String?   // JSON array: ["monday", "tuesday", ...]
   mostUsedLabels       String    @default("[]") // JSON array of label IDs with counts
@@ -317,20 +317,20 @@ model StudyStreak {
   updatedAt       DateTime @updatedAt
 }
 
-// 学習目標（自由な目標設定 → タスク自動生成）
+// Learning goals (flexible goal setting → automatic task generation)
 model LearningGoal {
   id              Int       @id @default(autoincrement())
-  title           String    // 学習目標タイトル（例: 「競プロでレッドコーダーになる」）
-  description     String?   // 目標の詳細な説明
-  currentLevel    String?   // 現在のレベル（例: 「茶色コーダー」「実務経験1年」）
-  targetLevel     String?   // 目標レベル（例: 「レッドコーダー」「年収1000万」）
-  deadline        DateTime? // 達成期限
-  dailyHours      Float     @default(2) // 1日の学習時間
-  categoryId      Int?      // 紐づくカテゴリ
-  themeId         Int?      // 自動生成されるテーマのID
+  title           String    // Learning goal title (e.g., "Become a red coder in competitive programming")
+  description     String?   // Detailed description of the goal
+  currentLevel    String?   // Current level (e.g., "brown coder", "1 year of professional experience")
+  targetLevel     String?   // Target level (e.g., "red coder", "10 million yen salary")
+  deadline        DateTime? // Achievement deadline
+  dailyHours      Float     @default(2) // Daily study hours
+  categoryId      Int?      // Associated category
+  themeId         Int?      // ID of the auto-generated theme
   status          String    @default("active") // active, completed, archived
-  generatedPlan   String?   // 生成された学習プランのJSON
-  isApplied       Boolean   @default(false) // タスクとして適用済みか
+  generatedPlan   String?   // JSON of the generated learning plan
+  isApplied       Boolean   @default(false) // Whether applied as tasks
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -531,10 +531,10 @@ model UserSettings {
   autoResumeInterruptedTasks  Boolean   @default(false)
   autoExecuteAfterCreate      Boolean   @default(false)
   autoGenerateTitle           Boolean   @default(false)
-  autoGenerateTitleDelay      Int       @default(3)       // タイトル自動生成までの待機秒数
-  autoCreateAfterTitleGeneration Boolean @default(false) // タイトル生成後の自動作成
-  autoFetchTaskSuggestions    Boolean   @default(true)  // テーマ選択時にAI提案を自動取得
-  defaultCategoryId           Int?      // デフォルトで選択されるカテゴリ
+  autoGenerateTitleDelay      Int       @default(3)       // Wait time in seconds before auto-generating title
+  autoCreateAfterTitleGeneration Boolean @default(false) // Auto-create after title generation
+  autoFetchTaskSuggestions    Boolean   @default(true)  // Auto-fetch AI suggestions when theme is selected
+  defaultCategoryId           Int?      // Default selected category
   activeMode                  String    @default("both") // "development", "learning", "both"
   claudeApiKeyEncrypted       String?
   chatgptApiKeyEncrypted      String?
@@ -544,11 +544,11 @@ model UserSettings {
   geminiDefaultModel          String?
   ollamaUrl                   String?   @default("http://localhost:11434")
   ollamaDefaultModel          String?   @default("gemma3:4b")
-  titleGenerationProvider     String?   @default("ollama") // タイトル生成専用プロバイダー（ollama=ローカル無料AI）
+  titleGenerationProvider     String?   @default("ollama") // Title generation provider (ollama=local free AI)
   defaultAiProvider           String?   @default("claude")
-  autoApprovePlan             Boolean   @default(false) // plan.md保存時に自動承認するか
-  autoApproveSubtaskPlan      Boolean   @default(true)  // サブタスクのplan.md自動承認（デフォルトON）
-  autoComplexityAnalysis      Boolean   @default(false) // 複雑度の自動分析を有効にするか
+  autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
+  autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
+  autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }
@@ -560,14 +560,14 @@ model AIAgentConfig {
   apiKeyEncrypted String?
   endpoint        String?
   modelId         String?
-  version         String?   // エージェントのバージョン (e.g., "1.0.0")
-  latestVersion   String?   // 利用可能な最新バージョン
+  version         String?   // Agent version (e.g., "1.0.0")
+  latestVersion   String?   // Latest available version
   isDefault       Boolean   @default(false)
   isActive        Boolean   @default(true)
-  isInstalled     Boolean   @default(true)  // インストール済みかどうか
-  installPath     String?   // インストールパス
+  isInstalled     Boolean   @default(true)  // Whether installed
+  installPath     String?   // Installation path
   capabilities    String    @default("{}") // JSON stored as string
-  metadata        String    @default("{}") // バージョン固有のメタデータ (JSON)
+  metadata        String    @default("{}") // Version-specific metadata (JSON)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   executions              AgentExecution[]
@@ -733,13 +733,13 @@ model TaskPrompt {
   @@index([taskId])
 }
 
-// タスク分析設定（タスクごとのAI分析パラメータ）
+// Task analysis settings (AI analysis parameters per task)
 model TaskAnalysisConfig {
   id                    Int       @id @default(autoincrement())
   taskId                Int       @unique
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  // 分析パラメータ
+  // Analysis parameters
   analysisDepth         String    @default("standard") // quick, standard, deep
   maxSubtasks           Int       @default(10)
   priorityStrategy      String    @default("balanced") // aggressive, balanced, conservative
@@ -747,19 +747,19 @@ model TaskAnalysisConfig {
   includeDependencies   Boolean   @default(true)
   includeTips           Boolean   @default(true)
 
-  // モデル・プロバイダ設定
+  // Model and provider settings
   agentConfigId         Int?
   agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
-  modelOverride         String?   // 特定モデルIDで上書き
-  maxTokens             Int?      // 分析に使用する最大トークン数
-  temperature           Float?    // 分析の創造性パラメータ (0.0-1.0)
+  modelOverride         String?   // Override with specific model ID
+  maxTokens             Int?      // Maximum tokens for analysis
+  temperature           Float?    // Analysis creativity parameter (0.0-1.0)
 
-  // プロンプト戦略
+  // Prompt strategy
   promptStrategy        String    @default("auto") // auto, detailed, concise, custom
-  customPromptTemplate  String?   // カスタムプロンプトテンプレート
-  contextInstructions   String?   // 追加コンテキスト指示
+  customPromptTemplate  String?   // Custom prompt template
+  contextInstructions   String?   // Additional context instructions
 
-  // 自動化設定
+  // Automation settings
   autoApproveSubtasks   Boolean   @default(false)
   autoOptimizePrompt    Boolean   @default(false)
   notifyOnComplete      Boolean   @default(true)
@@ -770,45 +770,45 @@ model TaskAnalysisConfig {
   @@index([taskId])
 }
 
-// エージェント実行設定（タスクごとの実行パラメータ）
+// Agent execution settings (execution parameters per task)
 model AgentExecutionConfig {
   id                    Int       @id @default(autoincrement())
   taskId                Int       @unique
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
-  // エージェント選択
+  // Agent selection
   agentConfigId         Int?
   agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
 
-  // 実行環境設定
-  workingDirectory      String?   // 作業ディレクトリの上書き
-  timeoutMs             Int       @default(900000) // 実行タイムアウト (デフォルト15分)
+  // Execution environment settings
+  workingDirectory      String?   // Working directory override
+  timeoutMs             Int       @default(900000) // Execution timeout (default 15 minutes)
   maxRetries            Int       @default(0)
 
-  // Git設定
+  // Git settings
   branchStrategy        String    @default("auto") // auto, manual, none
   branchPrefix          String    @default("feature/")
   autoCommit            Boolean   @default(false)
   autoCreatePR          Boolean   @default(false)
   autoMergePR           Boolean   @default(false)
   mergeCommitThreshold  Int       @default(5)
-  targetBranch          String    @default("develop") // PR作成・マージ先のブランチ
+  targetBranch          String    @default("develop") // Target branch for PR creation and merging
 
-  // 実行制御
+  // Execution control
   requireApproval       String    @default("always") // always, major_only, never
-  autoExecuteOnAnalysis Boolean   @default(false) // 分析完了後に自動実行
-  parallelExecution     Boolean   @default(false) // サブタスクの並列実行
+  autoExecuteOnAnalysis Boolean   @default(false) // Auto-execute after analysis completion
+  parallelExecution     Boolean   @default(false) // Parallel execution of subtasks
   maxConcurrentAgents   Int       @default(3)
 
-  // プロンプト設定
+  // Prompt settings
   useOptimizedPrompt    Boolean   @default(true)
-  additionalInstructions String?  // 追加指示
+  additionalInstructions String?  // Additional instructions
 
-  // コードレビュー設定
+  // Code review settings
   autoCodeReview        Boolean   @default(true)
   reviewScope           String    @default("changes") // changes, full, none
 
-  // 通知設定
+  // Notification settings
   notifyOnStart         Boolean   @default(true)
   notifyOnComplete      Boolean   @default(true)
   notifyOnError         Boolean   @default(true)
@@ -820,16 +820,16 @@ model AgentExecutionConfig {
   @@index([taskId])
 }
 
-// システムプロンプト管理（ハードコードされたプロンプトをDBで管理）
+// System prompt management (manage hardcoded prompts in DB)
 model SystemPrompt {
   id          Int       @id @default(autoincrement())
-  key         String    @unique   // 一意なキー（例: "task_analysis", "prompt_optimization"）
-  name        String              // 表示名
-  description String?             // プロンプトの説明
-  content     String              // プロンプト本文
-  category    String    @default("general") // カテゴリ（general, analysis, optimization, agent, chat）
+  key         String    @unique   // Unique key (e.g., "task_analysis", "prompt_optimization")
+  name        String              // Display name
+  description String?             // Prompt description
+  content     String              // Prompt content
+  category    String    @default("general") // Category (general, analysis, optimization, agent, chat)
   isActive    Boolean   @default(true)
-  isDefault   Boolean   @default(true) // デフォルトプロンプトかどうか
+  isDefault   Boolean   @default(true) // Whether this is the default prompt
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -837,13 +837,13 @@ model SystemPrompt {
   @@index([category])
 }
 
-// スケジュールイベントタイプのEnum
+// Schedule event type enum
 enum ScheduleEventType {
-  GENERAL     // 一般的なスケジュール
-  PAID_LEAVE  // 有給休暇
+  GENERAL     // General schedule
+  PAID_LEAVE  // Paid leave
 }
 
-// スケジュールイベント（カレンダーのリマインド通知付きスケジュール）
+// Schedule events (calendar schedule with reminder notifications)
 model ScheduleEvent {
   id              Int       @id @default(autoincrement())
   title           String
@@ -852,17 +852,17 @@ model ScheduleEvent {
   endAt           DateTime?
   isAllDay        Boolean   @default(false)
   color           String    @default("#6366F1")
-  reminderMinutes Int?      // リマインド通知の何分前か（null=リマインドなし）
-  reminderSentAt  DateTime? // リマインド送信済み日時
+  reminderMinutes Int?      // How many minutes before reminder notification (null=no reminder)
+  reminderSentAt  DateTime? // Reminder sent date and time
   taskId          Int?
-  type            ScheduleEventType @default(GENERAL) // スケジュールタイプ
-  userId          String    @default("default") // ユーザーID（将来のマルチユーザー対応）
-  // 繰り返しイベント対応
-  recurrenceRule  String?   // RRULE形式: "FREQ=WEEKLY;BYDAY=MO,WE,FR"
-  recurrenceEnd   DateTime? // 繰り返し終了日
-  parentEventId   Int?      // 繰り返し元の親イベントID
-  isRecurrenceException Boolean @default(false) // 個別編集された繰り返しインスタンス
-  originalDate    DateTime? // 元の繰り返し日付（例外の場合）
+  type            ScheduleEventType @default(GENERAL) // Schedule type
+  userId          String    @default("default") // User ID (for future multi-user support)
+  // Recurring event support
+  recurrenceRule  String?   // RRULE format: "FREQ=WEEKLY;BYDAY=MO,WE,FR"
+  recurrenceEnd   DateTime? // Recurrence end date
+  parentEventId   Int?      // Parent event ID for recurring events
+  isRecurrenceException Boolean @default(false) // Individually edited recurring instance
+  originalDate    DateTime? // Original recurring date (for exceptions)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -872,16 +872,16 @@ model ScheduleEvent {
   @@index([parentEventId])
 }
 
-// 有給残日数管理
+// Paid leave remaining days management
 model PaidLeaveBalance {
   id                    Int       @id @default(autoincrement())
   userId                String    @unique @default("default")
-  totalDays             Int       @default(20) // 年間付与日数
-  usedDays              Float     @default(0)  // 使用日数（半日休暇対応のためFloat）
-  remainingDays         Float     // 残日数（計算フィールドではなく実際に保存）
-  fiscalYear            Int       // 対象年度
-  carryOverDays         Float     @default(0)  // 前年度からの繰越日数
-  lastCalculatedAt      DateTime  @default(now()) // 最後に計算された日時
+  totalDays             Int       @default(20) // Annual granted days
+  usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
+  remainingDays         Float     // Remaining days (actually stored, not a computed field)
+  fiscalYear            Int       // Target fiscal year
+  carryOverDays         Float     @default(0)  // Carried over days from previous year
+  lastCalculatedAt      DateTime  @default(now()) // Last calculated date and time
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -889,7 +889,7 @@ model PaidLeaveBalance {
   @@index([fiscalYear])
 }
 
-// AI提案キャッシュ（テーマごとに保存）
+// AI suggestion cache (saved per theme)
 model TaskSuggestionCache {
   id                Int       @id @default(autoincrement())
   themeId           Int
@@ -900,17 +900,17 @@ model TaskSuggestionCache {
   reason            String?
   category          String    @default("new") // recurring, extension, improvement, new
   labelIds          String    @default("[]") // JSON array stored as string
-  analysis          String?   // AI分析テキスト（最初のレコードだけに保存）
-  completionCriteria String?  // 完了条件
-  measurableOutcome String?   // 測定可能な成果
-  dependencies      String?   // 前提条件
-  suggestedApproach String?   // 推奨アプローチ
+  analysis          String?   // AI analysis text (saved only in first record)
+  completionCriteria String?  // Completion criteria
+  measurableOutcome String?   // Measurable outcome
+  dependencies      String?   // Prerequisites
+  suggestedApproach String?   // Suggested approach
   createdAt         DateTime  @default(now())
 
   @@index([themeId])
 }
 
-// AIエージェント設定変更ログ
+// AI agent configuration change log
 model AgentConfigAuditLog {
   id              Int       @id @default(autoincrement())
   agentConfigId   Int
@@ -926,12 +926,12 @@ model AgentConfigAuditLog {
   @@index([createdAt])
 }
 
-// User認証システム
+// User authentication system
 model User {
   id                Int       @id @default(autoincrement())
   username          String    @unique
   email             String?   @unique
-  passwordHash      String?   // bcryptでハッシュ化されたパスワード (Google OAuth時はnull)
+  passwordHash      String?   // bcrypt hashed password (null for Google OAuth)
   displayName       String?
   role              String    @default("user") // admin, user
   isActive          Boolean   @default(true)
@@ -939,11 +939,11 @@ model User {
   lastLoginAt       DateTime?
   passwordResetToken String?
   passwordResetExpiresAt DateTime?
-  // Google OAuth関連フィールド
+  // Google OAuth related fields
   provider          String    @default("local") // "local" or "google"
   providerId        String?   // Google User ID
-  googleId          String?   @unique // Google固有のユーザーID
-  avatar            String?   // プロフィール画像URL
+  googleId          String?   @unique // Google-specific user ID
+  avatar            String?   // Profile image URL
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   sessions          UserSession[]
@@ -953,14 +953,14 @@ model User {
   @@index([googleId])
 }
 
-// ユーザーセッション管理（JWT Token管理）
+// User session management (JWT Token management)
 model UserSession {
   id              Int       @id @default(autoincrement())
   userId          Int
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessionToken    String    @unique // JWT token or session identifier
-  refreshToken    String?   @unique // リフレッシュトークン
-  expiresAt       DateTime  // セッション有効期限
+  refreshToken    String?   @unique // Refresh token
+  expiresAt       DateTime  // Session expiration
   lastAccessedAt  DateTime  @default(now())
   ipAddress       String?
   userAgent       String?
@@ -986,19 +986,19 @@ model WorkflowRoleConfig {
   updatedAt       DateTime       @updatedAt
 }
 
-// ワークフローモード設定（モード別ステップ定義）
+// Workflow mode settings (step definitions by mode)
 model WorkflowModeConfig {
   id              Int       @id @default(autoincrement())
   mode            String    @unique // "lightweight", "standard", "comprehensive"
-  name            String    // 表示名（例: "軽量", "標準", "詳細"）
-  description     String?   // モードの説明
-  stepDefinitions String    // JSON: ステップ定義 [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
-  estimatedTime   Int       @default(60) // 予想実行時間（分）
+  name            String    // Display name (e.g., "lightweight", "standard", "detailed")
+  description     String?   // Mode description
+  stepDefinitions String    // JSON: Step definitions [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
+  estimatedTime   Int       @default(60) // Expected execution time (minutes)
   isDefault       Boolean   @default(false)
   isEnabled       Boolean   @default(true)
-  complexityMin   Float     @default(0)   // このモードが適用される複雑度の最小値
-  complexityMax   Float     @default(100) // このモードが適用される複雑度の最大値
-  autoSelectRules String    @default("{}") // JSON: 自動選択ルール
+  complexityMin   Float     @default(0)   // Minimum complexity for this mode to apply
+  complexityMax   Float     @default(100) // Maximum complexity for this mode to apply
+  autoSelectRules String    @default("{}") // JSON: Auto-selection rules
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -1006,10 +1006,10 @@ model WorkflowModeConfig {
 }
 
 // ==========================================
-// メモリ/知識管理システム
+// Memory/knowledge management system
 // ==========================================
 
-// 知識エントリ（メモリシステムの中核）
+// Knowledge entries (core of memory system)
 model KnowledgeEntry {
   id              Int       @id @default(autoincrement())
   sourceType      String    // "agent_execution" | "user_learning" | "task_pattern" | "distilled_procedure" | "consolidated"
@@ -1045,14 +1045,14 @@ model KnowledgeEntry {
   @@index([decayScore])
 }
 
-// タイムラインイベント（メモリシステムのイベントログ基盤）
+// Timeline events (event log foundation of memory system)
 model TimelineEvent {
   id              Int       @id @default(autoincrement())
   eventType       String    // "task_completed" | "agent_execution" | "knowledge_created" | "consolidation" | etc.
   actorType       String    @default("system") // "user" | "agent" | "system"
   actorId         String?
   payload         String    @default("{}") // JSON
-  correlationId   String?   // 関連イベントのグループ化用
+  correlationId   String?   // For grouping related events
   createdAt       DateTime  @default(now())
 
   @@index([eventType])
@@ -1060,7 +1060,7 @@ model TimelineEvent {
   @@index([createdAt])
 }
 
-// 固定化実行記録（日次の知識統合処理ログ）
+// Consolidation execution records (daily knowledge integration process logs)
 model ConsolidationRun {
   id                Int       @id @default(autoincrement())
   runDate           DateTime
@@ -1077,7 +1077,7 @@ model ConsolidationRun {
   @@index([status])
 }
 
-// 知識矛盾追跡（矛盾するエントリペアの管理）
+// Knowledge contradiction tracking (management of conflicting entry pairs)
 model KnowledgeContradiction {
   id                Int       @id @default(autoincrement())
   entryAId          Int
@@ -1095,28 +1095,28 @@ model KnowledgeContradiction {
   @@index([resolution])
 }
 
-// 知識再固定化記録（予測誤差に基づく知識更新履歴）
+// Knowledge re-consolidation records (knowledge update history based on prediction errors)
 model KnowledgeReconsolidation {
   id                Int       @id @default(autoincrement())
   entryId           Int
   entry             KnowledgeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  predictionError   String    // 予測誤差の内容
-  errorMagnitude    Float     // 誤差の大きさ (0.0-1.0)
-  previousContent   String    // 更新前の内容
-  newContent        String    // 更新後の内容
-  triggerSource     String?   // 再固定化のトリガー源
+  predictionError   String    // Prediction error content
+  errorMagnitude    Float     // Error magnitude (0.0-1.0)
+  previousContent   String    // Content before update
+  newContent        String    // Content after update
+  triggerSource     String?   // Re-consolidation trigger source
   createdAt         DateTime  @default(now())
 
   @@index([entryId])
   @@index([errorMagnitude])
 }
 
-// メモリシステムのバックグラウンドジョブキュー
+// Memory system background job queue
 model MemoryTaskQueue {
   id              Int       @id @default(autoincrement())
   taskType        String    // "embed" | "consolidate" | "validate" | "forget_sweep" | "distill" | "detect_contradiction"
   payload         String    @default("{}") // JSON
-  priority        Int       @default(0)    // 高い値 = 高い優先度
+  priority        Int       @default(0)    // Higher value = higher priority
   status          String    @default("pending") // "pending" | "processing" | "completed" | "failed" | "dead_letter"
   attempts        Int       @default(0)
   maxAttempts     Int       @default(3)
@@ -1132,7 +1132,7 @@ model MemoryTaskQueue {
   @@index([scheduledAt])
 }
 
-// メモリジャーナルエントリ（WALクラッシュ耐性）
+// Memory journal entries (WAL crash resistance)
 model MemoryJournalEntry {
   id              Int       @id @default(autoincrement())
   operationType   String    // "create" | "update" | "delete"
@@ -1147,7 +1147,7 @@ model MemoryJournalEntry {
   @@index([createdAt])
 }
 
-// ワークフローオーケストラセッション
+// Workflow orchestrator sessions
 model OrchestraSession {
   id              Int       @id @default(autoincrement())
   status          String    @default("idle") // idle, conducting, paused, completed, error
@@ -1165,7 +1165,7 @@ model OrchestraSession {
   @@index([status])
 }
 
-// ワークフローキューアイテム
+// Workflow queue items
 model WorkflowQueueItem {
   id                Int       @id @default(autoincrement())
   taskId            Int
@@ -1195,7 +1195,7 @@ model WorkflowQueueItem {
 // Self-Learning Agent Architecture
 // ============================================
 
-// 実験ログ - すべてのタスク実行を実験として記録
+// Experiment log - record all task executions as experiments
 model Experiment {
   id            Int       @id @default(autoincrement())
   taskId        Int?
@@ -1227,18 +1227,18 @@ model Experiment {
   @@index([createdAt])
 }
 
-// 仮説管理 - 解決方法の仮説を追跡
+// Hypothesis management - track solution hypotheses
 model Hypothesis {
   id            Int       @id @default(autoincrement())
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  content       String    // 仮説の内容
-  reasoning     String?   // 仮説の根拠
+  content       String    // Hypothesis content
+  reasoning     String?   // Hypothesis rationale
   status        String    @default("proposed") // proposed, testing, validated, invalidated, revised
   confidence    Float     @default(0.5) // 0-1.0
   priority      Int       @default(50) // 0-100
   testResult    String?   // JSON: test outcome
-  parentId      Int?      // 仮説の改訂元
+  parentId      Int?      // Source of hypothesis revision
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1246,7 +1246,7 @@ model Hypothesis {
   @@index([status])
 }
 
-// Critic レビュー - 独立した評価エージェントの結果
+// Critic review - results from independent evaluation agent
 model CriticReview {
   id            Int       @id @default(autoincrement())
   experimentId  Int
@@ -1256,7 +1256,7 @@ model CriticReview {
   logic         Float     @default(0) // 0-1.0
   coverage      Float     @default(0) // 0-1.0
   overallScore  Float     @default(0) // 0-1.0
-  feedback      String    // レビューコメント
+  feedback      String    // Review comments
   suggestions   String    @default("[]") // JSON: improvement suggestions
   issues        String    @default("[]") // JSON: detected issues
   createdAt     DateTime  @default(now())
@@ -1265,10 +1265,10 @@ model CriticReview {
   @@index([phase])
 }
 
-// 知識グラフノード
+// Knowledge graph nodes
 model KnowledgeGraphNode {
   id            Int       @id @default(autoincrement())
-  label         String    // ノード名
+  label         String    // Node name
   nodeType      String    // concept, problem, solution, technology, pattern
   description   String?
   properties    String    @default("{}") // JSON: additional properties
@@ -1286,7 +1286,7 @@ model KnowledgeGraphNode {
   @@index([weight])
 }
 
-// 知識グラフエッジ
+// Knowledge graph edges
 model KnowledgeGraphEdge {
   id            Int       @id @default(autoincrement())
   fromNodeId    Int
@@ -1304,7 +1304,7 @@ model KnowledgeGraphEdge {
   @@index([edgeType])
 }
 
-// 学習パターン - 成功/失敗パターンの記録
+// Learning patterns - record success/failure patterns
 model LearningPattern {
   id            Int       @id @default(autoincrement())
   patternType   String    // success_strategy, failure_pattern, optimization, anti_pattern
@@ -1324,13 +1324,13 @@ model LearningPattern {
   @@index([confidence])
 }
 
-// エピソードメモリ - 実験の詳細な記録
+// Episodic memory - detailed experiment records
 model EpisodeMemory {
   id            Int       @id @default(autoincrement())
   experimentId  Int
   experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   phase         String    // research, hypothesis, plan, execute, evaluate, learn
-  content       String    // エピソード内容
+  content       String    // Episode content
   context       String    @default("{}") // JSON: environmental context
   outcome       String?   // success, failure, partial
   emotionalTag  String?   // surprising, expected, frustrating, satisfying
@@ -1342,26 +1342,26 @@ model EpisodeMemory {
   @@index([importance])
 }
 
-// ワークフロー学習記録 - 完了タスクの実際のワークフロー実行データ
+// Workflow learning records - actual workflow execution data from completed tasks
 model WorkflowLearningRecord {
   id                    Int       @id @default(autoincrement())
   taskId                Int
   task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  workflowMode          String    // 実際に使用されたモード: lightweight, standard, comprehensive
-  predictedComplexity   Float?    // 予測された複雑度スコア
-  actualDurationMinutes Int?      // 実際の実行時間（分）
-  estimatedDuration     Int?      // 推定実行時間（分）
-  skippedPhases         String    @default("[]") // JSON: スキップされたフェーズ ["research", "plan"]
-  phaseTimings          String    @default("{}") // JSON: 各フェーズの所要時間 {"research": 5, "plan": 10, ...}
+  workflowMode          String    // Actually used mode: lightweight, standard, comprehensive
+  predictedComplexity   Float?    // Predicted complexity score
+  actualDurationMinutes Int?      // Actual execution time (minutes)
+  estimatedDuration     Int?      // Estimated execution time (minutes)
+  skippedPhases         String    @default("[]") // JSON: Skipped phases ["research", "plan"]
+  phaseTimings          String    @default("{}") // JSON: Duration of each phase {"research": 5, "plan": 10, ...}
   outcome               String    @default("completed") // completed, failed, cancelled
-  wasOverridden         Boolean   @default(false) // 手動でモードが変更されたか
-  overriddenFrom        String?   // 変更前のモード
+  wasOverridden         Boolean   @default(false) // Whether mode was manually changed
+  overriddenFrom        String?   // Mode before change
   categoryId            Int?
   themeId               Int?
-  labels                String    @default("[]") // JSON: タスクのラベル名配列
-  titleKeywords         String    @default("[]") // JSON: タイトルから抽出されたキーワード
-  complexityFactors     String    @default("{}") // JSON: 複雑度分析の各要素スコア
-  success               Boolean   @default(true) // ワークフローが成功したか
+  labels                String    @default("[]") // JSON: Task label name array
+  titleKeywords         String    @default("[]") // JSON: Keywords extracted from title
+  complexityFactors     String    @default("{}") // JSON: Complexity analysis element scores
+  success               Boolean   @default(true) // Whether workflow succeeded
   createdAt             DateTime  @default(now())
 
   @@index([workflowMode])
@@ -1371,16 +1371,16 @@ model WorkflowLearningRecord {
   @@index([createdAt])
 }
 
-// ワークフロー最適化ルール - 学習データから抽出されたパターン
+// Workflow optimization rules - patterns extracted from learning data
 model WorkflowOptimizationRule {
   id                Int       @id @default(autoincrement())
   ruleType          String    // skip_phase, downgrade_mode, upgrade_mode, adjust_time
-  condition         String    // JSON: ルール適用条件
-  recommendation    String    // JSON: 推奨アクション
+  condition         String    // JSON: Rule application condition
+  recommendation    String    // JSON: Recommended action
   confidence        Float     @default(0.5) // 0-1.0
-  sampleSize        Int       @default(0) // ルール生成に使用されたサンプル数
-  successRate       Float     @default(0) // このルールに合致したタスクの成功率
-  description       String    // 人間可読な説明
+  sampleSize        Int       @default(0) // Number of samples used for rule generation
+  successRate       Float     @default(0) // Success rate of tasks matching this rule
+  description       String    // Human-readable description
   isActive          Boolean   @default(true)
   lastEvaluated     DateTime  @default(now())
   createdAt         DateTime  @default(now())
@@ -1391,7 +1391,7 @@ model WorkflowOptimizationRule {
   @@index([isActive])
 }
 
-// プロンプト進化記録 - プロンプト改善の履歴
+// Prompt evolution records - history of prompt improvements
 model PromptEvolution {
   id            Int       @id @default(autoincrement())
   experimentId  Int?

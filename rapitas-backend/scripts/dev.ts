@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 /**
- * 開発用スクリプト
- * - TypeScriptファイルの変更を検出してサーバーを自動再起動
- * - Prismaスキーマの変更を検出して自動的にdb pushとgenerateを実行
- * - 起動時に既存のポートを使用しているプロセスを自動クリーンアップ
+ * Development Server Script
+ *
+ * Watches TypeScript files and auto-restarts the server on changes.
+ * Watches Prisma schema and auto-runs db push + generate on changes.
+ * Cleans up zombie processes on the server port at startup.
  */
 
 import { spawn, type Subprocess, spawnSync } from 'bun';
@@ -19,7 +20,7 @@ const INDEX_FILE = join(ROOT_DIR, 'index.ts');
 const ENV_FILE = join(ROOT_DIR, '.env');
 const SERVER_PORT = parseInt(process.env.PORT || '3001', 10);
 
-// .envファイルを読み込んで環境変数に設定
+/** Loads .env file and sets environment variables. */
 function loadEnvFile() {
   if (existsSync(ENV_FILE)) {
     const envContent = readFileSync(ENV_FILE, 'utf-8');
@@ -29,9 +30,9 @@ function loadEnvFile() {
         const [key, ...valueParts] = trimmed.split('=');
         if (key && valueParts.length > 0) {
           const value = valueParts.join('=').trim();
-          // 既存の環境変数を上書きしない
+          // Do not overwrite existing environment variables
           if (!process.env[key]) {
-            process.env[key] = value.replace(/^["']|["']$/g, ''); // クォートを除去
+            process.env[key] = value.replace(/^["']|["']$/g, '');
           }
         }
       }
@@ -40,20 +41,18 @@ function loadEnvFile() {
   }
 }
 
-// 起動時に.envを読み込む
 loadEnvFile();
 
 let serverProcess: Subprocess | null = null;
 let isRestarting = false;
 let restartTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// エージェント実行中の延期リスタート管理
+// Deferred restart management — restarts are postponed while agent executions are active
 let hasDeferredChanges = false;
 let deferredPrismaChange = false;
 let deferredFiles: string[] = [];
 let deferCheckInterval: ReturnType<typeof setInterval> | null = null;
 
-// 色付きログ出力
 const log = {
   info: (msg: string) => pinoLog.info(msg),
   success: (msg: string) => pinoLog.info(msg),
@@ -61,13 +60,12 @@ const log = {
   error: (msg: string) => pinoLog.error(msg),
 };
 
-// 指定ポートを使用しているプロセスを全て終了する
+/** Kills all processes listening on the specified port. */
 async function killProcessesOnPort(port: number): Promise<void> {
   const isWindows = process.platform === 'win32';
 
   try {
     if (isWindows) {
-      // Windows: netstatでポートを使用しているPIDを取得してtaskkillで終了
       const netstatResult = spawnSync({
         cmd: ['netstat', '-ano'],
         stdout: 'pipe',
@@ -79,7 +77,6 @@ async function killProcessesOnPort(port: number): Promise<void> {
       const pids = new Set<number>();
 
       for (const line of lines) {
-        // LISTENING または ESTABLISHED 状態で指定ポートを使用している行を探す
         if (
           line.includes(`:${port}`) &&
           (line.includes('LISTENING') ||
@@ -96,16 +93,15 @@ async function killProcessesOnPort(port: number): Promise<void> {
       }
 
       for (const pid of pids) {
-        log.info(`ポート ${port} を使用しているプロセス (PID: ${pid}) を終了しています...`);
+        log.info(`Killing process on port ${port} (PID: ${pid})...`);
         try {
-          // まずSIGTERMを試行
           const killResult = spawnSync({
             cmd: ['taskkill', '/PID', pid.toString(), '/T'],
             stdout: 'pipe',
             stderr: 'pipe',
           });
 
-          // 終了しなかった場合は強制終了
+          // Force kill if graceful termination failed
           if (killResult.exitCode !== 0) {
             spawnSync({
               cmd: ['taskkill', '/PID', pid.toString(), '/T', '/F'],
@@ -113,14 +109,14 @@ async function killProcessesOnPort(port: number): Promise<void> {
               stderr: 'pipe',
             });
           }
-          log.success(`プロセス (PID: ${pid}) を終了しました`);
+          log.success(`Process (PID: ${pid}) terminated`);
         } catch {
-          // プロセスが既に終了している場合は無視
+          // Process already exited
         }
       }
 
       if (pids.size > 0) {
-        // ポートが解放されるまで少し待機
+        // Wait for port to be released
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } else {
@@ -139,7 +135,7 @@ async function killProcessesOnPort(port: number): Promise<void> {
           .filter((p) => p > 0 && p !== process.pid);
 
         for (const pid of pids) {
-          log.info(`ポート ${port} を使用しているプロセス (PID: ${pid}) を終了しています...`);
+          log.info(`Killing process on port ${port} (PID: ${pid})...`);
           try {
             spawnSync({
               cmd: ['kill', '-15', pid.toString()],
@@ -147,15 +143,15 @@ async function killProcessesOnPort(port: number): Promise<void> {
               stderr: 'pipe',
             });
             await new Promise((resolve) => setTimeout(resolve, 500));
-            // まだ存在する場合は強制終了
+            // Force kill if still alive
             spawnSync({
               cmd: ['kill', '-9', pid.toString()],
               stdout: 'pipe',
               stderr: 'pipe',
             });
-            log.success(`プロセス (PID: ${pid}) を終了しました`);
+            log.success(`Process (PID: ${pid}) terminated`);
           } catch {
-            // プロセスが既に終了している場合は無視
+            // Process already exited
           }
         }
 
@@ -165,51 +161,50 @@ async function killProcessesOnPort(port: number): Promise<void> {
       }
     }
   } catch (error) {
-    log.warn(`ポートクリーンアップ中にエラー: ${error}`);
+    log.warn(`Error during port cleanup: ${error}`);
   }
 }
 
-// サーバープロセスを終了（グレースフルシャットダウンを待つ）
+/** Terminates the server process, waiting for graceful shutdown. */
 async function killServerProcess(): Promise<void> {
   if (!serverProcess) return;
 
   const proc = serverProcess;
   serverProcess = null;
 
-  // SIGTERMを送信してグレースフルシャットダウンを開始
   proc.kill();
 
-  // グレースフルシャットダウンには最大5秒かかる可能性がある
+  // Graceful shutdown may take up to 5 seconds
   const forceKillTimeout = setTimeout(() => {
     try {
       proc.kill(9); // SIGKILL
-      log.warn('サーバーを強制終了しました（シャットダウンタイムアウト）');
+      log.warn('Force-killed server (shutdown timeout)');
     } catch {
-      // 既に終了している
+      // Already exited
     }
   }, 5000);
 
   await proc.exited;
   clearTimeout(forceKillTimeout);
 
-  // ソケットクリーンアップのために少し待機
+  // Wait for socket cleanup
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 
-// サーバープロセスを開始
+/** Starts the backend server process. */
 async function startServer(cleanupPort: boolean = false) {
   if (serverProcess) {
-    log.info('サーバーを停止中...');
+    log.info('Stopping server...');
     await killServerProcess();
-    log.info('サーバーが停止しました');
+    log.info('Server stopped');
   }
 
-  // ポートクリーンアップ（初回起動時または明示的な要求時）
+  // Port cleanup on first start or explicit request
   if (cleanupPort) {
     await killProcessesOnPort(SERVER_PORT);
   }
 
-  log.info('サーバーを起動中...');
+  log.info('Starting server...');
   serverProcess = spawn({
     cmd: ['bun', 'run', INDEX_FILE],
     cwd: ROOT_DIR,
@@ -217,29 +212,28 @@ async function startServer(cleanupPort: boolean = false) {
     env: { ...process.env, FORCE_COLOR: '1' },
   });
 
-  log.success(`サーバー起動完了 (http://localhost:${process.env.PORT || '3001'})`);
+  log.success(`Server started (http://localhost:${process.env.PORT || '3001'})`);
 }
 
-// Prismaスキーマの変更を処理
+/** Handles Prisma schema changes: runs db push, generate, and restarts the server. */
 async function handlePrismaChange() {
-  log.info('Prismaスキーマの変更を検出...');
+  log.info('Prisma schema change detected...');
 
-  // エージェント実行中はリスタートを延期
+  // Defer restart while agent executions are active
   const agentActive = await isAgentExecutionActive();
   if (agentActive) {
     hasDeferredChanges = true;
     deferredPrismaChange = true;
     deferredFiles.push('prisma/schema.prisma');
     log.warn(
-      `エージェント実行中のためPrismaリスタートを延期 (${deferredFiles.length} files queued)`,
+      `Deferring Prisma restart — agent execution active (${deferredFiles.length} files queued)`,
     );
     startDeferredCheckInterval();
     return;
   }
 
   try {
-    // db push を実行
-    log.info('prisma db push を実行中...');
+    log.info('Running prisma db push...');
     const pushResult = spawn({
       cmd: ['bunx', 'prisma', 'db', 'push', '--skip-generate'],
       cwd: ROOT_DIR,
@@ -248,12 +242,11 @@ async function handlePrismaChange() {
     await pushResult.exited;
 
     if (pushResult.exitCode !== 0) {
-      log.error('prisma db push が失敗しました');
+      log.error('prisma db push failed');
       return;
     }
 
-    // generate を実行
-    log.info('prisma generate を実行中...');
+    log.info('Running prisma generate...');
     const generateResult = spawn({
       cmd: ['bunx', 'prisma', 'generate'],
       cwd: ROOT_DIR,
@@ -262,23 +255,21 @@ async function handlePrismaChange() {
     await generateResult.exited;
 
     if (generateResult.exitCode !== 0) {
-      log.error('prisma generate が失敗しました');
+      log.error('prisma generate failed');
       return;
     }
 
-    log.success('Prismaスキーマの更新完了');
+    log.success('Prisma schema update complete');
 
-    // サーバーを再起動
     await startServer();
   } catch (error) {
-    log.error(`Prisma処理エラー: ${error}`);
+    log.error(`Prisma processing error: ${error}`);
   }
 }
 
 /**
- * バックエンドの /agents/system-status APIを呼び出し、
- * エージェント実行がアクティブかどうかをチェックする。
- * アクティブな場合、リスタートを抑制してエージェントの中断を防ぐ。
+ * Checks whether an agent execution is currently active by calling /agents/system-status.
+ * When active, server restarts are deferred to avoid interrupting running agents.
  */
 async function isAgentExecutionActive(): Promise<boolean> {
   try {
@@ -301,13 +292,13 @@ async function isAgentExecutionActive(): Promise<boolean> {
     }
     return false;
   } catch {
-    // APIが応答しない場合は安全側に倒してリスタート許可
+    // If the API is unresponsive, allow restart (safe default)
     return false;
   }
 }
 
 /**
- * エージェント完了後に延期されたリスタートを実行するポーリング
+ * Polls for agent completion, then applies deferred restarts.
  */
 function startDeferredCheckInterval() {
   if (deferCheckInterval) return;
@@ -322,7 +313,7 @@ function startDeferredCheckInterval() {
       clearInterval(deferCheckInterval!);
       deferCheckInterval = null;
       const uniqueFiles = [...new Set(deferredFiles)].join(', ');
-      log.info(`エージェント完了。延期された変更を適用: ${uniqueFiles}`);
+      log.info(`Agent completed. Applying deferred changes: ${uniqueFiles}`);
       const needsPrismaRestart = deferredPrismaChange;
       hasDeferredChanges = false;
       deferredPrismaChange = false;
@@ -342,19 +333,19 @@ function startDeferredCheckInterval() {
   }, 5000);
 }
 
-// デバウンス付きでサーバーを再起動（エージェント実行中は延期）
+/** Schedules a debounced server restart; defers if an agent execution is active. */
 function scheduleRestart(filename?: string) {
   if (restartTimeout) {
     clearTimeout(restartTimeout);
   }
 
   restartTimeout = setTimeout(async () => {
-    // エージェント実行中はリスタートを延期
+    // Defer restart while agent execution is active
     const agentActive = await isAgentExecutionActive();
     if (agentActive) {
       hasDeferredChanges = true;
       if (filename) deferredFiles.push(filename);
-      log.warn(`エージェント実行中のためリスタートを延期 (${deferredFiles.length} files queued)`);
+      log.warn(`Deferring restart — agent execution active (${deferredFiles.length} files queued)`);
       startDeferredCheckInterval();
       return;
     }
@@ -367,47 +358,45 @@ function scheduleRestart(filename?: string) {
     } finally {
       isRestarting = false;
     }
-  }, 300); // 300ms のデバウンス
+  }, 300); // 300ms debounce
 }
 
-// TypeScriptファイルの監視
+/** Watches TypeScript source directories for changes and triggers server restart. */
 function watchTypeScriptFiles() {
   const watchDirs = ['services', 'utils', 'routes', 'config', 'middleware'];
 
-  // index.ts を監視
   watch(INDEX_FILE, (eventType) => {
     if (eventType === 'change') {
-      log.info('index.ts の変更を検出');
+      log.info('Change detected in index.ts');
       scheduleRestart('index.ts');
     }
   });
 
-  // 各ディレクトリを監視
   for (const dirName of watchDirs) {
     const dirPath = join(ROOT_DIR, dirName);
     try {
       watch(dirPath, { recursive: true }, (eventType, filename) => {
         if (filename?.endsWith('.ts')) {
-          log.info(`${dirName}/${filename} の変更を検出`);
+          log.info(`Change detected in ${dirName}/${filename}`);
           scheduleRestart(`${dirName}/${filename}`);
         }
       });
     } catch {
-      // ディレクトリが存在しない場合は無視
+      // Directory does not exist — skip
     }
   }
 
-  log.info('TypeScriptファイルの監視を開始');
-  log.info(`監視対象: index.ts, ${watchDirs.join(', ')}`);
+  log.info('Watching TypeScript files for changes');
+  log.info(`Watched: index.ts, ${watchDirs.join(', ')}`);
 }
 
-// Prismaスキーマの監視
+/** Watches the Prisma schema file for changes. */
 function watchPrismaSchema() {
   let lastChangeTime = 0;
 
   watch(PRISMA_SCHEMA, async (eventType) => {
     if (eventType === 'change') {
-      // 連続した変更イベントをデバウンス
+      // Debounce rapid successive change events
       const now = Date.now();
       if (now - lastChangeTime < 1000) return;
       lastChangeTime = now;
@@ -416,20 +405,19 @@ function watchPrismaSchema() {
     }
   });
 
-  log.info('Prismaスキーマの監視を開始');
+  log.info('Watching Prisma schema for changes');
 }
 
-// クリーンアップ処理
 let isCleaningUp = false;
 async function cleanup(signal: string) {
   if (isCleaningUp) return;
   isCleaningUp = true;
 
-  log.info(`${signal} を受信、終了処理中...`);
+  log.info(`Received ${signal}, shutting down...`);
 
-  // 強制終了タイマー（5秒後に強制終了）
+  // Force exit after 5 seconds if graceful shutdown stalls
   const forceExitTimer = setTimeout(() => {
-    log.error('グレースフルシャットダウン タイムアウト、強制終了します...');
+    log.error('Graceful shutdown timeout, forcing exit...');
     process.exit(1);
   }, 5000);
 
@@ -437,23 +425,23 @@ async function cleanup(signal: string) {
     try {
       serverProcess.kill();
 
-      // プロセス終了を待つ（最大2秒）
+      // Wait up to 2 seconds for process exit
       const exitPromise = serverProcess.exited;
       const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
       await Promise.race([exitPromise, timeoutPromise]);
 
-      // まだ終了していなければ強制終了
+      // Force kill if still alive
       if (serverProcess) {
         try {
           serverProcess.kill(9);
         } catch {
-          // 既に終了している
+          // Already exited
         }
       }
 
-      log.success('サーバープロセスを終了しました');
+      log.success('Server process terminated');
     } catch (error) {
-      log.error(`サーバー終了エラー: ${error}`);
+      log.error(`Server termination error: ${error}`);
     }
   }
 
@@ -461,22 +449,19 @@ async function cleanup(signal: string) {
   process.exit(0);
 }
 
-// シグナルハンドラ
 process.on('SIGINT', () => cleanup('SIGINT'));
 process.on('SIGTERM', () => cleanup('SIGTERM'));
 
-// メイン処理
 async function main() {
   pinoLog.info('╔════════════════════════════════════════════╗');
-  pinoLog.info('║     Rapitas Backend 開発サーバー           ║');
+  pinoLog.info('║     Rapitas Backend Dev Server              ║');
   pinoLog.info('╠════════════════════════════════════════════╣');
-  pinoLog.info('║  • TypeScriptファイル変更 → 自動再起動     ║');
-  pinoLog.info('║  • Prismaスキーマ変更 → 自動db push        ║');
-  pinoLog.info('║  • Ctrl+C で終了                           ║');
+  pinoLog.info('║  • TypeScript changes  → auto restart      ║');
+  pinoLog.info('║  • Prisma schema change → auto db push     ║');
+  pinoLog.info('║  • Ctrl+C to quit                          ║');
   pinoLog.info('╚════════════════════════════════════════════╝');
 
-  // 初回起動時にPrismaの同期を確認
-  log.info('初回起動: Prismaスキーマを同期中...');
+  log.info('Initial startup: syncing Prisma schema...');
   const pushResult = spawn({
     cmd: ['bunx', 'prisma', 'db', 'push'],
     cwd: ROOT_DIR,
@@ -484,15 +469,14 @@ async function main() {
   });
   await pushResult.exited;
 
-  // ファイル監視を開始
   watchTypeScriptFiles();
   watchPrismaSchema();
 
-  // サーバーを起動（初回起動時はポートクリーンアップを実行）
+  // First start includes port cleanup
   await startServer(true);
 }
 
 main().catch((error) => {
-  log.error(`起動エラー: ${error}`);
+  log.error(`Startup error: ${error}`);
   process.exit(1);
 });

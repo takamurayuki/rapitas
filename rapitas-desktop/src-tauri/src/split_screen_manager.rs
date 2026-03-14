@@ -16,10 +16,10 @@ pub fn split_screen_with_browser(
     use crate::browser_launcher;
     use crate::window_manager::*;
 
-    // 作業領域（タスクバーを除いた領域）を取得
+    // Get work area (excludes taskbar)
     let (work_x, work_y, work_width, work_height) = get_work_area();
 
-    // Step 1: 既存のブラウザウィンドウを検出
+    // Step 1: Detect existing browser windows
     let all_windows = get_all_windows();
     let mut existing_browser_hwnd = None;
     let mut fullscreen_browsers = Vec::new();
@@ -27,7 +27,7 @@ pub fn split_screen_with_browser(
 
     for window in &all_windows {
         let title_lower = window.title.to_lowercase();
-        // より正確なブラウザ検出（実行ファイル名も考慮）
+        // Match browser windows by title keywords
         if title_lower.contains("chrome")
             || title_lower.contains("edge")
             || title_lower.contains("firefox")
@@ -53,16 +53,14 @@ pub fn split_screen_with_browser(
                 };
 
                 if GetWindowPlacement(window.hwnd, &mut placement) != 0 {
-                    // 全画面表示または最大化されている場合
                     if placement.showCmd == SW_SHOWMAXIMIZED as u32 {
                         fullscreen_browsers.push(window.hwnd);
                     }
-                    // 最初に見つかったブラウザを記憶
                     if existing_browser_hwnd.is_none() {
                         existing_browser_hwnd = Some(window.hwnd);
                     }
 
-                    // アクティブなブラウザウィンドウを記憶（フォアグラウンドにあるもの）
+                    // Track the foreground browser window for priority use later
                     if GetForegroundWindow() == window.hwnd {
                         active_browser_hwnd = Some(window.hwnd);
                     }
@@ -71,10 +69,10 @@ pub fn split_screen_with_browser(
         }
     }
 
-    // Step 2: 全画面ブラウザを通常表示に戻す
+    // Step 2: Restore maximized browsers to normal state
     for hwnd in fullscreen_browsers {
         unsafe {
-            // まず最小化してから復元（全画面解除のため）
+            // Minimize then restore to break out of maximized state
             ShowWindow(hwnd, SW_SHOWMINIMIZED);
             thread::sleep(Duration::from_millis(50));
             ShowWindow(hwnd, SW_RESTORE);
@@ -82,10 +80,9 @@ pub fn split_screen_with_browser(
             ShowWindow(hwnd, SW_NORMAL);
             thread::sleep(Duration::from_millis(100));
 
-            // 不可視ボーダーを取得して補正
             let (bl, _bt, br, bb) = get_invisible_border(hwnd);
 
-            // 左半分に配置（作業領域＋不可視ボーダー補正）
+            // Position in left half, compensating for invisible borders
             SetWindowPos(
                 hwnd,
                 std::ptr::null_mut(),
@@ -98,24 +95,24 @@ pub fn split_screen_with_browser(
         }
     }
 
-    // Step 3: Rapitasを右半分に配置
+    // Step 3: Position Rapitas in the right half
     if let Some(rapitas_hwnd) = find_rapitas_window() {
         set_window_split_right_with_height(rapitas_hwnd, work_width, work_height);
     }
 
-    // Step 4: ブラウザで新しいURLを開く（既存のブラウザで新しいタブとして開く）
+    // Step 4: Open the URL as a new tab in the existing browser
     browser_launcher::launch_browser_with_size(url, work_x, work_y, work_width / 2, work_height)?;
 
-    // Step 5: 既存のブラウザウィンドウまたは新しく開いたブラウザウィンドウを配置
+    // Step 5: Position the browser window in the left half
     thread::sleep(Duration::from_millis(1000));
 
-    // アクティブなブラウザウィンドウを優先、なければ既存のブラウザウィンドウを使用
+    // Prefer the foreground browser window; fall back to any existing one
     let browser_to_use = active_browser_hwnd.or(existing_browser_hwnd);
 
     if let Some(hwnd) = browser_to_use {
         set_window_split_left_with_height(hwnd, work_width, work_height);
     } else {
-        // 新しく開いたブラウザウィンドウを見つけて配置
+        // Find and position the newly opened browser window
         let latest_windows = get_all_windows();
         for window in latest_windows {
             let title_lower = window.title.to_lowercase();
@@ -132,7 +129,7 @@ pub fn split_screen_with_browser(
         }
     }
 
-    // Step 6: 最後にRapitasにフォーカスを戻す
+    // Step 6: Return focus to Rapitas
     thread::sleep(Duration::from_millis(200));
     if let Some(rapitas_hwnd) = find_rapitas_window() {
         focus_window(rapitas_hwnd);

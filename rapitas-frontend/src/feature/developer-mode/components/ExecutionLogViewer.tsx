@@ -34,30 +34,30 @@ export type ExecutionLogStatus =
   | 'cancelled';
 
 export type ExecutionLogViewerProps = {
-  /** 実行ログの配列 */
+  /** Array of execution log lines */
   logs: string[];
-  /** 実行状態 */
+  /** Execution status */
   status: ExecutionLogStatus;
-  /** SSE接続状態 */
+  /** SSE connection state */
   isConnected?: boolean;
-  /** 実行中かどうか */
+  /** Whether running */
   isRunning?: boolean;
-  /** 初期表示時に展開するか */
+  /** Whether to expand on initial display */
   defaultExpanded?: boolean;
-  /** フルスクリーンモードで開始するか */
+  /** Whether to start in fullscreen mode */
   defaultFullscreen?: boolean;
-  /** カスタムクラス名 */
+  /** Custom class name */
   className?: string;
-  /** 折りたたみ可能かどうか */
+  /** Whether collapsible */
   collapsible?: boolean;
-  /** ヘッダーを表示するか */
+  /** Whether to show header */
   showHeader?: boolean;
-  /** ログの最大高さ（px） */
+  /** Max log height in pixels */
   maxHeight?: number;
 };
 
 /**
- * ファイルパスかどうかを判定
+ * Determine if a string is a file path
  */
 function isFilePath(value: string): boolean {
   return (
@@ -67,13 +67,13 @@ function isFilePath(value: string): boolean {
 }
 
 /**
- * ネストされたオブジェクトをインデント付きで整形する
+ * Format nested objects with indentation
  */
 function formatNestedValue(value: unknown, indent: number = 0): string {
   if (value === null || value === undefined) return '';
   if (typeof value !== 'object') {
     const str = String(value);
-    if (isFilePath(str)) return str; // ファイルパスはそのまま
+    if (isFilePath(str)) return str; // Keep file paths as-is
     return str;
   }
 
@@ -83,7 +83,7 @@ function formatNestedValue(value: unknown, indent: number = 0): string {
   );
   if (entries.length === 0) return '{}';
   if (entries.length <= 2 && !entries.some(([, v]) => typeof v === 'object')) {
-    // 小さいオブジェクトはインラインで表示
+    // Display small objects inline
     return entries.map(([k, v]) => `${k}: ${v}`).join(', ');
   }
 
@@ -98,7 +98,7 @@ function formatNestedValue(value: unknown, indent: number = 0): string {
 }
 
 /**
- * ログ文字列内のJSON部分を検出して整形する
+ * Detect and format JSON portions within a log string
  */
 export function formatLogLine(log: string): {
   formatted: string;
@@ -107,7 +107,7 @@ export function formatLogLine(log: string): {
   isPhaseTransition?: boolean;
   filePaths?: string[];
 } {
-  // ワークフローフェーズ遷移の検出
+  // Detect workflow phase transitions
   const phaseMatch = log.match(
     /\[(research|plan|implement|verify|draft|plan_created|plan_approved|in_progress|completed)\]/i,
   );
@@ -115,7 +115,7 @@ export function formatLogLine(log: string): {
     return { formatted: log, hasJson: false, isPhaseTransition: true };
   }
 
-  // JSON文字列を含むかチェック（{...} パターン）
+  // Check for JSON strings ({...} pattern)
   const jsonMatch = log.match(/^(.*?)(\{[\s\S]*\})(.*)$/);
   if (!jsonMatch) return { formatted: log, hasJson: false };
 
@@ -131,7 +131,7 @@ export function formatLogLine(log: string): {
     const filePaths: string[] = [];
     const isError = !!obj.error;
 
-    // よく使うフィールドを先に表示
+    // Display frequently used fields first
     const priorityKeys = [
       'message',
       'msg',
@@ -154,7 +154,7 @@ export function formatLogLine(log: string): {
       }
     }
 
-    // 残りのフィールド（ネスト対応）
+    // Remaining fields (with nesting support)
     const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;
@@ -179,7 +179,7 @@ export function formatLogLine(log: string): {
   }
 }
 
-// ログエントリコンポーネント（メモ化）
+// Log entry component (memoized)
 const LogEntry = memo<{
   log: string;
   index: number;
@@ -190,7 +190,7 @@ const LogEntry = memo<{
   const { formatted, hasJson, isError, isPhaseTransition, filePaths } =
     formatLogLine(log);
 
-  // エラーメッセージは赤背景ブロックで強調
+  // Emphasize error messages with red background block
   if (isError) {
     return (
       <span
@@ -205,7 +205,7 @@ const LogEntry = memo<{
     );
   }
 
-  // フェーズ遷移は特別なスタイル
+  // Special styling for phase transitions
   if (isPhaseTransition) {
     return (
       <span
@@ -221,7 +221,7 @@ const LogEntry = memo<{
   }
 
   const className = [
-    log.includes('[エラー]')
+    log.includes('[Error]')
       ? 'text-red-400'
       : log.includes('[エージェント]')
         ? 'text-emerald-400 font-semibold'
@@ -241,7 +241,7 @@ const LogEntry = memo<{
     .filter(Boolean)
     .join(' ');
 
-  // ファイルパスをモノスペース+色分けで表示
+  // Display file paths with monospace + color coding
   let content: React.ReactNode = searchQuery
     ? highlightText(formatted, searchQuery)
     : formatted;
@@ -289,10 +289,10 @@ const LogEntry = memo<{
 LogEntry.displayName = 'LogEntry';
 
 /**
- * ExecutionLogViewer - AIエージェント実行ログの表示コンポーネント
+ * ExecutionLogViewer - AI agent execution log viewer component
  *
- * ステータスカードから独立した実行ログビューワーです。
- * 検索、自動スクロール、フルスクリーンモードなどの機能を提供します。
+ * Standalone execution log viewer independent of status cards.
+ * Provides search, auto-scroll, and fullscreen mode.
  */
 export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   logs,
@@ -310,22 +310,22 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
   const [copied, setCopied] = useState(false);
 
-  // 検索機能の状態
+  // Search feature state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatches, setSearchMatches] = useState<number[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
-  // 自動スクロールを制御するためのフラグ
+  // NOTE: Flag to control auto-scroll behavior
   const [autoScroll, setAutoScroll] = useState(true);
   const isUserScrollingRef = useRef(false);
   const isAutoScrollingRef = useRef(false);
   const prevLogsLengthRef = useRef(0);
-  // ログ更新のバッファリング用
+  // For log update buffering
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // スクロール位置を監視して自動スクロールを制御
+  // Monitor scroll position to control auto-scroll
   const handleScroll = useCallback(() => {
     if (isAutoScrollingRef.current) return;
     if (!logContainerRef.current) return;
@@ -347,7 +347,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     handleScroll();
   }, [handleScroll]);
 
-  // ログが更新されたら自動スクロール（バッファリング付き）
+  // Auto-scroll on log update (with buffering)
   useEffect(() => {
     if (logs.length > prevLogsLengthRef.current) {
       if (
@@ -355,17 +355,15 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         autoScroll &&
         !isUserScrollingRef.current
       ) {
-        // 既存のタイマーをクリア
         if (scrollTimerRef.current) {
           clearTimeout(scrollTimerRef.current);
         }
 
-        // 少し待機してから一度だけスクロール
+        // Wait briefly then scroll once
         scrollTimerRef.current = setTimeout(() => {
           if (logContainerRef.current && autoScroll) {
             isAutoScrollingRef.current = true;
 
-            // スムーズスクロールを使用
             logContainerRef.current.scrollTo({
               top: logContainerRef.current.scrollHeight,
               behavior: 'smooth',
@@ -375,7 +373,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               isAutoScrollingRef.current = false;
             }, 300);
           }
-        }, 100); // 100msのバッファリング
+        }, 100); // 100ms buffering to batch rapid updates
       }
     }
     prevLogsLengthRef.current = logs.length;
@@ -387,12 +385,11 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     };
   }, [logs.length, autoScroll]);
 
-  // 検索機能（ログ長でデバウンス。ログの増加は検索をトリガーしない）
+  // Search with debounce (log growth does not trigger search)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!searchQuery.trim()) {
       if (searchMatches.length > 0 || currentMatchIndex !== 0) {
-        // 非同期で更新
         const timer = setTimeout(() => {
           setSearchMatches([]);
           setCurrentMatchIndex(0);
@@ -402,7 +399,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return;
     }
 
-    // デバウンスして検索コストを削減
+    // Debounce to reduce search cost
     if (searchTimerRef.current) {
       clearTimeout(searchTimerRef.current);
     }
@@ -430,7 +427,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     };
   }, [searchQuery, logs]);
 
-  // 検索マッチへジャンプ
+  // Jump to search match
   const jumpToMatch = useCallback(
     (matchIndex: number) => {
       if (
@@ -528,7 +525,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     setIsExpanded((prev) => !prev);
   }, []);
 
-  // テキストをハイライト表示するヘルパー関数
+  // Helper to highlight matching text
   const highlightText = useCallback(
     (text: string, query: string): React.ReactNode => {
       if (!query.trim()) return text;
@@ -554,12 +551,11 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     [],
   );
 
-  // 前のログ数を追跡して新しいエントリを識別
+  // Track previous log count to identify new entries
   const [displayedLogsCount, setDisplayedLogsCount] = useState(0);
 
   useEffect(() => {
     if (logs.length > displayedLogsCount) {
-      // アニメーション用の遅延を設定
       const timer = setTimeout(() => {
         setDisplayedLogsCount(logs.length);
       }, 50);
@@ -567,13 +563,13 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     }
   }, [logs.length, displayedLogsCount]);
 
-  // ログテキストをメモ化
+  // Memoize log content
   const logContent = useMemo(() => {
     if (logs.length === 0) {
       return null;
     }
     return logs.map((log, i) => {
-      const isNewEntry = i >= displayedLogsCount - 5; // 最新5件をアニメーション対象
+      const isNewEntry = i >= displayedLogsCount - 5; // Animate the latest 5 entries
 
       return (
         <LogEntry
@@ -588,7 +584,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     });
   }, [logs, searchQuery, highlightText, displayedLogsCount]);
 
-  // ステータスバッジの内容をメモ化
+  // Memoize status badge content
   const statusBadge = useMemo(() => {
     if (isRunning || status === 'running') {
       return (
@@ -618,14 +614,13 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
           <AlertCircle className="w-3 h-3" />
-          エラー
+          Error
         </span>
       );
     }
     return null;
   }, [isRunning, status]);
 
-  // 折りたたみ時は何も表示しない
   if (collapsible && !isExpanded && logs.length > 0) {
     return (
       <button
@@ -642,7 +637,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     );
   }
 
-  // ログがない場合は何も表示しない
   if (logs.length === 0) {
     return null;
   }
@@ -672,7 +666,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* 検索バー */}
             <div className="relative flex items-center gap-1">
               <div className="relative">
                 <input
@@ -720,7 +713,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
               )}
             </div>
             <div className="w-px h-4 bg-zinc-600" />
-            {/* 自動スクロールボタン */}
             <button
               onClick={scrollToBottom}
               className={`p-1.5 rounded transition-colors ${

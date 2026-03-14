@@ -1,16 +1,16 @@
 /**
- * AIエージェント抽象化レイヤー - エントリーポイント
+ * Agent Abstraction Layer - Entry Point
  *
- * 各AIエージェント（Claude Code, OpenAI Codex, Gemini等）を統一的に扱うための抽象化レイヤー
+ * Unified abstraction for different AI agents (Claude Code, OpenAI Codex, Gemini, etc.).
  *
- * 主要コンポーネント:
- * - types: 型定義（AgentCapabilities, AgentExecutionContext, AgentExecutionResult等）
- * - interfaces: インターフェース定義（IAgentProvider, IAgent, IAgentRegistry等）
- * - AbstractAgent: 抽象エージェント基底クラス
- * - AgentEventEmitter: イベント発行・購読
- * - AgentRegistry: プロバイダー・エージェント管理
+ * Key components:
+ * - types: Type definitions (AgentCapabilities, AgentExecutionContext, AgentExecutionResult, etc.)
+ * - interfaces: Interface definitions (IAgentProvider, IAgent, IAgentRegistry, etc.)
+ * - AbstractAgent: Abstract base class for agents
+ * - AgentEventEmitter: Event emission and subscription
+ * - AgentRegistry: Provider and agent management
  *
- * 使用例:
+ * Usage:
  * ```typescript
  * import {
  *   AgentRegistry,
@@ -19,37 +19,37 @@
  *   AgentExecutionContext,
  * } from './abstraction';
  *
- * // プロバイダーを登録
+ * // Register a provider
  * const registry = AgentRegistry.getInstance();
  * registry.registerProvider(myProvider);
  *
- * // エージェントを作成
+ * // Create an agent
  * const agent = registry.createAgent({
  *   providerId: 'claude-code',
  *   enabled: true,
  * });
  *
- * // タスクを実行
+ * // Execute a task
  * const result = await agent.execute(task, context);
  * ```
  */
 
-// 型定義
+// Type definitions
 export type {
-  // 基本型
+  // Base types
   AgentProviderId,
   AgentState,
   AgentCapabilities,
   AgentMetadata,
 
-  // 実行コンテキスト
+  // Execution context
   AgentExecutionContext,
   AgentTaskDefinition,
   TaskAnalysisResult,
   SubtaskDefinition,
   TaskConstraints,
 
-  // 実行結果
+  // Execution results
   AgentExecutionResult,
   AgentArtifact,
   GitCommitInfo,
@@ -60,7 +60,7 @@ export type {
   DebugLogEntry,
   ToolCallInfo,
 
-  // イベント
+  // Events
   AgentEventType,
   AgentEventBase,
   StateChangeEvent,
@@ -76,7 +76,7 @@ export type {
   AgentEvent,
   AgentEventHandler,
 
-  // プロバイダー設定
+  // Provider config
   AgentProviderConfigBase,
   ClaudeCodeProviderConfig,
   OpenAIProviderConfig,
@@ -85,16 +85,16 @@ export type {
   AnthropicAPIProviderConfig,
   AgentProviderConfig,
 
-  // ライフサイクル
+  // Lifecycle
   AgentLifecycleHooks,
 
-  // ユーティリティ
+  // Utilities
   ContinuationContext,
   BatchExecutionOptions,
   AgentHealthStatus,
 } from './types';
 
-// インターフェース
+// Interfaces
 export type {
   IAgentProvider,
   IAgent,
@@ -110,27 +110,27 @@ export type {
   AgentErrorType,
 } from './interfaces';
 
-// クラス
+// Classes
 export { AgentError } from './interfaces';
 export { AbstractAgent } from './abstract-agent';
 export { AgentEventEmitter, createAgentEventEmitter } from './event-emitter';
 export { AgentRegistry, agentRegistry } from './registry';
 
-// 実行マネージャー
+// Execution manager
 export {
   AgentExecutionManager,
   getDefaultExecutionManager,
   setDefaultExecutionManager,
 } from './execution-manager';
 
-// メトリクスコレクター
+// Metrics collector
 export {
   DefaultMetricsCollector,
   getDefaultMetricsCollector,
   setDefaultMetricsCollector,
 } from './metrics-collector';
 
-// エラーハンドラー
+// Error handler
 export {
   DefaultErrorHandler,
   getDefaultErrorHandler,
@@ -140,7 +140,7 @@ export {
   isRecoverableError,
 } from './error-handler';
 
-// ロガー
+// Logger
 export {
   ConsoleLogger,
   SilentLogger,
@@ -151,7 +151,7 @@ export {
   createExecutionLogger,
 } from './logger';
 
-// プロバイダー
+// Providers
 export {
   ClaudeCodeProvider,
   claudeCodeProvider,
@@ -162,13 +162,13 @@ export {
 } from './providers';
 
 // ============================================================================
-// ユーティリティ関数
+// Utility functions
 // ============================================================================
 
 import type { AgentCapabilities, AgentState } from './types';
 
 /**
- * デフォルトの能力設定を作成
+ * Creates a default capabilities object with all flags set to false.
  */
 export function createDefaultCapabilities(
   overrides?: Partial<AgentCapabilities>,
@@ -195,7 +195,7 @@ export function createDefaultCapabilities(
 }
 
 /**
- * 状態が終了状態かどうか判定
+ * Checks whether the state is a terminal state.
  */
 export function isTerminalState(state: AgentState): boolean {
   return (
@@ -204,21 +204,21 @@ export function isTerminalState(state: AgentState): boolean {
 }
 
 /**
- * 状態が実行中かどうか判定
+ * Checks whether the state is an active state.
  */
 export function isActiveState(state: AgentState): boolean {
   return state === 'initializing' || state === 'running' || state === 'completing';
 }
 
 /**
- * 状態が待機状態かどうか判定
+ * Checks whether the state is a waiting state.
  */
 export function isWaitingState(state: AgentState): boolean {
   return state === 'idle' || state === 'paused' || state === 'waiting_for_input';
 }
 
 /**
- * 標準の能力キー
+ * Standard capability keys.
  */
 export type StandardCapabilityKey =
   | 'codeGeneration'
@@ -239,7 +239,7 @@ export type StandardCapabilityKey =
   | 'sessionContinuation';
 
 /**
- * 能力の表示名を取得
+ * Returns the display name for a capability key.
  */
 export function getCapabilityDisplayName(capability: StandardCapabilityKey | string): string {
   const displayNames: Record<StandardCapabilityKey, string> = {
@@ -265,7 +265,7 @@ export function getCapabilityDisplayName(capability: StandardCapabilityKey | str
 }
 
 /**
- * 状態の表示名を取得
+ * Returns the display name for an agent state.
  */
 export function getStateDisplayName(state: AgentState): string {
   const displayNames: Record<AgentState, string> = {
@@ -285,7 +285,7 @@ export function getStateDisplayName(state: AgentState): string {
 }
 
 /**
- * ユニークな実行IDを生成
+ * Generates a unique execution ID.
  */
 export function generateExecutionId(): string {
   const timestamp = Date.now().toString(36);
@@ -294,7 +294,7 @@ export function generateExecutionId(): string {
 }
 
 /**
- * ユニークなエージェントIDを生成
+ * Generates a unique agent ID.
  */
 export function generateAgentId(providerId: string): string {
   const timestamp = Date.now().toString(36);

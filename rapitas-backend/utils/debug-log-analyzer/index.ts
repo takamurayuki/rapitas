@@ -1,9 +1,9 @@
 /**
- * デバッグログ解析ツール
- * 様々な形式のログを解析し、構造化されたデータとして返す
+ * Debug Log Analyzer
+ *
+ * Parses various log formats and returns structured analysis data.
  */
 
-// 型定義
 export {
   LogType,
   LogLevel,
@@ -15,9 +15,7 @@ export {
   type LogFilter,
 } from './types';
 
-// パーサー実装
 export { JSONLogParser, SyslogParser, ApacheCommonLogParser, NodeJSLogParser } from './parsers';
 
-// メインアナライザー
 export { DebugLogAnalyzer } from './analyzer';
 export { default } from './analyzer';

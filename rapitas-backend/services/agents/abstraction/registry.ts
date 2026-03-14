@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - エージェントレジストリ
- * プロバイダーとエージェントの登録・管理
+ * Agent Abstraction Layer - Agent Registry
+ *
+ * Manages registration and lifecycle of providers and agents.
  */
 
 import { createLogger } from '../../../config/logger';
@@ -16,8 +17,8 @@ import type {
 import type { IAgentProvider, IAgentRegistry, IAgent, ProviderInfo } from './interfaces';
 
 /**
- * エージェントレジストリ
- * シングルトンパターンでプロバイダーとエージェントを管理
+ * Agent registry.
+ * Singleton that manages providers and agent instances.
  */
 export class AgentRegistry implements IAgentRegistry {
   private static instance: AgentRegistry;
@@ -26,12 +27,12 @@ export class AgentRegistry implements IAgentRegistry {
   private agents: Map<string, IAgent> = new Map();
   private providerHealthCache: Map<AgentProviderId, { status: AgentHealthStatus; cachedAt: Date }> =
     new Map();
-  private healthCacheTTL = 60000; // 1分
+  private healthCacheTTL = 60000; // 1 minute
 
   private constructor() {}
 
   /**
-   * シングルトンインスタンスを取得
+   * Returns the singleton instance.
    */
   static getInstance(): AgentRegistry {
     if (!AgentRegistry.instance) {
@@ -41,7 +42,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * インスタンスをリセット（テスト用）
+   * Resets the singleton instance (for testing).
    */
   static resetInstance(): void {
     if (AgentRegistry.instance) {
@@ -53,11 +54,11 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   // ============================================================================
-  // プロバイダー管理
+  // Provider management
   // ============================================================================
 
   /**
-   * プロバイダーを登録
+   * Registers a provider.
    */
   registerProvider(provider: IAgentProvider): void {
     if (this.providers.has(provider.providerId)) {
@@ -69,10 +70,10 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * プロバイダーを登録解除
+   * Unregisters a provider and disposes its agents.
    */
   unregisterProvider(providerId: AgentProviderId): boolean {
-    // このプロバイダーのエージェントを全て解放
+    // Dispose all agents belonging to this provider
     for (const [agentId, agent] of this.agents.entries()) {
       if (agent.metadata.providerId === providerId) {
         agent.dispose().catch((err) => log.error({ err }, 'Failed to dispose agent'));
@@ -85,21 +86,21 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * プロバイダーを取得
+   * Returns a provider by ID.
    */
   getProvider(providerId: AgentProviderId): IAgentProvider | undefined {
     return this.providers.get(providerId);
   }
 
   /**
-   * 全プロバイダーを取得
+   * Returns all registered providers.
    */
   getAllProviders(): IAgentProvider[] {
     return Array.from(this.providers.values());
   }
 
   /**
-   * 利用可能なプロバイダーを取得
+   * Returns info about available providers.
    */
   async getAvailableProviders(): Promise<ProviderInfo[]> {
     const results: ProviderInfo[] = [];
@@ -139,7 +140,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * 特定の能力を持つプロバイダーを取得
+   * Returns providers with a specific capability.
    */
   getProvidersByCapability(capability: keyof AgentCapabilities): IAgentProvider[] {
     return Array.from(this.providers.values()).filter((provider) => {
@@ -149,7 +150,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * 最適なプロバイダーを選択
+   * Selects the best provider based on required capabilities.
    */
   async selectBestProvider(
     requiredCapabilities: Array<keyof AgentCapabilities>,
@@ -161,7 +162,7 @@ export class AgentRegistry implements IAgentRegistry {
       let meetsRequirements = true;
       let score = 0;
 
-      // 必須能力のチェック
+      // Check required capabilities
       for (const cap of requiredCapabilities) {
         if (!capabilities[cap]) {
           meetsRequirements = false;
@@ -172,15 +173,15 @@ export class AgentRegistry implements IAgentRegistry {
 
       if (!meetsRequirements) continue;
 
-      // 利用可能チェック
+      // Check availability
       const isAvailable = await provider.isAvailable();
       if (!isAvailable) continue;
 
-      // ヘルスチェック
+      // Health check
       const health = await this.getCachedHealthStatus(provider);
       if (!health.healthy) continue;
 
-      // レイテンシでスコア調整
+      // Adjust score by latency
       if (health.latency) {
         score += Math.max(0, 1000 - health.latency) / 1000;
       }
@@ -190,17 +191,17 @@ export class AgentRegistry implements IAgentRegistry {
 
     if (candidates.length === 0) return null;
 
-    // スコアでソートして最適なものを返す
+    // Return the highest-scoring candidate
     candidates.sort((a, b) => b.score - a.score);
     return candidates[0].provider;
   }
 
   // ============================================================================
-  // エージェント管理
+  // Agent management
   // ============================================================================
 
   /**
-   * エージェントを作成
+   * Creates an agent.
    */
   createAgent(config: AgentProviderConfig): IAgent {
     const provider = this.providers.get(config.providerId);
@@ -216,21 +217,21 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * エージェントを取得
+   * Returns an agent by ID.
    */
   getAgent(agentId: string): IAgent | undefined {
     return this.agents.get(agentId);
   }
 
   /**
-   * 全アクティブエージェントを取得
+   * Returns all active agents.
    */
   getAllAgents(): Map<string, IAgent> {
     return new Map(this.agents);
   }
 
   /**
-   * プロバイダー別にエージェントを取得
+   * Returns agents for a specific provider.
    */
   getAgentsByProvider(providerId: AgentProviderId): IAgent[] {
     return Array.from(this.agents.values()).filter(
@@ -239,7 +240,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * エージェントを解放
+   * Disposes an agent.
    */
   async disposeAgent(agentId: string): Promise<void> {
     const agent = this.agents.get(agentId);
@@ -251,7 +252,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * 全エージェントを解放
+   * Disposes all agents.
    */
   async disposeAllAgents(): Promise<void> {
     const disposePromises: Promise<void>[] = [];
@@ -266,7 +267,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * アイドル状態のエージェントをクリーンアップ
+   * Cleans up idle agents older than maxIdleTimeMs.
    */
   async cleanupIdleAgents(maxIdleTimeMs: number = 300000): Promise<number> {
     const now = new Date();
@@ -289,11 +290,11 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   // ============================================================================
-  // ヘルスチェック
+  // Health check
   // ============================================================================
 
   /**
-   * キャッシュされたヘルスステータスを取得
+   * Returns cached health status, refreshing if expired.
    */
   private async getCachedHealthStatus(provider: IAgentProvider): Promise<AgentHealthStatus> {
     const cached = this.providerHealthCache.get(provider.providerId);
@@ -325,7 +326,7 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   /**
-   * 全プロバイダーのヘルスチェック
+   * Runs health checks on all providers.
    */
   async healthCheckAll(): Promise<Map<AgentProviderId, AgentHealthStatus>> {
     const results = new Map<AgentProviderId, AgentHealthStatus>();
@@ -353,11 +354,11 @@ export class AgentRegistry implements IAgentRegistry {
   }
 
   // ============================================================================
-  // 統計情報
+  // Statistics
   // ============================================================================
 
   /**
-   * レジストリ統計情報を取得
+   * Returns registry statistics.
    */
   getStats(): {
     providerCount: number;
@@ -369,10 +370,10 @@ export class AgentRegistry implements IAgentRegistry {
     const agentsByProvider: Record<string, number> = {};
 
     for (const agent of this.agents.values()) {
-      // 状態別カウント
+      // Count by state
       agentsByState[agent.state] = (agentsByState[agent.state] || 0) + 1;
 
-      // プロバイダー別カウント
+      // Count by provider
       const providerId = agent.metadata.providerId;
       agentsByProvider[providerId] = (agentsByProvider[providerId] || 0) + 1;
     }
@@ -387,6 +388,6 @@ export class AgentRegistry implements IAgentRegistry {
 }
 
 /**
- * デフォルトのレジストリインスタンス
+ * Default registry singleton.
  */
 export const agentRegistry = AgentRegistry.getInstance();

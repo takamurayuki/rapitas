@@ -1,6 +1,6 @@
 /**
- * 検索フィルター管理用カスタムフック
- * アクティブなフィルターの追加・削除・クリア操作を提供する
+ * Custom hook for search filter management
+ * Provides add/remove/clear operations for active filters
  */
 
 import { useState, useCallback, useMemo } from 'react';
@@ -20,7 +20,7 @@ export function useSearchFilters(initialFilters: SearchFilter[] = []) {
 
   const addFilter = useCallback((filter: SearchFilter) => {
     setFilters((prev) => {
-      // 同じIDのフィルターが既にある場合は置き換え
+      // Replace if filter with same ID already exists
       const exists = prev.some((f) => f.id === filter.id);
       if (exists) {
         logger.warn(`Filter "${filter.id}" already exists, replacing`);

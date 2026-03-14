@@ -46,15 +46,15 @@ interface SubtaskListProps {
     subtaskId: number,
     data: { title?: string; description?: string },
   ) => void;
-  /** 並列実行ステータスを取得する関数（サブタスクIDを渡すとステータスを返す） */
+  /** Function to get parallel execution status by subtask ID */
   getExecutionStatus?: (
     subtaskId: number,
   ) => ParallelExecutionStatus | undefined;
-  /** 並列実行中かどうか */
+  /** Whether parallel execution is running */
   isParallelExecutionRunning?: boolean;
-  /** サブタスクの一括削除 */
+  /** Bulk delete subtasks */
   onDeleteAllSubtasks?: () => void;
-  /** サブタスクの選択削除 */
+  /** Delete selected subtasks */
   onDeleteSelectedSubtasks?: (subtaskIds: number[]) => void;
 }
 
@@ -180,11 +180,9 @@ export default function SubtaskList({
               </span>
             )}
           </h2>
-          {/* 削除操作ボタン */}
           {totalSubtasks > 0 &&
             (onDeleteAllSubtasks || onDeleteSelectedSubtasks) && (
               <div className="flex items-center gap-2">
-                {/* 選択モード切り替え */}
                 {onDeleteSelectedSubtasks && (
                   <button
                     onClick={toggleSelectionMode}
@@ -207,7 +205,6 @@ export default function SubtaskList({
                     )}
                   </button>
                 )}
-                {/* 選択モード時の操作 */}
                 {isSelectionMode && (
                   <>
                     <button
@@ -233,7 +230,6 @@ export default function SubtaskList({
                     )}
                   </>
                 )}
-                {/* 一括削除ボタン */}
                 {!isSelectionMode && onDeleteAllSubtasks && (
                   <button
                     onClick={() => setShowDeleteConfirm('all')}
@@ -247,7 +243,6 @@ export default function SubtaskList({
             )}
         </div>
 
-        {/* 削除確認ダイアログ */}
         {showDeleteConfirm && (
           <div className="mb-4 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-sm text-red-700 dark:text-red-300 mb-3">
@@ -278,7 +273,6 @@ export default function SubtaskList({
           </div>
         )}
 
-        {/* 進行状況バー */}
         {totalSubtasks > 0 && (
           <div className="mb-4">
             <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-2">
@@ -295,7 +289,6 @@ export default function SubtaskList({
         )}
       </div>
 
-      {/* アクティブなサブタスク */}
       {activeSubtasks.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3">
@@ -311,7 +304,6 @@ export default function SubtaskList({
                     : 'border-zinc-200 dark:border-zinc-700'
                 }`}
               >
-                {/* 選択モード時のチェックボックス */}
                 {isSelectionMode && (
                   <div className="flex items-center mb-3">
                     <button
@@ -328,7 +320,7 @@ export default function SubtaskList({
                   </div>
                 )}
                 {editingSubtaskId === subtask.id ? (
-                  /* 編集モード */
+                  /* Edit mode */
                   <div className="space-y-3">
                     <input
                       type="text"
@@ -364,12 +356,11 @@ export default function SubtaskList({
                     </div>
                   </div>
                 ) : (
-                  /* 表示モード */
+                  /* View mode */
                   <>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          {/* 並列実行ステータスインジケーター */}
                           {isParallelExecutionRunning && getExecutionStatus && (
                             <SubtaskTitleIndicator
                               executionStatus={getExecutionStatus(subtask.id)}
@@ -398,7 +389,6 @@ export default function SubtaskList({
                         )}
                       </div>
                       <div className="flex items-center gap-1 ml-4 shrink-0">
-                        {/* ステータス変更ボタン（コンパクト版） */}
                         {(['todo', 'in-progress', 'done'] as const).map(
                           (status) => {
                             const config = statusConfig[status];
@@ -417,7 +407,6 @@ export default function SubtaskList({
                             );
                           },
                         )}
-                        {/* 編集ボタン */}
                         {onUpdateSubtask && (
                           <button
                             onClick={() => startEditingSubtask(subtask)}
@@ -427,7 +416,6 @@ export default function SubtaskList({
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {/* 削除ボタン */}
                         <button
                           onClick={() => onDeleteSubtask(subtask.id)}
                           className="w-6 h-6 rounded flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
@@ -477,7 +465,6 @@ export default function SubtaskList({
         </div>
       )}
 
-      {/* 完了したサブタスク */}
       {completedSubtasks.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
@@ -506,7 +493,6 @@ export default function SubtaskList({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-1">
-                    {/* 選択モード時のチェックボックス */}
                     {isSelectionMode && (
                       <button
                         onClick={() => toggleSubtaskSelection(subtask.id)}
@@ -519,7 +505,6 @@ export default function SubtaskList({
                         )}
                       </button>
                     )}
-                    {/* 並列実行ステータスインジケーター（完了タスクでも表示） */}
                     {isParallelExecutionRunning && getExecutionStatus && (
                       <SubtaskTitleIndicator
                         executionStatus={getExecutionStatus(subtask.id)}
@@ -538,7 +523,6 @@ export default function SubtaskList({
                     )}
                   </div>
                   <div className="flex items-center gap-1 ml-4">
-                    {/* ステータス変更ボタン（コンパクト版） */}
                     {(['todo', 'in-progress', 'done'] as const).map(
                       (status) => {
                         const config = statusConfig[status];
@@ -557,7 +541,6 @@ export default function SubtaskList({
                         );
                       },
                     )}
-                    {/* 編集ボタン */}
                     {onUpdateSubtask && (
                       <button
                         onClick={() => startEditingSubtask(subtask)}
@@ -567,7 +550,6 @@ export default function SubtaskList({
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {/* 削除ボタン */}
                     <button
                       onClick={() => onDeleteSubtask(subtask.id)}
                       className="w-6 h-6 rounded flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
@@ -595,7 +577,6 @@ export default function SubtaskList({
         </div>
       )}
 
-      {/* サブタスク追加フォーム */}
       <div className={totalSubtasks > 0 ? 'mt-6' : ''}>
         {isAddingSubtask ? (
           <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 bg-white dark:bg-indigo-dark-900 mb-4">

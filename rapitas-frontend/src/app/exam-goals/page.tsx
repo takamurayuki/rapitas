@@ -220,7 +220,6 @@ export default function ExamGoalsPage() {
         </button>
       </div>
 
-      {/* 直近の試験目標 */}
       {upcomingGoals.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
@@ -306,7 +305,6 @@ export default function ExamGoalsPage() {
         </div>
       )}
 
-      {/* 達成済み */}
       {completedGoals.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
@@ -367,7 +365,6 @@ export default function ExamGoalsPage() {
         </div>
       )}
 
-      {/* モーダル */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">

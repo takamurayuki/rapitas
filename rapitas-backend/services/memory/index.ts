@@ -1,5 +1,5 @@
 /**
- * メモリ/知識管理システム - エクスポート
+ * Memory / Knowledge Management System - Exports
  */
 
 // Types
@@ -59,21 +59,20 @@ import type {
 
 const log = createLogger('memory:system');
 
-// キューワーカーのシングルトン
+// Queue worker singleton
 export const memoryTaskQueue = new MemoryTaskQueueProcessor();
 
 /**
- * メモリシステムを初期化
- * サーバー起動時に呼び出す
+ * Initialize the memory system. Called at server startup.
  */
 export async function initializeMemorySystem(): Promise<void> {
-  // 1. ジャーナルリカバリ
+  // 1. Journal recovery
   const recovered = await MemoryJournal.recover();
   if (recovered > 0) {
     log.info({ recovered }, 'Journal entries recovered');
   }
 
-  // 2. タスクハンドラーを登録
+  // 2. Register task handlers
   memoryTaskQueue.registerHandler('embed', async (payload) => {
     const { entryId, content } = payload as { entryId: number; content: string };
     const { embedding } = await generateEmbedding(content);
@@ -102,7 +101,7 @@ export async function initializeMemorySystem(): Promise<void> {
     const { executionId } = payload as { executionId: number };
     await distillFromExecution(executionId);
 
-    // 蒸留完了後にエージェント間知識共有のパターンも更新
+    // After distillation, update inter-agent knowledge sharing patterns
     try {
       const { updatePatternsFromExecution } = await import('../agents/agent-knowledge-sharing');
       const exec = await prisma.agentExecution.findUnique({
@@ -121,17 +120,17 @@ export async function initializeMemorySystem(): Promise<void> {
     }
   });
 
-  // 3. キューワーカーを開始
+  // 3. Start queue worker
   memoryTaskQueue.start();
 
-  // 4. ジャーナルチェックポイント
+  // 4. Journal checkpoint
   await MemoryJournal.checkpoint();
 
   log.info('Memory system initialized');
 }
 
 /**
- * メモリシステムを停止
+ * Shut down the memory system.
  */
 export function shutdownMemorySystem(): void {
   memoryTaskQueue.stop();
@@ -141,7 +140,7 @@ export function shutdownMemorySystem(): void {
 // --- Knowledge Entry CRUD ---
 
 /**
- * 知識エントリを作成（→ validation + embedding キューイング）
+ * Create a knowledge entry, then queue validation + embedding in the background.
  */
 export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
   const contentHash = createContentHash(input.content);
@@ -166,7 +165,7 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
     payload: { entryId: entry.id, sourceType: input.sourceType, category: entry.category },
   });
 
-  // バックグラウンドでembedding + validation + 矛盾検出をキューイング
+  // Queue background embedding + validation + contradiction detection
   await memoryTaskQueue.enqueue('embed', { entryId: entry.id, content: input.content }, 10);
   await memoryTaskQueue.enqueue('validate', { entryId: entry.id }, 5);
   await memoryTaskQueue.enqueue('detect_contradiction', { entryId: entry.id }, 3);
@@ -175,7 +174,7 @@ export async function createKnowledgeEntry(input: CreateKnowledgeEntryInput) {
 }
 
 /**
- * 知識エントリを更新（→ 再検証 + 再embedding）
+ * Update a knowledge entry, then re-validate and re-embed if content changed.
  */
 export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEntryInput) {
   const data: Record<string, unknown> = {};
@@ -200,7 +199,7 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
     payload: { entryId: id },
   });
 
-  // コンテンツが変更された場合は再embedding + 再検証
+  // Re-embed + re-validate if content changed
   if (input.content !== undefined) {
     await memoryTaskQueue.enqueue('embed', { entryId: id, content: input.content }, 10);
     await memoryTaskQueue.enqueue('validate', { entryId: id }, 5);
@@ -211,7 +210,7 @@ export async function updateKnowledgeEntry(id: number, input: UpdateKnowledgeEnt
 }
 
 /**
- * 知識エントリをアーカイブ（論理削除）
+ * Archive a knowledge entry (soft delete).
  */
 export async function archiveKnowledgeEntry(id: number) {
   const entry = await prisma.knowledgeEntry.update({
@@ -230,7 +229,7 @@ export async function archiveKnowledgeEntry(id: number) {
 }
 
 /**
- * 知識エントリをピン留め
+ * Pin a knowledge entry until a specified date.
  */
 export async function pinKnowledgeEntry(id: number, until: Date) {
   return prisma.knowledgeEntry.update({
@@ -240,7 +239,7 @@ export async function pinKnowledgeEntry(id: number, until: Date) {
 }
 
 /**
- * 知識エントリ一覧を取得
+ * List knowledge entries with filtering, pagination, and sorting.
  */
 export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   const {
@@ -289,7 +288,7 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
 }
 
 /**
- * 知識エントリ統計を取得
+ * Retrieve knowledge entry statistics.
  */
 export async function getKnowledgeStats() {
   const [

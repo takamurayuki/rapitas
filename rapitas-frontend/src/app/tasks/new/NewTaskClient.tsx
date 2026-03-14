@@ -114,41 +114,34 @@ function NewTaskClient() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
-  // 基本フィールド
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [themeId, setThemeId] = useState<number | null>(null);
 
-  // オプションフィールド
   const [labels] = useState('');
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [estimatedHours, setEstimatedHours] = useState('');
   const [dueDate, setDueDate] = useState('');
 
-  // ワークフローモード関連
   const [workflowMode, setWorkflowMode] =
     useState<WorkflowMode>('comprehensive');
   const [isWorkflowModeOverride, setIsWorkflowModeOverride] =
     useState<boolean>(false);
 
-  // データ
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  // UI状態
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(
     null,
   );
-  // グローバル設定
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
     null,
   );
 
-  // 自然言語入力
   const [nlInput, setNlInput] = useState('');
   const [isQuickCreating, setIsQuickCreating] = useState(false);
   const [quickCreateSteps, setQuickCreateSteps] = useState<
@@ -160,7 +153,6 @@ function NewTaskClient() {
   >([]);
   const nlTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // サブタスク
   const [subtasks, setSubtasks] = useState<
     {
       id: string;
@@ -287,7 +279,6 @@ function NewTaskClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // グローバル設定の取得
   useEffect(() => {
     const fetchGlobalSettings = async () => {
       try {
@@ -321,21 +312,18 @@ function NewTaskClient() {
     }
   };
 
-  // テーマ選択時の処理
   const handleThemeSelect = (theme: Theme) => {
     setThemeId(theme.id);
   };
 
-  // 選択中のテーマを取得
   const selectedTheme = useMemo(() => {
     return themes.find((t) => t.id === themeId) || null;
   }, [themes, themeId]);
 
-  // テンプレート適用時の処理
   const handleApplyTemplate = (template: TaskTemplate) => {
     setAppliedTemplate(template);
 
-    // テンプレートデータを適用
+    // Apply template data
     const data = template.templateData;
 
     if (data.title) {
@@ -351,7 +339,7 @@ function NewTaskClient() {
       setEstimatedHours(data.estimatedHours.toString());
     }
 
-    // サブタスクを適用
+    // Apply subtasks from template
     if (data.subtasks && Array.isArray(data.subtasks)) {
       setSubtasks(
         data.subtasks.map((st, idx) => ({
@@ -422,7 +410,7 @@ function NewTaskClient() {
           showToast(t('titleGeneratedSuccess'), 'success');
         }
 
-        // タイトル生成後の自動作成が有効な場合（自動生成から呼ばれた場合のみ）
+        // NOTE: Auto-create after title generation (only when called from auto-generate).
         if (
           fromAutoGenerate &&
           globalSettings?.autoCreateAfterTitleGeneration
@@ -431,10 +419,9 @@ function NewTaskClient() {
             '[NewTaskClient] Auto-creating task with title:',
             data.title,
           );
-          // 生成されたタイトルを直接渡して実行
           setTimeout(() => {
             handleSubmitWithTitle(data.title);
-          }, 100); // 短い遅延を入れて状態更新を確実にする
+          }, 100); // NOTE: Short delay to ensure state update completes before submission.
         }
       }
     } catch (e) {
@@ -448,19 +435,17 @@ function NewTaskClient() {
     }
   };
 
-  // タイトル自動生成のデバウンスタイマー
   const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
   useEffect(() => {
-    // クリーンアップ
     if (autoGenerateTimerRef.current) {
       clearTimeout(autoGenerateTimerRef.current);
       autoGenerateTimerRef.current = null;
     }
 
-    // 自動生成がONで、descriptionがあり、titleが空の場合のみ
+    // Only trigger when auto-generate is ON, description exists, and title is empty
     if (
       !globalSettings?.autoGenerateTitle ||
       !description.trim() ||
@@ -480,7 +465,7 @@ function NewTaskClient() {
       logger.debug(
         '[NewTaskClient] Auto-generate timer triggered, calling handleGenerateTitle',
       );
-      handleGenerateTitle(true); // fromAutoGenerateフラグをtrueで呼び出し
+      handleGenerateTitle(true);
     }, delaySec * 1000);
 
     return () => {
@@ -511,7 +496,7 @@ function NewTaskClient() {
       return;
     }
 
-    // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
+    // Only allow auto-execute for tasks in development project themes
     const executeAfterCreate =
       (globalSettings?.autoExecuteAfterCreate ?? false) &&
       selectedTheme?.isDevelopment === true;
@@ -524,7 +509,7 @@ function NewTaskClient() {
         .filter(Boolean);
 
       const taskData = {
-        title: generatedTitle, // 引数から受け取ったタイトルを使用
+        title: generatedTitle,
         description: description || undefined,
         status: 'todo',
         priority,
@@ -548,7 +533,7 @@ function NewTaskClient() {
       if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
 
-      // サブタスク作成
+      // Create subtasks
       if (subtasks.length > 0) {
         const subtaskResults = await Promise.allSettled(
           subtasks
@@ -616,7 +601,7 @@ function NewTaskClient() {
     e?.preventDefault();
     if (isSubmitting || !title.trim()) return;
 
-    // 開発プロジェクトのテーマに属するタスクのみ自動実行を許可
+    // Only allow auto-execute for tasks in development project themes
     const executeAfterCreate =
       (globalSettings?.autoExecuteAfterCreate ?? false) &&
       selectedTheme?.isDevelopment === true;
@@ -651,7 +636,7 @@ function NewTaskClient() {
       if (!res.ok) throw new Error(t('createFailed'));
       const createdTask = await res.json();
 
-      // サブタスク作成
+      // Create subtasks
       if (subtasks.length > 0) {
         const subtaskResults = await Promise.allSettled(
           subtasks
@@ -715,7 +700,6 @@ function NewTaskClient() {
     }
   };
 
-  // タスク提案を適用
   const handleApplySuggestion = (suggestion: {
     title: string;
     priority: Priority;
@@ -770,7 +754,6 @@ function NewTaskClient() {
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
-      {/* Header */}
       <div className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <button
@@ -829,7 +812,6 @@ function NewTaskClient() {
         onSubmit={(e) => handleSubmit(e)}
         className="max-w-2xl mx-auto px-4 pb-8"
       >
-        {/* Main Card */}
         {/* Natural Language Quick Input */}
         <div className="mb-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/30 dark:to-blue-950/30 rounded-xl border border-violet-200/50 dark:border-violet-800/50 p-3">
           <div className="flex items-start gap-2">
@@ -877,7 +859,6 @@ function NewTaskClient() {
             </div>
           </div>
 
-          {/* Progress Steps */}
           {isQuickCreating && quickCreateSteps.length > 0 && (
             <div className="mt-3 ml-6 space-y-1">
               {quickCreateSteps.map((s) => {
@@ -923,7 +904,6 @@ function NewTaskClient() {
         </div>
 
         <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-          {/* Title Section */}
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <TaskTitleAutocomplete
               value={title}
@@ -934,10 +914,8 @@ function NewTaskClient() {
             />
           </div>
 
-          {/* Priority & Theme - Compact inline */}
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
             <InlineFieldGroup>
-              {/* Priority */}
               <FieldItem
                 label={t('priority')}
                 icon={<Flag className="w-3.5 h-3.5" />}
@@ -968,7 +946,6 @@ function NewTaskClient() {
                 </div>
               </FieldItem>
 
-              {/* Theme */}
               <FieldItem
                 label={t('theme')}
                 icon={<Layers className="w-3.5 h-3.5" />}
@@ -977,7 +954,7 @@ function NewTaskClient() {
                 <div className="flex flex-wrap gap-1.5">
                   {(() => {
                     const themeIdParam = searchParams.get('themeId');
-                    // appModeに基づいてカテゴリIDセットを構築
+                    // Build category ID set based on appMode filter
                     const visibleCategoryIds = new Set(
                       categories
                         .filter((cat) => {
@@ -990,7 +967,7 @@ function NewTaskClient() {
                     const displayThemes = themeIdParam
                       ? themes.filter((t) => t.id === Number(themeIdParam))
                       : themes.filter((t) => {
-                          // appModeフィルタ: カテゴリがないテーマは常に表示
+                          // Always show themes without a category regardless of appMode
                           if (!t.categoryId) return true;
                           return visibleCategoryIds.has(t.categoryId);
                         });
@@ -1031,10 +1008,8 @@ function NewTaskClient() {
             </InlineFieldGroup>
           </div>
 
-          {/* Task Suggestions */}
           <TaskSuggestions themeId={themeId} onApply={handleApplySuggestion} />
 
-          {/* Description - Collapsible */}
           <CompactAccordionGroup
             title={t('description')}
             icon={<FileText className="w-3.5 h-3.5" />}
@@ -1075,7 +1050,6 @@ function NewTaskClient() {
             />
           </CompactAccordionGroup>
 
-          {/* Related Knowledge */}
           {title.length >= 3 && (
             <RelatedKnowledgePanel
               title={title}
@@ -1084,14 +1058,12 @@ function NewTaskClient() {
             />
           )}
 
-          {/* Advanced Options - Collapsible */}
           <CompactAccordionGroup
             title={t('advancedSettings')}
             icon={<Settings2 className="w-3.5 h-3.5" />}
             defaultExpanded={false}
           >
             <div className="space-y-4">
-              {/* Due Date & Estimated Time - Inline */}
               <InlineFieldGroup>
                 <FieldItem
                   label={t('deadlineDate')}
@@ -1138,7 +1110,6 @@ function NewTaskClient() {
                 </FieldItem>
               </InlineFieldGroup>
 
-              {/* Labels */}
               <FieldItem
                 label={t('labels')}
                 icon={<Tag className="w-3.5 h-3.5" />}
@@ -1152,7 +1123,6 @@ function NewTaskClient() {
             </div>
           </CompactAccordionGroup>
 
-          {/* Subtasks Section - Accordion */}
           <CompactAccordionGroup
             title={t('subtasks')}
             icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
@@ -1164,10 +1134,8 @@ function NewTaskClient() {
             defaultExpanded
             className="border-b-0"
           >
-            {/* Add subtask form */}
               <div className="mb-3 p-4 rounded-lg bg-emerald-50/30 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30">
                 <div className="space-y-4">
-                  {/* Title */}
                   <div>
                     <input
                       type="text"
@@ -1186,7 +1154,6 @@ function NewTaskClient() {
                     />
                   </div>
 
-                  {/* Description */}
                   <div>
                     <textarea
                       className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
@@ -1197,7 +1164,6 @@ function NewTaskClient() {
                     />
                   </div>
 
-                  {/* Priority */}
                   <div>
                     <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                       <Flag className="w-3.5 h-3.5" />
@@ -1225,9 +1191,7 @@ function NewTaskClient() {
                     </div>
                   </div>
 
-                  {/* Estimated Hours + Labels row */}
                   <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Estimated hours */}
                     <div className="w-full sm:w-36">
                       <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <Clock className="w-3.5 h-3.5" />
@@ -1246,7 +1210,6 @@ function NewTaskClient() {
                       />
                     </div>
 
-                    {/* Labels */}
                     <div className="flex-1">
                       <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
                         <Tag className="w-3.5 h-3.5" />
@@ -1262,7 +1225,6 @@ function NewTaskClient() {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
                   <div className="flex items-center gap-2 pt-1">
                     <div
                       className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 dark:hover:border-emerald-400'}`}
@@ -1295,7 +1257,6 @@ function NewTaskClient() {
                 </div>
               </div>
 
-            {/* Subtask list - TaskCard style */}
             {subtasks.length > 0 && (
               <div className="bg-zinc-50/50 dark:bg-indigo-dark-900/50 rounded-lg overflow-hidden">
                 {subtasks.map((st, index) => {
@@ -1326,7 +1287,6 @@ function NewTaskClient() {
                         <span className="flex-1 text-sm text-zinc-700 dark:text-zinc-300">
                           {st.title}
                         </span>
-                        {/* Priority badge */}
                         {st.priority && st.priority !== 'medium' && (
                           <span
                             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
@@ -1347,7 +1307,6 @@ function NewTaskClient() {
                             <span className="capitalize">{st.priority}</span>
                           </span>
                         )}
-                        {/* Estimated hours */}
                         {st.estimatedHours && (
                           <span className="flex items-center gap-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                             <Clock className="w-3 h-3" />
@@ -1362,7 +1321,6 @@ function NewTaskClient() {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {/* Description and labels */}
                       {(st.description ||
                         (st.labels && st.labels.length > 0)) && (
                         <div className="ml-8 mt-1 space-y-1">
@@ -1392,7 +1350,6 @@ function NewTaskClient() {
             )}
           </CompactAccordionGroup>
 
-          {/* Workflow Mode Section - Collapsible */}
           <CompactAccordionGroup
             title={t('workflowModeTitle')}
             icon={<Settings2 className="w-3.5 h-3.5" />}
@@ -1401,10 +1358,10 @@ function NewTaskClient() {
           >
             <div className="space-y-3">
               <CompactWorkflowSelector
-                taskId={0} // 新規タスクなのでID=0
+                taskId={0}
                 currentMode={workflowMode}
                 isOverridden={isWorkflowModeOverride}
-                complexityScore={null} // 新規タスクなのでスコアなし
+                complexityScore={null}
                 autoComplexityAnalysis={
                   globalSettings?.autoComplexityAnalysis ?? false
                 }
@@ -1413,7 +1370,7 @@ function NewTaskClient() {
                   setIsWorkflowModeOverride(isOverride);
                 }}
                 disabled={false}
-                showAnalyzeButton={false} // 新規タスクなので分析ボタンは非表示
+                showAnalyzeButton={false}
               />
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-300">
@@ -1426,7 +1383,6 @@ function NewTaskClient() {
         </div>
       </form>
 
-      {/* Template Dialog */}
       <ApplyTemplateDialog
         isOpen={showTemplateDialog}
         onClose={() => setShowTemplateDialog(false)}
@@ -1437,5 +1393,5 @@ function NewTaskClient() {
   );
 }
 
-// 認証が必要なコンポーネントとしてエクスポート
+// Export as auth-required component
 export default requireAuth(NewTaskClient);

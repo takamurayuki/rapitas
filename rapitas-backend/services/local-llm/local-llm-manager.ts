@@ -1,6 +1,7 @@
 /**
- * ローカルLLMサーバー管理
- * 二段構え: Ollama優先 → llama-server sidecar フォールバック
+ * Local LLM Server Manager
+ *
+ * Two-tier approach: Ollama preferred, llama-server sidecar as fallback.
  */
 import { spawn, type ChildProcess } from 'child_process';
 import { existsSync } from 'fs';
@@ -37,17 +38,17 @@ let llamaServerProcess: ChildProcess | null = null;
 let llamaServerReady = false;
 
 /**
- * llama-serverの実行ファイルパスを探す
+ * Find the llama-server binary path.
  */
 function findLlamaServerBinary(): string | null {
   const binaryName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server';
 
   const searchPaths = [
-    // 1. ~/.rapitas/bin/ (自動ダウンロード先)
+    // 1. ~/.rapitas/bin/ (auto-download destination)
     getLlamaServerPath(),
-    // 2. Tauri sidecar (リリースビルド)
+    // 2. Tauri sidecar (release build)
     join(process.cwd(), '..', 'rapitas-desktop', 'src-tauri', 'binaries', binaryName),
-    // 3. Tauri bundled (exe横)
+    // 3. Tauri bundled (next to exe)
     join(process.execPath, '..', binaryName),
   ];
 
@@ -64,19 +65,19 @@ function findLlamaServerBinary(): string | null {
 }
 
 /**
- * llama-serverプロセスを起動
+ * Start the llama-server process.
  */
 async function startLlamaServer(modelPath: string): Promise<boolean> {
   if (llamaServerProcess && llamaServerReady) {
     return true;
   }
 
-  // 既に起動中なら待つ
+  // Already starting; wait for it
   if (llamaServerProcess && !llamaServerReady) {
     return waitForLlamaServer();
   }
 
-  // ポートで既にサーバーが動いていればそれを使う
+  // Reuse if a server is already running on the port
   try {
     const res = await fetch(`${LLAMA_SERVER_URL}/health`, { signal: AbortSignal.timeout(2000) });
     if (res.ok) {
@@ -85,7 +86,7 @@ async function startLlamaServer(modelPath: string): Promise<boolean> {
       return true;
     }
   } catch {
-    // ポート空き → 起動する
+    // Port is free, proceed to start
   }
 
   const binary = findLlamaServerBinary();
@@ -154,7 +155,7 @@ async function startLlamaServer(modelPath: string): Promise<boolean> {
 }
 
 /**
- * llama-serverの起動完了を待つ
+ * Wait for llama-server startup to complete.
  */
 async function waitForLlamaServer(timeoutMs = 30000): Promise<boolean> {
   const startTime = Date.now();
@@ -163,7 +164,7 @@ async function waitForLlamaServer(timeoutMs = 30000): Promise<boolean> {
     if (llamaServerReady) return true;
     if (!llamaServerProcess) return false;
 
-    // ヘルスチェック
+    // Health check
     try {
       const res = await fetch(`${LLAMA_SERVER_URL}/health`, {
         signal: AbortSignal.timeout(2000),
@@ -173,7 +174,7 @@ async function waitForLlamaServer(timeoutMs = 30000): Promise<boolean> {
         return true;
       }
     } catch {
-      // まだ起動中
+      // Still starting up
     }
 
     await new Promise((r) => setTimeout(r, 500));
@@ -184,7 +185,7 @@ async function waitForLlamaServer(timeoutMs = 30000): Promise<boolean> {
 }
 
 /**
- * llama-serverプロセスを停止
+ * Stop the llama-server process.
  */
 export function stopLlamaServer(): void {
   if (llamaServerProcess) {
@@ -196,13 +197,13 @@ export function stopLlamaServer(): void {
 }
 
 /**
- * ローカルLLMの状態を取得（Ollama優先チェック）
+ * Get local LLM status (checks Ollama first).
  */
 export async function getLocalLLMStatus(ollamaUrl?: string): Promise<LocalLLMStatus> {
   const url = ollamaUrl || DEFAULT_OLLAMA_URL;
   const modelDownloaded = isModelDownloaded();
 
-  // 1. Ollamaをチェック
+  // 1. Check Ollama
   const ollamaCheck = await checkOllamaConnection(url);
   if (ollamaCheck.connected) {
     return {
@@ -216,7 +217,7 @@ export async function getLocalLLMStatus(ollamaUrl?: string): Promise<LocalLLMSta
     };
   }
 
-  // 2. llama-serverをチェック
+  // 2. Check llama-server
   if (llamaServerReady) {
     const llamaCheck = await checkOllamaConnection(LLAMA_SERVER_URL);
     if (llamaCheck.connected) {
@@ -245,8 +246,8 @@ export async function getLocalLLMStatus(ollamaUrl?: string): Promise<LocalLLMSta
 }
 
 /**
- * ローカルLLMを確保する（Ollama優先 → llama-server起動）
- * タイトル生成等で使う前に呼ぶ
+ * Ensure a local LLM is available (Ollama preferred, falls back to llama-server).
+ * Call before using for title generation, etc.
  */
 export async function ensureLocalLLM(
   ollamaUrl?: string,
@@ -254,7 +255,7 @@ export async function ensureLocalLLM(
 ): Promise<{ url: string; model: string }> {
   const url = ollamaUrl || DEFAULT_OLLAMA_URL;
 
-  // 1. Ollamaが利用可能か
+  // 1. Is Ollama available?
   log.info(`[ensureLocalLLM] Checking Ollama at ${url}...`);
   const ollamaCheck = await checkOllamaConnection(url);
   if (ollamaCheck.connected) {
@@ -270,7 +271,7 @@ export async function ensureLocalLLM(
   }
   log.info(`[ensureLocalLLM] Ollama not available: ${ollamaCheck.error}`);
 
-  // 2. llama-serverフォールバック
+  // 2. llama-server fallback
   log.info(
     `[ensureLocalLLM] Checking model downloaded: ${isModelDownloaded()}, llama-server downloaded: ${isLlamaServerDownloaded()}`,
   );
@@ -281,7 +282,7 @@ export async function ensureLocalLLM(
     );
   }
 
-  // llama-serverバイナリがなければ自動ダウンロード
+  // Auto-download llama-server binary if not found
   if (!isLlamaServerDownloaded()) {
     log.info('[ensureLocalLLM] llama-server not found, downloading automatically...');
     const dlResult = await downloadLlamaServer();
@@ -303,7 +304,7 @@ export async function ensureLocalLLM(
 }
 
 /**
- * プロセスクリーンアップ（サーバーシャットダウン時に呼ぶ）
+ * Process cleanup (called on server shutdown).
  */
 export function cleanupLocalLLM(): void {
   stopLlamaServer();

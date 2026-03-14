@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - エラーハンドラー
- * エラーの処理、リトライ戦略、エラーログの管理
+ * Agent Abstraction Layer - Error Handler
+ *
+ * Handles error processing, retry strategies, and error history management.
  */
 
 import { createLogger } from '../../../config/logger';
@@ -11,9 +12,7 @@ import type { AgentExecutionContext, AgentExecutionResult } from './types';
 import type { IErrorHandler, AgentErrorType, IAgentLogger } from './interfaces';
 import { AgentError } from './interfaces';
 
-/**
- * リトライ戦略設定
- */
+/** Retry strategy configuration per error type. */
 interface RetryStrategyConfig {
   maxRetries: number;
   initialDelayMs: number;
@@ -21,84 +20,78 @@ interface RetryStrategyConfig {
   backoffMultiplier: number;
 }
 
-/**
- * デフォルトのリトライ戦略
- */
+/** Default retry strategies per error type. */
 const DEFAULT_RETRY_STRATEGIES: Record<AgentErrorType, RetryStrategyConfig> = {
   configuration: {
-    maxRetries: 0, // 設定エラーはリトライしない
+    maxRetries: 0, // config errors are not retryable
     initialDelayMs: 0,
     maxDelayMs: 0,
     backoffMultiplier: 1,
   },
   authentication: {
-    maxRetries: 1, // 認証エラーは1回だけリトライ
+    maxRetries: 1, // auth errors get 1 retry (token refresh)
     initialDelayMs: 1000,
     maxDelayMs: 1000,
     backoffMultiplier: 1,
   },
   rate_limit: {
-    maxRetries: 5, // レート制限は複数回リトライ
+    maxRetries: 5, // rate limit requires multiple retries with backoff
     initialDelayMs: 5000,
     maxDelayMs: 60000,
     backoffMultiplier: 2,
   },
   timeout: {
-    maxRetries: 2, // タイムアウトは2回リトライ
+    maxRetries: 2,
     initialDelayMs: 10000,
     maxDelayMs: 30000,
     backoffMultiplier: 1.5,
   },
   network: {
-    maxRetries: 3, // ネットワークエラーは3回リトライ
+    maxRetries: 3,
     initialDelayMs: 3000,
     maxDelayMs: 30000,
     backoffMultiplier: 2,
   },
   execution: {
-    maxRetries: 1, // 実行エラーは1回リトライ
+    maxRetries: 1,
     initialDelayMs: 5000,
     maxDelayMs: 5000,
     backoffMultiplier: 1,
   },
   validation: {
-    maxRetries: 0, // バリデーションエラーはリトライしない
+    maxRetries: 0, // validation errors are not retryable
     initialDelayMs: 0,
     maxDelayMs: 0,
     backoffMultiplier: 1,
   },
   resource: {
-    maxRetries: 2, // リソースエラーは2回リトライ
+    maxRetries: 2,
     initialDelayMs: 10000,
     maxDelayMs: 60000,
     backoffMultiplier: 2,
   },
   permission: {
-    maxRetries: 0, // パーミッションエラーはリトライしない
+    maxRetries: 0, // permission errors are not retryable
     initialDelayMs: 0,
     maxDelayMs: 0,
     backoffMultiplier: 1,
   },
   internal: {
-    maxRetries: 1, // 内部エラーは1回リトライ
+    maxRetries: 1,
     initialDelayMs: 5000,
     maxDelayMs: 5000,
     backoffMultiplier: 1,
   },
 };
 
-/**
- * エラーハンドラーオプション
- */
+/** Error handler configuration options. */
 interface ErrorHandlerOptions {
   retryStrategies?: Partial<Record<AgentErrorType, Partial<RetryStrategyConfig>>>;
   logger?: IAgentLogger;
   onError?: (error: Error | AgentError, context: AgentExecutionContext) => Promise<void>;
 }
 
-/**
- * デフォルトのエラーハンドラー実装
- */
+/** Default error handler implementation with retry strategies. */
 export class DefaultErrorHandler implements IErrorHandler {
   private retryStrategies: Record<AgentErrorType, RetryStrategyConfig>;
   private logger?: IAgentLogger;
@@ -116,7 +109,7 @@ export class DefaultErrorHandler implements IErrorHandler {
   private maxHistorySize = 100;
 
   constructor(options: ErrorHandlerOptions = {}) {
-    // デフォルト戦略とカスタム戦略をマージ
+    // Merge custom strategies with defaults
     this.retryStrategies = { ...DEFAULT_RETRY_STRATEGIES };
 
     if (options.retryStrategies) {
@@ -134,9 +127,7 @@ export class DefaultErrorHandler implements IErrorHandler {
     this.onErrorCallback = options.onError;
   }
 
-  /**
-   * エラーを処理
-   */
+  /** Handles an error, deciding whether to retry or produce a fallback result. */
   async handleError(
     error: Error | AgentError,
     context: AgentExecutionContext,
@@ -146,20 +137,20 @@ export class DefaultErrorHandler implements IErrorHandler {
     delay?: number;
     fallbackResult?: AgentExecutionResult;
   }> {
-    // エラー履歴に追加
+    // Add to error history
     this.addToHistory(error, context.executionId, true);
 
-    // AgentErrorかどうかを判定
+    // Convert to AgentError if needed
     const agentError = this.toAgentError(error);
     const errorType = agentError.type;
 
-    // ログ出力
+    // Log error
     this.log(
       'error',
       `Error in execution ${context.executionId}: [${errorType}] ${agentError.message}`,
     );
 
-    // カスタムコールバックがあれば呼び出す
+    // Invoke custom error callback if configured
     if (this.onErrorCallback) {
       try {
         await this.onErrorCallback(error, context);
@@ -171,10 +162,10 @@ export class DefaultErrorHandler implements IErrorHandler {
       }
     }
 
-    // リトライ戦略を取得
+    // Get retry strategy for this error type
     const strategy = this.retryStrategies[errorType];
 
-    // リカバリー可能かつリトライ可能な場合
+    // Retry if recoverable and retries remain
     if (agentError.recoverable && strategy.maxRetries > 0) {
       return {
         handled: true,
@@ -183,7 +174,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       };
     }
 
-    // リカバリー不可能な場合のフォールバック結果を生成
+    // Generate fallback result for non-recoverable errors
     const fallbackResult: AgentExecutionResult = {
       success: false,
       state: 'failed',
@@ -212,9 +203,7 @@ export class DefaultErrorHandler implements IErrorHandler {
     };
   }
 
-  /**
-   * リトライ戦略を取得
-   */
+  /** Returns the retry strategy for a given error type and retry count. */
   getRetryStrategy(
     errorType: AgentErrorType,
     retryCount: number,
@@ -233,7 +222,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       };
     }
 
-    // 指数バックオフでディレイを計算
+    // Calculate delay with exponential backoff
     const delay = Math.min(
       strategy.initialDelayMs * Math.pow(strategy.backoffMultiplier, retryCount),
       strategy.maxDelayMs,
@@ -246,9 +235,7 @@ export class DefaultErrorHandler implements IErrorHandler {
     };
   }
 
-  /**
-   * エラー履歴を取得
-   */
+  /** Returns the full error history. */
   getErrorHistory(): Array<{
     timestamp: Date;
     error: Error | AgentError;
@@ -259,9 +246,7 @@ export class DefaultErrorHandler implements IErrorHandler {
     return [...this.errorHistory];
   }
 
-  /**
-   * 特定の実行のエラー履歴を取得
-   */
+  /** Returns error history for a specific execution. */
   getErrorsForExecution(executionId: string): Array<{
     timestamp: Date;
     error: Error | AgentError;
@@ -272,9 +257,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       .map(({ timestamp, error, handled }) => ({ timestamp, error, handled }));
   }
 
-  /**
-   * エラー統計を取得
-   */
+  /** Returns aggregated error statistics. */
   getErrorStats(): {
     total: number;
     byType: Record<string, number>;
@@ -306,16 +289,12 @@ export class DefaultErrorHandler implements IErrorHandler {
     };
   }
 
-  /**
-   * 履歴をクリア
-   */
+  /** Clears error history. */
   clearHistory(): void {
     this.errorHistory = [];
   }
 
-  /**
-   * リトライ戦略を更新
-   */
+  /** Updates the retry strategy for a specific error type. */
   updateRetryStrategy(errorType: AgentErrorType, config: Partial<RetryStrategyConfig>): void {
     this.retryStrategies[errorType] = {
       ...this.retryStrategies[errorType],
@@ -324,7 +303,7 @@ export class DefaultErrorHandler implements IErrorHandler {
   }
 
   // ============================================================================
-  // プライベートメソッド
+  // Private methods
   // ============================================================================
 
   private toAgentError(error: Error | AgentError): AgentError {
@@ -332,7 +311,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       return error;
     }
 
-    // エラーメッセージからタイプを推測
+    // Infer error type from message keywords
     const message = error.message.toLowerCase();
     let type: AgentErrorType = 'execution';
     let recoverable = false;
@@ -392,7 +371,7 @@ export class DefaultErrorHandler implements IErrorHandler {
       handled,
     });
 
-    // 履歴サイズを制限
+    // Evict oldest entry when history exceeds max size
     if (this.errorHistory.length > this.maxHistorySize) {
       this.errorHistory.shift();
     }
@@ -416,9 +395,7 @@ export class DefaultErrorHandler implements IErrorHandler {
   }
 }
 
-/**
- * デフォルトのエラーハンドラーインスタンス
- */
+/** Default singleton error handler instance. */
 let defaultHandler: DefaultErrorHandler | null = null;
 
 export function getDefaultErrorHandler(): DefaultErrorHandler {
@@ -432,9 +409,7 @@ export function setDefaultErrorHandler(handler: DefaultErrorHandler): void {
   defaultHandler = handler;
 }
 
-/**
- * エラーをAgentErrorにラップするユーティリティ
- */
+/** Wraps an unknown error into an AgentError. */
 export function wrapError(
   error: unknown,
   type: AgentErrorType = 'execution',
@@ -451,16 +426,12 @@ export function wrapError(
   return new AgentError(String(error), type, recoverable);
 }
 
-/**
- * エラーがAgentErrorかどうかを判定
- */
+/** Type guard for AgentError. */
 export function isAgentError(error: unknown): error is AgentError {
   return error instanceof AgentError;
 }
 
-/**
- * リカバリー可能なエラーかどうかを判定
- */
+/** Checks whether an error is recoverable. */
 export function isRecoverableError(error: unknown): boolean {
   if (error instanceof AgentError) {
     return error.recoverable;

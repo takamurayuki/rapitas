@@ -4,7 +4,7 @@
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 
-// Prismaモック
+// Prisma mock
 const mockPrisma = {
   task: {
     findMany: mock(() => Promise.resolve([])),
@@ -272,15 +272,15 @@ describe('updateTask', () => {
   });
 
   test('存在しないタスクでエラーをスローすること', async () => {
-    // findUniqueがnullを返す場合をシミュレート
+    // Simulate findUnique returning null
     mockPrisma.task.findUnique.mockResolvedValueOnce(null);
 
-    // updateTaskが適切なエラーをスローすることを確認
+    // Verify updateTask throws an appropriate error
     await expect(updateTask(mockPrisma as never, 999, { title: 'Updated' })).rejects.toThrow(
       'タスク(ID: 999)が見つかりません',
     );
 
-    // updateやその他の操作が呼ばれないことを確認
+    // Verify update and other operations were not called
     expect(mockPrisma.task.update).not.toHaveBeenCalled();
     expect(mockPrisma.studyStreak.upsert).not.toHaveBeenCalled();
   });

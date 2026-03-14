@@ -215,18 +215,18 @@ app.get('/health', (context: Context) => {
 const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({
   port: PORT,
-  idleTimeout: 30, // 30秒のアイドルタイムアウトでCLOSE_WAIT蓄積を防止
-  reusePort: true, // TIME_WAIT状態のゾンビソケットがあってもバインド可能にする
+  idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
+  reusePort: true, // allows binding even with TIME_WAIT zombie sockets
 });
 log.info(`Rapitas backend (optimized) running on http://localhost:${PORT}`);
 
-// Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
+// Set server stop callback for orchestrator (for proper port release during graceful shutdown)
 orchestrator.setServerStopCallback(() => {
   app.stop();
 });
 
-// bun --watch からのシグナル処理（dev:simpleモード用）
-// SIGTERM/SIGINT受信時にSSE接続を即座に閉じてCLOSE_WAIT蓄積を防止
+// Signal handling from bun --watch (for dev:simple mode)
+// Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
 let isShuttingDown = false;
 const handleProcessSignal = async (signal: string) => {
   if (isShuttingDown) return;
@@ -234,14 +234,14 @@ const handleProcessSignal = async (signal: string) => {
 
   log.info(`Received ${signal}, initiating graceful shutdown...`);
 
-  // 強制終了タイマー（8秒後に強制終了）
+  // Force exit timer (force exit after 8 seconds)
   const forceExitTimer = setTimeout(() => {
     log.error('Graceful shutdown timeout, forcing exit...');
     process.exit(1);
   }, 8000);
 
   try {
-    // Step 1: まずリスニングソケットを閉じる（新規接続を拒否）
+    // Step 1: First close the listening socket (reject new connections)
     log.info('Step 1: Stopping listener (no new connections)...');
     try {
       app.stop();
@@ -249,23 +249,23 @@ const handleProcessSignal = async (signal: string) => {
       log.error({ err: error }, 'Error stopping listener');
     }
 
-    // Step 2: WebSocketとSSE接続を全て閉じる
+    // Step 2: Close all WebSocket and SSE connections
     log.info('Step 2: Closing WebSocket and SSE connections...');
     wsManager.shutdown();
     const clientCount = realtimeService.getClientCount();
     realtimeService.shutdown();
     log.info({ clientCount }, `Closed ${clientCount} SSE client(s).`);
 
-    // Step 3: 接続がドレインされるのを待つ
+    // Step 3: Wait for connections to drain
     log.info('Step 3: Waiting for connections to drain...');
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Step 4: キャッシュの統計を保存
+    // Step 4: Save cache statistics
     log.info('Step 4: Saving cache statistics...');
     const cacheStats = cacheService.getStats();
     log.info({ cacheStats }, 'Cache statistics');
 
-    // Step 5: データベース接続を閉じる
+    // Step 5: Close database connection
     log.info('Step 5: Closing database connection...');
     try {
       await prisma.$disconnect();
@@ -276,7 +276,7 @@ const handleProcessSignal = async (signal: string) => {
 
     clearTimeout(forceExitTimer);
 
-    // TCPスタックがソケットを解放する時間を確保
+    // Give TCP stack time to release sockets
     log.info('Waiting for socket cleanup...');
     setTimeout(() => {
       log.info('Shutdown complete.');
@@ -294,16 +294,16 @@ process.on('SIGINT', () => handleProcessSignal('SIGINT'));
 
 // Startup recovery with cache warming
 const startupRecovery = async () => {
-  // サーバーが完全に起動するまで少し待機
+  // Wait briefly for server to fully start
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  // キャッシュのウォーミング
+  // Cache warming
   log.info('Warming up cache...');
   await cacheService.warmup([
     {
       key: 'categories',
       factory: () => prisma.category.findMany(),
-      ttl: 3600, // 1時間
+      ttl: 3600, // 1 hour
     },
     {
       key: 'themes',
@@ -313,7 +313,7 @@ const startupRecovery = async () => {
     {
       key: 'projects',
       factory: () => prisma.project.findMany(),
-      ttl: 1800, // 30分
+      ttl: 1800, // 30 minutes
     },
   ]);
 
@@ -335,7 +335,7 @@ const startupRecovery = async () => {
     try {
       const settings = await prisma.userSettings.findFirst();
       if (settings?.autoResumeInterruptedTasks) {
-        // 自動再開前にサーバーが安定するまで追加の待機
+        // Additional wait for server to stabilize before auto-resume
         log.info(
           { count: result.interruptedExecutionIds.length },
           `Auto-resume enabled. Waiting for server to stabilize before resuming ${result.interruptedExecutionIds.length} executions...`,
@@ -378,8 +378,8 @@ const startupRecovery = async () => {
           .create({
             data: {
               type: 'agent_execution_resumed',
-              title: '自動再開完了',
-              message: `サーバー再起動後、${result.interruptedExecutionIds.length}件の中断されたタスクを自動再開しました。`,
+              title: 'Auto-resume completed',
+              message: `After server restart, ${result.interruptedExecutionIds.length} interrupted tasks were automatically resumed.`,
               link: '/',
             },
           })

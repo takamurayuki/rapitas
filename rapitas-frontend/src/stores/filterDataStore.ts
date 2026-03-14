@@ -6,36 +6,36 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('filterDataStore');
 
 interface FilterDataState {
-  // データ
+  // Data
   categories: Category[];
   themes: Theme[];
 
-  // 状態管理
+  // State management
   lastUpdated: number | null;
   isInitialized: boolean;
   isLoading: boolean;
   error: string | null;
 
-  // キャッシュ設定
+  // Cache settings
   cacheExpireTime: number; // milliseconds (default: 1 hour)
 }
 
 interface FilterDataActions {
-  // 初期化・更新
+  // Initialize/update
   initializeData: () => Promise<void>;
   refreshData: (force?: boolean) => Promise<void>;
 
-  // データ設定
+  // Data setters
   setCategories: (categories: Category[]) => void;
   setThemes: (themes: Theme[]) => void;
 
-  // キャッシュ管理
+  // Cache management
   clearCache: () => void;
   isDataFresh: () => boolean;
   shouldBackgroundRefresh: () => boolean;
   backgroundRefresh: () => Promise<void>;
 
-  // エラーハンドリング
+  // Error handling
   setError: (error: string | null) => void;
   clearError: () => void;
 }
@@ -56,12 +56,12 @@ const RETRY_DELAY = 1000; // 1 second
 const FETCH_TIMEOUT = 10000; // 10 seconds
 
 /**
- * 指定した時間待機するユーティリティ関数
+ * Utility function to wait for specified duration
  */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * タイムアウト付きのfetch関数
+ * Fetch function with timeout
  */
 const fetchWithTimeout = async <T>(
   fetchFn: () => Promise<T>,
@@ -75,7 +75,7 @@ const fetchWithTimeout = async <T>(
 };
 
 /**
- * リトライ付きのAPI呼び出し
+ * API call with retry
  */
 const fetchWithRetry = async <T>(
   fetchFn: () => Promise<T>,
@@ -102,7 +102,6 @@ const fetchWithRetry = async <T>(
 export const useFilterDataStore = create<FilterDataStore>()(
   persist(
     (set, get) => ({
-      // 初期状態
       categories: [],
       themes: [],
       lastUpdated: null,
@@ -111,7 +110,6 @@ export const useFilterDataStore = create<FilterDataStore>()(
       error: null,
       cacheExpireTime: DEFAULT_CACHE_EXPIRE_TIME,
 
-      // データ初期化
       initializeData: async () => {
         const state = get();
 
@@ -137,7 +135,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             ),
           ]);
 
-          // カテゴリの結果処理
+          // Process category results
           if (categoriesResult.status === 'fulfilled') {
             set({ categories: categoriesResult.value });
           } else {
@@ -150,7 +148,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             );
           }
 
-          // テーマの結果処理
+          // Process theme results
           if (themesResult.status === 'fulfilled') {
             set({ themes: themesResult.value });
           } else {
@@ -188,11 +186,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
         }
       },
 
-      // データ更新
       refreshData: async (force = false) => {
         const state = get();
 
-        // 強制更新でない場合、データが新しければスキップ
+        // Skip if data is fresh and not force-updating
         if (!force && state.isDataFresh()) {
           logger.debug(
             '[filterDataStore] refreshData: Data is fresh, skipping refresh',
@@ -217,7 +214,6 @@ export const useFilterDataStore = create<FilterDataStore>()(
         return get().initializeData();
       },
 
-      // カテゴリ設定
       setCategories: (categories) => {
         logger.debug(
           `[filterDataStore] setCategories: Setting ${categories.length} categories`,
@@ -225,7 +221,6 @@ export const useFilterDataStore = create<FilterDataStore>()(
         set({ categories });
       },
 
-      // テーマ設定
       setThemes: (themes) => {
         logger.debug(
           `[filterDataStore] setThemes: Setting ${themes.length} themes`,
@@ -233,7 +228,6 @@ export const useFilterDataStore = create<FilterDataStore>()(
         set({ themes });
       },
 
-      // キャッシュクリア
       clearCache: () => {
         logger.info('[filterDataStore] clearCache: Clearing all cache');
         set({
@@ -245,7 +239,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         });
       },
 
-      // データ新鮮度チェック
+      // Check data freshness
       isDataFresh: () => {
         const state = get();
         if (!state.lastUpdated) return false;
@@ -260,7 +254,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         return !isExpired;
       },
 
-      // バックグラウンド更新が必要かチェック
+      // Check if background update is needed
       shouldBackgroundRefresh: () => {
         const state = get();
         if (!state.lastUpdated || state.isLoading) return false;
@@ -278,7 +272,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
         return shouldRefresh;
       },
 
-      // バックグラウンド更新（ユーザーに気づかれないように）
+      // Background update (transparent to user)
       backgroundRefresh: async () => {
         const state = get();
         logger.debug(
@@ -298,7 +292,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
           let hasUpdates = false;
 
-          // カテゴリの結果処理
+          // Process category results
           if (categoriesResult.status === 'fulfilled') {
             set({ categories: categoriesResult.value });
             hasUpdates = true;
@@ -309,7 +303,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             );
           }
 
-          // テーマの結果処理
+          // Process theme results
           if (themesResult.status === 'fulfilled') {
             set({ themes: themesResult.value });
             hasUpdates = true;
@@ -338,12 +332,10 @@ export const useFilterDataStore = create<FilterDataStore>()(
         }
       },
 
-      // エラー設定
       setError: (error) => {
         set({ error });
       },
 
-      // エラークリア
       clearError: () => {
         set({ error: null });
       },
@@ -367,7 +359,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             isInitialized: state.isInitialized,
           });
 
-          // リハイドレート後にデータの新鮮度をチェック
+          // Check data freshness after rehydration
           if (state.isInitialized && !state.isDataFresh()) {
             logger.debug(
               '[filterDataStore] Cached data is stale, will refresh on next access',
@@ -379,7 +371,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
   ),
 );
 
-// デバッグ用のヘルパー関数
+// Debug helper functions
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (window as unknown as Record<string, unknown>).filterDataStoreDebug = {
     getState: () => useFilterDataStore.getState(),

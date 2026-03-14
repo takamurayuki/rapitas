@@ -85,7 +85,7 @@ export async function searchTasks(query: string): Promise<Task[]> {
  */
 export async function preloadTaskDetails(taskIds: number[]): Promise<void> {
   const paths = taskIds.map((id) => `/tasks/${id}`);
-  await apiClient.prefetch(paths, 300000); // 5分キャッシュ
+  await apiClient.prefetch(paths, 300000); // 5 minute cache
 }
 
 /**

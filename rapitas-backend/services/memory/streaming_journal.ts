@@ -1,6 +1,7 @@
 /**
- * ストリーミングジャーナル（WALクラッシュ耐性）
- * サーバー起動時にpendingエントリをリプレイし、データ整合性を保証
+ * Streaming Journal (WAL-based crash resilience)
+ *
+ * Replays pending entries at server startup to guarantee data integrity.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
@@ -10,10 +11,11 @@ const log = createLogger('memory:journal');
 
 export class MemoryJournal {
   /**
-   * ジャーナルエントリを書き込み
-   * 1. pendingエントリ作成
-   * 2. 実際の書き込み実行
-   * 3. committedに更新
+   * Write a journal entry with crash safety.
+   *
+   * 1. Create a pending entry
+   * 2. Execute the actual write
+   * 3. Mark as committed
    */
   static async write(op: {
     operationType: JournalOperationType;
@@ -22,7 +24,7 @@ export class MemoryJournal {
     payload: Record<string, unknown>;
     executor: () => Promise<{ id?: number }>;
   }): Promise<{ journalId: number; result: { id?: number } }> {
-    // 1. pendingエントリ作成
+    // 1. Create pending entry
     const entry = await prisma.memoryJournalEntry.create({
       data: {
         operationType: op.operationType,
@@ -34,10 +36,10 @@ export class MemoryJournal {
     });
 
     try {
-      // 2. 実際の書き込み実行
+      // 2. Execute the actual write
       const result = await op.executor();
 
-      // 3. committed に更新
+      // 3. Mark as committed
       await prisma.memoryJournalEntry.update({
         where: { id: entry.id },
         data: {
@@ -48,7 +50,7 @@ export class MemoryJournal {
 
       return { journalId: entry.id, result };
     } catch (error) {
-      // 失敗時はfailedに更新
+      // Mark as failed on error
       const message = error instanceof Error ? error.message : String(error);
       await prisma.memoryJournalEntry.update({
         where: { id: entry.id },
@@ -60,7 +62,7 @@ export class MemoryJournal {
   }
 
   /**
-   * サーバー起動時にpendingエントリをリプレイ
+   * Recover pending entries at server startup.
    */
   static async recover(): Promise<number> {
     const pendingEntries = await prisma.memoryJournalEntry.findMany({
@@ -75,8 +77,8 @@ export class MemoryJournal {
     let recovered = 0;
     for (const entry of pendingEntries) {
       try {
-        // pendingエントリは実際の書き込みが完了していない可能性がある
-        // 安全のためfailedとしてマーク（手動確認が必要）
+        // Pending entries may not have completed their write operation.
+        // NOTE: Marked as failed for safety — requires manual review.
         await prisma.memoryJournalEntry.update({
           where: { id: entry.id },
           data: {
@@ -95,7 +97,7 @@ export class MemoryJournal {
   }
 
   /**
-   * 24h以上前のcommittedエントリを削除
+   * Delete committed entries older than 24 hours.
    */
   static async checkpoint(): Promise<number> {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);

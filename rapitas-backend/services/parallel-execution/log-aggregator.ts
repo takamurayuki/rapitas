@@ -1,6 +1,7 @@
 /**
- * ログ集約システム
- * 複数のサブエージェントからの実行ログを集約・フィルタリング・共有する
+ * Log Aggregation System
+ *
+ * Aggregates, filters, and shares execution logs from multiple sub-agents.
  */
 
 import { EventEmitter } from 'events';
@@ -10,7 +11,7 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('log-aggregator');
 
 /**
- * ログフィルターの条件
+ * Log filter criteria
  */
 type LogFilter = {
   agentIds?: string[];
@@ -22,7 +23,7 @@ type LogFilter = {
 };
 
 /**
- * 集約ログエントリー
+ * Aggregated log entry
  */
 type AggregatedLogEntry = ExecutionLogEntry & {
   id: string;
@@ -31,7 +32,7 @@ type AggregatedLogEntry = ExecutionLogEntry & {
 };
 
 /**
- * ログサマリー
+ * Log summary
  */
 type LogSummary = {
   totalLogs: number;
@@ -45,7 +46,7 @@ type LogSummary = {
 };
 
 /**
- * ログ購読者
+ * Log subscriber
  */
 type LogSubscriber = {
   id: string;
@@ -54,7 +55,7 @@ type LogSubscriber = {
 };
 
 /**
- * ログ集約クラス
+ * Log aggregation class
  */
 export class LogAggregator extends EventEmitter {
   private logs: AggregatedLogEntry[] = [];
@@ -62,7 +63,7 @@ export class LogAggregator extends EventEmitter {
   private sequence: number = 0;
   private subscribers: Map<string, LogSubscriber> = new Map();
 
-  // リングバッファ用インデックス
+  // Ring buffer index
   private bufferIndex: number = 0;
   private isFull: boolean = false;
 
@@ -73,7 +74,7 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * ログを追加
+   * Add a log entry.
    */
   addLog(entry: ExecutionLogEntry): string {
     const aggregatedEntry: AggregatedLogEntry = {
@@ -83,53 +84,53 @@ export class LogAggregator extends EventEmitter {
       tags: this.extractTags(entry.message),
     };
 
-    // リングバッファにログを追加
+    // Add log to ring buffer
     this.logs[this.bufferIndex] = aggregatedEntry;
     this.bufferIndex = (this.bufferIndex + 1) % this.maxLogs;
     if (this.bufferIndex === 0) {
       this.isFull = true;
     }
 
-    // イベントを発火
+    // Emit event
     this.emit('log', aggregatedEntry);
 
-    // 購読者に通知
+    // Notify subscribers
     this.notifySubscribers(aggregatedEntry);
 
     return aggregatedEntry.id;
   }
 
   /**
-   * メッセージからタグを抽出
+   * Extract tags from message.
    */
   private extractTags(message: string): string[] {
     const tags: string[] = [];
 
-    // エラー関連
+    // Error related
     if (/error|fail|exception/i.test(message)) tags.push('error');
     if (/warn|warning/i.test(message)) tags.push('warning');
 
-    // 進捗関連
+    // Progress related
     if (/start|begin/i.test(message)) tags.push('start');
     if (/complete|finish|done|success/i.test(message)) tags.push('complete');
 
-    // ファイル操作
+    // File operations
     if (/file|read|write|create|delete|modify/i.test(message)) tags.push('file');
 
-    // Git操作
+    // Git operations
     if (/git|commit|push|pull|merge|branch/i.test(message)) tags.push('git');
 
-    // テスト
+    // Test
     if (/test|spec|assert/i.test(message)) tags.push('test');
 
-    // ビルド
+    // Build
     if (/build|compile|bundle/i.test(message)) tags.push('build');
 
     return tags;
   }
 
   /**
-   * 購読者に通知
+   * Notify subscribers
    */
   private notifySubscribers(entry: AggregatedLogEntry): void {
     for (const subscriber of this.subscribers.values()) {
@@ -144,7 +145,7 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * フィルター条件にマッチするかチェック
+   * Check if entry matches filter criteria.
    */
   private matchesFilter(entry: AggregatedLogEntry, filter: LogFilter): boolean {
     if (filter.agentIds && !filter.agentIds.includes(entry.agentId)) {
@@ -178,7 +179,7 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * ログを購読
+   * Subscribe to logs.
    */
   subscribe(filter: LogFilter, callback: (entry: AggregatedLogEntry) => void): string {
     const subscriberId = `sub-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -193,19 +194,19 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * 購読を解除
+   * Unsubscribe from logs.
    */
   unsubscribe(subscriberId: string): void {
     this.subscribers.delete(subscriberId);
   }
 
   /**
-   * ログを検索
+   * Query logs.
    */
   query(filter: LogFilter, limit?: number, offset?: number): AggregatedLogEntry[] {
     const results: AggregatedLogEntry[] = [];
 
-    // 有効なログを取得
+    // Get valid logs.
     const validLogs = this.getValidLogs();
 
     for (const entry of validLogs) {
@@ -214,10 +215,10 @@ export class LogAggregator extends EventEmitter {
       }
     }
 
-    // ソート（タイムスタンプ降順）
+    // Sort (timestamp descending)
     results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-    // ページネーション
+    // Pagination
     const start = offset || 0;
     const end = limit ? start + limit : results.length;
 
@@ -225,48 +226,46 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * 有効なログを取得（リングバッファから）
+   * Get valid logs (from ring buffer).
    */
   private getValidLogs(): AggregatedLogEntry[] {
     if (this.isFull) {
-      // バッファが一杯の場合、すべてのログを返す
       return this.logs.filter(Boolean);
     } else {
-      // バッファが一杯でない場合、書き込まれた部分のみ
       return this.logs.slice(0, this.bufferIndex).filter(Boolean);
     }
   }
 
   /**
-   * タスク別のログを取得
+   * Get logs by task.
    */
   getLogsByTask(taskId: number, limit?: number): AggregatedLogEntry[] {
     return this.query({ taskIds: [taskId] }, limit);
   }
 
   /**
-   * エージェント別のログを取得
+   * Get logs by agent.
    */
   getLogsByAgent(agentId: string, limit?: number): AggregatedLogEntry[] {
     return this.query({ agentIds: [agentId] }, limit);
   }
 
   /**
-   * エラーログを取得
+   * Get error logs.
    */
   getErrorLogs(limit?: number): AggregatedLogEntry[] {
     return this.query({ levels: ['error', 'warn'] }, limit);
   }
 
   /**
-   * 最新のログを取得
+   * Get recent logs.
    */
   getRecentLogs(count: number): AggregatedLogEntry[] {
     return this.query({}, count);
   }
 
   /**
-   * ログのサマリーを取得
+   * Get log summary.
    */
   getSummary(): LogSummary {
     const validLogs = this.getValidLogs();
@@ -278,16 +277,16 @@ export class LogAggregator extends EventEmitter {
     let maxTime = new Date(0);
 
     for (const log of validLogs) {
-      // エージェント別
+      // By agent
       byAgent[log.agentId] = (byAgent[log.agentId] || 0) + 1;
 
-      // タスク別
+      // By task
       byTask[log.taskId] = (byTask[log.taskId] || 0) + 1;
 
-      // レベル別
+      // By level
       byLevel[log.level] = (byLevel[log.level] || 0) + 1;
 
-      // 時間範囲
+      // Time range
       if (log.timestamp < minTime) minTime = log.timestamp;
       if (log.timestamp > maxTime) maxTime = log.timestamp;
     }
@@ -305,7 +304,7 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * ログをクリア
+   * Clear logs.
    */
   clear(): void {
     this.logs = new Array(this.maxLogs);
@@ -315,7 +314,7 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * ログをエクスポート
+   * Export logs.
    */
   export(filter?: LogFilter): string {
     const logs = filter ? this.query(filter) : this.getValidLogs();
@@ -333,14 +332,14 @@ export class LogAggregator extends EventEmitter {
   }
 
   /**
-   * 複数タスクのインターリーブされたログを取得
+   * Get interleaved logs for multiple tasks.
    */
   getInterleavedLogs(taskIds: number[], limit?: number): AggregatedLogEntry[] {
     return this.query({ taskIds }, limit);
   }
 
   /**
-   * タグでログを検索
+   * Search logs by tag.
    */
   getLogsByTag(tag: string, limit?: number): AggregatedLogEntry[] {
     const validLogs = this.getValidLogs();
@@ -351,11 +350,11 @@ export class LogAggregator extends EventEmitter {
 }
 
 /**
- * ログフォーマッター
+ * Log formatter
  */
 export class LogFormatter {
   /**
-   * ログをターミナル形式でフォーマット
+   * Format log as terminal output.
    */
   static toTerminal(entry: AggregatedLogEntry): string {
     const timestamp = entry.timestamp.toISOString().slice(11, 23);
@@ -366,7 +365,7 @@ export class LogFormatter {
   }
 
   /**
-   * ログをJSON形式でフォーマット
+   * Format log as JSON.
    */
   static toJson(entry: AggregatedLogEntry): string {
     return JSON.stringify({
@@ -381,12 +380,12 @@ export class LogFormatter {
   }
 
   /**
-   * ログをMarkdown形式でフォーマット
+   * Format logs as Markdown.
    */
   static toMarkdown(entries: AggregatedLogEntry[]): string {
     let markdown = '# 実行ログ\n\n';
 
-    // タスク別にグループ化
+    // Group by task
     const byTask = new Map<number, AggregatedLogEntry[]>();
     for (const entry of entries) {
       if (!byTask.has(entry.taskId)) {
@@ -419,7 +418,7 @@ export class LogFormatter {
 }
 
 /**
- * ログ集約器のファクトリー関数
+ * Factory function for creating a log aggregator.
  */
 export function createLogAggregator(maxLogs?: number): LogAggregator {
   return new LogAggregator(maxLogs);

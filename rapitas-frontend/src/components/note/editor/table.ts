@@ -29,7 +29,7 @@ export function createTableNode(): DocumentFragment {
   table.appendChild(tbody);
   frag.appendChild(table);
 
-  // テーブル後の空行
+  // Empty paragraph after table so cursor can escape
   const p = document.createElement('p');
   p.appendChild(document.createElement('br'));
   frag.appendChild(p);

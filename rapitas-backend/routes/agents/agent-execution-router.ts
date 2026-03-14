@@ -801,6 +801,47 @@ export const agentExecutionRouter = new Elysia()
         const latestExecution = latestSession.agentExecutions[0];
         const execExtras = latestExecution as typeof latestExecution & AgentExecutionWithExtras;
 
+        // NOTE: When the session is pending/running but the latest execution is terminal,
+        // the worker has not yet created a new execution (IPC + DB creation lag).
+        // Return "running" to avoid showing incorrect "completed" status on the frontend.
+        const sessionIsActive = latestSession.status === 'pending' || latestSession.status === 'running';
+        const executionIsTerminal = latestExecution?.status === 'completed'
+          || latestExecution?.status === 'failed'
+          || latestExecution?.status === 'cancelled';
+        if (sessionIsActive && executionIsTerminal) {
+          // Check if the worker has active tasks
+          const workerMgr = agentWorkerManager as unknown as { getActiveExecutionIdsAsync?: () => Promise<number[]> };
+          const activeIds = workerMgr.getActiveExecutionIdsAsync
+            ? await workerMgr.getActiveExecutionIdsAsync()
+            : [];
+          const hasActiveExecution = activeIds.length > 0;
+
+          if (hasActiveExecution) {
+            log.debug(
+              `[execution-status] Session ${latestSession.id} is active but latest execution is terminal — worker has active executions, returning 'running'`,
+            );
+            return {
+              sessionId: latestSession.id,
+              sessionStatus: latestSession.status,
+              sessionMode: latestSession.mode || null,
+              executionId: latestExecution?.id,
+              executionStatus: 'running',
+              output: latestExecution?.output || '',
+              errorMessage: null,
+              startedAt: latestExecution?.startedAt,
+              completedAt: null,
+              tokensUsed: 0,
+              totalSessionTokens: latestSession.totalTokensUsed || 0,
+              waitingForInput: false,
+              question: null,
+              questionType: 'none',
+              questionTimeout: null,
+              claudeSessionId: null,
+              agentConfig: null,
+            };
+          }
+        }
+
         const isWaitingForInput = latestExecution?.status === 'waiting_for_input';
         const questionText = execExtras?.question || null;
         const questionType: 'tool_call' | 'none' =

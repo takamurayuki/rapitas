@@ -1,25 +1,26 @@
 /**
- * 並列実行システム
- * サブタスクの依存関係分析と並列実行を管理するモジュール
+ * Parallel Execution System
+ *
+ * Module for managing dependency analysis and parallel execution of subtasks.
  */
 
-// 型定義
+// Type definitions
 export * from './types';
 
-// 依存関係分析
+// Dependency analysis
 export { DependencyAnalyzer, createDependencyAnalyzer } from './dependency-analyzer';
 
-// 並列スケジューラー
+// Parallel scheduler
 export { ParallelScheduler, createParallelScheduler } from './parallel-scheduler';
 
-// サブエージェント制御
+// Sub-agent controller
 export { SubAgentController, createSubAgentController } from './sub-agent-controller';
 
-// ログ集約
+// Log aggregation
 export { LogAggregator, LogFormatter, createLogAggregator } from './log-aggregator';
 
-// エージェント間連携
+// Agent coordination
 export { AgentCoordinator, createAgentCoordinator } from './agent-coordinator';
 
-// 並列実行オーケストレーター
+// Parallel execution orchestrator
 export { ParallelExecutor, createParallelExecutor } from './parallel-executor';

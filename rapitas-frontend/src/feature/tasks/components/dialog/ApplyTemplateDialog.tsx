@@ -40,7 +40,6 @@ export default function ApplyTemplateDialog({
     null,
   );
 
-  // テンプレート取得
   useEffect(() => {
     const fetchTemplates = async () => {
       if (!isOpen) return;
@@ -63,7 +62,6 @@ export default function ApplyTemplateDialog({
         const data = await res.json();
         setTemplates(data);
 
-        // カテゴリを抽出
         const uniqueCategories = [
           ...new Set(data.map((t: TaskTemplate) => t.category)),
         ] as string[];
@@ -78,7 +76,7 @@ export default function ApplyTemplateDialog({
     fetchTemplates();
   }, [isOpen, selectedTheme]);
 
-  // モーダルが閉じられたときにリセット
+  // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedCategory(null);
@@ -88,7 +86,6 @@ export default function ApplyTemplateDialog({
     }
   }, [isOpen]);
 
-  // フィルタリングされたテンプレート
   const filteredTemplates = useMemo(() => {
     return templates.filter((template) => {
       const matchesCategory =

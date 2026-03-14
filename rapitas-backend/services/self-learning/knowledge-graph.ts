@@ -1,8 +1,8 @@
 /**
- * Knowledge Graph - 知識をグラフ構造で管理
+ * Knowledge Graph -
  *
- * ノード: concept, problem, solution, technology, pattern
- * エッジ: related, causes, solves, requires, part_of, similar_to
+ * : concept, problem, solution, technology, pattern
+ * : related, causes, solves, requires, part_of, similar_to
  */
 
 import { prisma } from '../../config/database';
@@ -23,7 +23,7 @@ const log = createLogger('self-learning:knowledge-graph');
 // --- Node Operations ---
 
 /**
- * ノードを追加（既存の場合はweightを加算）
+ * （weight）
  */
 export async function addNode(input: CreateNodeInput): Promise<GraphNode> {
   const existing = await prisma.knowledgeGraphNode.findUnique({
@@ -60,7 +60,6 @@ export async function addNode(input: CreateNodeInput): Promise<GraphNode> {
 }
 
 /**
- * ノード一覧を取得
  */
 export async function listNodes(
   options: {
@@ -102,13 +101,11 @@ export async function listNodes(
 }
 
 /**
- * ノードを取得
  */
 export async function getNode(id: number) {
   const node = await prisma.knowledgeGraphNode.findUnique({ where: { id } });
   if (!node) return null;
 
-  // アクセスカウントを更新
   await prisma.knowledgeGraphNode.update({
     where: { id },
     data: { accessCount: node.accessCount + 1, lastAccessedAt: new Date() },
@@ -120,7 +117,7 @@ export async function getNode(id: number) {
 // --- Edge Operations ---
 
 /**
- * エッジを追加（既存の場合はweightを加算）
+ * （weight）
  */
 export async function addEdge(input: CreateEdgeInput): Promise<GraphEdge> {
   const existing = await prisma.knowledgeGraphEdge.findUnique({
@@ -161,7 +158,6 @@ export async function addEdge(input: CreateEdgeInput): Promise<GraphEdge> {
 // --- Graph Traversal ---
 
 /**
- * 関連ノードを取得
  */
 export async function findRelated(nodeId: number, edgeTypes?: KnowledgeEdgeType[]) {
   const where: Record<string, unknown> = {
@@ -180,7 +176,6 @@ export async function findRelated(nodeId: number, edgeTypes?: KnowledgeEdgeType[
     orderBy: { weight: 'desc' },
   });
 
-  // 隣接ノードを重複なしで返す
   const nodeMap = new Map<number, GraphNode>();
   for (const edge of edges) {
     const relatedNode = edge.fromNodeId === nodeId ? edge.toNode : edge.fromNode;
@@ -196,7 +191,7 @@ export async function findRelated(nodeId: number, edgeTypes?: KnowledgeEdgeType[
 }
 
 /**
- * サブグラフを取得（BFS探索）
+ * （BFS）
  */
 export async function getSubgraph(query: SubgraphQuery): Promise<Subgraph> {
   const { nodeId, depth = 2, edgeTypes, maxNodes = 50 } = query;
@@ -233,12 +228,10 @@ export async function getSubgraph(query: SubgraphQuery): Promise<Subgraph> {
     frontier = nextFrontier;
   }
 
-  // ノードデータを取得
   const nodes = await prisma.knowledgeGraphNode.findMany({
     where: { id: { in: Array.from(visitedNodes) } },
   });
 
-  // エッジの重複を除去
   const uniqueEdges = Array.from(new Map(collectedEdges.map((e) => [e.id, e])).values());
 
   return {
@@ -248,10 +241,10 @@ export async function getSubgraph(query: SubgraphQuery): Promise<Subgraph> {
 }
 
 /**
- * ノードを統合（2つのノードを1つにマージ）
+ * （21）
  */
 export async function mergeNodes(keepId: number, removeId: number) {
-  // removeId のエッジを keepId に移行
+  // removeId  keepId
   await prisma.knowledgeGraphEdge.updateMany({
     where: { fromNodeId: removeId },
     data: { fromNodeId: keepId },
@@ -261,12 +254,11 @@ export async function mergeNodes(keepId: number, removeId: number) {
     data: { toNodeId: keepId },
   });
 
-  // 重複エッジを削除（自己ループ含む）
   await prisma.knowledgeGraphEdge.deleteMany({
     where: { fromNodeId: keepId, toNodeId: keepId },
   });
 
-  // removeId を削除
+  // removeId
   await prisma.knowledgeGraphNode.delete({ where: { id: removeId } });
 
   log.info({ keepId, removeId }, 'Nodes merged');
@@ -274,7 +266,7 @@ export async function mergeNodes(keepId: number, removeId: number) {
 }
 
 /**
- * グラフ統計を取得
+ * Statistics
  */
 export async function getGraphStats() {
   const [nodeCount, edgeCount, byType, byEdgeType] = await Promise.all([

@@ -78,7 +78,7 @@ describe('getHolidaysForMonth', () => {
   it('returns only holidays for the specified month', () => {
     const jan = getHolidaysForMonth(2026, 0);
     expect(jan.every((h) => h.date.startsWith('2026-01'))).toBe(true);
-    expect(jan.length).toBeGreaterThanOrEqual(2); // 元日 + 成人の日
+    expect(jan.length).toBeGreaterThanOrEqual(2); // New Year + Coming of Age Day
   });
 
   it('returns empty for months with no holidays', () => {

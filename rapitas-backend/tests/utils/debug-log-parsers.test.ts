@@ -1,6 +1,7 @@
 /**
- * Debug Log Parsers テスト
- * 追加のログパーサー実装のテスト
+ * Debug Log Parsers Test
+ *
+ * Tests for additional log parser implementations.
  */
 import { describe, test, expect } from 'bun:test';
 import {
@@ -295,7 +296,7 @@ describe('LogParserFactory', () => {
 
     expect(compatibleParsers.length).toBeGreaterThanOrEqual(1);
 
-    // 最初にマッチしたパーサーが選択されることを確認
+    // Verify the first matching parser is selected
     const bestParser = LogParserFactory.findBestParser(logLine);
     expect(compatibleParsers[0]).toBe(bestParser);
   });
@@ -355,7 +356,7 @@ describe('パーサー統合テスト', () => {
         }
 
         const end = performance.now();
-        expect(end - start).toBeLessThan(1000); // 1秒以内
+        expect(end - start).toBeLessThan(1000); // Within 1 second
       });
     });
   });
@@ -364,7 +365,7 @@ describe('パーサー統合テスト', () => {
     const parser = new NginxLogParser();
     const baseLog = '192.168.1.1 - - [01/Jan/2024:00:00:00 +0000] "GET /test HTTP/1.1" 200 1234';
 
-    // 大量のログを生成して処理
+    // Generate and process a large volume of logs
     for (let batch = 0; batch < 100; batch++) {
       const logs = Array.from({ length: 100 }, (_, i) =>
         baseLog.replace('/test', `/test${batch * 100 + i}`),
@@ -375,7 +376,7 @@ describe('パーサー統合テスト', () => {
         expect(result).toBeDefined();
       });
     }
-    // メモリリークがないことを暗示的にテスト（ここでエラーが出ればメモリ不足）
+    // Implicitly tests for memory leaks (an error here would indicate OOM)
   });
 });
 
@@ -389,7 +390,7 @@ describe('エラーハンドリングとエッジケース', () => {
   test('グループ数とフィールド数の不一致を検出すること', () => {
     const parser = LogParserFactory.createCustomParser(
       /^(\w+): (.+)$/,
-      { groups: ['level', 'message', 'extra'] }, // 3つのグループ指定だが正規表現は2つ
+      { groups: ['level', 'message', 'extra'] }, // 3 group names specified but regex has only 2 capture groups
     );
 
     const result = parser.parse('INFO: test message');
@@ -419,7 +420,7 @@ describe('エラーハンドリングとエッジケース', () => {
     const end = performance.now();
 
     expect(result?.message).toBe(longString);
-    expect(end - start).toBeLessThan(1000); // 1秒以内
+    expect(end - start).toBeLessThan(1000); // Within 1 second
   });
 
   test('Unicode文字を含むログを正しく処理すること', () => {
@@ -454,7 +455,7 @@ describe('エラーハンドリングとエッジケース', () => {
 
 describe('高度なパターンマッチングテスト', () => {
   test('複雑な正規表現パターンでカスタムパーサーを作成', () => {
-    // ISO 8601タイムスタンプ + レベル + メッセージの複雑パターン
+    // Complex pattern: ISO 8601 timestamp + level + message
     const complexPattern =
       /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)\s+\[(\w+)\]\s+(.+)$/;
 
@@ -488,7 +489,7 @@ describe('高度なパターンマッチングテスト', () => {
   });
 
   test('条件付きマッチングパターン', () => {
-    // 時にはタイムスタンプがあり、時にはない柔軟パターン
+    // Flexible pattern: timestamp is sometimes present, sometimes absent
     const flexiblePattern = /^(?:(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+)?(\w+):\s+(.+)$/;
 
     const parser = LogParserFactory.createCustomParser(flexiblePattern, {

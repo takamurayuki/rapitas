@@ -1,8 +1,8 @@
 /**
- * ワークフロー学習最適化サービス
+ * Workflow Learning Optimizer Service
  *
- * 完了タスクのワークフロー実行データを蓄積・分析し、
- * 類似タスクのワークフローモードを自動最適化するシステム
+ * Accumulates and analyzes workflow execution data from completed tasks
+ * to automatically optimize workflow modes for similar future tasks.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -11,7 +11,7 @@ import { analyzeTaskComplexity, type TaskComplexityInput } from './complexity-an
 const log = createLogger('workflow-learning');
 
 // ───────────────────────────────────────────────
-// 型定義
+// Type Definitions
 // ───────────────────────────────────────────────
 
 interface PhaseTimings {
@@ -56,11 +56,11 @@ interface RuleGenerationResult {
 }
 
 // ───────────────────────────────────────────────
-// 学習記録の収集
+// Learning Record Collection
 // ───────────────────────────────────────────────
 
 /**
- * タスク完了時にワークフロー実行データを記録する
+ * Record workflow execution data on task completion.
  */
 export async function recordWorkflowCompletion(taskId: number): Promise<void> {
   try {
@@ -91,18 +91,18 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
       return;
     }
 
-    // フェーズタイミングをActivityLogから算出
+    // Calculate phase timings from ActivityLog
     const phaseTimings = calculatePhaseTimings(task.activityLogs, task.createdAt);
 
-    // 実際の所要時間（タスク作成～完了）
+    // Actual duration (task creation to completion)
     const actualDuration = task.completedAt
       ? Math.round((task.completedAt.getTime() - task.createdAt.getTime()) / 60000)
       : null;
 
-    // タイトルからキーワード抽出
+    // Extract keywords from title
     const titleKeywords = extractKeywords(task.title);
 
-    // 複雑度分析を再実行して予測値を取得
+    // Re-run complexity analysis to get predicted values
     const complexityInput: TaskComplexityInput = {
       title: task.title,
       description: task.description,
@@ -113,7 +113,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
     };
     const analysis = analyzeTaskComplexity(complexityInput);
 
-    // モード変更履歴からオーバーライド情報を取得
+    // Get override info from mode change history
     const modeChangeLog = task.activityLogs.find((l) => l.action === 'workflow_mode_changed');
     let overriddenFrom: string | null = null;
     if (modeChangeLog && modeChangeLog.metadata) {
@@ -125,7 +125,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
       }
     }
 
-    // スキップされたフェーズを判定
+    // Determine skipped phases
     const skippedPhases = detectSkippedPhases(
       task.workflowMode || 'comprehensive',
       task.activityLogs,
@@ -162,7 +162,7 @@ export async function recordWorkflowCompletion(taskId: number): Promise<void> {
 }
 
 // ───────────────────────────────────────────────
-// 最適化ルールの自動生成
+// Automatic Optimization Rule Generation
 // ───────────────────────────────────────────────
 
 const MIN_SAMPLES_FOR_RULE = 5;
@@ -170,7 +170,7 @@ const HIGH_SUCCESS_THRESHOLD = 0.85;
 const CONFIDENCE_THRESHOLD = 0.6;
 
 /**
- * 蓄積された学習データからルールを自動生成・更新する
+ * Auto-generate and update optimization rules from accumulated learning data.
  */
 export async function generateOptimizationRules(): Promise<RuleGenerationResult> {
   const result: RuleGenerationResult = {
@@ -191,19 +191,19 @@ export async function generateOptimizationRules(): Promise<RuleGenerationResult>
       return result;
     }
 
-    // ルール1: モードダウングレード検出
+    // Rule 1: Mode downgrade detection
     await detectModeDowngradePatterns(records, result);
 
-    // ルール2: フェーズスキップ検出
+    // Rule 2: Phase skip detection
     await detectPhaseSkipPatterns(records, result);
 
-    // ルール3: テーマ別の最適モード検出
+    // Rule 3: Optimal mode detection per theme
     await detectThemeOptimalMode(records, result);
 
-    // ルール4: 複雑度スコアの閾値調整
+    // Rule 4: Complexity score threshold adjustment
     await detectComplexityThresholdAdjustment(records, result);
 
-    // 古いルールの非活性化
+    // Deactivate stale rules
     await deactivateStaleRules(result);
 
     log.info(result, 'Optimization rules generation completed');
@@ -215,7 +215,7 @@ export async function generateOptimizationRules(): Promise<RuleGenerationResult>
 }
 
 /**
- * comprehensiveモードで実行されたが、実際にはlightweight/standardで十分だったケースを検出
+ * Detect cases where comprehensive mode was used but lightweight/standard was sufficient.
  */
 async function detectModeDowngradePatterns(
   records: Array<{
@@ -233,17 +233,17 @@ async function detectModeDowngradePatterns(
   }>,
   result: RuleGenerationResult,
 ): Promise<void> {
-  // オーバーライドでダウングレードされて成功したケースを分析
+  // Analyze cases that were downgraded via override and succeeded
   const downgraded = records.filter((r) => r.wasOverridden && r.overriddenFrom && r.success);
 
   if (downgraded.length < MIN_SAMPLES_FOR_RULE) return;
 
-  // ダウングレードの成功率を算出
+  // Calculate downgrade success rate
   const allOverridden = records.filter((r) => r.wasOverridden && r.overriddenFrom);
   const successRate = downgraded.length / Math.max(1, allOverridden.length);
 
   if (successRate >= HIGH_SUCCESS_THRESHOLD) {
-    // 複雑度スコアの分布を確認
+    // Check complexity score distribution
     const complexities = downgraded
       .map((r) => r.predictedComplexity)
       .filter((c): c is number => c !== null);
@@ -277,7 +277,7 @@ async function detectModeDowngradePatterns(
 }
 
 /**
- * 特定フェーズが実質スキップ（極短時間で完了）されているパターンを検出
+ * Detect patterns where specific phases are effectively skipped (completed very quickly).
  */
 async function detectPhaseSkipPatterns(
   records: Array<{
@@ -294,7 +294,7 @@ async function detectPhaseSkipPatterns(
   const phases = ['research', 'plan'] as const;
 
   for (const phase of phases) {
-    // このフェーズをスキップして成功したタスク
+    // Tasks that skipped this phase and succeeded
     const skipped = records.filter((r) => {
       try {
         const sp: string[] = JSON.parse(r.skippedPhases);
@@ -306,7 +306,7 @@ async function detectPhaseSkipPatterns(
 
     if (skipped.length < MIN_SAMPLES_FOR_RULE) continue;
 
-    // スキップありの成功率
+    // Success rate with phase skip
     const allWithPhaseSkip = records.filter((r) => {
       try {
         const sp: string[] = JSON.parse(r.skippedPhases);
@@ -319,7 +319,7 @@ async function detectPhaseSkipPatterns(
     const successRate = skipped.length / Math.max(1, allWithPhaseSkip.length);
 
     if (successRate >= HIGH_SUCCESS_THRESHOLD) {
-      // 共通する複雑度帯を特定
+      // Identify common complexity range
       const complexities = skipped
         .map((r) => r.predictedComplexity)
         .filter((c): c is number => c !== null);
@@ -351,7 +351,7 @@ async function detectPhaseSkipPatterns(
 }
 
 /**
- * テーマ別に最適なワークフローモードを検出
+ * Detect the optimal workflow mode per theme.
  */
 async function detectThemeOptimalMode(
   records: Array<{
@@ -363,7 +363,7 @@ async function detectThemeOptimalMode(
   }>,
   result: RuleGenerationResult,
 ): Promise<void> {
-  // テーマ別にグループ化
+  // Group by theme
   const byTheme = new Map<number, typeof records>();
 
   for (const r of records) {
@@ -376,7 +376,7 @@ async function detectThemeOptimalMode(
   for (const [themeId, themeRecords] of byTheme) {
     if (themeRecords.length < MIN_SAMPLES_FOR_RULE) continue;
 
-    // モード別成功率
+    // Success rate by mode
     const modeStats = new Map<string, { total: number; success: number; durations: number[] }>();
 
     for (const r of themeRecords) {
@@ -387,7 +387,7 @@ async function detectThemeOptimalMode(
       modeStats.set(r.workflowMode, stats);
     }
 
-    // 最も効率的なモードを特定（成功率が高く、所要時間が短い）
+    // Identify the most efficient mode (high success rate, short duration)
     let bestMode: string | null = null;
     let bestScore = -1;
 
@@ -401,7 +401,7 @@ async function detectThemeOptimalMode(
           ? stats.durations.reduce((a, b) => a + b, 0) / stats.durations.length
           : Infinity;
 
-      // スコア = 成功率 × (1 / 正規化された所要時間)
+      // Score = success rate * (1 / normalized duration)
       const score = successRate * (1000 / Math.max(1, avgDuration));
 
       if (score > bestScore) {
@@ -412,7 +412,7 @@ async function detectThemeOptimalMode(
 
     if (!bestMode) continue;
 
-    // テーマで最も使われているモードと異なる場合のみルール化
+    // Only create a rule if best mode differs from the most-used mode
     const mostUsedMode = [...modeStats.entries()].sort((a, b) => b[1].total - a[1].total)[0]?.[0];
 
     if (bestMode !== mostUsedMode) {
@@ -440,7 +440,7 @@ async function detectThemeOptimalMode(
 }
 
 /**
- * 複雑度スコアの閾値がずれているケースを検出
+ * Detect cases where the complexity score threshold is misaligned.
  */
 async function detectComplexityThresholdAdjustment(
   records: Array<{
@@ -451,7 +451,7 @@ async function detectComplexityThresholdAdjustment(
   }>,
   result: RuleGenerationResult,
 ): Promise<void> {
-  // lightweight判定だが実際はstandardが必要だったケース
+  // Cases judged as lightweight but actually needed standard
   const lightweightFailed = records.filter(
     (r) =>
       r.workflowMode === 'lightweight' &&
@@ -464,7 +464,7 @@ async function detectComplexityThresholdAdjustment(
     const complexities = lightweightFailed.map((r) => r.predictedComplexity!).sort((a, b) => a - b);
     const medianComplexity = complexities[Math.floor(complexities.length / 2)];
 
-    // 現在の閾値(35)より低い複雑度で失敗しているなら閾値を下げるべき
+    // If failures occur below current threshold (35), threshold should be lowered
     if (medianComplexity <= 35) {
       const newThreshold = Math.max(15, Math.round(medianComplexity - 5));
 
@@ -493,7 +493,7 @@ async function detectComplexityThresholdAdjustment(
 }
 
 /**
- * 30日以上評価されていないルールを非活性化
+ * Deactivate rules not evaluated in 30+ days.
  */
 async function deactivateStaleRules(result: RuleGenerationResult): Promise<void> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -513,11 +513,11 @@ async function deactivateStaleRules(result: RuleGenerationResult): Promise<void>
 }
 
 // ───────────────────────────────────────────────
-// タスクへの最適化提案
+// Task Optimization Recommendations
 // ───────────────────────────────────────────────
 
 /**
- * 新しいタスクに対してワークフロー最適化を提案する
+ * Propose workflow optimization for a new task.
  */
 export async function getWorkflowRecommendation(
   taskId: number,
@@ -533,7 +533,7 @@ export async function getWorkflowRecommendation(
 
     if (!task) return null;
 
-    // 現在の複雑度分析
+    // Current complexity analysis
     const complexityInput: TaskComplexityInput = {
       title: task.title,
       description: task.description,
@@ -544,7 +544,7 @@ export async function getWorkflowRecommendation(
     };
     const analysis = analyzeTaskComplexity(complexityInput);
 
-    // アクティブなルールを取得
+    // Get active rules
     const rules = await prisma.workflowOptimizationRule.findMany({
       where: { isActive: true, confidence: { gte: CONFIDENCE_THRESHOLD } },
       orderBy: { confidence: 'desc' },
@@ -587,14 +587,14 @@ export async function getWorkflowRecommendation(
       }
     }
 
-    // 類似タスクの実績から推定時間を算出
+    // Estimate duration from similar task history
     const estimatedDuration = await estimateDurationFromHistory(
       task.themeId,
       recommendedMode,
       analysis.complexityScore,
     );
 
-    // ルールのlastEvaluatedを更新
+    // Update lastEvaluated for matched rules
     if (matchedRules.length > 0) {
       await prisma.workflowOptimizationRule.updateMany({
         where: { id: { in: matchedRules.map((r) => r.ruleId) } },
@@ -602,7 +602,7 @@ export async function getWorkflowRecommendation(
       });
     }
 
-    // ルールがなくても、学習データから直接推論
+    // If no rules matched, infer directly from learning data
     if (matchedRules.length === 0) {
       const directInsight = await getDirectInsight(task, analysis.complexityScore);
       if (directInsight) {
@@ -633,11 +633,11 @@ export async function getWorkflowRecommendation(
 }
 
 // ───────────────────────────────────────────────
-// 統計・分析
+// Statistics & Analysis
 // ───────────────────────────────────────────────
 
 /**
- * ワークフロー学習の統計情報を取得
+ * Retrieve workflow learning statistics.
  */
 export async function getLearningStats(): Promise<LearningStats> {
   const records = await prisma.workflowLearningRecord.findMany({
@@ -652,7 +652,7 @@ export async function getLearningStats(): Promise<LearningStats> {
   let accuracyCount = 0;
 
   for (const r of records) {
-    // モード別統計
+    // Per-mode statistics
     if (!byMode[r.workflowMode]) {
       byMode[r.workflowMode] = { count: 0, avgDuration: 0, successRate: 0 };
     }
@@ -665,13 +665,13 @@ export async function getLearningStats(): Promise<LearningStats> {
       modeStats.successRate++;
     }
 
-    // アウトカム別
+    // Per-outcome count
     byOutcome[r.outcome] = (byOutcome[r.outcome] || 0) + 1;
 
-    // オーバーライド率
+    // Override rate
     if (r.wasOverridden) overrideCount++;
 
-    // 推定精度
+    // Estimation accuracy
     if (r.actualDurationMinutes && r.estimatedDuration) {
       const ratio =
         Math.min(r.actualDurationMinutes, r.estimatedDuration) /
@@ -681,7 +681,7 @@ export async function getLearningStats(): Promise<LearningStats> {
     }
   }
 
-  // 平均化
+  // Calculate averages
   for (const mode of Object.keys(byMode)) {
     const stats = byMode[mode];
     if (stats.count > 0) {
@@ -690,7 +690,7 @@ export async function getLearningStats(): Promise<LearningStats> {
     }
   }
 
-  // 直近30日のトレンド
+  // Last 30 days trend
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentRecords = records.filter((r) => r.createdAt >= thirtyDaysAgo);
   const modeDistribution: Record<string, number> = {};
@@ -712,7 +712,7 @@ export async function getLearningStats(): Promise<LearningStats> {
 }
 
 // ───────────────────────────────────────────────
-// ヘルパー関数
+// Helper Functions
 // ───────────────────────────────────────────────
 
 function calculatePhaseTimings(
@@ -817,7 +817,7 @@ function detectSkippedPhases(
 ): string[] {
   const skipped: string[] = [];
 
-  // ステータス遷移の履歴から実際に通過したフェーズを特定
+  // Identify phases actually traversed from status transition history
   const statusSet = new Set<string>();
   for (const log of activityLogs) {
     if (log.metadata) {
@@ -831,7 +831,7 @@ function detectSkippedPhases(
     }
   }
 
-  // comprehensive/standardでresearchがスキップされたか
+  // Was research skipped in comprehensive/standard mode?
   if (
     (workflowMode === 'comprehensive' || workflowMode === 'standard') &&
     !statusSet.has('research_done')
@@ -839,7 +839,7 @@ function detectSkippedPhases(
     skipped.push('research');
   }
 
-  // comprehensive/standardでplanがスキップされたか
+  // Was plan skipped in comprehensive/standard mode?
   if (
     (workflowMode === 'comprehensive' || workflowMode === 'standard') &&
     !statusSet.has('plan_created') &&
@@ -897,12 +897,12 @@ async function estimateDurationFromHistory(
   });
 
   if (records.length === 0) {
-    // デフォルト値
+    // Default values
     const defaults: Record<string, number> = { lightweight: 20, standard: 90, comprehensive: 210 };
     return defaults[mode] || 90;
   }
 
-  // 複雑度が近いレコードほど重み付け
+  // Weight records by proximity of complexity score
   let weightedSum = 0;
   let weightSum = 0;
 
@@ -921,7 +921,7 @@ async function getDirectInsight(
   task: { themeId: number | null; workflowMode: string | null },
   complexityScore: number,
 ): Promise<{ mode: string; reason: string } | null> {
-  // 同テーマの成功タスクの実績
+  // Historical results from successful tasks in the same theme
   if (!task.themeId) return null;
 
   const themeRecords = await prisma.workflowLearningRecord.findMany({
@@ -933,7 +933,7 @@ async function getDirectInsight(
 
   if (themeRecords.length < 3) return null;
 
-  // 類似複雑度のタスクが最も多く使っていたモード
+  // Most-used mode among tasks with similar complexity
   const similar = themeRecords.filter(
     (r) => r.predictedComplexity && Math.abs(r.predictedComplexity - complexityScore) < 15,
   );
@@ -966,7 +966,7 @@ async function upsertRule(
   description: string,
   result: RuleGenerationResult,
 ): Promise<void> {
-  // 同条件の既存ルールを検索
+  // Search for existing rule with same condition
   const existing = await prisma.workflowOptimizationRule.findFirst({
     where: { ruleType, condition, isActive: true },
   });

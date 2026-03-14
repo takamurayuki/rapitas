@@ -1,19 +1,19 @@
 /**
- * ClaudeCodeAgent 統合テスト
+ * ClaudeCodeAgent Integration Test
  *
- * AskUserQuestionツール呼び出しに基づく質問検出の統合テスト
- * 注意: これらのテストは実際のClaude Code CLIを使用しないモック版
+ * Integration tests for question detection based on AskUserQuestion tool calls.
+ * NOTE: These tests use mocks and do not invoke the actual Claude Code CLI.
  */
 
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import type { QuestionType } from '../../services/agents/base-agent';
 import type { QuestionDetails } from '../../services/agents/question-detection';
 
-// モック版のClaudeCodeAgentの検出ロジックをテスト
-// 実際のプロセス起動なしでstream-json処理をシミュレート
+// Tests the detection logic of the mocked ClaudeCodeAgent
+// Simulates stream-json processing without spawning actual processes
 
 /**
- * stream-json形式のイベントをシミュレート
+ * Simulates a stream-json format event.
  */
 type StreamJsonEvent = {
   type: string;
@@ -30,7 +30,7 @@ type StreamJsonEvent = {
 };
 
 /**
- * 質問検出結果
+ * Question detection result.
  */
 type DetectedQuestion = {
   hasQuestion: boolean;
@@ -40,7 +40,7 @@ type DetectedQuestion = {
 };
 
 /**
- * stream-jsonイベントを処理し、質問を検出するシミュレーター
+ * Simulator that processes stream-json events and detects questions.
  */
 class QuestionDetectionSimulator {
   private detectedQuestion: DetectedQuestion = {
@@ -50,7 +50,7 @@ class QuestionDetectionSimulator {
   };
 
   /**
-   * stream-jsonイベントを処理
+   * Processes a stream-json event.
    */
   processEvent(event: StreamJsonEvent): void {
     if (event.type === 'assistant' && event.message?.content) {
@@ -70,7 +70,7 @@ class QuestionDetectionSimulator {
   }
 
   /**
-   * 質問情報を抽出
+   * Extracts question information from the tool input.
    */
   private extractQuestionInfo(input: Record<string, unknown> | undefined): {
     questionText: string;
@@ -129,14 +129,14 @@ class QuestionDetectionSimulator {
   }
 
   /**
-   * 検出結果を取得
+   * Returns the detected question result.
    */
   getDetectedQuestion(): DetectedQuestion {
     return this.detectedQuestion;
   }
 
   /**
-   * 状態をリセット
+   * Resets the internal state.
    */
   reset(): void {
     this.detectedQuestion = {
@@ -280,7 +280,7 @@ describe('ClaudeCodeAgent 統合テスト', () => {
 
   describe('複数イベントの連続処理', () => {
     it('最後のAskUserQuestionが検出される', () => {
-      // 最初のイベント
+      // First event
       simulator.processEvent({
         type: 'assistant',
         message: {
@@ -295,7 +295,7 @@ describe('ClaudeCodeAgent 統合テスト', () => {
 
       expect(simulator.getDetectedQuestion().hasQuestion).toBe(false);
 
-      // 2番目のイベント（質問）
+      // Second event (question)
       simulator.processEvent({
         type: 'assistant',
         message: {
@@ -323,7 +323,7 @@ describe('ClaudeCodeAgent 統合テスト', () => {
     });
 
     it('リセット後は質問状態がクリアされる', () => {
-      // 質問イベントを処理
+      // Process a question event
       simulator.processEvent({
         type: 'assistant',
         message: {
@@ -342,7 +342,7 @@ describe('ClaudeCodeAgent 統合テスト', () => {
 
       expect(simulator.getDetectedQuestion().hasQuestion).toBe(true);
 
-      // リセット
+      // Reset
       simulator.reset();
 
       const result = simulator.getDetectedQuestion();
@@ -416,7 +416,7 @@ describe('ClaudeCodeAgent 統合テスト', () => {
 
   describe('実際のClaude Code出力形式', () => {
     it('実際のAskUserQuestion出力をパースする', () => {
-      // Claude Codeが実際に出力する形式をシミュレート
+      // Simulates the actual output format produced by Claude Code
       const realWorldEvent: StreamJsonEvent = {
         type: 'assistant',
         message: {

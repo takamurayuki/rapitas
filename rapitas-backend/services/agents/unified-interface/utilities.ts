@@ -1,26 +1,26 @@
 /**
- * ユーティリティ関数
+ * Utility Functions
  *
- * 実行オプションのデフォルト値取得・マージ機能を提供
+ * Provides defaults and merging for execution options.
  */
 
 import type { ExecutionOptions } from './agent-config';
 
 /**
- * デフォルトの実行オプションを取得
+ * Returns default execution options.
  */
 export function getDefaultExecutionOptions(): ExecutionOptions {
   return {
-    timeout: 900000, // 15分
+    timeout: 900000, // 15 minutes
     enableStreaming: true,
-    questionTimeoutSeconds: 300, // 5分
+    questionTimeoutSeconds: 300, // 5 minutes
     autoApproveFileOperations: true,
     autoApproveTerminalCommands: true,
   };
 }
 
 /**
- * 実行オプションをマージ
+ * Merges execution options, with override taking precedence.
  */
 export function mergeExecutionOptions(
   base: ExecutionOptions,

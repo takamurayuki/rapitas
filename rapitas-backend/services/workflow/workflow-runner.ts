@@ -1,7 +1,8 @@
 /**
  * Workflow Runner Service
- * キューからタスクを取り出し、ワークフローの各フェーズを非同期実行する。
- * WorkflowOrchestrator（既存）を利用してフェーズ進行を行う。
+ *
+ * Dequeues tasks and executes each workflow phase asynchronously.
+ * Uses the existing WorkflowOrchestrator for phase progression.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -49,7 +50,7 @@ export class WorkflowRunner {
   }
 
   /**
-   * キューの監視・処理ループを開始
+   * Start the queue monitoring and processing loop.
    */
   startProcessing(intervalMs?: number): void {
     if (this.running) {
@@ -63,13 +64,13 @@ export class WorkflowRunner {
     log.info(`[WorkflowRunner] Started processing (poll interval: ${this.pollIntervalMs}ms)`);
     this.broadcastStatus('runner_started');
 
-    // 即座に1回処理してからインターバル開始
+    // Process once immediately, then start interval
     this.processQueue();
     this.pollTimer = setInterval(() => this.processQueue(), this.pollIntervalMs);
   }
 
   /**
-   * グレースフルシャットダウン
+   * Graceful shutdown.
    */
   async stopProcessing(): Promise<void> {
     if (!this.running) return;
@@ -80,7 +81,7 @@ export class WorkflowRunner {
       this.pollTimer = null;
     }
 
-    // アクティブな実行をキャンセル
+    // Cancel active executions
     for (const [itemId, exec] of this.activeExecutions) {
       exec.abortController.abort();
       try {
@@ -98,7 +99,7 @@ export class WorkflowRunner {
   }
 
   /**
-   * ランナーの状態を取得
+   * Get runner status.
    */
   getStatus(): RunnerStatus {
     return {
@@ -110,18 +111,18 @@ export class WorkflowRunner {
   }
 
   /**
-   * キューからアイテムを取得して処理
+   * Dequeue items and process them.
    */
   private async processQueue(): Promise<void> {
     if (!this.running) return;
 
     try {
-      // 空きスロットがある限りデキュー
+      // Dequeue while there are free slots
       while (this.activeExecutions.size < this.queue.getMaxConcurrency()) {
         const item = await this.queue.dequeue();
         if (!item) break;
 
-        // 非同期で実行開始（awaitしない）
+        // Start execution async (fire-and-forget)
         this.executeWorkflowItem(item);
       }
     } catch (error) {
@@ -130,7 +131,7 @@ export class WorkflowRunner {
   }
 
   /**
-   * 単一タスクのワークフロー全体を非同期実行
+   * Execute the entire workflow for a single task asynchronously.
    */
   private async executeWorkflowItem(item: QueueItem): Promise<void> {
     const abortController = new AbortController();
@@ -146,14 +147,14 @@ export class WorkflowRunner {
     this.broadcastItemUpdate(item.id, item.taskId, 'execution_started', item.currentPhase);
 
     try {
-      // ワークフローを現在のフェーズから完了まで進行（無限ループ防止）
+      // Progress workflow from current phase to completion (with infinite loop prevention)
       let continueLoop = true;
-      const maxIterations = 20; // 無限ループ防止
+      const maxIterations = 20; // Prevent infinite loops
       let iterationCount = 0;
 
       while (continueLoop && !abortController.signal.aborted && iterationCount < maxIterations) {
         iterationCount++;
-        // タスクの現在のworkflowStatusを確認
+        // Check current workflowStatus
         const task = await prisma.task.findUnique({ where: { id: item.taskId } });
         if (!task) {
           throw new Error(`Task ${item.taskId} not found`);
@@ -162,7 +163,7 @@ export class WorkflowRunner {
         const currentStatus = task.workflowStatus || 'draft';
         execution.currentPhase = currentStatus;
 
-        // 完了チェック
+        // Completion check
         if (currentStatus === 'completed' || currentStatus === 'verify_done') {
           await this.queue.updateStatus(item.id, 'completed', {
             currentPhase: currentStatus,
@@ -173,7 +174,7 @@ export class WorkflowRunner {
           break;
         }
 
-        // plan_created の場合は承認待ち
+        // plan_created: waiting for approval
         if (currentStatus === 'plan_created') {
           await this.queue.updateStatus(item.id, 'waiting_approval', {
             currentPhase: 'plan_created',
@@ -183,10 +184,10 @@ export class WorkflowRunner {
           break;
         }
 
-        // フェーズ遷移をログに記録
+        // Log phase transition
         await this.logPhaseTransition(item.taskId, currentStatus, 'advancing');
 
-        // 次のフェーズを実行（タイムアウト付き）
+        // Execute next phase (with timeout)
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
         const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
@@ -196,13 +197,13 @@ export class WorkflowRunner {
               reject(new Error(`Phase execution timeout for task ${item.taskId} (10 minutes)`));
             },
             10 * 60 * 1000,
-          ); // 10分タイムアウト
+          ); // 10-minute timeout
         });
 
         const result = await Promise.race([executionPromise, timeoutPromise]);
 
         if (!result.success) {
-          // リトライ可能かチェック
+          // Check if retry is possible
           const retried = await this.queue.retryIfPossible(item.id);
           if (!retried) {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
@@ -213,14 +214,14 @@ export class WorkflowRunner {
           break;
         }
 
-        // フェーズ完了通知 + ログ記録
+        // Phase completion notification + logging
         await this.logPhaseTransition(item.taskId, currentStatus, result.status);
         await this.queue.updateStatus(item.id, 'running', {
           currentPhase: result.status,
         });
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', result.status);
 
-        // 次のフェーズへ進む前に少し待機（DB更新の安定化 + アボートチェック）
+        // Brief wait before next phase (DB update stabilization + abort check)
         await new Promise((resolve) => {
           const waitTimeout = setTimeout(resolve, 1000);
           abortController.signal.addEventListener(
@@ -257,7 +258,7 @@ export class WorkflowRunner {
   }
 
   /**
-   * 承認後にキューアイテムを再開
+   * Resume a queue item after approval.
    */
   async resumeAfterApproval(taskId: number): Promise<boolean> {
     const item = await this.queue.findByTaskId(taskId);
@@ -268,12 +269,12 @@ export class WorkflowRunner {
     await this.queue.updateStatus(item.id, 'queued', { currentPhase: 'plan_approved' });
     log.info(`[WorkflowRunner] Resumed task ${taskId} after approval`);
 
-    // 次のポーリングでピックアップされる
+    // Will be picked up in the next poll cycle
     return true;
   }
 
   /**
-   * ワークフローフェーズ遷移をActivityLogに記録し、SSEでブロードキャスト
+   * Record workflow phase transitions in ActivityLog and broadcast via SSE.
    */
   private async logPhaseTransition(
     taskId: number,
@@ -306,7 +307,7 @@ export class WorkflowRunner {
         },
       });
 
-      // SSE経由でフロントエンドにフェーズ遷移を通知
+      // Notify frontend of phase transition via SSE
       realtimeService.broadcast('orchestra', 'phase_transition', {
         taskId,
         previousPhase,
@@ -324,7 +325,7 @@ export class WorkflowRunner {
   }
 
   /**
-   * SSE経由でステータスブロードキャスト
+   * Broadcast status via SSE.
    */
   private broadcastStatus(event: string): void {
     try {
@@ -333,12 +334,12 @@ export class WorkflowRunner {
         timestamp: new Date().toISOString(),
       });
     } catch {
-      // SSEが利用不可でもランナーは動作を続ける
+      // Runner continues even if SSE is unavailable
     }
   }
 
   /**
-   * SSE経由でアイテム更新をブロードキャスト
+   * Broadcast item updates via SSE.
    */
   private broadcastItemUpdate(itemId: number, taskId: number, event: string, phase: string): void {
     try {
@@ -351,7 +352,7 @@ export class WorkflowRunner {
         timestamp: new Date().toISOString(),
       });
     } catch {
-      // SSEが利用不可でもランナーは動作を続ける
+      // Runner continues even if SSE is unavailable
     }
   }
 }

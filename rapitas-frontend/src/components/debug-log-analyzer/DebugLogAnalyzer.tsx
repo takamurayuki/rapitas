@@ -1,5 +1,7 @@
 /**
- * デバッグログ解析ツールのメインコンポーネント
+ * DebugLogAnalyzer
+ *
+ * Main component for the debug log analysis tool.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -50,10 +52,10 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('input');
 
-  // フィルター設定
+  // Filter configuration
   const [filter, setFilter] = useState<LogFilter>({});
 
-  // サンプルログ
+  // Sample logs
   const sampleLogs = {
     json: `{"timestamp":"2024-02-19T10:00:00Z","level":"info","message":"Application started","source":"app.main"}
 {"timestamp":"2024-02-19T10:00:01Z","level":"error","message":"Failed to connect to database","source":"db.connection","error":"Connection timeout"}
@@ -73,7 +75,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
 192.168.1.3 - - [19/Feb/2024:10:00:02 +0000] "GET /static/css/main.css HTTP/1.1" 304 0 "http://example.com" "Chrome/120.0"`,
   };
 
-  // ファイルアップロード処理
+  // File upload handler
   const handleFileUpload = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -93,7 +95,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
     [],
   );
 
-  // サンプルログの読み込み
+  // Load sample log
   const loadSampleLog = useCallback((type: keyof typeof sampleLogs) => {
     setLogContent(sampleLogs[type]);
     setSelectedLogType(
@@ -110,7 +112,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
     setError(null);
   }, []);
 
-  // ログ解析の実行
+  // Execute log analysis
   const handleAnalyze = useCallback(async () => {
     if (!logContent.trim()) {
       setError('ログコンテンツを入力してください');
@@ -126,7 +128,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
       if (onAnalyze) {
         result = await onAnalyze(logContent, selectedLogType);
       } else {
-        // デモ用のダミー解析結果
+        // Demo dummy analysis result
         const lines = logContent.split('\n').filter((line) => line.trim());
         const now = new Date();
 
@@ -191,7 +193,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
     }
   }, [logContent, selectedLogType, onAnalyze]);
 
-  // 結果のエクスポート
+  // Export results
   const handleExport = useCallback(() => {
     if (!analysisResult) return;
 
@@ -232,13 +234,13 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
         </TabsList>
 
         <TabsContent value="input" className="space-y-4">
-          {/* ログ入力エリア */}
+          {/* Log input area */}
           <Card>
             <CardHeader>
               <CardTitle>ログ入力</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* ログタイプ選択 */}
+              {/* Log type selector */}
               <div className="flex items-center gap-4">
                 <Label htmlFor="logType" className="min-w-[100px]">
                   ログタイプ:
@@ -262,7 +264,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
                 </Select>
               </div>
 
-              {/* ファイルアップロード */}
+              {/* File upload */}
               <div className="flex items-center gap-4">
                 <Label htmlFor="fileUpload" className="min-w-[100px]">
                   ファイル:
@@ -278,7 +280,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
                 </div>
               </div>
 
-              {/* サンプルログボタン */}
+              {/* Sample log buttons */}
               <div className="flex items-center gap-4">
                 <Label className="min-w-[100px]">サンプル:</Label>
                 <div className="flex gap-2">
@@ -313,7 +315,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
                 </div>
               </div>
 
-              {/* ログコンテンツ */}
+              {/* Log content */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <Label>ログコンテンツ:</Label>
@@ -332,7 +334,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
                 />
               </div>
 
-              {/* アクションボタン */}
+              {/* Action buttons */}
               <div className="flex justify-between">
                 <Button
                   variant="outline"
@@ -364,7 +366,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
                 </Button>
               </div>
 
-              {/* エラー表示 */}
+              {/* Error display */}
               {error && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />

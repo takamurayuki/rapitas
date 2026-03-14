@@ -7,7 +7,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('SubtaskStatusButtons');
 
-// ステータスの配列を共通で定義
+// Common status options array
 export const STATUS_OPTIONS: Status[] = ['todo', 'in-progress', 'done'];
 
 interface SubtaskStatusButtonsProps {
@@ -45,7 +45,7 @@ export default function SubtaskStatusButtons({
         }
       } else {
         logger.error('API Error:', response.status, response.statusText);
-        // エラー時：元の状態に戻す
+        // Revert to original state on error
         if (onStatusChange) {
           onStatusChange(taskId, currentStatus);
         }
@@ -54,7 +54,7 @@ export default function SubtaskStatusButtons({
     } catch (error) {
       logger.error('Failed to update subtask status:', error);
 
-      // エラー時：元の状態に戻す（ネットワークエラーなど）
+      // Revert to original state on error (network errors, etc.)
       if (onStatusChange) {
         onStatusChange(taskId, currentStatus);
       }
@@ -71,7 +71,7 @@ export default function SubtaskStatusButtons({
 }
 
 /**
- * ステータスボタングループ - タスクのステータス変更用の共通コンポーネント
+ * StatusButtonGroup - common component for task status changes
  */
 interface StatusButtonGroupProps {
   currentStatus: string;

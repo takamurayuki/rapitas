@@ -71,15 +71,14 @@ const TaskCard = memo(function TaskCard({
     state.getExecutingTaskStatus(task.id),
   );
 
-  // サブタスクの状態をローカルで管理
+  // Manage subtask state locally
   const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
 
-  // taskプロップが変更されたときにlocalSubtasksを更新
+  // Update localSubtasks when task prop changes
   useEffect(() => {
     setLocalSubtasks(task.subtasks || []);
   }, [task.subtasks]);
 
-  // サブタスクのステータス変更ハンドラー
   const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
     // Optimistic UI update: immediately update local state
     setLocalSubtasks((prevSubtasks) =>
@@ -94,7 +93,7 @@ const TaskCard = memo(function TaskCard({
     onStatusChange(subtaskId, newStatus as Status);
   };
 
-  // サブタスクのステータス変更失敗時のロールバック
+  // Rollback on subtask status change failure
   const rollbackSubtaskStatus = (subtaskId: number, originalStatus: string) => {
     setLocalSubtasks((prevSubtasks) =>
       prevSubtasks.map((subtask) =>
@@ -148,7 +147,6 @@ const TaskCard = memo(function TaskCard({
 
   const executionClasses = getExecutionClasses();
 
-  // コンテキストメニューを閉じる
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -168,7 +166,6 @@ const TaskCard = memo(function TaskCard({
     };
   }, [showContextMenu]);
 
-  // タスクを複製
   const duplicateTask = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks`, {
@@ -194,7 +191,6 @@ const TaskCard = memo(function TaskCard({
     }
   };
 
-  // タスクを削除
   const deleteTask = async () => {
     if (!confirm(tHome('deleteConfirm'))) return;
 
@@ -213,24 +209,23 @@ const TaskCard = memo(function TaskCard({
     }
   };
 
-  // ホバー時のプリフェッチ処理
+  // Prefetch on hover
   const handleMouseEnter = async () => {
     if (!prefetchedRef.current) {
       prefetchedRef.current = true;
-      // タスク詳細をプリフェッチ（24時間キャッシュ）
+      // Prefetch task details (24h cache)
       await prefetch([`/tasks/${task.id}`], 24 * 60 * 60 * 1000);
 
-      // サブタスクがある場合は関連データもプリフェッチ
+      // Prefetch related data when subtasks exist
       if (task.subtasks && task.subtasks.length > 0) {
         const subtaskPaths = task.subtasks.map((s) => `/tasks/${s.id}`);
-        await prefetch(subtaskPaths, 24 * 60 * 60 * 1000); // 24時間キャッシュ
+        await prefetch(subtaskPaths, 24 * 60 * 60 * 1000); 
       }
     }
   };
 
   const sweepColors = useProgressColors(1, 2);
 
-  // cardRef は既にあるので流用
   const [cardSize, setCardSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -243,7 +238,7 @@ const TaskCard = memo(function TaskCard({
   const perimeter =
     cardSize.w > 0 ? Math.round(2 * (cardSize.w + cardSize.h)) : 0;
 
-  // waiting_for_input時のamberスタイル
+  // Amber style for waiting_for_input state
   const isWaitingForInput = executionStatus === 'waiting_for_input';
   const waitingAmberConfig = {
     color: 'text-amber-700 dark:text-amber-300',
@@ -252,7 +247,7 @@ const TaskCard = memo(function TaskCard({
     label: t('waitingForInput'),
   };
 
-  // カードの左ボーダー色（waiting_for_inputの時はamber）
+  // Left border color (amber for waiting_for_input)
   const cardBorderColor = isWaitingForInput
     ? waitingAmberConfig.borderColor
     : currentStatus.borderColor;
@@ -278,7 +273,6 @@ const TaskCard = memo(function TaskCard({
             : ''
       }`}
     >
-      {/* カードライトスイープエフェクト */}
       <CardLightSweep
         active={sweepingTaskId === task.id}
         colors={sweepColors}
@@ -301,7 +295,6 @@ const TaskCard = memo(function TaskCard({
           }
         }}
       >
-        {/* 左: チェックボックス/ステータス */}
         {isSelectionMode ? (
           <ModernCheckbox
             checked={isSelected || false}
@@ -330,7 +323,6 @@ const TaskCard = memo(function TaskCard({
               isWaitingForInput ? waitingAmberConfig.label : currentStatus.label
             }
           >
-            {/* 実行中/待機中の外枠回転ボーダー */}
             {(executionStatus === 'running' ||
               executionStatus === 'waiting_for_input') && (
               <svg
@@ -366,18 +358,14 @@ const TaskCard = memo(function TaskCard({
           </div>
         )}
 
-        {/* 中央: タスク情報 */}
         <div className="flex-1 min-w-0">
-          {/* タイトル行 */}
           <div className="flex items-center gap-2 mb-1">
-            {/* タイトル + 優先度アイコンのグループ */}
             <div className="flex items-center gap-1 flex-1 min-w-0">
               <h3 className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm">
                 {task.title}
               </h3>
               <PriorityIcon priority={task.priority} size="md" />
 
-              {/* 実行状態バッジ */}
               {executionClasses && (
                 <div
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium shrink-0 ${executionClasses.badgeClass}`}
@@ -392,7 +380,6 @@ const TaskCard = memo(function TaskCard({
               )}
             </div>
           </div>
-          {/* メタ情報 */}
           <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             {localSubtasks.length > 0 && (
               <>
@@ -486,7 +473,6 @@ const TaskCard = memo(function TaskCard({
           </div>
         </div>
 
-        {/* 右: クイックアクション（常に表示） */}
         {!isSelectionMode && (
           <div
             className="flex items-center gap-1 pl-3 self-stretch"
@@ -495,9 +481,8 @@ const TaskCard = memo(function TaskCard({
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
-            {/* ステータス変更ボタン */}
             {['todo', 'in-progress', 'done'].map((status) => {
-              // waiting_for_inputの時はin-progressボタンをamber色に
+              // Amber color for in-progress button when waiting_for_input
               const baseConfig =
                 statusConfig[status as keyof typeof statusConfig];
               const config =
@@ -522,7 +507,6 @@ const TaskCard = memo(function TaskCard({
                 />
               );
             })}
-            {/* ページで開くボタン */}
             {onOpenInPage && (
               <button
                 onClick={(e) => {
@@ -539,7 +523,6 @@ const TaskCard = memo(function TaskCard({
         )}
       </div>
 
-      {/* コンテキストメニュー */}
       {showContextMenu && (
         <div
           ref={contextMenuRef}
@@ -585,7 +568,6 @@ const TaskCard = memo(function TaskCard({
         </div>
       )}
 
-      {/* サブタスク展開エリア */}
       {expandedSubtasks && localSubtasks.length > 0 && (
         <div
           className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-indigo-dark-900/50 p-3"
@@ -633,7 +615,6 @@ const TaskCard = memo(function TaskCard({
                   {subtask.title}
                 </span>
 
-                {/* サブタスクステータス変更ボタン */}
                 <SubtaskStatusButtons
                   taskId={subtask.id}
                   currentStatus={subtask.status}

@@ -1,16 +1,15 @@
 /**
- * エージェントオーケストレーター（ファサード）
- * 各サブモジュールへの委譲を行う薄いラッパー
+ * AgentOrchestrator (Facade)
  *
- * 責務ごとに以下のモジュールに分割:
- * - orchestrator/types.ts: 共通型定義
- * - orchestrator/lifecycle-manager.ts: シャットダウン・状態保存
- * - orchestrator/task-executor.ts: タスク実行
- * - orchestrator/continuation-executor.ts: 継続実行・タイムアウト処理
- * - orchestrator/recovery-manager.ts: 中断復旧・再開
- * - orchestrator/git-operations.ts: Git操作
- * - orchestrator/question-timeout-manager.ts: 質問タイムアウト・ロック管理
- * - orchestrator/execution-helpers.ts: 出力/質問検出ハンドラの共通化
+ * Thin wrapper that delegates to sub-modules by responsibility:
+ * - orchestrator/types.ts: Shared type definitions
+ * - orchestrator/lifecycle-manager.ts: Shutdown and state persistence
+ * - orchestrator/task-executor.ts: Task execution
+ * - orchestrator/continuation-executor.ts: Continuation execution and timeout handling
+ * - orchestrator/recovery-manager.ts: Interruption recovery and resume
+ * - orchestrator/git-operations.ts: Git operations
+ * - orchestrator/question-timeout-manager.ts: Question timeout and lock management
+ * - orchestrator/execution-helpers.ts: Shared output/question-detection handlers
  */
 import { PrismaClient } from '@prisma/client';
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
@@ -50,13 +49,15 @@ import {
 } from './orchestrator/recovery-manager';
 import { EventManager } from './orchestrator/event-manager';
 
-// 型の再エクスポート（後方互換性）
+// Re-export types for backward compatibility
 export type { ExecutionOptions, ExecutionState, OrchestratorEvent, EventListener };
 
 const logger = createLogger('agent-orchestrator');
 
 /**
- * エージェントオーケストレータークラス
+ * AgentOrchestrator
+ *
+ * Singleton that coordinates agent execution, lifecycle, and recovery.
  */
 export class AgentOrchestrator {
   private static instance: AgentOrchestrator;
@@ -90,7 +91,7 @@ export class AgentOrchestrator {
     return AgentOrchestrator.instance;
   }
 
-  /** 共有コンテキストを構築 */
+  /** Build the shared context object for sub-modules. */
   private getContext(): OrchestratorContext {
     return {
       prisma: this.prisma,
@@ -108,7 +109,7 @@ export class AgentOrchestrator {
     };
   }
 
-  // ==================== ライフサイクル ====================
+  // ==================== Lifecycle ====================
 
   async gracefulShutdown(options?: { skipServerStop?: boolean }): Promise<void> {
     if (this._isShuttingDown) {
@@ -154,7 +155,7 @@ export class AgentOrchestrator {
     }
   }
 
-  // ==================== 実行状態クエリ ====================
+  // ==================== Execution State Queries ====================
 
   getActiveExecutionCount(): number {
     return this.activeAgents.size;
@@ -190,7 +191,7 @@ export class AgentOrchestrator {
     return this.activeExecutions.get(executionId);
   }
 
-  // ==================== イベント管理 ====================
+  // ==================== Event Management ====================
 
   addEventListener(listener: EventListener): void {
     this.eventManager.addEventListener(listener);
@@ -200,7 +201,7 @@ export class AgentOrchestrator {
     this.eventManager.removeEventListener(listener);
   }
 
-  // ==================== 質問タイムアウト管理 ====================
+  // ==================== Question Timeout Management ====================
 
   startQuestionTimeout(executionId: number, taskId: number, questionKey?: QuestionKey): void {
     this.questionTimeoutManager.startQuestionTimeout(executionId, taskId, questionKey);
@@ -239,13 +240,13 @@ export class AgentOrchestrator {
     );
   }
 
-  // ==================== タスク実行 ====================
+  // ==================== Task Execution ====================
 
   async executeTask(task: AgentTask, options: ExecutionOptions): Promise<AgentExecutionResult> {
     return doExecuteTask(this.getContext(), task, options);
   }
 
-  // ==================== 継続実行 ====================
+  // ==================== Continuation Execution ====================
 
   async executeContinuation(
     executionId: number,
@@ -263,7 +264,7 @@ export class AgentOrchestrator {
     return doExecuteContinuationWithLock(this.getContext(), executionId, response, options);
   }
 
-  // ==================== 実行停止 ====================
+  // ==================== Execution Stop ====================
 
   async stopExecution(executionId: number): Promise<boolean> {
     this.cancelQuestionTimeout(executionId);
@@ -315,7 +316,7 @@ export class AgentOrchestrator {
     return true;
   }
 
-  // ==================== リカバリ ====================
+  // ==================== Recovery ====================
 
   async getInterruptedExecutions() {
     return doGetInterruptedExecutions(this.prisma);
@@ -332,7 +333,7 @@ export class AgentOrchestrator {
     return doResumeInterruptedExecution(this.getContext(), executionId, options);
   }
 
-  // ==================== Git操作 ====================
+  // ==================== Git Operations ====================
 
   async getGitDiff(workingDirectory: string): Promise<string> {
     return this.gitOps.getGitDiff(workingDirectory);
@@ -405,7 +406,7 @@ export class AgentOrchestrator {
     return this.gitOps.getDiff(workingDirectory);
   }
 
-  // ==================== ヘルパー ====================
+  // ==================== Helpers ====================
 
   private buildAgentConfigFromDb(
     dbConfig: {
@@ -444,7 +445,6 @@ export class AgentOrchestrator {
   }
 }
 
-// ファクトリー関数
 export function createOrchestrator(prisma: PrismaClientInstance): AgentOrchestrator {
   return AgentOrchestrator.getInstance(prisma);
 }

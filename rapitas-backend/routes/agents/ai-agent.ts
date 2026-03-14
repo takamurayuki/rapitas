@@ -394,7 +394,7 @@ export const aiAgentRoutes = new Elysia()
         data: { apiKeyEncrypted: null },
       });
 
-      // 監査ログを記録
+      // Log audit record
       await logAgentConfigChange({
         agentConfigId: parseInt(id),
         action: 'api_key_delete',
@@ -481,7 +481,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'anthropic-api': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: 'APIキーが設定されていません' };
+              return { success: false, message: 'API key is not configured' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
@@ -500,7 +500,7 @@ export const aiAgentRoutes = new Elysia()
             });
 
             if (response.ok) {
-              return { success: true, message: 'Anthropic API接続成功' };
+              return { success: true, message: 'Anthropic API connection successful' };
             } else {
               const errorBody = await response.json().catch(() => ({}));
               const errorMessage =
@@ -516,7 +516,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'openai': {
             if (!agent.apiKeyEncrypted) {
-              return { success: false, message: 'APIキーが設定されていません' };
+              return { success: false, message: 'API key is not configured' };
             }
 
             const apiKey = decrypt(agent.apiKeyEncrypted);
@@ -570,7 +570,7 @@ export const aiAgentRoutes = new Elysia()
 
           case 'gemini': {
             if (!agent.apiKeyEncrypted) {
-              // Gemini CLIの場合はAPIキーなしでもCLI確認を実施
+              // Gemini CLI can be verified without an API key
               const { spawn } = await import('child_process');
               const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
               const cliResult = await new Promise<{
@@ -692,7 +692,7 @@ export const aiAgentRoutes = new Elysia()
             };
         }
       } catch (error) {
-        // 接続テスト失敗時も監査ログを記録
+        // Record audit log on connection test failure too
         await logAgentConfigChange({
           agentConfigId: parseInt(id),
           action: 'test_connection',
@@ -867,7 +867,7 @@ export const aiAgentRoutes = new Elysia()
 
     const errors: string[] = [];
 
-    // APIキーのバリデーション
+    // API key validation
     if (apiKey) {
       const apiKeyResult = validateApiKeyFormat(agentType, apiKey);
       if (!apiKeyResult.valid && apiKeyResult.message) {
@@ -875,7 +875,7 @@ export const aiAgentRoutes = new Elysia()
       }
     }
 
-    // 設定のバリデーション
+    
     const configResult = validateAgentConfig(agentType, {
       endpoint,
       modelId,
@@ -908,7 +908,7 @@ export const aiAgentRoutes = new Elysia()
 
     try {
       if (agent.agentType === 'claude-code') {
-        // Claude Code CLIは--versionで動作確認
+        // Claude Code CLI: verify with --version
         const { spawn } = await import('child_process');
         const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
@@ -958,7 +958,7 @@ export const aiAgentRoutes = new Elysia()
         };
       }
 
-      // APIキーを使用するエージェントタイプの場合
+      // Agent types that require an API key
       if (!agent.apiKeyEncrypted) {
         return {
           success: false,
@@ -967,7 +967,7 @@ export const aiAgentRoutes = new Elysia()
         };
       }
 
-      // 将来のプロバイダー用のプレースホルダー
+      // Placeholder for future providers
       return {
         success: true,
         agentType: agent.agentType,
@@ -1001,7 +1001,7 @@ export const aiAgentRoutes = new Elysia()
       return { success: false, error: 'Execution is not interrupted' };
     }
 
-    // ステータスを「確認済み」として更新
+    // Update status to "acknowledged"
     await prisma.agentExecution.update({
       where: { id: executionId },
       data: {
@@ -1020,7 +1020,7 @@ export const aiAgentRoutes = new Elysia()
     const executionId = parseInt(params.id);
 
     try {
-      // 中断された実行を取得して情報を確認
+      // Get interrupted execution details
       const execution = await prisma.agentExecution.findUnique({
         where: { id: executionId },
         include: {
@@ -1065,11 +1065,11 @@ export const aiAgentRoutes = new Elysia()
 
       const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
-      // サブタスクの存在を確認（進行中のサブタスクのみ）
+      // Check for in-progress subtasks
       const subtasks = await prisma.task.findMany({
         where: {
           parentId: task.id,
-          status: 'in-progress', // 進行中のサブタスクのみ
+          status: 'in-progress',
         },
         orderBy: { id: 'asc' },
       });
@@ -1077,7 +1077,7 @@ export const aiAgentRoutes = new Elysia()
       const hasSubtasks = subtasks.length > 0;
       log.info(`[resume] Task ${task.id} has ${subtasks.length} in-progress subtasks`);
 
-      // 通知を作成
+      
       await prisma.notification.create({
         data: {
           type: 'agent_execution_resumed',
@@ -1093,16 +1093,16 @@ export const aiAgentRoutes = new Elysia()
         },
       });
 
-      // 進行中のサブタスクがある場合は並列実行
+      // Parallel execution if in-progress subtasks exist
       if (hasSubtasks) {
         log.info(
           `[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`,
         );
 
-        // 並列実行を開始
+        
         const executor = getParallelExecutor();
 
-        // サブタスクの依存関係を分析
+        // Analyze subtask dependencies
         const analysisResult = await executor.analyzeDependencies({
           parentTaskId: task.id,
           subtasks: subtasks.map((st: (typeof subtasks)[number]) => ({
@@ -1115,7 +1115,7 @@ export const aiAgentRoutes = new Elysia()
           })),
         });
 
-        // 非同期で並列実行を開始
+        // Start parallel execution asynchronously
         executor
           .startSession(
             task.id,
@@ -1158,14 +1158,14 @@ export const aiAgentRoutes = new Elysia()
       });
       log.info(`[resume] Updated task ${task.id} status to 'in-progress'`);
 
-      // サブタスクがない場合は通常の再開
+      // Normal resume if no subtasks
       orchestrator
         .resumeInterruptedExecution(executionId, {
           timeout: body?.timeout || 900000,
         })
         .then(async (result) => {
           if (result.success && !result.waitingForInput) {
-            // ワークフローステータスに基づいてタスクステータスを決定
+            // Determine task status based on workflow status
             const currentTask = await prisma.task.findUnique({
               where: { id: task.id },
             });
@@ -1218,7 +1218,7 @@ export const aiAgentRoutes = new Elysia()
                 result.output || '再開した作業が完了しました。',
               );
 
-              // UI変更がある場合はスクリーンショットを撮影
+              // Capture screenshots when UI changes are detected
               let screenshots: ScreenshotResult[] = [];
               try {
                 screenshots = await captureScreenshotsForDiff(structuredDiff, {
@@ -1291,7 +1291,7 @@ export const aiAgentRoutes = new Elysia()
           } else if (result.waitingForInput) {
             log.info(`[resume] Task ${task.id} is waiting for input after resume`);
           } else {
-            // 失敗の場合はタスクステータスを todo に戻す
+            // Revert task status to todo on failure
             await prisma.task.update({
               where: { id: task.id },
               data: { status: 'todo' },

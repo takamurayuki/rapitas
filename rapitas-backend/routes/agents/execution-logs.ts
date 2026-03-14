@@ -11,7 +11,7 @@ import {
 
 export const executionLogsRoutes = new Elysia()
   /**
-   * 実行ログファイルの一覧を取得
+   * List execution log files.
    */
   .get('/api/execution-logs', async (context) => {
     const { query } = context;
@@ -36,7 +36,7 @@ export const executionLogsRoutes = new Elysia()
   })
 
   /**
-   * 特定の実行IDのログファイルを取得
+   * Get log file for a specific execution ID.
    */
   .get('/api/execution-logs/:executionId', async (context) => {
     const { params, query, set } = context;
@@ -55,7 +55,7 @@ export const executionLogsRoutes = new Elysia()
     const format = query?.format || 'text';
 
     if (format === 'json') {
-      // JSON形式のサマリーを返す
+      // Return structured JSON summary
       const content = await readFile(logFile.path, 'utf-8');
       const jsonSection = extractJsonSection(content);
       if (jsonSection) {
@@ -71,7 +71,7 @@ export const executionLogsRoutes = new Elysia()
       return { error: 'Failed to extract JSON section from log file' };
     }
 
-    // テキスト形式でログファイルの内容を返す
+    // Return log file content as plain text
     const content = await readFile(logFile.path, 'utf-8');
     return {
       executionId,
@@ -84,7 +84,7 @@ export const executionLogsRoutes = new Elysia()
   })
 
   /**
-   * 特定の実行IDのログファイルをダウンロード
+   * Download the log file for a specific execution ID.
    */
   .get('/api/execution-logs/:executionId/download', async (context) => {
     const { params, set } = context;
@@ -111,7 +111,7 @@ export const executionLogsRoutes = new Elysia()
   })
 
   /**
-   * 特定の実行IDのエラーサマリーのみ取得
+   * Get only the error summary for a specific execution ID.
    */
   .get('/api/execution-logs/:executionId/errors', async (context) => {
     const { params, set } = context;
@@ -145,7 +145,10 @@ export const executionLogsRoutes = new Elysia()
   });
 
 /**
- * ファイルサイズを人間が読みやすい形式にフォーマット
+ * Format file size into a human-readable string.
+ *
+ * @param bytes - File size in bytes / バイト単位のファイルサイズ
+ * @returns Formatted size string (e.g. "1.5 MB") / フォーマット済みサイズ文字列
  */
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -154,7 +157,10 @@ function formatFileSize(bytes: number): string {
 }
 
 /**
- * ファイル名から実行IDを抽出
+ * Extract the execution ID from a log filename.
+ *
+ * @param filename - Log file name / ログファイル名
+ * @returns Execution ID or null / 実行IDまたはnull
  */
 function extractExecutionId(filename: string): number | null {
   const match = filename.match(/^exec-(\d+)-/);
@@ -162,14 +168,17 @@ function extractExecutionId(filename: string): number | null {
 }
 
 /**
- * ログファイルからJSON構造化データセクションを抽出
+ * Extract the structured JSON data section from a log file.
+ *
+ * @param content - Raw log file content / ログファイルの生のコンテンツ
+ * @returns JSON string or null / JSON文字列またはnull
  */
 function extractJsonSection(content: string): string | null {
   const jsonMarker = '[STRUCTURED DATA (JSON)]';
   const jsonStart = content.indexOf(jsonMarker);
   if (jsonStart === -1) return null;
 
-  // マーカー行の後の区切り線をスキップしてJSONを探す
+  // Skip the separator line after the marker and locate the JSON body
   const afterMarker = content.substring(jsonStart + jsonMarker.length);
   const jsonContentStart = afterMarker.indexOf('{');
   if (jsonContentStart === -1) return null;

@@ -4,7 +4,7 @@ import { createLogger } from '../config/logger';
 
 const log = createLogger('cache-service');
 
-// キャッシュストラテジーのインターフェース
+// Cache strategy interface
 interface CacheStrategy {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttl?: number): Promise<void>;
@@ -13,14 +13,14 @@ interface CacheStrategy {
   has(key: string): Promise<boolean>;
 }
 
-// メモリキャッシュ戦略（開発環境用）
+// In-memory cache strategy (for development)
 class MemoryCacheStrategy implements CacheStrategy {
   private cache: LRUCache<string, NonNullable<unknown>>;
 
   constructor(options: { max?: number; ttl?: number } = {}) {
     this.cache = new LRUCache<string, NonNullable<unknown>>({
       max: options.max || 1000,
-      ttl: options.ttl || 1000 * 60 * 5, // デフォルト5分
+      ttl: options.ttl || 1000 * 60 * 5, // default 5 minutes
       updateAgeOnGet: true,
       updateAgeOnHas: true,
     });
@@ -55,7 +55,7 @@ class MemoryCacheStrategy implements CacheStrategy {
   }
 }
 
-// Redisキャッシュ戦略（本番環境用）
+// Redis cache strategy (for production)
 class RedisCacheStrategy implements CacheStrategy {
   private redis: Redis;
 
@@ -127,27 +127,25 @@ class RedisCacheStrategy implements CacheStrategy {
   }
 }
 
-// マルチレベルキャッシュ戦略
+// Multi-level cache strategy
 class MultiLevelCacheStrategy implements CacheStrategy {
   private l1Cache: MemoryCacheStrategy;
   private l2Cache: CacheStrategy;
 
   constructor(l2Cache: CacheStrategy) {
-    this.l1Cache = new MemoryCacheStrategy({ max: 100, ttl: 60000 }); // 1分のL1キャッシュ
+    this.l1Cache = new MemoryCacheStrategy({ max: 100, ttl: 60000 }); // 1-minute L1 cache
     this.l2Cache = l2Cache;
   }
 
   async get<T>(key: string): Promise<T | null> {
-    // L1キャッシュをチェック
     const l1Value = await this.l1Cache.get<T>(key);
     if (l1Value !== null) {
       return l1Value;
     }
 
-    // L2キャッシュをチェック
     const l2Value = await this.l2Cache.get<T>(key);
     if (l2Value !== null) {
-      // L1キャッシュに保存
+      // Promote to L1 cache
       await this.l1Cache.set(key, l2Value, 60000);
       return l2Value;
     }
@@ -156,7 +154,7 @@ class MultiLevelCacheStrategy implements CacheStrategy {
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    // 両方のレベルに保存
+    // Store in both levels
     await Promise.all([
       this.l1Cache.set(key, value, Math.min(ttl || 60000, 60000)),
       this.l2Cache.set(key, value, ttl),
@@ -178,7 +176,7 @@ class MultiLevelCacheStrategy implements CacheStrategy {
   }
 }
 
-// キャッシュサービス
+// Cache service
 export class CacheService {
   private strategy: CacheStrategy;
   private keyPrefix: string;
@@ -192,7 +190,7 @@ export class CacheService {
   ) {
     this.keyPrefix = options.keyPrefix || 'rapitas:';
 
-    // 環境に基づいて戦略を選択
+    // Select strategy based on environment
     const strategyType =
       options.strategy || (process.env.NODE_ENV === 'production' ? 'multi' : 'memory');
 
@@ -214,7 +212,7 @@ export class CacheService {
     return `${this.keyPrefix}${key}`;
   }
 
-  // 基本的なキャッシュ操作
+  // Basic cache operations
   async get<T>(key: string): Promise<T | null> {
     return this.strategy.get<T>(this.prefixKey(key));
   }
@@ -235,7 +233,7 @@ export class CacheService {
     return this.strategy.has(this.prefixKey(key));
   }
 
-  // 高度なキャッシュ操作
+  // Advanced cache operations
   async getOrSet<T>(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== null) {
@@ -247,13 +245,13 @@ export class CacheService {
     return value;
   }
 
-  // タグベースのキャッシュ無効化
+  // Tag-based cache invalidation
   private taggedKeys = new Map<string, Set<string>>();
 
   async setWithTags<T>(key: string, value: T, tags: string[], ttl?: number): Promise<void> {
     await this.set(key, value, ttl);
 
-    // タグとキーの関連を記録
+    // Record tag-key associations
     tags.forEach((tag) => {
       if (!this.taggedKeys.has(tag)) {
         this.taggedKeys.set(tag, new Set());
@@ -276,14 +274,14 @@ export class CacheService {
     await Promise.all(Array.from(keysToInvalidate).map((key) => this.delete(key)));
   }
 
-  // キャッシュウォーミング
+  // Cache warmup
   async warmup(
     keys: Array<{ key: string; factory: () => Promise<unknown>; ttl?: number }>,
   ): Promise<void> {
     await Promise.all(keys.map(({ key, factory, ttl }) => this.getOrSet(key, factory, ttl)));
   }
 
-  // キャッシュ統計
+  // Cache statistics
   private stats = {
     hits: 0,
     misses: 0,
@@ -321,10 +319,10 @@ export class CacheService {
   }
 }
 
-// シングルトンインスタンス
+// Singleton instance
 export const cacheService = new CacheService();
 
-// キャッシュキーのヘルパー
+// Cache key helpers
 export const CacheKeys = {
   task: (id: string) => `task:${id}`,
   taskList: (filters: Record<string, unknown>) => `tasks:${JSON.stringify(filters)}`,
@@ -332,16 +330,16 @@ export const CacheKeys = {
   user: (id: string) => `user:${id}`,
   statistics: (type: string) => `stats:${type}`,
 
-  // TTL定義
+  // TTL definitions
   TTL: {
-    SHORT: 60, // 1分
-    MEDIUM: 300, // 5分
-    LONG: 3600, // 1時間
-    DAY: 86400, // 1日
+    SHORT: 60, // 1 minute
+    MEDIUM: 300, // 5 minutes
+    LONG: 3600, // 1 hour
+    DAY: 86400, // 1 day
   },
 };
 
-// キャッシュデコレーター（TypeScript用）
+// Cache decorator (for TypeScript)
 export function Cacheable(
   options: {
     ttl?: number;

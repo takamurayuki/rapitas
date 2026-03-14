@@ -20,23 +20,23 @@ export type ExecutionEvent = {
 };
 
 /**
- * 質問の種類を表す型
- * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問（AIエージェントからの明確なステータス）
- * - 'none': 質問なし
+ * Type representing the kind of question
+ * - 'tool_call': Question via Claude Code AskUserQuestion tool call (explicit AI agent status)
+ * - 'none': No question
  *
- * 注意: 'pattern_match'は廃止。AIエージェントからの明確なステータスのみを信頼する。
+ * NOTE: 'pattern_match' is deprecated. Only explicit AI agent status is trusted.
  */
 export type QuestionType = 'tool_call' | 'none';
 
 /**
- * 質問タイムアウト情報
+ * Question timeout info
  */
 export type QuestionTimeoutInfo = {
-  /** 残り秒数 */
+  /** Remaining seconds */
   remainingSeconds: number;
-  /** タイムアウト期限 */
+  /** Timeout deadline */
   deadline: string;
-  /** トータル秒数 */
+  /** Total seconds */
   totalSeconds: number;
 };
 
@@ -55,25 +55,25 @@ export type ExecutionStreamState = {
   result: unknown | null;
   waitingForInput?: boolean;
   question?: string;
-  /** 質問の検出方法（tool_call: AskUserQuestionツール呼び出し, none: 質問なし） */
+  /** Question detection method (tool_call: AskUserQuestion tool call, none: no question) */
   questionType?: QuestionType;
-  /** 質問タイムアウト情報（質問待ち状態の場合のみ） */
+  /** Question timeout info (only when waiting for input) */
   questionTimeout?: QuestionTimeoutInfo;
-  /** セッションのモード（workflow-researcher等） */
+  /** Session mode (e.g. workflow-researcher) */
   sessionMode?: string | null;
-  /** 実行で使用されたトークン数 */
+  /** Tokens used in this execution */
   tokensUsed?: number;
-  /** セッション全体のトークン使用量 */
+  /** Total token usage for the session */
   totalSessionTokens?: number;
 };
 
-// SSEは現在無効化（ポーリングをメインで使用）
+// NOTE: SSE is currently disabled (polling is the primary mechanism)
 const SSE_ENABLED = false;
 
-// ログ配列の最大エントリ数（メモリリーク防止）
+// Max log entries to prevent memory leaks
 const MAX_LOG_ENTRIES = 500;
 
-/** ログ配列が上限を超えないようにトリミングする */
+/** Trim log array to prevent exceeding the max entry limit */
 function trimLogs(logs: string[]): string[] {
   if (logs.length <= MAX_LOG_ENTRIES) return logs;
   return logs.slice(-MAX_LOG_ENTRIES);
@@ -93,7 +93,6 @@ export function useExecutionStream(sessionId: number | null) {
   const logsRef = useRef<string[]>([]);
 
   const connect = useCallback(() => {
-    // SSEが無効の場合は何もしない
     if (!SSE_ENABLED) {
       logger.debug('SSE disabled, using polling instead');
       return;
@@ -123,29 +122,28 @@ export function useExecutionStream(sessionId: number | null) {
       };
 
       eventSource.onerror = () => {
-        // EventSourceのエラーは接続の再試行を示す場合もあるため、
-        // readyStateをチェックして本当のエラーかどうか判定
+        // NOTE: EventSource errors may indicate reconnection attempts,
+        // so check readyState to determine if it's a real error
         if (eventSource.readyState === EventSource.CLOSED) {
           logger.debug('Connection closed, will use polling fallback');
           eventSourceRef.current = null;
           setState((prev) => ({
             ...prev,
             isConnected: false,
-            // エラーメッセージは表示しない（ポーリングがフォールバックとして機能する）
+            // No error message displayed (polling serves as fallback)
           }));
         } else if (eventSource.readyState === EventSource.CONNECTING) {
-          // 再接続中の場合はログのみ
           logger.debug('Reconnecting...');
         }
       };
 
-      // 接続確認イベント（サーバーから送信）
+      // Connection confirmation event (sent by server)
       eventSource.addEventListener('connected', (event) => {
         logger.debug('Connected event received:', event.data);
         setState((prev) => ({ ...prev, isConnected: true, error: null }));
       });
 
-      // 実行開始イベント
+      // Execution started event
       eventSource.addEventListener('execution_started', (event) => {
         logger.info('Execution started:', event.data);
         logsRef.current = ['[開始] エージェントの実行を開始しました...\n'];
@@ -157,7 +155,7 @@ export function useExecutionStream(sessionId: number | null) {
         }));
       });
 
-      // 出力イベント
+      // Output event
       eventSource.addEventListener('execution_output', (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -172,7 +170,7 @@ export function useExecutionStream(sessionId: number | null) {
         }
       });
 
-      // 完了イベント
+      // Completion event
       eventSource.addEventListener('execution_completed', (event) => {
         logger.info('Execution completed:', event.data);
         try {
@@ -198,14 +196,14 @@ export function useExecutionStream(sessionId: number | null) {
         }
       });
 
-      // 失敗イベント
+      // Failure event
       eventSource.addEventListener('execution_failed', (event) => {
         logger.info('Execution failed:', event.data);
         try {
           const data = JSON.parse(event.data);
           logsRef.current = trimLogs([
             ...logsRef.current,
-            `\n[エラー] ${data.error?.errorMessage || '実行に失敗しました'}\n`,
+            `\n[Error] ${data.error?.errorMessage || '実行に失敗しました'}\n`,
           ]);
           setState((prev) => ({
             ...prev,
@@ -219,12 +217,12 @@ export function useExecutionStream(sessionId: number | null) {
             ...prev,
             isRunning: false,
             status: 'failed',
-            logs: [...logsRef.current, '\n[エラー] 実行失敗\n'],
+            logs: [...logsRef.current, '\n[Error] Execution failed\n'],
           }));
         }
       });
 
-      // キャンセルイベント
+      // Cancellation event
       eventSource.addEventListener('execution_cancelled', (event) => {
         logger.info('Execution cancelled');
         logsRef.current = trimLogs([
@@ -272,10 +270,9 @@ export function useExecutionStream(sessionId: number | null) {
     }));
   }, []);
 
-  // sessionIdが変わったら再接続
+  // Reconnect when sessionId changes
   useEffect(() => {
     if (sessionId) {
-      // 非同期で接続を開始
       const timer = setTimeout(() => connect(), 0);
       return () => {
         clearTimeout(timer);
@@ -296,7 +293,7 @@ export function useExecutionStream(sessionId: number | null) {
 }
 
 /**
- * ポーリングベースの実行状態フック（SSEが使えない場合のフォールバック）
+ * Polling-based execution state hook (fallback when SSE is unavailable)
  */
 export function useExecutionPolling(taskId: number | null) {
   const [state, setState] = useState<ExecutionStreamState>({
@@ -314,17 +311,17 @@ export function useExecutionPolling(taskId: number | null) {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastOutputLengthRef = useRef(0);
-  // 継続実行直後など、ステータスが一瞬 terminal のまま残るレースを吸収する猶予期間
+  // NOTE: Grace period to absorb race where terminal status persists briefly after continuation
   const terminalStatusGraceUntilRef = useRef<number>(0);
-  // 終了ログが既に追加されたかを追跡（重複防止）
+  // Track whether final log has been added (prevent duplicates)
   const hasAddedFinalLogRef = useRef(false);
-  // 最後に処理したステータスを追跡（同一ステータスの重複処理防止）
+  // Track last processed status (prevent duplicate processing)
   const lastProcessedStatusRef = useRef<string | null>(null);
-  // 最後に処理した質問を追跡（質問の重複処理防止）
+  // Track last processed question (prevent duplicate processing)
   const lastProcessedQuestionRef = useRef<string | null>(null);
-  // 回答送信後の猶予期間（DBステータス更新のレースコンディション防止）
+  // NOTE: Grace period after answer submission (prevents race with DB status update)
   const responseGraceUntilRef = useRef<number>(0);
-  // 回答送信時にクリアされた質問テキスト（同じ質問の再検出防止）
+  // Cleared question text on answer submission (prevents re-detection of same question)
   const clearedQuestionRef = useRef<string | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -336,9 +333,9 @@ export function useExecutionPolling(taskId: number | null) {
   }, []);
 
   /**
-   * ポーリングを開始する
-   * @param options.initialOutput 復元時の初期出力（指定された場合はログをリセットせず、この位置から差分を取得）
-   * @param options.preserveLogs trueの場合、既存のログを保持する
+   * Start polling
+   * @param options.initialOutput Initial output for restore (when specified, log is not reset; diffs are fetched from this position)
+   * @param options.preserveLogs When true, preserve existing logs
    */
   const startPolling = useCallback(
     async (options?: {
@@ -366,8 +363,8 @@ export function useExecutionPolling(taskId: number | null) {
 
       logger.debug('Starting polling for task:', taskId);
 
-      // 継続実行はバックエンド側で新しい execution が作成されるまで、
-      // 旧 execution の completed が返り続けることがあるため、短い猶予期間を設ける
+      // NOTE: On continuation, the backend may return the old execution's completed status
+      // until a new execution is created, so a short grace period is needed
       const terminalGraceMs =
         typeof options?.terminalGraceMs === 'number'
           ? options.terminalGraceMs
@@ -377,15 +374,15 @@ export function useExecutionPolling(taskId: number | null) {
       terminalStatusGraceUntilRef.current =
         terminalGraceMs > 0 ? Date.now() + terminalGraceMs : 0;
 
-      // 終了ログフラグとステータス追跡をリセット
-      // preserveLogs（継続実行）の場合、直前の実行で既に終了ログがある前提なので再追加を避ける
+      // Reset final log flag and status tracking
+      // NOTE: For preserveLogs (continuation), skip final log since the previous run already added one
       hasAddedFinalLogRef.current = !!options?.preserveLogs;
       lastProcessedStatusRef.current = null;
       lastProcessedQuestionRef.current = null;
       responseGraceUntilRef.current = 0;
       clearedQuestionRef.current = null;
 
-      // 初期出力がある場合はその長さから開始（復元時）
+      // Start from initial output length when restoring
       if (options?.initialOutput) {
         lastOutputLengthRef.current = options.initialOutput.length;
         setState((prev) => ({
@@ -398,11 +395,11 @@ export function useExecutionPolling(taskId: number | null) {
             : [options.initialOutput || ''],
         }));
       } else if (options?.preserveLogs) {
-        // ログを保持する場合
-        // lastOutputLengthRef.currentはリセットしない。前回のポーリングで追跡していた
-        // 出力位置を維持することで、継続実行時に新しい出力のみをログに追加する。
-        // バックエンドは継続実行時にstate.output（前回の出力+新出力）をDBに保存するため、
-        // 前回の位置から差分を読み取れば新しい出力のみが得られる。
+        // When preserving logs
+        // NOTE: Do not reset lastOutputLengthRef.current. By keeping the previously tracked
+        // output position, only new output is appended during continuation.
+        // The backend stores state.output (previous + new output) in DB on continuation,
+        // so reading the diff from the previous position yields only new output.
         setState((prev) => ({
           ...prev,
           isConnected: true,
@@ -410,7 +407,7 @@ export function useExecutionPolling(taskId: number | null) {
           status: 'running',
         }));
       } else {
-        // 新規実行時はリセット
+        // Reset for new execution
         lastOutputLengthRef.current = 0;
         setState((prev) => ({
           ...prev,
@@ -422,14 +419,14 @@ export function useExecutionPolling(taskId: number | null) {
       }
 
       const poll = async () => {
-        // キャンセル状態の場合はポーリングをスキップ（キャンセル後のステータス上書きを防止）
+        // Skip polling in cancelled state (prevents overwriting cancelled status)
         if (lastProcessedStatusRef.current === 'cancelled') {
           logger.debug('Skipping poll - already cancelled');
           return;
         }
 
         try {
-          // タイムアウト付きのfetch（10秒）
+          // Fetch with 10-second timeout
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -441,7 +438,7 @@ export function useExecutionPolling(taskId: number | null) {
           );
           clearTimeout(timeoutId);
 
-          // キャンセル状態になった場合は結果を無視
+          // Ignore result if cancelled during fetch
           if (lastProcessedStatusRef.current === 'cancelled') {
             logger.debug('Ignoring result - cancelled during fetch');
             return;
@@ -454,13 +451,13 @@ export function useExecutionPolling(taskId: number | null) {
 
           const data = await res.json();
 
-          // 実行データがない場合はスキップ
+          // Skip if no execution data
           if (!data.executionStatus || data.status === 'none') {
             logger.debug('No execution data yet');
             return;
           }
 
-          // トークン使用量を常に更新
+          // Always update token usage
           const polledTokensUsed = data.tokensUsed as number | undefined;
           const polledTotalSessionTokens = data.totalSessionTokens as
             | number
@@ -474,7 +471,7 @@ export function useExecutionPolling(taskId: number | null) {
             }));
           }
 
-          // 出力を更新
+          // Update output
           if (data.output) {
             const currentLength = lastOutputLengthRef.current;
             const newOutput = data.output.slice(currentLength);
@@ -488,13 +485,13 @@ export function useExecutionPolling(taskId: number | null) {
             }
           }
 
-          // ステータスに応じて処理
-          // 同一ステータスの重複処理を防止
+          // Process based on status
+          // Prevent duplicate processing of same status
           const currentStatus = data.executionStatus;
           const isStatusChanged =
             lastProcessedStatusRef.current !== currentStatus;
 
-          // 継続実行直後のレース吸収: terminal を一時的に無視してポーリングを継続
+          // NOTE: Absorb race after continuation: temporarily ignore terminal status
           if (
             terminalStatusGraceUntilRef.current > 0 &&
             Date.now() < terminalStatusGraceUntilRef.current &&
@@ -513,18 +510,18 @@ export function useExecutionPolling(taskId: number | null) {
           }
 
           if (data.executionStatus === 'completed') {
-            // 既に同じステータスを処理済みの場合はスキップ
+            // Skip if already processed same status
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
             logger.info('Execution completed');
             lastProcessedStatusRef.current = currentStatus;
-            // 終了ログが未追加の場合のみ追加（重複防止）
+            // Only add final log if not already added (prevent duplicates)
             const shouldAddLog = !hasAddedFinalLogRef.current;
             if (shouldAddLog) {
               hasAddedFinalLogRef.current = true;
             }
-            // ワークフローフェーズの場合はフェーズ固有の完了メッセージを表示
+            // Show phase-specific completion message for workflow phases
             const sessionMode = data.sessionMode as string | null;
             let completionMessage = '\n[完了] 実行が完了しました。\n';
             if (sessionMode?.startsWith('workflow-')) {
@@ -562,13 +559,13 @@ export function useExecutionPolling(taskId: number | null) {
             }));
             stopPolling();
           } else if (data.executionStatus === 'failed') {
-            // 既に同じステータスを処理済みの場合はスキップ
+            // Skip if already processed same status
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
 
-            // 回答送信後のグレースピリオド中は、セッション再開フォールバック中の
-            // 一時的な失敗の可能性があるため、即座にfailedとして処理しない
+            // NOTE: During grace period after answer submission, a transient failure may
+            // occur during session resume fallback, so don't treat as failed immediately
             const isInFailedGracePeriod =
               Date.now() < responseGraceUntilRef.current;
             if (
@@ -583,7 +580,7 @@ export function useExecutionPolling(taskId: number | null) {
 
             logger.info('Execution failed:', data.errorMessage);
             lastProcessedStatusRef.current = currentStatus;
-            // 終了ログが未追加の場合のみ追加（重複防止）
+            // Only add final log if not already added (prevent duplicates)
             const shouldAddLog = !hasAddedFinalLogRef.current;
             if (shouldAddLog) {
               hasAddedFinalLogRef.current = true;
@@ -598,21 +595,21 @@ export function useExecutionPolling(taskId: number | null) {
                 shouldAddLog && prev.logs.length > 0
                   ? trimLogs([
                       ...prev.logs,
-                      `\n[エラー] ${data.errorMessage || '実行失敗'}\n`,
+                      `\n[Error] ${data.errorMessage || 'Execution failed'}\n`,
                     ])
                   : shouldAddLog
-                    ? [`[エラー] ${data.errorMessage || '実行失敗'}\n`]
+                    ? [`[Error] ${data.errorMessage || 'Execution failed'}\n`]
                     : prev.logs,
             }));
             stopPolling();
           } else if (data.executionStatus === 'cancelled') {
-            // 既に同じステータスを処理済みの場合はスキップ
+            // Skip if already processed same status
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
             logger.info('Execution cancelled');
             lastProcessedStatusRef.current = currentStatus;
-            // 終了ログが未追加の場合のみ追加（重複防止）
+            // Only add final log if not already added (prevent duplicates)
             const shouldAddLog = !hasAddedFinalLogRef.current;
             if (shouldAddLog) {
               hasAddedFinalLogRef.current = true;
@@ -634,12 +631,12 @@ export function useExecutionPolling(taskId: number | null) {
             }));
             stopPolling();
           } else if (data.executionStatus === 'interrupted') {
-            // 既に同じステータスを処理済みの場合はスキップ
+            // Skip if already processed same status
             if (!isStatusChanged && hasAddedFinalLogRef.current) {
               return;
             }
 
-            // 回答送信後のグレースピリオド中はスキップ
+            // Skip during grace period after answer submission
             const isInInterruptedGracePeriod =
               Date.now() < responseGraceUntilRef.current;
             if (
@@ -677,14 +674,14 @@ export function useExecutionPolling(taskId: number | null) {
             data.executionStatus === 'waiting_for_input' ||
             data.waitingForInput
           ) {
-            // キャンセル状態の場合は上書きしない
+            // Don't overwrite cancelled state
             if (lastProcessedStatusRef.current === 'cancelled') {
               return;
             }
 
-            // 回答送信後の猶予期間中は、waiting_for_inputを無視する
-            // （DBステータスがまだrunningに更新されていない場合や、
-            //   セッション再開フォールバック中のレースコンディション防止）
+            // NOTE: Ignore waiting_for_input during grace period after answer submission
+            // (DB status may not have updated to running yet, or
+            //   race condition during session resume fallback)
             const currentQuestion = data.question || '';
             const isInGracePeriod = Date.now() < responseGraceUntilRef.current;
             if (
@@ -692,7 +689,7 @@ export function useExecutionPolling(taskId: number | null) {
               (lastProcessedStatusRef.current === 'responding' ||
                 lastProcessedStatusRef.current === 'running')
             ) {
-              // 猶予期間中は、クリアされた質問と同じ質問または空の質問を無視
+              // During grace period, ignore same/empty questions
               if (
                 !currentQuestion ||
                 clearedQuestionRef.current === currentQuestion
@@ -702,18 +699,18 @@ export function useExecutionPolling(taskId: number | null) {
                 );
                 return;
               }
-              // 猶予期間中でも、新しい質問（以前とは異なる質問）は許可する
+              // During grace period, allow new (different) questions through
               logger.debug(
                 'New question detected during grace period, allowing through',
               );
             }
 
-            // 同じ質問を既に処理済みの場合はタイムアウト情報のみ更新
+            // If same question already processed, only update timeout info
             const isNewQuestion =
               lastProcessedStatusRef.current !== 'waiting_for_input' ||
               lastProcessedQuestionRef.current !== currentQuestion;
 
-            // タイムアウト情報を取得
+            // Get timeout info
             const timeoutInfo: QuestionTimeoutInfo | undefined =
               data.questionTimeout
                 ? {
@@ -734,7 +731,7 @@ export function useExecutionPolling(taskId: number | null) {
               );
               lastProcessedStatusRef.current = 'waiting_for_input';
               lastProcessedQuestionRef.current = currentQuestion;
-              // 新しい質問が検出されたので、猶予期間とクリアされた質問をリセット
+              // New question detected; reset grace period and cleared question
               responseGraceUntilRef.current = 0;
               clearedQuestionRef.current = null;
             }
@@ -745,25 +742,24 @@ export function useExecutionPolling(taskId: number | null) {
               status: 'waiting_for_input',
               waitingForInput: true,
               question: currentQuestion,
-              // questionTypeはAPIからの値のみを使用（pattern_matchへのフォールバックは削除）
-              // AIエージェントからの明確なステータス（tool_call）のみを信頼
+              // NOTE: questionType uses API value only (pattern_match fallback removed)
+              // Only trust explicit AI agent status (tool_call)
               questionType:
                 data.questionType === 'tool_call' ? 'tool_call' : 'none',
               questionTimeout: timeoutInfo,
             }));
           } else if (data.executionStatus === 'running') {
-            // キャンセル状態の場合は上書きしない
+            // Don't overwrite cancelled state
             if (lastProcessedStatusRef.current === 'cancelled') {
               return;
             }
-            // DBがrunningに更新されたことを確認
+            // Confirm DB has updated to running
             if (lastProcessedStatusRef.current === 'responding') {
               lastProcessedStatusRef.current = 'running';
-              // 注意: ここではまだ猶予期間をクリアしない
-              // セッション再開のフォールバック中にrunning→waiting_for_input(古い)→running
-              // という遷移が発生し得るため、猶予期間の自然消滅を待つ
+              // NOTE: Don't clear grace period here yet
+              // During session resume fallback, running->waiting_for_input(stale)->running
+              // transitions can occur, so let the grace period expire naturally
             }
-            // 実行中の場合、isRunningをtrueに維持
             setState((prev) => ({
               ...prev,
               isRunning: true,
@@ -771,43 +767,40 @@ export function useExecutionPolling(taskId: number | null) {
             }));
           }
         } catch (error) {
-          // AbortErrorはタイムアウトによるもの - 静かにスキップ
+          // AbortError from timeout - silently skip
           if (error instanceof Error && error.name === 'AbortError') {
             logger.debug('Request timed out, will retry');
             return;
           }
-          // TypeError: Failed to fetchはネットワークエラー - バックエンドが応答しない可能性
+          // TypeError: Failed to fetch = network error - backend may be unresponsive
           if (
             error instanceof TypeError &&
             error.message.includes('Failed to fetch')
           ) {
             logger.warn('Network error - backend may be unresponsive');
-            // 連続エラーをカウントし、一定回数超えたらエラー状態にする処理も可能
             return;
           }
           logger.error('Polling error:', error);
         }
       };
 
-      // 初回実行
+      // Initial poll
       await poll();
 
-      // 300msごとにポーリング（より高頻度でリアルタイム感を向上）
+      // Poll every 300ms for near-realtime responsiveness
       intervalRef.current = setInterval(poll, 300);
     },
     [taskId, stopPolling],
   );
 
   /**
-   * 実行をキャンセル状態に設定する（停止ボタン押下時に即座にUIを更新するため）
+   * Set execution to cancelled state (for immediate UI update on stop button press)
    */
   const setCancelled = useCallback(() => {
-    // ポーリングを停止
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    // 既にキャンセル処理済みの場合はスキップ
     if (
       lastProcessedStatusRef.current === 'cancelled' &&
       hasAddedFinalLogRef.current
@@ -815,7 +808,7 @@ export function useExecutionPolling(taskId: number | null) {
       return;
     }
     lastProcessedStatusRef.current = 'cancelled';
-    // 終了ログが未追加の場合のみ追加
+    // Only add final log if not already added
     const shouldAddLog = !hasAddedFinalLogRef.current;
     if (shouldAddLog) {
       hasAddedFinalLogRef.current = true;
@@ -858,19 +851,19 @@ export function useExecutionPolling(taskId: number | null) {
   }, []);
 
   /**
-   * 質問への回答が送信された後に質問状態をクリアする
-   * ステータスは running に戻し、ログは保持する
-   * 猶予期間を設定してDBステータス更新前のレースコンディションを防止する
+   * Clear question state after an answer has been submitted
+   * Returns status to running while preserving logs
+   * Sets a grace period to prevent race conditions before DB status update
    */
   const clearQuestion = useCallback(() => {
-    // クリアされた質問を記録（同じ質問の再検出防止）
+    // Record cleared question (prevent re-detection of same question)
     clearedQuestionRef.current = lastProcessedQuestionRef.current;
-    // 質問のステータス追跡をリセットして、新しい質問を受け付けられるようにする
+    // Reset question status tracking to accept new questions
     lastProcessedStatusRef.current = 'responding';
     lastProcessedQuestionRef.current = null;
-    // 猶予期間を設定（8秒間はwaiting_for_inputの再検出を抑制）
-    // セッション再開の3段階フォールバック（--resume → --continue → new session）に
-    // 十分な時間を確保するため、5秒以上のマージンを持たせる
+    // NOTE: 8-second grace period suppresses waiting_for_input re-detection
+    // This allows enough time for the 3-stage session resume fallback
+    // (--resume -> --continue -> new session)
     responseGraceUntilRef.current = Date.now() + 8000;
     setState((prev) => ({
       ...prev,

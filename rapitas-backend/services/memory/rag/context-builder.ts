@@ -1,6 +1,7 @@
 /**
- * RAGコンテキストビルダー
- * クエリからRAGコンテキスト文字列を構築し、エージェントプロンプトに注入
+ * RAG Context Builder
+ *
+ * Builds RAG context strings from queries for injection into agent prompts.
  */
 import { createLogger } from '../../../config/logger';
 import { searchKnowledge } from './search';
@@ -9,7 +10,7 @@ import type { RAGContext } from '../types';
 const log = createLogger('memory:rag:context-builder');
 
 /**
- * クエリからRAGコンテキストを構築
+ * Build RAG context from a query string.
  */
 export async function buildRAGContext(
   query: string,
@@ -39,7 +40,7 @@ export async function buildRAGContext(
       similarity: r.similarity,
     }));
 
-    // コンテキスト文字列を構築
+    // Build context text string
     let contextText = '';
     if (entries.length > 0) {
       contextText = [
@@ -62,8 +63,9 @@ export async function buildRAGContext(
 }
 
 /**
- * タスク実行用のRAGコンテキストを構築
- * タスクのタイトル、説明、テーマから関連知識を検索
+ * Build RAG context for task execution.
+ *
+ * Searches related knowledge using the task's title, description, and theme.
  */
 export async function buildTaskRAGContext(task: {
   title: string;

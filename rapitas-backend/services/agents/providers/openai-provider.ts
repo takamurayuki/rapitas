@@ -1,9 +1,9 @@
 /**
- * OpenAI プロバイダー（スタブ実装）
- * OpenAI API を使用したエージェントプロバイダー
+ * OpenAI Provider (stub)
  *
- * 注意: このファイルはインターフェースの定義のみで、実際の実装は
- * openai パッケージをインストールした後に完成させる必要があります。
+ * Agent provider using the OpenAI API.
+ * NOTE: This file only defines the interface. Full implementation requires
+ * installing the openai package.
  */
 
 import type {
@@ -22,7 +22,7 @@ import { AgentError } from '../abstraction/interfaces';
 import { generateAgentId } from '../abstraction';
 
 /**
- * OpenAI プロバイダー設定
+ * OpenAI provider configuration
  */
 export interface OpenAIConfig extends OpenAIProviderConfig {
   model?: string;
@@ -32,7 +32,7 @@ export interface OpenAIConfig extends OpenAIProviderConfig {
 }
 
 /**
- * OpenAI モデル情報
+ * OpenAI model information
  */
 export const OPENAI_MODELS = {
   'gpt-4o': {
@@ -75,7 +75,7 @@ export const OPENAI_MODELS = {
 type OpenAIModelId = keyof typeof OPENAI_MODELS;
 
 /**
- * 会話履歴のメッセージ型
+ * Conversation history message type
  */
 interface ConversationMessage {
   role: 'system' | 'user' | 'assistant';
@@ -83,8 +83,9 @@ interface ConversationMessage {
 }
 
 /**
- * OpenAI エージェント
- * 注意: 実際のAPI呼び出しは openai パッケージのインストール後に実装
+ * OpenAI Agent
+ *
+ * NOTE: Actual API calls require installing the openai package.
  */
 export class OpenAIAgent extends AbstractAgent {
   private config: OpenAIConfig;
@@ -152,7 +153,7 @@ export class OpenAIAgent extends AbstractAgent {
     task: AgentTaskDefinition,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    // スタブ実装 - 実際のAPI呼び出しは openai パッケージ導入後に実装
+    // TODO: Implement actual API calls after installing openai package
     throw new AgentError(
       'OpenAI provider is not yet fully implemented. Please install the openai package and complete the implementation.',
       'configuration',
@@ -203,7 +204,7 @@ Guidelines:
 }
 
 /**
- * OpenAI プロバイダー
+ * OpenAI Provider
  */
 export class OpenAIProvider implements IAgentProvider {
   readonly providerId = 'openai-codex' as const;
@@ -280,7 +281,7 @@ export class OpenAIProvider implements IAgentProvider {
       };
     }
 
-    // スタブ実装 - 実際のヘルスチェックは openai パッケージ導入後に実装
+    // TODO: Implement full health check after installing openai package
     return {
       healthy: true,
       available: true,
@@ -301,7 +302,7 @@ export class OpenAIProvider implements IAgentProvider {
   }
 
   /**
-   * 利用可能なモデル一覧を取得
+   * Returns the list of available models with pricing info.
    */
   getAvailableModels(): Array<{
     id: string;
@@ -319,6 +320,6 @@ export class OpenAIProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトの OpenAI プロバイダーインスタンス
+ * Default OpenAI provider instance
  */
 export const openaiProvider = new OpenAIProvider();

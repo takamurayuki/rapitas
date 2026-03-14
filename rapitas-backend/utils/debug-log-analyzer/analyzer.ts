@@ -1,6 +1,7 @@
 /**
- * デバッグログ解析ツール - メインアナライザー
- * ログの解析、フィルタリング、パターン抽出を行うメインクラス
+ * Debug Log Analyzer - Main Analyzer
+ *
+ * Core class for parsing, filtering, and extracting patterns from debug logs.
  */
 
 import {
@@ -15,7 +16,6 @@ import {
 } from './types';
 import { JSONLogParser, SyslogParser, ApacheCommonLogParser, NodeJSLogParser } from './parsers';
 
-// メインのログアナライザー
 export class DebugLogAnalyzer {
   private parsers: LogParser[] = [
     new JSONLogParser(),
@@ -24,17 +24,16 @@ export class DebugLogAnalyzer {
     new NodeJSLogParser(),
   ];
 
-  // カスタムパーサーを追加
+  /** Registers a custom parser with highest priority. */
   addParser(parser: LogParser): void {
     this.parsers.unshift(parser);
   }
 
-  // ログタイプを検出
+  /** Detects the log format type from content by sampling the first lines. */
   detectLogType(logContent: string): LogType {
     const lines = logContent.split('\n').filter((line) => line.trim());
     if (lines.length === 0) return LogType.UNKNOWN;
 
-    // 最初の数行でタイプを判定
     const sampleLines = lines.slice(0, Math.min(10, lines.length));
 
     for (const parser of this.parsers) {
@@ -45,12 +44,11 @@ export class DebugLogAnalyzer {
     return LogType.UNKNOWN;
   }
 
-  // ログを解析
+  /** Parses log content and returns a structured analysis result. */
   analyze(logContent: string, options?: AnalyzeOptions): LogAnalysisResult {
     const lines = logContent.split('\n').filter((line) => line.trim());
     const entries: ParsedLogEntry[] = [];
 
-    // 各行を解析
     for (const line of lines) {
       let parsed: ParsedLogEntry | null = null;
 
@@ -61,7 +59,7 @@ export class DebugLogAnalyzer {
         }
       }
 
-      // パースできなかった場合は生のログとして保存
+      // Store unparseable lines as raw log entries
       if (!parsed) {
         parsed = {
           raw: line,
@@ -73,17 +71,14 @@ export class DebugLogAnalyzer {
       entries.push(parsed);
     }
 
-    // フィルタリング
     let filteredEntries = entries;
     if (options?.filter) {
       filteredEntries = this.filterEntries(entries, options.filter);
     }
 
-    // 解析結果を生成
     return this.generateAnalysisResult(filteredEntries);
   }
 
-  // エントリーのフィルタリング
   private filterEntries(entries: ParsedLogEntry[], filter: LogFilter): ParsedLogEntry[] {
     return entries.filter((entry) => {
       if (filter.level && entry.level) {
@@ -114,7 +109,6 @@ export class DebugLogAnalyzer {
     });
   }
 
-  // ログレベルの優先度
   private getLogLevelPriority(level: LogLevel): number {
     const priorities: Record<LogLevel, number> = {
       [LogLevel.TRACE]: 0,
@@ -127,7 +121,6 @@ export class DebugLogAnalyzer {
     return priorities[level] ?? 2;
   }
 
-  // 解析結果の生成
   private generateAnalysisResult(entries: ParsedLogEntry[]): LogAnalysisResult {
     const levelDistribution: Record<LogLevel, number> = {
       [LogLevel.TRACE]: 0,
@@ -145,9 +138,7 @@ export class DebugLogAnalyzer {
     let minTime: Date | undefined;
     let maxTime: Date | undefined;
 
-    // エントリーの解析
     for (const entry of entries) {
-      // レベル分布
       if (entry.level) {
         levelDistribution[entry.level]++;
         if (entry.level === LogLevel.ERROR || entry.level === LogLevel.FATAL) {
@@ -157,18 +148,15 @@ export class DebugLogAnalyzer {
         }
       }
 
-      // ソース分布
       if (entry.source) {
         sourceDistribution[entry.source] = (sourceDistribution[entry.source] || 0) + 1;
       }
 
-      // 時間範囲
       if (entry.timestamp) {
         if (!minTime || entry.timestamp < minTime) minTime = entry.timestamp;
         if (!maxTime || entry.timestamp > maxTime) maxTime = entry.timestamp;
       }
 
-      // メッセージパターン
       if (entry.message) {
         const pattern = this.extractPattern(entry.message);
         if (!messagePatterns.has(pattern)) {
@@ -187,7 +175,6 @@ export class DebugLogAnalyzer {
       }
     }
 
-    // パターンを分類
     const patterns = Array.from(messagePatterns.values());
     const errorPatterns = patterns.filter(
       (p) => p.severity === LogLevel.ERROR || p.severity === LogLevel.FATAL,
@@ -213,7 +200,7 @@ export class DebugLogAnalyzer {
     };
   }
 
-  // メッセージからパターンを抽出（数値や特定の文字列を正規化）
+  /** Normalizes a message into a pattern by replacing numbers, IPs, emails, and paths. */
   private extractPattern(message: string): string {
     return message
       .replace(/\b\d+\b/g, '{NUMBER}')
@@ -223,7 +210,7 @@ export class DebugLogAnalyzer {
       .replace(/\/[^\/\s]+/g, '{PATH}');
   }
 
-  // ログのストリーム解析（大きなファイル用）
+  /** Streaming log analysis for large files. */
   async *analyzeStream(
     logStream: AsyncIterable<string>,
     options?: AnalyzeOptions,
@@ -247,7 +234,6 @@ export class DebugLogAnalyzer {
         };
       }
 
-      // フィルタリング
       if (options?.filter) {
         const filtered = this.filterEntries([parsed], options.filter);
         if (filtered.length === 0) continue;
@@ -258,5 +244,4 @@ export class DebugLogAnalyzer {
   }
 }
 
-// デフォルトのエクスポート
 export default DebugLogAnalyzer;

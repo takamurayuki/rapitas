@@ -70,7 +70,7 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
         }
       }
     }
-    // Auto-assign development themes without a category to the "開発" category
+    // Auto-assign development themes without a category to the "Development" category
     const devCategory = results.find((c) => c.name === '開発');
     if (devCategory) {
       await prisma.theme.updateMany({

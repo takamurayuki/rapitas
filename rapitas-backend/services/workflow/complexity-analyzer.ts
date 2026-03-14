@@ -257,7 +257,7 @@ function analyzeEstimatedTime(input: TaskComplexityInput): { score: number; reas
   const reasons: string[] = [];
 
   if (!input.estimatedHours) {
-    reasons.push('推定時間未設定 (標準値を使用)');
+    reasons.push('Estimated time not set (using default value)');
     return { score: 50, reasons }; // Default value
   }
 
@@ -265,19 +265,19 @@ function analyzeEstimatedTime(input: TaskComplexityInput): { score: number; reas
 
   if (input.estimatedHours <= 1) {
     score = 20;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (軽量)`);
+    reasons.push(`Estimated time: ${input.estimatedHours} hours (lightweight)`);
   } else if (input.estimatedHours <= 2) {
     score = 35;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (軽量-標準)`);
+    reasons.push(`Estimated time: ${input.estimatedHours} hours (lightweight-standard)`);
   } else if (input.estimatedHours <= 4) {
     score = 60;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (標準)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (standard)`);
   } else if (input.estimatedHours <= 8) {
     score = 80;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (重量)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (heavyweight)`);
   } else {
     score = 95;
-    reasons.push(`推定時間: ${input.estimatedHours}時間 (超重量)`);
+    reasons.push(`推定時間: ${input.estimatedHours}hours (ultra-heavyweight)`);
   }
 
   return { score, reasons };
@@ -290,7 +290,7 @@ function analyzePriority(input: TaskComplexityInput): { score: number; reasons: 
   const reasons: string[] = [];
 
   if (!input.priority) {
-    reasons.push('優先度未設定 (標準値を使用)');
+    reasons.push('Priority not set (using default value)');
     return { score: 50, reasons };
   }
 
@@ -299,23 +299,23 @@ function analyzePriority(input: TaskComplexityInput): { score: number; reasons: 
   switch (input.priority) {
     case 'low':
       score = 30;
-      reasons.push('低優先度 → 軽量傾向');
+      reasons.push('Low priority → lightweight tendency');
       break;
     case 'medium':
       score = 50;
-      reasons.push('中優先度 → 標準');
+      reasons.push('Medium priority → standard');
       break;
     case 'high':
       score = 70;
-      reasons.push('高優先度 → 重量傾向');
+      reasons.push('High priority → heavyweight tendency');
       break;
     case 'urgent':
       score = 40; // Urgent issues often need quick fixes
-      reasons.push('緊急 → 軽量-標準 (迅速対応が必要)');
+      reasons.push('Urgent → lightweight-standard (requires quick response)');
       break;
     default:
       score = 50;
-      reasons.push(`不明な優先度: ${input.priority}`);
+      reasons.push(`Unknown priority: ${input.priority}`);
   }
 
   return { score, reasons };

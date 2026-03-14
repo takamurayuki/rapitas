@@ -48,7 +48,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     onDisconnectRef.current = onDisconnectAction;
   }, [onDisconnectAction]);
 
-  // SSE接続でshutdownイベントを検出
+  // Detect shutdown events via SSE connection
   useEffect(() => {
     const connectSSE = () => {
       try {
@@ -63,12 +63,12 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         });
 
         es.onerror = () => {
-          // SSE接続エラーは無視（ヘルスチェックポーリングで検出する）
+          // NOTE: Ignore SSE connection errors (detected by health check polling)
           es.close();
           eventSourceRef.current = null;
         };
       } catch {
-        // EventSource作成失敗は無視
+        // Ignore EventSource creation failure
       }
     };
 
@@ -99,7 +99,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           logger.info('Backend reconnected');
           onReconnectRef.current?.();
 
-          // 再接続後にSSEも再接続
+          // Reconnect SSE after recovery
           if (
             !eventSourceRef.current ||
             eventSourceRef.current.readyState === EventSource.CLOSED
@@ -118,7 +118,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
                 eventSourceRef.current = null;
               };
             } catch {
-              // EventSource作成失敗は無視
+              // Ignore EventSource creation failure
             }
           }
         }
@@ -149,9 +149,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     }
   }, []);
 
-  // status に応じて間隔を切り替える単一のインターバル
+  // Single interval that adjusts based on status
   useEffect(() => {
-    // 初回チェックを非同期で実行
+    // Run initial check asynchronously
     const initialCheck = setTimeout(() => checkHealth(), 0);
 
     const currentInterval =

@@ -67,16 +67,16 @@ export default function PlanApprovalModal({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* オーバーレイ */}
+      {/* Overlay */}
       <div
         className="fixed inset-0 bg-black/50 transition-opacity"
         onClick={handleClose}
       />
 
-      {/* モーダルコンテンツ */}
+      {/* Modal content */}
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="relative bg-white dark:bg-zinc-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-          {/* ヘッダー */}
+          {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-700">
             <div className="flex items-center space-x-2">
               <FileText className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
@@ -92,7 +92,7 @@ export default function PlanApprovalModal({
             </button>
           </div>
 
-          {/* エラー表示 */}
+          {/* Error display */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 p-4 m-6 mb-0">
               <div className="flex">
@@ -104,7 +104,7 @@ export default function PlanApprovalModal({
             </div>
           )}
 
-          {/* ファイル情報 */}
+          {/* File info */}
           <div className="px-6 py-3 bg-zinc-50 dark:bg-zinc-700/50 border-b border-zinc-200 dark:border-zinc-700">
             <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-400">
               <div>
@@ -122,7 +122,7 @@ export default function PlanApprovalModal({
             </div>
           </div>
 
-          {/* コンテンツエリア */}
+          {/* Content area */}
           <div className="p-6 overflow-y-auto max-h-[60vh]">
             {planFile.exists && planFile.content ? (
               <div className="prose dark:prose-invert max-w-none">
@@ -168,7 +168,7 @@ export default function PlanApprovalModal({
             )}
           </div>
 
-          {/* 却下理由入力エリア */}
+          {/* Rejection reason input */}
           {showRejectReason && (
             <div className="px-6 py-4 bg-orange-50 dark:bg-orange-900/20 border-t border-orange-200 dark:border-orange-800">
               <label
@@ -189,7 +189,7 @@ export default function PlanApprovalModal({
             </div>
           )}
 
-          {/* フッター */}
+          {/* Footer */}
           <div className="flex items-center justify-between p-6 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-700/50">
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
               この計画内容を確認して、実装を開始するか判断してください

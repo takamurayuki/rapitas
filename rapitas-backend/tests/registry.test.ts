@@ -1,6 +1,7 @@
 /**
- * Agent Registry テスト
- * プロバイダーとエージェントの登録・管理を検証
+ * Agent Registry Test
+ *
+ * Tests for provider and agent registration and management.
  */
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import type { IAgentProvider } from '../services/agents/abstraction/interfaces';
@@ -17,7 +18,7 @@ mock.module('../config/logger', () => ({
 
 const { AgentRegistry } = await import('../services/agents/abstraction/registry');
 
-// モックプロバイダー作成ヘルパー
+// Helper to create mock providers
 function createMockProvider(
   id: string,
   capabilities: Record<string, boolean> = {},
@@ -316,15 +317,15 @@ describe('AgentRegistry', () => {
   describe('アイドルエージェントクリーンアップ', () => {
     test('アイドル状態のエージェントを削除すること', async () => {
       const provider = createMockProvider('claude-code');
-      const idleTime = 10000; // 10秒
+      const idleTime = 10000; // 10 seconds
 
-      // lastUsedAtが古いエージェントを作成
+      // Create an agent with an old lastUsedAt timestamp
       provider.createAgent = mock(() => ({
         metadata: {
           id: `idle-agent-${Date.now()}`,
           providerId: 'claude-code',
           name: 'idle',
-          lastUsedAt: new Date(Date.now() - 20000), // 20秒前
+          lastUsedAt: new Date(Date.now() - 20000), // 20 seconds ago
         },
         state: 'idle',
         dispose: mock(() => Promise.resolve()),
@@ -346,7 +347,7 @@ describe('AgentRegistry', () => {
           name: 'running',
           lastUsedAt: new Date(Date.now() - 999999),
         },
-        state: 'running', // 実行中
+        state: 'running',
         dispose: mock(() => Promise.resolve()),
       }));
 

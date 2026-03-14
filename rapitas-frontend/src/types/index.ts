@@ -24,7 +24,7 @@ export type Theme = {
   color: string;
   icon?: string | null;
   isDefault?: boolean;
-  // 開発プロジェクト設定
+  // Development project settings
   isDevelopment?: boolean;
   repositoryUrl?: string | null;
   workingDirectory?: string | null;
@@ -71,7 +71,7 @@ export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
 export type Status = 'todo' | 'in-progress' | 'done';
 
-// ワークフロー関連の型
+// Workflow-related types
 export type WorkflowStatus =
   | 'draft'
   | 'research_done'
@@ -169,7 +169,7 @@ export type StudyStreak = {
   updatedAt: string;
 };
 
-// 学習目標
+// Learning goals
 export type LearningGoalSubtask = {
   title: string;
   description?: string;
@@ -250,7 +250,7 @@ export type Task = {
   examGoal?: ExamGoal | null;
   timeEntries?: TimeEntry[];
   comments?: Comment[];
-  // タスク設定関連
+  // Task settings
   isDeveloperMode?: boolean;
   isAiTaskAnalysis?: boolean;
   agentGenerated?: boolean;
@@ -338,7 +338,7 @@ export const priorityLabels = {
   urgent: '緊急',
 };
 
-// 習慣
+// Habits
 export type Habit = {
   id: number;
   name: string;
@@ -363,7 +363,7 @@ export type HabitLog = {
   createdAt: string;
 };
 
-// 学習リソース
+// Learning resources
 export type Resource = {
   id: number;
   taskId?: number | null;
@@ -380,7 +380,7 @@ export type Resource = {
   updatedAt: string;
 };
 
-// フラッシュカード
+// Flashcards
 export type FlashcardDeck = {
   id: number;
   name: string;
@@ -407,7 +407,7 @@ export type Flashcard = {
   updatedAt: string;
 };
 
-// タスクテンプレート
+// Task templates
 export type TaskTemplateData = {
   title?: string;
   description?: string;
@@ -441,7 +441,7 @@ export type TaskTemplate = {
   updatedAt: string;
 };
 
-// 週次レポート
+// Weekly reports
 export type WeeklyReport = {
   period: {
     start: string;
@@ -464,12 +464,12 @@ export type WeeklyReport = {
   }[];
 };
 
-// ==================== 開発者モード関連 ====================
+// ==================== Developer Mode ====================
 
-// 実行ステータス（共通）
+// Execution status (common)
 export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
-// エージェントステータス
+// Agent status
 export type AgentStatus =
   | 'pending'
   | 'running'
@@ -477,7 +477,7 @@ export type AgentStatus =
   | 'completed'
   | 'failed';
 
-// 実行結果（共通）
+// Execution result (common)
 export type ExecutionResult = {
   success: boolean;
   sessionId?: number;
@@ -485,7 +485,7 @@ export type ExecutionResult = {
   approvalRequestId?: number;
   message?: string;
   error?: string;
-  // 復元された実行の追加情報
+  // Additional info for restored executions
   output?: string;
   waitingForInput?: boolean;
   question?: string;
@@ -592,11 +592,11 @@ export type ApprovalRequest = {
     estimatedTotalHours?: number;
     workingDirectory?: string;
     files?: string[];
-    // コードレビュー用の追加フィールド
+    // Additional fields for code review
     structuredDiff?: FileDiff[];
     implementationSummary?: string;
     executionTimeMs?: number;
-    // スクリーンショット
+    // Screenshots
     screenshots?: ScreenshotInfo[];
   };
   estimatedChanges?: {
@@ -679,9 +679,9 @@ export type UserSettings = {
   updatedAt: string;
 };
 
-// ==================== AI駆動開発モード関連 ====================
+// ==================== AI-Driven Development Mode ====================
 
-// AI エージェント設定
+// AI agent settings
 export type AIAgentConfig = {
   id: number;
   agentType: string; // claude-code, anthropic-api, openai, azure-openai, gemini, custom
@@ -716,7 +716,7 @@ export type AgentType =
   | 'openai'
   | 'azure-openai';
 
-// エージェント実行
+// Agent execution
 export type AgentExecution = {
   id: number;
   sessionId: number;
@@ -749,7 +749,7 @@ export type AgentArtifact = {
   path?: string;
 };
 
-// Git コミット追跡
+// Git commit tracking
 export type GitCommit = {
   id: number;
   executionId: number;
@@ -762,7 +762,7 @@ export type GitCommit = {
   createdAt: string;
 };
 
-// ==================== GitHub連携関連 ====================
+// ==================== GitHub Integration ====================
 
 export type GitHubIntegration = {
   id: number;
@@ -863,7 +863,7 @@ export type ScreenshotInfo = {
   capturedAt: string;
 };
 
-// ==================== リアルタイム通信関連 ====================
+// ==================== Real-time Communication ====================
 
 export type SSEEvent = {
   type: string;
@@ -894,7 +894,7 @@ export type GitHubEventData = {
   timestamp: string;
 };
 
-// ==================== コードレビュー関連 ====================
+// ==================== Code Review ====================
 
 export type ReviewComment = {
   id: string;
@@ -933,7 +933,7 @@ export type AIServiceResponse = {
   error?: string;
 };
 
-// ==================== タスク分析設定 ====================
+// ==================== Task Analysis Settings ====================
 
 export type AnalysisDepth = 'quick' | 'standard' | 'deep';
 export type PriorityStrategy = 'aggressive' | 'balanced' | 'conservative';
@@ -943,7 +943,7 @@ export type TaskAnalysisConfig = {
   id: number;
   taskId: number;
 
-  // 分析パラメータ
+  // Analysis parameters
   analysisDepth: AnalysisDepth;
   maxSubtasks: number;
   priorityStrategy: PriorityStrategy;
@@ -951,7 +951,7 @@ export type TaskAnalysisConfig = {
   includeDependencies: boolean;
   includeTips: boolean;
 
-  // モデル・プロバイダ設定
+  // Model/provider settings
   agentConfigId?: number | null;
   agentConfig?: Pick<
     AIAgentConfig,
@@ -961,12 +961,12 @@ export type TaskAnalysisConfig = {
   maxTokens?: number | null;
   temperature?: number | null;
 
-  // プロンプト戦略
+  // Prompt strategy
   promptStrategy: PromptStrategy;
   customPromptTemplate?: string | null;
   contextInstructions?: string | null;
 
-  // 自動化設定
+  // Automation settings
   autoApproveSubtasks: boolean;
   autoOptimizePrompt: boolean;
   notifyOnComplete: boolean;
@@ -975,7 +975,7 @@ export type TaskAnalysisConfig = {
   updatedAt: string;
 };
 
-// ==================== エージェント実行設定 ====================
+// ==================== Agent Execution Settings ====================
 
 export type BranchStrategy = 'auto' | 'manual' | 'none';
 export type ApprovalMode = 'always' | 'major_only' | 'never';
@@ -985,19 +985,19 @@ export type AgentExecutionConfig = {
   id: number;
   taskId: number;
 
-  // エージェント選択
+  // Agent selection
   agentConfigId?: number | null;
   agentConfig?: Pick<
     AIAgentConfig,
     'id' | 'agentType' | 'name' | 'modelId' | 'isActive'
   > | null;
 
-  // 実行環境設定
+  // Execution environment settings
   workingDirectory?: string | null;
   timeoutMs: number;
   maxRetries: number;
 
-  // Git設定
+  // Git settings
   branchStrategy: BranchStrategy;
   branchPrefix: string;
   autoCommit: boolean;
@@ -1005,21 +1005,21 @@ export type AgentExecutionConfig = {
   autoMergePR: boolean;
   mergeCommitThreshold: number;
 
-  // 実行制御
+  // Execution control
   requireApproval: ApprovalMode;
   autoExecuteOnAnalysis: boolean;
   parallelExecution: boolean;
   maxConcurrentAgents: number;
 
-  // プロンプト設定
+  // Prompt settings
   useOptimizedPrompt: boolean;
   additionalInstructions?: string | null;
 
-  // コードレビュー設定
+  // Code review settings
   autoCodeReview: boolean;
   reviewScope: ReviewScope;
 
-  // 通知設定
+  // Notification settings
   notifyOnStart: boolean;
   notifyOnComplete: boolean;
   notifyOnError: boolean;
@@ -1029,7 +1029,7 @@ export type AgentExecutionConfig = {
   updatedAt: string;
 };
 
-// ==================== スケジュールイベント ====================
+// ==================== Schedule Events ====================
 
 export type ScheduleEventType = 'GENERAL' | 'PAID_LEAVE';
 

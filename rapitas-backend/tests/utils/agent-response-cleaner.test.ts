@@ -67,7 +67,7 @@ describe('cleanImplementationSummary', () => {
     const input = 'Line one\nLine one\nLine two\n  line one  ';
     const result = cleanImplementationSummary(input);
     const lines = result.split('\n').filter((l) => l.trim());
-    // 重複が除去されるので、ユニークな行のみ
+    // Duplicates are removed, so only unique lines remain
     expect(lines.length).toBeLessThanOrEqual(2);
   });
 
@@ -88,7 +88,7 @@ describe('cleanImplementationSummary', () => {
   test('全行がフィルタされた場合に元テキストの先頭を使用すること', () => {
     const input = '[DEBUG] line1\n[INFO] line2\n[ERROR] line3';
     const result = cleanImplementationSummary(input);
-    // 全行がフィルタされるので元テキストの先頭部分が使われる
+    // All lines are filtered, so the beginning of the original text is used
     expect(result.length).toBeGreaterThan(0);
   });
 });

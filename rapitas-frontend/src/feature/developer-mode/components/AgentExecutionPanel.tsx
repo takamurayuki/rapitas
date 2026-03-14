@@ -53,7 +53,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AgentExecutionPanel');
 
-/** トークン数を読みやすい形式にフォーマット */
+/** Format token count into a human-readable string */
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) {
     return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
@@ -72,8 +72,8 @@ type Props = {
   error: string | null;
   workingDirectory?: string;
   defaultBranch?: string;
-  useTaskAnalysis?: boolean; // AIタスク分析を使用するか
-  optimizedPrompt?: string | null; // 最適化されたプロンプト
+  useTaskAnalysis?: boolean;
+  optimizedPrompt?: string | null;
   agentConfigId?: number | null;
   onExecute: (options?: {
     instruction?: string;
@@ -83,7 +83,7 @@ type Props = {
     agentConfigId?: number;
   }) => Promise<{ sessionId?: number; message?: string } | null>;
   onReset: () => void;
-  // 実行状態復元用
+  // For restoring execution state
   onRestoreExecutionState?: () => Promise<{
     sessionId: number;
     executionId?: number;
@@ -92,11 +92,11 @@ type Props = {
     waitingForInput?: boolean;
     question?: string;
   } | null>;
-  // 実行停止時のコールバック（親コンポーネントの状態更新用）
+  // NOTE: Callback for parent component state update on execution stop
   onStopExecution?: () => void;
-  // 実行完了時のコールバック（親コンポーネントの状態更新用）
+  // NOTE: Callback for parent component state update on execution complete
   onExecutionComplete?: () => void;
-  // サブタスク関連（タブ表示用）
+  // Subtask-related props (for tab display)
   subtasks?: Task[];
   subtaskLogs?: Map<
     number,
@@ -144,10 +144,10 @@ export function AgentExecutionPanel({
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
-  // 質問タイムアウトのカウントダウン（残り秒数）
+  // Question timeout countdown (remaining seconds)
   const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
 
-  // SSEベースのリアルタイムログ取得
+  // SSE-based real-time log retrieval
   const {
     logs: sseLogs,
     status: sseStatus,
@@ -157,7 +157,7 @@ export function AgentExecutionPanel({
     clearLogs: clearSseLogs,
   } = useExecutionStream(sessionId);
 
-  // ポーリングベースのログ取得（フォールバック・ステータス確認用）
+  // Polling-based log retrieval (fallback / status check)
   const {
     logs: pollingLogs,
     status: pollingStatus,
@@ -177,8 +177,8 @@ export function AgentExecutionPanel({
     clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
-  // SSEが接続されている場合はSSEのログを優先、そうでなければポーリングのログを使用
-  // logs配列の参照を安定化させるためにuseMemoを使用
+  // Prefer SSE logs when connected, fall back to polling logs otherwise
+  // NOTE: useMemo stabilizes the array reference to prevent unnecessary re-renders
   const logs = useMemo(() => {
     return isSseConnected && sseLogs.length > 0 ? sseLogs : pollingLogs;
   }, [isSseConnected, sseLogs, pollingLogs]);
@@ -188,48 +188,48 @@ export function AgentExecutionPanel({
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
 
-  // 質問の検出方法タイプ。pattern_matchは廃止、AIエージェントからの明確なステータスのみを信頼
+  // NOTE: pattern_match is deprecated; only trust explicit AI agent status
   type QuestionType = 'tool_call' | 'none';
 
-  // 質問検出: APIからの状態のみを使用、パターンマッチングは廃止
-  // AIエージェントがAskUserQuestionツールを呼び出した場合のみ質問として認識
+  // NOTE: Question detection uses only API state; pattern matching is deprecated
+  // Only recognize questions when the AI agent calls AskUserQuestion tool
   const detectQuestion = (): {
     hasQuestion: boolean;
     question: string;
     questionType: QuestionType;
   } => {
-    // APIから質問待ち状態が返されている場合のみ質問として認識
-    // pollingWaitingForInputはDBのstatus === "waiting_for_input"を反映
-    // pollingQuestionTypeはAIエージェントからのAskUserQuestionツール呼び出しを反映
+    // Only recognize as a question when the API returns waiting-for-input state
+    // pollingWaitingForInput reflects DB status === "waiting_for_input"
+    // pollingQuestionType reflects AskUserQuestion tool call from AI agent
     if (pollingWaitingForInput && pollingQuestion) {
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        // tool_callの場合のみ質問として認識、それ以外はnone
+        // Only tool_call is treated as a real question
         questionType:
           pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
 
-    // APIから質問状態が返されていない場合は質問なし
-    // パターンマッチングによるフォールバックは削除
+    // No question when API does not return question state
+    // NOTE: Pattern matching fallback has been removed
     return { hasQuestion: false, question: '', questionType: 'none' };
   };
 
   const currentLogText = useMemo(() => logs.join(''), [logs]);
 
-  // 質問検出の結果をメモ化。APIからのステータスのみを使用
+  // Memoize question detection result; uses only API status
   const { hasQuestion, question, questionType } = useMemo(() => {
     return detectQuestion();
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
-  // questionTypeがtool_callの場合はより確実に質問があることを示す
+  // tool_call questionType indicates a confirmed question
   const isConfirmedQuestion = questionType === 'tool_call';
 
-  // waiting_for_input状態の判定
-  // APIからのステータスのみを信頼、パターンマッチングは廃止
-  // pollingStatus === "waiting_for_input" はDBのstatusを反映
-  // pollingWaitingForInput はAPI応答のwaitingForInputフラグを反映
+  // Determine waiting_for_input state
+  // NOTE: Only API status is trusted; pattern matching is deprecated
+  // pollingStatus === "waiting_for_input" reflects DB status
+  // pollingWaitingForInput reflects API response waitingForInput flag
   const isTerminalStatus =
     pollingStatus === 'completed' ||
     pollingStatus === 'failed' ||
@@ -237,24 +237,23 @@ export function AgentExecutionPanel({
     sseStatus === 'completed' ||
     sseStatus === 'failed' ||
     sseStatus === 'cancelled';
-  // AIエージェントからの明確なステータス（DBのstatus、APIのwaitingForInput）のみを使用
-  // hasQuestion（旧パターンマッチング結果）は判定に使用しない
+  // NOTE: Only explicit AI agent status (DB status, API waitingForInput) is used
+  // NOTE: hasQuestion (former pattern matching result) is NOT used for determination
   const isWaitingForInput =
     !isTerminalStatus &&
     (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
-  // 質問タイムアウトのカウントダウン処理
+  // Question timeout countdown logic
   useEffect(() => {
-    // 質問待ち状態でない場合はカウントダウンをクリア
+    // Clear countdown when not in waiting-for-input state
     if (!isWaitingForInput || !pollingQuestionTimeout) {
       setTimeoutCountdown(null);
       return;
     }
 
-    // 初期値を設定
     setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
 
-    // 1秒ごとにカウントダウン
+    // Countdown every 1 second
     const interval = setInterval(() => {
       setTimeoutCountdown((prev) => {
         if (prev === null || prev <= 0) {
@@ -267,28 +266,27 @@ export function AgentExecutionPanel({
     return () => clearInterval(interval);
   }, [isWaitingForInput, pollingQuestionTimeout]);
 
-  // カウントダウンの表示用フォーマット
+  // Format countdown for display
   const formatCountdown = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // taskId変更時にstateをリセット
+  // Reset state when taskId changes
   const previousTaskIdRef = useRef<number | null>(null);
   useEffect(() => {
-    // 初回マウント時はリセット不要
+    // Skip reset on initial mount
     if (previousTaskIdRef.current === null) {
       previousTaskIdRef.current = taskId;
       return;
     }
 
-    // taskIdが変更された場合のみリセット
+    // Reset only when taskId changes
     if (previousTaskIdRef.current !== taskId) {
-      // hasRestoredRefをリセットして復元ロジックを再実行可能にする
+      // Reset hasRestoredRef to allow re-execution of restore logic
       hasRestoredRef.current = false;
 
-      // 各stateをリセット
       setIsExpanded(false);
       setSessionId(null);
       setIsRestoring(false);
@@ -298,25 +296,23 @@ export function AgentExecutionPanel({
       setFollowUpError(null);
       setTimeoutCountdown(null);
 
-      // ポーリングを停止してログをクリア
       stopPolling();
       clearLogs();
 
-      // SSE接続もクリア
       clearSseLogs();
 
       previousTaskIdRef.current = taskId;
     }
   }, [taskId, stopPolling, clearLogs, clearSseLogs]);
 
-  // マウント時に実行状態を復元
+  // Restore execution state on mount
   useEffect(() => {
     const restoreState = async () => {
-      // 既に復元済み、または復元関数がない場合はスキップ
+      // Skip if already restored or no restore function
       if (hasRestoredRef.current || !onRestoreExecutionState) {
         return;
       }
-      // 既にsessionIdがある場合（新規実行中）はスキップ
+      // Skip if sessionId exists (new execution in progress)
       if (sessionId || executionResult?.sessionId) {
         return;
       }
@@ -328,11 +324,10 @@ export function AgentExecutionPanel({
         const restoredState = await onRestoreExecutionState();
         if (restoredState) {
           setSessionId(restoredState.sessionId);
-          // 中断された実行の場合はポーリング不要（実行は既に停止済み）
+          // No polling needed for interrupted execution (already stopped)
           if (restoredState.status === 'interrupted') {
-            // ログだけ表示する
           } else {
-            // 復元時は既存の出力を初期値として渡す
+            // Pass existing output as initial value during restore
             startPolling({
               initialOutput: restoredState.output,
               preserveLogs: false,
@@ -341,7 +336,7 @@ export function AgentExecutionPanel({
           setShowLogs(true);
         }
       } catch (err) {
-        // 復元失敗時は静かに失敗
+        // Silently handle restore failures
       } finally {
         setIsRestoring(false);
       }
@@ -350,16 +345,14 @@ export function AgentExecutionPanel({
     restoreState();
   }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 実行開始時にSSE接続とポーリングを開始
+  // Start SSE connection and polling on execution start
   const executionSessionId = executionResult?.sessionId;
   const executionOutput = executionResult?.output;
 
   useEffect(() => {
     if (executionSessionId) {
-      // SSE接続用にsessionIdを設定
       setSessionId(executionSessionId);
-      // ポーリングも開始（フォールバック用）
-      // 復元された実行の場合は初期出力を渡す
+      // Pass initial output for restored execution
       if (executionOutput) {
         startPolling({
           initialOutput: executionOutput,
@@ -371,14 +364,14 @@ export function AgentExecutionPanel({
     }
   }, [executionSessionId, executionOutput, startPolling]);
 
-  // 実行中になったらポーリング開始
+  // Start polling when execution begins
   useEffect(() => {
     if (isExecuting && !isPollingRunning) {
       startPolling();
     }
   }, [isExecuting, isPollingRunning, startPolling]);
 
-  // ポーリングのステータスが完了/失敗/キャンセルになったら親コンポーネントを更新（一度だけ）
+  // Notify parent component once when polling status reaches terminal state
   const handledTerminalStatusRef = useRef<string | null>(null);
   useEffect(() => {
     if (handledTerminalStatusRef.current === pollingStatus) return;
@@ -400,28 +393,28 @@ export function AgentExecutionPanel({
     const result = await onExecute({
       instruction: instruction.trim() || undefined,
       branchName: branchName.trim() || undefined,
-      useTaskAnalysis, // AIタスク分析を使用するかどうかを渡す
-      optimizedPrompt: optimizedPrompt || undefined, // 最適化されたプロンプトを渡す
-      agentConfigId: selectedAgentId ?? agentConfigId ?? undefined, // パネル内で選択されたエージェントを優先
+      useTaskAnalysis,
+      optimizedPrompt: optimizedPrompt || undefined,
+      agentConfigId: selectedAgentId ?? agentConfigId ?? undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);
     }
   };
 
-  // 追加指示で継続実行
+  // Continue execution with additional instructions
   const handleFollowUpExecute = async () => {
     const trimmedInstruction = followUpInstruction.trim();
     if (!trimmedInstruction) return;
 
-    // 指示を一時保存（エラー時の復元用）
+    // Save instruction temporarily (for recovery on error)
     const savedInstruction = trimmedInstruction;
 
     setFollowUpInstruction('');
     setFollowUpError(null);
 
     try {
-      // 新しい継続実行エンドポイントを呼び出す
+      // Call the continuation execution endpoint
       const response = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
         {
@@ -438,28 +431,28 @@ export function AgentExecutionPanel({
       if (response.ok) {
         const data = await response.json();
 
-        // セッションIDを更新（同じセッションで継続）
+        // Update session ID (continuing same session)
         if (data.sessionId) {
           setSessionId(data.sessionId);
         }
 
-        // ログをクリアせず、継続して表示
-        // clearLogs(); // コメントアウト：ログは継続表示
+        // Keep displaying existing logs without clearing
+        // NOTE: clearLogs() intentionally omitted to preserve log continuity
 
-        // ポーリングを開始（前のログを保持）
-        // 継続実行では、バックエンドが新しい execution を作成するまで
-        // 旧 execution の completed が返ることがあるため、少し待ってから再開する
+        // Start polling (preserving previous logs)
+        // NOTE: On continuation, the backend may still return the old execution's
+        // completed status until a new execution is created, so add a grace period
         setTimeout(() => {
           startPolling({
-            preserveLogs: true, // 既存のログを保持
-            terminalGraceMs: 3000, // レース吸収
+            preserveLogs: true,
+            terminalGraceMs: 3000, // Race condition absorption grace period
           });
         }, 500);
 
         setShowLogs(true);
 
-        // 注意: ここで onExecute を呼ぶと新規実行が発火して
-        // ログや状態が上書きされるため呼ばない
+        // NOTE: Calling onExecute here would trigger a new execution,
+        // overwriting logs and state
       } else {
         const errorData = await response
           .json()
@@ -468,18 +461,18 @@ export function AgentExecutionPanel({
         setFollowUpError(
           errorData.error || '継続実行に失敗しました。再度お試しください。',
         );
-        // エラー時に指示を復元（リトライ可能にする）
+        // Restore instruction on error (allows retry)
         setFollowUpInstruction(savedInstruction);
       }
     } catch (error) {
       logger.error('Error continuing execution:', error);
       setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
-      // エラー時に指示を復元（リトライ可能にする）
+      // Restore instruction on error (allows retry)
       setFollowUpInstruction(savedInstruction);
     }
   };
 
-  // 送信中のリクエストIDを追跡（重複送信防止）
+  // Track in-flight request ID to prevent duplicate submissions
   const sendingResponseRef = useRef(false);
 
   const handleSendResponse = async () => {
@@ -487,7 +480,7 @@ export function AgentExecutionPanel({
     if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
       return;
 
-    // 即座にrefをセットして重複送信を防止
+    // Set ref immediately to prevent duplicate submissions
     sendingResponseRef.current = true;
     setIsSendingResponse(true);
 
@@ -502,16 +495,16 @@ export function AgentExecutionPanel({
       });
 
       if (res.ok) {
-        // API成功後に質問UIをクリア（楽観的UI更新を廃止し、確認後にクリア）
+        // NOTE: Clear question UI after API success (optimistic update removed)
         clearPollingQuestion();
       } else {
-        // エラー時は質問を復元（ユーザーが再試行できるように）
+        // Restore question on error so user can retry
         logger.error('Failed to send response:', res.status);
         setUserResponse(savedResponse);
       }
     } catch (error) {
       logger.error('Error sending response:', error);
-      // エラー時は回答を復元
+      // Restore answer on error
       setUserResponse(savedResponse);
     } finally {
       setIsSendingResponse(false);
@@ -519,21 +512,21 @@ export function AgentExecutionPanel({
     }
   };
 
-  // バックエンドの実行を停止する
+  // Stop execution on the backend
   const handleStopExecution = useCallback(async () => {
-    // 即座にUIをキャンセル状態に更新（ユーザーに素早くフィードバックを提供）
+    // Immediately update UI to cancelled state for quick user feedback
     setPollingCancelled();
 
-    // ローカルのログもクリア（バックエンドでも削除されるため同期）
+    // Clear local logs (synced with backend deletion)
     clearLogs();
 
-    // 親コンポーネントの状態も更新
+    // Update parent component state
     if (onStopExecution) {
       onStopExecution();
     }
 
     try {
-      // タスクレベルの停止エンドポイントを使用（より確実）
+      // Use task-level stop endpoint (more reliable)
       const res = await fetch(
         `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
         {
@@ -542,7 +535,7 @@ export function AgentExecutionPanel({
       );
 
       if (!res.ok) {
-        // 失敗した場合はセッションレベルで試す（フォールバック）
+        // Fall back to session-level stop on failure
         if (sessionId) {
           const fallbackRes = await fetch(
             `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
@@ -563,12 +556,12 @@ export function AgentExecutionPanel({
   const handleReset = () => {
     stopPolling();
     clearLogs();
-    setSessionId(null); // SSE接続をリセット
-    hasRestoredRef.current = false; // 次回マウント時に復元を試みる
+    setSessionId(null); // Reset SSE connection
+    hasRestoredRef.current = false; // Allow restoration on next mount
     onReset();
   };
 
-  // 実行中または完了時（ログあり）
+  // Running or completed with logs
   const showLogPanel =
     (isExecuting || isPollingRunning || isSseRunning || logs.length > 0) &&
     (executionStatus === 'completed' ||
@@ -577,14 +570,14 @@ export function AgentExecutionPanel({
       sseStatus === 'running' ||
       isWaitingForInput);
 
-  // 実行完了時のステータス判定。SSEの状態も考慮する
+  // Determine completion status, considering SSE state
   const finalStatus =
     sseStatus !== 'idle'
       ? sseStatus
       : pollingStatus !== 'idle'
         ? pollingStatus
         : executionStatus;
-  // waiting_for_inputの場合は完了とは見なさない
+  // NOTE: waiting_for_input is NOT considered completed
   const isCompleted =
     finalStatus === 'completed' &&
     !isPollingRunning &&
@@ -593,7 +586,7 @@ export function AgentExecutionPanel({
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
     finalStatus === 'failed' || error || pollingError || sseError;
-  // waiting_for_inputの場合も実行中として扱う（応答の入力を待っている）
+  // NOTE: waiting_for_input is treated as running (awaiting user response)
   const isRunning =
     isExecuting ||
     isPollingRunning ||
@@ -602,7 +595,7 @@ export function AgentExecutionPanel({
     sseStatus === 'running' ||
     isWaitingForInput;
 
-  // サブタスクタブ表示の判定
+  // Determine whether to show subtask tabs
   const hasSubtaskTabs = !!(
     subtasks &&
     subtasks.length > 0 &&
@@ -610,7 +603,7 @@ export function AgentExecutionPanel({
     parallelSessionId
   );
 
-  // ExecutionLogViewer用のステータスを計算
+  // Compute status for ExecutionLogViewer
   const logViewerStatus: ExecutionLogStatus = useMemo(() => {
     if (isRunning) return 'running';
     if (isCancelled) return 'cancelled';
@@ -619,7 +612,7 @@ export function AgentExecutionPanel({
     return 'idle';
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
-  // ログ表示の共通レンダリング（サブタスクタブ or 通常ログ）
+  // Common log rendering (subtask tabs or standard log)
   const renderLogs = (options: {
     running: boolean;
     maxHeight?: number;
@@ -658,7 +651,7 @@ export function AgentExecutionPanel({
     return null;
   };
 
-  // 実行中の表示
+  // Execution in progress display
   if (isRunning) {
     const showWaitingUI = isWaitingForInput && hasQuestion;
 
@@ -700,7 +693,6 @@ export function AgentExecutionPanel({
                       ? 'Claude Codeからの質問'
                       : 'AI エージェント実行中'}
                   </h3>
-                  {/* 質問検出の信頼性バッジ */}
                   {showWaitingUI && isConfirmedQuestion && (
                     <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full font-medium">
                       ツール呼び出し
@@ -719,7 +711,6 @@ export function AgentExecutionPanel({
                 </p>
               </div>
             </div>
-            {/* 停止ボタン + トークン使用量 */}
             <div className="flex items-center justify-between mt-4">
               {(pollingTokensUsed ?? 0) > 0 ? (
                 <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
@@ -739,7 +730,6 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-          {/* 質問検出時の応答入力 */}
           {hasQuestion && (
             <div
               className={`mx-6 mb-4 p-4 rounded-lg ${
@@ -757,8 +747,7 @@ export function AgentExecutionPanel({
                     <h4 className="font-medium text-amber-800 dark:text-amber-200 text-sm">
                       Claude Codeからの質問
                     </h4>
-                    {/* 質問検出の信頼性バッジ */}
-                    {isConfirmedQuestion && (
+                                        {isConfirmedQuestion && (
                       <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
                         確認済み
                       </span>
@@ -777,8 +766,7 @@ export function AgentExecutionPanel({
                   {question}
                 </p>
               </div>
-              {/* タイムアウトカウントダウン表示 */}
-              {timeoutCountdown !== null && timeoutCountdown > 0 && (
+                            {timeoutCountdown !== null && timeoutCountdown > 0 && (
                 <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <span className="text-sm text-blue-700 dark:text-blue-300">
@@ -790,8 +778,7 @@ export function AgentExecutionPanel({
                   </span>
                 </div>
               )}
-              {/* タイムアウト直前の警告表示 */}
-              {timeoutCountdown !== null &&
+                            {timeoutCountdown !== null &&
                 timeoutCountdown > 0 &&
                 timeoutCountdown <= 30 && (
                   <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
@@ -827,14 +814,13 @@ export function AgentExecutionPanel({
             </div>
           )}
 
-          {/* ログ表示 */}
-          {renderLogs({ running: true, className: 'mx-6 mb-4' })}
+                    {renderLogs({ running: true, className: 'mx-6 mb-4' })}
         </div>
       </>
     );
   }
 
-  // ワークフローフェーズの完了メッセージ
+  // Workflow phase completion message
   const workflowPhaseInfo = pollingSessionMode?.startsWith('workflow-')
     ? (() => {
         const phaseMap: Record<
@@ -875,7 +861,7 @@ export function AgentExecutionPanel({
       })()
     : null;
 
-  // 実行完了（成功）
+  // Execution completed (success)
   if (isCompleted && executionResult?.success) {
     return (
       <>
@@ -923,8 +909,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-          {/* 追加指示入力欄 */}
-          <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
+                    <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
             <div className="flex items-center gap-2 mb-2">
               <MessageSquarePlus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -984,8 +969,7 @@ export function AgentExecutionPanel({
             )}
           </div>
 
-          {/* ログ表示 */}
-          {renderLogs({
+                    {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800',
@@ -995,7 +979,7 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 実行キャンセル
+  // Execution cancelled
   if (isCancelled) {
     return (
       <>
@@ -1029,8 +1013,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-          {/* 停止時もログを表示 */}
-          {renderLogs({
+                    {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800',
@@ -1040,7 +1023,7 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 実行失敗
+  // Execution failed
   if (isFailed) {
     return (
       <>
@@ -1058,7 +1041,7 @@ export function AgentExecutionPanel({
                   {error ||
                     pollingError ||
                     executionResult?.error ||
-                    '不明なエラーが発生しました'}
+                    '不明なErrorが発生しました'}
                 </p>
                 {(pollingTokensUsed ?? 0) > 0 && (
                   <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -1087,8 +1070,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-          {/* エラー時もログを表示 */}
-          {renderLogs({
+                    {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800',
@@ -1098,11 +1080,10 @@ export function AgentExecutionPanel({
     );
   }
 
-  // 初期状態（折りたたみ可能な展開メニュー）
+  // Initial state (collapsible expandable menu)
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-      {/* ヘッダー（クリックで展開/折りたたみ） */}
-      <div
+            <div
         className="px-4 py-3 bg-linear-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -1120,8 +1101,7 @@ export function AgentExecutionPanel({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* 展開していなくても実行ボタンを表示 */}
-            {!isExpanded && (
+                        {!isExpanded && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1143,18 +1123,15 @@ export function AgentExecutionPanel({
         </div>
       </div>
 
-      {/* 展開時のコンテンツ */}
-      {isExpanded && (
+            {isExpanded && (
         <>
-          {/* メインセクション */}
-          <div className="p-4">
+                    <div className="p-4">
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               Claude
               Codeがこのタスクを自動で実行します。完了後、差分をレビューしてコミットやPRを作成できます。
             </p>
 
-            {/* 最適化プロンプト使用インジケータ */}
-            {optimizedPrompt && (
+                        {optimizedPrompt && (
               <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
                 <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <span className="text-sm text-green-700 dark:text-green-300">
@@ -1163,10 +1140,8 @@ export function AgentExecutionPanel({
               </div>
             )}
 
-            {/* 詳細オプションと実行ボタンを同じ行に配置 */}
-            <div className="flex items-center gap-3">
-              {/* 詳細オプション（アコーディオン形式） */}
-              <button
+                        <div className="flex items-center gap-3">
+                            <button
                 onClick={() => setShowOptions(!showOptions)}
                 className="flex-1 h-11 flex items-center justify-between px-4 bg-zinc-50 dark:bg-indigo-dark-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
@@ -1183,8 +1158,7 @@ export function AgentExecutionPanel({
                 />
               </button>
 
-              {/* 実行ボタン */}
-              <button
+                            <button
                 onClick={handleExecute}
                 disabled={isExecuting}
                 className="h-11 flex items-center gap-2 px-6 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
@@ -1193,11 +1167,9 @@ export function AgentExecutionPanel({
                 実行
               </button>
             </div>
-            {/* 詳細オプション内容 */}
-            {showOptions && (
+                        {showOptions && (
               <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
-                {/* エージェント切替 */}
-                <div>
+                                <div>
                   <AgentSwitcher
                     selectedAgentId={selectedAgentId}
                     onSelect={setSelectedAgentId}
@@ -1206,8 +1178,7 @@ export function AgentExecutionPanel({
                   />
                 </div>
 
-                {/* 追加指示 */}
-                <div>
+                                <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                     追加の実行指示（任意）
                   </label>
@@ -1220,8 +1191,7 @@ export function AgentExecutionPanel({
                   />
                 </div>
 
-                {/* ブランチ名 */}
-                <div>
+                                <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
                     <GitBranch className="w-4 h-4" />
                     作業ブランチ名（空欄で自動生成）
@@ -1240,13 +1210,11 @@ export function AgentExecutionPanel({
               </div>
             )}
 
-            {/* エージェント共有ナレッジ */}
-            <div className="mt-3">
+                        <div className="mt-3">
               <AgentKnowledgeContext taskId={taskId} />
             </div>
 
-            {/* ログ表示（初期/再実行待ち状態でも最新ログを継続表示） */}
-            {renderLogs({ running: !!isRunning, className: 'mt-4' })}
+                        {renderLogs({ running: !!isRunning, className: 'mt-4' })}
           </div>
         </>
       )}

@@ -79,7 +79,10 @@ async function buildAnalysisInput(taskId: number): Promise<DependencyAnalysisInp
 }
 
 /**
- * ファイルパスを抽出するヘルパー関数
+ * Extract file paths from text content.
+ *
+ * @param text - Source text to scan / スキャン対象のテキスト
+ * @returns Array of unique file paths found / 検出されたユニークなファイルパスの配列
  */
 function extractFilePaths(text: string | null | undefined): string[] {
   if (!text) return [];
@@ -106,7 +109,7 @@ function extractFilePaths(text: string | null | undefined): string[] {
 
 export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   /**
-   * 依存関係を分析してツリーマップを取得
+   * Analyze dependencies and retrieve a tree map.
    */
   .get(
     '/tasks/:id/analyze',
@@ -162,7 +165,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * SSEストリームで依存関係分析
+   * Analyze dependencies via SSE stream.
    */
   .get(
     '/tasks/:id/analyze/stream',
@@ -188,20 +191,20 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
       (async () => {
         try {
           sseController.sendStart({ taskId });
-          sseController.sendProgress(10, 'タスク情報を取得中...');
+          sseController.sendProgress(10, 'Fetching task information...');
 
           const input = await buildAnalysisInput(taskId);
-          sseController.sendProgress(30, '依存関係を分析中...');
+          sseController.sendProgress(30, 'Analyzing dependencies...');
 
           const analyzer = createDependencyAnalyzer();
           const result = analyzer.analyze(input);
-          sseController.sendProgress(70, 'ツリーマップを生成中...');
+          sseController.sendProgress(70, 'Generating tree map...');
 
           const nodes = Array.from(result.treeMap.nodes.entries()).map(([_id, node]) => ({
             ...node,
           }));
 
-          sseController.sendProgress(90, '結果をまとめています...');
+          sseController.sendProgress(90, 'Compiling results...');
 
           sseController.sendData({
             parentTaskId: taskId,
@@ -250,7 +253,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションを開始
+   * Start a parallel execution session.
    */
   .post(
     '/tasks/:id/execute',
@@ -422,7 +425,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションの状態を取得
+   * Get the status of a parallel execution session.
    */
   .get(
     '/sessions/:sessionId/status',
@@ -456,7 +459,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * 並列実行セッションを停止
+   * Stop a parallel execution session.
    */
   .post(
     '/sessions/:sessionId/stop',
@@ -486,7 +489,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * セッションの実行ログを取得
+   * Get execution logs for a session.
    */
   .get(
     '/sessions/:sessionId/logs',
@@ -526,7 +529,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
   )
 
   /**
-   * SSEストリームで実行ログをリアルタイムに取得
+   * Stream execution logs in real-time via SSE.
    */
   .get(
     '/sessions/:sessionId/logs/stream',

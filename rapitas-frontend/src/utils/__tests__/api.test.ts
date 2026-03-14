@@ -83,7 +83,7 @@ describe('fetchWithRetry', () => {
       }),
     ).rejects.toThrow(/404/);
 
-    // 4xxはリトライしないので1回のみ呼ばれる
+    // 4xx is not retried, so fetch is called only once
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -171,7 +171,7 @@ describe('fetchWithRetry', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const controller = new AbortController();
 
-    // fetch中にabortされるシミュレーション
+    // Simulate abort during fetch
     fetchSpy.mockImplementationOnce(async (_input, init) => {
       controller.abort();
       (init?.signal as AbortSignal).throwIfAborted();

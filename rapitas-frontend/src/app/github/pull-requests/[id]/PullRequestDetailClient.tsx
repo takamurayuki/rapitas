@@ -160,7 +160,6 @@ export default function PullRequestDetailClient() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* ヘッダー */}
       <div className="flex items-start gap-4 mb-6">
         <Link
           href="/github/pull-requests"
@@ -194,7 +193,6 @@ export default function PullRequestDetailClient() {
         </div>
       </div>
 
-      {/* タブ */}
       <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
         <button
           onClick={() => setActiveTab('conversation')}
@@ -235,11 +233,9 @@ export default function PullRequestDetailClient() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* メインコンテンツ */}
         <div className="lg:col-span-2">
           {activeTab === 'conversation' ? (
             <div className="space-y-4">
-              {/* PR説明 */}
               {pr.body && (
                 <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
                   <div className="prose dark:prose-invert max-w-none text-sm">
@@ -248,7 +244,6 @@ export default function PullRequestDetailClient() {
                 </div>
               )}
 
-              {/* レビュー */}
               {pr.reviews?.map((review) => (
                 <div
                   key={review.id}
@@ -286,7 +281,6 @@ export default function PullRequestDetailClient() {
                 </div>
               ))}
 
-              {/* コメント */}
               {pr.comments?.map((comment) => (
                 <div
                   key={comment.id}
@@ -312,7 +306,6 @@ export default function PullRequestDetailClient() {
                 </div>
               ))}
 
-              {/* コメント入力 */}
               <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <textarea
                   value={commentBody}
@@ -434,9 +427,7 @@ export default function PullRequestDetailClient() {
           )}
         </div>
 
-        {/* サイドバー */}
         <div className="space-y-4">
-          {/* ステータス */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
               {t('status')}
@@ -455,7 +446,6 @@ export default function PullRequestDetailClient() {
             </div>
           </div>
 
-          {/* レビュー要約 */}
           {pr.reviews && pr.reviews.length > 0 && (
             <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
               <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
@@ -477,7 +467,6 @@ export default function PullRequestDetailClient() {
             </div>
           )}
 
-          {/* 変更統計 */}
           <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
               {t('changes')}

@@ -549,7 +549,6 @@ function SettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
           <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
@@ -564,7 +563,6 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* Messages */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
@@ -584,7 +582,6 @@ function SettingsPage() {
       )}
 
       <div className="space-y-6">
-        {/* API設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -634,7 +631,6 @@ function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* APIキーが設定済みの場合 */}
                   {isConfigured && state.maskedApiKey && !state.isEditing && (
                     <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
                       <div className="flex items-center justify-between gap-4">
@@ -670,7 +666,6 @@ function SettingsPage() {
                     </div>
                   )}
 
-                  {/* モデル選択 */}
                   {isConfigured && availableModels[provider.key] && (
                     <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
                       <label
@@ -705,7 +700,6 @@ function SettingsPage() {
                     </div>
                   )}
 
-                  {/* APIキー入力フォーム（未設定または編集中の場合） */}
                   {(!isConfigured || state.isEditing) && (
                     <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg space-y-4">
                       <div>
@@ -795,7 +789,6 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* デフォルトAIプロバイダー設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -883,7 +876,6 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* ローカルAI設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -899,7 +891,6 @@ function SettingsPage() {
             </div>
           </div>
           <div className="p-6 space-y-5">
-            {/* ステータス */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -930,7 +921,6 @@ function SettingsPage() {
               </button>
             </div>
 
-            {/* Ollama URL */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
                 {t('localLlmOllamaUrl')}
@@ -954,7 +944,6 @@ function SettingsPage() {
               </div>
             </div>
 
-            {/* モデル情報 */}
             {localLlmStatus?.available && localLlmStatus.models.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
@@ -973,7 +962,6 @@ function SettingsPage() {
               </div>
             )}
 
-            {/* モデルダウンロード (llama-serverフォールバック用) */}
             <div className="p-4 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -1048,7 +1036,6 @@ function SettingsPage() {
               </div>
             </div>
 
-            {/* タイトル生成プロバイダー選択 */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 {t('titleGenerationProvider')}
@@ -1099,7 +1086,6 @@ function SettingsPage() {
           </div>
         </div>
 
-        {/* CLI管理ページへのリンク */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -1143,5 +1129,5 @@ function SettingsPage() {
   );
 }
 
-// 認証が必要なコンポーネントとしてエクスポート
+// Export as auth-required component
 export default requireAuth(SettingsPage);

@@ -9,15 +9,13 @@ pub fn launch_browser_with_size(
     width: i32,
     height: i32,
 ) -> Result<(), String> {
-    // デフォルトブラウザのパスを取得
     let browser_result = get_default_browser();
 
     if let Ok(browser_path) = browser_result {
         let browser_name = browser_path.to_lowercase();
 
         if browser_name.contains("chrome") || browser_name.contains("msedge") {
-            // Chrome/Edge: 既存のブラウザインスタンスで新しいタブとして開く
-            // --new-tabフラグを使用して同じブラウザ内で開く
+            // Chrome/Edge: --new-tab opens within the existing browser instance
             Command::new(&browser_path)
                 .args(&[
                     "--new-tab",
@@ -27,9 +25,8 @@ pub fn launch_browser_with_size(
                     url,
                 ])
                 .spawn()
-                .map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {}", e))?;
         } else if browser_name.contains("firefox") {
-            // Firefox: 新しいタブとして開く
             Command::new(&browser_path)
                 .args(&[
                     "-new-tab",
@@ -40,17 +37,16 @@ pub fn launch_browser_with_size(
                     url,
                 ])
                 .spawn()
-                .map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {}", e))?;
         } else {
-            // その他のブラウザ
             Command::new(&browser_path)
                 .arg(url)
                 .spawn()
-                .map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {}", e))?;
         }
     } else {
-        // デフォルトブラウザが見つからない場合は標準の方法で開く
-        open::that(url).map_err(|e| format!("ブラウザ起動失敗: {}", e))?;
+        // Fall back to OS default open handler
+        open::that(url).map_err(|e| format!("Failed to launch browser: {}", e))?;
     }
 
     Ok(())
@@ -63,7 +59,7 @@ fn get_default_browser() -> Result<String, String> {
     use std::ptr;
     use winapi::um::shellapi::FindExecutableW;
 
-    // HTTP URLに関連付けられた実行ファイルを検索
+    // Find the executable associated with HTTP URLs
     let url_wide: Vec<u16> = OsStr::new("http://example.com")
         .encode_wide()
         .chain(Some(0))
@@ -82,7 +78,7 @@ fn get_default_browser() -> Result<String, String> {
             let path = OsString::from_wide(&exe_path[..len]);
             Ok(path.to_string_lossy().to_string())
         } else {
-            // レジストリから直接取得を試みる
+            // Fall back to reading the registry directly
             get_browser_from_registry()
         }
     }
@@ -114,7 +110,7 @@ fn get_browser_from_registry() -> Result<String, String> {
         );
 
         if result != 0 {
-            return Err("レジストリキーを開けませんでした".to_string());
+            return Err("Failed to open registry key".to_string());
         }
 
         let value_name = OsStr::new("ProgId")
@@ -137,14 +133,14 @@ fn get_browser_from_registry() -> Result<String, String> {
         winapi::um::winreg::RegCloseKey(hkey);
 
         if result != 0 {
-            return Err("ProgIdを取得できませんでした".to_string());
+            return Err("Failed to retrieve ProgId".to_string());
         }
 
         let len = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
         let prog_id = OsString::from_wide(&buffer[..len]);
         let prog_id_str = prog_id.to_string_lossy().to_string();
 
-        // ProgIdからブラウザパスを推定
+        // Infer browser executable path from ProgId
         if prog_id_str.contains("Chrome") {
             Ok(r"C:\Program Files\Google\Chrome\Application\chrome.exe".to_string())
         } else if prog_id_str.contains("Edge") {
@@ -152,7 +148,7 @@ fn get_browser_from_registry() -> Result<String, String> {
         } else if prog_id_str.contains("Firefox") {
             Ok(r"C:\Program Files\Mozilla Firefox\firefox.exe".to_string())
         } else {
-            Err("サポートされていないブラウザです".to_string())
+            Err("Unsupported browser".to_string())
         }
     }
 }
@@ -166,6 +162,5 @@ pub fn launch_browser_with_size(
     _width: i32,
     _height: i32,
 ) -> Result<(), String> {
-    // Windows以外の環境では通常の方法で開く
-    open::that(url).map_err(|e| format!("ブラウザ起動失敗: {}", e))
+    open::that(url).map_err(|e| format!("Failed to launch browser: {}", e))
 }

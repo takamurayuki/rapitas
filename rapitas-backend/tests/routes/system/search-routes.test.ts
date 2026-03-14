@@ -116,7 +116,7 @@ describe('GET /search/', () => {
 
     expect(res.status).toBe(200);
     expect(body.success).toBe(true);
-    // taskのみ検索するので、commentやresourceは呼ばれないはず
+    // Only searching tasks, so comment and resource should not be called
     expect(mockPrisma.task.findMany).toHaveBeenCalled();
   });
 

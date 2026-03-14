@@ -92,7 +92,6 @@ export function PromptOptimizationPanel({
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // 質問への回筁E
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
@@ -119,12 +118,12 @@ export function PromptOptimizationPanel({
         const data: OptimizedPromptResult = await response.json();
         setResult(data);
 
-        // 質問がなければコールバックを呼び出ぁE
+        // Call callback if no questions
         if (!data.hasQuestions && onPromptGenerated) {
           onPromptGenerated(data.optimizedPrompt);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
+        setError(err instanceof Error ? err.message : 'Errorが発生しました');
       } finally {
         setIsGenerating(false);
       }
@@ -135,7 +134,7 @@ export function PromptOptimizationPanel({
   const handleSubmitAnswers = useCallback(async () => {
     if (!result?.clarificationQuestions) return;
 
-    // 忁E��質問�E回答チェチE��
+    // Check required question answers
     const requiredQuestions = result.clarificationQuestions.filter(
       (q) => q.isRequired,
     );
@@ -150,7 +149,7 @@ export function PromptOptimizationPanel({
     setIsSubmittingAnswers(true);
     setError(null);
 
-    // 質問IDをキーにした回答を質問テキストをキーにした回答に変換
+    // Convert question-ID-keyed answers to question-text-keyed answers
     const clarificationAnswers: Record<string, string> = {};
     result.clarificationQuestions.forEach((q) => {
       if (answers[q.id]) {
@@ -221,7 +220,6 @@ export function PromptOptimizationPanel({
     return 'text-red-600 dark:text-red-400';
   };
 
-  // 初期状慁E
   if (!result && !isGenerating && !error) {
     return (
       <div
@@ -252,7 +250,7 @@ export function PromptOptimizationPanel({
     );
   }
 
-  // 生�E中
+  // Generating
   if (isGenerating) {
     return (
       <div
@@ -278,7 +276,7 @@ export function PromptOptimizationPanel({
     );
   }
 
-  // エラー
+  // Error
   if (error) {
     return (
       <div
@@ -308,7 +306,7 @@ export function PromptOptimizationPanel({
     );
   }
 
-  // 質問がある場吁E
+  // When questions exist
   const hasQuestionsFlag = result?.hasQuestions ?? false;
   const questionsArray = result?.clarificationQuestions ?? [];
   const shouldShowQuestions = hasQuestionsFlag && questionsArray.length > 0;
@@ -318,7 +316,6 @@ export function PromptOptimizationPanel({
       <div
         className={`bg-white dark:bg-indigo-dark-900 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden ${className}`}
       >
-        {/* ヘッダー */}
         <div className="px-6 py-4 bg-linear-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-b border-amber-200 dark:border-amber-700">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg">
@@ -335,7 +332,6 @@ export function PromptOptimizationPanel({
           </div>
         </div>
 
-        {/* 質問リスチE*/}
         <div className="px-6 py-4 space-y-4">
           {questionsArray.map((q) => (
             <div key={q.id} className="space-y-2">
@@ -393,7 +389,6 @@ export function PromptOptimizationPanel({
           ))}
         </div>
 
-        {/* アクションボタン */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-amber-200 dark:border-amber-700">
           <button
             onClick={() => setResult(null)}
@@ -418,13 +413,12 @@ export function PromptOptimizationPanel({
     );
   }
 
-  // 結果表示
+  // Display results
   if (result) {
     return (
       <div
         className={`bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden ${className}`}
       >
-        {/* ヘッダー */}
         <div className="px-6 py-4 bg-linear-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -468,14 +462,12 @@ export function PromptOptimizationPanel({
           </div>
         </div>
 
-        {/* プロンプト本斁E*/}
         <div className="px-6 py-4">
           <div className="bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg p-4 font-mono text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap max-h-60 overflow-y-auto">
             {result.optimizedPrompt}
           </div>
         </div>
 
-        {/* スコア冁E�� */}
         {result.promptQuality.breakdown && (
           <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700">
             <button
@@ -492,7 +484,6 @@ export function PromptOptimizationPanel({
 
             {showDetails && (
               <div className="mt-4 space-y-3">
-                {/* 明確性 */}
                 <div className="flex items-center gap-3">
                   <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">
                     明確性
@@ -510,7 +501,6 @@ export function PromptOptimizationPanel({
                   </div>
                 </div>
 
-                {/* 完�E性 */}
                 <div className="flex items-center gap-3">
                   <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">
                     完�E性
@@ -528,7 +518,6 @@ export function PromptOptimizationPanel({
                   </div>
                 </div>
 
-                {/* 技術的具体性 */}
                 <div className="flex items-center gap-3">
                   <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">
                     技術的具体性
@@ -547,7 +536,6 @@ export function PromptOptimizationPanel({
                   </div>
                 </div>
 
-                {/* 実行可能性 */}
                 <div className="flex items-center gap-3">
                   <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">
                     実行可能性
@@ -565,7 +553,6 @@ export function PromptOptimizationPanel({
                   </div>
                 </div>
 
-                {/* コンテキスト */}
                 <div className="flex items-center gap-3">
                   <div className="w-28 text-sm text-zinc-600 dark:text-zinc-400">
                     コンテキスト
@@ -583,7 +570,6 @@ export function PromptOptimizationPanel({
                   </div>
                 </div>
 
-                {/* 欠けている要素がある場合 */}
                 {result.promptQuality.breakdown.completeness.missing &&
                   result.promptQuality.breakdown.completeness.missing.length >
                     0 && (
@@ -610,7 +596,6 @@ export function PromptOptimizationPanel({
           </div>
         )}
 
-        {/* 品質問題と提桁E*/}
         {(result.promptQuality.issues.length > 0 ||
           result.promptQuality.suggestions.length > 0) && (
           <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 space-y-3">
@@ -635,7 +620,6 @@ export function PromptOptimizationPanel({
           </div>
         )}
 
-        {/* 詳細セクション */}
         <button
           onClick={() => setShowDetails(!showDetails)}
           className="w-full px-6 py-3 flex items-center justify-between bg-zinc-50 dark:bg-indigo-dark-800/30 border-t border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
@@ -652,7 +636,6 @@ export function PromptOptimizationPanel({
 
         {showDetails && (
           <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 space-y-4">
-            {/* 目皁E*/}
             <div className="flex items-start gap-3">
               <Target className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
               <div>
@@ -665,7 +648,6 @@ export function PromptOptimizationPanel({
               </div>
             </div>
 
-            {/* コンテキスト */}
             {result.structuredSections.context && (
               <div className="flex items-start gap-3">
                 <FileText className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
@@ -680,7 +662,6 @@ export function PromptOptimizationPanel({
               </div>
             )}
 
-            {/* 要件 */}
             {result.structuredSections.requirements.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
@@ -700,7 +681,6 @@ export function PromptOptimizationPanel({
               </div>
             )}
 
-            {/* 制約 */}
             {result.structuredSections.constraints.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-orange-600 dark:text-orange-400 uppercase tracking-wide mb-2">
@@ -720,7 +700,6 @@ export function PromptOptimizationPanel({
               </div>
             )}
 
-            {/* 成果物 */}
             {result.structuredSections.deliverables.length > 0 && (
               <div>
                 <p className="text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide mb-2">
@@ -742,7 +721,6 @@ export function PromptOptimizationPanel({
           </div>
         )}
 
-        {/* 再生成�Eタン */}
         <div className="flex items-center justify-center px-6 py-4 border-t border-zinc-200 dark:border-zinc-700">
           <button
             onClick={() => {

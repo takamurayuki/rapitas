@@ -1,6 +1,7 @@
 /**
- * エージェントファクトリー
- * 設定に基づいて適切なエージェントインスタンスを生成
+ * AgentFactory
+ *
+ * Creates the appropriate agent instance based on configuration.
  */
 
 import { BaseAgent, AgentCapability } from './base-agent';
@@ -20,16 +21,16 @@ export type AgentConfigInput = {
   workingDirectory?: string;
   timeout?: number;
   dangerouslySkipPermissions?: boolean;
-  continueConversation?: boolean; // 前回の会話を継続するか（--continue）
-  resumeSessionId?: string; // --resumeで使用するセッションID
-  // Gemini CLI 固有の設定
-  projectId?: string; // Google Cloud Project ID
-  location?: string; // Google Cloud region
-  sandboxMode?: boolean; // サンドボックスモードで実行
-  yoloMode?: boolean; // 自動承認モード（Gemini CLI --yolo）
-  checkpointId?: string; // チェックポイントIDでセッション継続
-  allowedTools?: string[]; // 許可するツール
-  disallowedTools?: string[]; // 禁止するツール
+  continueConversation?: boolean;
+  resumeSessionId?: string;
+  // Gemini CLI specific settings
+  projectId?: string;
+  location?: string;
+  sandboxMode?: boolean;
+  yoloMode?: boolean;
+  checkpointId?: string;
+  allowedTools?: string[];
+  disallowedTools?: string[];
   customConfig?: Record<string, unknown>;
 };
 
@@ -42,7 +43,9 @@ export type RegisteredAgentInfo = {
 };
 
 /**
- * エージェントファクトリークラス
+ * AgentFactory
+ *
+ * Singleton factory for creating and managing agent instances.
  */
 export class AgentFactory {
   private static instance: AgentFactory;
@@ -51,7 +54,6 @@ export class AgentFactory {
   private nextAgentId: number = 1;
 
   private constructor() {
-    // 組み込みエージェントを登録
     this.registerBuiltinAgents();
   }
 
@@ -63,14 +65,13 @@ export class AgentFactory {
   }
 
   /**
-   * 組み込みエージェントを登録
+   * Register built-in agent types.
    */
   private registerBuiltinAgents(): void {
-    // Claude Code
     this.registeredAgents.set('claude-code', {
       type: 'claude-code',
       name: 'Claude Code',
-      description: 'Claude Code CLI を使用したコード生成・編集エージェント',
+      description: 'Code generation and editing agent using Claude Code CLI',
       capabilities: {
         codeGeneration: true,
         codeReview: true,
@@ -86,11 +87,10 @@ export class AgentFactory {
       },
     });
 
-    // Codex CLI
     this.registeredAgents.set('codex', {
       type: 'codex',
       name: 'OpenAI Codex CLI',
-      description: 'OpenAI Codex CLI を使用したコード生成・編集エージェント',
+      description: 'Code generation and editing agent using OpenAI Codex CLI',
       capabilities: {
         codeGeneration: true,
         codeReview: true,
@@ -106,11 +106,10 @@ export class AgentFactory {
       },
     });
 
-    // Gemini CLI
     this.registeredAgents.set('gemini', {
       type: 'gemini',
       name: 'Google Gemini CLI',
-      description: 'Google Gemini CLI を使用したコード生成・編集エージェント',
+      description: 'Code generation and editing agent using Google Gemini CLI',
       capabilities: {
         codeGeneration: true,
         codeReview: true,
@@ -128,7 +127,7 @@ export class AgentFactory {
   }
 
   /**
-   * エージェントを作成
+   * Create an agent from the given configuration.
    */
   createAgent(config: AgentConfigInput): BaseAgent {
     const id = config.id || `agent-${this.nextAgentId++}`;
@@ -173,7 +172,7 @@ export class AgentFactory {
           model: config.modelId,
           timeout: config.timeout,
           apiKey: config.apiKey,
-          fullAuto: true, // 自動実行モードはデフォルトで有効
+          fullAuto: true,
           yolo: config.yoloMode,
           resumeSessionId: config.resumeSessionId,
           sandboxMode: config.sandboxMode ? 'workspace-write' : undefined,
@@ -192,26 +191,25 @@ export class AgentFactory {
   }
 
   /**
-   * アクティブなエージェントを取得
+   * Get an active agent by ID.
    */
   getAgent(id: string): BaseAgent | undefined {
     return this.activeAgents.get(id);
   }
 
   /**
-   * アクティブなエージェントを全て取得
+   * Get all active agents.
    */
   getAllActiveAgents(): Map<string, BaseAgent> {
     return new Map(this.activeAgents);
   }
 
   /**
-   * エージェントを削除
+   * Remove an agent, stopping it first if running.
    */
   async removeAgent(id: string): Promise<boolean> {
     const agent = this.activeAgents.get(id);
     if (agent) {
-      // 実行中の場合は停止
       if (agent.getStatus() === 'running') {
         await agent.stop();
       }
@@ -222,14 +220,14 @@ export class AgentFactory {
   }
 
   /**
-   * 登録済みエージェントタイプを取得
+   * Get all registered agent types.
    */
   getRegisteredAgents(): RegisteredAgentInfo[] {
     return Array.from(this.registeredAgents.values());
   }
 
   /**
-   * 利用可能なエージェントタイプを取得
+   * Get agent types that are currently available.
    */
   async getAvailableAgents(): Promise<RegisteredAgentInfo[]> {
     const available: RegisteredAgentInfo[] = [];
@@ -242,7 +240,7 @@ export class AgentFactory {
   }
 
   /**
-   * 特定の能力を持つエージェントタイプを取得
+   * Get agent types that have a specific capability.
    */
   getAgentsByCapability(capability: keyof AgentCapability): RegisteredAgentInfo[] {
     return Array.from(this.registeredAgents.values()).filter(
@@ -251,7 +249,7 @@ export class AgentFactory {
   }
 
   /**
-   * デフォルトエージェントを作成（Claude Code）
+   * Create a default Claude Code agent.
    */
   createDefaultAgent(workingDirectory?: string): BaseAgent {
     return this.createAgent({
@@ -262,5 +260,4 @@ export class AgentFactory {
   }
 }
 
-// シングルトンインスタンスをエクスポート
 export const agentFactory = AgentFactory.getInstance();

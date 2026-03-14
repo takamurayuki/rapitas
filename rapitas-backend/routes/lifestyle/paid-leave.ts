@@ -7,14 +7,14 @@ const log = createLogger('routes:paid-leave');
 
 const prisma = new PrismaClient();
 
-// 現在の会計年度を取得（4月開始）
+// Get current fiscal year (starts April)
 const getCurrentFiscalYear = (date = new Date()): number => {
   const year = date.getFullYear();
   const month = date.getMonth() + 1; // getMonth() is 0-indexed
   return month >= 4 ? year : year - 1;
 };
 
-// 有給日数を計算
+// Calculate used paid leave days
 const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<number> => {
   const fiscalYearStart = new Date(fiscalYear, 3, 1); // April 1st
   const fiscalYearEnd = new Date(fiscalYear + 1, 2, 31); // March 31st
@@ -35,13 +35,13 @@ const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<nu
     const start = new Date(event.startAt);
     const end = event.endAt ? new Date(event.endAt) : start;
 
-    // 日数計算（同日なら1日、複数日なら日数差+1）
+    // Day count: same day = 1, multi-day = diff + 1
     if (event.isAllDay) {
       const diffTime = end.getTime() - start.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       totalUsedDays += diffDays;
     } else {
-      // 時間指定の場合は0.5日として計算（半日休暇）
+      // Time-specified events count as 0.5 days (half-day leave)
       totalUsedDays += 0.5;
     }
   }
@@ -50,7 +50,7 @@ const calculateUsedDays = async (userId: string, fiscalYear: number): Promise<nu
 };
 
 export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
-  // 有給残日数を取得
+  // Get remaining paid leave balance
   .get(
     '/balance',
     async (context) => {
@@ -69,9 +69,9 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         });
 
         if (!balance) {
-          // 初回作成
+          // First-time creation: default 20 days minus used days
           const usedDays = await calculateUsedDays(userId, fiscalYear);
-          const remainingDays = 20 - usedDays; // デフォルト20日から使用日数を引く
+          const remainingDays = 20 - usedDays;
 
           balance = await prisma.paidLeaveBalance.create({
             data: {
@@ -83,7 +83,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
             },
           });
         } else {
-          // 使用日数を再計算して更新
+          // Recalculate used days and update
           const usedDays = await calculateUsedDays(userId, fiscalYear);
           const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;
 
@@ -111,7 +111,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
     },
   )
 
-  // 有給残日数を更新
+  // Update paid leave balance
   .put(
     '/balance',
     async (context) => {
@@ -152,7 +152,6 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
           },
         });
 
-        // 使用日数を再計算
         const usedDays = await calculateUsedDays(userId, targetYear);
         const remainingDays = balance.totalDays + balance.carryOverDays - usedDays;
 
@@ -181,7 +180,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
     },
   )
 
-  // 有給申請履歴を取得
+  // Get paid leave history
   .get(
     '/history',
     async (context) => {
@@ -207,7 +206,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
           },
         });
 
-        // 各イベントに使用日数を追加
+        // Attach used days count to each event
         const history = paidLeaveEvents.map((event: (typeof paidLeaveEvents)[0]) => {
           const start = new Date(event.startAt);
           const end = event.endAt ? new Date(event.endAt) : start;
@@ -218,7 +217,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             usedDays = diffDays;
           } else {
-            usedDays = 0.5; // 半日休暇
+            usedDays = 0.5; // half-day leave
           }
 
           return {

@@ -1,11 +1,12 @@
 /**
- * 暗号化ユーティリティ
- * APIキーなどの機密情報を暗号化/復号化
+ * Encryption Utility
+ *
+ * Encrypts and decrypts sensitive information such as API keys.
  */
 
 import crypto from 'crypto';
 
-// 暗号化キーは環境変数から必ず取得。未設定時は起動拒否（セキュリティ要件）
+// NOTE: Encryption key must come from environment variable. Startup is rejected if unset (security requirement).
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 if (!ENCRYPTION_KEY) {
   throw new Error(
@@ -19,7 +20,7 @@ const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
 /**
- * 文字列を暗号化
+ * Encrypt a string.
  */
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
@@ -31,12 +32,12 @@ export function encrypt(text: string): string {
 
   const authTag = cipher.getAuthTag();
 
-  // IV + AuthTag + 暗号文を結合
+  // Concatenate IV + AuthTag + ciphertext
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
 }
 
 /**
- * 暗号化された文字列を復号化
+ * Decrypt an encrypted string.
  */
 export function decrypt(encryptedText: string): string {
   const parts = encryptedText.split(':');
@@ -61,7 +62,7 @@ export function decrypt(encryptedText: string): string {
 }
 
 /**
- * APIキーをマスク（表示用）
+ * Mask an API key for display purposes.
  */
 export function maskApiKey(key: string): string {
   if (key.length <= 8) {
@@ -71,7 +72,7 @@ export function maskApiKey(key: string): string {
 }
 
 /**
- * 暗号化キーが設定されているか確認
+ * Check whether the encryption key is configured.
  */
 export function isEncryptionKeyConfigured(): boolean {
   return !!process.env.ENCRYPTION_KEY;

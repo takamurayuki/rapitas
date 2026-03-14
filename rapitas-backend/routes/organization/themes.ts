@@ -155,7 +155,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       if (defaultBranch !== undefined) updateData.defaultBranch = defaultBranch;
       if (categoryId !== undefined) updateData.categoryId = categoryId;
 
-      // Auto-link to 開発 category when isDevelopment is being set to true and no categoryId specified
+      // Auto-link to Development category when isDevelopment is being set to true and no categoryId specified
       if (isDevelopment === true && categoryId === undefined && !existingTheme.categoryId) {
         const devCategory = await prisma.category.findFirst({
           where: { name: '開発', isDefault: true },

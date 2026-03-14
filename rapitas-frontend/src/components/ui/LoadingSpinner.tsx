@@ -6,7 +6,7 @@ export function SkeletonBlock({ className = '' }: { className?: string }) {
   );
 }
 
-// 波のようなアニメーション効果を持つより自然なスケルトンブロック
+// Enhanced skeleton block with wave-like shimmer animation
 export function EnhancedSkeletonBlock({
   className = '',
   delay = 0,
@@ -163,7 +163,7 @@ export const LoadingSpinner = ({ variant = 'default' }: PageSkeletonProps) => {
   );
 };
 
-// タスクカードのバリエーション型定義
+// Task card variation type definition
 interface TaskCardVariation {
   id: number;
   hasSubtasks: boolean;
@@ -178,11 +178,11 @@ interface TaskCardVariation {
   delay: number;
 }
 
-// タスクカードのバリエーション生成関数
+// Generate task card variation patterns
 const generateTaskCardVariations = (): TaskCardVariation[] => {
   const cards: TaskCardVariation[] = [];
   const patterns = [
-    // タスクパターン1: 複雑なタスク（サブタスク有り、ラベル有り）
+    // Pattern 1: Complex task (with subtasks and labels)
     {
       hasSubtasks: true,
       hasEstimatedHours: true,
@@ -192,7 +192,7 @@ const generateTaskCardVariations = (): TaskCardVariation[] => {
       titleWidth: '75%',
       progressWidth: 'w-3/5',
     },
-    // タスクパターン2: シンプルなタスク
+    // Pattern 2: Simple task
     {
       hasSubtasks: false,
       hasEstimatedHours: false,
@@ -202,7 +202,7 @@ const generateTaskCardVariations = (): TaskCardVariation[] => {
       titleWidth: '55%',
       progressWidth: null,
     },
-    // タスクパターン3: 中程度の複雑さ
+    // Pattern 3: Medium complexity
     {
       hasSubtasks: true,
       hasEstimatedHours: false,
@@ -212,7 +212,7 @@ const generateTaskCardVariations = (): TaskCardVariation[] => {
       titleWidth: '85%',
       progressWidth: 'w-4/5',
     },
-    // タスクパターン4: 完了タスク
+    // Pattern 4: Completed task
     {
       hasSubtasks: true,
       hasEstimatedHours: true,
@@ -251,7 +251,7 @@ const generateTaskCardVariations = (): TaskCardVariation[] => {
           ? `${progressTypes[i % progressTypes.length]} ${pattern.progressWidth}`
           : null,
       borderColor: borderColors[i % borderColors.length],
-      delay: i * 50, // スタッガード（階段状）アニメーション
+      delay: i * 50, // Staggered animation
     });
   });
 
@@ -259,16 +259,16 @@ const generateTaskCardVariations = (): TaskCardVariation[] => {
 };
 
 interface TaskListSkeletonProps {
-  showFilter?: boolean; // フィルターUIスケルトンを表示するか
+  showFilter?: boolean; // Whether to show filter UI skeleton
 }
 
-// TaskList専用のスケルトンローダー（実際のTaskCardUIに完全一致）
+// TaskList-specific skeleton loader (matches the actual TaskCard UI layout)
 export const TaskListSkeleton = ({
   showFilter = true,
 }: TaskListSkeletonProps) => {
   const cardVariations = generateTaskCardVariations();
 
-  // タスクカードのスケルトン生成
+  // Generate task card skeletons
   const TaskCardsSection = () => (
     <div className="space-y-3">
       {cardVariations.map((card) => (
@@ -281,7 +281,7 @@ export const TaskListSkeleton = ({
           }}
         >
           <div className="flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ease-out rounded-t-lg">
-            {/* 左: ステータスアイコン（実際のサイズ w-7 h-7 に一致） */}
+            {/* Left: Status icon (matches actual w-7 h-7 size) */}
             <div className="flex items-center justify-center w-7 h-7 rounded-md bg-zinc-200 dark:bg-zinc-700 shrink-0">
               <EnhancedSkeletonBlock
                 className="w-4 h-4 rounded"
@@ -290,9 +290,9 @@ export const TaskListSkeleton = ({
               />
             </div>
 
-            {/* 中央: タスク情報 */}
+            {/* Center: Task info */}
             <div className="flex-1 min-w-0">
-              {/* タイトル行（タスクタイトル + 優先度アイコン） */}
+              {/* Title row (task title + priority icon) */}
               <div className="flex items-center gap-2 mb-1">
                 <EnhancedSkeletonBlock
                   className="h-4 rounded"
@@ -300,22 +300,22 @@ export const TaskListSkeleton = ({
                   delay={card.delay + 150}
                   shimmer={true}
                 />
-                {/* 優先度アイコン */}
+                {/* Priority icon */}
                 <EnhancedSkeletonBlock
                   className="w-4 h-4 rounded shrink-0"
                   delay={card.delay + 200}
                 />
               </div>
 
-              {/* メタ情報行（実際の順序: 作成日 → サブタスク進捗 → 推定時間 → ラベル） */}
+              {/* Meta info row (order: created date, subtask progress, estimated time, labels) */}
               <div className="flex items-center gap-2 text-xs mb-1.5">
-                {/* 作成日（必ず表示） */}
+                {/* Created date (always shown) */}
                 <EnhancedSkeletonBlock
                   className="h-3 w-12 rounded shrink-0"
                   delay={card.delay + 250}
                 />
 
-                {/* サブタスク進捗（条件付き表示） */}
+                {/* Subtask progress (conditional) */}
                 {card.hasSubtasks && (
                   <>
                     <span className="w-0.5 h-0.5 bg-zinc-300 dark:bg-zinc-600 rounded-full" />
@@ -326,7 +326,7 @@ export const TaskListSkeleton = ({
                   </>
                 )}
 
-                {/* 推定時間（条件付き表示） */}
+                {/* Estimated time (conditional) */}
                 {card.hasEstimatedHours && (
                   <>
                     <span className="w-0.5 h-0.5 bg-zinc-300 dark:bg-zinc-600 rounded-full" />
@@ -337,7 +337,7 @@ export const TaskListSkeleton = ({
                   </>
                 )}
 
-                {/* ラベル（条件付き表示） */}
+                {/* Labels (conditional) */}
                 {card.hasLabels && (
                   <>
                     <span className="w-0.5 h-0.5 bg-zinc-300 dark:bg-zinc-600 rounded-full" />
@@ -354,7 +354,7 @@ export const TaskListSkeleton = ({
                 )}
               </div>
 
-              {/* プログレスバー（サブタスクがある場合のみ表示） */}
+              {/* Progress bar (shown only when subtasks exist) */}
               {card.hasSubtasks && card.progressType && (
                 <div className="mt-1.5 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <div
@@ -367,9 +367,9 @@ export const TaskListSkeleton = ({
               )}
             </div>
 
-            {/* 右: クイックアクション（実際のボタンレイアウトに完全一致） */}
+            {/* Right: Quick actions (matches actual button layout) */}
             <div className="flex items-center gap-1 pl-3 self-stretch">
-              {/* ステータス変更ボタン（必ず3つ: todo, in-progress, done） */}
+              {/* Status change buttons (always 3: todo, in-progress, done) */}
               {['todo', 'in-progress', 'done'].map((status, j) => (
                 <EnhancedSkeletonBlock
                   key={status}
@@ -377,7 +377,7 @@ export const TaskListSkeleton = ({
                   delay={card.delay + 600 + j * 50}
                 />
               ))}
-              {/* ページで開くボタン（条件付き表示） */}
+              {/* Open in page button (conditional) */}
               {card.hasOpenButton && (
                 <EnhancedSkeletonBlock
                   className="h-7 w-7 rounded-md"
@@ -391,7 +391,7 @@ export const TaskListSkeleton = ({
     </div>
   );
 
-  // ページネーションスケルトン
+  // Pagination skeleton
   const PaginationSection = () => (
     <div className="flex items-center justify-between pt-4">
       <EnhancedSkeletonBlock className="w-32 h-4" delay={1000} />
@@ -408,10 +408,10 @@ export const TaskListSkeleton = ({
     </div>
   );
 
-  // フィルターUIスケルトン
+  // Filter UI skeleton
   const FilterSection = () => (
     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4">
-      {/* カテゴリタブ（水平スクロール） */}
+      {/* Category tabs (horizontal scroll) */}
       <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
         <div className="flex gap-2 px-3 py-2 min-w-max">
           <EnhancedSkeletonBlock className="w-16 h-6 rounded-md" delay={0} />
@@ -422,7 +422,7 @@ export const TaskListSkeleton = ({
         </div>
       </div>
 
-      {/* テーマタブ */}
+      {/* Theme tabs */}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
           <EnhancedSkeletonBlock className="w-12 h-5 rounded-sm" delay={100} />
@@ -436,7 +436,7 @@ export const TaskListSkeleton = ({
         />
       </div>
 
-      {/* アコーディオン展開コンテンツ */}
+      {/* Accordion expanded content */}
       <div className="px-3 pb-3 border-t border-slate-200 dark:border-slate-700">
         <div className="grid grid-cols-3 gap-3 mb-2">
           <div>
@@ -502,14 +502,14 @@ export const TaskListSkeleton = ({
   );
 };
 
-// タスクカードのみのスケルトン（フィルターUIなし、ラッパーなし）
+// Task cards-only skeleton (no filter UI, no wrapper)
 export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
   const baseVariations = generateTaskCardVariations();
-  // 必要な数まで基本パターンを繰り返す
+  // Repeat base patterns up to the required count
   const cardVariations = Array.from({ length: count }, (_, i) => ({
     ...baseVariations[i % baseVariations.length],
     id: i + 1,
-    delay: i * 50, // スタッガード（階段状）アニメーション
+    delay: i * 50, // Staggered animation
   }));
 
   return (
@@ -524,7 +524,7 @@ export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
           }}
         >
           <div className="flex items-center gap-3 px-3 py-2.5 transition-all duration-300 ease-out rounded-t-lg">
-            {/* 左: ステータスアイコン */}
+            {/* Left: Status icon */}
             <div className="flex items-center justify-center w-7 h-7 rounded-md bg-zinc-200 dark:bg-zinc-700 shrink-0">
               <EnhancedSkeletonBlock
                 className="w-4 h-4 rounded"
@@ -533,7 +533,7 @@ export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
               />
             </div>
 
-            {/* 中央: タスク情報 */}
+            {/* Center: Task info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <EnhancedSkeletonBlock
@@ -591,7 +591,7 @@ export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
               </div>
             </div>
 
-            {/* 右: クイックアクション */}
+            {/* Right: Quick actions */}
             <div className="flex items-center gap-1 pl-3 self-stretch">
               {['todo', 'in-progress', 'done'].map((status, j) => (
                 <EnhancedSkeletonBlock
@@ -614,7 +614,7 @@ export const TaskCardsSkeleton = ({ count = 4 }: { count?: number }) => {
   );
 };
 
-// NewTask専用のスケルトンローダー
+// NewTask-specific skeleton loader
 export const NewTaskSkeleton = () => {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">

@@ -1,12 +1,12 @@
 /**
  * Agent Worker Process
  *
- * エージェント実行を専用プロセスで処理し、メインプロセスのブロッキングを防止する。
- * IPC（プロセス間通信）でメインプロセスと連携し、リアルタイムイベントを送信する。
+ * Handles agent execution in a dedicated process to prevent blocking the main process.
+ * Communicates with the main process via IPC and sends real-time events.
  */
 
 import { createLogger } from '../config/logger';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 import { PrismaClient } from '@prisma/client';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
@@ -37,10 +37,10 @@ class AgentWorker {
       ],
     });
 
-    // ワーカープロセス専用のOrchestrator
+    // Orchestrator dedicated to the worker process
     this.orchestrator = AgentOrchestrator.getInstance(this.prisma);
 
-    // Orchestratorのイベントリスナーを設定（メインプロセスにIPC送信）
+    // Set up Orchestrator event listener (sends IPC messages to the main process)
     this.orchestrator.addEventListener((event: OrchestratorEvent) => {
       this.sendIPCMessage({
         type: 'orchestrator-event',
@@ -297,55 +297,76 @@ class AgentWorker {
   }
 
   /**
-   * 親プロセスの生存を5秒間隔でポーリングする。
-   * Windows の taskkill /F では IPC disconnect が発火しないため、
-   * 自前で検知してself-shutdownする。
+   * Polls parent process liveness every 10 seconds.
+   * Windows taskkill /F does not fire IPC disconnect, so we detect orphan state manually.
+   *
+   * NOTE: Uses async exec to avoid blocking the event loop.
+   * Only shuts down after consecutive failures exceed the threshold to prevent false positives.
    */
   private startParentLivenessCheck(): void {
     const parentPid = process.ppid;
-    // NOTE: ppid=0 はinitプロセス（既に孤児化）を意味する
+    // NOTE: ppid=0 means init process (already orphaned)
     if (!parentPid || parentPid === 0) {
       logger.warn('[AgentWorker] No valid parent PID, skipping liveness check');
       return;
     }
 
     logger.info({ parentPid }, '[AgentWorker] Starting parent liveness check');
+    let consecutiveFailures = 0;
+    const FAILURE_THRESHOLD = 3; // Shutdown after 3 consecutive failures (~30s of no parent response)
 
     this.parentLivenessInterval = setInterval(() => {
       if (this.isShuttingDown) {
         return;
       }
-      if (!this.isParentAlive(parentPid)) {
-        logger.warn(
-          { parentPid },
-          '[AgentWorker] Parent process is dead, initiating self-shutdown',
-        );
-        this.gracefulShutdown();
-      }
-    }, 5000);
+      this.isParentAliveAsync(parentPid).then((alive) => {
+        if (alive) {
+          consecutiveFailures = 0;
+        } else {
+          consecutiveFailures++;
+          logger.warn(
+            { parentPid, consecutiveFailures },
+            '[AgentWorker] Parent process not detected',
+          );
+          if (consecutiveFailures >= FAILURE_THRESHOLD) {
+            logger.warn(
+              { parentPid },
+              '[AgentWorker] Parent process confirmed dead, initiating self-shutdown',
+            );
+            this.gracefulShutdown();
+          }
+        }
+      });
+    }, 10000);
   }
 
   /**
-   * 親プロセスが生存しているかチェックする。
+   * Asynchronously checks whether the parent process is alive.
+   * Does not block the event loop. On check failure, assumes alive (safe side).
    *
-   * @param pid - 親プロセスID / 親プロセスID
-   * @returns 生存していれば true / 生存していれば true
+   * @param pid - Parent process ID / 親プロセスID
+   * @returns true if the parent is alive / 生存していればtrue
    */
-  private isParentAlive(pid: number): boolean {
-    try {
+  private isParentAliveAsync(pid: number): Promise<boolean> {
+    return new Promise((resolve) => {
       if (process.platform === 'win32') {
-        const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
-          stdio: 'pipe',
-          timeout: 3000,
-        }).toString();
-        return result.includes(String(pid));
+        exec(`tasklist /FI "PID eq ${pid}" /NH`, { timeout: 5000 }, (error, stdout) => {
+          if (error) {
+            // NOTE: On command failure, assume alive (safe side) to prevent false shutdown
+            resolve(true);
+            return;
+          }
+          resolve(stdout.includes(String(pid)));
+        });
+      } else {
+        try {
+          process.kill(pid, 0);
+          resolve(true);
+        } catch {
+          resolve(false);
+        }
       }
-      // Unix: signal 0 で生存確認
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
+    });
   }
 
   private setupGracefulShutdown(): void {
@@ -405,7 +426,7 @@ class AgentWorker {
       await this.prisma.$connect();
       logger.info('[AgentWorker] Database connection established');
 
-      // メインプロセスに起動完了を通知
+      // Notify the main process that startup is complete
       this.sendIPCMessage({
         type: 'worker-ready',
         data: { pid: process.pid },
@@ -419,7 +440,7 @@ class AgentWorker {
   }
 }
 
-// ワーカープロセスとして実行された場合の初期化
+// Initialize when executed as a worker process
 const worker = new AgentWorker();
 worker.start().catch((error) => {
   logger.error({ err: error }, '[AgentWorker] Fatal error during startup');

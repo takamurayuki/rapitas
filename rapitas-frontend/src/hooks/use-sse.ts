@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useSSE');
 
-// SSEイベントの型定義
+// SSE event type definitions
 export type SSEEventType =
   | 'start'
   | 'progress'
@@ -93,12 +93,11 @@ export function useSSE<T = unknown>(
   const eventSourceRef = useRef<EventSource | null>(null);
   const optionsRef = useRef(options);
 
-  // オプションを最新に保つ
+  // Keep options ref up to date
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
 
-  // 接続を閉じる
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -108,7 +107,6 @@ export function useSSE<T = unknown>(
     setIsLoading(false);
   }, []);
 
-  // 状態をリセット
   const reset = useCallback(() => {
     disconnect();
     setProgress(0);
@@ -119,13 +117,11 @@ export function useSSE<T = unknown>(
     setRollbackInfo(null);
   }, [disconnect]);
 
-  // SSE接続を開始
+  // Start SSE connection
   const connect = useCallback(
     (url: string) => {
-      // 既存の接続を閉じる
       disconnect();
 
-      // 状態をリセット
       setProgress(0);
       setProgressMessage('');
       setData(null);
@@ -153,7 +149,6 @@ export function useSSE<T = unknown>(
           disconnect();
         };
 
-        // イベントハンドラを設定
         eventSource.addEventListener('start', (event) => {
           try {
             const parsed: SSEEvent = JSON.parse(event.data);
@@ -186,7 +181,7 @@ export function useSSE<T = unknown>(
 
         eventSource.addEventListener('error', (event) => {
           try {
-            // MessageEventの場合のみパース
+            // Only parse MessageEvent instances
             if (event instanceof MessageEvent) {
               const parsed: SSEEvent<SSEErrorData> = JSON.parse(event.data);
               setError(parsed.data);
@@ -242,7 +237,7 @@ export function useSSE<T = unknown>(
     [disconnect],
   );
 
-  // コンポーネントのアンマウント時にクリーンアップ
+  // Cleanup on component unmount
   useEffect(() => {
     return () => {
       disconnect();

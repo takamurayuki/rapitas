@@ -19,13 +19,13 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('AgentSwitcher');
 
 type AgentSwitcherProps = {
-  /** 現在選択中のエージェントID（nullの場合はデフォルト） */
+  /** Currently selected agent ID (null means default) */
   selectedAgentId?: number | null;
-  /** エージェント選択時のコールバック */
+  /** Callback when an agent is selected */
   onSelect: (agentId: number | null) => void;
-  /** サイズバリエーション */
+  /** Size variant */
   size?: 'sm' | 'md';
-  /** ラベルを表示するか */
+  /** Whether to show label */
   showLabel?: boolean;
 };
 
@@ -108,7 +108,7 @@ export function AgentSwitcher({
     fetchAgents();
   }, [fetchAgents]);
 
-  // 外側クリックでドロップダウンを閉じる
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -194,10 +194,10 @@ export function AgentSwitcher({
         />
       </button>
 
-      {/* ドロップダウン */}
+      {/* Dropdown */}
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full min-w-[240px] bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg overflow-hidden">
-          {/* デフォルトに戻すオプション */}
+          {/* Reset to default option */}
           {selectedAgentId && defaultAgent && (
             <button
               onClick={() => {
@@ -218,7 +218,7 @@ export function AgentSwitcher({
             </button>
           )}
 
-          {/* エージェント一覧 */}
+          {/* Agent list */}
           <div className="max-h-[240px] overflow-y-auto">
             {agents.map((agent) => {
               const info = getTypeInfo(agent.agentType);

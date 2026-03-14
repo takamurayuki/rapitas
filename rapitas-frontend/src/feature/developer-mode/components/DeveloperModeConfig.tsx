@@ -94,12 +94,12 @@ export function DeveloperModeConfigModal({
   );
   const [isSaving, setIsSaving] = useState(false);
 
-  // エージェント選択関連の状態
+  // Agent selection state
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [isSettingDefault, setIsSettingDefault] = useState(false);
 
-  // タスク分析設定の状態
+  // Task analysis settings state
   const [analysisAgentConfigId, setAnalysisAgentConfigId] = useState<
     number | null
   >(null);
@@ -116,7 +116,7 @@ export function DeveloperModeConfigModal({
   const [analysisNotifyOnComplete, setAnalysisNotifyOnComplete] =
     useState(true);
 
-  // エージェント実行設定の状態
+  // Agent execution settings state
   const [executionAgentConfigId, setExecutionAgentConfigId] = useState<
     number | null
   >(null);
@@ -134,10 +134,10 @@ export function DeveloperModeConfigModal({
   const [execNotifyOnComplete, setExecNotifyOnComplete] = useState(true);
   const [execNotifyOnError, setExecNotifyOnError] = useState(true);
 
-  // 設定読み込み状態
+  // Config loading state
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(false);
 
-  // APIキーステータス（全プロバイダ）
+  // API key status (all providers)
   const [apiKeyStatuses, setApiKeyStatuses] = useState<
     Record<ApiProvider, ApiKeyStatus>
   >({
@@ -148,7 +148,7 @@ export function DeveloperModeConfigModal({
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // インラインエージェント追加用の状態
+  // Inline agent addition state
   const [showInlineAddAgent, setShowInlineAddAgent] = useState(false);
   const [inlineAgentName, setInlineAgentName] = useState('');
   const [inlineAgentType, setInlineAgentType] = useState('claude-code');
@@ -159,7 +159,7 @@ export function DeveloperModeConfigModal({
     string | null
   >(null);
 
-  // インラインAPIキー設定用の状態
+  // Inline API key config state
   const [apiKeyProvider, setApiKeyProvider] = useState<ApiProvider>('claude');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -171,7 +171,7 @@ export function DeveloperModeConfigModal({
     string | null
   >(null);
 
-  // モーダルが開かれた時にデータを取得
+  // Fetch data when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchAllApiKeys();
@@ -182,10 +182,10 @@ export function DeveloperModeConfigModal({
     }
   }, [isOpen, taskId]);
 
-  // 外部からのselectedAgentConfigIdの変更を反映
+  // Reflect external selectedAgentConfigId changes
   useEffect(() => {
     if (selectedAgentConfigId !== undefined && selectedAgentConfigId !== null) {
-      // 初期値として両方のタブに設定（既存の設定がない場合のフォールバック）
+      // Set as initial value for both tabs (fallback when no existing config)
       if (!analysisAgentConfigId)
         setAnalysisAgentConfigId(selectedAgentConfigId);
       if (!executionAgentConfigId)
@@ -268,7 +268,7 @@ export function DeveloperModeConfigModal({
       if (res.ok) {
         const data = await res.json();
         setAgents(data);
-        // デフォルトエージェントが選択されていない場合、isDefaultのエージェントを選択
+        // Select the default agent when none is selected
         const defaultAgent = data.find((a: AIAgentConfig) => a.isDefault);
         if (defaultAgent) {
           if (!analysisAgentConfigId) setAnalysisAgentConfigId(defaultAgent.id);
@@ -302,7 +302,7 @@ export function DeveloperModeConfigModal({
     }
   };
 
-  // APIキープロバイダ情報
+  // API key provider info
   const API_KEY_PROVIDERS: {
     value: ApiProvider;
     label: string;
@@ -329,7 +329,7 @@ export function DeveloperModeConfigModal({
     },
   ];
 
-  // クライアントサイドAPIキーバリデーション
+  // Client-side API key validation
   const validateApiKeyForProvider = (
     apiKey: string,
     provider: ApiProvider,
@@ -405,7 +405,7 @@ export function DeveloperModeConfigModal({
       }
     } catch (err) {
       setApiKeyValidationError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'Errorが発生しました',
       );
     } finally {
       setIsSavingApiKey(false);
@@ -434,7 +434,7 @@ export function DeveloperModeConfigModal({
     }
   };
 
-  // インラインエージェント追加
+  // Inline agent addition
   const saveInlineAgent = async () => {
     setInlineAgentError(null);
     setInlineAgentNameError(null);
@@ -474,17 +474,17 @@ export function DeveloperModeConfigModal({
     }
   };
 
-  // APIキー不要なCLIベースのエージェントタイプ
+  // CLI-based agent types that do not require API keys
   const CLI_AGENT_TYPES = ['claude-code', 'codex', 'gemini'];
 
-  // APIキーが設定されているプロバイダに対応するエージェントタイプのマッピング
+  // Mapping of agent types to providers with configured API keys
   const PROVIDER_TO_AGENT_TYPES: Record<ApiProvider, string[]> = {
     claude: ['anthropic-api'],
     chatgpt: ['openai', 'azure-openai'],
     gemini: ['gemini'],
   };
 
-  // 利用可能なエージェントのフィルタリング（CLIベースは常に利用可能）
+  // Filter available agents (CLI-based are always available)
   const getAvailableAgents = () => {
     const configuredProviders = (
       Object.keys(apiKeyStatuses) as ApiProvider[]
@@ -508,7 +508,7 @@ export function DeveloperModeConfigModal({
     setIsSaving(true);
 
     try {
-      // 1. 開発者モード基本設定を保存
+      // 1. Save developer mode basic settings
       onAgentConfigChange?.(analysisAgentConfigId ?? executionAgentConfigId);
       await onSave({
         autoApprove,
@@ -517,7 +517,7 @@ export function DeveloperModeConfigModal({
         priority: priority as DeveloperModeConfig['priority'],
       });
 
-      // 2. タスク分析設定を保存（taskIdがある場合）
+      // 2. Save task analysis settings (when taskId is present)
       if (taskId) {
         const analysisBody = {
           agentConfigId: analysisAgentConfigId,
@@ -549,7 +549,7 @@ export function DeveloperModeConfigModal({
           );
         }
 
-        // 3. エージェント実行設定を保存
+        // 3. Save agent execution settings
         const executionBody = {
           agentConfigId: executionAgentConfigId,
           branchStrategy,
@@ -623,7 +623,7 @@ export function DeveloperModeConfigModal({
     );
   };
 
-  // インラインエージェント追加フォーム
+  // Inline agent addition form
   const renderInlineAddAgentForm = () => (
     <div className="mt-3 p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
       <div className="flex items-center justify-between">
@@ -734,7 +734,7 @@ export function DeveloperModeConfigModal({
     </div>
   );
 
-  // エージェント選択UI（ドロップダウン型、共通コンポーネント）
+  // Agent selection UI (dropdown, common component)
   const renderAgentSelector = (
     selectedId: number | null,
     onSelect: (id: number | null) => void,
@@ -752,7 +752,7 @@ export function DeveloperModeConfigModal({
 
     const displayAgents = filterByApiKey ? getAvailableAgents() : agents;
 
-    // エージェント未設定時：インライン追加フォームを表示
+    // When no agent configured: show inline addition form
     if (displayAgents.length === 0 && agents.length === 0) {
       return (
         <div className="space-y-2">
@@ -776,7 +776,7 @@ export function DeveloperModeConfigModal({
 
     const selectedAgent = displayAgents.find((a) => a.id === selectedId);
 
-    // APIキーが設定されていないプロバイダのエージェントがあるかチェック
+    // Check if any agents require unconfigured API keys
     const hasUnconfiguredApiKeyAgents =
       filterByApiKey &&
       agents.some(
@@ -787,7 +787,6 @@ export function DeveloperModeConfigModal({
 
     return (
       <div className="space-y-2">
-        {/* ドロップダウン + 追加ボタン */}
         <div className="flex items-center gap-2">
           <select
             value={selectedId ?? ''}
@@ -822,10 +821,8 @@ export function DeveloperModeConfigModal({
           </button>
         </div>
 
-        {/* インラインエージェント追加フォーム */}
         {showInlineAddAgent && renderInlineAddAgentForm()}
 
-        {/* 選択中のエージェント情報 */}
         {selectedAgent && (
           <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-200 dark:border-violet-800">
             {(() => {
@@ -872,13 +869,12 @@ export function DeveloperModeConfigModal({
           </div>
         )}
 
-        {/* APIキー未設定のエージェントがある場合にインラインAPIキー設定を表示 */}
         {hasUnconfiguredApiKeyAgents && renderInlineApiKeySetup()}
       </div>
     );
   };
 
-  // インラインAPIキー設定UI
+  // Inline API key configuration UI
   const renderInlineApiKeySetup = () => {
     const currentProvider = API_KEY_PROVIDERS.find(
       (p) => p.value === apiKeyProvider,
@@ -897,7 +893,6 @@ export function DeveloperModeConfigModal({
           </span>
         </div>
 
-        {/* プロバイダ選択タブ */}
         <div className="flex gap-1.5">
           {API_KEY_PROVIDERS.map((provider) => {
             const status = apiKeyStatuses[provider.value];
@@ -928,7 +923,6 @@ export function DeveloperModeConfigModal({
           })}
         </div>
 
-        {/* 設定済みの場合 */}
         {currentStatus.configured && currentStatus.maskedKey && (
           <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded">
             <div className="flex items-center gap-2 min-w-0">
@@ -948,7 +942,6 @@ export function DeveloperModeConfigModal({
           </div>
         )}
 
-        {/* 未設定の場合：入力フォーム */}
         {!currentStatus.configured && (
           <div className="space-y-2">
             <div className="relative">
@@ -1010,7 +1003,6 @@ export function DeveloperModeConfigModal({
           </div>
         )}
 
-        {/* 成功メッセージ */}
         {apiKeySuccessMessage && (
           <p className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
@@ -1021,7 +1013,7 @@ export function DeveloperModeConfigModal({
     );
   };
 
-  // トグルスイッチ（共通コンポーネント）
+  // Toggle switch (common component)
   const renderToggle = (
     value: boolean,
     onChange: (v: boolean) => void,
@@ -1052,10 +1044,9 @@ export function DeveloperModeConfigModal({
     </div>
   );
 
-  // タスク分析タブの内容
+  // Task analysis tab content
   const renderTaskAnalysisTab = () => (
     <div className="space-y-5">
-      {/* AIエージェント選択 */}
       <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg space-y-3">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-violet-500" />
@@ -1071,7 +1062,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* 分析深度 */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           分析深度
@@ -1113,7 +1103,6 @@ export function DeveloperModeConfigModal({
         </div>
       </div>
 
-      {/* 分解レベル */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           優先度戦略
@@ -1158,7 +1147,6 @@ export function DeveloperModeConfigModal({
         </p>
       </div>
 
-      {/* プロンプト戦略 */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           プロンプト戦略
@@ -1175,7 +1163,6 @@ export function DeveloperModeConfigModal({
         </select>
       </div>
 
-      {/* 最大サブタスク数 */}
       <div>
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           最大サブタスク数: {analysisMaxSubtasks}
@@ -1194,7 +1181,6 @@ export function DeveloperModeConfigModal({
         </div>
       </div>
 
-      {/* 出力オプション */}
       <div className="space-y-3">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           出力オプション
@@ -1219,7 +1205,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* 自動化設定 */}
       <div className="space-y-3">
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           自動化
@@ -1228,7 +1213,7 @@ export function DeveloperModeConfigModal({
           autoApproveSubtasks,
           setAutoApproveSubtasks,
           'サブタスク自動承認',
-          '分析結果のサブタスクを自動承認',
+          'Analysis resultsのサブタスクを自動承認',
         )}
         {renderToggle(
           autoOptimizePrompt,
@@ -1246,10 +1231,9 @@ export function DeveloperModeConfigModal({
     </div>
   );
 
-  // エージェント実行タブの内容
+  // Agent execution tab content
   const renderAgentExecutionTab = () => (
     <div className="space-y-5">
-      {/* AIエージェント選択 */}
       <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg space-y-3">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-violet-500" />
@@ -1265,7 +1249,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* Git設定 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-violet-500" />
@@ -1350,7 +1333,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* コードレビュー設定 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <FileSearch className="w-4 h-4 text-violet-500" />
@@ -1384,7 +1366,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* 実行オプション */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Play className="w-4 h-4 text-violet-500" />
@@ -1406,7 +1387,6 @@ export function DeveloperModeConfigModal({
         )}
       </div>
 
-      {/* 通知設定 */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-violet-500" />
@@ -1429,8 +1409,8 @@ export function DeveloperModeConfigModal({
         {renderToggle(
           execNotifyOnError,
           setExecNotifyOnError,
-          'エラー通知',
-          'エラー発生時に通知',
+          'Error通知',
+          'Error発生時に通知',
         )}
       </div>
     </div>
@@ -1461,7 +1441,6 @@ export function DeveloperModeConfigModal({
           </button>
         </div>
 
-        {/* タブナビゲーション */}
         <div className="px-6 pt-4">
           <div
             className="flex border-b border-zinc-200 dark:border-zinc-700"
@@ -1491,7 +1470,6 @@ export function DeveloperModeConfigModal({
           </div>
         </div>
 
-        {/* タブコンテンツ */}
         <div className="px-6 py-4 max-h-[50vh] overflow-y-auto">
           {isLoadingConfigs ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-zinc-500">

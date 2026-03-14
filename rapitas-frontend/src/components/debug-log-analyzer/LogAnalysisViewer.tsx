@@ -1,5 +1,7 @@
 /**
- * ログ解析結果のビジュアライザーコンポーネント
+ * LogAnalysisViewer
+ *
+ * Visualizer component for log analysis results.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -72,7 +74,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
   const [selectedLevel, setSelectedLevel] = useState<LogLevel | null>(null);
   const [selectedTab, setSelectedTab] = useState('overview');
 
-  // ログエントリーのフィルタリング
+  // Filter log entries
   const filteredEntries = useMemo(() => {
     return analysis.entries.filter((entry) => {
       if (selectedLevel && entry.level !== selectedLevel) return false;
@@ -87,7 +89,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
     });
   }, [analysis.entries, selectedLevel, searchText]);
 
-  // レベル分布のチャートデータ
+  // Level distribution chart data
   const levelChartData = useMemo(() => {
     return Object.entries(analysis.summary.levelDistribution)
       .filter(([_, count]) => count > 0)
@@ -98,7 +100,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
       }));
   }, [analysis.summary.levelDistribution]);
 
-  // タイムラインデータの生成
+  // Generate timeline data
   const timelineData = useMemo(() => {
     if (!analysis.summary.timeRange) return [];
 
@@ -106,7 +108,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
       .filter((entry) => entry.timestamp)
       .sort((a, b) => a.timestamp!.getTime() - b.timestamp!.getTime());
 
-    // 時間ごとのエラー数を集計
+    // Aggregate error counts per hour
     const hourlyData = new Map<
       string,
       { time: string; errors: number; warnings: number; info: number }
@@ -139,7 +141,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
     return Array.from(hourlyData.values());
   }, [analysis.entries, analysis.summary.timeRange]);
 
-  // ソース分布のチャートデータ
+  // Source distribution chart data
   const sourceChartData = useMemo(() => {
     return Object.entries(analysis.summary.sourceDistribution)
       .sort((a, b) => b[1] - a[1])
@@ -192,7 +194,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* ヘッダー */}
+      {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">ログ解析結果</h2>
         {onExport && (
@@ -203,7 +205,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         )}
       </div>
 
-      {/* サマリーカード */}
+      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -283,7 +285,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         </Card>
       </div>
 
-      {/* タブ */}
+      {/* Tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">概要</TabsTrigger>
@@ -294,7 +296,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {/* レベル分布 */}
+          {/* Level distribution */}
           <Card>
             <CardHeader>
               <CardTitle>ログレベル分布</CardTitle>
@@ -376,7 +378,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         </TabsContent>
 
         <TabsContent value="patterns" className="space-y-4">
-          {/* エラーパターン */}
+          {/* Error patterns */}
           {analysis.patterns.errors.length > 0 && (
             <Card>
               <CardHeader>
@@ -409,7 +411,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
             </Card>
           )}
 
-          {/* 警告パターン */}
+          {/* Warning patterns */}
           {analysis.patterns.warnings.length > 0 && (
             <Card>
               <CardHeader>
@@ -439,7 +441,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
             </Card>
           )}
 
-          {/* 頻出メッセージ */}
+          {/* Frequent messages */}
           <Card>
             <CardHeader>
               <CardTitle>頻出メッセージ</CardTitle>
@@ -484,7 +486,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
-          {/* フィルター */}
+          {/* Filter */}
           <Card>
             <CardContent className="p-4">
               <div className="flex gap-4">
@@ -523,7 +525,7 @@ export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
             </CardContent>
           </Card>
 
-          {/* ログエントリー一覧 */}
+          {/* Log entries list */}
           <Card>
             <CardHeader>
               <CardTitle>

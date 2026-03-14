@@ -1,6 +1,6 @@
 /**
  * Learning Goals API Routes
- * 学習目標の作成、AI学習プラン生成、タスクへの適用
+ * Create learning goals, generate AI learning plans, apply to tasks
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -15,14 +15,14 @@ import {
 } from '../../utils/ai-client';
 
 export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
-  // 全学習目標を取得
+  
   .get('/', async () => {
     return await prisma.learningGoal.findMany({
       orderBy: { createdAt: 'desc' },
     });
   })
 
-  // 学習目標をIDで取得
+  
   .get('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -31,7 +31,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
     });
   })
 
-  // 学習目標を作成
+  
   .post(
     '/',
     async (context) => {
@@ -71,7 +71,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
     },
   )
 
-  // 学習目標を更新
+  
   .patch(
     '/:id',
     async (context) => {
@@ -125,7 +125,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
     },
   )
 
-  // 学習目標を削除
+  
   .delete('/:id', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -134,7 +134,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
     });
   })
 
-  // AI学習プランを生成
+  // Generate AI learning plan
   .post('/:id/generate-plan', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -149,8 +149,8 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
 
     const aiAvailable = await isAnyApiKeyConfigured();
 
-    // 期限までの日数を計算
-    let totalDays = 90; // デフォルト3ヶ月
+    // Calculate days until deadline
+    let totalDays = 90; // default 3 months
     if (goal.deadline) {
       const now = new Date();
       totalDays = Math.max(
@@ -160,7 +160,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
     }
 
     if (!aiAvailable) {
-      // AI未設定時のフォールバック生成
+      // Fallback generation when AI is not configured
       const plan = generateFallbackPlan(
         goal.title,
         goal.currentLevel,
@@ -175,7 +175,7 @@ export const learningGoalsRoutes = new Elysia({ prefix: '/learning-goals' })
       return { plan, source: 'fallback' };
     }
 
-    // AI生成
+    // AI generation
     const systemPrompt = `あなたは学習計画の専門家です。ユーザーの学習目標に対して、具体的で実行可能な学習プランを生成してください。
 
 以下の基準で学習プランを生成してください：
@@ -298,7 +298,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     }
   })
 
-  // 学習プランをタスクに適用（テーマ作成 → タスク・サブタスク登録）
+  // Apply learning plan to tasks (create theme, tasks, and subtasks)
   .post('/:id/apply', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -321,7 +321,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
 
     const plan = JSON.parse(goal.generatedPlan as string) as GeneratedLearningPlan;
 
-    // 1. 学習カテゴリを取得（なければ作成）
+    // 1. Get learning category (create if absent)
     let categoryId = goal.categoryId;
     if (!categoryId) {
       const learningCategory = await prisma.category.findFirst({
@@ -330,7 +330,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       categoryId = learningCategory?.id ?? null;
     }
 
-    // 2. テーマを作成
+    // 2. Create theme
     const theme = await prisma.theme.create({
       data: {
         name: plan.themeName || goal.title,
@@ -341,7 +341,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       },
     });
 
-    // 3. フェーズごとにタスクを作成
+    // 3. Create tasks per phase
     const createdTasks = [];
     let currentDate = new Date();
 
@@ -363,20 +363,20 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
           },
         });
 
-        // サブタスクがあれば作成（順序を保持）
+        // Create subtasks if defined (preserve order)
         if (taskDef.subtasks && taskDef.subtasks.length > 0) {
-          const hoursPerDay = Math.min(goal.dailyHours, 8); // 1日あたりの最大学習時間
+          const hoursPerDay = Math.min(goal.dailyHours, 8); // Max study hours per day
           let accumulatedDays = 0;
 
           for (let i = 0; i < taskDef.subtasks.length; i++) {
             const sub = taskDef.subtasks[i];
             const subtaskDays = Math.ceil((sub.estimatedHours || 0) / hoursPerDay);
 
-            // サブタスクの期限を計算（親タスクの期限内に収める）
+            // Calculate subtask due date (within parent deadline)
             const subtaskDueDate = new Date(currentDate);
             subtaskDueDate.setDate(subtaskDueDate.getDate() + accumulatedDays + subtaskDays);
 
-            // 期限が親タスクの期限を超えないように調整
+            // Clamp due date to not exceed parent deadline
             const adjustedDueDate = subtaskDueDate > phaseEndDate ? phaseEndDate : subtaskDueDate;
 
             await prisma.task.create({
@@ -390,7 +390,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
                 themeId: theme.id,
                 subject: goal.title,
                 dueDate: adjustedDueDate,
-                createdAt: new Date(Date.now() + i * 1000), // createdAtで順序を保証
+                createdAt: new Date(Date.now() + i * 1000), // stagger createdAt to preserve order
               },
             });
 
@@ -404,13 +404,13 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       currentDate = phaseEndDate;
     }
 
-    // 4. 学習目標を適用済みに更新
+    // 4. Mark learning goal as applied
     await prisma.learningGoal.update({
       where: { id },
       data: { isApplied: true, themeId: theme.id },
     });
 
-    // 5. フェーズごとにフラッシュカードデッキを作成（fire-and-forget）
+    // 5. Create flashcard decks per phase (fire-and-forget)
     const deckIds: number[] = [];
     const aiAvailable = await isAnyApiKeyConfigured();
 
@@ -427,7 +427,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       });
       deckIds.push(deck.id);
 
-      // AI でフラッシュカードを非同期生成（fire-and-forget）
+      // Generate flashcards asynchronously via AI (fire-and-forget)
       if (aiAvailable) {
         generateFlashcardsForPhase(deck.id, phase, goal.title).catch((err) => {
           log.error(
@@ -448,7 +448,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     };
   })
 
-  // 進捗に基づく計画適応
+  // Adapt plan based on progress
   .post('/:id/adapt', async (context) => {
     const { params } = context;
     const id = parseInt(params.id);
@@ -470,7 +470,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
       return { error: 'AI is not configured. Please set up an API key.' };
     }
 
-    // テーマ配下のタスク進捗を取得
+    // Get task progress under the theme
     const tasks = await prisma.task.findMany({
       where: { themeId: goal.themeId, parentId: null },
       include: { subtasks: true },
@@ -480,7 +480,7 @@ ${totalDays}日間（1日${goal.dailyHours}時間の学習時間を確保）
     const completedTasks = tasks.filter((t) => t.status === 'done').length;
     const progressRate = totalTasks > 0 ? completedTasks / totalTasks : 0;
 
-    // 残り日数を計算
+    // Calculate remaining days
     let remainingDays = 30;
     if (goal.deadline) {
       const now = new Date();

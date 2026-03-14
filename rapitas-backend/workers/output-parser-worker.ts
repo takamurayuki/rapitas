@@ -1,15 +1,15 @@
 /**
- * 出力パース処理専用Workerスレッド
+ * Dedicated Worker thread for output parsing
  *
- * Claude CLI のstdout出力を解析し、JSONパース・アーティファクト抽出・
- * コミット検出・質問検出を実行してメインスレッドに結果を送信する
+ * Analyzes stdout output from Claude CLI, executes JSON parsing, artifact extraction,
+ * commit detection, question detection and sends results to main thread
  */
 
 declare var self: Worker;
 
 import { detectQuestionFromToolCall } from '../services/agents/question-detection';
 
-// ==================== 型定義 ====================
+// ==================== Type definitions ====================
 
 export type QuestionCategory = 'clarification' | 'confirmation' | 'selection';
 
@@ -53,16 +53,16 @@ interface GitCommitInfo {
   deletions: number;
 }
 
-// ==================== メッセージプロトコル ====================
+// ==================== Message protocol ====================
 
-// 入力メッセージ型
+// Input message types
 type WorkerInputMessage =
   | { type: 'configure'; config: { logPrefix?: string; timeoutSeconds: number } }
   | { type: 'parse-chunk'; data: string }
   | { type: 'parse-complete'; outputBuffer: string }
   | { type: 'terminate' };
 
-// 出力メッセージ型
+// Output message types
 type WorkerOutputMessage =
   | { type: 'system-event'; data: { sessionId?: string; error?: string } }
   | {
@@ -82,19 +82,19 @@ type WorkerOutputMessage =
   | { type: 'tool-tracking'; data: { hasFileModifyingTools: boolean; toolName: string } }
   | { type: 'error'; error: string };
 
-// ==================== Worker内部状態 ====================
+// ==================== Worker internal state ====================
 
 let lineBuffer = '';
 const activeTools = new Map<string, ToolInfo>();
 const FILE_MODIFYING_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 let config: { logPrefix?: string; timeoutSeconds: number } = { timeoutSeconds: 300 };
 
-// ==================== アーティファクト・コミットパース ====================
+// ==================== Artifact and commit parsing ====================
 
 function parseArtifacts(output: string): AgentArtifact[] {
   const artifacts: AgentArtifact[] = [];
 
-  // ファイル作成/編集のパターンを検出
+  // Detect file creation/editing patterns
   const filePatterns = [
     /(?:Created|Modified|Wrote to|Writing to)[:\s]+([^\n]+)/gi,
     /File: ([^\n]+)/gi,
@@ -117,7 +117,7 @@ function parseArtifacts(output: string): AgentArtifact[] {
     }
   }
 
-  // diff出力を検出
+  // Detect diff output
   const diffPattern = /```diff\n([\s\S]*?)```/g;
   let diffMatch;
   while ((diffMatch = diffPattern.exec(output)) !== null) {
@@ -162,7 +162,7 @@ interface WorkerToolResult {
   isError: boolean;
 }
 
-// ==================== ツール情報フォーマット ====================
+// ==================== Tool information formatting ====================
 
 function formatToolInfo(toolName: string, input: Record<string, unknown> | undefined): string {
   if (!input) return '';
@@ -202,7 +202,7 @@ function formatToolInfo(toolName: string, input: Record<string, unknown> | undef
   }
 }
 
-// ==================== JSON行パース ====================
+// ==================== JSON line parsing ====================
 
 function processLine(line: string): void {
   const trimmed = line.trim();
@@ -230,16 +230,16 @@ function processLine(line: string): void {
         break;
     }
   } catch {
-    // JSONパース失敗: 不要な行をフィルタリング
+    // JSON parsing failed: filter unnecessary lines
     if (
       !trimmed ||
       /^Active code page:/i.test(trimmed) ||
-      /^現在のコード ページ:/i.test(trimmed) ||
+      /^Current code page:/i.test(trimmed) ||
       /^chcp\s/i.test(trimmed)
     ) {
       return;
     }
-    // 非JSON行をそのまま出力
+    // Output non-JSON lines as is
     postResult({
       type: 'raw-output',
       displayOutput: line + '\n',
@@ -281,24 +281,24 @@ function processAssistantMessage(json: ParsedJsonMessage, prefix: string): void 
         displayOutput += block.text;
       } else if (block.type === 'tool_use') {
         if (block.name === 'AskUserQuestion') {
-          // AskUserQuestion検出
+          // AskUserQuestion detection
           const detectionResult = detectQuestionFromToolCall(
             block.name,
             block.input,
             config.timeoutSeconds,
           );
 
-          displayOutput += `\n[質問] ${detectionResult.questionText}\n`;
+          displayOutput += `\n[Question] ${detectionResult.questionText}\n`;
 
           postResult({
             type: 'question-detected',
             detectionResult: detectionResult as unknown as WaitingQuestionState & {
               questionText: string;
             },
-            displayOutput: `\n[質問] ${detectionResult.questionText}\n`,
+            displayOutput: `\n[Question] ${detectionResult.questionText}\n`,
           });
         } else {
-          // 通常のツール呼び出し
+          // Regular tool call
           const toolName = block.name ?? '';
           const toolInfo = formatToolInfo(toolName, block.input);
           displayOutput += `\n[Tool: ${toolName}] ${toolInfo}\n`;
@@ -439,7 +439,7 @@ function processSystemEvent(json: ParsedJsonMessage, prefix: string): void {
   });
 }
 
-// ==================== メインメッセージハンドラ ====================
+// ==================== Main message handler ====================
 
 interface WorkerPostMessage {
   type: string;
@@ -475,10 +475,10 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
         break;
 
       case 'parse-chunk': {
-        // チャンクをバッファに追加し、完全な行を処理
+        // Add chunks to buffer and process complete lines
         lineBuffer += msg.data;
         const lines = lineBuffer.split('\n');
-        lineBuffer = lines.pop() || ''; // 最後の不完全な行を保持
+        lineBuffer = lines.pop() || ''; // Keep last incomplete line
 
         for (const line of lines) {
           processLine(line);
@@ -487,12 +487,12 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
       }
 
       case 'parse-complete': {
-        // 残りのバッファをフラッシュ
+        // Flush remaining buffer
         if (lineBuffer.trim()) {
           processLine(lineBuffer);
         }
 
-        // outputBufferからアーティファクト・コミットをパース
+        // Parse artifacts and commits from outputBuffer
         const artifacts = msg.outputBuffer ? parseArtifacts(msg.outputBuffer) : [];
         const commits = msg.outputBuffer ? parseCommits(msg.outputBuffer) : [];
 
@@ -519,10 +519,10 @@ self.onmessage = (event: MessageEvent<WorkerInputMessage>) => {
       }
 
       case 'terminate':
-        // Worker終了（メインスレッドからworker.terminate()で停止される）
+        // Worker termination (stopped by worker.terminate() from main thread)
         lineBuffer = '';
         activeTools.clear();
-        // Bun Workerではself.close()が存在しないため、状態リセットのみ
+        // Only reset state since self.close() doesn't exist in Bun Worker
         process.exit(0);
         break;
     }

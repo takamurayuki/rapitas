@@ -61,7 +61,7 @@ describe('Agent Audit Router', () => {
         new Request(`http://localhost/tasks/${mockTaskId}/execution-logs`),
       );
 
-      // レスポンスは複雑なオブジェクト構造 (単一execution mode or 複数execution mode)
+      // Response has a complex object structure (single execution mode or multiple execution mode)
       if (httpResponse.status === 200) {
         const response = (await httpResponse.json()) as ExecutionLogResponse;
         expect(response).toBeDefined();

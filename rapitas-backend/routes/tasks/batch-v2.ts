@@ -4,7 +4,6 @@ import { cacheService, CacheKeys } from '../../services/cache-service';
 import { PrismaOptimizer, QueryOptimizers } from '../../utils/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
 
-// バッチ処理の結果型
 interface BatchResult {
   id: string;
   status: number;
@@ -14,7 +13,6 @@ interface BatchResult {
   executionTime?: number;
 }
 
-// リクエストハンドラーのレジストリ
 type HandlerContext = {
   query?: Record<string, string>;
   params?: Record<string, string>;
@@ -23,23 +21,19 @@ type HandlerContext = {
 
 const requestHandlers = new Map<string, (params: HandlerContext) => Promise<unknown>>();
 
-// ハンドラーを登録
 function registerHandler(pattern: string, handler: (params: HandlerContext) => Promise<unknown>) {
   requestHandlers.set(pattern, handler);
 }
 
-// 最適化されたハンドラーを登録
 registerHandler('GET:/tasks', async (context) => {
   const { query } = context;
   const cacheKey = CacheKeys.taskList(query ?? {});
 
-  // キャッシュから取得を試みる
   const cached = await cacheService.get(cacheKey);
   if (cached) {
     return { data: cached, cached: true };
   }
 
-  // クエリパラメータの解析
   const {
     categoryId,
     status,
@@ -51,14 +45,13 @@ registerHandler('GET:/tasks', async (context) => {
     priority,
   } = query as Record<string, string>;
 
-  // フィルター構築
   const where: Record<string, unknown> = {};
   if (categoryId) where.categoryId = parseInt(categoryId);
   if (status) where.status = status;
   if (projectId) where.projectId = parseInt(projectId);
   if (priority) where.priority = priority;
 
-  // インクリメンタル更新の場合
+  // Incremental update
   if (since) {
     const results = await PrismaOptimizer.parallelQueries({
       tasks: prisma.task.findMany({
@@ -84,12 +77,11 @@ registerHandler('GET:/tasks', async (context) => {
       incremental: true,
     };
 
-    // 短期間キャッシュ（インクリメンタル更新は頻繁に変わるため）
+    // Short-lived cache (incremental updates change frequently)
     await cacheService.set(cacheKey, result, CacheKeys.TTL.SHORT);
     return result;
   }
 
-  // 検索の場合
   if (search) {
     const searchQuery = QueryOptimizers.searchTasks(search, where);
     const results = await prisma.task.findMany({
@@ -103,7 +95,6 @@ registerHandler('GET:/tasks', async (context) => {
     return formatted;
   }
 
-  // 通常のページネーション
   const results = await prisma.task.findMany({
     where,
     ...QueryOptimizers.taskWithRelations(),
@@ -159,7 +150,7 @@ registerHandler('POST:/tasks', async (context) => {
     ...QueryOptimizers.taskWithRelations(),
   } as Parameters<typeof prisma.task.create>[0]);
 
-  // 関連するキャッシュを無効化
+  // Invalidate related caches
   await cacheService.clear('tasks:');
   await cacheService.clear('stats:');
 
@@ -175,7 +166,7 @@ registerHandler('PATCH:/tasks/:id', async (context) => {
     ...QueryOptimizers.taskWithRelations(),
   } as Parameters<typeof prisma.task.update>[0]);
 
-  // 特定のタスクキャッシュを無効化
+  // Invalidate specific task cache
   await cacheService.delete(CacheKeys.task(params!.id));
   await cacheService.clear('tasks:');
   await cacheService.clear('stats:');
@@ -188,7 +179,7 @@ registerHandler('DELETE:/tasks/:id', async (context) => {
   const id = parseInt(params!.id);
   await prisma.task.delete({ where: { id } });
 
-  // キャッシュを無効化
+  // Invalidate caches
   await cacheService.delete(CacheKeys.task(params!.id));
   await cacheService.clear('tasks:');
   await cacheService.clear('stats:');
@@ -196,7 +187,6 @@ registerHandler('DELETE:/tasks/:id', async (context) => {
   return { success: true };
 });
 
-// バッチプロセッサー
 class BatchProcessor {
   private concurrencyLimit: number;
   private queue: Array<() => Promise<BatchResult>> = [];
@@ -213,10 +203,10 @@ class BatchProcessor {
       body?: unknown;
     }>,
   ): Promise<BatchResult[]> {
-    // リクエストをキューに追加
+    
     const promises = requests.map((request) => this.createRequestProcessor(request));
 
-    // 同時実行数を制限しながら処理
+    // Process with concurrency limit
     const results: BatchResult[] = [];
 
     for (let i = 0; i < promises.length; i += this.concurrencyLimit) {
@@ -238,12 +228,12 @@ class BatchProcessor {
       const startTime = performance.now();
 
       try {
-        // URLを解析
+        
         const urlParts = request.url.split('?');
         const pathParts = urlParts[0].replace(/^\//, '').split('/');
         const query = urlParts[1] ? Object.fromEntries(new URLSearchParams(urlParts[1])) : {};
 
-        // パスパラメータを抽出
+        
         const handlerKey = this.buildHandlerKey(request.method, pathParts);
         const handler = this.findHandler(handlerKey);
 
@@ -251,7 +241,7 @@ class BatchProcessor {
           throw new Error(`No handler found for ${request.method} ${request.url}`);
         }
 
-        // ハンドラーを実行
+        
         const result = await handler.handler({
           params: handler.params,
           query,
@@ -281,7 +271,7 @@ class BatchProcessor {
   }
 
   private buildHandlerKey(method: string, pathParts: string[]): string {
-    // パスをパターンに変換（例: tasks/123 -> tasks/:id）
+    // Convert path to pattern (e.g. tasks/123 -> tasks/:id)
     const pattern = pathParts
       .map((part, index) => {
         if (/^\d+$/.test(part) && index > 0) {
@@ -300,12 +290,12 @@ class BatchProcessor {
     handler: (params: HandlerContext) => Promise<unknown>;
     params: Record<string, string>;
   } | null {
-    // 完全一致を試みる
+    
     if (requestHandlers.has(key)) {
       return { handler: requestHandlers.get(key)!, params: {} };
     }
 
-    // パターンマッチングを試みる
+    
     for (const [pattern, handler] of Array.from(requestHandlers)) {
       const regex = this.patternToRegex(pattern);
       const match = key.match(regex);
@@ -334,10 +324,8 @@ class BatchProcessor {
   }
 }
 
-// バッチ処理インスタンス
 const batchProcessor = new BatchProcessor();
 
-// 最適化されたバッチエンドポイント
 export const batchRoutesV2 = new Elysia({ prefix: '/batch/v2' })
   .use(performanceMonitoring)
   .post(
@@ -361,7 +349,7 @@ export const batchRoutesV2 = new Elysia({ prefix: '/batch/v2' })
         })),
       );
 
-      // 実行統計を追加
+      
       const totalTime = results.reduce((sum, r) => sum + (r.executionTime || 0), 0);
       const cachedCount = results.filter((r) => r.cached).length;
 

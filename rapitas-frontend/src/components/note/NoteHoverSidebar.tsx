@@ -52,7 +52,7 @@ export default function NoteHoverSidebar() {
   const filteredNotes = getFilteredNotes();
   const allTags = getAllTags();
 
-  // ホバー処理
+  // Hover handling
   const handleMouseEnter = () => {
     setIsHovered(true);
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -69,14 +69,14 @@ export default function NoteHoverSidebar() {
     }, 300);
   };
 
-  // クリーンアップ
+  // Cleanup
   useEffect(() => {
     return () => {
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     };
   }, []);
 
-  // ノートモードでない場合は表示しない
+  // Only render in note mode
   if (currentMode !== 'note') return null;
 
   const handleDeleteNote = (id: string, title: string) => {
@@ -119,7 +119,7 @@ export default function NoteHoverSidebar() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* タブ部分 */}
+      {/* Tab section */}
       <div
         className={`absolute top-20 left-0 h-32 w-12 bg-linear-to-b from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 rounded-r-xl flex items-center justify-center cursor-pointer transition-all duration-300 ${
           isHovered ? 'scale-105' : ''
@@ -133,7 +133,7 @@ export default function NoteHoverSidebar() {
         </div>
       </div>
 
-      {/* サイドバー本体 */}
+      {/* Sidebar body */}
       <div
         className={`h-full bg-white dark:bg-zinc-900 shadow-2xl transition-all duration-300 ${
           isExpanded
@@ -142,14 +142,14 @@ export default function NoteHoverSidebar() {
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* ヘッダー */}
+          {/* Header */}
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-3">
               <NotebookTabs className="w-5 h-5 text-indigo-500" />
               <h3 className="font-semibold text-lg">ノート</h3>
             </div>
 
-            {/* 検索・新規作成 */}
+            {/* Search and create */}
             <div className="space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -171,7 +171,7 @@ export default function NoteHoverSidebar() {
             </div>
           </div>
 
-          {/* タグフィルター */}
+          {/* Tag filter */}
           {allTags.length > 0 && (
             <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
               <h4 className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
@@ -204,7 +204,7 @@ export default function NoteHoverSidebar() {
             </div>
           )}
 
-          {/* ノートリスト */}
+          {/* Note list */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {filteredNotes.length === 0 ? (
               <div className="p-4 text-center">
@@ -284,7 +284,7 @@ export default function NoteHoverSidebar() {
         </div>
       </div>
 
-      {/* 削除確認モーダル */}
+      {/* Delete confirmation modal */}
       <DeleteNoteModal
         isOpen={deleteModalState.isOpen}
         noteTitle={deleteModalState.noteTitle}

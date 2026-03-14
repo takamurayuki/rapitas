@@ -1,7 +1,8 @@
 /**
- * 実行ヘルパー
- * executeTask, executeContinuationInternal, resumeInterruptedExecution で
- * 重複していた出力ハンドラ・質問検出ハンドラ・ログ管理を共通化
+ * ExecutionHelpers
+ *
+ * Shared output handlers, question detection handlers, and log management
+ * used by executeTask, executeContinuationInternal, and resumeInterruptedExecution.
  */
 import type { BaseAgent } from '../base-agent';
 import type { QuestionKey } from '../question-detection';
@@ -18,7 +19,6 @@ import { createLogger } from '../../../config/logger';
 
 const logger = createLogger('execution-helpers');
 
-// JSONフィールドを文字列に変換するヘルパー関数
 export function toJsonString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') return value;
@@ -26,7 +26,7 @@ export function toJsonString(value: unknown): string | null {
 }
 
 /**
- * 質問検出ハンドラの設定に必要なコンテキスト
+ * Context required for setting up question detection handler.
  */
 export type QuestionHandlerContext = {
   prisma: PrismaClientInstance;
@@ -44,7 +44,7 @@ export type QuestionHandlerContext = {
 };
 
 /**
- * 出力ハンドラの設定に必要なコンテキスト
+ * Context required for setting up output handler.
  */
 export type OutputHandlerContext = {
   prisma: PrismaClientInstance;
@@ -59,7 +59,7 @@ export type OutputHandlerContext = {
 };
 
 /**
- * ログ管理のコンテキスト
+ * Context for log management.
  */
 export type LogManagerContext = {
   prisma: PrismaClientInstance;
@@ -68,7 +68,7 @@ export type LogManagerContext = {
 };
 
 /**
- * ログチャンク管理を作成
+ * Create a log chunk manager for batched log persistence.
  */
 export function createLogChunkManager(ctx: LogManagerContext) {
   let logSequenceNumber = ctx.initialSequenceNumber;
@@ -117,7 +117,7 @@ export function createLogChunkManager(ctx: LogManagerContext) {
 }
 
 /**
- * 質問検出ハンドラを設定
+ * Set up the question detection handler on an agent.
  */
 export function setupQuestionDetectedHandler(agent: BaseAgent, ctx: QuestionHandlerContext): void {
   agent.setQuestionDetectedHandler(async (info) => {
@@ -172,7 +172,7 @@ export function setupQuestionDetectedHandler(agent: BaseAgent, ctx: QuestionHand
 }
 
 /**
- * 出力ハンドラを設定
+ * Set up the output handler on an agent.
  */
 export function setupOutputHandler(
   agent: BaseAgent,
@@ -194,7 +194,7 @@ export function setupOutputHandler(
 
       logManager.addChunk(output, isError ?? false);
 
-      // エラー出力は即座にDBに保存
+      // NOTE: Error output is saved to DB immediately for visibility
       if (isError && output.trim()) {
         try {
           await ctx.prisma.agentExecution.update({
@@ -231,7 +231,6 @@ export function setupOutputHandler(
         logger.error({ err: e }, 'Error emitting event');
       }
 
-      // 定期的にDBを更新
       const now = Date.now();
       if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
         pendingDbUpdate = true;
@@ -254,7 +253,7 @@ export function setupOutputHandler(
 }
 
 /**
- * 実行結果のステータス判定とログ記録
+ * Determine execution status from result and log it.
  */
 export function determineExecutionStatus(
   result: {
@@ -292,7 +291,7 @@ export function determineExecutionStatus(
 }
 
 /**
- * 実行結果をDBに保存（共通処理）
+ * Save execution result to DB (shared logic).
  */
 export async function saveExecutionResult(
   prisma: PrismaClientInstance,
@@ -350,7 +349,6 @@ export async function saveExecutionResult(
     },
   });
 
-  // セッションのトークン使用量を更新
   if (result.tokensUsed) {
     await prisma.agentSession.update({
       where: { id: sessionId },
@@ -363,7 +361,6 @@ export async function saveExecutionResult(
     });
   }
 
-  // Gitコミットを記録
   if (result.commits && result.commits.length > 0) {
     for (const commit of result.commits) {
       fileLogger.logGitCommit({
@@ -390,7 +387,7 @@ export async function saveExecutionResult(
 }
 
 /**
- * 実行結果に応じたイベントを発火
+ * Emit an event based on execution result.
  */
 export function emitResultEvent(
   result: {
@@ -436,7 +433,7 @@ export function emitResultEvent(
 }
 
 /**
- * 実行エラー時の共通処理
+ * Handle execution error (shared logic).
  */
 export async function handleExecutionError(
   prisma: PrismaClientInstance,

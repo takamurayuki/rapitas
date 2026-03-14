@@ -1,6 +1,6 @@
 /**
  * Knowledge API Routes
- * 知識エントリのCRUD、ベクトル検索、ピン留め、統計
+ * Knowledge entry CRUD, vector search, pinning, and statistics.
  */
 import { Elysia, t } from 'elysia';
 import {
@@ -50,7 +50,7 @@ interface PinKnowledgeBody {
 }
 
 export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
-  // GET /knowledge - エントリ一覧
+  // GET /knowledge - List entries
   .get(
     '/',
     async ({ query }) => {
@@ -90,7 +90,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     },
   )
 
-  // GET /knowledge/search - ベクトル類似検索
+  // GET /knowledge/search - Vector similarity search
   .get(
     '/search',
     async ({ query }) => {
@@ -116,18 +116,18 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     },
   )
 
-  // GET /knowledge/stats - 統計情報
+  // GET /knowledge/stats - Statistics
   .get('/stats', async () => {
     return getKnowledgeStats();
   })
 
-  // POST /knowledge/embedding/reset - 埋め込みパイプラインリセット
+  // POST /knowledge/embedding/reset - Reset embedding pipeline
   .post('/embedding/reset', async () => {
     resetEmbeddingPipeline();
     return { success: true, message: 'Embedding pipeline reset successfully' };
   })
 
-  // GET /knowledge/:id - エントリ詳細
+  // GET /knowledge/:id - Entry details
   .get(
     '/:id',
     async ({ params }) => {
@@ -152,7 +152,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
         return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
       }
 
-      // アクセスカウント更新
+      // Update access count to slow forgetting decay
       await boostDecayOnAccess(id);
 
       return { ...entry, tags: JSON.parse(entry.tags) };
@@ -160,7 +160,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     { params: t.Object({ id: t.String() }) },
   )
 
-  // POST /knowledge - 作成
+  // POST /knowledge - Create
   .post(
     '/',
     async ({ body }) => {
@@ -193,7 +193,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     },
   )
 
-  // PUT /knowledge/:id - 更新
+  // PUT /knowledge/:id - Update
   .put(
     '/:id',
     async ({ params, body }) => {
@@ -224,7 +224,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     },
   )
 
-  // DELETE /knowledge/:id - アーカイブ
+  // DELETE /knowledge/:id - Archive
   .delete(
     '/:id',
     async ({ params }) => {
@@ -235,7 +235,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
     { params: t.Object({ id: t.String() }) },
   )
 
-  // POST /knowledge/:id/pin - ピン留め
+  // POST /knowledge/:id/pin - Pin entry
   .post(
     '/:id/pin',
     async ({ params, body }) => {

@@ -25,7 +25,7 @@ export class AppError extends Error {
  * Not Found Error
  */
 export class NotFoundError extends AppError {
-  constructor(message: string = 'リソースが見つかりません', code?: string) {
+  constructor(message: string = 'Resource not found', code?: string) {
     super(404, message, code);
     this.name = 'NotFoundError';
   }
@@ -35,7 +35,7 @@ export class NotFoundError extends AppError {
  * Validation Error
  */
 export class ValidationError extends AppError {
-  constructor(message: string = 'バリデーションエラー', code?: string) {
+  constructor(message: string = 'Validation error', code?: string) {
     super(400, message, code);
     this.name = 'ValidationError';
   }
@@ -45,7 +45,7 @@ export class ValidationError extends AppError {
  * Conflict Error (duplicate resource, unique constraint violation)
  */
 export class ConflictError extends AppError {
-  constructor(message: string = 'リソースが既に存在します', code?: string) {
+  constructor(message: string = 'Resource already exists', code?: string) {
     super(409, message, code);
     this.name = 'ConflictError';
   }
@@ -55,7 +55,7 @@ export class ConflictError extends AppError {
  * Authentication Error
  */
 export class AuthenticationError extends AppError {
-  constructor(message: string = '認証が必要です', code?: string) {
+  constructor(message: string = 'Authentication required', code?: string) {
     super(401, message, code);
     this.name = 'AuthenticationError';
   }
@@ -134,7 +134,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     if (code === 'VALIDATION') {
       set.status = 400;
       return {
-        error: 'バリデーションエラー',
+        error: 'Validation error',
         details:
           'message' in error && typeof error.message === 'string' ? error.message : String(error),
       };
@@ -143,7 +143,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     // Not found
     if (code === 'NOT_FOUND') {
       set.status = 404;
-      return { error: 'リソースが見つかりません' };
+      return { error: 'Resource not found' };
     }
 
     // Prisma related errors (all types)
@@ -151,7 +151,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
       log.error({ err: error }, 'Prisma Error');
       set.status = 400;
       return {
-        error: 'データベースクエリエラー',
+        error: 'Database query error',
       };
     }
 
@@ -160,7 +160,7 @@ export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
     set.status = 500;
 
     return {
-      error: 'サーバーエラーが発生しました',
+      error: 'Server error occurred',
     };
   },
 );

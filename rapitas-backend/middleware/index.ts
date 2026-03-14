@@ -9,7 +9,6 @@ export {
   setupGlobalErrorHandlers,
 } from './error-handler';
 
-// パフォーマンス最適化ミドルウェア
 export {
   performanceOptimization,
   compressionMiddleware,

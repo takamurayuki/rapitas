@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - 型定義
- * 責務単位で分割された型定義ファイルの再エクスポート
+ * Agent Abstraction Layer - Type Definitions
+ *
+ * Re-exports type definition files organized by responsibility.
  */
 
 export * from './types/';

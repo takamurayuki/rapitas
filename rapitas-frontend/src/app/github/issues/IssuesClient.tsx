@@ -92,7 +92,6 @@ export default function IssuesPage() {
       );
 
       if (res.ok) {
-        // 成功通知（省略可能）
         await fetchIssues();
       }
     } catch (error) {
@@ -105,7 +104,6 @@ export default function IssuesPage() {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
         <div className="flex items-center gap-4 mb-6">
           <Link
             href="/github"
@@ -123,7 +121,6 @@ export default function IssuesPage() {
           </div>
         </div>
 
-        {/* フィルター */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-zinc-400" />
@@ -162,7 +159,6 @@ export default function IssuesPage() {
           </div>
         </div>
 
-        {/* Issueリスト */}
         {loading ? (
           <div className="space-y-3 py-4">
             {[1, 2, 3].map((i) => (

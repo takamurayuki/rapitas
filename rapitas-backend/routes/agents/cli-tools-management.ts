@@ -13,7 +13,7 @@ import path from 'path';
 
 const execAsync = promisify(exec);
 
-// CLI ツール定義
+// CLI tool definitions
 interface CLITool {
   id: string;
   name: string;
@@ -90,7 +90,7 @@ const CLI_TOOLS: CLITool[] = [
   },
 ];
 
-// ツールの状態を取得
+// Get tool installation and auth status
 async function getToolStatus(tool: CLITool): Promise<{
   isInstalled: boolean;
   version: string | null;
@@ -99,7 +99,7 @@ async function getToolStatus(tool: CLITool): Promise<{
   error?: string;
 }> {
   try {
-    // インストール状況確認
+    // Check installation status
     let isInstalled = false;
     let version: string | null = null;
     let installPath: string | undefined;
@@ -114,7 +114,7 @@ async function getToolStatus(tool: CLITool): Promise<{
       isInstalled = false;
     }
 
-    // バージョン取得
+    // Get version
     if (isInstalled) {
       try {
         const versionResult = await execAsync(tool.versionCommand, {
@@ -126,7 +126,7 @@ async function getToolStatus(tool: CLITool): Promise<{
       }
     }
 
-    // 認証状況確認
+    // Check authentication status
     let isAuthenticated = false;
     if (isInstalled && tool.authCheck) {
       try {
@@ -153,7 +153,7 @@ async function getToolStatus(tool: CLITool): Promise<{
   }
 }
 
-// GitHub Release APIのレスポンス型
+// GitHub Release API response type
 interface GitHubRelease {
   tag_name: string;
   name: string;
@@ -162,7 +162,7 @@ interface GitHubRelease {
   html_url: string;
 }
 
-// リリース情報を取得（GitHub APIから）
+// Fetch latest release info from GitHub API
 async function getLatestReleaseInfo(repoUrl: string): Promise<{
   version: string;
   releaseDate: string;
@@ -170,7 +170,7 @@ async function getLatestReleaseInfo(repoUrl: string): Promise<{
   downloadUrl: string;
 } | null> {
   try {
-    // GitHub API経由で最新リリース情報を取得
+    // Fetch latest release info via GitHub API
     const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (!match) return null;
 
@@ -193,7 +193,7 @@ async function getLatestReleaseInfo(repoUrl: string): Promise<{
   }
 }
 
-// 認証状態を判定
+// Determine authentication status from CLI output
 function checkAuthenticationStatus(
   tool: CLITool,
   authResult: { stdout: string; stderr: string },
@@ -202,12 +202,12 @@ function checkAuthenticationStatus(
 
   switch (tool.id) {
     case 'claude-cli':
-      // Claude CLI: JSON形式で {"loggedIn": true/false} を返す
+      // Claude CLI: returns {"loggedIn": true/false} in JSON format
       try {
         const jsonOutput = JSON.parse(authResult.stdout);
         return jsonOutput.loggedIn === true;
       } catch {
-        // JSON パースに失敗した場合は従来のロジックでフォールバック
+        // Fall back to string matching when JSON parse fails
         const lowerOutput = output.toLowerCase();
         return (
           lowerOutput.includes('authenticated') ||
@@ -217,7 +217,7 @@ function checkAuthenticationStatus(
       }
 
     case 'openai-cli':
-      // OpenAI CLI: 認証済みの場合はAPIキー情報やユーザー情報が表示される
+      // OpenAI CLI: shows API key or user info when authenticated
       const lowerOutputOpenai = output.toLowerCase();
       return (
         !lowerOutputOpenai.includes('not authenticated') &&
@@ -229,12 +229,12 @@ function checkAuthenticationStatus(
       );
 
     case 'gemini-cli':
-      // Gemini CLI: 標準的な認証ステータスコマンドが提供されていないため、インストール済みであれば認証済みと見なす
-      // 実際の認証は各コマンド実行時に個別に必要になる
+      // NOTE: Gemini CLI lacks a standard auth-status command; treat installed as authenticated.
+      // Actual authentication is required on a per-command basis.
       return true;
 
     case 'gh-cli':
-      // GitHub CLI: 認証済みの場合は "logged in" やアカウント名が表示される
+      // GitHub CLI: shows "logged in" or account name when authenticated
       const lowerOutputGh = output.toLowerCase();
       return (
         lowerOutputGh.includes('logged in') ||
@@ -244,7 +244,7 @@ function checkAuthenticationStatus(
       );
 
     default:
-      // デフォルト: エラーメッセージがなく、何らかの出力があれば認証済みと判定
+      // Default: assume authenticated if there is output and no error keywords
       const lowerOutputDefault = output.toLowerCase();
       return (
         !lowerOutputDefault.includes('error') &&
@@ -311,7 +311,7 @@ export const cliToolsManagementRoutes = new Elysia()
 
       const status = await getToolStatus(tool);
 
-      // リリース情報取得（GitHub APIから）
+      // Fetch release info from GitHub API
       const releaseInfo = await getLatestReleaseInfo(tool.documentation);
 
       return {
@@ -350,7 +350,7 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
 
-      // 既にインストール済みかチェック
+      // Check if already installed
       const currentStatus = await getToolStatus(tool);
       if (currentStatus.isInstalled) {
         return {
@@ -359,13 +359,13 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
 
-      // インストール実行
+      // Run installation
       log.info(`[CLI Tools] Installing ${tool.name}...`);
       const installResult = await execAsync(tool.installCommand, {
         timeout: 300000,
       }); // 5 minutes timeout
 
-      // インストール後の状態確認
+      // Verify status after installation
       const newStatus = await getToolStatus(tool);
 
       return {
@@ -404,7 +404,7 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
 
-      // インストール状況確認
+      // Verify tool is installed before updating
       const currentStatus = await getToolStatus(tool);
       if (!currentStatus.isInstalled) {
         return {
@@ -415,13 +415,13 @@ export const cliToolsManagementRoutes = new Elysia()
 
       const previousVersion = currentStatus.version;
 
-      // 更新実行
+      // Run update
       log.info(`[CLI Tools] Updating ${tool.name}...`);
       const updateResult = await execAsync(tool.updateCommand, {
         timeout: 300000,
       });
 
-      // 更新後の状態確認
+      // Verify status after update
       const newStatus = await getToolStatus(tool);
 
       return {
@@ -465,7 +465,7 @@ export const cliToolsManagementRoutes = new Elysia()
         };
       }
 
-      // インストール状況確認
+      // Verify tool is installed before auth
       const currentStatus = await getToolStatus(tool);
       if (!currentStatus.isInstalled) {
         return {
@@ -475,7 +475,7 @@ export const cliToolsManagementRoutes = new Elysia()
       }
 
       if (interactive) {
-        // インタラクティブ認証の場合は、ユーザーに指示を返す
+        // For interactive auth, return instructions for the user to run manually
         return {
           success: true,
           data: {
@@ -485,7 +485,7 @@ export const cliToolsManagementRoutes = new Elysia()
           },
         };
       } else {
-        // 非インタラクティブな認証状況確認
+        // Non-interactive auth status check
         const newStatus = await getToolStatus(tool);
 
         return {
@@ -559,7 +559,7 @@ function generateInstallationGuide(tool: CLITool): Array<{
     notes?: string;
   }> = [];
 
-  // インストール手順
+  // Installation step
   steps.push({
     step: 1,
     title: `Install ${tool.name}`,
@@ -568,7 +568,7 @@ function generateInstallationGuide(tool: CLITool): Array<{
     notes: tool.category === 'ai' ? 'This will install the CLI globally on your system' : undefined,
   });
 
-  // 認証手順
+  // Authentication step
   if (tool.authCommand) {
     steps.push({
       step: 2,
@@ -579,7 +579,7 @@ function generateInstallationGuide(tool: CLITool): Array<{
     });
   }
 
-  // 確認手順
+  // Verification step
   steps.push({
     step: 3,
     title: 'Verify Installation',

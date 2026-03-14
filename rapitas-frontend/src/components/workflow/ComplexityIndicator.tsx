@@ -115,7 +115,7 @@ export default function ComplexityIndicator({
     }
   };
 
-  // コンポーネントマウント時に自動分析（スコアがない場合）
+  // Auto-analyze on mount when no score is available
   useEffect(() => {
     if (showAnalysis && effectiveScore === null && !isLoading && !analysis) {
       handleAnalyze();
@@ -224,10 +224,10 @@ export default function ComplexityIndicator({
           )}
         </div>
 
-        {/* 詳細分析結果 */}
+        {/* Detailed analysis results */}
         {isExpanded && analysis && (
           <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 space-y-3">
-            {/* 推奨ワークフローモード */}
+            {/* Recommended workflow mode */}
             <div>
               <h4 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                 推奨ワークフローモード
@@ -247,7 +247,7 @@ export default function ComplexityIndicator({
               </span>
             </div>
 
-            {/* 各要素のスコア */}
+            {/* Factor scores */}
             <div>
               <h4 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 分析要素
@@ -288,7 +288,7 @@ export default function ComplexityIndicator({
               </div>
             </div>
 
-            {/* 分析根拠 */}
+            {/* Analysis reasoning */}
             {analysis.reasoning && analysis.reasoning.length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -305,7 +305,7 @@ export default function ComplexityIndicator({
               </div>
             )}
 
-            {/* 再分析ボタン */}
+            {/* Re-analyze button */}
             <button
               onClick={handleAnalyze}
               disabled={isLoading}

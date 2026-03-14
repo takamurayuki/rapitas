@@ -1,6 +1,6 @@
 /**
  * Study Streak Service
- * 学習ストリーク（連続学習日数）の追跡とボーナス計算
+ * Tracks study streaks (consecutive study days) and calculates bonus points.
  */
 import { prisma } from '../config/database';
 import { createLogger } from '../config/logger';
@@ -14,7 +14,7 @@ export interface StreakInfo {
 }
 
 /**
- * ユーザーの現在のストリーク情報を取得
+ * Get the current streak information.
  */
 export async function getStreak(): Promise<StreakInfo> {
   const sessions = await prisma.pomodoroSession.findMany({
@@ -27,14 +27,14 @@ export async function getStreak(): Promise<StreakInfo> {
     return { currentStreak: 0, longestStreak: 0, lastStudyDate: null };
   }
 
-  // 日ごとにグループ化
+  // Group by day
   const studyDates = new Set(
     sessions.map((s) => (s.completedAt ?? new Date()).toISOString().split('T')[0]!),
   );
   const sortedDates = Array.from(studyDates).sort().reverse();
   const lastStudyDate = sortedDates[0] ?? null;
 
-  // 今日または昨日から連続しているか計算
+  // Check if streak continues from today or yesterday
   const today = new Date().toISOString().split('T')[0]!;
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]!;
 
@@ -47,7 +47,7 @@ export async function getStreak(): Promise<StreakInfo> {
     }
   }
 
-  // 最長ストリーク計算
+  // Calculate longest streak
   let longestStreak = 0;
   let streak = 1;
   for (let i = 0; i < sortedDates.length - 1; i++) {
@@ -67,7 +67,7 @@ export async function getStreak(): Promise<StreakInfo> {
 }
 
 /**
- * ストリークボーナスポイントを計算
+ * Calculate streak bonus points.
  */
 export function calculateStreakBonus(streakDays: number): number {
   if (streakDays <= 0) return 0;

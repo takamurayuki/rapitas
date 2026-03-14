@@ -4,8 +4,7 @@
  * Base class for all agent implementations. Provides common lifecycle
  * management, retry logic with exponential backoff, and event emission.
  *
- * 全エージェント実装の基底クラス。共通のライフサイクル管理、
- * 指数バックオフ付きリトライロジック、イベント発行を提供する。
+ * Not responsible for provider-specific logic; subclasses handle that.
  */
 
 import { createLogger } from '../../../config/logger';
@@ -33,23 +32,21 @@ import { AgentEventEmitter, createAgentEventEmitter } from './event-emitter';
 import { AgentError } from './interfaces';
 
 // NOTE(agent): Upper bound to prevent infinite retry loops regardless of hook/strategy configuration.
-// onErrorフックや戦略設定に関わらず無限リトライを防ぐための上限値。
 const MAX_RETRY_UPPER_BOUND = 10;
 
 /**
  * Delays execution for the specified milliseconds.
- * 指定ミリ秒だけ実行を遅延させる。
  *
- * @param ms - Delay duration in milliseconds / 遅延時間（ミリ秒）
- * @returns Promise that resolves after the delay / 遅延後に解決するPromise
+ * @param ms - Delay duration in milliseconds
+ * @returns Promise that resolves after the delay
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * 抽象エージェント基底クラス
- * 共通機能を提供し、派生クラスで具体的な実装を行う
+ * Abstract base class for all agent implementations.
+ * Provides common lifecycle, retry, and event infrastructure; subclasses implement provider-specific logic.
  */
 export abstract class AbstractAgent implements IAgent {
   protected _state: AgentState = 'idle';
@@ -90,7 +87,7 @@ export abstract class AbstractAgent implements IAgent {
   }
 
   // ============================================================================
-  // プロパティ
+  // Properties
   // ============================================================================
 
   get metadata(): AgentMetadata {
@@ -108,56 +105,40 @@ export abstract class AbstractAgent implements IAgent {
   abstract get capabilities(): AgentCapabilities;
 
   // ============================================================================
-  // 抽象メソッド（派生クラスで実装）
+  // Abstract methods (implemented by subclasses)
   // ============================================================================
 
-  /**
-   * 実際のタスク実行処理
-   * 派生クラスで実装
-   */
+  /** Performs the actual task execution. Must be implemented by subclasses. */
   protected abstract doExecute(
     task: AgentTaskDefinition,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult>;
 
-  /**
-   * 継続実行処理
-   * 派生クラスで実装
-   */
+  /** Performs continuation execution. Must be implemented by subclasses. */
   protected abstract doContinue(
     continuation: ContinuationContext,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult>;
 
-  /**
-   * 停止処理
-   * 派生クラスで実装
-   */
+  /** Stops execution. Must be implemented by subclasses. */
   protected abstract doStop(): Promise<void>;
 
-  /**
-   * 利用可能チェック
-   * 派生クラスで実装
-   */
+  /** Checks whether the agent is available. Must be implemented by subclasses. */
   abstract isAvailable(): Promise<boolean>;
 
-  /**
-   * 設定検証
-   * 派生クラスで実装
-   */
+  /** Validates agent configuration. Must be implemented by subclasses. */
   abstract validateConfig(): Promise<{ valid: boolean; errors: string[] }>;
 
   // ============================================================================
-  // 公開メソッド
+  // Public methods
   // ============================================================================
 
   /**
    * Executes a task with automatic retry on recoverable errors.
-   * リカバリー可能なエラー発生時に自動リトライ付きでタスクを実行する。
    *
-   * @param task - Task definition to execute / 実行するタスク定義
-   * @param context - Execution context / 実行コンテキスト
-   * @returns Execution result / 実行結果
+   * @param task - Task definition to execute
+   * @param context - Execution context
+   * @returns Execution result
    */
   async execute(
     task: AgentTaskDefinition,
@@ -165,20 +146,20 @@ export abstract class AbstractAgent implements IAgent {
   ): Promise<AgentExecutionResult> {
     this.ensureNotDisposed();
 
-    // 実行IDを設定
+    // Set execution ID for events
     this._events.setExecutionId(context.executionId);
     this._currentContext = context;
 
-    // メトリクス初期化
+    // Initialize metrics
     this._metrics = {
       startTime: new Date(),
     };
 
-    // デバッグログ初期化
+    // Reset debug logs
     this._debugLogs = [];
 
     try {
-      // beforeExecuteフック
+      // beforeExecute hook
       if (this._lifecycleHooks.beforeExecute) {
         const shouldContinue = await this._lifecycleHooks.beforeExecute(context, task);
         if (shouldContinue === false) {
@@ -187,22 +168,19 @@ export abstract class AbstractAgent implements IAgent {
         }
       }
 
-      // 状態遷移: idle -> initializing
       await this.transitionState('initializing');
 
-      // 状態遷移: initializing -> running
       await this.transitionState('running');
 
       // NOTE(agent): Retry loop wraps doExecute() to handle transient errors with exponential backoff.
-      // doExecute()を指数バックオフ付きリトライで実行する。
       const result = await this.executeWithRetry(task, context);
 
-      // メトリクス完了
+      // Finalize metrics
       this._metrics.endTime = new Date();
       this._metrics.durationMs =
         this._metrics.endTime.getTime() - this._metrics.startTime.getTime();
 
-      // 結果に基づいて状態遷移
+      // Transition state based on result
       if (result.pendingQuestion) {
         await this.transitionState('waiting_for_input');
       } else if (result.success) {
@@ -211,12 +189,11 @@ export abstract class AbstractAgent implements IAgent {
         await this.transitionState('failed');
       }
 
-      // afterExecuteフック
+      // afterExecute hook
       if (this._lifecycleHooks.afterExecute) {
         await this._lifecycleHooks.afterExecute(context, result);
       }
 
-      // メタデータ更新
       this._metadata.lastUsedAt = new Date();
 
       return this.enrichResult(result);
@@ -234,13 +211,11 @@ export abstract class AbstractAgent implements IAgent {
 
   /**
    * Continues execution after user input, with retry on recoverable errors.
-   * ユーザー入力後に実行を継続する。リカバリー可能なエラーにはリトライを行う。
    *
-   * @param continuation - Continuation context with user response / ユーザー応答を含む継続コンテキスト
-   * @param context - Execution context / 実行コンテキスト
-   * @returns Execution result / 実行結果
+   * @param continuation - Continuation context with user response
+   * @param context - Execution context
+   * @returns Execution result
    * @throws {AgentError} If agent is not in 'waiting_for_input' state
-   *                      エージェントが 'waiting_for_input' 状態でない場合
    */
   async continue(
     continuation: ContinuationContext,
@@ -263,10 +238,9 @@ export abstract class AbstractAgent implements IAgent {
       await this.transitionState('running');
 
       // NOTE(agent): Retry loop for continuation, same pattern as executeWithRetry.
-      // 継続実行にもexecuteWithRetryと同じリトライパターンを適用。
       const result = await this.continueWithRetry(continuation, context);
 
-      // 結果に基づいて状態遷移
+      // Transition state based on result
       if (result.pendingQuestion) {
         await this.transitionState('waiting_for_input');
       } else if (result.success) {
@@ -286,9 +260,7 @@ export abstract class AbstractAgent implements IAgent {
     }
   }
 
-  /**
-   * 実行を停止
-   */
+  /** Stops the current execution if running. */
   async stop(): Promise<void> {
     if (this._state === 'idle' || this._state === 'completed' || this._state === 'failed') {
       return;
@@ -300,7 +272,7 @@ export abstract class AbstractAgent implements IAgent {
       await this.doStop();
       await this.transitionState('cancelled');
 
-      // onShutdownフック
+      // onShutdown hook
       if (this._lifecycleHooks.onShutdown && this._currentContext) {
         await this._lifecycleHooks.onShutdown(this._currentContext, 'cancelled');
       }
@@ -310,44 +282,34 @@ export abstract class AbstractAgent implements IAgent {
     }
   }
 
-  /**
-   * 実行を一時停止
-   */
+  /** Pauses execution. Not supported by default; subclasses may override. */
   async pause(): Promise<boolean> {
     if (this._state !== 'running') {
       return false;
     }
 
-    // デフォルトでは一時停止をサポートしない
-    // 派生クラスでオーバーライド可能
+    // NOTE: Pause not supported by default; subclasses may override.
     this.log('warn', 'Pause not supported by this agent');
     return false;
   }
 
-  /**
-   * 実行を再開
-   */
+  /** Resumes paused execution. Not supported by default; subclasses may override. */
   async resume(): Promise<boolean> {
     if (this._state !== 'paused') {
       return false;
     }
 
-    // デフォルトでは再開をサポートしない
-    // 派生クラスでオーバーライド可能
+    // NOTE: Resume not supported by default; subclasses may override.
     this.log('warn', 'Resume not supported by this agent');
     return false;
   }
 
-  /**
-   * ライフサイクルフックを設定
-   */
+  /** Sets lifecycle hooks for execution events. */
   setLifecycleHooks(hooks: AgentLifecycleHooks): void {
     this._lifecycleHooks = { ...this._lifecycleHooks, ...hooks };
   }
 
-  /**
-   * リソースを解放
-   */
+  /** Releases all resources held by this agent. */
   async dispose(): Promise<void> {
     if (this._isDisposed) {
       return;
@@ -355,15 +317,15 @@ export abstract class AbstractAgent implements IAgent {
 
     this.log('info', 'Disposing agent');
 
-    // 実行中の場合は停止
+    // Stop if currently running
     if (this._state === 'running' || this._state === 'waiting_for_input') {
       await this.stop();
     }
 
-    // イベントリスナーを削除
+    // Remove all event listeners
     this._events.removeAllListeners();
 
-    // 状態をリセット
+    // Reset state
     this._state = 'idle';
     this._currentContext = null;
     this._metrics = null;
@@ -373,72 +335,60 @@ export abstract class AbstractAgent implements IAgent {
   }
 
   // ============================================================================
-  // 保護メソッド（派生クラスから使用）
+  // Protected methods (for use by subclasses)
   // ============================================================================
 
-  /**
-   * 状態を遷移
-   */
+  /** Transitions the agent state and emits related events. */
   protected async transitionState(newState: AgentState, reason?: string): Promise<void> {
     const previousState = this._state;
     this._state = newState;
 
     this.log('debug', `State transition: ${previousState} -> ${newState}`, { reason });
 
-    // イベント発行
+    // Emit state change event
     await this._events.emitStateChange(previousState, newState, reason);
 
-    // onStateChangeフック
+    // onStateChange hook
     if (this._lifecycleHooks.onStateChange && this._currentContext) {
       await this._lifecycleHooks.onStateChange(this._currentContext, previousState, newState);
     }
   }
 
-  /**
-   * 出力を送信
-   */
+  /** Emits output content. */
   protected async emitOutput(content: string, isError = false, isPartial = false): Promise<void> {
     await this._events.emitOutput(content, isError, isPartial);
   }
 
-  /**
-   * 質問を送信
-   */
+  /** Emits a question for the user. */
   protected async emitQuestion(question: PendingQuestion): Promise<void> {
     await this._events.emitQuestion(question);
 
-    // onQuestionフック
+    // onQuestion hook
     if (this._lifecycleHooks.onQuestion && this._currentContext) {
       const autoResponse = await this._lifecycleHooks.onQuestion(this._currentContext, question);
       if (autoResponse !== null) {
         this.log('info', `Auto-response from hook: ${autoResponse}`);
-        // 自動応答の処理は派生クラスで実装
+        // NOTE: Auto-response handling is delegated to subclasses.
       }
     }
   }
 
-  /**
-   * 成果物を送信
-   */
+  /** Emits an artifact event. */
   protected async emitArtifact(artifact: AgentArtifact): Promise<void> {
     await this._events.emitArtifact(artifact);
 
-    // onArtifactフック
+    // onArtifact hook
     if (this._lifecycleHooks.onArtifact && this._currentContext) {
       await this._lifecycleHooks.onArtifact(this._currentContext, artifact);
     }
   }
 
-  /**
-   * コミットを送信
-   */
+  /** Emits a Git commit event. */
   protected async emitCommit(commit: GitCommitInfo): Promise<void> {
     await this._events.emitCommit(commit);
   }
 
-  /**
-   * ツール実行を通知
-   */
+  /** Notifies listeners about a tool execution and returns a function to signal completion. */
   protected async notifyToolExecution(
     toolId: string,
     toolName: string,
@@ -446,7 +396,7 @@ export abstract class AbstractAgent implements IAgent {
   ): Promise<{ end: (output: unknown, success: boolean, error?: string) => Promise<void> }> {
     const startTime = Date.now();
 
-    // beforeToolCallフック
+    // beforeToolCall hook
     if (this._lifecycleHooks.beforeToolCall && this._currentContext) {
       const shouldContinue = await this._lifecycleHooks.beforeToolCall(
         this._currentContext,
@@ -465,7 +415,7 @@ export abstract class AbstractAgent implements IAgent {
         const durationMs = Date.now() - startTime;
         await this._events.emitToolEnd(toolId, toolName, output, success, durationMs, error);
 
-        // afterToolCallフック
+        // afterToolCall hook
         if (this._lifecycleHooks.afterToolCall && this._currentContext) {
           await this._lifecycleHooks.afterToolCall(
             this._currentContext,
@@ -479,9 +429,7 @@ export abstract class AbstractAgent implements IAgent {
     };
   }
 
-  /**
-   * メトリクスを更新
-   */
+  /** Updates execution metrics. */
   protected updateMetrics(updates: Partial<ExecutionMetrics>): void {
     if (this._metrics) {
       Object.assign(this._metrics, updates);
@@ -489,9 +437,7 @@ export abstract class AbstractAgent implements IAgent {
     }
   }
 
-  /**
-   * ログを記録
-   */
+  /** Records a log entry to internal debug log and external logger. */
   protected log(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown): void {
     const entry: DebugLogEntry = {
       timestamp: new Date(),
@@ -502,13 +448,13 @@ export abstract class AbstractAgent implements IAgent {
 
     this._debugLogs.push(entry);
 
-    // 外部ロガーにも出力
+    // Forward to external logger if configured
     if (this._logger) {
       const context: Record<string, unknown> = data
         ? { data, agentId: this._metadata.id }
         : { agentId: this._metadata.id };
 
-      // errorメソッドは別のシグネチャを持つため、分岐処理
+      // NOTE: error() has a different signature (accepts Error as second param), so branch here.
       if (level === 'error') {
         this._logger.error(message, undefined, context);
       } else {
@@ -525,7 +471,7 @@ export abstract class AbstractAgent implements IAgent {
   }
 
   // ============================================================================
-  // リトライロジック / Retry Logic
+  // Retry Logic
   // ============================================================================
 
   /**
@@ -533,13 +479,9 @@ export abstract class AbstractAgent implements IAgent {
    * Uses the onError lifecycle hook to determine retry behavior, falling back
    * to the error's recoverable flag and a default delay.
    *
-   * リカバリー可能なエラー時にdoExecute()を自動リトライする。
-   * onErrorフックでリトライ動作を制御し、フック未設定時はエラーの
-   * recoverableフラグとデフォルト遅延を使用する。
-   *
-   * @param task - Task definition / タスク定義
-   * @param context - Execution context / 実行コンテキスト
-   * @returns Execution result / 実行結果
+   * @param task - Task definition
+   * @param context - Execution context
+   * @returns Execution result
    */
   private async executeWithRetry(
     task: AgentTaskDefinition,
@@ -567,7 +509,6 @@ export abstract class AbstractAgent implements IAgent {
         await sleep(retryDecision.delay);
 
         // NOTE(agent): Re-check disposal/cancellation state before each retry attempt.
-        // リトライ前にdispose/キャンセル状態を再確認し、無駄な実行を防止。
         if (this._isDisposed || this._state === 'cancelled') {
           throw new AgentError(
             'Agent was disposed or cancelled during retry delay',
@@ -577,7 +518,6 @@ export abstract class AbstractAgent implements IAgent {
         }
 
         // NOTE(agent): Transition back to running state for the retry attempt.
-        // リトライ実行のためrunning状態に復帰。
         await this.transitionState('running', `Retry attempt ${retryCount}`);
       }
     }
@@ -585,11 +525,10 @@ export abstract class AbstractAgent implements IAgent {
 
   /**
    * Executes doContinue() with automatic retry on recoverable errors.
-   * リカバリー可能なエラー時にdoContinue()を自動リトライする。
    *
-   * @param continuation - Continuation context / 継続コンテキスト
-   * @param context - Execution context / 実行コンテキスト
-   * @returns Execution result / 実行結果
+   * @param continuation - Continuation context
+   * @param context - Execution context
+   * @returns Execution result
    */
   private async continueWithRetry(
     continuation: ContinuationContext,
@@ -634,14 +573,10 @@ export abstract class AbstractAgent implements IAgent {
    * Consults the onError lifecycle hook first; if unavailable, uses the
    * error's recoverable flag with a default 3-second delay.
    *
-   * エラーに対してリトライすべきかを判定する。
-   * onErrorフックを優先的に使用し、フック未設定時はrecoverableフラグと
-   * デフォルト3秒遅延を使用する。
-   *
-   * @param error - The error that occurred / 発生したエラー
-   * @param context - Execution context / 実行コンテキスト
-   * @param retryCount - Current retry count (0-based) / 現在のリトライ回数（0始まり）
-   * @returns Retry decision / リトライ判定結果
+   * @param error - The error that occurred
+   * @param context - Execution context
+   * @param retryCount - Current retry count (0-based)
+   * @returns Retry decision
    */
   private async evaluateRetry(
     error: AgentError,
@@ -649,13 +584,12 @@ export abstract class AbstractAgent implements IAgent {
     retryCount: number,
   ): Promise<{ shouldRetry: boolean; delay: number }> {
     // NOTE(agent): Hard upper bound prevents infinite retries even if hooks always return true.
-    // フックが常にtrueを返す場合でも無限リトライを防ぐハードリミット。
     if (retryCount >= MAX_RETRY_UPPER_BOUND) {
       this.log('error', `Max retry upper bound (${MAX_RETRY_UPPER_BOUND}) reached, giving up`);
       return { shouldRetry: false, delay: 0 };
     }
 
-    // onErrorフックが設定されている場合はフックに判断を委譲
+    // Delegate retry decision to onError hook if configured
     if (this._lifecycleHooks.onError) {
       try {
         const hookResult = await this._lifecycleHooks.onError(context, error, retryCount);
@@ -674,8 +608,6 @@ export abstract class AbstractAgent implements IAgent {
 
     // NOTE(agent): Without an onError hook, fall back to the error's recoverable flag.
     // Limit default retries to 3 to avoid excessive retries without explicit configuration.
-    // onErrorフック未設定時はrecoverableフラグにフォールバック。
-    // 明示的な設定なしでの過剰リトライを防ぐため、デフォルト上限は3回。
     const DEFAULT_MAX_RETRIES = 3;
     const DEFAULT_DELAY_MS = 3000;
 
@@ -687,21 +619,17 @@ export abstract class AbstractAgent implements IAgent {
   }
 
   // ============================================================================
-  // プライベートメソッド
+  // Private methods
   // ============================================================================
 
-  /**
-   * 破棄済みチェック
-   */
+  /** Throws if this agent has been disposed. */
   private ensureNotDisposed(): void {
     if (this._isDisposed) {
       throw new AgentError('Agent has been disposed', 'internal', false);
     }
   }
 
-  /**
-   * エラーをラップ
-   */
+  /** Wraps an unknown error into an AgentError. */
   private wrapError(error: unknown): AgentError {
     if (error instanceof AgentError) {
       return error;
@@ -714,9 +642,7 @@ export abstract class AbstractAgent implements IAgent {
     return new AgentError(String(error), 'internal', false);
   }
 
-  /**
-   * 結果を補完
-   */
+  /** Enriches the result with metrics and debug info. */
   private enrichResult(result: AgentExecutionResult): AgentExecutionResult {
     return {
       ...result,
@@ -728,9 +654,7 @@ export abstract class AbstractAgent implements IAgent {
     };
   }
 
-  /**
-   * キャンセル結果を作成
-   */
+  /** Creates a cancelled execution result. */
   private createCancelledResult(
     context: AgentExecutionContext,
     reason: string,
@@ -747,9 +671,7 @@ export abstract class AbstractAgent implements IAgent {
     };
   }
 
-  /**
-   * エラー結果を作成
-   */
+  /** Creates a failed execution result from an error. */
   private createErrorResult(
     context: AgentExecutionContext,
     error: AgentError,

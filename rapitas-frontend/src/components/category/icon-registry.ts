@@ -1,5 +1,5 @@
 import {
-  // 基本・一般
+  // General
   Tag,
   Bookmark,
   BookmarkCheck,
@@ -33,7 +33,7 @@ import {
   Hammer,
   Drill,
   Puzzle,
-  // 仕事・ビジネス
+  // Business
   Briefcase,
   Building,
   Building2,
@@ -65,7 +65,7 @@ import {
   Paperclip,
   Link,
   Unlink,
-  // 時間・カレンダー
+  // Time & Calendar
   Clock,
   Timer,
   TimerOff,
@@ -77,7 +77,7 @@ import {
   CalendarClock,
   AlarmClock,
   History,
-  // チェック・タスク
+  // Checks & Tasks
   Check,
   CheckCircle,
   CheckSquare,
@@ -88,7 +88,7 @@ import {
   ListChecks,
   ClipboardList,
   ClipboardCheck,
-  // ナビゲーション・矢印
+  // Navigation & Arrows
   Home,
   MapPin,
   Map as MapIcon,
@@ -97,7 +97,7 @@ import {
   Globe,
   Globe2,
   Earth,
-  // 人物・ユーザー
+  // People & Users
   User,
   UserCircle,
   UserCheck,
@@ -107,7 +107,7 @@ import {
   UserCog,
   Contact,
   BadgeCheck,
-  // コミュニケーション
+  // Communication
   MessageCircle,
   MessageSquare,
   MessagesSquare,
@@ -122,7 +122,7 @@ import {
   BellRing,
   BellOff,
   Megaphone,
-  // 教育・学習
+  // Education & Learning
   Book,
   BookOpen,
   BookMarked,
@@ -136,7 +136,7 @@ import {
   Highlighter,
   NotebookPen,
   FileEdit,
-  // テクノロジー・デバイス
+  // Technology & Devices
   Laptop,
   Monitor,
   Smartphone,
@@ -173,7 +173,7 @@ import {
   QrCode,
   Printer,
   ScanLine,
-  // 開発・コード
+  // Development & Code
   Code,
   Code2,
   Terminal,
@@ -187,7 +187,7 @@ import {
   GitMerge,
   GitPullRequest,
   Github,
-  // 創作・デザイン
+  // Creative & Design
   Palette,
   Paintbrush,
   PaintBucket,
@@ -199,12 +199,12 @@ import {
   Pentagon,
   Hexagon,
   Octagon,
-  // スポーツ・運動
+  // Sports & Exercise
   Dumbbell,
   Bike,
   PersonStanding,
   Footprints,
-  // ゲーム・娯楽
+  // Games & Entertainment
   Gamepad2,
   Dice1,
   Dice5,
@@ -214,7 +214,7 @@ import {
   Music,
   Music2,
   Music4,
-  // 食べ物・飲み物
+  // Food & Drinks
   Coffee,
   CupSoda,
   Wine,
@@ -239,7 +239,7 @@ import {
   Banana,
   Carrot,
   Egg,
-  // 自然・天気
+  // Nature & Weather
   Sun,
   Moon,
   CloudSun,
@@ -267,7 +267,7 @@ import {
   Clover,
   Shrub,
   Sprout,
-  // 動物
+  // Animals
   Bird,
   Cat,
   Dog,
@@ -279,7 +279,7 @@ import {
   PawPrint,
   Feather,
   Shell,
-  // 乗り物・交通
+  // Vehicles & Transport
   Car,
   CarFront,
   Bus,
@@ -294,7 +294,7 @@ import {
   Fuel,
   ParkingCircle,
   TrafficCone,
-  // 健康・医療
+  // Health & Medical
   Activity,
   HeartPulse,
   Stethoscope,
@@ -309,7 +309,7 @@ import {
   Bone,
   Ear,
   HandMetal,
-  // 感情・表現
+  // Emotions & Expressions
   Smile,
   Frown,
   Meh,
@@ -317,7 +317,7 @@ import {
   Laugh,
   SmilePlus,
   Annoyed,
-  // ショッピング
+  // Shopping
   ShoppingCart,
   ShoppingBag,
   ShoppingBasket,
@@ -328,7 +328,7 @@ import {
   Tags,
   Percent,
   BadgePercent,
-  // セキュリティ
+  // Security
   Lock,
   LockOpen,
   Unlock,
@@ -339,7 +339,7 @@ import {
   ShieldAlert,
   ShieldOff,
   Fingerprint,
-  // 家事・生活
+  // Home & Lifestyle
   Bed,
   Bath,
   Shirt,
@@ -352,7 +352,7 @@ import {
   Trash,
   Recycle,
   Waypoints,
-  // 旅行・アウトドア
+  // Travel & Outdoor
   Tent,
   Backpack,
   Luggage,
@@ -360,7 +360,7 @@ import {
   Hotel,
   Binoculars,
   Axe,
-  // 数学・科学
+  // Math & Science
   Calculator,
   FlaskConical,
   FlaskRound,
@@ -369,7 +369,7 @@ import {
   Orbit,
   Sigma,
   Pi,
-  // 文房具・オフィス
+  // Stationery & Office
   StickyNote,
   NotebookTabs,
   Presentation,
@@ -378,11 +378,11 @@ import {
   Stamp,
   Pin,
   PinOff,
-  // SNS・Web
+  // SNS & Web
   Rss,
   Chrome,
   Podcast,
-  // 矢印・方向
+  // Arrows & Direction
   ArrowUp,
   ArrowDown,
   ArrowLeft,
@@ -391,23 +391,23 @@ import {
   ArrowDownLeft,
   MoveUp,
   MoveDown,
-  // アラート・通知
+  // Alerts & Notifications
   AlertCircle,
   AlertTriangle,
   Info,
   HelpCircle,
   CircleAlert,
   TriangleAlert,
-  // 天文・宇宙
+  // Astronomy & Space
   Satellite,
   SatelliteDish,
   Telescope,
-  // AI・ロボット
+  // AI & Robotics
   Bot,
   BrainCircuit,
   CircuitBoard,
   Workflow,
-  // その他
+  // Other
   Infinity,
   Hash,
   Asterisk,
@@ -454,15 +454,15 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-// アイコン情報の型定義
+// Icon info type definition
 export type IconInfo = {
   component: LucideIcon;
-  keywords: string[]; // 日本語キーワード
+  keywords: string[];
 };
 
-// アイコンデータ（日本語キーワード付き）
+// Icon data (with Japanese keywords for search)
 export const ICON_DATA: Record<string, IconInfo> = {
-  // 基本・一般
+  // General
   Tag: {
     component: Tag,
     keywords: ['タグ', 'ラベル', 'マーク', 'しるし', '印'],
@@ -587,7 +587,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['パズル', '謎', 'ピース', '組み合わせ', '問題'],
   },
 
-  // 仕事・ビジネス
+  // Business
   Briefcase: {
     component: Briefcase,
     keywords: ['ブリーフケース', '仕事', 'ビジネス', '書類', '出張'],
@@ -704,7 +704,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['リンク解除', '切断', '外す', '解除'],
   },
 
-  // 時間・カレンダー
+  // Time & Calendar
   Clock: { component: Clock, keywords: ['時計', '時間', 'タイム', '時刻'] },
   Timer: {
     component: Timer,
@@ -747,7 +747,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['履歴', '歴史', '過去', 'ヒストリー', '記録'],
   },
 
-  // チェック・タスク
+  // Checks & Tasks
   Check: {
     component: Check,
     keywords: ['チェック', '完了', '確認', 'OK', '済み'],
@@ -783,7 +783,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['クリップボード', '完了', '確認済み'],
   },
 
-  // ナビゲーション・場所
+  // Navigation & Location
   Home: {
     component: Home,
     keywords: ['ホーム', '家', 'トップ', 'メイン', '自宅'],
@@ -814,7 +814,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['地球', 'アース', '世界', '環境', '自然'],
   },
 
-  // 人物・ユーザー
+  // People & Users
   User: {
     component: User,
     keywords: ['ユーザー', '人', 'アカウント', 'プロフィール', '個人'],
@@ -852,7 +852,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['認証バッジ', '公式', '確認済み', '信頼'],
   },
 
-  // コミュニケーション
+  // Communication
   MessageCircle: {
     component: MessageCircle,
     keywords: ['メッセージ', 'チャット', '会話', 'コメント', '吹き出し'],
@@ -898,7 +898,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['メガホン', '拡声器', 'お知らせ', '告知', '宣伝'],
   },
 
-  // 教育・学習
+  // Education & Learning
   Book: { component: Book, keywords: ['本', 'ブック', '読書', '学習', '知識'] },
   BookOpen: { component: BookOpen, keywords: ['本', '開く', '読書中', '学習'] },
   BookMarked: {
@@ -937,7 +937,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['ファイル編集', '文書', '修正', '更新'],
   },
 
-  // テクノロジー・デバイス
+  // Technology & Devices
   Laptop: {
     component: Laptop,
     keywords: ['ノートパソコン', 'ラップトップ', 'PC', 'コンピュータ'],
@@ -1068,7 +1068,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['スキャン', '読み取り', 'バーコード'],
   },
 
-  // 開発・コード
+  // Development & Code
   Code: {
     component: Code,
     keywords: ['コード', 'プログラミング', '開発', 'HTML', 'タグ'],
@@ -1122,7 +1122,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['GitHub', 'ギットハブ', 'リポジトリ', 'オープンソース'],
   },
 
-  // 創作・デザイン
+  // Creative & Design
   Palette: {
     component: Palette,
     keywords: ['パレット', '色', 'デザイン', 'アート', '絵の具'],
@@ -1159,7 +1159,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['八角形', 'オクタゴン', 'ストップ', '停止'],
   },
 
-  // スポーツ・運動
+  // Sports & Exercise
   Dumbbell: {
     component: Dumbbell,
     keywords: ['ダンベル', '筋トレ', '運動', 'フィットネス', 'ジム'],
@@ -1177,7 +1177,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['足跡', '歩く', 'ウォーキング', '散歩', '歩数'],
   },
 
-  // ゲーム・娯楽
+  // Games & Entertainment
   Gamepad2: {
     component: Gamepad2,
     keywords: ['ゲームパッド', 'コントローラー', 'ゲーム', '遊び'],
@@ -1212,7 +1212,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['音楽', 'ミュージック', '音符', '楽譜'],
   },
 
-  // 食べ物・飲み物
+  // Food & Drinks
   Coffee: {
     component: Coffee,
     keywords: ['コーヒー', 'カフェ', '飲み物', '休憩', '朝'],
@@ -1295,7 +1295,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   },
   Egg: { component: Egg, keywords: ['卵', 'たまご', 'エッグ', '朝食'] },
 
-  // 自然・天気
+  // Nature & Weather
   Sun: {
     component: Sun,
     keywords: ['太陽', '晴れ', '日', '明るい', '昼', 'ライト'],
@@ -1372,7 +1372,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['芽', '新芽', '成長', 'スタート', '新しい'],
   },
 
-  // 動物
+  // Animals
   Bird: { component: Bird, keywords: ['鳥', '小鳥', 'ツイート', '飛ぶ'] },
   Cat: {
     component: Cat,
@@ -1400,7 +1400,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   Feather: { component: Feather, keywords: ['羽', 'フェザー', '軽い', '鳥'] },
   Shell: { component: Shell, keywords: ['貝殻', 'シェル', '海', 'ビーチ'] },
 
-  // 乗り物・交通
+  // Vehicles & Transport
   Car: { component: Car, keywords: ['車', '自動車', 'ドライブ', '移動'] },
   CarFront: {
     component: CarFront,
@@ -1446,7 +1446,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['コーン', '工事', '注意', '交通'],
   },
 
-  // 健康・医療
+  // Health & Medical
   Activity: {
     component: Activity,
     keywords: ['アクティビティ', '活動', '心拍', '健康'],
@@ -1483,7 +1483,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['ロック', '手', 'ジェスチャー', 'サイン'],
   },
 
-  // 感情・表現
+  // Emotions & Expressions
   Smile: {
     component: Smile,
     keywords: ['笑顔', 'スマイル', '幸せ', '嬉しい', '顔'],
@@ -1501,7 +1501,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['イライラ', '困った', '不満', '顔'],
   },
 
-  // ショッピング
+  // Shopping
   ShoppingCart: {
     component: ShoppingCart,
     keywords: ['ショッピングカート', '買い物', 'カート', 'EC'],
@@ -1540,7 +1540,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['割引', 'セール', 'クーポン', 'お得'],
   },
 
-  // セキュリティ
+  // Security
   Lock: {
     component: Lock,
     keywords: ['ロック', '鍵', '施錠', 'セキュリティ', '保護'],
@@ -1576,7 +1576,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['指紋', '認証', '生体認証', 'セキュリティ'],
   },
 
-  // 家事・生活
+  // Home & Lifestyle
   Bed: { component: Bed, keywords: ['ベッド', '寝る', '睡眠', '休息', '寝室'] },
   Bath: {
     component: Bath,
@@ -1620,7 +1620,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['経路', 'ルート', '道順', 'ウェイポイント', '接続'],
   },
 
-  // 旅行・アウトドア
+  // Travel & Outdoor
   Tent: {
     component: Tent,
     keywords: ['テント', 'キャンプ', 'アウトドア', '野営'],
@@ -1650,7 +1650,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['斧', '薪割り', 'キャンプ', 'アウトドア', '道具'],
   },
 
-  // 数学・科学
+  // Math & Science
   Calculator: {
     component: Calculator,
     keywords: ['電卓', '計算機', '計算', '数学'],
@@ -1681,7 +1681,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   },
   Pi: { component: Pi, keywords: ['パイ', '円周率', '数学', '数式', '計算'] },
 
-  // 文房具・オフィス
+  // Stationery & Office
   StickyNote: {
     component: StickyNote,
     keywords: ['付箋', 'メモ', 'ポストイット', 'ノート'],
@@ -1709,7 +1709,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   },
   PinOff: { component: PinOff, keywords: ['ピン解除', '外す', '固定解除'] },
 
-  // SNS・Web
+  // SNS & Web
   Rss: {
     component: Rss,
     keywords: ['RSS', 'フィード', 'ニュース', '購読', '配信'],
@@ -1723,7 +1723,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['ポッドキャスト', '音声', '配信', '番組', 'ラジオ'],
   },
 
-  // 矢印・方向
+  // Arrows & Direction
   ArrowUp: {
     component: ArrowUp,
     keywords: ['上', '上向き', '矢印', 'アップ', '増加'],
@@ -1757,7 +1757,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['下に移動', 'ダウン', '降格', '下げる'],
   },
 
-  // アラート・通知
+  // Alerts & Notifications
   AlertCircle: {
     component: AlertCircle,
     keywords: ['アラート', '警告', '注意', '丸', 'エラー'],
@@ -1783,7 +1783,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['警告', '危険', '注意', 'エラー', '三角'],
   },
 
-  // 天文・宇宙
+  // Astronomy & Space
   Satellite: {
     component: Satellite,
     keywords: ['衛星', 'サテライト', '宇宙', '通信', 'GPS'],
@@ -1797,7 +1797,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['望遠鏡', '天体観測', '宇宙', '星', '観察'],
   },
 
-  // AI・ロボット
+  // AI & Robotics
   Bot: {
     component: Bot,
     keywords: ['ボット', 'ロボット', 'AI', '自動化', 'チャット'],
@@ -1815,7 +1815,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
     keywords: ['ワークフロー', 'フロー', '自動化', 'プロセス', '手順'],
   },
 
-  // レイアウト・UI
+  // Layout & UI
   SwatchBook: {
     component: SwatchBook,
     keywords: ['スウォッチ', 'カラーパレット', '色見本', 'テーマ'],
@@ -1859,7 +1859,7 @@ export const ICON_DATA: Record<string, IconInfo> = {
   },
   Scan: { component: Scan, keywords: ['スキャン', '読み取り', '認識', '枠'] },
 
-  // その他
+  // Other
   Infinity: {
     component: Infinity,
     keywords: ['無限', 'インフィニティ', '永遠', 'ループ'],

@@ -5,13 +5,13 @@ import { programmingLanguages } from './constants';
  * Returns HTML string with inline color spans.
  */
 export function highlightCode(text: string, lang: string): string {
-  // エスケープ処理
+  // HTML escape
   let highlighted = text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // 言語別のキーワード
+  // Language-specific keywords
   const keywords: { [key: string]: string[] } = {
     javascript: [
       'const',
@@ -142,13 +142,13 @@ export function highlightCode(text: string, lang: string): string {
     );
   }
 
-  // 文字列のハイライト（シングル・ダブル・バッククォート）
+  // String highlighting (single, double, and backtick quotes)
   highlighted = highlighted.replace(
     /(["'`])(?:(?=(\\?))\2.)*?\1/g,
     '<span style="color: #c3e88d;">$&</span>',
   );
 
-  // コメントのハイライト
+  // Comment highlighting
   if (
     [
       'javascript',
@@ -189,7 +189,7 @@ export function highlightCode(text: string, lang: string): string {
     );
   }
 
-  // 数値のハイライト
+  // Number highlighting
   highlighted = highlighted.replace(
     /\b(\d+(?:\.\d+)?)\b/g,
     '<span style="color: #f78c6c;">$1</span>',
@@ -284,7 +284,7 @@ export function createCodeBlockNode(
   container.style.backgroundColor = '#1e293b';
   container.style.border = '1px solid #334155';
 
-  // ヘッダー部分（言語名とコピーボタン）
+  // Header section (language name and copy button)
   const header = document.createElement('div');
   header.style.display = 'flex';
   header.style.justifyContent = 'space-between';
@@ -293,7 +293,7 @@ export function createCodeBlockNode(
   header.style.backgroundColor = '#0f172a';
   header.style.borderBottom = '1px solid #334155';
 
-  // 言語ラベル
+  // Language label
   const langLabel = document.createElement('span');
   langLabel.textContent =
     programmingLanguages.find((l) => l.value === language)?.label || language;
@@ -302,12 +302,12 @@ export function createCodeBlockNode(
   langLabel.style.fontFamily = 'monospace';
   header.appendChild(langLabel);
 
-  // ボタンコンテナ
+  // Button container
   const buttonContainer = document.createElement('div');
   buttonContainer.style.display = 'flex';
   buttonContainer.style.gap = '8px';
 
-  // コピーボタン
+  // Copy button
   const copyButton = document.createElement('button');
   copyButton.textContent = 'コピー';
   copyButton.style.padding = '4px 12px';
@@ -325,9 +325,9 @@ export function createCodeBlockNode(
     copyButton.style.backgroundColor = '#334155';
   };
 
-  // 削除ボタン
+  // Delete button
   const deleteButton = document.createElement('button');
-  // SVGアイコンを安全に作成
+  // Create SVG icon using DOM API for safety
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', '14');
   svg.setAttribute('height', '14');
@@ -374,7 +374,7 @@ export function createCodeBlockNode(
   header.appendChild(buttonContainer);
   container.appendChild(header);
 
-  // コード部分
+  // Code section
   const pre = document.createElement('pre');
   pre.style.margin = '0';
   pre.style.padding = '16px';
@@ -395,13 +395,13 @@ export function createCodeBlockNode(
   codeElement.style.whiteSpace = 'pre';
   codeElement.spellcheck = false;
 
-  // コードブロック内でのキーバインドと補完
+  // Key bindings and auto-completion inside code block
   codeElement.onkeydown = (e) => {
     const keyboardEvent = e as KeyboardEvent;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
-    // Backspace/Deleteキーでの削除を制御
+    // Prevent Backspace/Delete from escaping the code block
     if (keyboardEvent.key === 'Backspace' || keyboardEvent.key === 'Delete') {
       const range = selection.getRangeAt(0);
       if (range.startOffset === 0 && range.collapsed) {
@@ -417,7 +417,7 @@ export function createCodeBlockNode(
       }
     }
 
-    // Enter キー
+    // Enter key
     if (keyboardEvent.key === 'Enter' && !keyboardEvent.shiftKey) {
       e.preventDefault();
 
@@ -434,14 +434,14 @@ export function createCodeBlockNode(
       document.execCommand('insertText', false, newLineText);
     }
 
-    // Tab キー（インデント）
+    // Tab key (indent)
     if (keyboardEvent.key === 'Tab') {
       e.preventDefault();
       const indentString = getIndentString(language);
       document.execCommand('insertText', false, indentString);
     }
 
-    // 括弧の自動補完
+    // Auto-close brackets and quotes
     const autoPairs: { [key: string]: string } = {
       '(': ')',
       '[': ']',
@@ -494,7 +494,7 @@ export function createCodeBlockNode(
     }
   };
 
-  // コピーボタンのクリックイベント
+  // Copy button click handler
   copyButton.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -513,12 +513,12 @@ export function createCodeBlockNode(
   pre.appendChild(codeElement);
   container.appendChild(pre);
 
-  // コンテナに削除ハンドラフラグを設定
+  // Mark container so the caller can attach the delete handler
   container.dataset.needsDeleteHandler = '1';
 
   frag.appendChild(container);
 
-  // コードブロック後の空行
+  // Empty paragraph after code block
   const p = document.createElement('p');
   p.appendChild(document.createElement('br'));
   frag.appendChild(p);

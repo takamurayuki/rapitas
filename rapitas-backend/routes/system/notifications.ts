@@ -10,7 +10,7 @@ import { createLogger } from '../../config/logger';
 const logger = createLogger('routes:notifications');
 
 export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
-  // SSEストリーム（リアルタイム通知配信）
+  // SSE stream (real-time notification delivery)
   .get('/stream', ({ set }) => {
     set.headers['Content-Type'] = 'text/event-stream';
     set.headers['Cache-Control'] = 'no-cache';
@@ -34,7 +34,7 @@ export const notificationsRoutes = new Elysia({ prefix: '/notifications' })
 
         realtimeService.registerStreamController(clientId, controller);
 
-        // 初期の未読数を送信
+        // Send initial unread count
         prisma.notification
           .count({ where: { isRead: false } })
           .then((count) => {

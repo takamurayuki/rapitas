@@ -7,8 +7,9 @@ import { orchestrator } from '../../services/orchestrator-instance';
 import type { AgentExecutionWithExtras } from '../../types/agent-execution-types';
 
 /**
- * エージェントセッション管理ルーター
- * セッション詳細取得、停止、再開可能実行の管理を担当
+ * Agent Session Management Router
+ *
+ * Handles session detail retrieval, stopping, and resumable execution management.
  */
 export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
@@ -35,8 +36,8 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     const { params } = context;
     const sessionId = parseInt(params.id);
 
-    // オーケストレーターで停止を試みる
-    // ワーカープロセス経由で非同期にセッション内の実行を取得・停止
+    // Attempt to stop via orchestrator
+    // Asynchronously get and stop executions within the session via the worker process
     try {
       const { AgentWorkerManager } = await import('../../services/agents/agent-worker-manager');
       const executions =
@@ -53,7 +54,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
       log.warn({ err }, 'Failed to get session executions from worker');
     }
 
-    // DBで実行中/待機中の実行をすべてキャンセル
+    // Cancel all running/pending executions in the database
     await prisma.agentExecution.updateMany({
       where: {
         sessionId,
@@ -86,14 +87,19 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
       // This endpoint only reads data — no recovery logic here to avoid race conditions
       // with newly created executions that haven't been added to activeExecutions yet.
 
-      const currentActiveIds = orchestrator.getActiveExecutions().map((e) => e.executionId);
+      // NOTE: orchestrator.getActiveExecutions() (sync) always returns empty due to worker process isolation.
+      // Use the async version to retrieve actual active execution IDs from the worker.
+      const workerManager = orchestrator as unknown as { getActiveExecutionIdsAsync?: () => Promise<number[]> };
+      const currentActiveIds = workerManager.getActiveExecutionIdsAsync
+        ? await workerManager.getActiveExecutionIdsAsync()
+        : orchestrator.getActiveExecutions().map((e: { executionId: number }) => e.executionId);
 
       const resumableExecutions = await prisma.agentExecution.findMany({
         where: {
           OR: [
-            // 中断された実行（再開可能）
+            // Interrupted executions (resumable)
             { status: 'interrupted' },
-            // 実際にメモリ上でアクティブな実行のみ
+            // Only executions actually active in memory
             {
               status: { in: ['running', 'waiting_for_input'] },
               id: { in: currentActiveIds.length > 0 ? currentActiveIds : [-1] },
@@ -135,7 +141,7 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
           status: exec.status,
           claudeSessionId: execWithExtras.claudeSessionId,
           errorMessage: exec.errorMessage,
-          output: exec.output?.slice(-500), // 最後の500文字のみ
+          output: exec.output?.slice(-500), // Last 500 characters only
           startedAt: exec.startedAt,
           completedAt: exec.completedAt,
           createdAt: exec.createdAt,
@@ -191,11 +197,11 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
           status: exec.status,
           claudeSessionId: execWithExtras.claudeSessionId,
           errorMessage: exec.errorMessage,
-          output: exec.output?.slice(-500), // 最後の500文字のみ
+          output: exec.output?.slice(-500), // Last 500 characters only
           startedAt: exec.startedAt,
           completedAt: exec.completedAt,
           createdAt: exec.createdAt,
-          canResume: !!execWithExtras.claudeSessionId, // Claude Session IDがあれば再開可能
+          canResume: !!execWithExtras.claudeSessionId, // Resumable if Claude Session ID exists
         };
       });
     } catch (error) {

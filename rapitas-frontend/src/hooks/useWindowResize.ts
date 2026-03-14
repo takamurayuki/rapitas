@@ -22,22 +22,21 @@ export function useWindowResize({
   const isResizingRef = useRef(false);
 
   const handleResize = useCallback(() => {
-    // リサイズ開始時の処理
+    // Handle resize start
     if (!isResizingRef.current) {
       isResizingRef.current = true;
       document.documentElement.classList.add('window-resizing');
       onResizeStart?.();
     }
 
-    // 既存のタイマーをクリア
     if (resizeTimeoutRef.current) {
       clearTimeout(resizeTimeoutRef.current);
     }
 
-    // リサイズ中の処理
+    // Handle resize in progress
     onResize?.();
 
-    // デバウンス処理
+    // Debounce
     resizeTimeoutRef.current = setTimeout(() => {
       isResizingRef.current = false;
       document.documentElement.classList.remove('window-resizing');
@@ -46,11 +45,11 @@ export function useWindowResize({
   }, [debounceMs, onResize, onResizeStart, onResizeEnd]);
 
   useEffect(() => {
-    // Tauri環境かチェック
+    // Check for Tauri environment
     const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
 
     if (isTauri && window.__TAURI__?.event) {
-      // Tauriからの最適化されたリサイズイベントを受信
+      // Receive optimized resize events from Tauri
       const { listen } = window.__TAURI__.event;
 
       let unlisten: (() => void) | undefined;
@@ -59,7 +58,7 @@ export function useWindowResize({
         unlisten = await listen('window-resize-optimized', handleResize);
       })();
 
-      // Tauriイベントがある場合は、通常のリサイズイベントは登録しない（二重実行を防ぐ）
+      // NOTE: Skip standard resize events when Tauri events are available (prevents double-firing)
 
       return () => {
         unlisten?.();
@@ -68,7 +67,7 @@ export function useWindowResize({
         }
       };
     } else {
-      // 通常のWebブラウザ環境
+      // Standard web browser environment
       window.addEventListener('resize', handleResize);
 
       return () => {
@@ -81,7 +80,7 @@ export function useWindowResize({
   }, [handleResize]);
 }
 
-// パフォーマンス監視用のフック
+// Hook for performance monitoring
 export function useResizePerformance() {
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(0);
@@ -108,7 +107,7 @@ export function useResizePerformance() {
       animationFrameId = requestAnimationFrame(measureFPS);
     };
 
-    // 開発環境でのみFPS計測を有効化
+    // Only enable FPS measurement in development
     if (process.env.NODE_ENV === 'development') {
       measureFPS();
     }

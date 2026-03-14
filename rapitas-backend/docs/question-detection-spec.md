@@ -91,12 +91,12 @@ export type AgentExecutionResult = {
   executionTimeMs?: number;
   errorMessage?: string;
   commits?: GitCommitInfo[];
-  // 質問待ち状態
+  // Question waiting state
   waitingForInput?: boolean;
   question?: string;
-  /** 質問の検出方法（tool_call: AskUserQuestionツール, none: 質問なし） */
+  /** Question detection method (tool_call: AskUserQuestion tool, none: no question) */
   questionType?: QuestionType;
-  /** 質問の詳細情報 */
+  /** Question detailed information */
   questionDetails?: QuestionDetectionResult['questionDetails'];
 };
 ```
@@ -124,9 +124,9 @@ AgentExecutionテーブル:
 ### 1. stream-json処理での検出
 
 ```typescript
-// assistantメッセージのtool_useブロックを処理
+// Process tool_use blocks in assistant messages
 if (block.type === "tool_use" && block.name === "AskUserQuestion") {
-  // 質問内容を抽出
+  // Extract question content
   const questionText = extractQuestionText(block.input);
   const questionDetails = extractQuestionDetails(block.input);
 
@@ -142,18 +142,18 @@ if (block.type === "tool_use" && block.name === "AskUserQuestion") {
 ### 2. プロセス終了時の判定
 
 ```typescript
-// stream-jsonから検出されたAskUserQuestionツール呼び出しのみを使用
+// Only use AskUserQuestion tool calls detected from stream-json
 const hasQuestion = this.detectedQuestion.hasQuestion;
 const question = this.detectedQuestion.question;
 const questionType = this.detectedQuestion.questionType;
 
-// パターンマッチングによるフォールバックは行わない
+// No fallback to pattern matching
 ```
 
 ### 3. SSEイベント形式
 
 ```typescript
-// 質問待機状態のイベント
+// Question waiting state events
 {
   type: 'execution_output',
   data: {

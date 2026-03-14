@@ -122,7 +122,6 @@ export default function ReportsPage() {
         </button>
       </div>
 
-      {/* サマリーカード */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between mb-2">
@@ -167,7 +166,6 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 日別グラフ */}
       <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 mb-6">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
           <BarChart3 className="w-5 h-5" />
@@ -175,7 +173,6 @@ export default function ReportsPage() {
         </h2>
 
         <div className="space-y-6">
-          {/* タスク完了グラフ */}
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
               {t('taskCount')}
@@ -203,7 +200,6 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* 学習時間グラフ */}
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
               {t('studyHours')}
@@ -231,10 +227,8 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* バーンアップチャート */}
       <BurnupChart className="mb-6" />
 
-      {/* 科目別内訳 */}
       {report.subjectBreakdown.length > 0 && (
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4">

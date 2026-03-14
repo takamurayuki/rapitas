@@ -23,7 +23,7 @@ import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('ResumableExecutionsBanner');
 
-// セッション中に自動再開が実行済みかどうかを追跡するグローバルフラグ
+// Global flag to track whether auto-resume has already been triggered in this session
 const AUTO_RESUME_SESSION_KEY = 'rapitas_auto_resume_triggered';
 
 type ResumableExecution = {
@@ -58,7 +58,7 @@ export function ResumableExecutionsBanner() {
   const [connectionError, setConnectionError] = useState<Error | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // セッション中に一度だけ自動再開を実行するためのフラグ
+  // Flag to ensure auto-resume runs only once per session
   const autoResumeCheckedRef = useRef(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
@@ -68,17 +68,17 @@ export function ResumableExecutionsBanner() {
     width: 0,
   });
 
-  // グローバルストアの実行中タスク数を監視
+  // Watch executing task count from global store
   const executingTasksSize = useExecutionStateStore(
     (state) => state.executingTasks.size,
   );
 
-  // タスク詳細表示状態を監視
+  // Watch task detail visibility state
   const isTaskDetailVisible = useTaskDetailVisibilityStore(
     (state) => state.isTaskDetailVisible,
   );
 
-  // バックエンドから自動再開設定を取得
+  // Fetch auto-resume setting from backend
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
       const res = await fetchWithRetry(
@@ -99,7 +99,7 @@ export function ResumableExecutionsBanner() {
       }
     } catch (error) {
       logger.warn('Failed to fetch auto-resume setting:', error);
-      // バックエンドが利用できない場合はデフォルト値を使用
+      // Fall back to default when backend is unavailable
       setAutoResume(false);
     }
   }, []);
@@ -113,13 +113,13 @@ export function ResumableExecutionsBanner() {
         undefined,
         2,
         500,
-        5000, // 5秒タイムアウト
+        5000, // 5-second timeout
         { silent: true },
       );
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
         setExecutions((prev) => {
-          // 新しい実行が追加された場合のみ dismissed をリセット
+          // Reset dismissed state only when new executions are added
           const prevIds = new Set(prev.map((e) => e.id));
           const hasNewExecutions = data.some((e) => !prevIds.has(e.id));
           if (hasNewExecutions && data.length > 0) {
@@ -132,14 +132,14 @@ export function ResumableExecutionsBanner() {
         logger.warn(
           `Failed to fetch resumable executions: ${res.status} ${res.statusText}`,
         );
-        // エラーレスポンスの場合は空配列を設定
+        // Set empty array on error response
         setExecutions([]);
       }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.warn(`Failed to fetch resumable executions: ${errMsg}`);
 
-      // ネットワークエラーの場合は接続エラーとして記録
+      // Record network errors as connection errors
       setConnectionError(
         error instanceof Error ? error : new Error(String(error)),
       );
@@ -150,7 +150,7 @@ export function ResumableExecutionsBanner() {
     return [];
   }, []);
 
-  // バックエンド復帰時に再フェッチする
+  // Re-fetch when backend reconnects
   const { isConnected, isIntentionalRestart } = useBackendHealth({
     onReconnectAction: () => {
       logger.info('Backend reconnected, re-fetching executions');
@@ -164,7 +164,7 @@ export function ResumableExecutionsBanner() {
     },
   });
 
-  // バックエンド接続確認後に初回フェッチを実行（レースコンディション防止）
+  // Run initial fetch after backend connection is confirmed (prevents race condition)
   const initialFetchDoneRef = useRef(false);
   useEffect(() => {
     if (!isConnected || initialFetchDoneRef.current) return;
@@ -174,7 +174,7 @@ export function ResumableExecutionsBanner() {
     fetchResumableExecutions();
   }, [isConnected, fetchAutoResumeSetting, fetchResumableExecutions]);
 
-  // グローバルストアに新しい実行タスクが追加されたら即座にフェッチ
+  // Immediately fetch when new executing tasks are added to the global store
   const prevExecutingTasksSizeRef = useRef(executingTasksSize);
   useEffect(() => {
     if (executingTasksSize > prevExecutingTasksSizeRef.current && isConnected) {
@@ -183,18 +183,18 @@ export function ResumableExecutionsBanner() {
     prevExecutingTasksSizeRef.current = executingTasksSize;
   }, [executingTasksSize, isConnected, fetchResumableExecutions]);
 
-  // 定期的にポーリングして新しい実行の開始や完了を検出する
+  // Poll periodically to detect new executions starting or completing
   useEffect(() => {
     if (isDismissed || !isConnected) return;
 
     const hasRunningExecutions = executions.some(
       (e) => e.status === 'running' || e.status === 'waiting_for_input',
     );
-    // 実行中タスクがある場合は10秒間隔、ない場合は15秒間隔
+    // 10s interval when tasks are running, 15s otherwise
     const pollInterval = hasRunningExecutions ? 10000 : 15000;
 
     const interval = setInterval(() => {
-      // バックエンドが接続されている場合のみポーリング
+      // Only poll when backend is connected
       if (isConnected) {
         fetchResumableExecutions();
       }
@@ -203,35 +203,35 @@ export function ResumableExecutionsBanner() {
     return () => clearInterval(interval);
   }, [executions, isDismissed, isConnected, fetchResumableExecutions]);
 
-  // Auto-resume logic - セッション中に一度だけ実行
+  // Auto-resume logic - runs only once per session
   useEffect(() => {
-    // 既にチェック済みなら何もしない
+    // Skip if already checked
     if (autoResumeCheckedRef.current) {
       return;
     }
 
-    // ローディング中は待機
+    // Wait while loading
     if (isLoading) {
       return;
     }
 
-    // チェック済みとしてマーク（再レンダリング防止）
+    // Mark as checked (prevents re-render loops)
     autoResumeCheckedRef.current = true;
 
-    // 自動再開が無効、または再開可能な実行がない場合は終了
+    // Exit if auto-resume is disabled or no resumable executions exist
     const resumableExecutions = executions.filter((e) => e.canResume);
     if (!autoResume || resumableExecutions.length === 0) {
       return;
     }
 
-    // sessionStorageでセッション中に既に実行済みかチェック
+    // Check sessionStorage to see if already triggered in this session
     const alreadyTriggered = sessionStorage.getItem(AUTO_RESUME_SESSION_KEY);
     if (alreadyTriggered === 'true') {
       logger.debug('Already triggered in this session, skipping');
       return;
     }
 
-    // 自動再開を実行
+    // Execute auto-resume
     logger.info(
       `Starting auto-resume for ${resumableExecutions.length} executions`,
     );
@@ -245,7 +245,7 @@ export function ResumableExecutionsBanner() {
     resumeAll();
   }, [autoResume, isLoading, executions]);
 
-  // プルダウンの外側クリックで閉じる
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -314,7 +314,7 @@ export function ResumableExecutionsBanner() {
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
         // Redirect to task page (only if not auto-resuming multiple)
         if (!isAutoResume && data.taskId) {
-          // 再開処理がバックエンドで開始されるまで少し待つ
+          // Brief delay to let the backend start the resume process
           await new Promise((resolve) => setTimeout(resolve, 500));
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
@@ -342,7 +342,7 @@ export function ResumableExecutionsBanner() {
   const handleDismiss = async (executionId: number) => {
     const exec = executions.find((e) => e.id === executionId);
 
-    // 実行中の場合はローカルでのみ非表示にする（APIは呼ばない）
+    // For running executions, only hide locally (do not call API)
     if (
       exec &&
       (exec.status === 'running' || exec.status === 'waiting_for_input')
@@ -412,7 +412,7 @@ export function ResumableExecutionsBanner() {
     return tNotification('justNow');
   };
 
-  // 実行中と中断の件数を集計
+  // Count running and interrupted executions
   const runningCount = executions.filter(
     (e) => e.status === 'running' || e.status === 'waiting_for_input',
   ).length;
@@ -420,7 +420,7 @@ export function ResumableExecutionsBanner() {
     (e) => e.status === 'interrupted',
   ).length;
 
-  // タスク詳細ページかどうかを判定（/tasks/[id] パターン）
+  // Detect task detail page (/tasks/[id] pattern)
   const isTaskDetailPage = /^\/tasks\/\d+/.test(pathname);
 
   // Don't show if loading, dismissed, (no executions and no error), on task detail page, or task detail panel is visible
@@ -436,7 +436,7 @@ export function ResumableExecutionsBanner() {
 
   // Show error state if there's a connection error (suppress during intentional restart)
   if (connectionError && !isConnected) {
-    // 意図的な再起動中は接続エラーを表示しない
+    // Do not show connection error during intentional restart
     if (isIntentionalRestart) {
       return null;
     }
@@ -473,7 +473,7 @@ export function ResumableExecutionsBanner() {
     );
   }
 
-  // バナーのスタイルを実行中と中断で切り替え
+  // Switch banner style between running and interrupted states
   const hasRunning = runningCount > 0;
 
   return (
@@ -695,7 +695,7 @@ export function ResumableExecutionsBanner() {
         {/* Quick actions when collapsed */}
         {!isExpanded && executions.length > 0 && (
           <div className="px-3 pb-3 flex items-center gap-2">
-            {/* 1件のみの場合は現行のボタン表示 */}
+            {/* Single execution: show inline buttons */}
             {executions.length === 1 ? (
               <>
                 {executions[0].canResume ? (
@@ -722,7 +722,7 @@ export function ResumableExecutionsBanner() {
                 )}
               </>
             ) : (
-              /* 複数件の場合はプルダウン形式 */
+              /* Multiple executions: dropdown format */
               <div className="relative flex-1 min-w-0" ref={dropdownRef}>
                 <div className="relative">
                   <button
@@ -759,7 +759,7 @@ export function ResumableExecutionsBanner() {
                     />
                   </button>
 
-                  {/* プルダウンメニュー */}
+                  {/* Dropdown menu */}
                   {showDropdown &&
                     typeof window !== 'undefined' &&
                     createPortal(
@@ -815,7 +815,7 @@ export function ResumableExecutionsBanner() {
                 </div>
               </div>
             )}
-            {/* 複数の中断タスクがある場合の全て再開ボタン */}
+            {/* Resume all button when multiple interrupted tasks exist */}
             {interruptedCount > 1 && (
               <button
                 onClick={handleResumeAll}
@@ -829,7 +829,7 @@ export function ResumableExecutionsBanner() {
                 {t('resumeAll')}
               </button>
             )}
-            {/* 1件の場合でも詳細ボタンを表示 */}
+            {/* Show details button even for single execution */}
             {executions.length === 1 && (
               <button
                 onClick={() => setIsExpanded(true)}

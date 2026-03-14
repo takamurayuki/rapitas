@@ -1,9 +1,9 @@
 /**
- * Google Gemini プロバイダー（スタブ実装）
- * Google AI Studio / Vertex AI の Gemini モデルを使用したエージェントプロバイダー
+ * Google Gemini Provider (stub)
  *
- * 注意: このファイルはインターフェースの定義のみで、実際の実装は
- * @google/generative-ai パッケージをインストールした後に完成させる必要があります。
+ * Agent provider using Google AI Studio / Vertex AI Gemini models.
+ * NOTE: This file only defines the interface. Full implementation requires
+ * installing the @google/generative-ai package.
  */
 
 import type {
@@ -22,7 +22,7 @@ import { AgentError } from '../abstraction/interfaces';
 import { generateAgentId } from '../abstraction';
 
 /**
- * Gemini プロバイダー設定
+ * Gemini provider configuration
  */
 export interface GeminiConfig extends GeminiProviderConfig {
   model?: string;
@@ -32,7 +32,7 @@ export interface GeminiConfig extends GeminiProviderConfig {
 }
 
 /**
- * Gemini モデル情報
+ * Gemini model information
  */
 export const GEMINI_MODELS = {
   'gemini-2.0-flash': {
@@ -68,7 +68,7 @@ export const GEMINI_MODELS = {
 type GeminiModelId = keyof typeof GEMINI_MODELS;
 
 /**
- * 会話履歴のメッセージ型
+ * Conversation history message type
  */
 interface ConversationMessage {
   role: 'user' | 'model';
@@ -76,8 +76,9 @@ interface ConversationMessage {
 }
 
 /**
- * Gemini エージェント
- * 注意: 実際のAPI呼び出しは @google/generative-ai パッケージのインストール後に実装
+ * Gemini Agent
+ *
+ * NOTE: Actual API calls require installing the @google/generative-ai package.
  */
 export class GeminiAgent extends AbstractAgent {
   private config: GeminiConfig;
@@ -145,7 +146,7 @@ export class GeminiAgent extends AbstractAgent {
     task: AgentTaskDefinition,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    // スタブ実装 - 実際のAPI呼び出しは @google/generative-ai パッケージ導入後に実装
+    // TODO: Implement actual API calls after installing @google/generative-ai package
     throw new AgentError(
       'Gemini provider is not yet fully implemented. Please install the @google/generative-ai package and complete the implementation.',
       'configuration',
@@ -196,7 +197,7 @@ Guidelines:
 }
 
 /**
- * Gemini プロバイダー
+ * Gemini Provider
  */
 export class GeminiProvider implements IAgentProvider {
   readonly providerId = 'gemini' as const;
@@ -276,7 +277,7 @@ export class GeminiProvider implements IAgentProvider {
       };
     }
 
-    // スタブ実装 - 実際のヘルスチェックは @google/generative-ai パッケージ導入後に実装
+    // TODO: Implement full health check after installing @google/generative-ai package
     return {
       healthy: true,
       available: true,
@@ -297,7 +298,7 @@ export class GeminiProvider implements IAgentProvider {
   }
 
   /**
-   * 利用可能なモデル一覧を取得
+   * Returns the list of available models with pricing info.
    */
   getAvailableModels(): Array<{
     id: string;
@@ -315,6 +316,6 @@ export class GeminiProvider implements IAgentProvider {
 }
 
 /**
- * デフォルトの Gemini プロバイダーインスタンス
+ * Default Gemini provider instance
  */
 export const geminiProvider = new GeminiProvider();

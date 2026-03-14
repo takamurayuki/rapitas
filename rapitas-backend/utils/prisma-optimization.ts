@@ -4,9 +4,9 @@ import { createLogger } from '../config/logger';
 
 const log = createLogger('prisma-optimization');
 
-// クエリ最適化のユーティリティ
+// Query optimization utilities
 export class PrismaOptimizer {
-  // 選択フィールドの最適化
+  // Optimize field selection
   static selectFields<T>(fields: (keyof T)[]): Record<keyof T, boolean> {
     return fields.reduce(
       (acc, field) => {
@@ -17,7 +17,7 @@ export class PrismaOptimizer {
     );
   }
 
-  // バッチ処理の最適化
+  // Optimize batch processing
   static async batchOperation<T>(
     items: T[],
     batchSize: number,
@@ -29,7 +29,7 @@ export class PrismaOptimizer {
     }
   }
 
-  // 並列クエリの実行
+  // Execute queries in parallel
   static async parallelQueries<T extends Record<string, Promise<unknown>>>(
     queries: T,
   ): Promise<{ [K in keyof T]: Awaited<T[K]> }> {
@@ -46,7 +46,7 @@ export class PrismaOptimizer {
     );
   }
 
-  // カーソルベースのページネーション
+  // Cursor-based pagination
   static cursorPagination<T extends { id: string | number }>(cursor?: string, limit: number = 20) {
     return {
       take: limit + 1,
@@ -57,7 +57,7 @@ export class PrismaOptimizer {
     };
   }
 
-  // 結果のフォーマット
+  // Format cursor pagination results
   static formatCursorResults<T extends { id: string | number }>(items: T[], limit: number) {
     const hasNextPage = items.length > limit;
     const data = hasNextPage ? items.slice(0, -1) : items;
@@ -86,10 +86,10 @@ type PrismaMiddlewareFn = (
 ) => Promise<unknown>;
 type PrismaWithUse = PrismaClient & { $use: (fn: PrismaMiddlewareFn) => void };
 
-// Prismaミドルウェアの拡張
+// Prisma middleware extensions
 export function setupPrismaOptimizations(prisma: PrismaClient) {
   const prismaWithMiddleware = prisma as unknown as PrismaWithUse;
-  // クエリのロギングとパフォーマンス計測
+  // Query logging and performance measurement
   // Note: $use middleware is deprecated in newer Prisma versions, using type assertion
   prismaWithMiddleware.$use(
     async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
@@ -98,12 +98,12 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
       const after = Date.now();
       const duration = after - before;
 
-      // 遅いクエリの検出
+      // Detect slow queries
       if (duration > 100) {
         log.warn(`Slow query detected: ${params.model}.${params.action} took ${duration}ms`);
       }
 
-      // メトリクスの記録（実際のアプリケーションではメトリクスサービスに送信）
+      // Record metrics (in production, send to a metrics service)
       if (global.performanceMetrics) {
         global.performanceMetrics.recordQuery({
           model: params.model,
@@ -116,7 +116,7 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
     },
   );
 
-  // 自動的なリトライロジック
+  // Automatic retry logic
   prismaWithMiddleware.$use(
     async (params: MiddlewareParams, next: (params: MiddlewareParams) => Promise<unknown>) => {
       const maxRetries = 3;
@@ -129,11 +129,11 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
           retries++;
 
           const prismaError = error as { code?: string };
-          // トランザクションのデッドロックやタイムアウトの場合にリトライ
+          // Retry on transaction deadlocks and timeouts
           if (
-            prismaError.code === 'P2034' || // トランザクションのタイムアウト
-            prismaError.code === 'P2024' || // タイムアウト
-            (prismaError.code === 'P2002' && retries < maxRetries) // ユニーク制約違反（リトライ可能な場合）
+            prismaError.code === 'P2034' || // Transaction timeout
+            prismaError.code === 'P2024' || // Query timeout
+            (prismaError.code === 'P2002' && retries < maxRetries) // Unique constraint violation (retryable)
           ) {
             log.info(`Retrying query (${retries}/${maxRetries}): ${params.model}.${params.action}`);
             await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retries) * 100));
@@ -149,7 +149,7 @@ export function setupPrismaOptimizations(prisma: PrismaClient) {
   );
 }
 
-// 効率的なデータローダー
+// Efficient data loader with batching
 export class PrismaDataLoader<T> {
   private cache = new Map<string, Promise<T | null>>();
   private batchQueue: { id: string; resolve: (value: T | null) => void }[] = [];
@@ -162,21 +162,21 @@ export class PrismaDataLoader<T> {
   ) {}
 
   async load(id: string): Promise<T | null> {
-    // キャッシュチェック
+    // Cache check
     if (this.cache.has(id)) {
       return this.cache.get(id)!;
     }
 
-    // プロミスを作成してキャッシュ
+    // Create a promise and cache it
     const promise = new Promise<T | null>((resolve) => {
       this.batchQueue.push({ id, resolve });
 
-      // バッチ処理のスケジュール
+      // Schedule batch processing
       if (!this.batchTimeout) {
         this.batchTimeout = setTimeout(() => this.flush(), this.batchDelay);
       }
 
-      // バッチサイズに達したら即座に実行
+      // Execute immediately when batch size is reached
       if (this.batchQueue.length >= this.batchSize) {
         this.flush();
       }
@@ -218,9 +218,9 @@ export class PrismaDataLoader<T> {
   }
 }
 
-// 複雑なクエリの最適化ヘルパー
+// Complex query optimization helpers
 export const QueryOptimizers = {
-  // N+1問題を回避するための関連データの事前読み込み
+  // Eager-load related data to avoid N+1 queries
   taskWithRelations: () => ({
     include: {
       project: {
@@ -253,7 +253,7 @@ export const QueryOptimizers = {
     },
   }),
 
-  // 集計クエリの最適化
+  // Optimized aggregation queries
   async getTaskStatistics(prisma: PrismaClient, filters: Prisma.TaskWhereInput) {
     const results = await PrismaOptimizer.parallelQueries({
       totalCount: prisma.task.count({ where: filters }),
@@ -308,7 +308,7 @@ export const QueryOptimizers = {
     };
   },
 
-  // 効率的な検索クエリ
+  // Efficient search query
   searchTasks: (searchTerm: string, filters: Prisma.TaskWhereInput = {}) => ({
     where: {
       AND: [
@@ -351,7 +351,7 @@ export const QueryOptimizers = {
   }),
 };
 
-// グローバルな型定義
+// Global type declarations
 declare global {
   var performanceMetrics: {
     recordQuery: (data: { model?: string; action: string; duration: number }) => void;

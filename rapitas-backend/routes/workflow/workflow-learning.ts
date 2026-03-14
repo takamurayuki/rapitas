@@ -1,6 +1,6 @@
 /**
  * Workflow Learning Routes
- * ワークフロー学習最適化のAPIエンドポイント
+ * Workflow learning optimization API endpoints
  */
 import { Elysia } from 'elysia';
 import { parseId } from '../../middleware/error-handler';
@@ -16,7 +16,7 @@ const log = createLogger('routes:workflow-learning');
 
 export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' })
 
-  // タスクへのワークフロー最適化提案を取得
+  // Get workflow optimization recommendation for a task
   .get('/tasks/:taskId/recommendation', async ({ params }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -41,7 +41,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // ワークフロー学習の統計情報を取得
+  // Get workflow learning statistics
   .get('/stats', async () => {
     try {
       const stats = await getLearningStats();
@@ -56,7 +56,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // アクティブな最適化ルール一覧を取得
+  // Get active optimization rules
   .get('/rules', async ({ query }) => {
     try {
       const includeInactive = query?.includeInactive === 'true';
@@ -82,7 +82,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // 最適化ルールの自動生成を実行
+  // Trigger automatic optimization rule generation
   .post('/rules/generate', async () => {
     try {
       const result = await generateOptimizationRules();
@@ -97,7 +97,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // 特定のルールを有効化/無効化
+  // Enable/disable a specific rule
   .patch('/rules/:ruleId', async ({ params, body }) => {
     try {
       const ruleId = parseId(params.ruleId, 'rule ID');
@@ -125,7 +125,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // 学習記録一覧を取得（デバッグ・分析用）
+  // Get learning records (for debugging/analysis)
   .get('/records', async ({ query }) => {
     try {
       const limit = Math.min(parseInt(query?.limit || '50', 10), 200);
@@ -170,7 +170,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
     }
   })
 
-  // 推奨を適用（ワークフローモードを更新）
+  // Apply recommendation (update workflow mode)
   .post('/tasks/:taskId/apply-recommendation', async ({ params }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
@@ -181,7 +181,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
         return { success: false, message: '推奨データがありません' };
       }
 
-      // 信頼度が低い場合は警告
+      // Warn if confidence is too low
       if (recommendation.confidence < 0.6) {
         return {
           success: false,
@@ -190,7 +190,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
         };
       }
 
-      // モード変更を適用
+      // Apply mode change
       if (recommendation.recommendedMode !== recommendation.currentMode) {
         await prisma.task.update({
           where: { id: taskId },
@@ -200,7 +200,7 @@ export const workflowLearningRoutes = new Elysia({ prefix: '/workflow/learning' 
           },
         });
 
-        // ActivityLog に記録
+        // Record in ActivityLog
         await prisma.activityLog.create({
           data: {
             taskId,

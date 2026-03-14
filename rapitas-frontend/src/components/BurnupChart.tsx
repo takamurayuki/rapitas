@@ -24,8 +24,8 @@ type BurnupData = {
   };
   dailyData: {
     date: string;
-    completed: number; // その日の完了数
-    cumulativeCompleted: number; // 累積完了数
+    completed: number;
+    cumulativeCompleted: number;
     added: number;
   }[];
 };
@@ -75,7 +75,7 @@ export default function BurnupChart({
           params.append('themeId', selectedThemeId.toString());
         if (projectId) params.append('projectId', projectId.toString());
 
-        // バーンアップ用のAPIエンドポイントを使用
+        // Use the burnup statistics API endpoint
         const res = await fetch(`${API_BASE_URL}/statistics/burnup?${params}`);
         if (res.ok) {
           setData(await res.json());
@@ -89,7 +89,7 @@ export default function BurnupChart({
     fetchData();
   }, [selectedThemeId, projectId, selectedDays]);
 
-  // チャートの描画パラメータ
+  // Chart rendering parameters
   const chartConfig = useMemo(() => {
     if (!data || data.dailyData.length === 0) return null;
 
@@ -99,7 +99,7 @@ export default function BurnupChart({
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
-    // バーンアップでは累積完了数の最大値を基準に
+    // Scale Y-axis based on the max cumulative completed count
     const maxValue = Math.max(
       ...data.dailyData.map((d) => d.cumulativeCompleted),
       data.summary.cumulativeCompleted,
@@ -111,7 +111,7 @@ export default function BurnupChart({
     const yScale = (value: number) =>
       padding.top + chartHeight - (value / maxValue) * chartHeight;
 
-    // 累積完了数のパスを生成（右肩上がり）
+    // Generate SVG path for cumulative completed (ascending line)
     const completedPath = data.dailyData
       .map(
         (d, i) =>
@@ -119,7 +119,7 @@ export default function BurnupChart({
       )
       .join(' ');
 
-    // 理想的な進捗ライン（期間全体でのタスク追加を考慮した線形増加）
+    // Ideal progress line (linear increase accounting for task additions over the period)
     const idealEndValue = data.summary.cumulativeCompleted;
     const idealPath = data.dailyData
       .map((d, i) => {
@@ -128,10 +128,10 @@ export default function BurnupChart({
       })
       .join(' ');
 
-    // 累積完了数の下を塗りつぶすためのエリアパス（成果の可視化）
+    // Area fill path under cumulative completed line (visualizes progress)
     const areaPath = `${completedPath} L ${xScale(data.dailyData.length - 1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`;
 
-    // Y軸のグリッド線
+    // Y-axis grid lines
     const yGridLines = [];
     const gridCount = 4;
     for (let i = 0; i <= gridCount; i++) {
@@ -183,7 +183,7 @@ export default function BurnupChart({
     <div
       className={`bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200/50 dark:border-zinc-800 overflow-hidden ${className}`}
     >
-      {/* ヘッダー: タイトル + サマリー + フィルター */}
+      {/* Header: title + summary + filters */}
       <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
@@ -193,7 +193,7 @@ export default function BurnupChart({
                 {t('title')}
               </h2>
             </div>
-            {/* インラインサマリー */}
+            {/* Inline summary */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                 <Award className="w-3 h-3" />
@@ -220,7 +220,7 @@ export default function BurnupChart({
             </div>
           </div>
 
-          {/* フィルター */}
+          {/* Filters */}
           <div className="flex items-center gap-1.5">
             <select
               value={selectedThemeId || ''}
@@ -255,7 +255,7 @@ export default function BurnupChart({
             </div>
           </div>
         </div>
-        {/* モバイル用サマリー */}
+        {/* Mobile summary */}
         <div className="flex sm:hidden items-center gap-3 mt-2 text-xs">
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
             {t('completed')}
@@ -278,13 +278,13 @@ export default function BurnupChart({
         </div>
       </div>
 
-      {/* チャート */}
+      {/* Chart */}
       <div className="px-3 pt-2 pb-3">
         <svg
           viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`}
           className="w-full h-auto"
         >
-          {/* グリッド線 */}
+          {/* Grid lines */}
           {chartConfig.yGridLines.map(({ y, value }, index) => (
             <g key={`grid-${index}-${value}`}>
               <line
@@ -308,7 +308,7 @@ export default function BurnupChart({
             </g>
           ))}
 
-          {/* X軸ラベル */}
+          {/* X-axis labels */}
           {dailyData
             .filter(
               (_, i) =>
@@ -333,10 +333,10 @@ export default function BurnupChart({
               );
             })}
 
-          {/* 累積完了数エリア（塗りつぶし）- 成果の可視化 */}
+          {/* Cumulative completed area fill */}
           <path d={chartConfig.areaPath} fill="#10b981" fillOpacity={0.1} />
 
-          {/* 理想線（参考線として） */}
+          {/* Ideal pace reference line */}
           <path
             d={chartConfig.idealPath}
             fill="none"
@@ -345,7 +345,7 @@ export default function BurnupChart({
             strokeDasharray="5 3"
           />
 
-          {/* 実績線（累積完了数） - 右肩上がり */}
+          {/* Actual progress line (cumulative completed) */}
           <path
             d={chartConfig.completedPath}
             fill="none"
@@ -355,7 +355,7 @@ export default function BurnupChart({
             strokeLinejoin="round"
           />
 
-          {/* データポイント（間引き表示） */}
+          {/* Data points (thinned for readability) */}
           {dailyData.map((d, i) => {
             const showDot =
               i === 0 ||
@@ -384,7 +384,7 @@ export default function BurnupChart({
           })}
         </svg>
 
-        {/* 凡例 */}
+        {/* Legend */}
         <div className="flex items-center justify-center gap-4 mt-1">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-emerald-500 rounded" />

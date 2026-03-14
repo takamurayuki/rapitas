@@ -1,6 +1,6 @@
 /**
  * Screenshots API Routes
- * スクリーンショットの配信と撮影（汎用プロジェクト対応）
+ * Screenshot serving and capture (multi-project support)
  */
 import { Elysia, t } from 'elysia';
 import { join } from 'path';
@@ -16,12 +16,12 @@ import {
 const SCREENSHOT_DIR = join(process.cwd(), 'uploads', 'screenshots');
 
 export const screenshotsRoutes = new Elysia()
-  // スクリーンショット画像の配信
+  // Serve screenshot images
   .get('/screenshots/:filename', async (context) => {
     const { params } = context;
     const { filename } = params;
 
-    // パストラバーサル防止
+    // Path traversal prevention
     if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       return new Response(JSON.stringify({ error: 'Invalid filename' }), {
         status: 400,
@@ -38,7 +38,7 @@ export const screenshotsRoutes = new Elysia()
       });
     }
 
-    // Bun.file() を使用して効率的にファイルを配信
+    // Serve file efficiently via Bun.file()
     return new Response(Bun.file(filePath), {
       headers: {
         'Content-Type': 'image/png',
@@ -47,7 +47,7 @@ export const screenshotsRoutes = new Elysia()
     });
   })
 
-  // 手動でスクリーンショットを撮影
+  // Manually capture screenshots
   .post('/screenshots/capture', async (context) => {
     const { body } = context;
     try {
@@ -65,7 +65,7 @@ export const screenshotsRoutes = new Elysia()
     }
   })
 
-  // 全ページのスクリーンショットを撮影（changedFiles 指定時は変更ページのみ）
+  // Capture all page screenshots (only changed pages when changedFiles is specified)
   .post('/screenshots/capture-all', async (context) => {
     const body = context.body as ScreenshotOptions & { changedFiles?: string[] };
     try {
@@ -90,7 +90,7 @@ export const screenshotsRoutes = new Elysia()
     }
   })
 
-  // プロジェクトの全ページルートを検出
+  // Detect all page routes in a project
   .post('/screenshots/detect-pages', async (context) => {
     const { body } = context;
     try {
@@ -115,7 +115,7 @@ export const screenshotsRoutes = new Elysia()
     }
   })
 
-  // プロジェクト構造を検出
+  // Detect project structure
   .post('/screenshots/detect-project', async (context) => {
     const { body } = context;
     try {

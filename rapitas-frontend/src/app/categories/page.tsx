@@ -276,10 +276,8 @@ export default function CategoriesPage() {
     }
   };
 
-  // デバウンスされた検索クエリ
   const debouncedIconSearchQuery = useDebounce(iconSearchQuery, 300);
 
-  // メモ化されたアイコン検索結果（最大50個に制限）
   const filteredIcons = useMemo(() => {
     const results = searchIcons(debouncedIconSearchQuery);
     return results.slice(0, 50);
@@ -403,7 +401,6 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* モード選択 */}
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           {t('modeLabel')}
@@ -459,7 +456,6 @@ export default function CategoriesPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-4 py-6">
-        {/* ヘッダー */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
@@ -481,7 +477,6 @@ export default function CategoriesPage() {
           )}
         </div>
 
-        {/* 新規追加フォーム */}
         {isAdding && (
           <div className="mb-4 rounded-xl border-2 border-indigo-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
             <h2 className="mb-3 text-base font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
@@ -492,7 +487,6 @@ export default function CategoriesPage() {
           </div>
         )}
 
-        {/* リスト */}
         {loading ? (
           <ListSkeleton count={4} showBadges />
         ) : items.length === 0 ? (
@@ -680,7 +674,6 @@ export default function CategoriesPage() {
                                   </div>
                                 </div>
 
-                                {/* 所属テーマ一覧 */}
                                 {item.themes && item.themes.length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
                                     <div className="flex items-center gap-1.5 flex-wrap">

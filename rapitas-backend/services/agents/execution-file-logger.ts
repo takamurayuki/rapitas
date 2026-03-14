@@ -131,7 +131,7 @@ export class ExecutionFileLogger {
     this.modelId = modelId;
     this.startedAt = new Date();
 
-    // ログファイルパス: logs/agent-executions/exec-{id}-{timestamp}.log
+    // Log file path: logs/agent-executions/exec-{id}-{timestamp}.log
     const timestamp = this.startedAt.toISOString().replace(/[:.]/g, '-');
     this.logFilePath = path.join(this.config.logDir, `exec-${executionId}-${timestamp}.log`);
   }

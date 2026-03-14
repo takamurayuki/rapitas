@@ -1,6 +1,6 @@
 /**
- * Date-fnsのformatDistanceToNowのシンプルな実装
- * 日本語で相対的な時間を表示
+ * Simple implementation of date-fns formatDistanceToNow
+ * Display relative time in Japanese
  */
 export function formatDistanceToNow(date: Date): string {
   const now = new Date();
@@ -31,7 +31,7 @@ export function formatDistanceToNow(date: Date): string {
 }
 
 /**
- * 日付を指定フォーマットで表示
+ * Display date in the specified format
  */
 export function formatDate(
   date: Date | string,
@@ -45,7 +45,7 @@ export function formatDate(
   }
 
   if (format === 'long') {
-    // YYYY年MM月DD日 HH:mm
+    // YYYY/MM/DD HH:mm format
     return `${d.getFullYear()}年${(d.getMonth() + 1).toString().padStart(2, '0')}月${d.getDate().toString().padStart(2, '0')}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   }
 

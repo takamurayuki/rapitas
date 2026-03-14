@@ -1,6 +1,7 @@
 /**
- * タスク実行
- * 新規タスクの実行ロジックを担当
+ * TaskExecutor
+ *
+ * Handles the execution logic for new tasks.
  */
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput } from '../agent-factory';
@@ -29,14 +30,13 @@ import { buildTaskRAGContext } from '../../memory/rag/context-builder';
 const logger = createLogger('task-executor');
 
 /**
- * タスクを実行
+ * Execute a task.
  */
 export async function executeTask(
   ctx: OrchestratorContext,
   task: AgentTask,
   options: ExecutionOptions,
 ): Promise<AgentExecutionResult> {
-  // エージェント設定を取得
   let agentConfig: AgentConfigInput = {
     type: 'claude-code',
     name: 'Claude Code Agent',
@@ -69,10 +69,8 @@ export async function executeTask(
     }
   }
 
-  // エージェントを作成
   const agent = agentFactory.createAgent(agentConfig);
 
-  // 実行レコードを作成
   const execution = await ctx.prisma.agentExecution.create({
     data: {
       sessionId: options.sessionId,
@@ -82,7 +80,6 @@ export async function executeTask(
     },
   });
 
-  // 実行状態を追跡
   const state: ExecutionState = {
     executionId: execution.id,
     sessionId: options.sessionId,
@@ -94,7 +91,6 @@ export async function executeTask(
   };
   ctx.activeExecutions.set(execution.id, state);
 
-  // ファイルロガーを初期化
   const fileLogger = new ExecutionFileLogger(
     execution.id,
     options.sessionId,
@@ -112,7 +108,6 @@ export async function executeTask(
     hasAnalysisInfo: !!options.analysisInfo,
   });
 
-  // アクティブエージェントを登録
   const agentInfo: ActiveAgentInfo = {
     agent,
     executionId: execution.id,
@@ -125,7 +120,6 @@ export async function executeTask(
   };
   ctx.activeAgents.set(execution.id, agentInfo);
 
-  // シャットダウン中は新しい実行を拒否
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
@@ -134,7 +128,6 @@ export async function executeTask(
     throw new Error('Server is shutting down, cannot start new execution');
   }
 
-  // 質問検出ハンドラを設定
   setupQuestionDetectedHandler(agent, {
     prisma: ctx.prisma,
     executionId: execution.id,
@@ -147,14 +140,12 @@ export async function executeTask(
     getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
   });
 
-  // ログチャンク管理
   const logManager = createLogChunkManager({
     prisma: ctx.prisma,
     executionId: execution.id,
     initialSequenceNumber: 0,
   });
 
-  // 出力ハンドラを設定
   setupOutputHandler(
     agent,
     {
@@ -173,7 +164,6 @@ export async function executeTask(
 
   const cleanupLogHandler = logManager.cleanup;
 
-  // 実行開始イベント
   ctx.emitEvent({
     type: 'execution_started',
     executionId: execution.id,
@@ -187,7 +177,6 @@ export async function executeTask(
     timestamp: new Date(),
   });
 
-  // 継続実行の場合は前回のログを取得
   let previousOutput = '';
   if (options.continueFromPrevious && options.sessionId) {
     try {
@@ -211,7 +200,6 @@ export async function executeTask(
     }
   }
 
-  // 初期メッセージを設定
   const agentLabel = agentConfig.modelId
     ? `${agentConfig.name} (${agentConfig.type}, model: ${agentConfig.modelId})`
     : `${agentConfig.name} (${agentConfig.type})`;
@@ -223,7 +211,6 @@ export async function executeTask(
 
   state.output = initialMessage;
 
-  // 実行レコードを更新
   await ctx.prisma.agentExecution.update({
     where: { id: execution.id },
     data: {
@@ -234,7 +221,6 @@ export async function executeTask(
   });
 
   try {
-    // RAGコンテキストを注入
     let ragContext = '';
     try {
       ragContext = await buildTaskRAGContext({
@@ -262,14 +248,12 @@ export async function executeTask(
       logger.info(`[TaskExecutor] AI task analysis not provided`);
     }
 
-    // エージェントを実行
     const result = await agent.execute(taskWithAnalysis);
 
     logger.info(
       `[TaskExecutor] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
     );
 
-    // 結果をDB保存・イベント発火
     await saveExecutionResult(
       ctx.prisma,
       execution.id,
@@ -282,7 +266,7 @@ export async function executeTask(
       ctx.emitEvent(event),
     );
 
-    // メモリシステム: タイムラインイベント + distillation
+    // Memory system: timeline event + distillation
     const eventType = result.success ? 'agent_execution_completed' : 'agent_execution_failed';
     appendEvent({
       eventType,

@@ -1,8 +1,8 @@
 /**
- * 予測型タスク提案サービス
+ * Predictive Task Suggestion Service
  *
- * ユーザーの行動パターン（時間帯、曜日、完了率）を分析し、
- * 「今やるべきタスク」をランキング形式で提案する
+ * Analyzes user behavior patterns (time of day, day of week, completion rate)
+ * and suggests tasks to work on now, ranked by relevance.
  */
 import { prisma } from '../config/database';
 import { createLogger } from '../config/logger';
@@ -30,7 +30,7 @@ interface ProductivityPattern {
 }
 
 /**
- * 現在の時間帯・曜日に最適なタスクをランキングで提案
+ * Suggest optimal tasks for the current time slot/day as a ranked list.
  */
 export async function getSuggestedTasks(limit: number = 5): Promise<{
   suggestions: TaskSuggestion[];
@@ -42,10 +42,10 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
   const hourOfDay = now.getHours();
   const dayOfWeek = now.getDay(); // 0=Sun, 6=Sat
 
-  // 1. 現在の生産性パターンを取得
+  // 1. Get current productivity pattern
   const pattern = await analyzeCurrentPattern(hourOfDay, dayOfWeek);
 
-  // 2. 未完了タスクを取得
+  // 2. Get open tasks
   const openTasks = await prisma.task.findMany({
     where: {
       status: { in: ['todo', 'in-progress'] },
@@ -73,7 +73,7 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     };
   }
 
-  // 3. 各タスクにスコアを付与
+  // 3. Score each task
   const scored: TaskSuggestion[] = [];
 
   for (const task of openTasks) {
@@ -91,7 +91,7 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
     });
   }
 
-  // 4. スコア順にソートして上位を返す
+  // 4. Sort by score and return top results
   scored.sort((a, b) => b.score - a.score);
   const suggestions = scored.slice(0, limit);
 
@@ -113,7 +113,7 @@ export async function getSuggestedTasks(limit: number = 5): Promise<{
 }
 
 /**
- * 時間帯別の生産性ヒートマップを生成
+ * Generate a productivity heatmap by time of day.
  */
 export async function getProductivityHeatmap(days: number = 90): Promise<{
   heatmap: Array<{ hour: number; day: number; completions: number; avgDuration: number }>;
@@ -130,7 +130,7 @@ export async function getProductivityHeatmap(days: number = 90): Promise<{
     select: { createdAt: true },
   });
 
-  // 時間帯×曜日の集計
+  // Aggregate by hour x day of week
   const grid: Record<string, { completions: number; count: number }> = {};
 
   for (const b of completedBehaviors) {
@@ -160,7 +160,7 @@ export async function getProductivityHeatmap(days: number = 90): Promise<{
     }
   }
 
-  // ピーク時間帯と低調時間帯
+  // Peak hours and low hours
   const sortedHours = Object.entries(hourTotals)
     .sort((a, b) => b[1] - a[1])
     .map(([h]) => parseInt(h));
@@ -214,13 +214,13 @@ export async function getHeatmapCellTasks(
     .slice(0, 20);
 }
 
-// ──── 内部ヘルパー ────
+// ──── Internal helpers ────
 
 async function analyzeCurrentPattern(
   hourOfDay: number,
   dayOfWeek: number,
 ): Promise<ProductivityPattern> {
-  // 過去60日の同時間帯・同曜日の行動データを取得
+  // Get behavior data from the same time slot/day for the past 60 days
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
   const behaviors = await prisma.userBehavior.findMany({
@@ -236,7 +236,7 @@ async function analyzeCurrentPattern(
     },
   });
 
-  // 同時間帯（±1時間）・同曜日のデータ
+  // Data for the same time slot (±1 hour) and day of week
   const sameTimeSlot = behaviors.filter((b) => {
     const h = b.createdAt.getHours();
     const d = b.createdAt.getDay();
@@ -246,10 +246,10 @@ async function analyzeCurrentPattern(
   const completions = sameTimeSlot.filter((b) => b.actionType === 'task_completed');
   const starts = sameTimeSlot.filter((b) => b.actionType === 'task_started');
 
-  // 完了率
+  // Completion rate
   const completionRate = starts.length > 0 ? Math.min(1, completions.length / starts.length) : 0.5;
 
-  // この時間帯で完了したタスクの優先度分布
+  // Priority distribution of tasks completed in this time slot
   let preferredPriority: string | null = null;
   let preferredThemeId: number | null = null;
 
@@ -262,7 +262,7 @@ async function analyzeCurrentPattern(
         select: { priority: true, themeId: true },
       });
 
-      // 最頻出の優先度
+      // Most frequent priority
       const priorityCount: Record<string, number> = {};
       const themeCount: Record<number, number> = {};
 
@@ -279,7 +279,7 @@ async function analyzeCurrentPattern(
     }
   }
 
-  // 週の平均完了数
+  // Weekly average completions
   const weekCount = new Set(
     completions.map((c) => {
       const d = new Date(c.createdAt);
@@ -313,26 +313,26 @@ function calculateTaskScore(
   hourOfDay: number,
   _dayOfWeek: number,
 ): { score: number; reasons: string[] } {
-  let score = 50; // ベーススコア
+  let score = 50; // Base score
   const reasons: string[] = [];
 
-  // 1. 優先度マッチング（パターンで成功しやすい優先度にボーナス）
+  // 1. Priority match for current time slot
   if (pattern.preferredPriority === task.priority) {
     score += 15;
-    reasons.push(`この時間帯では${task.priority}優先度の完了率が高い`);
+    reasons.push(`この時間帯では${task.priority}優先度のCompletion rateが高い`);
   }
 
-  // 2. 優先度の絶対スコア
+  // 2. Priority weight
   const priorityScores: Record<string, number> = { urgent: 25, high: 15, medium: 5, low: 0 };
   score += priorityScores[task.priority] ?? 0;
 
-  // 3. テーママッチング
+  // 3. Theme affinity for current time slot
   if (pattern.preferredThemeId && task.themeId === pattern.preferredThemeId) {
     score += 10;
     reasons.push('この時間帯でよく取り組むテーマ');
   }
 
-  // 4. 期限の近さ
+  // 4. Due date urgency
   if (task.dueDate) {
     const daysUntilDue = (task.dueDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
     if (daysUntilDue < 0) {
@@ -347,7 +347,7 @@ function calculateTaskScore(
     }
   }
 
-  // 5. 集中力レベルに応じたタスクサイズ推奨
+  // 5. Focus level alignment
   const isHighFocus = pattern.completionRate > 0.7;
   const isLowFocus = pattern.completionRate < 0.4;
 
@@ -359,19 +359,19 @@ function calculateTaskScore(
     reasons.push('集中力低下傾向 → 軽いタスク推奨');
   }
 
-  // 6. 進行中タスクにボーナス（コンテキストスイッチ軽減）
+  // 6. In-progress bonus (low context-switch cost)
   if (task.status === 'in-progress') {
     score += 20;
     reasons.push('進行中のタスク（切替コスト低）');
   }
 
-  // 7. ポモドーロ実績があるタスク（着手済み）
+  // 7. Pomodoro history bonus
   if (task.pomodoroSessions.length > 0) {
     score += 5;
     reasons.push(`ポモドーロ${task.pomodoroSessions.length}回実績あり`);
   }
 
-  // 8. 朝（集中力高い傾向）は重要タスク、夕方以降は軽いタスク
+  // 8. Time-of-day preference
   if (hourOfDay >= 6 && hourOfDay <= 11) {
     if (task.priority === 'high' || task.priority === 'urgent') {
       score += 5;

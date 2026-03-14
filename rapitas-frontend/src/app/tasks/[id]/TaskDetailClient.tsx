@@ -59,24 +59,22 @@ function TaskDetailClient({
   const t = useTranslations('task');
   const tc = useTranslations('common');
 
-  // ページモード（ヘッダー表示フラグ）の確認
   const isPageMode = searchParams.get('showHeader') === 'true';
 
-  // TauriのiframeではuseParams()が正しく動作しない場合があるため、
-  // window.locationからIDを直接抽出するフォールバックを追加
+  // NOTE: useParams() may not work in Tauri iframes,
+  // so we fall back to extracting the ID from window.location.
   const getTaskIdFromUrl = (): string | null => {
     if (typeof window === 'undefined') return null;
     const match = window.location.pathname.match(/\/tasks\/(\d+)/);
     return match ? match[1] : null;
   };
 
-  // propTaskIdを最優先、次にparams.id、最後にURLから直接取得
+  // Priority: propTaskId > params.id > URL extraction
   const taskIdFromParams = params?.id as string | undefined;
   const taskIdFromUrl = getTaskIdFromUrl();
   const resolvedTaskId =
     propTaskId?.toString() || taskIdFromParams || taskIdFromUrl;
 
-  // デバッグログ
   logger.debug('[TaskDetailClient] params:', params);
   logger.debug(
     '[TaskDetailClient] window.location:',
@@ -94,27 +92,21 @@ function TaskDetailClient({
   const skeletonStartRef = useRef<number>(Date.now());
   const taskLoadedRef = useRef(false);
 
-  // 時間トラッキング用の状態
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
 
-  // コメント用の状態
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
 
-  // リソース/添付ファイル用の状態
   const [resources, setResources] = useState<Resource[]>([]);
 
-  // タスク完了オーバーレイ用の状態
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
 
-  // ポモドーロモーダル用の状態
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
   const { state: pomodoroState, stopTimer } = usePomodoro();
 
   const isThisTaskTimer = pomodoroState.taskId === task?.id;
 
-  // 開発者モード用の状態
   const [showDevModeConfig, setShowDevModeConfig] = useState(false);
   const taskId = resolvedTaskId ? parseInt(resolvedTaskId) : 0;
   const {
@@ -152,7 +144,6 @@ function TaskDetailClient({
     null,
   );
 
-  // ワークフロー関連の状態
   const [showPlanApprovalModal, setShowPlanApprovalModal] = useState(false);
   const [currentWorkflowStatus, setCurrentWorkflowStatus] =
     useState<WorkflowStatus | null>(null);
@@ -189,7 +180,6 @@ function TaskDetailClient({
     setIsAddingComment,
   });
 
-  // ワークフローステータスの同期
   useEffect(() => {
     if (workflowStatus && workflowStatus !== currentWorkflowStatus) {
       setCurrentWorkflowStatus(workflowStatus);
@@ -205,7 +195,7 @@ function TaskDetailClient({
       setCurrentWorkflowStatus(newStatus as WorkflowStatus);
       if (onTaskUpdated) onTaskUpdated();
 
-      // 承認後にバックエンドがエージェントを起動するまで待機し、実行状態を復元する
+      // NOTE: Poll to restore execution state after approval — backend needs time to start the agent.
       let attempts = 0;
       const maxAttempts = 10;
 
@@ -262,21 +252,16 @@ function TaskDetailClient({
     }
   };
 
-  // グローバル設定の状態
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
     null,
   );
 
-  // AIアシスタントパネルの表示状態（グローバル設定から初期化）
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
-  // テンプレート保存モーダル用の状態
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
 
-  // 最適化されたプロンプト用の状態
   const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
 
-  // 並列実行ステータス管理
   const {
     sessionId: parallelSessionId,
     sessionState: parallelSessionState,
@@ -288,11 +273,9 @@ function TaskDetailClient({
     enableSSE: true,
   });
 
-  // グローバル実行状態から現在のタスクの実行状態を確認
   const { isTaskExecuting } = useExecutionStateStore();
   const isTaskExecutingInStore = isTaskExecuting(taskId);
 
-  // サブタスクごとの実行ログ管理
   const subtasksForLogs = useMemo(() => {
     return (task?.subtasks || []).map((s) => ({ id: s.id, title: s.title }));
   }, [task?.subtasks]);
@@ -419,9 +402,9 @@ function TaskDetailClient({
     };
   }, [resolvedTaskId]);
 
-  // 開発者モード設定とエージェント一覧の取得（メインuseEffectから分離）
-  // fetchAgentsはagentConfigId変更でコールバックIDが変わるため、
-  // メインuseEffectに含めるとスケルトンタイマーがクリアされるバグの原因になる
+  // NOTE: Separated from main useEffect to avoid skeleton timer bugs.
+  // fetchAgents callback ID changes with agentConfigId, which would
+  // re-trigger main useEffect and clear the skeleton timer.
   useEffect(() => {
     if (resolvedTaskId) {
       fetchDevModeConfig();
@@ -429,16 +412,15 @@ function TaskDetailClient({
     }
   }, [resolvedTaskId, fetchDevModeConfig, fetchAgents]);
 
-  // スケルトン表示のフォールバック安全機構
-  // メインuseEffectの再トリガーでタイマーがクリアされた場合に備え、
-  // loadingがfalseになったらshowSkeletonも確実にfalseにする
+  // NOTE: Fallback safety for skeleton display.
+  // If main useEffect re-triggers and clears the timer,
+  // ensure showSkeleton is set to false when loading completes.
   useEffect(() => {
     if (!loading && showSkeleton && taskLoadedRef.current) {
       setShowSkeleton(false);
     }
   }, [loading, showSkeleton]);
 
-  // コンテンツ表示準備完了フラグ
   const [contentReady, setContentReady] = useState(false);
 
   const initialScrollDoneRef = useRef(false);
@@ -457,7 +439,7 @@ function TaskDetailClient({
     }
   }, [showSkeleton]);
 
-  // グローバル設定に基づいて開発者モードを自動有効化
+  // Auto-enable developer mode based on global settings
   useEffect(() => {
     const autoEnableDeveloperMode = async () => {
       if (
@@ -480,7 +462,7 @@ function TaskDetailClient({
     enableDeveloperMode,
   ]);
 
-  // 開発者モードが有効な場合、AIアシスタントパネルを表示
+  // Show AI assistant panel when developer mode is active
   useEffect(() => {
     if (
       devModeConfig?.isEnabled === true ||
@@ -501,7 +483,7 @@ function TaskDetailClient({
     isTaskExecutingInStore,
   ]);
 
-  // autoExecute=true パラメータによる自動実行
+  // Auto-execute when autoExecute=true query param is present
   const autoExecuteTriggered = useRef(false);
   useEffect(() => {
     const shouldAutoExecute = searchParams.get('autoExecute') === 'true';
@@ -541,7 +523,6 @@ function TaskDetailClient({
     }
   }, [task, loading, isExecuting, taskId, searchParams, executeAgent, router]);
 
-  // AI分析の実行
   const handleAnalyze = async () => {
     const result = await analyzeTask();
     if (result?.approvalRequestId) {
@@ -555,7 +536,6 @@ function TaskDetailClient({
     }
   };
 
-  // 承認
   const handleApproveAnalysis = async (arg?: number | number[]) => {
     const approvalId = typeof arg === 'number' ? arg : pendingApprovalId;
     const selectedSubtasks = Array.isArray(arg) ? arg : undefined;
@@ -571,7 +551,6 @@ function TaskDetailClient({
     }
   };
 
-  // 却下
   const handleRejectAnalysis = async () => {
     if (!pendingApprovalId) return;
     await rejectRequest(pendingApprovalId);
@@ -614,9 +593,7 @@ function TaskDetailClient({
       }`}
     >
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header Actions */}
         <div className="mb-6 flex items-center justify-between gap-2">
-          {/* 戻るボタン（ページモード時のみ表示） */}
           <div>
             {isPageMode && (
               <button
@@ -719,7 +696,6 @@ function TaskDetailClient({
         ) : (
           /* View Mode */
           <>
-            {/* Compact Main Card with Accordion - All-in-one */}
             <div className="mb-6">
               <CompactTaskDetailCard
                 task={task}
@@ -743,7 +719,6 @@ function TaskDetailClient({
               />
             </div>
 
-            {/* AI アシスタント統合パネル */}
             {task.theme?.isDevelopment === true &&
               (showAIAssistant ||
                 devModeConfig?.isEnabled === true ||
@@ -910,7 +885,6 @@ function TaskDetailClient({
                 </div>
               )}
 
-            {/* Workflow Section - 開発テーマのみ表示 */}
             {task.theme?.isDevelopment === true && (
               <TaskWorkflowSection
                 task={task}
@@ -926,7 +900,6 @@ function TaskDetailClient({
               />
             )}
 
-            {/* Subtasks Section */}
             <SubtaskSection
               subtasks={task.subtasks || []}
               isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
@@ -1005,5 +978,5 @@ function TaskDetailClient({
   );
 }
 
-// 認証が必要なコンポーネントとしてエクスポート
+// Export as auth-required component
 export default requireAuth(TaskDetailClient);

@@ -149,7 +149,7 @@ export default function CompactWorkflowSelector({
     }
   }, [currentMode]);
 
-  // 自動分析ON時、complexityScoreがない場合に自動実行（taskId=0は新規タスクなのでスキップ）
+  // Auto-analyze when enabled and no complexity score exists (skip taskId=0 for new tasks)
   useEffect(() => {
     if (
       autoComplexityAnalysis &&
@@ -202,7 +202,7 @@ export default function CompactWorkflowSelector({
         setAnalysis(data.analysis);
         onAnalysisComplete?.(data.analysis);
 
-        // 推奨モードがある場合、自動選択
+        // Auto-select recommended mode if available
         if (data.analysis.recommendedMode && !isOverridden) {
           const recommendedMode = data.analysis.recommendedMode as WorkflowMode;
           setSelectedMode(recommendedMode);
@@ -226,9 +226,9 @@ export default function CompactWorkflowSelector({
 
   return (
     <div className={`max-w-2xl ${className}`}>
-      {/* メインセレクター - 1行レイアウト */}
+      {/* Main selector - single row layout */}
       <div className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
-        {/* 複雑度表示 - 一番左 */}
+        {/* Complexity display - leftmost */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
             <span className="font-medium">タスクの複雑度:</span>
@@ -251,10 +251,10 @@ export default function CompactWorkflowSelector({
           </div>
         </div>
 
-        {/* 区切り線 */}
+        {/* Divider */}
         <div className="h-6 w-px bg-zinc-300 dark:bg-zinc-600" />
 
-        {/* ワークフローモード選択ボタン */}
+        {/* Workflow mode selection buttons */}
         <div className="flex items-center gap-1">
           {(
             Object.entries(WORKFLOW_MODE_CONFIGS) as [
@@ -294,14 +294,14 @@ export default function CompactWorkflowSelector({
                   <span>{config.name}</span>
                 </button>
 
-                {/* ツールチップ */}
+                {/* Tooltip */}
                 {showTooltip === mode && (
                   <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs rounded-md whitespace-nowrap shadow-lg">
                     <div className="font-medium">{config.description}</div>
                     <div className="text-zinc-300 dark:text-zinc-600 mt-0.5">
                       {config.estimatedTime} • {config.steps.join(' → ')}
                     </div>
-                    {/* 矢印 */}
+                    {/* Arrow */}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                   </div>
                 )}
@@ -310,10 +310,10 @@ export default function CompactWorkflowSelector({
           })}
         </div>
 
-        {/* 区切り線 */}
+        {/* Divider */}
         <div className="h-6 w-px bg-zinc-300 dark:bg-zinc-600" />
 
-        {/* 自動分析ボタン - 右端で目立つように */}
+        {/* Auto-analyze button */}
         {showAnalyzeButton && (
           <button
             onClick={handleAnalyze}
@@ -340,7 +340,7 @@ export default function CompactWorkflowSelector({
           </button>
         )}
 
-        {/* モード設定バッジ */}
+        {/* Mode setting badge */}
         {autoComplexityAnalysis ? (
           <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
             自動
@@ -352,7 +352,7 @@ export default function CompactWorkflowSelector({
         ) : null}
       </div>
 
-      {/* 推奨モード通知（分析後に表示） */}
+      {/* Recommended mode notification (shown after analysis) */}
       {analysis && analysis.recommendedMode !== selectedMode && (
         <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="flex items-center gap-2 text-xs">

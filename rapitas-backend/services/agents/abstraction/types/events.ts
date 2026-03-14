@@ -1,5 +1,5 @@
 /**
- * エージェントイベントシステムの型定義
+ * Agent event system type definitions.
  */
 
 import type { AgentState } from './agent-identification';
@@ -11,22 +11,22 @@ import type {
 } from './execution-result';
 
 /**
- * エージェントイベントタイプ
+ * Agent event types.
  */
 export type AgentEventType =
-  | 'state_change' // 状態変更
-  | 'output' // 出力（ストリーミング）
-  | 'error' // エラー
-  | 'tool_start' // ツール実行開始
-  | 'tool_end' // ツール実行終了
-  | 'question' // 質問発生
-  | 'progress' // 進捗更新
-  | 'artifact' // 成果物生成
-  | 'commit' // Gitコミット
-  | 'metrics_update'; // メトリクス更新
+  | 'state_change' 
+  | 'output' 
+  | 'error' 
+  | 'tool_start' 
+  | 'tool_end' 
+  | 'question' 
+  | 'progress' 
+  | 'artifact' 
+  | 'commit' 
+  | 'metrics_update'; 
 
 /**
- * エージェントイベント基底型
+ * Base type for all agent events.
  */
 export interface AgentEventBase {
   type: AgentEventType;
@@ -102,7 +102,7 @@ export interface MetricsUpdateEvent extends AgentEventBase {
 }
 
 /**
- * 全イベント型のユニオン
+ * Union of all event types.
  */
 export type AgentEvent =
   | StateChangeEvent
@@ -117,7 +117,7 @@ export type AgentEvent =
   | MetricsUpdateEvent;
 
 /**
- * イベントハンドラ型
+ * Event handler type.
  */
 export type AgentEventHandler<T extends AgentEvent = AgentEvent> = (
   event: T,

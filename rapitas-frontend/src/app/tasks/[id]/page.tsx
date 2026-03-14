@@ -2,10 +2,10 @@ import { Suspense } from 'react';
 import TaskDetailClient from './TaskDetailClient';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 
-// 静的エクスポート用 - プレースホルダーIDを生成
+// NOTE: Required for static export — generates placeholder route params at build time.
 export async function generateStaticParams() {
-  // プレースホルダーとして_placeholder を使用
-  // ビルドスクリプトで実際のIDにリダイレクトされる
+  // NOTE: Uses _placeholder as a build-time stand-in;
+  // the build script redirects to actual IDs.
   return [{ id: '_placeholder' }];
 }
 

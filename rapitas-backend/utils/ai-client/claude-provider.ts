@@ -1,5 +1,5 @@
 /**
- * Claude (Anthropic) APIプロバイダー
+ * Claude (Anthropic) API Provider
  */
 import { createLogger } from '../../config/logger';
 import { type AIMessage, type AIResponse } from './types';
@@ -8,7 +8,7 @@ import { formatApiError } from './error-handler';
 const log = createLogger('ai-client:claude');
 
 /**
- * Claude APIを呼び出す（非ストリーミング）
+ * Call Claude API (non-streaming).
  */
 export async function callClaude(
   apiKey: string,
@@ -20,7 +20,7 @@ export async function callClaude(
   const Anthropic = (await import('@anthropic-ai/sdk')).default;
   const client = new Anthropic({ apiKey });
 
-  // system role のメッセージを分離
+  // Separate system role messages
   const chatMessages = messages
     .filter((m) => m.role !== 'system')
     .map((m) => ({
@@ -31,7 +31,7 @@ export async function callClaude(
   const systemContent =
     systemPrompt || messages.find((m) => m.role === 'system')?.content || undefined;
 
-  // リトライ（529 Overloaded / 429 Rate Limit 対応）
+  // Retry logic for 529 Overloaded / 429 Rate Limit
   const MAX_RETRIES = 3;
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -67,7 +67,7 @@ export async function callClaude(
 }
 
 /**
- * Claude APIストリーミング呼び出し
+ * Claude API streaming call.
  */
 export async function callClaudeStream(
   apiKey: string,

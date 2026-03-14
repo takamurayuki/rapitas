@@ -151,9 +151,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 統計カード */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* ストリーク */}
         <div className="bg-linear-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Flame className="w-8 h-8" />
@@ -169,7 +167,6 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* 今日の完了 */}
         <div className="bg-linear-to-br from-emerald-500 to-teal-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <CheckCircle2 className="w-8 h-8" />
@@ -181,7 +178,6 @@ export default function DashboardPage() {
           <p className="text-sm opacity-75">{t('taskComplete')}</p>
         </div>
 
-        {/* 週間学習時間 */}
         <div className="bg-linear-to-br from-blue-500 to-indigo-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <Clock className="w-8 h-8" />
@@ -193,7 +189,6 @@ export default function DashboardPage() {
           <p className="text-sm opacity-75">{t('studyHours')}</p>
         </div>
 
-        {/* 全体進捗 */}
         <div className="bg-linear-to-br from-violet-500 to-purple-500 rounded-xl p-4 text-white">
           <div className="flex items-center justify-between mb-2">
             <TrendingUp className="w-8 h-8" />
@@ -210,7 +205,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 学習時間グラフ */}
         <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5" />
@@ -219,7 +213,6 @@ export default function DashboardPage() {
 
           {dailyStudy.length > 0 ? (
             <div className="space-y-2">
-              {/* グラフ */}
               <div className="flex items-end justify-between h-40 gap-1">
                 {dailyStudy.map((day, index) => {
                   const height =
@@ -246,7 +239,6 @@ export default function DashboardPage() {
                 })}
               </div>
 
-              {/* ラベル */}
               <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 pt-2 border-t border-zinc-100 dark:border-zinc-700">
                 {dailyStudy.map((day, index) => (
                   <div key={day.date} className="flex-1 text-center">
@@ -276,7 +268,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 試験カウントダウン */}
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
             <Target className="w-5 h-5" />
@@ -333,7 +324,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 週間サマリー */}
       <div className="mt-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
           <Award className="w-5 h-5" />
@@ -379,19 +369,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* AI提案 & ナレッジリマインド */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SuggestedTasksWidget />
         <KnowledgeReminderWidget />
       </div>
 
-      {/* 生産性ヒートマップ & ワークフロー学習 */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProductivityHeatmap />
         <WorkflowLearningPanel />
       </div>
 
-      {/* バーンアップチャート */}
       <div className="mt-4">
         <BurnupChart days={14} />
       </div>

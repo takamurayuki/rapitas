@@ -186,7 +186,6 @@ export default function HabitsPage() {
         </div>
       </div>
 
-      {/* 習慣リスト */}
       <div className="space-y-3">
         {habits.map((habit) => {
           const todayCount = getTodayCount(habit);
@@ -201,7 +200,6 @@ export default function HabitsPage() {
                   : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'
               }`}
             >
-              {/* チェックボタン */}
               <button
                 onClick={() => handleLog(habit.id)}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
@@ -222,7 +220,6 @@ export default function HabitsPage() {
                 )}
               </button>
 
-              {/* 習慣情報 */}
               <div className="flex-1">
                 <h3
                   className={`font-semibold ${
@@ -250,7 +247,6 @@ export default function HabitsPage() {
                 </div>
               </div>
 
-              {/* 進捗バー */}
               <div className="hidden sm:block w-24">
                 <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <div
@@ -263,7 +259,6 @@ export default function HabitsPage() {
                 </div>
               </div>
 
-              {/* アクションボタン */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => openEditModal(habit)}
@@ -290,7 +285,6 @@ export default function HabitsPage() {
         </div>
       )}
 
-      {/* モーダル */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md">

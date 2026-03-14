@@ -1,21 +1,21 @@
 /**
- * イベントハンドラー・コールバックの型定義
+ * Event Handler & Callback Type Definitions
  *
- * 出力、質問検出、進捗報告のハンドラーを定義
+ * Defines handlers for output, question detection, and progress reporting.
  */
 
 import type { QuestionType } from '../base-agent';
 import type { QuestionDetails, QuestionKey } from '../question-detection';
 
-// ==================== ハンドラー ====================
+// ==================== Handlers ====================
 
 /**
- * 出力ハンドラー
+ * Output handler
  */
 export type OutputHandler = (output: string, isError?: boolean) => void;
 
 /**
- * 質問情報
+ * Question information
  */
 export type QuestionInfo = {
   question: string;
@@ -25,17 +25,17 @@ export type QuestionInfo = {
 };
 
 /**
- * 質問検出ハンドラー
+ * Question detection handler
  */
 export type QuestionHandler = (info: QuestionInfo) => void;
 
 /**
- * 進捗ステージ
+ * Progress stage
  */
 export type ProgressStage = 'initializing' | 'analyzing' | 'executing' | 'completing';
 
 /**
- * 進捗情報
+ * Progress information
  */
 export type ProgressInfo = {
   stage: ProgressStage;
@@ -46,6 +46,6 @@ export type ProgressInfo = {
 };
 
 /**
- * 進捗ハンドラー
+ * Progress handler
  */
 export type ProgressHandler = (progress: ProgressInfo) => void;

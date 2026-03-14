@@ -8,11 +8,9 @@ import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client'
 import { getLabelsArray, toJsonString } from '../../utils/db-helpers';
 
 export const promptsRoutes = new Elysia()
-  // タスクのプロンプト一覧取得
   .get('/tasks/:id/prompts', async ({ params }) => {
     const taskIdNum = parseInt(params.id);
 
-    // タスクと子タスクを取得
     const task = await prisma.task.findUnique({
       where: { id: taskIdNum },
       include: {
@@ -31,7 +29,6 @@ export const promptsRoutes = new Elysia()
       title: string;
     };
 
-    // 親タスクとサブタスクのプロンプトを取得
     const taskIds = [taskIdNum, ...task.subtasks.map((st: SubtaskInfo) => st.id)];
     const prompts = await prisma.taskPrompt.findMany({
       where: { taskId: { in: taskIds } },
@@ -50,7 +47,6 @@ export const promptsRoutes = new Elysia()
     };
   })
 
-  // プロンプト作成
   .post('/tasks/:id/prompts', async (context) => {
     const { params, body, set } = context;
     const taskIdNum = parseInt(params.id);
@@ -83,7 +79,6 @@ export const promptsRoutes = new Elysia()
     return prompt;
   })
 
-  // プロンプト更新
   .patch('/prompts/:id', async ({ params, body, set }) => {
     const promptId = parseInt(params.id);
     const { name, optimizedPrompt, isActive } = body as {
@@ -113,7 +108,6 @@ export const promptsRoutes = new Elysia()
     return updated;
   })
 
-  // プロンプト削除
   .delete('/prompts/:id', async (context) => {
     const { params, set } = context;
     const promptId = parseInt(params.id);
@@ -134,12 +128,11 @@ export const promptsRoutes = new Elysia()
     return { success: true };
   })
 
-  // サブタスクを含む全プロンプト生成（一括最適化）
+  // Bulk prompt optimization for task and all subtasks
   .post('/tasks/:id/prompts/generate-all', async (context) => {
     const { params, set } = context;
     const taskIdNum = parseInt(params.id);
 
-    // デフォルトプロバイダーのAPIキーチェック
     const promptProvider = await getDefaultProvider();
     const promptApiKey = await getApiKeyForProvider(promptProvider);
     if (!promptApiKey) {
@@ -149,7 +142,6 @@ export const promptsRoutes = new Elysia()
       };
     }
 
-    // タスクとサブタスクを取得
     const task = await prisma.task.findUnique({
       where: { id: taskIdNum },
       include: {
@@ -171,7 +163,7 @@ export const promptsRoutes = new Elysia()
       error?: string;
     }> = [];
 
-    // サブタスクがない場合は親タスクのみ最適化
+    // If no subtasks, optimize only the parent task
     if (task.subtasks.length === 0) {
       try {
         const { result } = await generateOptimizedPrompt(
@@ -186,7 +178,7 @@ export const promptsRoutes = new Elysia()
           promptProvider,
         );
 
-        // プロンプトを保存
+        // Save the prompt
         const savedPrompt = await prisma.taskPrompt.create({
           data: {
             taskId: task.id,
@@ -216,7 +208,7 @@ export const promptsRoutes = new Elysia()
         });
       }
     } else {
-      // サブタスクがある場合は各サブタスクごとに最適化
+      // Optimize each subtask individually
       for (const subtask of task.subtasks) {
         try {
           const { result } = await generateOptimizedPrompt(
@@ -231,7 +223,7 @@ export const promptsRoutes = new Elysia()
             promptProvider,
           );
 
-          // プロンプトを保存
+          // Save the prompt
           const savedPrompt = await prisma.taskPrompt.create({
             data: {
               taskId: subtask.id,

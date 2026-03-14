@@ -1,8 +1,8 @@
 /**
- * デバッグログ解析ツールの型定義
+ * Debug log analyzer type definitions
  */
 
-// ログタイプ
+// Log types
 export type LogType =
   | 'json'
   | 'syslog'
@@ -13,10 +13,10 @@ export type LogType =
   | 'custom'
   | 'unknown';
 
-// ログレベル
+// Log levels
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
-// パースされたログエントリー
+// Parsed log entry
 export interface ParsedLogEntry {
   timestamp?: Date;
   level?: LogLevel;
@@ -27,7 +27,7 @@ export interface ParsedLogEntry {
   type: LogType;
 }
 
-// ログパターン
+// Log pattern
 export interface LogPattern {
   pattern: string;
   count: number;
@@ -35,7 +35,7 @@ export interface LogPattern {
   severity?: LogLevel;
 }
 
-// ログ解析結果
+// Log analysis result
 export interface LogAnalysisResult {
   entries: ParsedLogEntry[];
   summary: {
@@ -56,7 +56,7 @@ export interface LogAnalysisResult {
   };
 }
 
-// ログフィルター
+// Log filter
 export interface LogFilter {
   level?: LogLevel;
   startTime?: Date;
@@ -65,19 +65,19 @@ export interface LogFilter {
   searchText?: string;
 }
 
-// 解析オプション
+// Analysis options
 export interface AnalyzeOptions {
   filter?: LogFilter;
   limit?: number;
 }
 
-// カスタムフィールドマッピング
+// Custom field mapping
 export interface CustomFieldMapping {
   groups: string[];
   timestampFormat?: string;
 }
 
-// API リクエスト/レスポンス
+// API request/response
 export interface AnalyzeLogRequest {
   content: string;
   type?: LogType;

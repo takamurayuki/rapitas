@@ -23,7 +23,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('PomodoroTimer');
 
-// タイマーステータス（コールバック用）
+// Timer status (for callbacks)
 export type PomodoroTimerStatus = {
   isRunning: boolean;
   isPaused: boolean;
@@ -72,10 +72,8 @@ export default function PomodoroTimer({
 
   const handleStartTimer = async () => {
     try {
-      // タイマー状態を開始
       store.startTimer(taskId, taskTitle || t('taskDefaultName'));
 
-      // タスクのstartedAtを更新
       await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -215,7 +213,6 @@ export default function PomodoroTimer({
 
   return (
     <div className="flex flex-col items-center py-8">
-      {/* タスク名表示（グローバル表示時のみ） */}
       {showTaskTitle && store.taskTitle && (
         <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 w-full text-center">
           {t('taskDefaultName')}:{' '}
@@ -225,7 +222,6 @@ export default function PomodoroTimer({
         </div>
       )}
 
-      {/* 別のタスクでタイマーが動いている場合の警告 */}
       {isOtherTaskRunning && (
         <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-950 rounded-xl border border-yellow-500 text-center">
           <p className="text-sm text-yellow-700 dark:text-yellow-300">
@@ -234,7 +230,6 @@ export default function PomodoroTimer({
         </div>
       )}
 
-      {/* 作業時間と休憩時間 */}
       <div className="flex gap-4 mb-4 text-sm text-zinc-600 dark:text-zinc-400">
         <div className="flex items-center gap-1">
           <Hourglass className="w-4 h-4" />
@@ -250,7 +245,6 @@ export default function PomodoroTimer({
         </div>
       </div>
 
-      {/* 円形プログレスバーとタイマー */}
       <div className="relative mb-8">
         <svg className="w-64 h-64 transform -rotate-90">
           <circle
@@ -283,7 +277,6 @@ export default function PomodoroTimer({
         </svg>
 
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {/* ポモドーロカウンター */}
           <div className="flex gap-2 mb-8">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i}>
@@ -310,7 +303,6 @@ export default function PomodoroTimer({
         </div>
       </div>
 
-      {/* 休憩選択UI（25分完了時に表示） */}
       {showBreakDialog && (
         <div className="mb-6 p-6 bg-green-50 dark:bg-green-950 rounded-xl border-2 border-green-500">
           <div className="text-center mb-4">
@@ -338,7 +330,6 @@ export default function PomodoroTimer({
         </div>
       )}
 
-      {/* 休憩終了通知 */}
       {showBreakEndDialog && (
         <div className="mb-6 p-6 bg-blue-50 dark:bg-blue-950 rounded-xl border-2 border-blue-500">
           <div className="text-center mb-4">
@@ -355,7 +346,6 @@ export default function PomodoroTimer({
         </div>
       )}
 
-      {/* コントロールボタン */}
       {!showBreakDialog && !showBreakEndDialog && (
         <div className="flex gap-3 justify-center">
           {isBreakTime ? null : isTimerRunning ? (

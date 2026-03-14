@@ -19,7 +19,7 @@ import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client'
 import { getLabelsArray, toJsonString, fromJsonString } from '../../utils/db-helpers';
 
 export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
-  // 開発者モード設定取得
+  
   .get('/config/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -39,7 +39,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     return config;
   })
 
-  // 開発者モード有効化
+  
   .post('/enable/:taskId', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.taskId);
@@ -49,13 +49,13 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       priority?: string;
     };
 
-    // タスクを更新
+    
     await prisma.task.update({
       where: { id: taskId },
       data: { isDeveloperMode: true },
     });
 
-    // 設定を作成または更新
+    
     const config = await prisma.developerModeConfig.upsert({
       where: { taskId },
       update: {
@@ -76,7 +76,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     return config;
   })
 
-  // 開発者モード無効化
+  
   .delete('/disable/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -100,7 +100,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     return { success: true };
   })
 
-  // 開発者モード設定更新
+  
   .patch('/config/:taskId', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.taskId);
@@ -122,12 +122,12 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     });
   })
 
-  // タスク分析・サブタスク提案
+  // Task analysis and subtask suggestion
   .post('/analyze/:taskId', async (context) => {
     const { params, set } = context;
     const taskId = parseInt(params.taskId);
 
-    // デフォルトプロバイダーのAPIキーチェック
+    
     const defaultProvider = await getDefaultProvider();
     const apiKey = await getApiKeyForProvider(defaultProvider);
     if (!apiKey) {
@@ -137,7 +137,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    // タスクと設定を取得
+    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -159,7 +159,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    // セッションを作成
+    
     const session = await prisma.agentSession.create({
       data: {
         configId: config.id,
@@ -169,7 +169,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     });
 
     try {
-      // タスクを分析（デフォルトプロバイダーを使用）
+      
       const { result, tokensUsed } = await analyzeTask(
         {
           id: task.id,
@@ -186,7 +186,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       );
 
-      // アクションを記録
+      
       await prisma.agentAction.create({
         data: {
           sessionId: session.id,
@@ -199,7 +199,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       });
 
-      // セッションを更新
+      
       await prisma.agentSession.update({
         where: { id: session.id },
         data: {
@@ -208,12 +208,12 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       });
 
-      // 自動承認の場合は承認リクエストを作成せず、直接サブタスクを作成
+      // Auto-approve: create subtasks directly without approval request
       if (config.autoApprove) {
-        // トランザクションで重複チェックと作成を原子的に実行
+        // Atomic duplicate check and creation via transaction
         const createdSubtasks = await prisma.$transaction(
           async (tx) => {
-            // トランザクション内で既存サブタスクを取得
+            
             const existingSubtasks = await tx.task.findMany({
               where: { parentId: taskId },
               select: { title: true },
@@ -224,7 +224,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
 
             const created = [];
             for (const subtask of result.suggestedSubtasks) {
-              // タイトルが重複する場合はスキップ
+              
               const normalizedTitle = subtask.title.toLowerCase().trim();
               if (existingTitles.has(normalizedTitle)) {
                 log.info(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
@@ -247,7 +247,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
             return created;
           },
           {
-            isolationLevel: 'Serializable', // 競合を防ぐための分離レベル
+            isolationLevel: 'Serializable', // prevent race conditions
           },
         );
 
@@ -264,7 +264,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         };
       }
 
-      // 承認リクエストを作成
+      
       const approvalRequest = await prisma.approvalRequest.create({
         data: {
           configId: config.id,
@@ -279,11 +279,11 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
               complexity: result.complexity,
               estimatedTotalHours: result.estimatedTotalHours,
             }) ?? '',
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7日後
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         },
       });
 
-      // 通知を作成
+      
       if (config.notifyInApp) {
         await prisma.notification.create({
           data: {
@@ -303,7 +303,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         autoApproved: false,
       };
     } catch (error: unknown) {
-      // エラー時はセッションを失敗に更新
+      // Mark session as failed on error
       await prisma.agentSession.update({
         where: { id: session.id },
         data: {
@@ -321,7 +321,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     }
   })
 
-  // プロンプト最適化API
+  // Prompt optimization API
   .post('/optimize-prompt/:taskId', async (context) => {
     const { params, body, set } = context;
     const taskId = parseInt(params.taskId);
@@ -330,7 +330,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       savePrompt?: boolean;
     };
 
-    // デフォルトプロバイダーのAPIキーチェック
+    
     const optimizeProvider = await getDefaultProvider();
     const optimizeApiKey = await getApiKeyForProvider(optimizeProvider);
     if (!optimizeApiKey) {
@@ -340,7 +340,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    // タスクとサブタスクを取得
+    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -353,7 +353,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       return { error: 'タスクが見つかりません' };
     }
 
-    // 最新のAI分析結果を取得（存在する場合）
+    // Get latest AI analysis result if available
     const config = await prisma.developerModeConfig.findUnique({
       where: { taskId },
       include: {
@@ -377,7 +377,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     }
 
     try {
-      // プロンプト最適化を実行（デフォルトプロバイダーを使用）
+      
       const { result, tokensUsed } = await generateOptimizedPrompt(
         {
           title: task.title,
@@ -390,7 +390,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         optimizeProvider,
       );
 
-      // トークン使用量を記録（セッションが存在する場合）
+      // Record token usage if session exists
       if (config?.agentSessions?.[0]) {
         await prisma.agentSession.update({
           where: { id: config.agentSessions[0].id },
@@ -403,7 +403,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         });
       }
 
-      // 質問がなく、保存オプションが有効な場合はプロンプトを保存
+      // Save prompt if no clarification questions and save option is enabled
       let savedPromptId = null;
       if (
         savePrompt &&
@@ -451,7 +451,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     }
   })
 
-  // 最適化プロンプトをエージェント実行用フォーマットに変換
+  // Convert optimized prompt to agent execution format
   .post(
     '/format-prompt/:taskId',
     async (context) => {
@@ -464,7 +464,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         return { error: 'optimizedResult is required' };
       }
 
-      // タスクを取得
+      
       const task = await prisma.task.findUnique({
         where: { id: taskId },
       });
@@ -502,7 +502,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     },
   )
 
-  // ブランチ名生成API
+  // Branch name generation API
   .post(
     '/generate-branch-name',
     async (context) => {
@@ -514,7 +514,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         return { error: 'タスクタイトルは必須です' };
       }
 
-      // デフォルトプロバイダーのAPIキーチェック
+      
       const branchProvider = await getDefaultProvider();
       const branchApiKey = await getApiKeyForProvider(branchProvider);
       if (!branchApiKey) {
@@ -544,7 +544,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     },
   )
 
-  // セッション履歴取得
+  
   .get('/sessions/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -568,7 +568,7 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     });
   })
 
-  // タスク説明からタイトル自動生成
+  // Auto-generate title from task description
   .post(
     '/generate-title',
     async (context) => {
@@ -581,16 +581,16 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       }
 
       try {
-        // タイトル生成専用プロバイダーを確認
+        
         const settings = await prisma.userSettings.findFirst();
         const titleProviderRaw = (settings as Record<string, unknown>)?.titleGenerationProvider as
           | string
           | undefined;
-        // 'default'が選ばれた場合のみ有料API、それ以外はollama（ローカル無料AI）
+        // 'default' uses paid API; others fall back to ollama (local free AI)
         const titleProvider: import('../../utils/ai-client').AIProvider =
           titleProviderRaw === 'default' ? await getDefaultProvider() : 'ollama';
 
-        // 有料APIの場合はAPIキーが必要
+        // Paid APIs require an API key
         if (titleProvider !== 'ollama') {
           const titleApiKey = await getApiKeyForProvider(titleProvider);
           if (!titleApiKey) {

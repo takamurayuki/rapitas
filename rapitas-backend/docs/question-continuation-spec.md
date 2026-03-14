@@ -1,30 +1,30 @@
-# 質問継続実行とタイムアウト機能仕様書
+# Question Continuation Execution and Timeout Feature Specification
 
-## 概要
+## Overview
 
-AIエージェント実行時の質問機能における重複実行防止とタイムアウト自動継続機能の仕様を定義する。
+Defines specifications for duplicate execution prevention and timeout auto-continuation functionality in AI agent execution question features.
 
-## 問題の背景
+## Problem Background
 
-### 発生していた問題
+### Issues That Were Occurring
 
-1. **質問の複数回実行**
-   - 質問検出時にDBステータスが複数回更新される
-   - タイムアウトハンドラとユーザー応答が競合して重複実行される
+1. **Multiple Question Execution**
+   - DB status is updated multiple times during question detection
+   - Timeout handlers and user responses compete causing duplicate execution
 
-2. **例外エラー**
+2. **Exception Errors**
    ```
    error: Execution is not waiting for input: running
    ```
-   - `executeContinuation`呼び出し時にステータスが既に`running`に変更されている
+   - Status has already been changed to `running` when calling `executeContinuation`
 
-## 解決策
+## Solution
 
-### 1. 継続実行ロック機構
+### 1. Continuation Execution Lock Mechanism
 
-同一`executionId`に対する重複実行を防止するため、ロック機構を導入。
+Introduces lock mechanism to prevent duplicate execution for the same `executionId`.
 
-#### 型定義
+#### Type Definition
 
 ```typescript
 type ContinuationLockInfo = {
@@ -34,65 +34,65 @@ type ContinuationLockInfo = {
 };
 ```
 
-#### メソッド
+#### Methods
 
 ```typescript
-// ロック取得（成功時true）
+// Lock acquisition (returns true on success)
 tryAcquireContinuationLock(executionId: number, source: string): boolean
 
-// ロック解放
+// Lock release
 releaseContinuationLock(executionId: number): void
 
-// ロック状態確認
+// Check lock status
 hasContinuationLock(executionId: number): boolean
 ```
 
-### 2. タイムアウト自動継続機能
+### 2. Timeout Auto-continuation Feature
 
-ユーザーからの回答がない場合、デフォルト時間経過後にAIエージェントが独自の見解で自動的に継続する。
+When there is no response from the user, the AI agent automatically continues with its own judgment after the default time elapses.
 
-#### デフォルト設定
+#### Default Settings
 
 ```typescript
-const DEFAULT_QUESTION_TIMEOUT_SECONDS = 300;  // 5分
-const MIN_QUESTION_TIMEOUT_SECONDS = 30;       // 30秒
-const MAX_QUESTION_TIMEOUT_SECONDS = 1800;     // 30分
+const DEFAULT_QUESTION_TIMEOUT_SECONDS = 300;  // 5 minutes
+const MIN_QUESTION_TIMEOUT_SECONDS = 30;       // 30 seconds
+const MAX_QUESTION_TIMEOUT_SECONDS = 1800;     // 30 minutes
 ```
 
-#### タイムアウト処理フロー
+#### Timeout Processing Flow
 
 ```
-質問検出
+Question detection
     ↓
-タイムアウトタイマー開始
+Start timeout timer
     ↓
 ─────────────────────────────
 ↓                           ↓
-ユーザー応答あり         タイムアウト発火
+User response received      Timeout triggered
     ↓                       ↓
-タイマーキャンセル      ロック取得試行
+Cancel timer               Try lock acquisition
     ↓                       ↓
-ロック取得試行         成功 → デフォルト回答で継続
+Try lock acquisition      Success → Continue with default response
     ↓                       ↓
-成功 → 継続実行        失敗 → 処理スキップ
-失敗 → エラー返却
+Success → Continue execution   Fail → Skip processing
+Fail → Return error
 ```
 
-### 3. デフォルト回答生成
+### 3. Default Response Generation
 
-タイムアウト時に質問タイプに応じたデフォルト回答を生成：
+Generates default responses based on question type during timeout:
 
-| 質問タイプ | デフォルト回答 |
-|-----------|--------------|
-| 選択肢あり | 最初の選択肢を選択 |
-| confirmation | 「はい」 |
-| selection | 「1」 |
-| clarification | 「デフォルトの設定で続行してください」 |
-| Yes/No系 | 「y」 |
+| Question Type | Default Response |
+|--------------|------------------|
+| With choices | Select first choice |
+| confirmation | "Yes" |
+| selection | "1" |
+| clarification | "Please continue with default settings" |
+| Yes/No type | "y" |
 
-## API変更
+## API Changes
 
-### executeContinuation（外部API用）
+### executeContinuation (for external API)
 
 ```typescript
 async executeContinuation(
@@ -102,11 +102,11 @@ async executeContinuation(
 ): Promise<AgentExecutionResult>
 ```
 
-- ロック取得を試みる
-- 既にロックされている場合は`{ success: false, errorMessage: "This execution is already being processed" }`を返す
-- ステータスが`running`の場合もエラーを返す
+- Attempts lock acquisition
+- Returns `{ success: false, errorMessage: "This execution is already being processed" }` if already locked
+- Also returns error if status is `running`
 
-### executeContinuationWithLock（ロック取得済み用）
+### executeContinuationWithLock (for already acquired lock)
 
 ```typescript
 async executeContinuationWithLock(
@@ -116,12 +116,12 @@ async executeContinuationWithLock(
 ): Promise<AgentExecutionResult>
 ```
 
-- APIルートで既にロックを取得している場合に使用
-- ロック取得をスキップし、内部処理を直接実行
+- Used when lock has already been acquired in API route
+- Skips lock acquisition and executes internal processing directly
 
-## フロントエンド通知
+## Frontend Notifications
 
-### タイムアウト開始イベント
+### Timeout Start Event
 
 ```typescript
 {
@@ -134,7 +134,7 @@ async executeContinuationWithLock(
 }
 ```
 
-### タイムアウト発火イベント
+### Timeout Trigger Event
 
 ```typescript
 {
@@ -142,12 +142,12 @@ async executeContinuationWithLock(
   data: {
     questionTimeoutTriggered: true,
     autoResponse: string,
-    message: "タイムアウトにより自動的に継続します"
+    message: "Automatically continuing due to timeout"
   }
 }
 ```
 
-## 状態遷移図
+## State Transition Diagram
 
 ```
                      ┌─────────────────────────────────────────┐
@@ -157,21 +157,21 @@ idle → running → waiting_for_input ─┬─→ running → completed   │
    │                  │             │      │                   │
    │                  │             │      └── failed         │
    │                  │             │                          │
-   │                  │             └─→ (タイムアウト)          │
+   │                  │             └─→ (Timeout)              │
    │                  │                    ↓                   │
    │                  │                 running → ...          │
    │                  │                                        │
-   └── failed        └── (ロック競合)                          │
+   └── failed        └── (Lock conflict)                       │
                             ↓                                  │
-                         スキップ ─────────────────────────────┘
+                         Skip ─────────────────────────────────┘
 ```
 
-## エラーハンドリング
+## Error Handling
 
-### 1. ロック取得失敗
+### 1. Lock Acquisition Failure
 
 ```typescript
-// APIルートでの処理
+// Processing in API route
 if (!orchestrator.tryAcquireContinuationLock(executionId, "user_response")) {
   return {
     error: "This execution is already being processed",
@@ -180,21 +180,21 @@ if (!orchestrator.tryAcquireContinuationLock(executionId, "user_response")) {
 }
 ```
 
-### 2. 例外発生時のロック解放
+### 2. Lock Release on Exception
 
 ```typescript
 try {
-  // 処理
+  // Processing
 } catch (error) {
-  // エラー処理
+  // Error handling
 } finally {
   this.releaseContinuationLock(executionId);
 }
 ```
 
-### 3. ステータス復元
+### 3. Status Restoration
 
-処理失敗時はステータスを`waiting_for_input`に復元：
+Restore status to `waiting_for_input` on processing failure:
 
 ```typescript
 await prisma.agentExecution.update({
@@ -203,36 +203,36 @@ await prisma.agentExecution.update({
 }).catch(() => {});
 ```
 
-## テスト
+## Testing
 
-### 単体テスト
+### Unit Tests
 
 `tests/continuation-lock.test.ts`:
-- ロック取得・解放テスト
-- 競合シナリオテスト
-- タイムアウト処理テスト
-- エラーハンドリングテスト
+- Lock acquisition/release tests
+- Conflict scenario tests
+- Timeout processing tests
+- Error handling tests
 
-### 統合テスト
+### Integration Tests
 
-- ユーザー応答後のタイムアウトキャンセル確認
-- タイムアウト後の自動継続確認
-- 複数質問の連続処理確認
+- Verify timeout cancellation after user response
+- Verify auto-continuation after timeout
+- Verify consecutive processing of multiple questions
 
-## 設定
+## Configuration
 
-### 環境変数（将来的な拡張）
+### Environment Variables (future expansion)
 
 ```env
-# 質問タイムアウトのデフォルト秒数
+# Default seconds for question timeout
 QUESTION_TIMEOUT_SECONDS=300
 ```
 
-## バージョン
+## Version
 
-- 仕様バージョン: 1.0.0
-- 作成日: 2025-02-04
-- 対象ファイル:
+- Specification version: 1.0.0
+- Created: 2025-02-04
+- Target files:
   - `rapitas-backend/services/agents/agent-orchestrator.ts`
   - `rapitas-backend/services/agents/question-detection.ts`
   - `rapitas-backend/routes/ai-agent.ts`

@@ -519,7 +519,6 @@ export default function ThemesPage() {
 
   const renderForm = (isEdit: boolean, itemId?: number) => (
     <div className="space-y-4">
-      {/* 基本情報 */}
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -630,7 +629,6 @@ export default function ThemesPage() {
         </div>
       </div>
 
-      {/* カテゴリ選択 */}
       {categories.length > 0 && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
           <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
@@ -682,7 +680,6 @@ export default function ThemesPage() {
         </div>
       )}
 
-      {/* 開発プロジェクト設定 */}
       <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -747,7 +744,6 @@ export default function ThemesPage() {
                 placeholder="C:\Projects\my-project / /home/user/projects/my-project"
               />
 
-              {/* ディレクトリ存在チェック結果 */}
               {formData.workingDirectory.trim() && (
                 <div className="mt-2">
                   {dirStatus.checking ? (
@@ -773,7 +769,6 @@ export default function ThemesPage() {
                         {t('folderNotFound')}
                       </div>
 
-                      {/* フォルダ作成UI */}
                       <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded border border-amber-200 dark:border-amber-800">
                         <div className="flex items-center gap-2">
                           <button
@@ -794,7 +789,6 @@ export default function ThemesPage() {
                           </span>
                         </div>
 
-                        {/* 別のフォルダ名で作成 */}
                         {showCreateFolder && (
                           <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
                             <p className="text-xs text-amber-700 dark:text-amber-300 mb-1">
@@ -888,7 +882,6 @@ export default function ThemesPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-4 py-6">
-        {/* ヘッダー */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
@@ -918,7 +911,6 @@ export default function ThemesPage() {
           )}
         </div>
 
-        {/* カテゴリタブ */}
         {categories.length > 0 && (
           <div className="mb-4 flex items-center gap-1.5 overflow-x-auto pb-1">
             {categories.map((cat) => {
@@ -964,14 +956,12 @@ export default function ThemesPage() {
           </div>
         )}
 
-        {/* 新規追加フォーム */}
         {isAdding && (
           <div className="mb-4 rounded-xl border-2 border-purple-500 bg-white dark:bg-indigo-dark-900 p-4 shadow-xl">
             {renderForm(false)}
           </div>
         )}
 
-        {/* リスト（新規追加時は非表示） */}
         {!isAdding &&
           (loading ? (
             <ListSkeleton count={3} showTabs showBadges />

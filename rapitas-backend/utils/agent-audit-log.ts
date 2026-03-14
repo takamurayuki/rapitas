@@ -1,5 +1,7 @@
 /**
- * AIエージェント設定変更の監査ログユーティリティ
+ * Agent Config Audit Log
+ *
+ * Utility for recording audit logs of AI agent configuration changes.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -31,7 +33,9 @@ export interface AuditLogEntry {
 }
 
 /**
- * 監査ログを記録する
+ * Records an audit log entry for an agent configuration change.
+ *
+ * @param entry - The audit log entry to record
  */
 export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> {
   try {
@@ -49,12 +53,15 @@ export async function logAgentConfigChange(entry: AuditLogEntry): Promise<void> 
     log.info(`Agent ${entry.agentConfigId}: ${entry.action}`);
   } catch (error) {
     log.error({ err: error }, 'Failed to create audit log');
-    // 監査ログの記録失敗は、メイン処理をブロックしない
+    // Audit log failure must not block the main operation
   }
 }
 
 /**
- * 特定のエージェントの監査ログを取得
+ * Retrieves audit logs for a specific agent configuration.
+ *
+ * @param agentConfigId - The agent config ID to query
+ * @param limit - Maximum number of entries to return
  */
 export async function getAgentConfigAuditLogs(agentConfigId: number, limit: number = 50) {
   return prisma.agentConfigAuditLog.findMany({
@@ -65,7 +72,9 @@ export async function getAgentConfigAuditLogs(agentConfigId: number, limit: numb
 }
 
 /**
- * 最近の監査ログを取得
+ * Retrieves the most recent audit log entries across all agents.
+ *
+ * @param limit - Maximum number of entries to return
  */
 export async function getRecentAuditLogs(limit: number = 100) {
   return prisma.agentConfigAuditLog.findMany({
@@ -75,7 +84,12 @@ export async function getRecentAuditLogs(limit: number = 100) {
 }
 
 /**
- * 設定変更の差分を計算
+ * Computes the diff between previous and current configuration values.
+ * Sensitive fields (apiKey, secret) are masked in the output.
+ *
+ * @param previous - Previous configuration values
+ * @param current - Current configuration values
+ * @returns A record of changed fields with their before/after values
  */
 export function calculateChanges(
   previous: Record<string, unknown>,
@@ -86,7 +100,7 @@ export function calculateChanges(
   const allKeys = new Set([...Object.keys(previous), ...Object.keys(current)]);
 
   for (const key of allKeys) {
-    // 機密情報はマスク
+    // Mask sensitive fields
     if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('secret')) {
       if (previous[key] !== current[key]) {
         changes[key] = { from: '***', to: '***' };
@@ -97,7 +111,6 @@ export function calculateChanges(
     const prevValue = previous[key];
     const currValue = current[key];
 
-    // 値が異なる場合のみ記録
     if (JSON.stringify(prevValue) !== JSON.stringify(currValue)) {
       changes[key] = { from: prevValue, to: currValue };
     }

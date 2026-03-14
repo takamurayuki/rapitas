@@ -1,6 +1,7 @@
 /**
- * Claude Code CLI エージェント
- * Claude Code CLIを子プロセスとして起動し、タスクを実行する
+ * ClaudeCodeAgent
+ *
+ * Spawns Claude Code CLI as a child process to execute tasks.
  */
 
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -38,13 +39,13 @@ export type ClaudeCodeAgentConfig = {
   dangerouslySkipPermissions?: boolean;
   timeout?: number; // milliseconds
   maxTokens?: number;
-  continueConversation?: boolean; // 前回の会話を継続するか
-  resumeSessionId?: string; // --resumeで使用するセッションID
+  continueConversation?: boolean; // Whether to continue the previous conversation
+  resumeSessionId?: string; // Session ID used with --resume
 };
 
 /**
- * Windows環境でCLIコマンドの絶対パスを解決する。
- * PATH解決に失敗した場合はフォールバックとして元のパスを返す。
+ * Resolves the absolute path of a CLI command on Windows.
+ * Falls back to the original path if PATH resolution fails.
  */
 function resolveCliPath(cliName: string): string {
   if (process.platform !== 'win32') return cliName;
@@ -71,25 +72,25 @@ export class ClaudeCodeAgent extends BaseAgent {
   private config: ClaudeCodeAgentConfig;
   private outputBuffer: string = '';
   private errorBuffer: string = '';
-  private lineBuffer: string = ''; // stream-json形式のパース用
-  /** 質問待機状態（新しいキーベース判定システム） */
+  private lineBuffer: string = ''; // Buffer for parsing stream-json format
+  /** Question waiting state (key-based detection system) */
   private detectedQuestion: QuestionWaitingState = createInitialWaitingState();
   private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
-  /** Claude CodeのセッションID（--resumeで会話を継続するため） */
+  /** Claude Code session ID (for resuming conversations via --resume) */
   private claudeSessionId: string | null = null;
-  /** ファイル変更ツール（Write, Edit, NotebookEdit, Bash）が正常に使用されたかどうか */
+  /** Whether file-modifying tools (Write, Edit, NotebookEdit, Bash) were used successfully */
   private hasFileModifyingToolCalls: boolean = false;
-  /** アイドルハングによる強制終了フラグ */
+  /** Flag indicating forced termination due to idle hang */
   private idleTimeoutForceKilled: boolean = false;
-  /** ファイル変更ツールの名前一覧 */
+  /** Set of file-modifying tool names */
   private static readonly FILE_MODIFYING_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
-  /** 出力パース用 Worker */
+  /** Worker thread for output parsing */
   private parserWorker: Worker | null = null;
-  /** Workerからパースされたアーティファクト */
+  /** Artifacts parsed by the Worker */
   private workerArtifacts: AgentArtifact[] = [];
-  /** Workerからパースされたコミット */
+  /** Commits parsed by the Worker */
   private workerCommits: GitCommitInfo[] = [];
-  /** parse-complete完了時のコールバック */
+  /** Callback invoked when parse-complete finishes */
   private onParseComplete: (() => void) | null = null;
 
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
@@ -127,14 +128,14 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.onParseComplete = null;
     const startTime = Date.now();
 
-    // タイムアウトのデフォルト値を確実に設定
-    const timeout = this.config.timeout ?? 900000; // 15分
+    // Ensure timeout default is set
+    const timeout = this.config.timeout ?? 900000; // 15 minutes
 
-    // Promise executorをasyncにしないため、事前に非同期処理を行う
+    // Perform async operations before the Promise executor to avoid making it async
     const fs = await import('fs/promises');
     const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    // 作業ディレクトリの存在確認を事前に行う
+    // Verify working directory exists before spawning
     try {
       const stats = await fs.stat(workDir);
       if (!stats.isDirectory()) {
@@ -156,7 +157,7 @@ export class ClaudeCodeAgent extends BaseAgent {
       };
     }
 
-    // Claude CLIが利用可能か事前に確認
+    // Verify Claude CLI is available before execution
     const isClaudeAvailable = await this.isAvailable();
     if (!isClaudeAvailable) {
       this.status = 'failed';
@@ -169,14 +170,14 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      // --resume または --continue モードでは、プロンプト（ユーザー回答）をそのまま使用
-      // 余計なテキストを付加すると、セッション再開の文脈が崩れる
+      // In --resume or --continue mode, use the prompt (user response) as-is
+      // Adding extra text would break the session resumption context
       const isResumeMode = !!(this.config.resumeSessionId || this.config.continueConversation);
       const prompt = isResumeMode
         ? task.description || task.title
         : this.buildStructuredPrompt(task);
 
-      // ログ出力（AIタスク分析の使用状況を確認）
+      // Log AI task analysis usage
       if (task.analysisInfo) {
         logger.info(`${this.logPrefix} Using structured prompt with AI task analysis`);
         logger.info(`${this.logPrefix} Analysis complexity: ${task.analysisInfo.complexity}`);
@@ -185,7 +186,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Using simple prompt (no AI task analysis)`);
       }
 
-      // プロンプトを一時ファイルに保存（Windowsのコマンドライン文字制限を回避）
+      // Save prompt to temp file to bypass Windows command-line character limit
       const tempDir = join(tmpdir(), 'rapitas-prompts');
       if (!existsSync(tempDir)) {
         mkdirSync(tempDir, { recursive: true });
@@ -193,25 +194,25 @@ export class ClaudeCodeAgent extends BaseAgent {
       const promptFile = join(tempDir, `prompt-${Date.now()}.txt`);
       writeFileSync(promptFile, prompt, 'utf-8');
 
-      // Claude Code CLI コマンドを構築
+      // Build Claude Code CLI command
       const args: string[] = [];
 
       args.push('--print');
-      args.push('--verbose'); // より詳細な出力を取得（リアルタイム性向上）
-      args.push('--output-format', 'stream-json'); // JSONストリーミング形式で出力
+      args.push('--verbose'); // Get more detailed output for real-time streaming
+      args.push('--output-format', 'stream-json'); // Output in JSON streaming format
 
-      // 前回の会話を継続する場合
-      // --resume <sessionId> で特定のセッションを再開
-      // --continue は最新の会話を継続（セッションIDがない場合のフォールバック）
+      // Continue a previous conversation
+      // --resume <sessionId> resumes a specific session
+      // --continue resumes the most recent conversation (fallback when no session ID)
       if (this.config.resumeSessionId) {
-        // セッションIDがある場合は --resume で特定セッションを再開
+        // Resume specific session when session ID is available
         args.push('--resume', this.config.resumeSessionId);
         logger.info(
           `${this.logPrefix} Resuming specific session with --resume ${this.config.resumeSessionId}`,
         );
         logger.info(`${this.logPrefix} Resume mode: prompt will be sent as user response`);
       } else if (this.config.continueConversation) {
-        // セッションIDがない場合は --continue で最新の会話を継続
+        // Continue the most recent conversation when no session ID is available
         args.push('--continue');
         logger.info(`${this.logPrefix} Continuing most recent conversation with --continue`);
         logger.info(`${this.logPrefix} Resume mode: prompt will be sent as user response`);
@@ -229,7 +230,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push('--max-tokens', String(this.config.maxTokens));
       }
 
-      // Windowsでは.cmdファイルを使用（絶対パスに解決してPATH解決の問題を回避）
+      // On Windows, use .cmd file (resolved to absolute path to avoid PATH resolution issues)
       const isWindows = process.platform === 'win32';
       const baseClaudePath = process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
       const claudePath = resolveCliPath(baseClaudePath);
@@ -253,7 +254,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         `${this.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}\n\n`,
       );
 
-      // 一時ファイルのパスを保存（後でクリーンアップするため）
+      // Store temp file path for later cleanup
       const cleanupPromptFile = () => {
         try {
           unlinkSync(promptFile);
@@ -266,27 +267,27 @@ export class ClaudeCodeAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Spawn command: ${claudePath}`);
         logger.info(`${this.logPrefix} Args: ${args.join(' ')}`);
 
-        // shell: true を使用してClaude Codeを起動
-        // Windows用のエンコーディング設定を追加
+        // Spawn Claude Code with shell: true
+        // Add encoding settings for Windows
         let finalCommand: string;
         let finalArgs: string[];
 
         if (isWindows) {
-          // Windowsの場合、chcp 65001でUTF-8コードページを設定してからclaude.cmdを実行
-          // 引数も含めて1つのコマンド文字列として構築（シェルが正しく解釈するため）
+          // On Windows, set UTF-8 code page with chcp 65001 before running claude.cmd
+          // Build as single command string including args so the shell interprets correctly
           const argsString = args
             .map((arg) => {
-              // スペースや特殊文字を含む引数はクォートで囲む
+              // Quote args containing spaces or special characters
               if (arg.includes(' ') || arg.includes('&') || arg.includes('|')) {
                 return `"${arg}"`;
               }
               return arg;
             })
             .join(' ');
-          // 絶対パスにスペースが含まれる可能性があるためクォートで囲む
+          // Quote absolute path in case it contains spaces
           const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
           finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-          finalArgs = []; // 引数はコマンド文字列に含まれているので空
+          finalArgs = []; // Args are embedded in the command string
         } else {
           finalCommand = claudePath;
           finalArgs = args;
@@ -297,7 +298,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         this.process = spawn(finalCommand, finalArgs, {
           cwd: workDir,
           shell: true,
-          windowsHide: true, // NOTE: TCPハンドル継承防止 — CLIプロセスがポート3001のソケットを掴むのを防ぐ
+          windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
           stdio: ['pipe', 'pipe', 'pipe'],
           env: {
             ...process.env,
@@ -307,18 +308,18 @@ export class ClaudeCodeAgent extends BaseAgent {
             TERM: 'dumb',
             PYTHONUNBUFFERED: '1',
             NODE_OPTIONS: '--no-warnings',
-            // Windows用UTF-8エンコーディング設定
+            // Windows UTF-8 encoding settings
             ...(isWindows && {
               LANG: 'en_US.UTF-8',
               PYTHONIOENCODING: 'utf-8',
               PYTHONUTF8: '1',
-              // Windows 10以降でUTF-8モードを有効化
+              // Enable UTF-8 mode on Windows 10+
               CHCP: '65001',
             }),
           },
         });
 
-        // プロセスのstdoutをimmediateモードに設定（より即座に出力を取得）
+        // Set stdout to immediate mode for faster output retrieval
         if (this.process.stdout) {
           this.process.stdout.setEncoding('utf8');
         }
@@ -329,7 +330,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
 
-        // PID登録（クラッシュ後も追跡可能にする）
+        // Register PID for tracking even after crashes
         if (this.process.pid) {
           registerProcess({
             pid: this.process.pid,
@@ -341,9 +342,9 @@ export class ClaudeCodeAgent extends BaseAgent {
         }
         logger.info(`${this.logPrefix} Prompt file: ${promptFile} (${prompt.length} chars)`);
 
-        // stdinへの書き込みを非同期で行う（バッファリング問題を回避）
-        // プロンプトをチャンクに分けて書き込み、ドレインイベントを待つ
-        // UTF-8 Bufferを使用してエンコーディング問題を回避
+        // Write to stdin asynchronously to avoid buffering issues
+        // Write prompt in chunks and wait for drain events
+        // Use UTF-8 Buffer to prevent encoding issues
         const writePromptToStdin = async () => {
           if (!this.process?.stdin) {
             logger.info(`${this.logPrefix} stdin is not available`);
@@ -353,64 +354,64 @@ export class ClaudeCodeAgent extends BaseAgent {
           const stdin = this.process.stdin;
           const CHUNK_SIZE = 16384; // 16KB chunks
 
-          // stdinのエラーハンドラを設定
+          // Set stdin error handler
           stdin.on('error', (err) => {
             logger.error({ err }, `${this.logPrefix} stdin error`);
           });
 
-          // プロンプトをUTF-8 Bufferに変換（エンコーディング問題を回避）
+          // Convert prompt to UTF-8 Buffer to prevent encoding issues
           const promptBuffer = Buffer.from(prompt, 'utf8');
           logger.info(`${this.logPrefix} Prompt buffer size: ${promptBuffer.length} bytes`);
 
-          // チャンク単位で書き込み（Buffer使用）
+          // Write in chunks using Buffer
           for (let i = 0; i < promptBuffer.length; i += CHUNK_SIZE) {
             const chunk = promptBuffer.subarray(i, Math.min(i + CHUNK_SIZE, promptBuffer.length));
             const canContinue = stdin.write(chunk);
 
             if (!canContinue) {
-              // バッファがフルの場合、ドレインを待つ
+              // Wait for drain when buffer is full
               await new Promise<void>((resolve) => {
                 stdin.once('drain', resolve);
               });
             }
           }
 
-          // 書き込み完了後にstdinを閉じる
+          // Close stdin after writing completes
           stdin.end();
           logger.info(
             `${this.logPrefix} Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
           );
         };
 
-        // 非同期でstdinに書き込み開始（エラーをキャッチ）
+        // Start writing to stdin asynchronously (catch errors)
         writePromptToStdin().catch((err) => {
           logger.error({ err }, `${this.logPrefix} Failed to write prompt to stdin`);
         });
 
-        // stream-json形式のパース用バッファをリセット
+        // Reset stream-json parsing buffer
         this.lineBuffer = '';
 
-        // 出力アイドルタイムアウト: 一定時間stdoutからデータが来ない場合、バッファを強制処理
+        // Output idle timeout: force-flush buffer when no stdout data for a period
         let lastOutputTime = Date.now();
         let hasReceivedAnyOutput = false;
-        this.idleTimeoutForceKilled = false; // アイドルハングによる強制終了フラグ（インスタンス変数に変更）
-        const OUTPUT_IDLE_TIMEOUT = 30000; // 30秒
-        const INITIAL_OUTPUT_TIMEOUT = 60000; // 初期出力タイムアウト: 60秒
-        const MAX_OUTPUT_IDLE_TIMEOUT = 300000; // 5分: 出力後に5分間アイドルならプロセスハングとみなす
+        this.idleTimeoutForceKilled = false; // Idle hang force-kill flag (instance variable)
+        const OUTPUT_IDLE_TIMEOUT = 30000; // 30 seconds
+        const INITIAL_OUTPUT_TIMEOUT = 60000; // Initial output timeout: 60 seconds
+        const MAX_OUTPUT_IDLE_TIMEOUT = 300000; // 5 min: treat as hung if idle for 5 min after output
 
         const idleCheckInterval = setInterval(() => {
           const idleTime = Date.now() - lastOutputTime;
           const totalElapsed = Date.now() - startTime;
 
-          // 初期出力タイムアウト: 60秒経過しても何も出力がない場合は警告
+          // Warn if no output received after 60 seconds
           if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
             logger.warn(
               `${this.logPrefix} WARNING: No output received after ${Math.floor(totalElapsed / 1000)}s - Claude Code may not be responding`,
             );
             this.emitOutput(
-              `\n[警告] ${Math.floor(totalElapsed / 1000)}秒経過しましたが、Claude Codeからの応答がありません。処理を継続しています...\n`,
+              `\n[Warning] ${Math.floor(totalElapsed / 1000)} seconds elapsed without response from Claude Code. Continuing processing...\n`,
             );
-            // フラグを設定して、この警告が1回だけ出力されるようにする
+            // Set flag so this warning is emitted only once
             hasReceivedAnyOutput = true;
           }
 
@@ -418,19 +419,19 @@ export class ClaudeCodeAgent extends BaseAgent {
             logger.info(
               `${this.logPrefix} Output idle for ${idleTime}ms, flushing lineBuffer (${this.lineBuffer.length} chars)`,
             );
-            // バッファの残りを強制的に出力
+            // Force flush remaining buffer
             this.outputBuffer += this.lineBuffer + '\n';
             this.emitOutput(this.lineBuffer + '\n');
             this.lineBuffer = '';
           }
-          // 定期的にステータスログを出力（デバッグ用）
+          // Periodic status log for debugging
           if (this.status === 'running' && idleTime > 10000) {
             logger.info(
               `${this.logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s, Buffer: ${this.lineBuffer.length} chars, Total output: ${this.outputBuffer.length} chars, HasOutput: ${hasReceivedAnyOutput}`,
             );
           }
 
-          // アイドルハング検出: 出力があった後にMAX_OUTPUT_IDLE_TIMEOUT以上アイドルならプロセスハングとみなす
+          // Idle hang detection: if idle for MAX_OUTPUT_IDLE_TIMEOUT after producing output, treat as hung
           if (
             hasReceivedAnyOutput &&
             idleTime > MAX_OUTPUT_IDLE_TIMEOUT &&
@@ -443,12 +444,12 @@ export class ClaudeCodeAgent extends BaseAgent {
               `${this.logPrefix} OUTPUT IDLE HANG DETECTED: No output for ${Math.floor(idleTime / 1000)}s after producing ${this.outputBuffer.length} chars. Force-killing hung process.`,
             );
             this.emitOutput(
-              `\n${this.logPrefix} プロセスが${Math.floor(idleTime / 1000)}秒間応答がないため、ハングとみなして強制終了します。\n`,
+              `\n${this.logPrefix} Process has been unresponsive for ${Math.floor(idleTime / 1000)} seconds, treating as hang and force-terminating.\n`,
             );
             this.idleTimeoutForceKilled = true;
             clearInterval(idleCheckInterval);
 
-            // プロセスを強制終了
+            // Force-kill the process
             const pid = this.process.pid;
             if (process.platform === 'win32') {
               try {
@@ -477,20 +478,20 @@ export class ClaudeCodeAgent extends BaseAgent {
               this.process.kill('SIGTERM');
             }
           }
-        }, 5000); // 5秒ごとにチェック
+        }, 5000); // Check every 5 seconds
 
-        // プロセス完了時にインターバルをクリア
+        // Clear interval when process completes
         const cleanupIdleCheck = () => {
           clearInterval(idleCheckInterval);
         };
 
-        // タイムアウト設定（出力がない場合のみタイムアウトを適用）
-        // 一定間隔でチェックし、最後の出力からtimeout時間経過した場合にタイムアウト
+        // Timeout only applies when there is no output
+        // Periodically check if timeout elapsed since last output
         const timeoutCheckInterval = setInterval(() => {
           if (this.process && !this.process.killed) {
             const timeSinceLastOutput = Date.now() - lastOutputTime;
 
-            // 最後の出力からtimeout時間経過した場合のみタイムアウト
+            // Only timeout when no output has been received since the last check
             if (timeSinceLastOutput >= timeout) {
               logger.info(`${this.logPrefix} TIMEOUT: No output for ${timeout / 1000}s`);
               logger.info(
@@ -501,8 +502,8 @@ export class ClaudeCodeAgent extends BaseAgent {
               );
               logger.info(`${this.logPrefix} Error so far: ${this.errorBuffer.substring(0, 500)}`);
               logger.info(`${this.logPrefix} LineBuffer: ${this.lineBuffer.substring(0, 500)}`);
-              clearInterval(timeoutCheckInterval); // タイムアウトチェックを停止
-              cleanupIdleCheck(); // アイドルチェックを停止
+              clearInterval(timeoutCheckInterval);
+              cleanupIdleCheck();
               this.emitOutput(
                 `\n${this.logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
                 true,
@@ -517,14 +518,14 @@ export class ClaudeCodeAgent extends BaseAgent {
               });
             }
           }
-        }, 10000); // 10秒ごとにチェック
+        }, 10000);
 
-        // タイムアウトチェックのクリーンアップ関数
+        // Timeout check cleanup function
         const cleanupTimeoutCheck = () => {
           clearInterval(timeoutCheckInterval);
         };
 
-        // 出力パース用 Worker を生成
+        // Spawn a Worker for output parsing
         this.parserWorker = new Worker(
           new URL('../../workers/output-parser-worker.ts', import.meta.url).href,
         );
@@ -538,7 +539,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           },
         } satisfies WorkerInputMessage);
 
-        // Worker からのメッセージハンドリング
+        // Handle messages from the Worker
         this.parserWorker.onmessage = (event: MessageEvent<WorkerOutputMessage>) => {
           const msg = event.data;
           switch (msg.type) {
@@ -546,12 +547,12 @@ export class ClaudeCodeAgent extends BaseAgent {
               if (msg.sessionId) {
                 this.claudeSessionId = msg.sessionId;
                 logger.info(`${this.logPrefix} Session ID captured: ${this.claudeSessionId}`);
-                // 再開モードの場合、セッションIDの一致を確認
+                // In resume mode, verify session ID matches the requested one
                 if (this.config.resumeSessionId && this.config.resumeSessionId !== msg.sessionId) {
                   logger.warn(
                     `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${msg.sessionId}`,
                   );
-                  const mismatchWarning = `\n[警告] 指定されたセッション(${this.config.resumeSessionId.substring(0, 8)}...)の再開に失敗しました。新しいセッション(${msg.sessionId.substring(0, 8)}...)で続行します。前回のコンテキストが失われている可能性があります。\n`;
+                  const mismatchWarning = `\n[Warning] Failed to resume specified session (${this.config.resumeSessionId.substring(0, 8)}...). Continuing with new session (${msg.sessionId.substring(0, 8)}...). Previous context may have been lost.\n`;
                   this.outputBuffer += mismatchWarning;
                   this.emitOutput(mismatchWarning);
                 }
@@ -570,7 +571,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                 this.outputBuffer += msg.displayOutput;
                 this.emitOutput(msg.displayOutput);
               }
-              // アクティブツールの追跡をメインスレッドでも維持（close時の参照用）
+              // Track active tools on the main thread for reference at close time
               for (const tool of msg.toolUses) {
                 this.activeTools.set(tool.id, {
                   name: tool.name,
@@ -585,7 +586,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                 this.outputBuffer += msg.displayOutput;
                 this.emitOutput(msg.displayOutput);
               }
-              // ツール完了を反映
+              // Reflect tool completion
               for (const result of msg.toolResults) {
                 if (result.toolUseId) {
                   this.activeTools.delete(result.toolUseId);
@@ -604,7 +605,7 @@ export class ClaudeCodeAgent extends BaseAgent {
               const detectionResult = msg.detectionResult;
               logger.info(`${this.logPrefix} AskUserQuestion tool detected via Worker!`);
 
-              // 質問待機状態を更新
+              // Update question waiting state
               this.detectedQuestion = updateWaitingStateFromDetection(detectionResult);
 
               logger.info(
@@ -612,7 +613,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                 `${this.logPrefix} Question key generated`,
               );
 
-              // 即座に質問検出を通知（DBを即時更新するため）
+              // Emit question detection immediately to trigger DB update
               this.status = 'waiting_for_input';
               this.emitQuestionDetected({
                 question: detectionResult.questionText,
@@ -627,7 +628,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                 this.emitOutput(msg.displayOutput);
               }
 
-              // プロセスを停止して、ユーザーの回答後に --resume で再開する
+              // Stop the process; will resume via --resume after user answers
               logger.info(`${this.logPrefix} Stopping process to wait for user response`);
               setTimeout(() => {
                 if (this.process && !this.process.killed) {
@@ -672,7 +673,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                 this.onParseComplete();
                 this.onParseComplete = null;
               }
-              // Workerを終了
+              // Terminate the Worker
               try {
                 this.parserWorker?.postMessage({ type: 'terminate' } satisfies WorkerInputMessage);
               } catch {
@@ -693,9 +694,9 @@ export class ClaudeCodeAgent extends BaseAgent {
 
         this.process.stdout?.on('data', (data: Buffer) => {
           const chunk = data.toString();
-          lastOutputTime = Date.now(); // 最終出力時刻を更新
+          lastOutputTime = Date.now();
 
-          // 最初の出力が来た時にログを出力
+          // Log when the first output arrives
           if (!hasReceivedAnyOutput) {
             hasReceivedAnyOutput = true;
             const elapsedMs = Date.now() - startTime;
@@ -704,14 +705,14 @@ export class ClaudeCodeAgent extends BaseAgent {
             );
           }
 
-          // Worker にチャンクを委譲（パース処理はWorkerスレッドで実行）
+          // Delegate chunk to Worker (parsing runs on the Worker thread)
           try {
             this.parserWorker?.postMessage({
               type: 'parse-chunk',
               data: chunk,
             } satisfies WorkerInputMessage);
           } catch (workerErr) {
-            // Worker が終了済みの場合は無視（InvalidStateError: Worker has been terminated）
+            // Ignore if Worker is already terminated (InvalidStateError)
             logger.warn(
               { errorDetail: workerErr instanceof Error ? workerErr.message : workerErr },
               `${this.logPrefix} Worker postMessage failed`,
@@ -723,7 +724,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         this.process.stderr?.on('data', (data: Buffer) => {
           const output = data.toString();
           this.errorBuffer += output;
-          lastOutputTime = Date.now(); // stderrも出力として扱い、タイムアウトをリセット
+          lastOutputTime = Date.now(); // Treat stderr as output to reset the timeout
           logger.info(
             `${this.logPrefix} stderr (${output.length} chars): ${output.substring(0, 200)}`,
           );
@@ -731,15 +732,15 @@ export class ClaudeCodeAgent extends BaseAgent {
         });
 
         this.process.on('close', (code: number | null) => {
-          cleanupTimeoutCheck(); // タイムアウトチェックを停止
-          cleanupIdleCheck(); // アイドルチェックを停止
-          cleanupPromptFile(); // 一時ファイルを削除
+          cleanupTimeoutCheck();
+          cleanupIdleCheck();
+          cleanupPromptFile();
           if (this.process?.pid) {
             unregisterProcess(this.process.pid);
           }
           const executionTimeMs = Date.now() - startTime;
 
-          // 残りのlineBufferを処理
+          // Process any remaining lineBuffer content
           if (this.lineBuffer.trim()) {
             logger.info(
               `${this.logPrefix} Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
@@ -766,39 +767,38 @@ export class ClaudeCodeAgent extends BaseAgent {
             return;
           }
 
-          // タイムアウトで既にresolveされている場合はスキップ
+          // Skip if already resolved by timeout
           if (this.status === 'failed') {
             return;
           }
 
-          // Workerにparse-completeを送信し、アーティファクト・コミットパースを実行
-          // Worker結果を待ってからresolveする
+          // Send parse-complete to Worker and wait for artifact/commit parsing results
           const resolveAfterParse = () => {
             const artifacts = this.workerArtifacts;
             const commits = this.workerCommits;
 
-            // 質問検出（キーベース判定システム使用）
+            // Question detection (key-based detection system)
             logger.info(`${this.logPrefix} Running question detection...`);
             logger.info(
               { detectedQuestion: this.detectedQuestion },
               `${this.logPrefix} detectedQuestion from stream`,
             );
 
-            // 新しいキーベース判定システムからの結果を使用
+            // Use results from the key-based detection system
             const hasQuestion = this.detectedQuestion.hasQuestion;
             const question = this.detectedQuestion.question;
             const questionKey = this.detectedQuestion.questionKey;
             const questionDetails = this.detectedQuestion.questionDetails;
 
-            // 後方互換性のためのquestionType変換
+            // Convert questionType for backward compatibility
             const questionType = tolegacyQuestionType(this.detectedQuestion.questionType);
 
             logger.info(
               `${this.logPrefix} Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
             );
 
-            // 質問が検出された場合は、終了コードに関係なく入力待ち状態
-            // Claude Codeは質問を出力しても終了コードが0でない場合がある
+            // NOTE: When a question is detected, enter waiting_for_input regardless of exit code.
+            // Claude Code may exit with non-zero even after outputting a question.
             if (hasQuestion) {
               this.status = 'waiting_for_input';
               logger.info(
@@ -809,9 +809,9 @@ export class ClaudeCodeAgent extends BaseAgent {
               );
               logger.info({ questionKey }, `${this.logPrefix} Question key`);
               logger.info(`${this.logPrefix} Session ID for resume: ${this.claudeSessionId}`);
-              this.emitOutput(`\n${this.logPrefix} 回答を待っています...\n`);
+              this.emitOutput(`\n${this.logPrefix} Waiting for answer...\n`);
               resolve({
-                success: true, // 技術的には成功だが、完了ではない
+                success: true, // Technically successful but not complete
                 output: this.outputBuffer,
                 artifacts,
                 commits,
@@ -820,48 +820,48 @@ export class ClaudeCodeAgent extends BaseAgent {
                 question,
                 questionType,
                 questionDetails,
-                questionKey, // 新しい構造化キー情報
+                questionKey,
                 claudeSessionId: this.claudeSessionId || undefined,
               });
               return;
             }
 
-            // エラー時は詳細なエラーメッセージを構築
+            // Build a detailed error message on failure
             let errorMessage: string | undefined;
             if (code !== 0) {
               const errorParts: string[] = [];
               errorParts.push(`Process exited with code ${code}`);
 
-              // 再開モードの情報を追加（フォールバック判定でマッチするようにキーワードを含める）
+              // Include resume mode info (with keywords for fallback detection matching)
               if (this.config.resumeSessionId) {
                 errorParts.push(
-                  `\n\n【セッション再開モード】session expired or not found\nセッションID: ${this.config.resumeSessionId}`,
+                  `\n\n【Session Resume Mode】session expired or not found\nSession ID: ${this.config.resumeSessionId}`,
                 );
-                errorParts.push(`\n※ セッションが期限切れまたは無効な可能性があります`);
+                errorParts.push(`\n* Session may be expired or invalid`);
               } else if (this.config.continueConversation) {
-                errorParts.push(`\n\n【会話継続モード】\n--continue フラグを使用`);
+                errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
               }
 
-              // stderrの内容があれば追加
+              // Append stderr content if available
               if (this.errorBuffer.trim()) {
-                errorParts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
+                errorParts.push(`\n\n【Standard Error Output】\n${this.errorBuffer.trim()}`);
               }
 
-              // stdoutの最後の部分を追加（エラーの手がかりになる可能性）
+              // Append the tail of stdout (may contain clues about the error)
               if (this.outputBuffer.trim()) {
                 const lastOutput = this.outputBuffer.trim().slice(-1000);
                 errorParts.push(`\n${lastOutput}`);
               }
 
-              // lineBufferに残っている未処理のデータがあれば追加
+              // Append any unprocessed data remaining in the lineBuffer
               if (this.lineBuffer.trim()) {
-                errorParts.push(`\n\n【未処理バッファ】\n${this.lineBuffer.trim().slice(-500)}`);
+                errorParts.push(`\n\n【Unprocessed Buffer】\n${this.lineBuffer.trim().slice(-500)}`);
               }
 
-              // 実行時間が非常に短い場合は警告（session resumeの失敗を示唆）
+              // NOTE: Very short execution time suggests a failed session resume
               if (executionTimeMs < 10000) {
                 errorParts.push(
-                  `\n\n【警告】実行時間が ${executionTimeMs}ms と非常に短いです。session expired or not found - セッションの再開に失敗した可能性があります。`,
+                  `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short. session expired or not found - session resume may have failed.`,
                 );
               }
 
@@ -871,8 +871,8 @@ export class ClaudeCodeAgent extends BaseAgent {
               );
             }
 
-            // エラー終了の場合はそのまま失敗として返す
-            // ただし、アイドルハングによる強制終了の場合はexit codeに関わらずgit diff判定へ進む
+            // Return as failure on error exit, unless the process was force-killed
+            // due to idle hang — in that case, proceed to git diff check regardless of exit code
             if (code !== 0 && !this.idleTimeoutForceKilled) {
               logger.info(
                 `${this.logPrefix} No question detected, setting status to failed (exitCode: ${code})`,
@@ -897,9 +897,9 @@ export class ClaudeCodeAgent extends BaseAgent {
               );
             }
 
-            // 正常終了（code === 0）またはアイドルハングkillの場合、git diffで実際のコード変更を確認する
-            // ファイル変更ツール（Write/Edit等）が呼ばれていても、計画モード（EnterPlanMode）や
-            // サブエージェント（Task）経由の場合は実際にファイルが変更されていない可能性がある
+            // NOTE: On success (code === 0) or idle-hang kill, verify actual changes via git diff.
+            // File-modifying tools (Write/Edit) may have been called in plan mode (EnterPlanMode)
+            // or via sub-agents (Task) without actually modifying files.
             logger.info(
               `${this.logPrefix} Process exited successfully, verifying actual code changes...`,
             );
@@ -924,9 +924,8 @@ export class ClaudeCodeAgent extends BaseAgent {
                     claudeSessionId: this.claudeSessionId || undefined,
                   });
                 } else if (this.hasFileModifyingToolCalls) {
-                  // ファイル変更ツールは使われたがgit diffに反映されていない
-                  // （エージェントがコミット&リセットした等の稀なケース）
-                  // ツール使用を信頼してcompletedとする
+                  // NOTE: File-modifying tools were used but not reflected in git diff
+                  // (rare case, e.g. agent committed & reset). Trust tool usage as completed.
                   logger.info(
                     `${this.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
                   );
@@ -941,7 +940,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                     claudeSessionId: this.claudeSessionId || undefined,
                   });
                 } else {
-                  // 計画のみで実装が行われていない
+                  // Only planning was done — no implementation
                   logger.info(
                     `${this.logPrefix} No git changes and no file-modifying tools used - agent likely only planned without implementing`,
                   );
@@ -955,15 +954,15 @@ export class ClaudeCodeAgent extends BaseAgent {
                     waitingForInput: false,
                     claudeSessionId: this.claudeSessionId || undefined,
                     errorMessage:
-                      'エージェントは計画を出力しましたが、実際のコード変更は行われませんでした。プロンプトを見直して再実行してください。',
+                      'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
                   });
                 }
               })
               .catch((err) => {
-                // git diffチェックに失敗した場合、ファイル変更ツールの使用有無で判定する
+                // If git diff check fails, fall back to file-modifying tool usage heuristic
                 logger.warn({ err }, `${this.logPrefix} Git diff check failed`);
                 if (this.hasFileModifyingToolCalls) {
-                  // ファイル変更ツールが使われていれば実装が行われた可能性が高い
+                  // File-modifying tools were used — likely implemented
                   logger.info(
                     `${this.logPrefix} Git diff failed but file-modifying tools were used, setting status to completed`,
                   );
@@ -978,7 +977,7 @@ export class ClaudeCodeAgent extends BaseAgent {
                     claudeSessionId: this.claudeSessionId || undefined,
                   });
                 } else {
-                  // ファイル変更ツールも使われていなければ失敗とする
+                  // No file-modifying tools used — treat as failure
                   logger.info(
                     `${this.logPrefix} Git diff failed and no file-modifying tools used, setting status to failed`,
                   );
@@ -992,14 +991,14 @@ export class ClaudeCodeAgent extends BaseAgent {
                     waitingForInput: false,
                     claudeSessionId: this.claudeSessionId || undefined,
                     errorMessage:
-                      'エージェントの実行結果を検証できませんでした。コード変更が確認できません。',
+                      'Could not verify agent execution results. Code changes cannot be confirmed.',
                   });
                 }
               });
           };
 
-          // Workerが存在する場合はparse-completeを送信して結果を待つ
-          // Workerが無い場合はフォールバックとして直接実行
+          // If a Worker exists, send parse-complete and wait for results;
+          // otherwise fall back to direct execution
           if (this.parserWorker) {
             this.workerArtifacts = [];
             this.workerCommits = [];
@@ -1024,9 +1023,9 @@ export class ClaudeCodeAgent extends BaseAgent {
         });
 
         this.process.on('error', (error: Error) => {
-          cleanupTimeoutCheck(); // タイムアウトチェックを停止
-          cleanupIdleCheck(); // アイドルチェックを停止
-          cleanupPromptFile(); // 一時ファイルを削除
+          cleanupTimeoutCheck();
+          cleanupIdleCheck();
+          cleanupPromptFile();
           if (this.process?.pid) {
             unregisterProcess(this.process.pid);
           }
@@ -1034,16 +1033,16 @@ export class ClaudeCodeAgent extends BaseAgent {
           logger.error({ err: error }, `${this.logPrefix} Process error`);
           this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);
 
-          // 詳細なエラーメッセージを構築
+          // Build a detailed error message
           const errorParts: string[] = [];
-          errorParts.push(`プロセス起動エラー: ${error.message}`);
+          errorParts.push(`Process startup error: ${error.message}`);
 
           if (this.errorBuffer.trim()) {
-            errorParts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
+            errorParts.push(`\n\n【Standard Error Output】\n${this.errorBuffer.trim()}`);
           }
 
           if (this.outputBuffer.trim()) {
-            errorParts.push(`\n\n【標準出力】\n${this.outputBuffer.trim().slice(-500)}`);
+            errorParts.push(`\n\n【Standard Output】\n${this.outputBuffer.trim().slice(-500)}`);
           }
 
           resolve({
@@ -1054,8 +1053,8 @@ export class ClaudeCodeAgent extends BaseAgent {
           });
         });
       } catch (error) {
-        // catchブロックはspawn前のエラーをキャッチするため、idleCheckIntervalはまだ設定されていない
-        cleanupPromptFile(); // 一時ファイルを削除
+        // NOTE: This catch block handles errors before spawn, so idleCheckInterval is not yet set
+        cleanupPromptFile();
         this.status = 'failed';
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error({ err: error }, `${this.logPrefix} Spawn error`);
@@ -1070,9 +1069,9 @@ export class ClaudeCodeAgent extends BaseAgent {
   }
 
   /**
-   * 質問検出時にプロセスを丁寧に停止する
-   * Windowsでは taskkill を使用し、Unix系ではSIGTERMを送信する
-   * stop()と異なり、ステータスを cancelled にしない（waiting_for_input を維持）
+   * Gracefully stops the process when a question is detected.
+   * Uses taskkill on Windows, SIGTERM on Unix.
+   * Unlike stop(), does not set status to cancelled (preserves waiting_for_input).
    */
   private killProcessForQuestion(): void {
     if (!this.process || this.process.killed) return;
@@ -1080,7 +1079,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     const isWindows = process.platform === 'win32';
 
     if (isWindows) {
-      // Windowsでは taskkill を使用してプロセスツリーを終了
+      // On Windows, use taskkill to terminate the process tree
       try {
         const pid = this.process.pid;
         if (pid) {
@@ -1112,18 +1111,18 @@ export class ClaudeCodeAgent extends BaseAgent {
       const isWindows = process.platform === 'win32';
 
       if (isWindows) {
-        // Windowsでは taskkill を使用してプロセスツリーを強制終了
+        // On Windows, force-kill the process tree via taskkill
         try {
           const pid = this.process.pid;
           if (pid) {
             const { execSync } = require('child_process');
-            // /T でプロセスツリー全体を終了、/F で強制終了
+            // /T terminates the entire process tree, /F forces termination
             execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
             logger.info(`${this.logPrefix} Process ${pid} killed via taskkill`);
           }
         } catch (e) {
           logger.error({ err: e }, `${this.logPrefix} taskkill failed`);
-          // フォールバックとして通常のkillを試行
+          // Fall back to standard kill
           try {
             this.process.kill();
           } catch (killErr) {
@@ -1131,10 +1130,10 @@ export class ClaudeCodeAgent extends BaseAgent {
           }
         }
       } else {
-        // Unix系OSではSIGINTを送信して丁寧に終了を試みる
+        // On Unix, send SIGINT for graceful shutdown
         this.process.kill('SIGINT');
 
-        // 5秒後にまだ動いていればSIGTERMを送信
+        // Send SIGTERM if still running after 5 seconds
         await new Promise<void>((resolve) => {
           const checkInterval = setInterval(() => {
             if (!this.process || this.process.killed) {
@@ -1184,7 +1183,7 @@ export class ClaudeCodeAgent extends BaseAgent {
       const claudePath = resolveCliPath(baseClaudePath);
       const proc = spawn(claudePath, ['--version'], { shell: true });
 
-      // 10秒タイムアウト
+      // 10-second timeout
       const timeout = setTimeout(() => {
         proc.kill();
         resolve(false);
@@ -1202,8 +1201,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   }
 
   /**
-   * 作業ディレクトリでgit diffを確認し、変更があるかどうかを返す
-   * unstaged、staged、直近のコミットすべてを確認する
+   * Check whether there are any code changes in the working directory.
+   * Examines unstaged changes, staged changes, and recent commits.
    */
   private async checkGitDiff(workDir: string): Promise<boolean> {
     const runGitCommand = (args: string[]): Promise<string> => {
@@ -1235,7 +1234,7 @@ export class ClaudeCodeAgent extends BaseAgent {
       });
     };
 
-    // 0. gitリポジトリかどうかを確認
+    // 0. Verify this is a git repository
     const revParse = await runGitCommand(['rev-parse', '--is-inside-work-tree']);
     if (revParse !== 'true') {
       throw new Error(`workDir is not a git repository: ${workDir}`);
@@ -1255,14 +1254,14 @@ export class ClaudeCodeAgent extends BaseAgent {
       return true;
     }
 
-    // 3. エージェントがコミット済みの場合: git statusで確認
+    // 3. Check git status (agent may have committed already)
     const status = await runGitCommand(['status', '--porcelain']);
     if (status.length > 0) {
       logger.info(`${this.logPrefix} Git diff check: working tree changes found`);
       return true;
     }
 
-    // 4. 直近のコミットが実行中に作られた可能性を確認（直近5分以内のコミット）
+    // 4. Check for commits made during execution (within the last 5 minutes)
     const recentCommit = await runGitCommand(['log', '--oneline', '--since=5.minutes.ago', '-1']);
     if (recentCommit.length > 0) {
       logger.info(`${this.logPrefix} Git diff check: recent commit found: ${recentCommit}`);
@@ -1276,13 +1275,13 @@ export class ClaudeCodeAgent extends BaseAgent {
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    // Claude CLIが利用可能か確認
+    // Check if Claude CLI is available
     const available = await this.isAvailable();
     if (!available) {
       errors.push('Claude Code CLI is not installed or not available in PATH');
     }
 
-    // 作業ディレクトリの検証
+    // Validate the working directory
     if (this.config.workingDirectory) {
       try {
         const fs = await import('fs/promises');
@@ -1302,12 +1301,11 @@ export class ClaudeCodeAgent extends BaseAgent {
   }
 
   /**
-   * AIタスク分析結果から構造化プロンプトを生成
-   * AIエージェントが理解しやすい形式でタスク情報を整形
+   * Build a structured prompt from AI task analysis results.
+   * Formats task information for easy consumption by AI agents.
    */
   private buildStructuredPrompt(task: AgentTask): string {
-    // 最適化されたプロンプトが存在する場合はそれを優先使用
-    // （PromptOptimizationPanelで生成された構造化プロンプト）
+    // Use optimized prompt if available (generated by PromptOptimizationPanel)
     if (task.optimizedPrompt) {
       logger.info(
         `${this.logPrefix} Using optimized prompt (${task.optimizedPrompt.length} chars)`,
@@ -1318,192 +1316,184 @@ export class ClaudeCodeAgent extends BaseAgent {
     const analysis = task.analysisInfo;
 
     if (!analysis) {
-      // 分析結果がない場合は従来通りの単純なプロンプト（ワークフロー指示を付加）
+      // No analysis — fall back to a simple prompt with workflow instructions appended
       const basePrompt = task.description || task.title;
       const workflowInstructions = [
-        `\n\n## ワークフロー手順`,
-        `以下の手順でタスクを実行してください：`,
-        `1. 調査 → research.md保存`,
-        `2. 不明点があれば question.md保存 + AskUserQuestion`,
-        `3. plan.md作成・保存 → **承認待ちのため実装停止**`,
-        `4. 承認後に実装`,
-        `5. verify.md保存`,
+        `\n\n## Workflow Steps`,
+        `Please execute the task in the following order:`,
+        `1. Research → Save research.md`,
+        `2. If unclear points exist, save question.md + AskUserQuestion`,
+        `3. Create and save plan.md → **Stop implementation and wait for approval**`,
+        `4. Implement after approval`,
+        `5. Save verify.md`,
         ``,
         `**ファイル保存API**: \`curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
         ``,
-        `**重要事項**:`,
-        `- 計画モード（EnterPlanMode）は使用せず、直接コードの実装を行ってください。計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。`,
-        `- **プロジェクトルートには絶対にファイルを作成しないでください。一時ファイルも例外ではありません。**`,
-        `- すべてのワークフロー関連ファイル（research/question/plan/verify）は上記のAPI経由で保存してください。`,
-        `- WriteツールやBashツール(mkdir/echo)を使ったプロジェクトルートでのファイル作成は禁止です。`,
-        `- **implementation_*.md、temp_*.md、*_content.json等の一時ファイルも作成しないでください。**`,
+        `**Important Notes**:`,
+        `- Do not use plan mode (EnterPlanMode), implement code directly. Do not stop at planning, make sure to complete file creation and editing.`,
+        `- **Never create files in the project root. Temporary files are no exception.**`,
+        `- All workflow-related files (research/question/plan/verify) must be saved via the above API.`,
+        `- File creation in project root using Write tool or Bash tool (mkdir/echo) is prohibited.`,
+        `- **Do not create temporary files like implementation_*.md, temp_*.md, *_content.json, etc.**`,
       ].join('\n');
       return basePrompt + workflowInstructions;
     }
 
-    // 優先度のマッピング
+    // Priority label mapping
     const priorityLabels: Record<string, string> = {
-      low: '低',
-      medium: '中',
-      high: '高',
-      urgent: '緊急',
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      urgent: 'Urgent',
     };
 
-    // 複雑度のマッピング
+    // Complexity label mapping
     const complexityLabels: Record<string, string> = {
-      simple: 'シンプル',
-      medium: '中程度',
-      complex: '複雑',
+      simple: 'Simple',
+      medium: 'Medium',
+      complex: 'Complex',
     };
 
-    // 構造化されたプロンプトを構築
     const sections: string[] = [];
-
-    // ヘッダー
-    sections.push('# タスク実装指示');
+    sections.push('# Task Implementation Instructions');
     sections.push('');
 
-    // タスク概要
-    sections.push('## 概要');
-    sections.push(`**タスク名:** ${task.title}`);
-    sections.push(`**分析サマリー:** ${analysis.summary}`);
-    sections.push(`**複雑度:** ${complexityLabels[analysis.complexity] || analysis.complexity}`);
-    sections.push(`**推定総時間:** ${analysis.estimatedTotalHours}時間`);
+    sections.push('## Overview');
+    sections.push(`**Task Name:** ${task.title}`);
+    sections.push(`**Analysis Summary:** ${analysis.summary}`);
+    sections.push(`**Complexity:** ${complexityLabels[analysis.complexity] || analysis.complexity}`);
+    sections.push(`**Estimated Total Hours:** ${analysis.estimatedTotalHours} hours`);
     sections.push('');
 
-    // タスク詳細説明（元のdescriptionがある場合）
+    // Include original task description if available
     if (task.description) {
-      sections.push('## タスク詳細');
+      sections.push('## Task Details');
       sections.push(task.description);
       sections.push('');
     }
 
-    // サブタスク一覧（実装手順）
+    // Subtask list (implementation steps)
     if (analysis.subtasks && analysis.subtasks.length > 0) {
-      sections.push('## 実装手順');
-      sections.push('以下の順序でタスクを実装してください：');
+      sections.push('## Implementation Steps');
+      sections.push('Please implement the task in the following order:');
       sections.push('');
 
-      // 依存関係を考慮してソート（orderでソート）
+      // Sort by order to respect dependency ordering
       const sortedSubtasks = [...analysis.subtasks].sort((a, b) => a.order - b.order);
 
       for (const subtask of sortedSubtasks) {
         const priorityLabel = priorityLabels[subtask.priority] || subtask.priority;
         sections.push(`### ${subtask.order}. ${subtask.title}`);
-        sections.push(`- **説明:** ${subtask.description}`);
-        sections.push(`- **推定時間:** ${subtask.estimatedHours}時間`);
-        sections.push(`- **優先度:** ${priorityLabel}`);
+        sections.push(`- **Description:** ${subtask.description}`);
+        sections.push(`- **Estimated Hours:** ${subtask.estimatedHours} hours`);
+        sections.push(`- **Priority:** ${priorityLabel}`);
 
         if (subtask.dependencies && subtask.dependencies.length > 0) {
           const depTitles = subtask.dependencies
             .map((depOrder) => {
               const dep = analysis.subtasks.find((s) => s.order === depOrder);
-              return dep ? `${depOrder}. ${dep.title}` : `ステップ${depOrder}`;
+              return dep ? `${depOrder}. ${dep.title}` : `Step ${depOrder}`;
             })
             .join(', ');
-          sections.push(`- **依存:** ${depTitles} の完了後に実行`);
+          sections.push(`- **Dependencies:** Execute after completion of ${depTitles}`);
         }
         sections.push('');
       }
     }
 
-    // 分析理由
+    // Analysis reasoning
     if (analysis.reasoning) {
-      sections.push('## 実装方針の根拠');
+      sections.push('## Implementation Approach Rationale');
       sections.push(analysis.reasoning);
       sections.push('');
     }
 
-    // 実装のヒント
+    // Implementation tips
     if (analysis.tips && analysis.tips.length > 0) {
-      sections.push('## 実装のヒント');
+      sections.push('## Implementation Hints');
       for (const tip of analysis.tips) {
         sections.push(`- ${tip}`);
       }
       sections.push('');
     }
 
-    // ワークフロー指示
-    sections.push('## ワークフロー手順');
-    sections.push('以下の手順でワークフローファイルを作成しながらタスクを実行してください：');
+    // Workflow instructions
+    sections.push('## Workflow Steps');
+    sections.push('Please execute the task while creating workflow files in the following steps:');
     sections.push('');
-    sections.push('1. **調査**: コードベースを調査し、結果をresearch.mdとして保存');
+    sections.push('1. **Research**: Investigate the codebase and save results as research.md');
     sections.push(
-      '2. **質問**: 不明点があればquestion.mdとして保存し、AskUserQuestionで質問。不明点がなければスキップ',
+      '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion. Skip if no unclear points',
     );
     sections.push(
-      '3. **計画**: 調査結果と回答を反映してplan.mdを作成・保存。**plan.md保存後は承認を待つため、ここで実装を停止してください**',
+      '3. **Planning**: Create and save plan.md reflecting research results and answers. **After saving plan.md, stop implementation here and wait for approval**',
     );
-    sections.push('4. **実装**: ユーザーが計画を承認した後に実装を行う（この段階では質問しない）');
-    sections.push('5. **検証**: 実装結果をverify.mdとして保存');
+    sections.push('4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)');
+    sections.push('5. **Verification**: Save implementation results as verify.md');
     sections.push('');
-    sections.push('### ワークフローファイルの保存方法');
+    sections.push('### How to Save Workflow Files');
     sections.push(
-      '**重要**: ワークフローファイルは必ず以下のAPIを使って保存してください。直接ファイルシステムにmkdir/Write等で作成しないでください。',
+      '**Important**: Workflow files must be saved using the following API. Do not create them directly on the filesystem with mkdir/Write etc.',
     );
     sections.push('');
-    sections.push('**禁止事項**:');
+    sections.push('**Prohibited Actions**:');
     sections.push(
-      '- **プロジェクトルートには絶対にファイルを作成しないでください。一時ファイルも例外ではありません。**',
+      '- **Never create files in the project root. Temporary files are no exception.**',
     );
     sections.push(
-      '- WriteツールやBashツール(mkdir/echo)を使ったプロジェクトルートでのファイル作成は禁止です。',
+      '- File creation in project root using Write tool or Bash tool (mkdir/echo) is prohibited.',
     );
     sections.push(
-      '- **implementation_*.md、temp_*.md、*_content.json等の一時ファイルも作成しないでください。**',
+      '- **Do not create temporary files like implementation_*.md, temp_*.md, *_content.json, etc.**',
     );
     sections.push('');
     sections.push('```bash');
-    sections.push(`# research.md を保存`);
+    sections.push(`# Save research.md`);
     sections.push(
-      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# 調査結果\\n..."}'`,
+      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# Research Results\\n..."}'`,
     );
     sections.push('');
-    sections.push(`# question.md を保存`);
+    sections.push(`# Save question.md`);
     sections.push(
-      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/question -H 'Content-Type: application/json' -d '{"content":"# 不明点\\n..."}'`,
+      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/question -H 'Content-Type: application/json' -d '{"content":"# Unclear Points\\n..."}'`,
     );
     sections.push('');
-    sections.push(`# plan.md を保存`);
+    sections.push(`# Save plan.md`);
     sections.push(
-      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/plan -H 'Content-Type: application/json' -d '{"content":"# 実装計画\\n..."}'`,
+      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/plan -H 'Content-Type: application/json' -d '{"content":"# Implementation Plan\\n..."}'`,
     );
     sections.push('');
-    sections.push(`# verify.md を保存`);
+    sections.push(`# Save verify.md`);
     sections.push(
-      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/verify -H 'Content-Type: application/json' -d '{"content":"# 検証レポート\\n..."}'`,
+      `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${task.id}/files/verify -H 'Content-Type: application/json' -d '{"content":"# Verification Report\\n..."}'`,
     );
     sections.push('```');
     sections.push('');
 
-    // 実行指示
-    sections.push('## 実行指示');
-    sections.push('上記の手順に従って、タスクを最初から最後まで実装してください。');
-    sections.push('各ステップの完了後、次のステップに進んでください。');
-    sections.push('不明点がある場合は、質問してください。');
+    // Execution instructions
+    sections.push('## Execution Instructions');
+    sections.push('Please implement the task from start to finish following the above steps.');
+    sections.push('After completing each step, proceed to the next step.');
+    sections.push('If you have unclear points, please ask questions.');
     sections.push('');
-    sections.push('## 重要な注意事項');
+    sections.push('## Important Notes');
     sections.push(
-      '- **計画モード（EnterPlanMode）は使用しないでください。** 直接コードの実装を行ってください。',
+      '- **Do not use plan mode (EnterPlanMode).** Implement code directly.',
     );
-    sections.push('- 計画を立てるだけで終わらず、必ずファイルの作成・編集まで完了させてください。');
-    sections.push('- **プロジェクトルートには絶対にファイルを作成しないでください。**');
+    sections.push('- Do not stop at planning, make sure to complete file creation and editing.');
+    sections.push('- **Never create files in the project root.**');
     sections.push(
-      '- 一時ファイルも含め、すべてのワークフロー関連ファイルは上記のAPI経由で保存してください。',
+      '- All workflow-related files, including temporary files, must be saved via the above API.',
     );
-    sections.push('- WriteツールやBashツール(mkdir/echo)を使ったファイル作成は禁止です。');
-    sections.push('- Write、Edit等のツールを使って実際にコードを変更してください。');
+    sections.push('- File creation using Write tool or Bash tool (mkdir/echo) is prohibited.');
+    sections.push('- Use Write, Edit, and other tools to actually change the code.');
 
     return sections.join('\n');
   }
 
   /**
-   * 出力から質問/入力待ちを検出
-   * AskUserQuestionツール呼び出しを優先的に検出し、なければパターンマッチングにフォールバック
-   */
-  /**
-   * AskUserQuestionツールの入力から質問情報を抽出
-   * stream-json形式のAskUserQuestionツール呼び出しから質問テキストと詳細を取得
+   * Extract question info from AskUserQuestion tool input.
+   * Parses question text and details from stream-json AskUserQuestion tool calls.
    */
   private extractQuestionInfo(input: Record<string, unknown> | undefined): {
     questionText: string;
@@ -1516,7 +1506,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     let questionText = '';
     const questionDetails: QuestionDetails = {};
 
-    // questionsフィールドがある場合（配列形式）
+    // Array format: questions field
     if (input.questions && Array.isArray(input.questions)) {
       const questions = input.questions as Array<{
         question?: string;
@@ -1525,19 +1515,19 @@ export class ClaudeCodeAgent extends BaseAgent {
         multiSelect?: boolean;
       }>;
 
-      // 質問テキストを抽出
+      // Extract question text
       questionText = questions
         .map((q) => q.question || q.header || '')
         .filter((q) => q)
         .join('\n');
 
-      // ヘッダーを抽出
+      // Extract headers
       const headers = questions.map((q) => q.header).filter((h): h is string => !!h);
       if (headers.length > 0) {
         questionDetails.headers = headers;
       }
 
-      // 最初の質問から選択肢とmultiSelectを取得
+      // Get options and multiSelect from the first question
       const firstQuestion = questions[0];
       if (firstQuestion) {
         if (firstQuestion.options && Array.isArray(firstQuestion.options)) {
@@ -1551,12 +1541,12 @@ export class ClaudeCodeAgent extends BaseAgent {
         }
       }
     }
-    // 単一のquestionフィールドがある場合
+    // Single question field format
     else if (input.question && typeof input.question === 'string') {
       questionText = input.question;
     }
 
-    // questionDetailsが空でなければ返す
+    // Return questionDetails only if non-empty
     const hasDetails =
       questionDetails.headers?.length ||
       questionDetails.options?.length ||

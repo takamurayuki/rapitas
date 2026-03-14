@@ -44,7 +44,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
     });
   })
 
-  // カテゴリ一覧を取得
+  // Get distinct template categories
   .get('/categories', async () => {
     const templates = await prisma.taskTemplate.findMany({
       select: { category: true },
@@ -114,7 +114,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
     },
   )
 
-  // タスクからテンプレートを作成
+  // Create template from an existing task
   .post('/from-task/:taskId', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.taskId);
@@ -124,7 +124,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       category: string;
     };
 
-    // タスクを取得（サブタスク含む）
+    // Fetch task with subtasks
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -150,7 +150,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       return { error: 'Task not found' };
     }
 
-    // テンプレートデータを構築
+    // Build template data
     const templateData = {
       title: task.title,
       description: task.description,
@@ -168,7 +168,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       ),
     };
 
-    // テンプレートを作成（タスクのテーマも保存）
+    // Create template (preserves the task's theme)
     const template = await prisma.taskTemplate.create({
       data: {
         name,
@@ -198,7 +198,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
     return await prisma.taskTemplate.delete({ where: { id } });
   })
 
-  // テンプレートからタスク作成
+  // Create task from template
   .post('/:id/apply', async (context) => {
     const { params, body } = context;
     const id = parseInt(params.id);
@@ -245,7 +245,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       },
     });
 
-    // サブタスクも作成（説明とestimatedHoursを含む）
+    // Create subtasks (with description and estimatedHours)
     if (data?.subtasks && Array.isArray(data.subtasks)) {
       for (const st of data.subtasks) {
         await prisma.task.create({
@@ -260,7 +260,7 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       }
     }
 
-    // ラベルを取得して紐付け（テンプレートに保存されたラベル名から）
+    // Attach labels by name (from template-stored label names)
     if (data?.labels && Array.isArray(data.labels) && data.labels.length > 0) {
       const labels = await prisma.label.findMany({
         where: {
@@ -278,13 +278,13 @@ export const templatesRoutes = new Elysia({ prefix: '/templates' })
       }
     }
 
-    // 使用回数を増やす
+    // Increment use count
     await prisma.taskTemplate.update({
       where: { id },
       data: { useCount: { increment: 1 } },
     });
 
-    // 作成したタスクをリレーション付きで返す
+    // Return the created task with relations
     const createdTask = await prisma.task.findUnique({
       where: { id: task.id },
       include: {

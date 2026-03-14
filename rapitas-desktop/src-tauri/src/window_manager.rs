@@ -25,12 +25,10 @@ pub struct WindowInfo {
 unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let windows = &mut *(lparam as *mut Vec<WindowInfo>);
 
-    // ウィンドウが表示されているかチェック
     if IsWindowVisible(hwnd) == 0 {
         return TRUE;
     }
 
-    // ウィンドウタイトルを取得
     let mut title: [u16; 256] = [0; 256];
     let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
 
@@ -81,11 +79,9 @@ pub fn find_browser_window() -> Option<HWND> {
 #[allow(dead_code)]
 pub fn set_window_split_left(hwnd: HWND, screen_width: i32, screen_height: i32) {
     unsafe {
-        // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
         ShowWindow(hwnd, SW_NORMAL);
 
-        // 左半分に配置
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
@@ -102,11 +98,9 @@ pub fn set_window_split_left(hwnd: HWND, screen_width: i32, screen_height: i32) 
 #[allow(dead_code)]
 pub fn set_window_split_right(hwnd: HWND, screen_width: i32, screen_height: i32) {
     unsafe {
-        // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
         ShowWindow(hwnd, SW_NORMAL);
 
-        // 右半分に配置
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
@@ -167,8 +161,10 @@ pub fn get_work_area() -> (i32, i32, i32, i32) {
     }
 }
 
-/// DWMの不可視ボーダー（リサイズハンドル用透明領域）のサイズを取得する。
-/// 返り値: (border_left, border_top, border_right, border_bottom)
+/// Get the size of DWM invisible borders (transparent areas used for resize handles).
+///
+/// # Returns
+/// (border_left, border_top, border_right, border_bottom)
 #[cfg(target_os = "windows")]
 pub fn get_invisible_border(hwnd: HWND) -> (i32, i32, i32, i32) {
     unsafe {
@@ -176,7 +172,7 @@ pub fn get_invisible_border(hwnd: HWND) -> (i32, i32, i32, i32) {
         let mut frame_rect: RECT = std::mem::zeroed();
 
         if GetWindowRect(hwnd, &mut window_rect) == 0 {
-            return (7, 0, 7, 7); // フォールバック値
+            return (7, 0, 7, 7); // fallback defaults
         }
 
         // DWMWA_EXTENDED_FRAME_BOUNDS = 9
@@ -188,7 +184,7 @@ pub fn get_invisible_border(hwnd: HWND) -> (i32, i32, i32, i32) {
         );
 
         if hr != 0 {
-            return (7, 0, 7, 7); // フォールバック値
+            return (7, 0, 7, 7); // fallback defaults
         }
 
         let border_left = frame_rect.left - window_rect.left;
@@ -203,14 +199,13 @@ pub fn get_invisible_border(hwnd: HWND) -> (i32, i32, i32, i32) {
 #[cfg(target_os = "windows")]
 pub fn set_window_split_left_with_height(hwnd: HWND, _screen_width: i32, _height: i32) {
     unsafe {
-        // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
         ShowWindow(hwnd, SW_NORMAL);
 
         let (work_x, work_y, work_width, work_height) = get_work_area();
         let (bl, _bt, br, bb) = get_invisible_border(hwnd);
 
-        // 不可視ボーダーを補正して可視領域がぴったり左半分になるよう配置
+        // Compensate for invisible borders so the visible area fits exactly in the left half
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),
@@ -226,14 +221,13 @@ pub fn set_window_split_left_with_height(hwnd: HWND, _screen_width: i32, _height
 #[cfg(target_os = "windows")]
 pub fn set_window_split_right_with_height(hwnd: HWND, _screen_width: i32, _height: i32) {
     unsafe {
-        // ウィンドウを通常表示に戻す
         ShowWindow(hwnd, SW_RESTORE);
         ShowWindow(hwnd, SW_NORMAL);
 
         let (work_x, work_y, work_width, work_height) = get_work_area();
         let (bl, _bt, br, bb) = get_invisible_border(hwnd);
 
-        // 不可視ボーダーを補正して可視領域がぴったり右半分になるよう配置
+        // Compensate for invisible borders so the visible area fits exactly in the right half
         SetWindowPos(
             hwnd,
             std::ptr::null_mut(),

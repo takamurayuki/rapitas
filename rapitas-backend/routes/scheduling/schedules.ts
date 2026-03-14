@@ -15,7 +15,7 @@ const log = createLogger('routes:schedules');
 
 export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
   // Get all schedule events (with optional date range filter)
-  // 繰り返しイベントを仮想展開して返す
+  // Expands recurring events into virtual instances
   .get('/', async (context) => {
     const { query } = context;
     const { from, to } = query as { from?: string; to?: string };
@@ -23,7 +23,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     const rangeStart = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const rangeEnd = to ? new Date(to) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    // 通常イベント（繰り返しなし）を取得
+    // Fetch non-recurring events
     const where: Record<string, unknown> = {
       recurrenceRule: null,
       parentEventId: null,
@@ -39,7 +39,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
       orderBy: { startAt: 'asc' },
     });
 
-    // 繰り返しイベント（親）を取得
+    // Fetch recurring event parents
     const recurringEvents = await prisma.scheduleEvent.findMany({
       where: {
         recurrenceRule: { not: null },
@@ -47,7 +47,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
       },
     });
 
-    // 繰り返しの例外（個別編集されたインスタンス）を取得
+    // Fetch recurrence exceptions (individually edited instances)
     const exceptions = await prisma.scheduleEvent.findMany({
       where: {
         isRecurrenceException: true,
@@ -59,7 +59,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
       exceptions.map((e) => `${e.parentEventId}:${e.originalDate?.toISOString().split('T')[0]}`),
     );
 
-    // 繰り返しイベントを展開
+    // Expand recurring events into virtual instances
     const expandedEvents: typeof normalEvents = [];
 
     for (const event of recurringEvents) {
@@ -78,15 +78,15 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
         for (const date of occurrences) {
           const dateKey = `${event.id}:${date.toISOString().split('T')[0]}`;
 
-          // 例外インスタンスがある場合はスキップ（代わりに例外が表示される）
+          // Skip if an exception instance exists (the exception replaces this occurrence)
           if (exceptionDates.has(dateKey)) continue;
 
-          // 仮想インスタンスを生成
+          // Generate virtual instance
           const duration = event.endAt ? event.endAt.getTime() - event.startAt.getTime() : 0;
 
           expandedEvents.push({
             ...event,
-            id: event.id * 10000 + (Math.floor(date.getTime() / 86400000) % 10000), // 仮想ID
+            id: event.id * 10000 + (Math.floor(date.getTime() / 86400000) % 10000), // virtual ID
             startAt: date,
             endAt: duration > 0 ? new Date(date.getTime() + duration) : null,
             parentEventId: event.id,
@@ -97,7 +97,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
       }
     }
 
-    // 全イベントをマージしてソート
+    // Merge all events and sort by start time
     const allEvents = [...normalEvents, ...expandedEvents, ...exceptions].sort(
       (a, b) => a.startAt.getTime() - b.startAt.getTime(),
     );
@@ -105,7 +105,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     return allEvents;
   })
 
-  // 繰り返しプリセット一覧
+  // Recurrence presets list
   .get('/recurrence-presets', () => {
     return RECURRENCE_PRESETS;
   })
@@ -216,14 +216,14 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     return { success: true, id };
   })
 
-  // 繰り返しイベントの個別インスタンスを編集（この回のみ）
+  // Edit a single instance of a recurring event (this occurrence only)
   .post('/:id/exception', async (context) => {
     const { params, body } = context;
     const parentId = parseInt(params.id);
     if (isNaN(parentId)) throw new ValidationError('Invalid ID');
 
     const data = body as {
-      originalDate: string; // 元の繰り返し日付
+      originalDate: string; // original recurrence date
       title?: string;
       description?: string;
       startAt?: string;
@@ -234,7 +234,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     const parent = await prisma.scheduleEvent.findUnique({ where: { id: parentId } });
     if (!parent) throw new NotFoundError('Parent event not found');
 
-    // 例外インスタンスを作成
+    // Create exception instance
     return await prisma.scheduleEvent.create({
       data: {
         title: data.title || parent.title,
@@ -254,7 +254,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     });
   })
 
-  // 繰り返しイベントの以降全てを削除（recurrenceEndを更新）
+  // Stop recurrence from a given date (updates recurrenceEnd)
   .post('/:id/stop-recurrence', async (context) => {
     const { params, body } = context;
     const id = parseInt(params.id);

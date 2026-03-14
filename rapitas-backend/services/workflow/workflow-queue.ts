@@ -1,7 +1,7 @@
 /**
  * Workflow Queue Service
- * ワークフロータスクのキュー管理を行う。
- * インメモリキュー + DB永続化のハイブリッド方式。
+ *
+ * Manages workflow task queuing with a hybrid in-memory queue + DB persistence approach.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -61,18 +61,18 @@ export class WorkflowQueueService {
   }
 
   /**
-   * タスクをキューに追加
+   * Enqueue a task.
    */
   async enqueue(options: EnqueueOptions): Promise<QueueItem> {
     const { taskId, priority = 50, dependencies = [], orchestraSessionId } = options;
 
-    // タスクの存在確認
+    // Verify task exists
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) {
       throw new Error(`Task ${taskId} not found`);
     }
 
-    // 重複チェック（同一セッション内）
+    // Duplicate check (within same session)
     const existing = await prisma.workflowQueueItem.findFirst({
       where: {
         taskId,
@@ -100,10 +100,10 @@ export class WorkflowQueueService {
   }
 
   /**
-   * 実行可能な次のアイテムを取得（依存関係チェック付き、競合状態対策あり）
+   * Dequeue the next executable item (with dependency checks and race condition protection).
    */
   async dequeue(): Promise<QueueItem | null> {
-    // 現在の実行中アイテム数をチェック
+    // Check current running item count
     const runningCount = await prisma.workflowQueueItem.count({
       where: { status: 'running' },
     });
@@ -111,7 +111,7 @@ export class WorkflowQueueService {
       return null;
     }
 
-    // 優先度順でキュー内のアイテムを取得
+    // Get queued items sorted by priority
     const candidates = await prisma.workflowQueueItem.findMany({
       where: { status: 'queued' },
       orderBy: [{ priority: 'desc' }, { queuedAt: 'asc' }],
@@ -121,7 +121,7 @@ export class WorkflowQueueService {
       try {
         const deps = JSON.parse(candidate.dependencies || '[]') as number[];
 
-        // 依存タスクがすべて完了（またはキャンセル）しているかチェック
+        // Check if all dependency tasks are completed (or cancelled)
         if (deps.length > 0) {
           const incompleteDeps = await prisma.workflowQueueItem.count({
             where: {
@@ -133,22 +133,22 @@ export class WorkflowQueueService {
           if (incompleteDeps > 0) continue;
         }
 
-        // 実行開始（トランザクションで競合状態を防止）
+        // Start execution (transaction prevents race conditions)
         const updated = await prisma.$transaction(async (tx) => {
-          // 再度ステータスを確認（他のワーカーが先に取得した可能性）
+          // Re-check status (another worker may have acquired it)
           const current = await tx.workflowQueueItem.findUnique({
             where: { id: candidate.id },
           });
           if (!current || current.status !== 'queued') {
-            return null; // 他のワーカーが取得済み
+            return null; // Already acquired by another worker
           }
 
-          // 並行実行数を再チェック
+          // Re-check concurrency limit
           const currentRunning = await tx.workflowQueueItem.count({
             where: { status: 'running' },
           });
           if (currentRunning >= this.maxConcurrency) {
-            return null; // 並行実行数上限に達した
+            return null; // Concurrency limit reached
           }
 
           return tx.workflowQueueItem.update({
@@ -161,10 +161,10 @@ export class WorkflowQueueService {
           log.info(`[WorkflowQueue] Dequeued task ${candidate.taskId} (item ${candidate.id})`);
           return this.mapToQueueItem(updated);
         }
-        // 競合により取得できなかった場合は次の候補へ
+        // Failed due to race condition, try next candidate
       } catch (error) {
         log.warn({ err: error }, `[WorkflowQueue] Failed to dequeue candidate ${candidate.id}`);
-        continue; // 次の候補を試行
+        continue; // Try next candidate
       }
     }
 
@@ -172,7 +172,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * アイテムのステータスを更新
+   * Update item status.
    */
   async updateStatus(
     itemId: number,
@@ -195,7 +195,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * リトライ可能かチェックし、リトライ実行
+   * Check if retry is possible and execute retry.
    */
   async retryIfPossible(itemId: number): Promise<boolean> {
     const item = await prisma.workflowQueueItem.findUnique({ where: { id: itemId } });
@@ -222,14 +222,14 @@ export class WorkflowQueueService {
   }
 
   /**
-   * キューアイテムをキャンセル
+   * Cancel a queue item.
    */
   async cancel(itemId: number): Promise<QueueItem> {
     return this.updateStatus(itemId, 'cancelled');
   }
 
   /**
-   * 優先度を変更
+   * Update priority.
    */
   async updatePriority(itemId: number, priority: number): Promise<QueueItem> {
     const updated = await prisma.workflowQueueItem.update({
@@ -240,7 +240,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * 現在のキュー状態を取得
+   * Get the current queue state.
    */
   async getQueueState(sessionId?: number): Promise<QueueState> {
     const where = sessionId ? { orchestraSessionId: sessionId } : {};
@@ -264,7 +264,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * セッション内のアイテムを取得
+   * Get items within a session.
    */
   async getSessionItems(sessionId: number): Promise<QueueItem[]> {
     const items = await prisma.workflowQueueItem.findMany({
@@ -275,7 +275,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * サーバー再起動時にrunningステータスのアイテムをqueuedに戻す
+   * On server restart, return running items back to queued status.
    */
   async recoverStaleItems(): Promise<number> {
     const result = await prisma.workflowQueueItem.updateMany({
@@ -289,7 +289,7 @@ export class WorkflowQueueService {
   }
 
   /**
-   * タスクIDからキューアイテムを検索
+   * Find a queue item by task ID.
    */
   async findByTaskId(taskId: number, sessionId?: number): Promise<QueueItem | null> {
     const item = await prisma.workflowQueueItem.findFirst({

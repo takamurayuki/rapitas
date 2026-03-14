@@ -1,6 +1,6 @@
 /**
  * Pomodoro API Routes
- * ポモドーロタイマー管理エンドポイント
+ * Pomodoro timer management endpoints.
  */
 import { Elysia, t } from 'elysia';
 import {

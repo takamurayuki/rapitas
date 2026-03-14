@@ -1,6 +1,6 @@
 /**
  * Search API Routes
- * 横断的な全文検索エンドポイント
+ * Cross-entity full-text search endpoint
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -20,7 +20,7 @@ type SearchResultItem = {
 };
 
 /**
- * テキストからマッチ箇所の前後を抽出してexcerptを生成
+ * Generate an excerpt by extracting text around the match location.
  */
 function createExcerpt(text: string, query: string, maxLength = 200): string {
   if (!text) return '';
@@ -43,7 +43,7 @@ function createExcerpt(text: string, query: string, maxLength = 200): string {
 }
 
 /**
- * マッチしたコンテキストを取得（どこでマッチしたかを表示）
+ * Get match context (indicates where the match was found).
  */
 function getMatchContext(text: string, description: string | null, query: string): string {
   const lowerText = text.toLowerCase();
@@ -57,7 +57,7 @@ function getMatchContext(text: string, description: string | null, query: string
     return 'description';
   }
 
-  // ワード単位でのマッチ確認
+  // Per-word match check
   const words = lowerQuery.split(/\s+/).filter((w) => w.length > 0);
   for (const word of words) {
     if (lowerText.includes(word)) {
@@ -72,7 +72,7 @@ function getMatchContext(text: string, description: string | null, query: string
 }
 
 /**
- * 改善された関連度スコア計算
+ * Calculate improved relevance score.
  */
 function calculateRelevance(
   text: string,
@@ -91,19 +91,19 @@ function calculateRelevance(
 
   let score = 0;
 
-  // 完全一致: 最高スコア
+  // Exact match: highest score
   if (lowerText === lowerQuery) {
     score = options.isTitle ? 100 : 20;
   }
-  // 先頭一致
+  // Prefix match
   else if (lowerText.startsWith(lowerQuery)) {
     score = options.isTitle ? 50 : 15;
   }
-  // フルクエリ含有
+  // Full query containment
   else if (lowerText.includes(lowerQuery)) {
     score = options.isTitle ? 30 : 10;
   }
-  // 個別ワードマッチング
+  // Individual word matching
   else {
     let wordMatches = 0;
     for (const word of words) {
@@ -118,7 +118,7 @@ function calculateRelevance(
     }
   }
 
-  // Description の追加スコア（タイトルでない場合）
+  // Additional score for description (when not title)
   if (!options.isTitle && description) {
     const lowerDesc = description.toLowerCase();
     if (lowerDesc.includes(lowerQuery)) {
@@ -134,7 +134,7 @@ function calculateRelevance(
     }
   }
 
-  // Recent update bonus (7日以内)
+  // Recent update bonus (within 7 days)
   if (options.updatedAt) {
     const daysDiff = (Date.now() - options.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
     if (daysDiff <= 7) {
@@ -151,19 +151,19 @@ function calculateRelevance(
 }
 
 export const searchRoutes = new Elysia({ prefix: '/search' })
-  // 横断検索
+  // Cross-entity search
   .get('/', async ({ query: q, set }) => {
     try {
       const searchQuery = q.q?.trim();
       if (!searchQuery || searchQuery.length < 1) {
         set.status = 400;
-        return { success: false, error: '検索クエリが必要です' };
+        return { success: false, error: 'Search query is required' };
       }
 
-      // 検索文字列の長さ制限
+      
       if (searchQuery.length > 500) {
         set.status = 400;
-        return { success: false, error: '検索クエリが長すぎます（最大500文字）' };
+        return { success: false, error: 'Search query is too long (max 500 characters)' };
       }
 
       const types = q.type?.split(',') || ['task', 'comment', 'note', 'resource'];
@@ -171,7 +171,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
       const offset = q.offset ? parseInt(q.offset) : 0;
       const sortBy = q.sortBy || 'relevance'; // relevance, updatedAt, createdAt
 
-      // フィルターパラメータ
+      
       const statusFilter = q.status?.split(',');
       const priorityFilter = q.priority?.split(',');
       const labelIdFilter = q.labelId
@@ -182,17 +182,17 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
       const dateFrom = q.dateFrom ? new Date(q.dateFrom) : undefined;
       const dateTo = q.dateTo ? new Date(q.dateTo) : undefined;
 
-      // マルチワード検索のためにクエリを分割
+      // Split query for multi-word search
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
       const results: SearchResultItem[] = [];
 
-      // タスク検索: タイトル+説明文（DB レベルフィルタリング）
+      // Task search: title + description (DB-level filtering)
       if (types.includes('task')) {
-        // 動的 where 条件構築
+        
         const taskWhere: any = {
           AND: [
-            // 各ワードが title または description に含まれる
+            
             ...words.map((word) => ({
               OR: [
                 { title: { contains: word, mode: 'insensitive' } },
@@ -202,7 +202,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           ],
         };
 
-        // フィルター条件追加
+        
         if (statusFilter) {
           taskWhere.AND.push({ status: { in: statusFilter } });
         }
@@ -228,13 +228,13 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           });
         }
 
-        // Sort 条件
+        // Sort conditions
         const orderBy: any =
           sortBy === 'updatedAt'
             ? { updatedAt: 'desc' }
             : sortBy === 'createdAt'
               ? { createdAt: 'desc' }
-              : { updatedAt: 'desc' }; // relevance は後で JS ソート
+              : { updatedAt: 'desc' }; // relevance sorted later in JS
 
         const tasks = await prisma.task.findMany({
           where: taskWhere,
@@ -242,8 +242,8 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
             theme: { select: { id: true, name: true, color: true } },
             taskLabels: { include: { label: true } },
           },
-          skip: sortBy === 'relevance' ? 0 : offset, // relevance の場合は JS で後処理
-          take: sortBy === 'relevance' ? undefined : limit, // relevance の場合は制限なし
+          skip: sortBy === 'relevance' ? 0 : offset, // JS post-processing for relevance
+          take: sortBy === 'relevance' ? undefined : limit, // no limit for relevance
           orderBy,
         });
 
@@ -280,9 +280,9 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         }
       }
 
-      // ノート検索（PomodoroSession.note と TimeEntry.note）
+      // Note search (PomodoroSession.note and TimeEntry.note)
       if (types.includes('note')) {
-        // PomodoroSession.note 検索
+        // PomodoroSession.note search
         const pomodoroWhere = {
           AND: [
             { note: { not: null } },
@@ -297,7 +297,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           include: {
             task: { select: { id: true, title: true } },
           },
-          take: 50, // 制限を緩く
+          take: 50,
           orderBy: { updatedAt: 'desc' },
         });
 
@@ -327,7 +327,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           }
         }
 
-        // TimeEntry.note 検索
+        // TimeEntry.note search
         const timeEntryWhere = {
           AND: [
             { note: { not: null } },
@@ -342,7 +342,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           include: {
             task: { select: { id: true, title: true } },
           },
-          take: 50, // 制限を緩く
+          take: 50,
           orderBy: { updatedAt: 'desc' },
         });
 
@@ -374,7 +374,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         }
       }
 
-      // コメント検索（マルチワード対応）
+      // Comment search (multi-word)
       if (types.includes('comment')) {
         const commentWhere = {
           AND: words.map((word) => ({
@@ -411,7 +411,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         }
       }
 
-      // リソース検索（マルチワード対応）
+      // Resource search (multi-word)
       if (types.includes('resource')) {
         const resourceWhere = {
           AND: words.map((word) => ({
@@ -466,7 +466,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         }
       }
 
-      // ソート処理
+      
       if (sortBy === 'relevance') {
         results.sort((a, b) => b.relevance - a.relevance);
       } else if (sortBy === 'updatedAt') {
@@ -475,7 +475,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       }
 
-      // ページネーション適用
+      
       const total = results.length;
       const paginatedResults = results.slice(offset, offset + limit);
 
@@ -499,11 +499,11 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
     } catch (error) {
       log.error({ err: error }, 'Search error');
       set.status = 500;
-      return { success: false, error: '検索に失敗しました' };
+      return { success: false, error: 'Search failed' };
     }
   })
 
-  // 検索サジェスト（マルチワード + 説明文マッチング対応）
+  // Search suggestions (multi-word + description matching)
   .get('/suggest', async ({ query: q, set }) => {
     try {
       const searchQuery = q.q?.trim();
@@ -513,7 +513,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
 
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      // タスク検索
+      
       const taskWhere = {
         AND: words.map((word) => ({
           OR: [
@@ -536,7 +536,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         orderBy: { updatedAt: 'desc' },
       });
 
-      // コメント検索
+      
       const commentWhere = {
         AND: words.map((word) => ({
           content: { contains: word, mode: 'insensitive' },
@@ -577,11 +577,11 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
 
       return {
         success: true,
-        suggestions: suggestions.slice(0, 8), // 最大8件
+        suggestions: suggestions.slice(0, 8),
       };
     } catch (error) {
       log.error({ err: error }, 'Search suggest error');
       set.status = 500;
-      return { success: false, error: 'サジェスト取得に失敗しました' };
+      return { success: false, error: 'Failed to get suggestions' };
     }
   });

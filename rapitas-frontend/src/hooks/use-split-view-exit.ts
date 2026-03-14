@@ -1,5 +1,5 @@
 /**
- * 分割表示の終了を管理するフック
+ * Hook to manage split view exit
  */
 import { useEffect } from 'react';
 import { isTauri, isSplitViewActive } from '@/utils/tauri';
@@ -8,7 +8,7 @@ export function useSplitViewExit() {
   useEffect(() => {
     if (!isTauri()) return;
 
-    // Escキーで分割表示を終了
+    // Exit split view with Esc key
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isSplitViewActive()) {
         // handleExitSplitView is removed, so no action here

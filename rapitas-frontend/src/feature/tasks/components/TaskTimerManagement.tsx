@@ -14,9 +14,9 @@ interface TaskTimeTrackingProps {
   getAccumulatedBreakTime?: React.MutableRefObject<(() => number) | undefined>;
 }
 
-const POMODORO_DURATION = 25 * 60; // 25分（秒単位）
-const SHORT_BREAK = 5 * 60; // 5分
-const LONG_BREAK = 15 * 60; // 15分
+const POMODORO_DURATION = 25 * 60; // 25 minutes in seconds
+const SHORT_BREAK = 5 * 60; // 5 minutes
+const LONG_BREAK = 15 * 60; // 15 minutes
 
 export default function TaskTimeTracking({
   estimatedHours,
@@ -44,14 +44,14 @@ export default function TaskTimeTracking({
     }
   }, [accumulatedBreakSeconds, getAccumulatedBreakTimeRef]);
 
-  // ポモドーロタイマー（25分作業→5分休憩）
+  // Pomodoro timer (25min work -> 5min break)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isTimerRunning && !isBreakTime) {
       interval = setInterval(() => {
         setPomodoroSeconds((prev) => {
           if (prev >= POMODORO_DURATION) {
-            // 25分経過 - 休憩時間へ
+            // 25 minutes elapsed - transition to break
             setIsBreakTime(true);
             setShowBreakDialog(true);
             setPomodoroCount((c) => c + 1);
@@ -125,7 +125,6 @@ export default function TaskTimeTracking({
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
-      {/* 音声要素 */}
       <audio ref={audioRef} src="/notification.mp3" preload="auto" />
 
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
@@ -145,7 +144,6 @@ export default function TaskTimeTracking({
         時間トラッキング + ポモドーロ
       </h2>
 
-      {/* 見積もり時間と進捗 */}
       {estimatedHours && estimatedHours > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-sm mb-2">
@@ -199,7 +197,6 @@ export default function TaskTimeTracking({
         </div>
       )}
 
-      {/* ポモドーロタイマー */}
       <div className="bg-linear-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-2 border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -239,7 +236,6 @@ export default function TaskTimeTracking({
           </div>
         </div>
 
-        {/* プログレスバー */}
         <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2 mb-4">
           <div
             className={`h-2 rounded-full transition-all ${
@@ -264,7 +260,6 @@ export default function TaskTimeTracking({
           />
         </div>
 
-        {/* タイマーコントロール */}
         <div className="flex gap-2">
           {isTimerRunning ? (
             <>
@@ -318,7 +313,6 @@ export default function TaskTimeTracking({
         </div>
       </div>
 
-      {/* 休憩ダイアログ */}
       {showBreakDialog && (
         <>
           <div

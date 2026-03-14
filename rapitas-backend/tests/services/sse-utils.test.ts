@@ -194,7 +194,7 @@ describe('SSEStreamController', () => {
 
     const saved = controller.getSavedState() as typeof state;
     expect(saved).toEqual(state);
-    // Deep cloneされていることを確認
+    // Verify it was deep cloned
     expect(saved).not.toBe(state);
   });
 
@@ -307,7 +307,7 @@ describe('SSE統合テスト', () => {
       events.push(data);
     });
 
-    // 複数のイベントタイプを送信
+    // Send multiple event types
     controller.send({ type: 'status', data: 'connected' });
     controller.send({ type: 'message', data: 'hello world' });
     controller.send({ type: 'notification', data: { title: 'Test', body: 'Notification' } });
@@ -356,7 +356,7 @@ describe('SSE統合テスト', () => {
       manager.addConnection(`client${index}`, stream);
     });
 
-    // ブロードキャスト送信
+    // Broadcast send
     manager.broadcast({ type: 'announcement', data: 'Hello everyone!' });
 
     receivedMessages.forEach((messages) => {

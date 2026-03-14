@@ -44,7 +44,6 @@ export default function GeneralSettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <div className="p-2.5 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
           <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
@@ -60,7 +59,6 @@ export default function GeneralSettingsPage() {
       </div>
 
       <div className="space-y-6">
-        {/* 表示モード設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">
@@ -128,7 +126,6 @@ export default function GeneralSettingsPage() {
           </div>
         </div>
 
-        {/* 言語設定 */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-3">

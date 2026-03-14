@@ -27,7 +27,7 @@ describe('detectProjectInfo', () => {
   });
 
   test('実プロジェクトルートでnextjsを検出できること', () => {
-    // rapitas-frontend が存在するため nextjs が検出されるはず
+    // rapitas-frontend directory exists, so nextjs should be detected
     const info = detectProjectInfo('C:/Projects/rapitas');
     expect(info.type).toBe('nextjs');
     expect(info.frontendDir).not.toBeNull();

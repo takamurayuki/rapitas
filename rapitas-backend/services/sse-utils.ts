@@ -1,13 +1,14 @@
 /**
- * SSE (Server-Sent Events) ユーティリティ
- * リトライ機能とロールバック処理を含む
+ * SSE (Server-Sent Events) Utilities
+ *
+ * Includes retry logic and rollback handling.
  */
 
 import { createLogger } from '../config/logger';
 
 const log = createLogger('sse-utils');
 
-// SSEイベントの型定義
+// SSE event type definitions
 export type SSEEventType =
   | 'start'
   | 'progress'
@@ -25,7 +26,7 @@ export interface SSEEvent {
   maxRetries?: number;
 }
 
-// リトライ設定
+// Retry configuration
 export interface RetryConfig {
   maxRetries: number;
   initialDelay: number;
@@ -40,7 +41,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   backoffMultiplier: 2,
 };
 
-// SSEレスポンスを生成するヘルパー
+// Helper for generating SSE responses
 export function createSSEHeaders(): Headers {
   const headers = new Headers();
   headers.set('Content-Type', 'text/event-stream');
@@ -49,7 +50,7 @@ export function createSSEHeaders(): Headers {
   return headers;
 }
 
-// SSEメッセージをフォーマット
+// Format an SSE message
 export function formatSSEMessage(event: SSEEvent): string {
   const eventType = event.type;
   const data = JSON.stringify({
@@ -59,7 +60,7 @@ export function formatSSEMessage(event: SSEEvent): string {
   return `event: ${eventType}\ndata: ${data}\n\n`;
 }
 
-// リトライ遅延を計算（指数バックオフ）
+// Calculate retry delay (exponential backoff)
 export function calculateRetryDelay(
   retryCount: number,
   config: RetryConfig = DEFAULT_RETRY_CONFIG,
@@ -68,16 +69,16 @@ export function calculateRetryDelay(
   return Math.min(delay, config.maxDelay);
 }
 
-// 遅延を待機
+// Wait for delay
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// リトライ可能なエラーかどうかを判定
+// Determine if an error is retryable.
 export function isRetryableError(error: unknown): boolean {
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
-    // ネットワークエラー、タイムアウト、一時的なサーバーエラー
+    // Network errors, timeouts, temporary server errors
     return (
       message.includes('network') ||
       message.includes('timeout') ||
@@ -93,7 +94,7 @@ export function isRetryableError(error: unknown): boolean {
   return false;
 }
 
-// ロールバック情報
+// Rollback info
 export interface RollbackInfo {
   originalState: unknown;
   rollbackReason: string;
@@ -101,7 +102,7 @@ export interface RollbackInfo {
   errorDetails: string;
 }
 
-// SSEストリームコントローラー
+// SSE stream controller
 export class SSEStreamController {
   private encoder = new TextEncoder();
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
@@ -114,7 +115,7 @@ export class SSEStreamController {
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...config };
   }
 
-  // ストリームを作成
+  // Create a stream.
   createStream(): ReadableStream<Uint8Array> {
     return new ReadableStream({
       start: (controller) => {
@@ -126,17 +127,17 @@ export class SSEStreamController {
     });
   }
 
-  // ロールバック用の状態を保存
+  // Save state for rollback.
   saveState(state: unknown): void {
     this.rollbackState = JSON.parse(JSON.stringify(state));
   }
 
-  // 保存した状態を取得
+  // Get saved state.
   getSavedState(): unknown {
     return this.rollbackState;
   }
 
-  // イベントを送信
+  // Send an event.
   send(event: SSEEvent): void {
     if (this.isClosed || !this.controller) return;
 
@@ -148,7 +149,7 @@ export class SSEStreamController {
     }
   }
 
-  // 開始イベントを送信
+  // Send start event.
   sendStart(data: unknown = {}): void {
     this.send({
       type: 'start',
@@ -157,7 +158,7 @@ export class SSEStreamController {
     });
   }
 
-  // 進捗イベントを送信
+  // Send progress event.
   sendProgress(progress: number, message: string, data: unknown = {}): void {
     this.send({
       type: 'progress',
@@ -170,7 +171,7 @@ export class SSEStreamController {
     });
   }
 
-  // データイベントを送信
+  // Send data event.
   sendData(data: unknown): void {
     this.send({
       type: 'data',
@@ -179,7 +180,7 @@ export class SSEStreamController {
     });
   }
 
-  // リトライイベントを送信
+  // Send retry event.
   sendRetry(retryCount: number, reason: string): void {
     this.send({
       type: 'retry',
@@ -195,7 +196,7 @@ export class SSEStreamController {
     });
   }
 
-  // エラーイベントを送信
+  // Send error event.
   sendError(error: string, details?: unknown): void {
     this.send({
       type: 'error',
@@ -204,7 +205,7 @@ export class SSEStreamController {
     });
   }
 
-  // ロールバックイベントを送信
+  // Send rollback event.
   sendRollback(info: RollbackInfo): void {
     this.send({
       type: 'rollback',
@@ -213,7 +214,7 @@ export class SSEStreamController {
     });
   }
 
-  // 完了イベントを送信
+  // Send complete event.
   sendComplete(data: unknown = {}): void {
     this.send({
       type: 'complete',
@@ -222,19 +223,19 @@ export class SSEStreamController {
     });
   }
 
-  // ストリームを閉じる
+  // Close the stream.
   close(): void {
     if (this.isClosed || !this.controller) return;
 
     try {
       this.controller.close();
     } catch (error) {
-      // すでに閉じられている場合は無視
+      // Ignore if already closed
     }
     this.isClosed = true;
   }
 
-  // リトライロジックを含む操作を実行
+  // Execute an operation with retry logic.
   async executeWithRetry<T>(
     operation: () => Promise<T>,
     onRetry?: (retryCount: number, error: Error) => void,
@@ -256,7 +257,7 @@ export class SSEStreamController {
         lastError = error instanceof Error ? error : new Error(String(error));
 
         if (!isRetryableError(error) || attempt === this.retryConfig.maxRetries) {
-          // リトライ不可能なエラー、またはリトライ上限に達した場合
+          // Non-retryable error or retry limit reached
           const rollbackInfo: RollbackInfo = {
             originalState: this.rollbackState,
             rollbackReason:
@@ -283,7 +284,7 @@ export class SSEStreamController {
   }
 }
 
-// ユーザー向けエラーメッセージを生成
+// Generate a user-friendly error message.
 export function getUserFriendlyErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const message = error.message.toLowerCase();

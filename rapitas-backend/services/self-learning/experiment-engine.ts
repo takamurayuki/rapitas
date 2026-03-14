@@ -1,8 +1,7 @@
 /**
- * Experiment Engine - 実験ループの管理
+ * Experiment Engine -
  *
  * Research → Hypothesis → Plan → Execute → Evaluate → Learn
- * のサイクルを自律的に回す。
  */
 
 import { prisma } from '../../config/database';
@@ -22,7 +21,6 @@ import type {
 const log = createLogger('self-learning:experiment');
 
 /**
- * 新しい実験を作成
  */
 export async function createExperiment(input: CreateExperimentInput) {
   const experiment = await prisma.experiment.create({
@@ -48,7 +46,6 @@ export async function createExperiment(input: CreateExperimentInput) {
 }
 
 /**
- * 実験のステータスと各フェーズのデータを更新
  */
 export async function updateExperiment(id: number, input: UpdateExperimentInput) {
   const data: Record<string, unknown> = {};
@@ -84,7 +81,7 @@ export async function updateExperiment(id: number, input: UpdateExperimentInput)
 }
 
 /**
- * Research フェーズ: 情報収集
+ * Research :
  */
 export async function runResearch(
   experimentId: number,
@@ -92,7 +89,6 @@ export async function runResearch(
 ): Promise<ExperimentResearch> {
   await updateExperiment(experimentId, { status: 'researching' });
 
-  // 既存の知識ベースから関連情報を検索
   let memoryResults: string[] = [];
   try {
     const searchResults = await searchKnowledge({ query, limit: 5 });
@@ -104,7 +100,6 @@ export async function runResearch(
     log.warn('Knowledge search failed, continuing without memory results');
   }
 
-  // 過去の類似実験を検索
   const relatedExperiments = await prisma.experiment.findMany({
     where: {
       status: 'completed',
@@ -128,7 +123,6 @@ export async function runResearch(
 }
 
 /**
- * 実験詳細を取得
  */
 export async function getExperiment(id: number) {
   const experiment = await prisma.experiment.findUnique({
@@ -157,7 +151,6 @@ export async function getExperiment(id: number) {
 }
 
 /**
- * 実験一覧を取得
  */
 export async function listExperiments(
   options: {
@@ -205,7 +198,6 @@ export async function listExperiments(
 }
 
 /**
- * 実験のタイムライン（エピソード時系列）を取得
  */
 export async function getExperimentTimeline(experimentId: number) {
   return prisma.episodeMemory.findMany({

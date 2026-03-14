@@ -602,7 +602,6 @@ function HomeClientPage() {
 
   const FilterSkeleton = () => (
     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
-      {/* カテゴリタブ（水平スクロール） */}
       <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
         <div className="flex gap-2 px-3 py-2 min-w-max">
           <EnhancedSkeletonBlock className="w-16 h-6 rounded-md" delay={0} />
@@ -613,7 +612,6 @@ function HomeClientPage() {
         </div>
       </div>
 
-      {/* テーマタブ */}
       <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
           <EnhancedSkeletonBlock className="w-12 h-5 rounded-sm" delay={100} />
@@ -689,11 +687,8 @@ function HomeClientPage() {
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-6xl px-4 py-4">
-        {/* ヘッダー - タイトルとプログレスリング */}
         <div className="mb-4 flex items-center justify-between">
-          {/* 左側: プログレスリングとタイトル */}
           <div className="flex items-center gap-4">
-            {/* Progress Bar - Compact Version */}
             <TodayTaskProgressBar
               completedCount={completedTasksCount}
               totalCount={totalTasksCount}
@@ -702,12 +697,9 @@ function HomeClientPage() {
             />
           </div>
 
-          {/* 右側: アクションボタン */}
           <div className="flex items-center gap-3">
-            {/* バルク操作ボタン（選択時のみ表示） */}
             {isSelectionMode && selectedTasks.size > 0 && (
               <>
-                {/* ステータス変更ボタングループ */}
                 <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
                   <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 mr-2">
                     CHANGE STATUS:
@@ -753,11 +745,9 @@ function HomeClientPage() {
               </>
             )}
 
-            {/* メインアクションボタン */}
             <div className="flex items-center gap-2">
               {!isSelectionMode && (
                 <>
-                  {/* クイックボタン */}
                   <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400">
                     <button
                       onClick={() => setIsQuickAdding(!isQuickAdding)}
@@ -787,7 +777,6 @@ function HomeClientPage() {
                     </button>
                   </div>
 
-                  {/* 新規ボタン */}
                   <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
                     <button
                       onClick={() => {
@@ -820,10 +809,8 @@ function HomeClientPage() {
                 </>
               )}
 
-              {/* 選択モード時のアクションボタン */}
               {isSelectionMode && (
                 <>
-                  {/* 全選択/全解除ボタン */}
                   <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-slate-500 dark:hover:border-slate-400">
                     <button
                       onClick={() => {
@@ -856,7 +843,7 @@ function HomeClientPage() {
                       >
                         {selectedTasks.size === paginatedTasks.length &&
                         paginatedTasks.length > 0 ? (
-                          /* 全解除: 四角から外れるアイコン */
+                          /* Deselect all */
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -864,7 +851,7 @@ function HomeClientPage() {
                             d="M6 18L18 6M6 6l12 12"
                           />
                         ) : (
-                          /* 全選択: ダブルチェックマークアイコン */
+                          /* Select all */
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -882,7 +869,6 @@ function HomeClientPage() {
                     </button>
                   </div>
 
-                  {/* 削除ボタン（選択されたタスクがある場合のみ表示） */}
                   {selectedTasks.size > 0 && (
                     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
                       <button
@@ -912,7 +898,6 @@ function HomeClientPage() {
                 </>
               )}
 
-              {/* 一括ボタン */}
               <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-purple-500 dark:hover:border-purple-400">
                 <button
                   onClick={() => {
@@ -950,7 +935,6 @@ function HomeClientPage() {
           </div>
         </div>
 
-        {/* クイック追加フォーム */}
         {isQuickAdding && (
           <div className="mb-4 p-3 bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg">
             <div className="flex gap-2 p-n2">
@@ -980,7 +964,6 @@ function HomeClientPage() {
           </div>
         )}
 
-        {/* 統合フィルターバー（アコーディオン） - 一括選択モード時は非表示 */}
         {!isSelectionMode &&
           (filtersError ? (
             <FilterError error={filtersError} />
@@ -988,7 +971,6 @@ function HomeClientPage() {
             <FilterSkeleton />
           ) : categories.length > 0 ? (
             <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 hover:border-amber-500/50 mb-4">
-              {/* カテゴリタブ */}
               {categories.length > 0 && (
                 <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
                   {categories
@@ -1047,9 +1029,7 @@ function HomeClientPage() {
                 </div>
               )}
 
-              {/* テーマタブ */}
               <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
-                {/* 左スクロールボタン */}
                 {isScrollNeeded && (
                   <button
                     onClick={scrollThemeLeft}
@@ -1122,7 +1102,6 @@ function HomeClientPage() {
                   })()}
                 </div>
 
-                {/* 右スクロールボタン */}
                 {isScrollNeeded && (
                   <button
                     onClick={scrollThemeRight}
@@ -1138,7 +1117,6 @@ function HomeClientPage() {
                   </button>
                 )}
 
-                {/* アコーディオントグル */}
                 <button
                   onClick={() => setIsFilterExpanded(!isFilterExpanded)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
@@ -1167,7 +1145,6 @@ function HomeClientPage() {
                 </button>
               </div>
 
-              {/* フィルター・ソート（アコーディオンコンテンツ） */}
               <div
                 className={`overflow-hidden transition-all duration-300 ease-out ${
                   isFilterExpanded
@@ -1176,7 +1153,6 @@ function HomeClientPage() {
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-4 px-3 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30">
-                  {/* ステータス */}
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
                       STATUS:
@@ -1227,7 +1203,6 @@ function HomeClientPage() {
                                   {count}
                                 </span>
                               </div>
-                              {/* Progress indicator at bottom */}
                               {count > 0 && (
                                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
                                   <div
@@ -1252,10 +1227,8 @@ function HomeClientPage() {
                     </div>
                   </div>
 
-                  {/* 区切り線 */}
                   <div className="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
 
-                  {/* 優先度 */}
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
                       PRIORITY:
@@ -1337,10 +1310,8 @@ function HomeClientPage() {
                     </div>
                   </div>
 
-                  {/* 区切り線 */}
                   <div className="w-px h-6 bg-slate-300 dark:bg-slate-600"></div>
 
-                  {/* ソート */}
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 whitespace-nowrap">
                       SORT:
@@ -1387,12 +1358,10 @@ function HomeClientPage() {
             </div>
           ) : null)}
 
-        {/* タスクリストの表示 */}
         {taskCacheLoading && sortedTasks.length === 0 ? (
           <TaskCardsSkeleton count={10} />
         ) : sortedTasks.length === 0 ? (
           <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
-            {/* カテゴリにテーマがない場合 */}
             {categoryFilter !== null &&
             themes.filter((t) => t.categoryId === categoryFilter).length ===
               0 ? (
@@ -1485,7 +1454,6 @@ function HomeClientPage() {
               ))}
             </div>
 
-            {/* ページネーション */}
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -1497,7 +1465,6 @@ function HomeClientPage() {
         )}
       </div>
 
-      {/* タスク詳細スライドパネル */}
       <TaskSlidePanel
         taskId={selectedTaskId}
         isOpen={isPanelOpen}

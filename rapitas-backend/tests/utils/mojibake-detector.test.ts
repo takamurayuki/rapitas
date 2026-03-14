@@ -1,6 +1,7 @@
 /**
  * Mojibake Detector Test Suite
- * 文字化け検出・修正ユーティリティのテスト
+ *
+ * Tests for mojibake detection and repair utilities.
  */
 import { describe, test, expect } from 'bun:test';
 import {
@@ -49,7 +50,7 @@ console.log(hello);
   });
 
   test('UTF-8→Latin-1誤解釈パターンを検出すること', () => {
-    // 「あ」(U+3042) → UTF-8(E3 81 82) → Latin-1誤解釈の例
+    // Example of "a" (U+3042) -> UTF-8(E3 81 82) -> Latin-1 misinterpretation
     const mojibakeText = `# ã\x81\x82Document
 
 This text contains ã\x81\x82 characters that are mojibake.`;
@@ -98,7 +99,7 @@ This text contains \uD800 invalid surrogate characters.`;
   });
 
   test('スコアが100を超えないこと', () => {
-    // 大量の文字化けパターンを含むテキスト
+    // Text containing many mojibake patterns
     const heavyMojibakeText = `
       ã\x81\x82ã\x81\x84ã\x81\x86ã\x81\x88ã\x81\x8A
       ����������
@@ -115,15 +116,15 @@ describe('Mojibake Fixing', () => {
   test('置換文字(U+FFFD)を除去すること', () => {
     const textWithReplacements = `Hello � World � Test`;
     const fixed = fixMojibake(textWithReplacements);
-    expect(fixed).toBe('Hello World Test'); // 空白正規化により連続空白は1つになる
+    expect(fixed).toBe('Hello World Test'); // Whitespace normalization collapses consecutive spaces
     expect(fixed).not.toContain('�');
   });
 
   test('制御文字を除去すること（タブ・改行は保持）', () => {
     const textWithControls = `Hello\x00World\x01\nTest\t\x02End\x03`;
     const fixed = fixMojibake(textWithControls);
-    expect(fixed).toBe('HelloWorld\nTest End'); // タブも空白正規化の対象となり1つの空白になる
-    expect(fixed).toContain('\n'); // 改行は保持
+    expect(fixed).toBe('HelloWorld\nTest End'); // Tabs are also normalized to a single space
+    expect(fixed).toContain('\n'); // Newlines are preserved
   });
 
   test('不正なサロゲートペア文字を除去すること', () => {
@@ -145,11 +146,11 @@ describe('Mojibake Fixing', () => {
   });
 
   test('既知のUTF-8→Latin-1パターンを修復すること', () => {
-    // 「あいうえお」の文字化けパターンの修復テスト
+    // Test repair of mojibake pattern for "aiueo"
     const knownPattern = `Ã£Â\x81\x82Ã£Â\x81\x84Ã£Â\x81\x86`;
     const fixed = fixMojibake(knownPattern);
 
-    // 完全修復が期待される既知パターン
+    // Known pattern where full repair is expected
     expect(fixed).toContain('あいう');
   });
 
@@ -205,25 +206,25 @@ Content with ã\x81\x82 mojibake patterns.
   });
 
   test('修正後にスコアが改善されない場合は元テキストを保持すること', () => {
-    // このテストは実際の修正ロジックの動作に依存するため、
-    // 特殊なケースを作るのは困難。基本的な動作確認にとどめる
+    // This test depends on the actual fix logic behavior,
+    // so creating special cases is difficult. Limited to basic behavior check.
     const ambiguousText = `Ambiguous text that might not benefit from fixing`;
     const result = sanitizeMarkdownContent(ambiguousText);
 
-    // 文字化けが検出されない場合は修正されない
+    // If no mojibake is detected, no fix is applied
     expect(result.content).toBe(ambiguousText);
   });
 
   test('大きなファイルでもパフォーマンスが適切であること', () => {
-    // 10KB程度のテキストでパフォーマンステスト
+    // Performance test with ~10KB of text
     const largeText = `# Large Document\n\n${'正常な日本語テキストの繰り返し。'.repeat(500)}`;
 
     const startTime = Date.now();
     const result = sanitizeMarkdownContent(largeText);
     const endTime = Date.now();
 
-    expect(endTime - startTime).toBeLessThan(1000); // 1秒以内で完了
-    expect(result.content).toBe(largeText); // 正常なテキストは変更されない
+    expect(endTime - startTime).toBeLessThan(1000); // Within 1 second
+    expect(result.content).toBe(largeText); // Normal text is not modified
     expect(result.wasFixed).toBe(false);
   });
 
@@ -241,7 +242,7 @@ Content with ã\x81\x82 mojibake patterns.
     expect(result.content).not.toContain('�');
     expect(result.content).not.toContain('\x00');
     expect(result.content).not.toContain('\uD800');
-    expect(result.issues.length).toBeGreaterThan(1); // 複数の問題が報告される
+    expect(result.issues.length).toBeGreaterThan(1); // Multiple issues should be reported
   });
 
   test('結果オブジェクトが適切な情報を含むこと', () => {
@@ -279,13 +280,13 @@ describe('Edge Cases', () => {
 
   test('改行のみのテキストを適切に処理すること', () => {
     const result = sanitizeMarkdownContent('\n\n\n');
-    expect(result.content).toBe('\n\n\n'); // 文字化けが検出されないため処理されない
-    expect(result.wasFixed).toBe(false); // 文字化け修正は行われない
+    expect(result.content).toBe('\n\n\n'); // No mojibake detected, so no processing
+    expect(result.wasFixed).toBe(false); // No mojibake fix applied
   });
 
   test('スペースのみのテキストを適切に処理すること', () => {
     const result = sanitizeMarkdownContent('   \t   ');
-    expect(result.content).toBe('   \t   '); // 文字化けが検出されないため処理されない
-    expect(result.wasFixed).toBe(false); // 文字化け修正は行われない
+    expect(result.content).toBe('   \t   '); // No mojibake detected, so no processing
+    expect(result.wasFixed).toBe(false); // No mojibake fix applied
   });
 });

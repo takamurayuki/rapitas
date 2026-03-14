@@ -1,14 +1,13 @@
 /**
  * Agent Audit Router
- * 監査・ログ機能のエンドポイント
+ * Audit log and execution history endpoints.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { getAgentConfigAuditLogs, getRecentAuditLogs } from '../../utils/agent-audit-log';
 
 /**
- * AgentExecution に question/questionType/questionDetails/claudeSessionId が
- * DB 上は存在するが Prisma の型定義に含まれないケースを安全にキャストするための型
+ * Safe cast type for AgentExecution fields that exist in DB but are not in Prisma's generated types.
  */
 type ExecutionWithExtras = {
   question?: string | null;
@@ -48,8 +47,8 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
     const executionId = query.executionId ? parseInt(query.executionId) : undefined;
     const afterSequence = query.afterSequence ? parseInt(query.afterSequence) : undefined;
 
-    // 互換性のため: executionId / afterSequence が指定されている場合は従来通り
-    // 「単一 execution のログ」を返す（差分取得用途）
+    // NOTE: When executionId / afterSequence are provided, return logs for a single
+    // execution (legacy compat for incremental fetching).
     const singleExecutionMode = !!executionId || typeof afterSequence === 'number';
 
     const config = await prisma.developerModeConfig.findUnique({
@@ -90,7 +89,7 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
       return { logs: [], lastSequence: 0, status: 'none' };
     }
 
-    // 単一 execution モードは従来互換のレスポンス
+    // Single-execution mode: legacy-compatible response
     if (singleExecutionMode) {
       const latestExecution = executions[0];
       const logs = latestExecution.executionLogs || [];
@@ -128,7 +127,7 @@ export const taskExecutionLogsRouter = new Elysia({ prefix: '/tasks' })
       };
     }
 
-    // 複数 execution モード（新しい復旧画面用）
+    // Multi-execution mode (for the recovery dashboard)
     const allLogs = executions.flatMap((execution, execIndex) => {
       return (execution.executionLogs || []).map((log, logIndex) => ({
         id: log.id,

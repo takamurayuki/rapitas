@@ -33,7 +33,7 @@ export default function FocusClient() {
 
   const [task, setTask] = useState<Task | null>(null);
   const [mode, setMode] = useState<FocusMode>('work');
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25分
+  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes
   const [isRunning, setIsRunning] = useState(false);
   const [sessionsCompleted, setSessions] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -56,7 +56,7 @@ export default function FocusClient() {
 
   const saveTimeEntry = useCallback(async () => {
     const endTime = new Date();
-    const duration = customWorkTime / 60; // 時間単位
+    const duration = customWorkTime / 60; // Convert to hours
 
     try {
       // Record time if linked to a task
@@ -250,7 +250,6 @@ export default function FocusClient() {
           : 'bg-linear-to-br from-emerald-950 via-slate-900 to-teal-950'
       }`}
     >
-      {/* Header */}
       <div className="flex items-center justify-between p-4">
         <button
           onClick={() => router.back()}
@@ -277,7 +276,6 @@ export default function FocusClient() {
         className="flex flex-col items-center justify-center px-4 pb-8"
         style={{ minHeight: 'calc(100vh - 80px)' }}
       >
-        {/* Task information */}
         {task && (
           <div className="mb-8 text-center">
             <p className="text-white/60 text-sm mb-1">{t('currentTask')}</p>
@@ -285,7 +283,6 @@ export default function FocusClient() {
           </div>
         )}
 
-        {/* Mode display */}
         <div
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 ${
             mode === 'work'
@@ -306,9 +303,7 @@ export default function FocusClient() {
           )}
         </div>
 
-        {/* Timer */}
         <div className="relative w-72 h-72 mb-8">
-          {/* Progress ring */}
           <svg className="w-full h-full -rotate-90">
             <circle
               cx="144"
@@ -335,7 +330,6 @@ export default function FocusClient() {
             />
           </svg>
 
-          {/* Time display */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-6xl font-bold text-white font-mono">
               {formatTime(timeLeft)}
@@ -346,7 +340,6 @@ export default function FocusClient() {
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={resetTimer}
@@ -381,7 +374,6 @@ export default function FocusClient() {
           )}
         </div>
 
-        {/* Settings */}
         {!isRunning && (
           <div className="flex items-center gap-6 text-white/60">
             <div className="flex items-center gap-2">
@@ -423,7 +415,6 @@ export default function FocusClient() {
           </div>
         )}
 
-        {/* Session count */}
         {sessionsCompleted > 0 && (
           <div className="mt-8 flex items-center gap-2">
             {Array.from({ length: sessionsCompleted }).map((_, i) => (

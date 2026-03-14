@@ -1,12 +1,11 @@
 /**
  * System Prompts API Routes
- * ハードコードされたプロンプトをDB管理するためのCRUDエンドポイント
+ * CRUD endpoints for managing hardcoded prompts via the database
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { NotFoundError, ValidationError, ConflictError } from '../../middleware/error-handler';
 
-// デフォルトのシステムプロンプト定義
 const DEFAULT_SYSTEM_PROMPTS = [
   {
     key: 'task_analysis',
@@ -487,7 +486,6 @@ Guidelines:
 ];
 
 export const systemPromptsRoutes = new Elysia()
-  // システムプロンプト一覧取得
   .get('/system-prompts', async (context) => {
     const { query } = context;
     const where: Record<string, unknown> = {};
@@ -503,7 +501,6 @@ export const systemPromptsRoutes = new Elysia()
     return prompts;
   })
 
-  // システムプロンプト取得（キーで）
   .get('/system-prompts/:key', async (context) => {
     const { params } = context;
     const prompt = await prisma.systemPrompt.findUnique({
@@ -517,7 +514,6 @@ export const systemPromptsRoutes = new Elysia()
     return prompt;
   })
 
-  // システムプロンプト作成
   .post('/system-prompts', async (context) => {
     const { body } = context;
     const { key, name, description, content, category } = body as {
@@ -554,7 +550,6 @@ export const systemPromptsRoutes = new Elysia()
     return prompt;
   })
 
-  // システムプロンプト更新
   .patch('/system-prompts/:key', async (context) => {
     const { params, body } = context;
     const existing = await prisma.systemPrompt.findUnique({
@@ -587,7 +582,7 @@ export const systemPromptsRoutes = new Elysia()
     return updated;
   })
 
-  // システムプロンプト削除（デフォルトプロンプトは削除不可）
+  // Default prompts cannot be deleted
   .delete('/system-prompts/:key', async (context) => {
     const { params } = context;
     const existing = await prisma.systemPrompt.findUnique({
@@ -609,7 +604,7 @@ export const systemPromptsRoutes = new Elysia()
     return { success: true };
   })
 
-  // デフォルトプロンプトをリセット（元の内容に戻す）
+  // Reset a default prompt to its original content
   .post('/system-prompts/:key/reset', async (context) => {
     const { params } = context;
     const defaultPrompt = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === params.key);
@@ -637,7 +632,7 @@ export const systemPromptsRoutes = new Elysia()
     return updated;
   })
 
-  // デフォルトプロンプトの初期シード
+  // Seed default prompts (idempotent)
   .post('/system-prompts/seed', async () => {
     const results: Array<{ key: string; action: string }> = [];
 

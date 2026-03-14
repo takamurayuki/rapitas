@@ -59,7 +59,7 @@ export default function GitHubPage() {
         const data = await integrationsRes.json();
         setIntegrations(data);
 
-        // 最初の連携のPRとIssueを取得
+        // Fetch PRs and issues for the first integration
         if (data.length > 0) {
           const [prsRes, issuesRes] = await Promise.all([
             fetch(
@@ -107,7 +107,6 @@ export default function GitHubPage() {
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
@@ -126,7 +125,6 @@ export default function GitHubPage() {
           </button>
         </div>
 
-        {/* GitHub CLI ステータス */}
         {ghStatus && (
           <div
             className={`mb-6 p-4 rounded-lg border ${
@@ -162,7 +160,6 @@ export default function GitHubPage() {
           </div>
         )}
 
-        {/* 連携一覧 */}
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             {t('linkedRepos')}
@@ -244,7 +241,6 @@ export default function GitHubPage() {
           )}
         </div>
 
-        {/* 最近のPR */}
         {recentPRs.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -362,7 +358,6 @@ export default function GitHubPage() {
           </div>
         )}
 
-        {/* 連携追加モーダル */}
         {showAddModal && (
           <AddIntegrationModal
             onClose={() => setShowAddModal(false)}
@@ -394,7 +389,7 @@ function AddIntegrationModal({
     e.preventDefault();
     setError('');
 
-    // URLからowner/repoを抽出
+    // Extract owner/repo from URL
     const match = repositoryUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
     if (!match) {
       setError(t('invalidRepoUrl'));

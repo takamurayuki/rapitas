@@ -1,6 +1,7 @@
 /**
- * エージェント間連携コーディネーター
- * サブエージェント間でタスクの進捗や結果を共有し、相互連携する
+ * Agent Coordinator
+ *
+ * Shares task progress and results between sub-agents for coordination.
  */
 
 import { EventEmitter } from 'events';
@@ -12,7 +13,7 @@ import type {
 } from './types';
 
 /**
- * リソースロック情報
+ * Resource lock information
  */
 type ResourceLock = {
   resource: string;
@@ -23,7 +24,7 @@ type ResourceLock = {
 };
 
 /**
- * 連携リクエスト
+ * Coordination request
  */
 type CoordinationRequest = {
   id: string;
@@ -37,7 +38,7 @@ type CoordinationRequest = {
 };
 
 /**
- * 依存関係解決状態
+ * Dependency resolution state
  */
 type DependencyState = {
   taskId: number;
@@ -47,7 +48,7 @@ type DependencyState = {
 };
 
 /**
- * エージェントコーディネーター
+ * Agent coordinator
  */
 export class AgentCoordinator extends EventEmitter {
   private resourceLocks: Map<string, ResourceLock> = new Map();
@@ -56,7 +57,7 @@ export class AgentCoordinator extends EventEmitter {
   private sharedData: Map<string, unknown> = new Map();
   private agentStates: Map<string, SubAgentState> = new Map();
 
-  // メッセージ履歴（デバッグ用）
+  // Message history (for debugging)
   private messageHistory: AgentMessage[] = [];
   private maxHistorySize: number = 1000;
 
@@ -65,7 +66,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * リソースロックを要求
+   * Request a resource lock.
    */
   requestResourceLock(
     agentId: string,
@@ -75,10 +76,10 @@ export class AgentCoordinator extends EventEmitter {
   ): CoordinationRequest {
     const requestId = `lock-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    // 既存のロックをチェック
+    // Check for existing lock
     const existingLock = this.resourceLocks.get(resource);
     if (existingLock) {
-      // 同じエージェントの場合は許可
+      // Allow if same agent
       if (existingLock.agentId === agentId) {
         return {
           id: requestId,
@@ -91,11 +92,11 @@ export class AgentCoordinator extends EventEmitter {
         };
       }
 
-      // 期限切れかチェック
+      // Check if expired
       if (existingLock.expiresAt && existingLock.expiresAt < new Date()) {
         this.resourceLocks.delete(resource);
       } else {
-        // 既にロックされている
+        // Already locked
         const request: CoordinationRequest = {
           id: requestId,
           fromAgentId: agentId,
@@ -118,7 +119,7 @@ export class AgentCoordinator extends EventEmitter {
       }
     }
 
-    // ロックを取得
+    // Acquire the lock
     const lock: ResourceLock = {
       resource,
       agentId,
@@ -145,7 +146,7 @@ export class AgentCoordinator extends EventEmitter {
       resource,
     });
 
-    // メッセージをブロードキャスト
+    // Broadcast message
     this.broadcastMessage({
       id: `msg-${Date.now()}`,
       timestamp: new Date(),
@@ -159,13 +160,13 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * リソースロックを解放
+   * Release a resource lock.
    */
   releaseResourceLock(agentId: string, resource: string): boolean {
     const lock = this.resourceLocks.get(resource);
     if (!lock) return false;
 
-    // ロックを所有しているエージェントのみが解放できる
+    // Only the owning agent can release the lock
     if (lock.agentId !== agentId) {
       return false;
     }
@@ -177,7 +178,7 @@ export class AgentCoordinator extends EventEmitter {
       resource,
     });
 
-    // メッセージをブロードキャスト
+    // Broadcast message
     this.broadcastMessage({
       id: `msg-${Date.now()}`,
       timestamp: new Date(),
@@ -191,7 +192,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 依存関係を登録
+   * Register dependencies.
    */
   registerDependency(taskId: number, dependsOn: number[]): void {
     this.dependencyStates.set(taskId, {
@@ -207,7 +208,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 依存関係を解決
+   * Resolve dependencies.
    */
   resolveDependency(completedTaskId: number): number[] {
     const resolvedTasks: number[] = [];
@@ -219,14 +220,14 @@ export class AgentCoordinator extends EventEmitter {
       ) {
         state.resolvedDependencies.push(completedTaskId);
 
-        // すべての依存が解決されたかチェック
+        // Check if all dependencies are resolved
         if (state.resolvedDependencies.length === state.dependsOn.length) {
           state.isResolved = true;
           resolvedTasks.push(taskId);
 
           this.emit('dependency_resolved', { taskId });
 
-          // メッセージをブロードキャスト
+          // Broadcast message
           this.broadcastMessage({
             id: `msg-${Date.now()}`,
             timestamp: new Date(),
@@ -243,7 +244,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 依存関係が解決されているかチェック
+   * Check if dependencies are resolved.
    */
   isDependencyResolved(taskId: number): boolean {
     const state = this.dependencyStates.get(taskId);
@@ -251,7 +252,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * データを共有
+   * Share data between agents.
    */
   shareData(key: string, data: unknown, fromAgentId: string): void {
     this.sharedData.set(key, data);
@@ -261,7 +262,7 @@ export class AgentCoordinator extends EventEmitter {
       fromAgentId,
     });
 
-    // メッセージをブロードキャスト
+    // Broadcast message
     this.broadcastMessage({
       id: `msg-${Date.now()}`,
       timestamp: new Date(),
@@ -273,14 +274,14 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 共有データを取得
+   * Get shared data.
    */
   getSharedData(key: string): unknown | undefined {
     return this.sharedData.get(key);
   }
 
   /**
-   * エージェントの状態を更新
+   * Update agent state.
    */
   updateAgentState(agentId: string, state: SubAgentState): void {
     this.agentStates.set(agentId, state);
@@ -292,24 +293,24 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * エージェントの状態を取得
+   * Get agent state.
    */
   getAgentState(agentId: string): SubAgentState | undefined {
     return this.agentStates.get(agentId);
   }
 
   /**
-   * すべてのエージェントの状態を取得
+   * Get agent state.
    */
   getAllAgentStates(): Map<string, SubAgentState> {
     return new Map(this.agentStates);
   }
 
   /**
-   * メッセージをブロードキャスト
+   * Broadcast message
    */
   broadcastMessage(message: AgentMessage): void {
-    // メッセージ履歴に追加
+    // Add to message history
     this.messageHistory.push(message);
     if (this.messageHistory.length > this.maxHistorySize) {
       this.messageHistory.shift();
@@ -319,7 +320,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 特定のエージェントにメッセージを送信
+   * Send a message to a specific agent.
    */
   sendMessage(
     toAgentId: string,
@@ -346,7 +347,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 同期ポイントを作成
+   * Create a sync point.
    */
   async waitForSyncPoint(
     syncPointId: string,
@@ -382,7 +383,7 @@ export class AgentCoordinator extends EventEmitter {
 
       this.on('message', handler);
 
-      // タイムアウト
+      // Timeout
       setTimeout(() => {
         this.off('message', handler);
         if (!checkSync()) {
@@ -394,7 +395,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 同期ポイントに到達
+   * Reach a sync point.
    */
   reachSyncPoint(syncPointId: string, agentId: string): void {
     this.broadcastMessage({
@@ -408,7 +409,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * メッセージ履歴を取得
+   * Get message history.
    */
   getMessageHistory(filter?: {
     fromAgentId?: string;
@@ -430,7 +431,7 @@ export class AgentCoordinator extends EventEmitter {
       messages = messages.filter((m) => m.type === filter.type);
     }
 
-    // 最新順にソート
+    // Sort by most recent
     messages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
     if (filter?.limit) {
@@ -441,7 +442,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * 実行統計を取得
+   * Get execution statistics.
    */
   getStatistics(): {
     activeAgents: number;
@@ -464,7 +465,7 @@ export class AgentCoordinator extends EventEmitter {
   }
 
   /**
-   * リセット
+   * Reset all state.
    */
   reset(): void {
     this.resourceLocks.clear();
@@ -477,7 +478,7 @@ export class AgentCoordinator extends EventEmitter {
 }
 
 /**
- * エージェントコーディネーターのファクトリー関数
+ * Factory function for creating an agent coordinator.
  */
 export function createAgentCoordinator(): AgentCoordinator {
   return new AgentCoordinator();

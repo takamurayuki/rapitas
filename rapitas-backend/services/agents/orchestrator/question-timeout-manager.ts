@@ -1,6 +1,8 @@
 /**
- * 質問タイムアウト・継続ロック管理
- * AgentOrchestratorから質問タイムアウトと継続実行のロック管理を分離
+ * QuestionTimeoutManager
+ *
+ * Manages question timeouts and continuation execution locks,
+ * extracted from AgentOrchestrator.
  */
 import { createLogger } from '../../../config/logger';
 import { DEFAULT_QUESTION_TIMEOUT_SECONDS, type QuestionKey } from '../question-detection';
@@ -9,7 +11,7 @@ import type { OrchestratorEvent } from './types';
 const logger = createLogger('question-timeout-manager');
 
 /**
- * 質問タイムアウト管理情報
+ * Question timeout tracking info.
  */
 type QuestionTimeoutInfo = {
   executionId: number;
@@ -20,8 +22,8 @@ type QuestionTimeoutInfo = {
 };
 
 /**
- * 継続実行のロック状態を管理
- * 同一executionIdに対する重複実行を防止
+ * Continuation lock state.
+ * Prevents duplicate execution for the same executionId.
  */
 type ContinuationLockInfo = {
   executionId: number;
@@ -30,17 +32,17 @@ type ContinuationLockInfo = {
 };
 
 /**
- * タイムアウトハンドラのコールバック型
+ * Timeout handler callback type.
  */
 export type TimeoutHandler = (executionId: number, taskId: number) => Promise<void>;
 
 /**
- * イベント発火のコールバック型
+ * Event emitter callback type.
  */
 export type EventEmitter = (event: OrchestratorEvent) => void;
 
 /**
- * 質問タイムアウトとロックの管理クラス
+ * Manages question timeouts and continuation execution locks.
  */
 export class QuestionTimeoutManager {
   private questionTimeouts: Map<number, QuestionTimeoutInfo> = new Map();
@@ -49,24 +51,23 @@ export class QuestionTimeoutManager {
   private eventEmitter: EventEmitter | null = null;
 
   /**
-   * タイムアウト発生時のハンドラを設定
+   * Set the timeout handler.
    */
   setTimeoutHandler(handler: TimeoutHandler): void {
     this.timeoutHandler = handler;
   }
 
   /**
-   * イベント発火用コールバックを設定
+   * Set the event emitter callback.
    */
   setEventEmitter(emitter: EventEmitter): void {
     this.eventEmitter = emitter;
   }
 
   /**
-   * 質問タイムアウトを開始
+   * Start a question timeout.
    */
   startQuestionTimeout(executionId: number, taskId: number, questionKey?: QuestionKey): void {
-    // 既存のタイムアウトがあればキャンセル
     this.cancelQuestionTimeout(executionId);
 
     const timeoutSeconds = questionKey?.timeout_seconds || DEFAULT_QUESTION_TIMEOUT_SECONDS;
@@ -93,7 +94,7 @@ export class QuestionTimeoutManager {
       timeoutTimer,
     });
 
-    // タイムアウトイベントを発火（フロントエンドでカウントダウン表示用）
+    // Emit timeout event for frontend countdown display
     if (this.eventEmitter) {
       this.eventEmitter({
         type: 'execution_output',
@@ -111,7 +112,7 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 質問タイムアウトをキャンセル
+   * Cancel a question timeout.
    */
   cancelQuestionTimeout(executionId: number): void {
     const timeoutInfo = this.questionTimeouts.get(executionId);
@@ -125,7 +126,7 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 全ての質問タイムアウトをキャンセル
+   * Cancel all question timeouts.
    */
   cancelAllTimeouts(): void {
     for (const [executionId, timeoutInfo] of this.questionTimeouts) {
@@ -138,8 +139,8 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 継続実行のロックを取得
-   * @returns ロック取得に成功した場合はtrue、既にロックされている場合はfalse
+   * Acquire a continuation lock.
+   * @returns true if lock acquired, false if already locked.
    */
   tryAcquireContinuationLock(
     executionId: number,
@@ -165,7 +166,7 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 継続実行のロックを解放
+   * Release a continuation lock.
    */
   releaseContinuationLock(executionId: number): void {
     const lock = this.continuationLocks.get(executionId);
@@ -178,21 +179,21 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 継続実行のロックが取得されているか確認
+   * Check if a continuation lock is held.
    */
   hasContinuationLock(executionId: number): boolean {
     return this.continuationLocks.has(executionId);
   }
 
   /**
-   * 全ての継続ロックを解放
+   * Release all continuation locks.
    */
   clearAllLocks(): void {
     this.continuationLocks.clear();
   }
 
   /**
-   * 特定の実行の質問タイムアウト情報を取得
+   * Get question timeout info for a specific execution.
    */
   getQuestionTimeoutInfo(executionId: number): {
     remainingSeconds: number;
@@ -217,14 +218,14 @@ export class QuestionTimeoutManager {
   }
 
   /**
-   * 質問タイプに応じたデフォルト回答を生成
+   * Generate a default response based on question type.
    */
   generateDefaultResponse(
     questionKey?: QuestionKey,
     questionText?: string,
     questionDetails?: string | null,
   ): string {
-    // 質問詳細からオプションがある場合は最初の選択肢を使用
+    // NOTE: If options are available, pick the first one (usually the recommended option)
     if (questionDetails) {
       let details: {
         options?: Array<{ label: string; description?: string }>;
@@ -238,13 +239,11 @@ export class QuestionTimeoutManager {
       }
 
       if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
-        // 最初の選択肢（通常は推奨オプション）を選択
-        const firstOption = details.options[0];
+          const firstOption = details.options[0];
         return firstOption.label || '1';
       }
     }
 
-    // 質問カテゴリに応じたデフォルト回答
     if (questionKey?.question_type) {
       switch (questionKey.question_type) {
         case 'confirmation':
@@ -257,7 +256,6 @@ export class QuestionTimeoutManager {
       }
     }
 
-    // 質問テキストから推測
     if (questionText) {
       const text = questionText.toLowerCase();
 

@@ -1,6 +1,8 @@
 /**
- * AIエージェント抽象基底クラス
- * 将来的に他のエージェント（Codex, Gemini等）を追加できるよう設計
+ * BaseAgent
+ *
+ * Abstract base class for AI agents. Designed for extensibility
+ * with additional agent types (Codex, Gemini, etc.).
  */
 
 export type AgentCapability = {
@@ -23,7 +25,7 @@ export type AgentStatus =
   | 'waiting_for_input';
 
 /**
- * AIタスク分析結果（構造化プロンプト用）
+ * AI task analysis result for structured prompt generation.
  */
 export type TaskAnalysisInfo = {
   summary: string;
@@ -48,28 +50,27 @@ export type AgentTask = {
   context?: string;
   workingDirectory?: string;
   repositoryUrl?: string;
-  /** タスクが属するテーマのID */
+  /** Theme ID this task belongs to. */
   themeId?: number | null;
-  /** AIタスク分析が有効な場合の分析結果 */
+  /** AI task analysis result (when analysis is enabled). */
   analysisInfo?: TaskAnalysisInfo;
-  /** 最適化されたプロンプト（AIによる構造化・最適化済み） */
+  /** Optimized prompt (structured and optimized by AI). */
   optimizedPrompt?: string;
-  /** Claude Code CLIのセッションID（--resumeで会話を継続するため） */
+  /** Claude Code CLI session ID (used with --resume to continue conversation). */
   resumeSessionId?: string;
 };
 
 /**
- * 質問の種類を表す型
- * - 'tool_call': Claude CodeのAskUserQuestionツール呼び出しによる質問
- * - 'none': 質問なし
+ * Question type discriminator.
+ * - 'tool_call': Question via Claude Code's AskUserQuestion tool call
+ * - 'none': No question
  *
- * @deprecated 新しい実装ではQuestionDetectionMethodを使用してください
- * 質問検出はAskUserQuestionツール呼び出しのみで行います。
+ * @deprecated Use QuestionDetectionMethod in new implementations.
+ * Question detection now relies solely on AskUserQuestion tool calls.
  */
 export type QuestionType = 'tool_call' | 'none';
 
-// QuestionDetailsはquestion-detection.tsからre-exportされているため、
-// 既存コードの互換性のためにインポートしてローカルでも使用可能
+// QuestionDetails is re-exported from question-detection.ts for backward compatibility
 
 export type AgentExecutionResult = {
   success: boolean;
@@ -79,16 +80,15 @@ export type AgentExecutionResult = {
   executionTimeMs?: number;
   errorMessage?: string;
   commits?: GitCommitInfo[];
-  // 質問待ち状態
   waitingForInput?: boolean;
   question?: string;
-  /** 質問の検出方法（tool_call: AskUserQuestionツール, none: 質問なし） */
+  /** Question detection method (tool_call: AskUserQuestion tool, none: no question). */
   questionType?: QuestionType;
-  /** 質問の詳細情報（選択肢など） */
+  /** Question details (options, etc.). */
   questionDetails?: import('./question-detection').QuestionDetails;
-  /** 構造化キー情報（新方式） */
+  /** Structured question key (new format). */
   questionKey?: import('./question-detection').QuestionKey;
-  /** Claude Code CLIのセッションID（--resumeで会話を継続するため） */
+  /** Claude Code CLI session ID (used with --resume to continue conversation). */
   claudeSessionId?: string;
 };
 
@@ -111,15 +111,14 @@ export type GitCommitInfo = {
 export type AgentOutputHandler = (output: string, isError?: boolean) => void;
 
 /**
- * 質問検出時のコールバックハンドラ
- * ストリーミング中に質問が検出された際に即座に呼び出される
+ * Callback handler invoked immediately when a question is detected during streaming.
  */
 export type QuestionDetectedHandler = (info: {
   question: string;
   questionType: QuestionType;
   questionDetails?: import('./question-detection').QuestionDetails;
   questionKey?: import('./question-detection').QuestionKey;
-  /** Claude Code CLIのセッションID（再開時に使用） */
+  /** Claude Code CLI session ID (used for resuming). */
   claudeSessionId?: string;
 }) => void;
 
@@ -135,19 +134,19 @@ export abstract class BaseAgent {
   ) {}
 
   /**
-   * ログ出力用のプレフィックス（[エージェント名] 形式）
+   * Log prefix in [AgentName] format.
    */
   get logPrefix(): string {
     return `[${this.name}]`;
   }
 
   /**
-   * エージェントの能力を返す
+   * Return the agent's capabilities.
    */
   abstract getCapabilities(): AgentCapability;
 
   /**
-   * タスクを実行する
+   * Execute a task.
    */
   abstract execute(
     task: AgentTask,
@@ -155,48 +154,48 @@ export abstract class BaseAgent {
   ): Promise<AgentExecutionResult>;
 
   /**
-   * 実行を停止する
+   * Stop execution.
    */
   abstract stop(): Promise<void>;
 
   /**
-   * 実行を一時停止する（対応している場合）
+   * Pause execution (if supported).
    */
   async pause(): Promise<boolean> {
     return false;
   }
 
   /**
-   * 実行を再開する（対応している場合）
+   * Resume execution (if supported).
    */
   async resume(): Promise<boolean> {
     return false;
   }
 
   /**
-   * 現在のステータスを取得
+   * Get current status.
    */
   getStatus(): AgentStatus {
     return this.status;
   }
 
   /**
-   * 出力ハンドラを設定
+   * Set the output handler.
    */
   setOutputHandler(handler: AgentOutputHandler): void {
     this.outputHandler = handler;
   }
 
   /**
-   * 質問検出ハンドラを設定
-   * ストリーミング中に質問が検出された際に即座にコールバックされる
+   * Set the question detection handler.
+   * Called immediately when a question is detected during streaming.
    */
   setQuestionDetectedHandler(handler: QuestionDetectedHandler): void {
     this.questionDetectedHandler = handler;
   }
 
   /**
-   * 質問検出を通知
+   * Emit a question detection event.
    */
   protected emitQuestionDetected(info: Parameters<QuestionDetectedHandler>[0]): void {
     if (this.questionDetectedHandler) {
@@ -205,7 +204,7 @@ export abstract class BaseAgent {
   }
 
   /**
-   * 出力を送信
+   * Emit output.
    */
   protected emitOutput(output: string, isError: boolean = false): void {
     if (this.outputHandler && output != null && output !== 'null' && output !== 'undefined') {
@@ -214,12 +213,12 @@ export abstract class BaseAgent {
   }
 
   /**
-   * エージェントが使用可能かどうか
+   * Check whether the agent is available.
    */
   abstract isAvailable(): Promise<boolean>;
 
   /**
-   * 設定を検証する
+   * Validate the agent configuration.
    */
   abstract validateConfig(): Promise<{ valid: boolean; errors: string[] }>;
 }

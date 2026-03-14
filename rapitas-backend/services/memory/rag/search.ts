@@ -1,6 +1,7 @@
 /**
- * ベクトル類似検索
- * embeddingを生成してコサイン類似度で検索、forgettingStageでフィルタ
+ * Vector Similarity Search
+ *
+ * Generates embeddings, searches by cosine similarity, and filters by forgettingStage.
  */
 import { createLogger } from '../../../config/logger';
 import { prisma } from '../../../config/database';
@@ -12,7 +13,7 @@ import type { VectorSearchResult, KnowledgeSearchOptions } from '../types';
 const log = createLogger('memory:rag:search');
 
 /**
- * ベクトル類似検索（テキストクエリから）
+ * Vector similarity search from a text query.
  */
 export async function vectorSearch(options: {
   query: string;
@@ -27,7 +28,7 @@ export async function vectorSearch(options: {
 }
 
 /**
- * 知識ベース検索（ベクトル検索 + DBフィルタ）
+ * Search the knowledge base (vector search + DB filtering).
  */
 export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
   Array<{
@@ -44,7 +45,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
 > {
   const { query, limit = 10, minSimilarity = 0.5, forgettingStage, category, themeId } = options;
 
-  // ベクトル検索で候補を取得（多めに）
+  // Fetch extra candidates via vector search for post-filtering
   const vectorResults = await vectorSearch({
     query,
     limit: limit * 3,
@@ -53,7 +54,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
 
   if (vectorResults.length === 0) return [];
 
-  // DBフィルタ条件を構築
+  // Build DB filter conditions
   const entryIds = vectorResults.map((r) => r.knowledgeEntryId);
   const where: Record<string, unknown> = {
     id: { in: entryIds },
@@ -76,7 +77,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     },
   });
 
-  // ベクトル検索結果とDB結果をマージ
+  // Merge vector search results with DB results
   const similarityMap = new Map(vectorResults.map((r) => [r.knowledgeEntryId, r.similarity]));
 
   const results = entries
@@ -88,7 +89,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit);
 
-  // アクセスカウントとdecay回復（非同期、失敗しても無視）
+  // Boost access count and decay (async, fire-and-forget)
   for (const entry of results) {
     boostDecayOnAccess(entry.id).catch(() => {});
   }

@@ -2,7 +2,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ReactNode, HTMLAttributes, CSSProperties } from 'react';
 
-// vscDarkPlusのスタイル型
+// vscDarkPlus style type
 type SyntaxHighlighterStyle = { [key: string]: CSSProperties };
 
 type MarkdownNode = {
@@ -29,9 +29,9 @@ type LinkProps = HTMLAttributes<HTMLAnchorElement> & {
   children?: ReactNode;
 };
 
-// マークダウン用カスタムコンポーネント
+// Custom components for Markdown rendering
 export const createMarkdownComponents = () => ({
-  // pタグの処理をカスタマイズ（pre/codeを含む場合は div に変換）
+  // NOTE: Customize p tag handling (convert to div when containing pre/code)
   p({ node, children, ...props }: ParagraphProps) {
     // Check if child elements contain pre or code blocks
     const hasCodeBlock = node?.children?.some(
@@ -49,10 +49,10 @@ export const createMarkdownComponents = () => ({
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
     const codeString = String(children).replace(/\n$/, '');
-    // _styleは使用しない（SyntaxHighlighterのstyleと競合するため）
+    // NOTE: _style is unused (conflicts with SyntaxHighlighter's style prop)
     void _style;
 
-    // インラインコード
+    // Inline code
     if (inline) {
       return (
         <code
@@ -64,7 +64,7 @@ export const createMarkdownComponents = () => ({
       );
     }
 
-    // コードブロック（言語指定あり）
+    // Code block (with language)
     if (language) {
       return (
         <div className="relative group my-4">
@@ -92,7 +92,7 @@ export const createMarkdownComponents = () => ({
       );
     }
 
-    // コードブロック（言語指定なし）
+    // Code block (without language)
     return (
       <div className="bg-zinc-100 dark:bg-indigo-dark-800 p-4 rounded-lg overflow-x-auto my-4">
         <code
@@ -104,11 +104,11 @@ export const createMarkdownComponents = () => ({
       </div>
     );
   },
-  // リンクの処理をカスタマイズ（外部リンクを分割表示で開く）
+  // NOTE: Customize link handling (open external links in split view)
   a({ href, children, ...props }: LinkProps) {
-    // ExternalLinksProviderでグローバルにハンドラーが設定されるため、
+    // NOTE: ExternalLinksProvider sets handlers globally,
     // Only handle styling here, no additional handlers needed
-    // target="_blank"を設定しないことで、デフォルトのブラウザ動作を防ぐ
+    // so omitting target="_blank" prevents default browser behavior
     return (
       <a
         href={href}

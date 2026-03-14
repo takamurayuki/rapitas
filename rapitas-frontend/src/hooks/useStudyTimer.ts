@@ -1,6 +1,6 @@
 /**
- * 学習セッションタイマー用カスタムフック
- * 経過時間の計測、一時停止・再開・リセット機能を提供する
+ * Custom hook for study session timer
+ * Provides elapsed time measurement, pause/resume/reset functionality
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -9,7 +9,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useStudyTimer');
 
 export function useStudyTimer() {
-  const [elapsed, setElapsed] = useState(0); // 経過秒数
+  const [elapsed, setElapsed] = useState(0); // elapsed seconds
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -57,7 +57,7 @@ export function useStudyTimer() {
     setIsPaused(false);
   }, [clearTimer]);
 
-  // クリーンアップ
+  // Cleanup
   useEffect(() => {
     return () => clearTimer();
   }, [clearTimer]);

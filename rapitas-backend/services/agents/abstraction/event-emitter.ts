@@ -1,6 +1,7 @@
 /**
- * AIエージェント抽象化レイヤー - イベントエミッター
- * エージェントのイベントを管理・配信する
+ * Agent Abstraction Layer - Event Emitter
+ *
+ * Manages and dispatches agent events.
  */
 
 import { createLogger } from '../../../config/logger';
@@ -29,7 +30,7 @@ import type {
 } from './types';
 
 /**
- * イベントリスナー情報
+ * Event listener metadata.
  */
 interface EventListener<T extends AgentEvent = AgentEvent> {
   id: string;
@@ -38,8 +39,8 @@ interface EventListener<T extends AgentEvent = AgentEvent> {
 }
 
 /**
- * エージェントイベントエミッター
- * 型安全なイベント発行・購読を提供
+ * Agent event emitter.
+ * Provides type-safe event emission and subscription.
  */
 export class AgentEventEmitter {
   private listeners: Map<AgentEventType, EventListener[]> = new Map();
@@ -49,7 +50,7 @@ export class AgentEventEmitter {
   private maxHistorySize = 1000;
 
   /**
-   * 実行IDとエージェントID（イベント作成時に使用）
+   * Agent ID and execution ID used when creating events.
    */
   constructor(
     private readonly agentId: string,
@@ -57,14 +58,14 @@ export class AgentEventEmitter {
   ) {}
 
   /**
-   * 実行IDを設定
+   * Sets the execution ID for subsequent events.
    */
   setExecutionId(executionId: string): void {
     this.executionId = executionId;
   }
 
   /**
-   * イベントをリッスン
+   * Subscribes to events of a specific type.
    */
   on<T extends AgentEvent>(type: AgentEventType, handler: AgentEventHandler<T>): () => void {
     const listenerId = `listener-${this.nextListenerId++}`;
@@ -78,14 +79,14 @@ export class AgentEventEmitter {
     listeners.push(listener);
     this.listeners.set(type, listeners);
 
-    // アンサブスクライブ関数を返す
+    // Return unsubscribe function
     return () => {
       this.off(type, listenerId);
     };
   }
 
   /**
-   * 一度だけイベントをリッスン
+   * Subscribes to a single event of a specific type (fires once).
    */
   once<T extends AgentEvent>(type: AgentEventType, handler: AgentEventHandler<T>): () => void {
     const listenerId = `listener-${this.nextListenerId++}`;
@@ -105,7 +106,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * すべてのイベントをリッスン
+   * Subscribes to all event types.
    */
   onAll(handler: AgentEventHandler<AgentEvent>): () => void {
     const listenerId = `listener-${this.nextListenerId++}`;
@@ -123,7 +124,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * リスナーを削除
+   * Removes a specific listener.
    */
   off(type: AgentEventType, listenerId: string): void {
     const listeners = this.listeners.get(type);
@@ -136,7 +137,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * 特定タイプのすべてのリスナーを削除
+   * Removes all listeners, optionally filtered by type.
    */
   removeAllListeners(type?: AgentEventType): void {
     if (type) {
@@ -148,16 +149,16 @@ export class AgentEventEmitter {
   }
 
   /**
-   * イベントを発行
+   * Emits an event to all matching listeners.
    */
   async emit<T extends AgentEvent>(event: T): Promise<void> {
-    // 履歴に追加
+    // Add to event history
     this.eventHistory.push(event);
     if (this.eventHistory.length > this.maxHistorySize) {
       this.eventHistory.shift();
     }
 
-    // 型固有のリスナーを呼び出し
+    // Invoke type-specific listeners
     const listeners = this.listeners.get(event.type) || [];
     const listenersToRemove: string[] = [];
 
@@ -173,7 +174,7 @@ export class AgentEventEmitter {
       }
     }
 
-    // onceリスナーを削除
+    // Remove once-listeners that have fired
     if (listenersToRemove.length > 0) {
       this.listeners.set(
         event.type,
@@ -181,7 +182,7 @@ export class AgentEventEmitter {
       );
     }
 
-    // 全イベントリスナーを呼び出し
+    // Invoke catch-all listeners
     const allListenersToRemove: string[] = [];
     for (const listener of this.allListeners) {
       try {
@@ -201,11 +202,11 @@ export class AgentEventEmitter {
   }
 
   // ============================================================================
-  // 便利な発行メソッド
+  // Convenience emit methods
   // ============================================================================
 
   /**
-   * 状態変更イベントを発行
+   * Emits a state change event.
    */
   emitStateChange(previousState: AgentState, newState: AgentState, reason?: string): Promise<void> {
     const event: StateChangeEvent = {
@@ -221,7 +222,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * 出力イベントを発行
+   * Emits an output event.
    */
   emitOutput(content: string, isError = false, isPartial = false): Promise<void> {
     if (content == null || content === 'null' || content === 'undefined') {
@@ -240,7 +241,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * エラーイベントを発行
+   * Emits an error event.
    */
   emitError(error: Error, recoverable = false, context?: string): Promise<void> {
     const event: ErrorEvent = {
@@ -256,7 +257,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * ツール開始イベントを発行
+   * Emits a tool start event.
    */
   emitToolStart(toolId: string, toolName: string, input: unknown): Promise<void> {
     const event: ToolStartEvent = {
@@ -272,7 +273,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * ツール終了イベントを発行
+   * Emits a tool end event.
    */
   emitToolEnd(
     toolId: string,
@@ -298,7 +299,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * 質問イベントを発行
+   * Emits a question event.
    */
   emitQuestion(question: PendingQuestion): Promise<void> {
     const event: QuestionEvent = {
@@ -312,7 +313,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * 進捗イベントを発行
+   * Emits a progress event.
    */
   emitProgress(current: number, total: number, message?: string, subtask?: string): Promise<void> {
     const event: ProgressEvent = {
@@ -329,7 +330,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * 成果物イベントを発行
+   * Emits an artifact event.
    */
   emitArtifact(artifact: AgentArtifact): Promise<void> {
     const event: ArtifactEvent = {
@@ -343,7 +344,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * コミットイベントを発行
+   * Emits a commit event.
    */
   emitCommit(commit: GitCommitInfo): Promise<void> {
     const event: CommitEvent = {
@@ -357,7 +358,7 @@ export class AgentEventEmitter {
   }
 
   /**
-   * メトリクス更新イベントを発行
+   * Emits a metrics update event.
    */
   emitMetricsUpdate(metrics: Partial<ExecutionMetrics>): Promise<void> {
     const event: MetricsUpdateEvent = {
@@ -371,11 +372,11 @@ export class AgentEventEmitter {
   }
 
   // ============================================================================
-  // ユーティリティ
+  // Utilities
   // ============================================================================
 
   /**
-   * イベント履歴を取得
+   * Returns the event history, optionally filtered.
    */
   getEventHistory(type?: AgentEventType, limit?: number): AgentEvent[] {
     let events = type ? this.eventHistory.filter((e) => e.type === type) : [...this.eventHistory];
@@ -388,14 +389,14 @@ export class AgentEventEmitter {
   }
 
   /**
-   * イベント履歴をクリア
+   * Clears the event history.
    */
   clearEventHistory(): void {
     this.eventHistory = [];
   }
 
   /**
-   * リスナー数を取得
+   * Returns the total number of registered listeners.
    */
   listenerCount(type?: AgentEventType): number {
     if (type) {
@@ -409,14 +410,14 @@ export class AgentEventEmitter {
   }
 
   /**
-   * イベントストリームを作成（AsyncIterable）
+   * Creates an async iterable event stream.
    */
   stream(types?: AgentEventType[]): AsyncIterable<AgentEvent> {
     const eventQueue: AgentEvent[] = [];
     let resolveNext: ((value: IteratorResult<AgentEvent>) => void) | null = null;
     let isEnded = false;
 
-    // リスナーを設定
+    // Set up listener
     const unsubscribe = this.onAll(async (event) => {
       if (types && !types.includes(event.type)) {
         return;
@@ -430,7 +431,7 @@ export class AgentEventEmitter {
       }
     });
 
-    // AsyncIterableを返す
+    // Return AsyncIterable
     return {
       [Symbol.asyncIterator](): AsyncIterator<AgentEvent> {
         return {
@@ -460,7 +461,7 @@ export class AgentEventEmitter {
 }
 
 /**
- * イベントエミッターを作成するファクトリー関数
+ * Factory function to create an event emitter.
  */
 export function createAgentEventEmitter(agentId: string, executionId?: string): AgentEventEmitter {
   return new AgentEventEmitter(agentId, executionId);

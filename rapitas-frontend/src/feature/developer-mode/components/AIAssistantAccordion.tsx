@@ -24,12 +24,12 @@ import { AgentExecutionPanel } from './AgentExecutionPanel';
 // TaskAnalysisResult is imported from @/types
 
 type Props = {
-  // 共通
+  // Common
   taskId: number;
   config: DeveloperModeConfig | null;
   onOpenSettings: () => void;
 
-  // AI分析関連
+  // AI analysis
   isAnalyzing: boolean;
   analysisResult: TaskAnalysisResult | null;
   analysisError: string | null;
@@ -42,7 +42,7 @@ type Props = {
   onPromptGenerated?: (prompt: string) => void;
   onSubtasksCreated?: () => void;
 
-  // エージェント実行関連
+  // Agent execution
   showAgentExecution: boolean;
   isExecuting: boolean;
   executionStatus: ExecutionStatus;
@@ -69,7 +69,6 @@ type Props = {
   } | null>;
   onStopExecution?: () => void;
 
-  // サブタスク関連（タブ表示用）
   subtasks?: Task[];
   subtaskLogs?: Map<
     number,
@@ -86,12 +85,12 @@ const MIN_HEIGHT = 150;
 const MAX_HEIGHT = 1200;
 
 export function AIAssistantAccordion({
-  // 共通
+  // Common
   taskId,
   config,
   onOpenSettings,
 
-  // AI分析関連
+  // AI analysis
   isAnalyzing,
   analysisResult,
   analysisError,
@@ -104,7 +103,7 @@ export function AIAssistantAccordion({
   onPromptGenerated,
   onSubtasksCreated,
 
-  // エージェント実行関連
+  // Agent execution
   showAgentExecution,
   isExecuting,
   executionStatus,
@@ -129,7 +128,7 @@ export function AIAssistantAccordion({
     string | null
   >(optimizedPrompt || null);
 
-  // リサイズ関連の状態
+  // Resize state
   const [contentHeight, setContentHeight] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -142,10 +141,9 @@ export function AIAssistantAccordion({
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
 
-  // ローカルストレージに高さを保存（リサイズ完了時にのみ保存するため、ここでは保存しない）
-  // リサイズ中は頻繁に更新されるため、handleMouseUp内で保存する
+  // NOTE: Height saved to localStorage only on resize completion (in handleMouseUp),
+  // not during resize (too frequent updates)
 
-  // リサイズ開始
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -154,14 +152,12 @@ export function AIAssistantAccordion({
       startYRef.current = e.clientY;
       startHeightRef.current = contentHeight;
 
-      // 即座にカーソルとユーザー選択を設定
       document.body.style.cursor = 'ns-resize';
       document.body.style.userSelect = 'none';
     },
     [contentHeight],
   );
 
-  // リサイズ中のマウス移動
   useEffect(() => {
     if (!isResizing) return;
 
@@ -175,7 +171,6 @@ export function AIAssistantAccordion({
         Math.max(MIN_HEIGHT, startHeightRef.current + deltaY),
       );
 
-      // requestAnimationFrameを使用してスムーズに更新
       requestAnimationFrame(() => {
         setContentHeight(newHeight);
       });
@@ -187,7 +182,7 @@ export function AIAssistantAccordion({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
 
-      // リサイズ完了時にローカルストレージに保存
+      // Save to localStorage on resize completion
       const finalHeight = Math.min(
         MAX_HEIGHT,
         Math.max(
@@ -209,10 +204,9 @@ export function AIAssistantAccordion({
     };
   }, [isResizing]);
 
-  // 親からのoptimizedPromptの変更を反映
+  // Reflect parent optimizedPrompt changes
   useEffect(() => {
     if (optimizedPrompt && optimizedPrompt !== localOptimizedPrompt) {
-      // 非同期で更新
       const timer = setTimeout(() => {
         setLocalOptimizedPrompt(optimizedPrompt);
       }, 0);
@@ -230,7 +224,6 @@ export function AIAssistantAccordion({
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
-      {/* メインヘッダー */}
       <div
         className="px-6 py-4 bg-linear-to-r from-violet-50 to-indigo-50 dark:from-violet-900/20 dark:to-indigo-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -251,7 +244,6 @@ export function AIAssistantAccordion({
           </div>
 
           <div className="flex items-center gap-3">
-            {/* ステータスバッジ */}
             {config?.isEnabled && (
               <span className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                 <CheckCircle2 className="w-3 h-3" />
@@ -259,7 +251,6 @@ export function AIAssistantAccordion({
               </span>
             )}
 
-            {/* 最適化済みバッジ */}
             {localOptimizedPrompt && (
               <span className="flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
                 <Sparkles className="w-3 h-3" />
@@ -267,7 +258,6 @@ export function AIAssistantAccordion({
               </span>
             )}
 
-            {/* 実行中バッジ */}
             {isExecuting && (
               <span className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium animate-pulse">
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -275,7 +265,6 @@ export function AIAssistantAccordion({
               </span>
             )}
 
-            {/* 設定ボタン */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -287,7 +276,6 @@ export function AIAssistantAccordion({
               <Settings className="w-4 h-4" />
             </button>
 
-            {/* 展開/折りたたみアイコン */}
             {isExpanded ? (
               <ChevronUp className="w-5 h-5 text-zinc-400" />
             ) : (
@@ -297,7 +285,6 @@ export function AIAssistantAccordion({
         </div>
       </div>
 
-      {/* コンテンツエリア */}
       {isExpanded && (
         <div className="flex flex-col">
           <div
@@ -309,7 +296,6 @@ export function AIAssistantAccordion({
               maxHeight: `${MAX_HEIGHT}px`,
             }}
           >
-            {/* AI タスク分析パネル */}
             <div className="p-4">
               <AIAnalysisPanel
                 taskId={taskId}
@@ -329,7 +315,6 @@ export function AIAssistantAccordion({
               />
             </div>
 
-            {/* AI エージェント実行パネル */}
             {showAgentExecution && (
               <div className="p-4">
                 <AgentExecutionPanel
@@ -356,7 +341,6 @@ export function AIAssistantAccordion({
             )}
           </div>
 
-          {/* リサイズハンドル - コンテンツの直下に配置 */}
           <div
             onMouseDown={handleResizeStart}
             className={`shrink-0 h-5 flex items-center justify-center bg-zinc-100 dark:bg-indigo-dark-800 border-t border-zinc-200 dark:border-zinc-700 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors group select-none touch-none ${isResizing ? 'bg-violet-200 dark:bg-violet-900/50' : ''}`}
