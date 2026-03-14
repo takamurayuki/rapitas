@@ -28,6 +28,7 @@ import type { QuestionDetails, QuestionKey, QuestionWaitingState } from './quest
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../workers/output-parser-types';
 import { createLogger } from '../../config/logger';
 import { getProjectRoot } from '../../config';
+import { registerProcess, unregisterProcess } from './agent-process-tracker';
 
 const logger = createLogger('claude-code-agent');
 
@@ -296,6 +297,7 @@ export class ClaudeCodeAgent extends BaseAgent {
         this.process = spawn(finalCommand, finalArgs, {
           cwd: workDir,
           shell: true,
+          windowsHide: true, // NOTE: TCPハンドル継承防止 — CLIプロセスがポート3001のソケットを掴むのを防ぐ
           stdio: ['pipe', 'pipe', 'pipe'],
           env: {
             ...process.env,
@@ -326,6 +328,17 @@ export class ClaudeCodeAgent extends BaseAgent {
 
         logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
+
+        // PID登録（クラッシュ後も追跡可能にする）
+        if (this.process.pid) {
+          registerProcess({
+            pid: this.process.pid,
+            role: 'cli-agent',
+            taskId: task.id,
+            startedAt: new Date().toISOString(),
+            parentPid: process.pid,
+          });
+        }
         logger.info(`${this.logPrefix} Prompt file: ${promptFile} (${prompt.length} chars)`);
 
         // stdinへの書き込みを非同期で行う（バッファリング問題を回避）
@@ -721,6 +734,9 @@ export class ClaudeCodeAgent extends BaseAgent {
           cleanupTimeoutCheck(); // タイムアウトチェックを停止
           cleanupIdleCheck(); // アイドルチェックを停止
           cleanupPromptFile(); // 一時ファイルを削除
+          if (this.process?.pid) {
+            unregisterProcess(this.process.pid);
+          }
           const executionTimeMs = Date.now() - startTime;
 
           // 残りのlineBufferを処理
@@ -1011,6 +1027,9 @@ export class ClaudeCodeAgent extends BaseAgent {
           cleanupTimeoutCheck(); // タイムアウトチェックを停止
           cleanupIdleCheck(); // アイドルチェックを停止
           cleanupPromptFile(); // 一時ファイルを削除
+          if (this.process?.pid) {
+            unregisterProcess(this.process.pid);
+          }
           this.status = 'failed';
           logger.error({ err: error }, `${this.logPrefix} Process error`);
           this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);

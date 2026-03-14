@@ -15,6 +15,11 @@ import type { AgentTask, AgentExecutionResult } from './base-agent';
 import type { ExecutionOptions, ExecutionState } from './orchestrator/types';
 import type { QuestionKey } from './question-detection';
 import { realtimeService } from '../realtime-service';
+import {
+  registerProcess,
+  unregisterProcess,
+  cleanupZombieProcesses,
+} from './agent-process-tracker';
 
 const logger = createLogger('agent-worker-manager');
 
@@ -64,6 +69,8 @@ export class AgentWorkerManager {
    * index.ts のサーバー起動時に呼び出す。
    */
   public async initialize(): Promise<void> {
+    // NOTE: 前回クラッシュ時の残存ゾンビプロセスをクリーンアップしてから起動
+    cleanupZombieProcesses();
     await this.setupWorker();
   }
 
@@ -84,6 +91,7 @@ export class AgentWorkerManager {
       const { spawn } = await import('child_process');
       this.workerProcess = spawn('bun', [workerPath], {
         stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        windowsHide: true, // NOTE: TCPハンドル継承防止 — 子プロセスがポート3001のソケットを掴むのを防ぐ
         env: {
           ...process.env,
           NODE_ENV: process.env.NODE_ENV || 'development',
@@ -91,6 +99,16 @@ export class AgentWorkerManager {
         },
         cwd: process.cwd(),
       });
+
+      // PID登録（クラッシュ後も追跡可能にする）
+      if (this.workerProcess.pid) {
+        registerProcess({
+          pid: this.workerProcess.pid,
+          role: 'worker',
+          startedAt: new Date().toISOString(),
+          parentPid: process.pid,
+        });
+      }
 
       // Ready状態の Promise を作成
       const readyPromise = new Promise<void>((resolve) => {
@@ -109,6 +127,9 @@ export class AgentWorkerManager {
 
       this.workerProcess.on('exit', (code, signal) => {
         logger.warn({ code, signal }, '[AgentWorkerManager] Worker process exited');
+        if (this.workerProcess?.pid) {
+          unregisterProcess(this.workerProcess.pid);
+        }
         this.isWorkerReady = false;
 
         if (!this.isShuttingDown) {

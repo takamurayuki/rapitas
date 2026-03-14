@@ -6,6 +6,7 @@
  */
 
 import { createLogger } from '../config/logger';
+import { execSync } from 'child_process';
 import { PrismaClient } from '@prisma/client';
 import { AgentOrchestrator } from '../services/agents/agent-orchestrator';
 import type { ExecutionOptions, OrchestratorEvent } from '../services/agents/orchestrator/types';
@@ -26,6 +27,7 @@ class AgentWorker {
   private prisma: PrismaClient;
   private orchestrator: AgentOrchestrator;
   private isShuttingDown = false;
+  private parentLivenessInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.prisma = new PrismaClient({
@@ -55,6 +57,7 @@ class AgentWorker {
 
     this.setupIPCHandlers();
     this.setupGracefulShutdown();
+    this.startParentLivenessCheck();
   }
 
   private setupIPCHandlers(): void {
@@ -293,6 +296,58 @@ class AgentWorker {
     });
   }
 
+  /**
+   * 親プロセスの生存を5秒間隔でポーリングする。
+   * Windows の taskkill /F では IPC disconnect が発火しないため、
+   * 自前で検知してself-shutdownする。
+   */
+  private startParentLivenessCheck(): void {
+    const parentPid = process.ppid;
+    // NOTE: ppid=0 はinitプロセス（既に孤児化）を意味する
+    if (!parentPid || parentPid === 0) {
+      logger.warn('[AgentWorker] No valid parent PID, skipping liveness check');
+      return;
+    }
+
+    logger.info({ parentPid }, '[AgentWorker] Starting parent liveness check');
+
+    this.parentLivenessInterval = setInterval(() => {
+      if (this.isShuttingDown) {
+        return;
+      }
+      if (!this.isParentAlive(parentPid)) {
+        logger.warn(
+          { parentPid },
+          '[AgentWorker] Parent process is dead, initiating self-shutdown',
+        );
+        this.gracefulShutdown();
+      }
+    }, 5000);
+  }
+
+  /**
+   * 親プロセスが生存しているかチェックする。
+   *
+   * @param pid - 親プロセスID / 親プロセスID
+   * @returns 生存していれば true / 生存していれば true
+   */
+  private isParentAlive(pid: number): boolean {
+    try {
+      if (process.platform === 'win32') {
+        const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
+          stdio: 'pipe',
+          timeout: 3000,
+        }).toString();
+        return result.includes(String(pid));
+      }
+      // Unix: signal 0 で生存確認
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private setupGracefulShutdown(): void {
     const shutdown = async (signal: string) => {
       if (this.isShuttingDown) {
@@ -315,6 +370,11 @@ class AgentWorker {
   }
 
   private async gracefulShutdown(): Promise<void> {
+    if (this.parentLivenessInterval) {
+      clearInterval(this.parentLivenessInterval);
+      this.parentLivenessInterval = null;
+    }
+
     const timeout = 10000;
     const timer = setTimeout(() => {
       logger.error('[AgentWorker] Graceful shutdown timeout, forcing exit');
