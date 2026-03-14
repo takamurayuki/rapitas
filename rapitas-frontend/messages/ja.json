@@ -803,7 +803,7 @@
     "modelCol": "モデル",
     "executionCountCol": "実行回数",
     "successRateCol": "成功率",
-    "avgExecutionTime": "平均実行時間",
+    "averageExecutionTime": "平均実行時間",
     "tokenUsage": "トークン使用量",
     "tokensUsed": "使用トークン数",
     "lastExecution": "最終実行",
