@@ -187,8 +187,7 @@ ${subtasks.map((st, i) => `${i + 1}. ${st.title}: ${st.description}`).join('\n')
     const messages: AIMessage[] = [{ role: 'user', content: userPrompt }];
 
     const response = await sendAIMessage({
-      provider: provider || 'claude',
-      model,
+      provider: 'ollama',
       messages,
       maxTokens: 1024,
     });

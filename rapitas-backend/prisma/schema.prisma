@@ -542,6 +542,9 @@ model UserSettings {
   claudeDefaultModel          String?
   chatgptDefaultModel         String?
   geminiDefaultModel          String?
+  ollamaUrl                   String?   @default("http://localhost:11434")
+  ollamaDefaultModel          String?   @default("gemma3:4b")
+  titleGenerationProvider     String?   @default("ollama") // タイトル生成専用プロバイダー（ollama=ローカル無料AI）
   defaultAiProvider           String?   @default("claude")
   autoApprovePlan             Boolean   @default(false) // plan.md保存時に自動承認するか
   autoApproveSubtaskPlan      Boolean   @default(true)  // サブタスクのplan.md自動承認（デフォルトON）

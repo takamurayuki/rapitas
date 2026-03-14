@@ -94,6 +94,7 @@ export async function validateEntry(entryId: number): Promise<{
       if (similarEntry) {
         try {
           const response = await sendAIMessage({
+            provider: 'ollama',
             messages: [
               {
                 role: 'user',

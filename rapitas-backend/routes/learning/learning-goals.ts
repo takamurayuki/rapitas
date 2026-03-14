@@ -620,7 +620,7 @@ ${taskSummary}
   ];
 
   const response = await sendAIMessage({
-    provider,
+    provider: 'ollama',
     messages,
     systemPrompt:
       'フラッシュカード生成専門AIです。学習内容から重要な概念を抽出し、短く端的なQ&Aペアを作成してください。回答は暗記しやすい簡潔な表現にし、長い説明は避けてください。JSON形式のみで回答してください。',

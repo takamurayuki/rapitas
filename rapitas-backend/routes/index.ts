@@ -60,6 +60,7 @@ export { screenshotsRoutes } from './system/screenshots';
 export { rateLimitRoutes } from './system/rate-limits';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
+export { localLLMRouter } from './system/local-llm';
 
 // Workflow - ワークフロー関連
 export { workflowRoutes } from './workflow/workflow';

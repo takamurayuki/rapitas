@@ -580,17 +580,27 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         return { error: '説明文は必須です' };
       }
 
-      // デフォルトプロバイダーのAPIキーチェック
-      const titleProvider = await getDefaultProvider();
-      const titleApiKey = await getApiKeyForProvider(titleProvider);
-      if (!titleApiKey) {
-        set.status = 400;
-        return {
-          error: 'AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。',
-        };
-      }
-
       try {
+        // タイトル生成専用プロバイダーを確認
+        const settings = await prisma.userSettings.findFirst();
+        const titleProviderRaw = (settings as Record<string, unknown>)?.titleGenerationProvider as
+          | string
+          | undefined;
+        // 'default'が選ばれた場合のみ有料API、それ以外はollama（ローカル無料AI）
+        const titleProvider: import('../../utils/ai-client').AIProvider =
+          titleProviderRaw === 'default' ? await getDefaultProvider() : 'ollama';
+
+        // 有料APIの場合はAPIキーが必要
+        if (titleProvider !== 'ollama') {
+          const titleApiKey = await getApiKeyForProvider(titleProvider);
+          if (!titleApiKey) {
+            set.status = 400;
+            return {
+              error: 'AIのAPIキーが設定されていません。設定ページでAPIキーを登録してください。',
+            };
+          }
+        }
+
         const result = await generateTaskTitle(description, titleProvider);
         return result;
       } catch (error: unknown) {

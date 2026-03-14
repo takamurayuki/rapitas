@@ -54,6 +54,7 @@ export async function detectContradictions(entryId: number): Promise<number> {
       // LLMで矛盾判定
       try {
         const response = await sendAIMessage({
+          provider: 'ollama',
           messages: [
             {
               role: 'user',

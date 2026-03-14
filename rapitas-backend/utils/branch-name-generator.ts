@@ -32,6 +32,7 @@ ${taskDescription ? `タスク説明: "${taskDescription}"` : ''}
     `.trim();
 
     const response = await sendAIMessage({
+      provider: 'ollama',
       messages: [{ role: 'user', content: prompt }],
       maxTokens: 100,
     });

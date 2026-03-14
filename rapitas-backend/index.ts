@@ -74,6 +74,7 @@ import {
   experimentsRoutes,
   knowledgeGraphRoutes,
   learningRoutes,
+  localLLMRouter,
 } from './routes';
 
 // Import shared database client
@@ -214,6 +215,7 @@ app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
 app.use(intelligentSuggestionsRoutes);
 app.use(smartActionRoutes);
+app.use(localLLMRouter);
 app.use(experimentsRoutes);
 app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);
@@ -303,6 +305,15 @@ const handleProcessSignal = async (signal: string) => {
     // TCPソケットが完全に閉じるまでに少し時間が必要
     log.info('Step 3: Waiting for connections to drain...');
     await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Step 3.5: Local LLM server cleanup
+    log.info('Step 3.5: Cleaning up local LLM server...');
+    try {
+      const { cleanupLocalLLM } = await import('./services/local-llm');
+      cleanupLocalLLM();
+    } catch {
+      // ignore if module not loaded
+    }
 
     // Step 4: Agent Worker Manager のシャットダウン
     log.info('Step 4: Shutting down Agent Worker Manager...');
