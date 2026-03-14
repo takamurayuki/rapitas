@@ -22,7 +22,7 @@ import { AIAccordionPanel } from '@/feature/developer-mode/components/AIAccordio
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { API_BASE_URL } from '@/utils/api';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, clearApiCache } from '@/lib/api-client';
 import { preloadTaskDetails } from '@/lib/task-api';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
@@ -854,6 +854,8 @@ function TaskDetailClient({
                     onRestoreExecutionState={restoreExecutionState}
                     onStopExecution={setExecutionCancelled}
                     onExecutionComplete={async () => {
+                      // NOTE: Invalidate cache first so any re-fetch gets fresh data
+                      clearApiCache(`/tasks/${resolvedTaskId}`);
                       for (let attempt = 0; attempt < 6; attempt++) {
                         await new Promise((r) =>
                           setTimeout(r, attempt === 0 ? 1000 : 2000),

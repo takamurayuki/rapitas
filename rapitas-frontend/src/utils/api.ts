@@ -144,10 +144,16 @@ export async function fetchWithRetry(
           : isNetworkError
             ? 'NetworkError'
             : lastError.name;
-        const logFn = options?.silent ? logger.warn : logger.error;
-        logFn(
-          `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`,
-        );
+        const message = `[fetchWithRetry] Final attempt ${attempt + 1}/${maxRetries} failed for ${url}: [${errorType}] ${lastError.message}`;
+
+        if (options?.silent) {
+          logger.warn(message);
+        } else if (isNetworkError || isTimeoutError) {
+          // Use transientError for temporary network/timeout errors
+          logger.transientError(message, lastError);
+        } else {
+          logger.error(message);
+        }
       } else if (isNetworkError || isTimeoutError) {
         logger.debug(
           `[fetchWithRetry] Attempt ${attempt + 1}/${maxRetries} failed for ${url} (retrying):`,
