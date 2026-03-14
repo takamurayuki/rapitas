@@ -5,13 +5,11 @@ import { X, Keyboard } from 'lucide-react';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
 import { useNoteStore } from '@/stores/noteStore';
 
-// OS検出用のユーティリティ
 const getIsMac = () => {
   if (typeof window === 'undefined') return false;
   return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 };
 
-// カスタムイベント名
 export const OPEN_SHORTCUTS_EVENT = 'openKeyboardShortcuts';
 
 export default function KeyboardShortcuts() {
@@ -20,7 +18,6 @@ export default function KeyboardShortcuts() {
   const [isMac, _setIsMac] = useState(() => getIsMac());
   const shortcuts = useShortcutStore((state) => state.shortcuts);
 
-  // 外部からモーダルを開くためのイベントリスナー
   useEffect(() => {
     const handleOpenShortcuts = () => setShowHelp(true);
     window.addEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
@@ -28,7 +25,6 @@ export default function KeyboardShortcuts() {
       window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
-  // ショートカットIDからアクションへのマッピング
   const actionMap: Record<ShortcutId, () => void> = {
     newTask: () => router.push('/tasks/new'),
     dashboard: () => router.push('/dashboard'),
@@ -40,12 +36,10 @@ export default function KeyboardShortcuts() {
     toggleAI: () => {
       const noteStore = useNoteStore.getState();
       if (noteStore.modalState.isOpen) {
-        // 既に開いている場合は、タブを切り替える
         noteStore.setModalTab(
           noteStore.modalState.activeTab === 'ai' ? 'note' : 'ai',
         );
       } else {
-        // 閉じている場合は、AIタブで開く
         noteStore.openModal('ai');
       }
     },
@@ -56,7 +50,6 @@ export default function KeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 入力フィールドでは無効
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -65,14 +58,13 @@ export default function KeyboardShortcuts() {
         return;
       }
 
-      // Escape で閉じる
       if (e.key === 'Escape' && showHelp) {
         setShowHelp(false);
         return;
       }
 
       for (const binding of shortcuts) {
-        // ctrlのみ指定されている場合はctrlキーのみをチェック
+        // NOTE: When only ctrl is specified, match ctrlKey alone without metaKey
         const ctrlOnly = binding.ctrl && !binding.meta;
         const metaMatch = ctrlOnly
           ? e.ctrlKey && !e.metaKey

@@ -76,7 +76,6 @@ function HomeClientPage() {
   const executingTasksSize = useExecutionStateStore(
     (s) => s.executingTasks.size,
   );
-  // フィルターデータストアから状態を取得
   const {
     categories,
     themes,
@@ -102,40 +101,32 @@ function HomeClientPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   // const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
 
-  // クイック追加用
   const [isQuickAdding, setIsQuickAdding] = useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
 
-  // プログレスリング用ref
   const progressRingRef = useRef<HTMLDivElement>(null);
 
-  // テーマスクロール制御用
   const themeScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [isScrollNeeded, setIsScrollNeeded] = useState(false);
 
-  // ソート
   const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>(
     'createdAt',
   );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // 複数選択
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // ページネーション
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // フィルターアコーディオン（状態を永続化）
   const [isFilterExpanded, setIsFilterExpanded] = useLocalStorageState<boolean>(
     'isFilterExpanded',
     false,
   );
 
-  // グローバル設定（activeMode, defaultCategoryId）
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
     null,
   );
@@ -149,8 +140,6 @@ function HomeClientPage() {
     }
   }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks]);
 
-  // 自動同期を有効化（30秒ごと、サイレントモード）
-  // AIエージェント実行中は、useExecutingTasksPollingが5秒ごとに更新するので重複を避ける
   useTaskAutoSync({
     enabled: true,
     interval: 30000, // 30秒
@@ -158,7 +147,6 @@ function HomeClientPage() {
     skipDuringExecution: true, // AIエージェント実行中はスキップ
   });
 
-  // フィルタリングとカウント処理を最適化
   const { filteredTasks, statusCounts, todayTasksCounts } = useFilteredTasks({
     tasks,
     filter,
@@ -169,7 +157,6 @@ function HomeClientPage() {
     themes,
   });
 
-  // ソート処理を最適化
   const sortedTasks = useTaskSorting({
     tasks: filteredTasks,
     sortBy,
@@ -207,17 +194,14 @@ function HomeClientPage() {
     progressRingRef as React.RefObject<HTMLDivElement>,
   );
 
-  // テーマ関連の初期設定を行う関数（データ取得は filterDataStore が担当）
   const setupThemeDefaults = useCallback(() => {
     if (themes.length === 0) return;
 
-    // グローバルデフォルトテーマを設定（クイック追加等で使用）
     const firstDefaultTheme = themes.find((t: Theme) => t.isDefault);
     if (firstDefaultTheme) {
       setDefaultTheme(firstDefaultTheme);
     }
 
-    // テーマフィルターが未設定の場合、カテゴリに応じたデフォルトテーマを選択
     if (themeFilter === null && categoryFilter !== null) {
       const themesInCategory = themes.filter(
         (t: Theme) => t.categoryId === categoryFilter,
@@ -239,7 +223,6 @@ function HomeClientPage() {
   ) => {
     const oldTask = tasks.find((t) => t.id === id);
 
-    // タスクを完了にする場合、アニメーションをトリガー（本日のタスクのみ、かつテーマがある場合）
     const hasThemesInCategory =
       categoryFilter === null ||
       themes.filter((t) => t.categoryId === categoryFilter).length > 0;
@@ -290,8 +273,6 @@ function HomeClientPage() {
     setTimeout(() => setSelectedTaskId(null), 300);
   }, [hideTaskDetail]);
 
-  // 実行中タスクのポーリング: 実行中タスクが検出されたら自動的にパネルを開く
-  // パネルが既に開いている場合は別タスクに切り替えない
   const handleExecutingTaskFound = useCallback(
     (taskId: number) => {
       if (!isPanelOpen) {
@@ -306,12 +287,10 @@ function HomeClientPage() {
     onExecutingTaskFound: handleExecutingTaskFound,
   });
 
-  // タスクをページとして開く（ヘッダー表示モード）
   const openTaskInPage = (taskId: number) => {
     router.push(`/tasks/${taskId}?showHeader=true`);
   };
 
-  // クイックタスク追加
   const handleQuickAdd = async () => {
     if (!quickTaskTitle.trim()) return;
 
@@ -331,7 +310,6 @@ function HomeClientPage() {
       setQuickTaskTitle('');
       setIsQuickAdding(false);
       showToast(t('taskCreated'), 'success');
-      // サーバーから最新データを再取得（theme情報を含む）
       await fetchTasks();
     } catch (e) {
       logger.error(e);
@@ -339,7 +317,6 @@ function HomeClientPage() {
     }
   };
 
-  // バルク操作
   const toggleTaskSelection = (taskId: number) => {
     const newSelection = new Set(selectedTasks);
     if (newSelection.has(taskId)) {
@@ -394,11 +371,9 @@ function HomeClientPage() {
     }
   };
 
-  // テーマスクロール制御関数
   const checkThemeScrollPosition = useCallback(() => {
     const scrollElement = themeScrollRef.current;
     if (!scrollElement) {
-      // 要素が見つからない場合は状態をリセット
       setIsScrollNeeded(false);
       setCanScrollLeft(false);
       setCanScrollRight(false);
@@ -435,9 +410,7 @@ function HomeClientPage() {
     });
   }, []);
 
-  // テーマ変更時にスクロール位置をチェック
   useEffect(() => {
-    // データ読み込み後のDOM更新を待つため少し遅延させる
     const timeoutId = setTimeout(() => {
       checkThemeScrollPosition();
     }, 0);
@@ -447,7 +420,6 @@ function HomeClientPage() {
       const handleScroll = () => checkThemeScrollPosition();
       scrollElement.addEventListener('scroll', handleScroll);
 
-      // ResizeObserverでサイズ変更も監視
       const resizeObserver = new ResizeObserver(() =>
         checkThemeScrollPosition(),
       );
@@ -463,10 +435,8 @@ function HomeClientPage() {
     return () => clearTimeout(timeoutId);
   }, [themes, categoryFilter, checkThemeScrollPosition]);
 
-  // テーマの数が変更された時の追加チェック（データ読み込み完了対応）
   useEffect(() => {
     if (themes.length > 0) {
-      // DOM更新後に確実にチェック
       const timeoutId = setTimeout(() => {
         checkThemeScrollPosition();
       }, 100);
@@ -474,19 +444,15 @@ function HomeClientPage() {
     }
   }, [themes.length, checkThemeScrollPosition]);
 
-  // コンポーネントマウント完了後の遅延チェック（ページ遷移対応）
   useEffect(() => {
-    // マウント後少し時間をおいて確実にチェック
     const timeoutId = setTimeout(() => {
       checkThemeScrollPosition();
     }, 200);
     return () => clearTimeout(timeoutId);
   }, [checkThemeScrollPosition]);
 
-  // キーボードショートカット
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // 入力フォーカス中は無効
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -494,7 +460,6 @@ function HomeClientPage() {
         return;
       }
 
-      // Ctrlキー（またはMacのCmdキー）との組み合わせをチェック
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
           case 'n':
@@ -541,15 +506,12 @@ function HomeClientPage() {
     return null;
   };
 
-  // 初回読み込みフラグを追加
   const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
-    // 初回読み込み時のみ実行
     if (hasInitialized) return;
 
     const initialLoad = async () => {
-      // 並列リクエストを最適化
       const requests = {
         tasks: taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks(),
         filterData: initializeFilterData(),
@@ -557,7 +519,6 @@ function HomeClientPage() {
         statistics: fetchTaskStatistics(),
       };
 
-      // タイムアウト付きで初回ロード（ゾンビソケット等でAPIが応答しない場合の対策）
       const INITIAL_LOAD_TIMEOUT = 15000; // 15秒
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
@@ -590,12 +551,10 @@ function HomeClientPage() {
           ? (settingsResult.value as UserSettings)
           : null;
 
-      // カテゴリフィルタが未設定の場合はデフォルトカテゴリを適用
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {
           setCategoryFilter(settings.defaultCategoryId);
         } else if (categories && categories.length > 0) {
-          // defaultCategoryIdも未設定の場合は最初のカテゴリにフォールバック
           setCategoryFilter(categories[0].id);
         }
       }
@@ -604,14 +563,12 @@ function HomeClientPage() {
     initialLoad();
   }, []); // 依存配列を空にして初回のみ実行
 
-  // テーマデータが更新された時にデフォルト設定を実行
   useEffect(() => {
     if (themes.length > 0) {
       setupThemeDefaults();
     }
   }, [themes, setupThemeDefaults]);
 
-  // バックグラウンド更新チェック（5分ごと）
   useEffect(() => {
     const checkBackgroundRefresh = () => {
       if (shouldBackgroundRefresh()) {
@@ -620,10 +577,8 @@ function HomeClientPage() {
       }
     };
 
-    // 初回チェック（1分後）
     const initialTimeout = setTimeout(checkBackgroundRefresh, 60000);
 
-    // 定期チェック（5分ごと）
     const interval = setInterval(checkBackgroundRefresh, 5 * 60 * 1000);
 
     return () => {
@@ -632,7 +587,6 @@ function HomeClientPage() {
     };
   }, [shouldBackgroundRefresh, backgroundRefresh]);
 
-  // フィルタリング計算の最適化
   const visibleCategories = useMemo(() => {
     return categories.filter((cat) => {
       if (appMode === 'all') return true;
@@ -646,7 +600,6 @@ function HomeClientPage() {
     return themes.filter((theme) => theme.categoryId === categoryFilter);
   }, [themes, categoryFilter]);
 
-  // フィルタースケルトン・エラー表示コンポーネント
   const FilterSkeleton = () => (
     <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
       {/* カテゴリタブ（水平スクロール） */}
@@ -676,7 +629,6 @@ function HomeClientPage() {
     </div>
   );
 
-  // フィルターエラー表示コンポーネント
   const FilterError = ({ error }: { error: string }) => (
     <div className="relative overflow-hidden border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 shadow-sm transition-all duration-300 mb-4">
       <div className="flex items-center justify-between px-4 py-3">
@@ -697,7 +649,6 @@ function HomeClientPage() {
     </div>
   );
 
-  // activeModeが変わったとき、現在のカテゴリフィルタが非表示になったら最初の表示カテゴリに切り替え
   useEffect(() => {
     if (visibleCategories.length === 0) return;
 
@@ -706,7 +657,6 @@ function HomeClientPage() {
       if (!isVisible && visibleCategories.length > 0) {
         const newCategoryId = visibleCategories[0].id;
         setCategoryFilter(newCategoryId);
-        // テーマフィルタも調整
         const themesInCategory = themes.filter(
           (t) => t.categoryId === newCategoryId,
         );
@@ -721,18 +671,15 @@ function HomeClientPage() {
     }
   }, [visibleCategories, categoryFilter, themes, setThemeFilter]);
 
-  // フィルター変更時にページを1に戻す
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, categoryFilter, themeFilter, priorityFilter, searchQuery]);
 
-  // ページネーション処理
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedTasks = sortedTasks.slice(startIndex, endIndex);
 
-  // ページ変更時にページ数が超えていたら調整
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
@@ -1561,5 +1508,4 @@ function HomeClientPage() {
   );
 }
 
-// 認証が必要なコンポーネントとしてエクスポート
 export default requireAuth(HomeClientPage);

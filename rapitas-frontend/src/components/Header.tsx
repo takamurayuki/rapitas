@@ -94,7 +94,6 @@ const lineStyle = (delay: string): LineStyle => ({
   '--line-delay': delay,
 });
 
-// パスがタスク詳細ページかどうかを判定するヘルパー関数
 const checkIsTaskDetailPage = (path: string | null): boolean => {
   if (!path) return false;
   return (
@@ -111,15 +110,11 @@ export default function Header() {
   const hideHeader = searchParams.get('hideHeader') === 'true';
   const showHeader = searchParams.get('showHeader') === 'true';
 
-  // タスク詳細ページではヘッダーを非表示
-  // /tasks/[id], /task-detail, /tasks/detail のパターンに対応
-  // ただし、showHeader=true のパラメータがある場合は表示
-  // クライアントサイドでwindow.location.pathnameも確認（iframeでの読み込み時の対応）
+  // NOTE: Also checks window.location.pathname to handle iframe embedding where Next.js pathname may differ.
   const [isTaskDetailPage, setIsTaskDetailPage] = useState(() =>
     checkIsTaskDetailPage(pathname),
   );
 
-  // クライアントサイドでパスを再チェック
   useEffect(() => {
     const windowPath = window.location.pathname;
     const isDetail =
@@ -153,7 +148,6 @@ export default function Header() {
   const t = useTranslations('nav');
   const tc = useTranslations('common');
 
-  // ショートカットIDからラベルを取得するヘルパー
   const getShortcutLabel = (id: ShortcutId): string | undefined => {
     const binding = shortcutBindings.find((s) => s.id === id);
     if (!binding) return undefined;
@@ -165,7 +159,6 @@ export default function Header() {
     return parts.join('');
   };
 
-  // サーバー再起動を実行
   const executeRestart = async () => {
     setIsRestarting(true);
     setRestartConfirmDialog({ open: false, activeExecutions: 0 });
@@ -173,9 +166,8 @@ export default function Header() {
     try {
       await fetch(`${API_BASE_URL}/agents/restart`, { method: 'POST' });
     } catch {
-      // サーバーが停止するため接続エラーは想定内
+      // NOTE: Connection error is expected because the restart kills the server process.
     }
-    // サーバーが再起動するまで待機してからリロード
     const waitForServer = async () => {
       const maxAttempts = 30;
       for (let i = 0; i < maxAttempts; i++) {
@@ -187,17 +179,14 @@ export default function Header() {
             return;
           }
         } catch {
-          // サーバーがまだ起動中
         }
       }
-      // タイムアウトした場合もリロードを試行
       setIsRestarting(false);
       alert(t('restartTimeout'));
     };
     waitForServer();
   };
 
-  // 再起動ボタンのクリックハンドラ
   const handleRestartClick = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/agents/system-status`);
@@ -206,39 +195,32 @@ export default function Header() {
       const activeCount =
         (status.activeExecutions || 0) + (status.runningExecutions || 0);
       if (activeCount > 0) {
-        // 実行中のタスクがある場合は確認ダイアログを表示
         setRestartConfirmDialog({ open: true, activeExecutions: activeCount });
       } else {
-        // 実行中のタスクがない場合は即座に再起動
         executeRestart();
       }
     } catch {
-      // ステータス取得に失敗した場合は確認ダイアログなしで再起動
       executeRestart();
     }
   };
 
-  // ログアウトハンドラ
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
     await logout();
     router.push('/auth/login');
   };
 
-  // ハイドレーション後にマウント済みフラグをセット（認証UIのハイドレーションミスマッチ防止）
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // Tauri環境かどうかを判定
   useEffect(() => {
     setIsTauriEnv(isTauri());
   }, []);
   const menuRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isUpdatingSearchRef = useRef(false); // プログラム的更新をトラック
+  const isUpdatingSearchRef = useRef(false);
 
-  // ピン止め状態をlocalStorageから復元
   useEffect(() => {
     const savedPinned = localStorage.getItem('menuPinned');
     if (savedPinned === 'true') {
@@ -247,22 +229,18 @@ export default function Header() {
     }
   }, []);
 
-  // ピン止め状態をlocalStorageに保存
   useEffect(() => {
     localStorage.setItem('menuPinned', isMenuPinned.toString());
   }, [isMenuPinned]);
 
-  // 検索のデバウンス処理
   useEffect(() => {
-    // 前回のタイマーをクリア
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // ホーム・カンバンページではインラインフィルタリングも維持
     if (pathname === '/' || pathname === '/kanban') {
       debounceTimerRef.current = setTimeout(() => {
-        isUpdatingSearchRef.current = true; // プログラム的更新をマーク
+        isUpdatingSearchRef.current = true;
         if (searchQuery.trim()) {
           router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
         } else {
@@ -274,18 +252,15 @@ export default function Header() {
       }, 300);
     }
 
-    // クリーンアップ
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, pathname, router]); // searchParamsを依存配列から除去 - 循環更新を防ぐ
+  }, [searchQuery, pathname, router]);
 
-  // URLの検索パラメータから初期値を設定（外部変更時のみ）
   useEffect(() => {
-    // プログラム的更新中は同期しない
     if (isUpdatingSearchRef.current) {
       isUpdatingSearchRef.current = false;
       return;
@@ -303,20 +278,18 @@ export default function Header() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, pathname]); // 循環更新防止ガード追加
+  }, [searchParams, pathname]);
 
-  // Enterキーで検索結果ページに遷移
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim()) {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      isUpdatingSearchRef.current = true; // プログラム的更新をマーク
+      isUpdatingSearchRef.current = true;
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
-  // メニュー外をクリックしたら閉じる（固定時は閉じない）
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -337,7 +310,6 @@ export default function Header() {
     };
   }, [isMenuOpen, isMenuPinned]);
 
-  // 三点リーダーメニュー外をクリックしたら閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -357,7 +329,6 @@ export default function Header() {
     };
   }, [isMoreMenuOpen]);
 
-  // ユーザーメニュー外をクリックしたら閉じる
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -377,7 +348,6 @@ export default function Header() {
     };
   }, [isUserMenuOpen]);
 
-  // showHeader=true の場合はタスク詳細ページでもヘッダーを表示
   if (hideHeader || (isTaskDetailPage && !showHeader)) {
     return null;
   }
@@ -631,13 +601,9 @@ export default function Header() {
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/' || pathname === '/kanban';
     if (href === '#') return false;
-    // 完全一致のみをアクティブとする
-    // 子要素がアクティブな場合は isChildActive で別途ハイライトされるため、
-    // ここでは完全一致のみを判定することで、複数項目が同時に選択される問題を防ぐ
     return pathname === href;
   };
 
-  // 再帰的に子要素がアクティブかチェック
   const isChildActive = (item: NavItem): boolean => {
     if (!item.children) return false;
     return item.children.some((child) => {
@@ -656,11 +622,9 @@ export default function Header() {
     }
   };
 
-  // 線を描くアニメーション用の遅延時間（深さと並び順で少しずらす）
   const getLineDelay = (depth: number, order: number) =>
     `${((depth + order) * LINE_DELAY_STEP).toFixed(3)}s`;
 
-  // 再帰的にナビゲーション項目をレンダリング
   const renderNavItem = (
     item: NavItem,
     depth: number,
@@ -673,13 +637,11 @@ export default function Header() {
     const childActive = isChildActive(item);
     const hasValidLink = item.href !== '#';
 
-    // トップレベル（depth === 0）
     if (depth === 0) {
       if (hasChildren) {
         return (
           <div key={item.label}>
             {hasValidLink ? (
-              /* リンクと展開ボタンの両方を持つ項目 */
               <div
                 className={`flex items-center justify-between gap-1 px-4 py-3 rounded-lg transition-all ${
                   active || childActive
@@ -720,7 +682,6 @@ export default function Header() {
                 </button>
               </div>
             ) : (
-              /* 展開のみの項目（リンクなし） */
               <button
                 onClick={() => toggleExpand(item.label)}
                 className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-all ${
@@ -746,7 +707,6 @@ export default function Header() {
                   const isLastChild = index === item.children!.length - 1;
                   return (
                     <div key={child.label} className="relative">
-                      {/* 縦線 */}
                       <div
                         className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? 'h-5' : 'h-full'} ${
                           isExpanded ? 'line-animate-vertical' : ''
@@ -763,7 +723,6 @@ export default function Header() {
         );
       }
 
-      // 子要素なしのトップレベル項目
       return (
         <Link
           key={item.href}
@@ -790,11 +749,9 @@ export default function Header() {
       );
     }
 
-    // ネストされた項目（depth > 0）
     if (hasChildren) {
       return (
         <div key={item.label}>
-          {/* アイテム本体（固定高さ） */}
           <div className="relative h-10 flex items-center">
             <div
               className={`absolute left-0 top-1/2 w-4 h-px bg-zinc-300 dark:bg-zinc-600 ${
@@ -860,14 +817,12 @@ export default function Header() {
               )}
             </div>
           </div>
-          {/* 展開されたコンテンツ（本体とは別） */}
           {isExpanded && (
             <div className="ml-10">
               {item.children!.map((child, index) => {
                 const isLastChild = index === item.children!.length - 1;
                 return (
                   <div key={child.label} className="relative">
-                    {/* 縦線 */}
                     <div
                       className={`absolute left-0 top-0 w-px bg-zinc-300 dark:bg-zinc-600 ${isLastChild ? 'h-5' : 'h-full'} ${
                         parentExpanded ? 'line-animate-vertical' : ''
@@ -888,7 +843,6 @@ export default function Header() {
       );
     }
 
-    // ネストされたリンク項目（子要素なし）
     return (
       <div key={item.href} className="relative h-10 flex items-center">
         <div
@@ -921,7 +875,6 @@ export default function Header() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              {/* ハンバーガーメニューボタン */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -934,7 +887,6 @@ export default function Header() {
                 )}
               </button>
 
-              {/* ロゴ */}
               <Link href="/" className="flex items-center gap-2 group">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center justify-center w-8 h-8 bg-indigo-400 rounded-lg shadow-md">
@@ -947,7 +899,6 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* 検索バー（全ページで表示） */}
             <div className="flex-1 max-w-md mx-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -982,9 +933,7 @@ export default function Header() {
               </div>
             </div>
 
-            {/* 表示切り替えボタン（タスク一覧/カンバンページのみ表示） */}
             <div className="flex items-center gap-3">
-              {/* ポモドーロタイマー表示（タスク詳細ページでは非表示） */}
               {!pathname?.startsWith('/tasks/') && <GlobalPomodoroWidget />}
 
               {(pathname === '/' || pathname === '/kanban') && (
@@ -1014,13 +963,10 @@ export default function Header() {
                 </div>
               )}
 
-              {/* 言語切替 */}
               <LanguageSwitcher />
 
-              {/* 通知ベル */}
               <NotificationBell />
 
-              {/* ユーザーメニュー（認証時のみ表示、hasMountedでハイドレーションミスマッチ防止） */}
               {hasMounted && !isAuthLoading && isAuthenticated && user && (
                 <div className="relative" ref={userMenuRef}>
                   <button
@@ -1033,7 +979,6 @@ export default function Header() {
                   </button>
                   {isUserMenuOpen && (
                     <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-                      {/* ユーザー情報 */}
                       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
                         <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {user.username}
@@ -1045,7 +990,6 @@ export default function Header() {
                           {user.role === 'admin' ? t('admin') : t('user')}
                         </p>
                       </div>
-                      {/* ログアウト */}
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -1058,7 +1002,6 @@ export default function Header() {
                 </div>
               )}
 
-              {/* 三点リーダーメニュー */}
               <div className="relative" ref={moreMenuRef}>
                 <button
                   onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
@@ -1070,7 +1013,6 @@ export default function Header() {
                 </button>
                 {isMoreMenuOpen && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
-                    {/* ノート・AI */}
                     <button
                       onClick={() => {
                         if (modalState.isOpen) {
@@ -1091,7 +1033,6 @@ export default function Header() {
                         {modalState.isOpen ? t('closeNoteAI') : t('openNoteAI')}
                       </span>
                     </button>
-                    {/* ダークモード切り替え */}
                     <button
                       onClick={() => {
                         toggleTheme();
@@ -1109,7 +1050,6 @@ export default function Header() {
                           : t('switchToDark')}
                       </span>
                     </button>
-                    {/* 全体設定 */}
                     <Link
                       href="/settings/general"
                       onClick={() => setIsMoreMenuOpen(false)}
@@ -1118,7 +1058,6 @@ export default function Header() {
                       <Settings className="w-4 h-4" />
                       <span>{t('generalSettings')}</span>
                     </Link>
-                    {/* トレイ格納ボタン（Tauri環境のみ表示） */}
                     {isTauriEnv && (
                       <button
                         onClick={() => {
@@ -1131,9 +1070,7 @@ export default function Header() {
                         <span>{t('minimizeToTray')}</span>
                       </button>
                     )}
-                    {/* 区切り線 */}
                     <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
-                    {/* サーバー再起動 */}
                     <button
                       onClick={handleRestartClick}
                       disabled={isRestarting}
@@ -1156,14 +1093,12 @@ export default function Header() {
         </div>
       </header>
 
-      {/* サイドバーメニュー */}
       <nav
         ref={menuRef}
         className={`fixed left-0 top-0 h-full w-72 flex flex-col bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
           isMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* ヘッダー */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-400 shadow-md">
@@ -1191,13 +1126,11 @@ export default function Header() {
           </button>
         </div>
 
-        {/* ナビゲーション項目 */}
         <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
           <div className="p-4 space-y-1 flex-1">
             {filteredNavItems.map((item) => renderNavItem(item, 0))}
           </div>
 
-          {/* ショートカットヘルプ */}
           <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
             <button
               onClick={() => {
@@ -1220,7 +1153,6 @@ export default function Header() {
         </div>
       </nav>
 
-      {/* 再起動確認ダイアログ */}
       {restartConfirmDialog.open && (
         <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-6 max-w-sm mx-4">
@@ -1254,7 +1186,6 @@ export default function Header() {
         </div>
       )}
 
-      {/* 再起動中オーバーレイ */}
       {isRestarting && (
         <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-zinc-800 rounded-xl shadow-2xl p-8 flex flex-col items-center gap-4">

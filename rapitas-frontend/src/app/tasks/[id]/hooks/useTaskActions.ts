@@ -34,7 +34,6 @@ export function useTaskActions({
 }: UseTaskActionsParams) {
   const router = useRouter();
 
-  // --- Edit form state ---
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -44,14 +43,12 @@ export function useTaskActions({
   const [editEstimatedHours, setEditEstimatedHours] = useState('');
   const [editPriority, setEditPriority] = useState<Priority>('medium');
 
-  // --- Subtask adding state ---
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
   const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
   const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
 
-  // --- Subtask editing state ---
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [editingSubtaskDescription, setEditingSubtaskDescription] =
@@ -69,7 +66,6 @@ export function useTaskActions({
     'all' | 'selected' | null
   >(null);
 
-  // --- Task CRUD ---
 
   const updateStatus = useCallback(
     async (taskId: number, newStatus: string) => {
@@ -244,7 +240,6 @@ export function useTaskActions({
     }
   }, [resolvedTaskId, setTask]);
 
-  // --- Subtask creation ---
 
   const toggleAddSubtask = useCallback(() => {
     setIsAddingSubtask((prev) => !prev);
@@ -319,7 +314,6 @@ export function useTaskActions({
     onTaskUpdated,
   ]);
 
-  // --- Subtask operations ---
 
   const startEditingSubtask = useCallback((subtask: Task) => {
     setEditingSubtaskId(subtask.id);
@@ -525,7 +519,6 @@ export function useTaskActions({
   }, [deleteAllSubtasks]);
 
   return {
-    // Edit form state
     isEditing,
     editTitle,
     setEditTitle,
@@ -541,7 +534,6 @@ export function useTaskActions({
     setEditEstimatedHours,
     editPriority,
     setEditPriority,
-    // Subtask adding state
     isAddingSubtask,
     newSubtaskTitle,
     setNewSubtaskTitle,
@@ -554,7 +546,6 @@ export function useTaskActions({
     toggleAddSubtask,
     cancelAddSubtask,
     addSubtask,
-    // Subtask editing state
     editingSubtaskId,
     editingSubtaskTitle,
     setEditingSubtaskTitle,
@@ -570,7 +561,6 @@ export function useTaskActions({
     selectedSubtaskIds,
     showSubtaskDeleteConfirm,
     setShowSubtaskDeleteConfirm,
-    // Task CRUD actions
     updateStatus,
     startEditing,
     cancelEditing,
@@ -578,7 +568,6 @@ export function useTaskActions({
     deleteTask,
     duplicateTask,
     refetchTask,
-    // Subtask actions
     startEditingSubtask,
     cancelEditingSubtask,
     saveSubtaskEdit,

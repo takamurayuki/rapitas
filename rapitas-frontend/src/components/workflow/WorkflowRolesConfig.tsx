@@ -138,7 +138,6 @@ export default function WorkflowRolesConfig({
   const [saveSuccess, setSaveSuccess] = useState<WorkflowRole | null>(null);
   const [expandedRole, setExpandedRole] = useState<WorkflowRole | null>(null);
 
-  // ワークフロー用システムプロンプトを取得
   useEffect(() => {
     const fetchPrompts = async () => {
       try {
@@ -166,7 +165,6 @@ export default function WorkflowRolesConfig({
     agentConfigId: number | null,
   ) => {
     setSavingRole(role);
-    // エージェント変更時にモデルIDをリセット
     const result = await updateRole(role, { agentConfigId, modelId: null });
     setSavingRole(null);
     if (result.success) {
@@ -206,7 +204,6 @@ export default function WorkflowRolesConfig({
     setSavingRole(null);
   };
 
-  // 選択中のエージェントに対応するモデル一覧を取得
   const getModelsForRole = (roleKey: WorkflowRole): ModelOption[] => {
     const roleData = roles.find((r) => r.role === roleKey);
     if (!roleData?.agentConfig) return [];

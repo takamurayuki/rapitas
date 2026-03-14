@@ -36,7 +36,6 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AgentMemoryPage');
 
-// --- Types ---
 interface GrowthTimelineEntry {
   date: string;
   knowledgeNodes: number;
@@ -92,7 +91,6 @@ interface MemoryOverview {
   }>;
 }
 
-// --- Constants ---
 const PIE_COLORS = [
   '#6366f1',
   '#8b5cf6',
@@ -817,8 +815,6 @@ export default function AgentMemoryPage() {
     </div>
   );
 }
-
-// --- Sub Components ---
 
 function GrowthBadge({ value, label }: { value: number; label: string }) {
   return (

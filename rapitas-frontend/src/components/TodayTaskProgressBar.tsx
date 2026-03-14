@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Activity, Award, Zap, Trophy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-// --- Cynical & Motivational Messages ---
 const PROGRESS_MESSAGES = [
   'Surprisingly adequate.',
   'Is that all?',
@@ -16,7 +15,6 @@ const PROGRESS_MESSAGES = [
   'Absolute perfection. Finally.',
 ];
 
-// --- Fabulous Golden Particle ---
 const GoldParticle = ({
   x,
   y,
@@ -46,7 +44,6 @@ const GoldParticle = ({
   );
 };
 
-// --- Cynical Reward Popup ---
 const CynicalPopup = ({ x, y, msg }: { x: number; y: number; msg: string }) => {
   return (
     <motion.div
@@ -189,7 +186,6 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
       );
     }
 
-    // Full version
     return (
       <>
         <div

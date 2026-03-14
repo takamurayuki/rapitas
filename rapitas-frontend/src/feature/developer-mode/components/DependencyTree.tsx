@@ -30,7 +30,6 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('DependencyTree');
 
-// Types
 type DependencyInfo = {
   taskId: number;
   title: string;
@@ -83,7 +82,6 @@ type Props = {
   taskId: number;
 };
 
-// ツリーノードコンポーネント
 function TreeNodeItem({
   node,
   isExpanded,
@@ -119,7 +117,6 @@ function TreeNodeItem({
             : ''
         }`}
       >
-        {/* 展開ボタン */}
         <button
           onClick={onToggle}
           className={`p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 ${
@@ -133,26 +130,22 @@ function TreeNodeItem({
           )}
         </button>
 
-        {/* ステータスアイコン */}
         {node.canRunParallel ? (
           <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
         ) : (
           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
         )}
 
-        {/* タスク名 */}
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1">
           {node.title}
         </span>
 
-        {/* 独立性スコア */}
         <span
           className={`px-2 py-0.5 text-xs rounded ${getScoreBgColor(node.independenceScore)} ${getScoreColor(node.independenceScore)}`}
         >
           {node.independenceScore}%
         </span>
 
-        {/* ファイル数 */}
         {node.files.length > 0 && (
           <span className="flex items-center gap-1 text-xs text-zinc-500">
             <FileCode className="w-3 h-3" />
@@ -161,15 +154,13 @@ function TreeNodeItem({
         )}
       </div>
 
-      {/* 展開時の詳細 */}
       {isExpanded && (
         <div className="ml-10 mt-1 space-y-2">
-          {/* 依存関係 */}
           {hasDependencies && (
             <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
               <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-1">
                 <Link2 className="w-3 h-3" />
-                <span className="font-medium">依存関係</span>
+                <span className="font-medium">Dependencies</span>
               </div>
               <div className="space-y-1">
                 {node.dependsOn.map((dep) => (
@@ -187,12 +178,11 @@ function TreeNodeItem({
             </div>
           )}
 
-          {/* ファイル一覧 */}
           {node.files.length > 0 && (
             <div className="p-2 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
               <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 mb-1">
                 <FileCode className="w-3 h-3" />
-                <span className="font-medium">関連ファイル</span>
+                <span className="font-medium">Related Files</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {node.files.slice(0, 10).map((file, i) => (
@@ -212,7 +202,6 @@ function TreeNodeItem({
             </div>
           )}
 
-          {/* 子ノード */}
           {node.children.map((child) => (
             <TreeNodeItem
               key={child.id}
@@ -233,7 +222,6 @@ export function DependencyTree({ taskId }: Props) {
   const [viewMode, setViewMode] = useState<'tree' | 'list' | 'groups'>('tree');
   const [useSSEMode, setUseSSEMode] = useState(true);
 
-  // SSE フックを使用
   const {
     isLoading,
     progress,
@@ -259,18 +247,15 @@ export function DependencyTree({ taskId }: Props) {
     },
   });
 
-  // 通常のフェッチ用の状態
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isLoadingFallback, setIsLoadingFallback] = useState(false);
   const [errorFallback, setErrorFallback] = useState<string | null>(null);
 
-  // SSE分析を開始
   const startSSEAnalysis = useCallback(() => {
     reset();
     connect(`${API_BASE_URL}/tasks/${taskId}/dependency-analysis/stream`);
   }, [taskId, connect, reset]);
 
-  // フォールバック用の通常フェッチ
   const fetchAnalysisFallback = useCallback(async () => {
     setIsLoadingFallback(true);
     setErrorFallback(null);
@@ -283,18 +268,17 @@ export function DependencyTree({ taskId }: Props) {
         setAnalysis(data);
       } else {
         const errData = await res.json();
-        throw new Error(errData.error || '分析に失敗しました');
+        throw new Error(errData.error || 'Analysis failed');
       }
     } catch (err) {
       setErrorFallback(
-        err instanceof Error ? err.message : 'エラーが発生しました',
+        err instanceof Error ? err.message : 'An error occurred',
       );
     } finally {
       setIsLoadingFallback(false);
     }
   }, [taskId]);
 
-  // 初回マウント時にSSE分析を開始
   useEffect(() => {
     if (useSSEMode) {
       startSSEAnalysis();
@@ -315,7 +299,6 @@ export function DependencyTree({ taskId }: Props) {
     });
   };
 
-  // 現在のデータソースを取得
   const currentAnalysis = useSSEMode ? sseData : analysis;
   const currentIsLoading = useSSEMode ? isLoading : isLoadingFallback;
   const currentError = useSSEMode
@@ -335,7 +318,6 @@ export function DependencyTree({ taskId }: Props) {
     setExpandedNodes(new Set());
   };
 
-  // リトライ中の表示
   if (retryInfo && isLoading) {
     return (
       <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
@@ -343,7 +325,7 @@ export function DependencyTree({ taskId }: Props) {
           <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin" />
           <div>
             <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              リトライ中... ({retryInfo.retryCount}/{retryInfo.maxRetries})
+              Retrying... ({retryInfo.retryCount}/{retryInfo.maxRetries})
             </p>
             <p className="text-xs text-amber-600 dark:text-amber-400">
               {retryInfo.reason}
@@ -362,7 +344,6 @@ export function DependencyTree({ taskId }: Props) {
     );
   }
 
-  // ロールバック通知
   if (rollbackInfo) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
@@ -370,7 +351,7 @@ export function DependencyTree({ taskId }: Props) {
           <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
           <div>
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              処理に失敗しました
+              Processing failed
             </p>
             <p className="text-xs text-red-600 dark:text-red-400">
               {rollbackInfo.rollbackReason}
@@ -378,7 +359,7 @@ export function DependencyTree({ taskId }: Props) {
           </div>
         </div>
         <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-          エラー詳細: {rollbackInfo.errorDetails}
+          Error details: {rollbackInfo.errorDetails}
         </p>
         <div className="flex gap-2">
           <button
@@ -386,7 +367,7 @@ export function DependencyTree({ taskId }: Props) {
             className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
-            再試行
+            Retry
           </button>
           <button
             onClick={() => {
@@ -395,14 +376,13 @@ export function DependencyTree({ taskId }: Props) {
             }}
             className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
           >
-            通常モードで試す
+            Try normal mode
           </button>
         </div>
       </div>
     );
   }
 
-  // 読み込み中（進捗バー付き）
   if (currentIsLoading) {
     return (
       <div className="space-y-4">
@@ -422,13 +402,12 @@ export function DependencyTree({ taskId }: Props) {
     );
   }
 
-  // エラー表示
   if (currentError) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
         <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
           <AlertTriangle className="w-4 h-4" />
-          <span className="text-sm font-medium">エラーが発生しました</span>
+          <span className="text-sm font-medium">An error occurred</span>
         </div>
         <p className="text-sm text-red-600 dark:text-red-400 mb-3">
           {currentError.error}
@@ -439,7 +418,7 @@ export function DependencyTree({ taskId }: Props) {
             className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
-            再試行
+            Retry
           </button>
           {useSSEMode && (
             <button
@@ -449,7 +428,7 @@ export function DependencyTree({ taskId }: Props) {
               }}
               className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
             >
-              通常モードで試す
+              Try normal mode
             </button>
           )}
         </div>
@@ -463,12 +442,11 @@ export function DependencyTree({ taskId }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="w-5 h-5 text-violet-600 dark:text-violet-400" />
           <span className="font-medium text-zinc-900 dark:text-zinc-100">
-            依存度分析
+            Dependency Analysis
           </span>
           {useSSEMode && (
             <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
@@ -481,7 +459,7 @@ export function DependencyTree({ taskId }: Props) {
             onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
             disabled={currentIsLoading}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
-            title="更新"
+            title="Refresh"
           >
             <RefreshCw
               className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`}
@@ -490,12 +468,11 @@ export function DependencyTree({ taskId }: Props) {
         </div>
       </div>
 
-      {/* サマリー */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
             <Layers className="w-3 h-3" />
-            タスク数
+            Tasks
           </div>
           <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
             {currentAnalysis.summary.totalTasks}
@@ -504,7 +481,7 @@ export function DependencyTree({ taskId }: Props) {
         <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mb-1">
             <Unlink className="w-3 h-3" />
-            独立タスク
+            Independent
           </div>
           <div className="text-lg font-bold text-green-700 dark:text-green-300">
             {currentAnalysis.summary.independentTasks}
@@ -513,7 +490,7 @@ export function DependencyTree({ taskId }: Props) {
         <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1">
             <Link2 className="w-3 h-3" />
-            依存タスク
+            Dependent
           </div>
           <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
             {currentAnalysis.summary.dependentTasks}
@@ -522,7 +499,7 @@ export function DependencyTree({ taskId }: Props) {
         <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
           <div className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 mb-1">
             <Zap className="w-3 h-3" />
-            平均独立性
+            Avg Independence
           </div>
           <div className="text-lg font-bold text-violet-700 dark:text-violet-300">
             {currentAnalysis.summary.averageIndependence}%
@@ -530,7 +507,6 @@ export function DependencyTree({ taskId }: Props) {
         </div>
       </div>
 
-      {/* ビューモード切り替え */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
         <button
           onClick={() => setViewMode('tree')}
@@ -540,7 +516,7 @@ export function DependencyTree({ taskId }: Props) {
               : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
-          ツリー表示
+          Tree View
         </button>
         <button
           onClick={() => setViewMode('list')}
@@ -550,7 +526,7 @@ export function DependencyTree({ taskId }: Props) {
               : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
-          リスト表示
+          List View
         </button>
         <button
           onClick={() => setViewMode('groups')}
@@ -560,24 +536,23 @@ export function DependencyTree({ taskId }: Props) {
               : 'text-zinc-500 hover:text-zinc-700'
           }`}
         >
-          グループ表示
+          Group View
         </button>
         <div className="flex-1" />
         <button
           onClick={expandAll}
           className="text-xs text-zinc-500 hover:text-zinc-700"
         >
-          すべて展開
+          Expand All
         </button>
         <button
           onClick={collapseAll}
           className="text-xs text-zinc-500 hover:text-zinc-700"
         >
-          すべて折りたたむ
+          Collapse All
         </button>
       </div>
 
-      {/* コンテンツ */}
       <div className="max-h-96 overflow-y-auto">
         {viewMode === 'tree' && (
           <div className="space-y-1">
@@ -593,7 +568,7 @@ export function DependencyTree({ taskId }: Props) {
               <div className="text-center py-8 text-zinc-500">
                 <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">
-                  分析対象のサブタスクまたはプロンプトがありません
+                  No subtasks or prompts to analyze
                 </p>
               </div>
             )}
@@ -629,19 +604,19 @@ export function DependencyTree({ taskId }: Props) {
                             : 'bg-red-100 dark:bg-red-900/30 text-red-600'
                       }`}
                     >
-                      独立性: {item.independenceScore}%
+                      Independence: {item.independenceScore}%
                     </span>
                   </div>
                   {item.dependencies.length > 0 && (
                     <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="font-medium">依存先:</span>{' '}
+                      <span className="font-medium">Dependencies:</span>{' '}
                       {item.dependencies.map((d) => d.title).join(', ')}
                     </div>
                   )}
                   {item.files.length > 0 && (
                     <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      <span className="font-medium">ファイル:</span>{' '}
-                      {item.files.length}件
+                      <span className="font-medium">Files:</span>{' '}
+                      {item.files.length}
                     </div>
                   )}
                 </div>
@@ -665,14 +640,14 @@ export function DependencyTree({ taskId }: Props) {
                     <>
                       <Zap className="w-4 h-4 text-green-600 dark:text-green-400" />
                       <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                        並列実行可能 ({group.tasks.length}件)
+                        Parallel execution ({group.tasks.length} tasks)
                       </span>
                     </>
                   ) : (
                     <>
                       <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                       <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                        順次実行推奨 ({group.tasks.length}件)
+                        Sequential execution ({group.tasks.length} tasks)
                       </span>
                     </>
                   )}
@@ -696,28 +671,27 @@ export function DependencyTree({ taskId }: Props) {
             {currentAnalysis.parallelGroups.length === 0 && (
               <div className="text-center py-8 text-zinc-500">
                 <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">グループ化できるタスクがありません</p>
+                <p className="text-sm">No tasks can be grouped</p>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* 凡例 */}
       <div className="flex items-center gap-4 pt-3 border-t border-zinc-200 dark:border-zinc-700 text-xs text-zinc-500">
         <div className="flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3 text-green-500" />
-          <span>並列実行可能</span>
+          <span>Parallel execution</span>
         </div>
         <div className="flex items-center gap-1">
           <AlertTriangle className="w-3 h-3 text-amber-500" />
-          <span>依存関係あり</span>
+          <span>Has dependencies</span>
         </div>
         <div className="flex items-center gap-1">
           <span className="px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 rounded">
             80%+
           </span>
-          <span>高い独立性</span>
+          <span>High independence</span>
         </div>
       </div>
     </div>

@@ -112,7 +112,6 @@ export default function ShortcutSettingsPage() {
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
 
-  // --- グローバルショートカット (Tauri) ---
   const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(
     DEFAULT_GLOBAL_SHORTCUT,
   );
@@ -129,7 +128,6 @@ export default function ShortcutSettingsPage() {
   } | null>(null);
   const [isRecordingGlobal, setIsRecordingGlobal] = useState(false);
 
-  // --- アプリ内ショートカット ---
   const {
     shortcuts,
     updateShortcut,
@@ -154,7 +152,6 @@ export default function ShortcutSettingsPage() {
     setIsTauriEnv(isTauri());
   }, []);
 
-  // --- グローバルショートカットの読み込み ---
   const loadGlobalShortcut = useCallback(async () => {
     if (!isTauriEnv) {
       const saved = localStorage.getItem('globalShortcut');
@@ -189,7 +186,6 @@ export default function ShortcutSettingsPage() {
     loadGlobalShortcut();
   }, [loadGlobalShortcut]);
 
-  // --- グローバルショートカットのキーボード入力 ---
   useEffect(() => {
     if (!isRecordingGlobal) return;
 
@@ -229,7 +225,6 @@ export default function ShortcutSettingsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isRecordingGlobal]);
 
-  // --- アプリ内ショートカットのキーボード入力 ---
   useEffect(() => {
     if (!isRecordingInApp || !editingId) return;
 
@@ -265,7 +260,6 @@ export default function ShortcutSettingsPage() {
       setEditBinding(binding);
       setIsRecordingInApp(false);
 
-      // 重複チェック
       const dup = findDuplicate(editingId, binding);
       if (dup) {
         setDuplicateWarning(t('duplicateWith', { label: dup.label }));
@@ -363,7 +357,6 @@ export default function ShortcutSettingsPage() {
   const handleSaveInApp = () => {
     if (!editingId || !editBinding) return;
 
-    // 重複チェック
     const dup = findDuplicate(editingId, editBinding);
     if (dup) {
       setInAppMessage({
@@ -382,7 +375,6 @@ export default function ShortcutSettingsPage() {
   };
 
   const handleResetInApp = (id: ShortcutId) => {
-    // リセット先のデフォルト値が他のショートカットと重複しないかチェック
     const def = getDefault(id);
     if (def) {
       const dup = findDuplicate(id, def);
@@ -421,7 +413,6 @@ export default function ShortcutSettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* ヘッダー */}
       <div className="flex items-center gap-4 mb-8">
         <div className="flex items-center justify-center w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
           <Keyboard className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -436,7 +427,6 @@ export default function ShortcutSettingsPage() {
         </div>
       </div>
 
-      {/* ===== セクション1: グローバルショートカット ===== */}
       <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
           {t('globalShortcuts')}
@@ -445,7 +435,6 @@ export default function ShortcutSettingsPage() {
           {t('globalDescription')}
         </p>
 
-        {/* 現在の設定 */}
         <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -457,7 +446,6 @@ export default function ShortcutSettingsPage() {
           </div>
         </div>
 
-        {/* キーボード入力モード */}
         <div className="mb-4">
           <button
             onClick={() => setIsRecordingGlobal(!isRecordingGlobal)}
@@ -482,7 +470,6 @@ export default function ShortcutSettingsPage() {
           <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
         </div>
 
-        {/* 修飾キー */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
             {t('modifierKeys')}
@@ -504,7 +491,6 @@ export default function ShortcutSettingsPage() {
           </div>
         </div>
 
-        {/* キー選択 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
             {t('key')}
@@ -525,7 +511,6 @@ export default function ShortcutSettingsPage() {
           </select>
         </div>
 
-        {/* プレビュー */}
         {hasGlobalChanges && (
           <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between">
@@ -539,7 +524,6 @@ export default function ShortcutSettingsPage() {
           </div>
         )}
 
-        {/* メッセージ */}
         {globalMessage && (
           <div
             className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
@@ -557,7 +541,6 @@ export default function ShortcutSettingsPage() {
           </div>
         )}
 
-        {/* ボタン */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleSaveGlobal}
@@ -585,7 +568,6 @@ export default function ShortcutSettingsPage() {
         </div>
       </div>
 
-      {/* ===== セクション2: アプリ内ショートカット ===== */}
       <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -605,7 +587,6 @@ export default function ShortcutSettingsPage() {
           </button>
         </div>
 
-        {/* メッセージ */}
         {inAppMessage && (
           <div
             className={`flex items-center gap-2 p-3 rounded-lg mb-4 ${
@@ -623,7 +604,6 @@ export default function ShortcutSettingsPage() {
           </div>
         )}
 
-        {/* ショートカット一覧 */}
         <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
           {shortcuts.map((shortcut) => {
             const isEditing = editingId === shortcut.id;
@@ -670,10 +650,8 @@ export default function ShortcutSettingsPage() {
                   </div>
                 </div>
 
-                {/* 編集モード */}
                 {isEditing && editBinding && (
                   <div className="mt-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                    {/* キーボード入力 */}
                     <button
                       onClick={() => setIsRecordingInApp(!isRecordingInApp)}
                       className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed transition-all mb-3 ${
@@ -688,7 +666,6 @@ export default function ShortcutSettingsPage() {
                       </span>
                     </button>
 
-                    {/* プレビュー */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {t('newKey')}
@@ -698,7 +675,6 @@ export default function ShortcutSettingsPage() {
                       </kbd>
                     </div>
 
-                    {/* 重複警告 */}
                     {duplicateWarning && (
                       <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg mb-3">
                         <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -706,7 +682,6 @@ export default function ShortcutSettingsPage() {
                       </div>
                     )}
 
-                    {/* ボタン */}
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleSaveInApp}
@@ -731,7 +706,6 @@ export default function ShortcutSettingsPage() {
         </div>
       </div>
 
-      {/* 補足情報 */}
       <div className="bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800/30 p-4">
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />

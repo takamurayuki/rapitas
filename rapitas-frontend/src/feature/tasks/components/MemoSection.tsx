@@ -6,7 +6,6 @@ import {
   Trash2,
   Pencil,
   X,
-  Search,
   ChevronDown,
   ChevronUp,
   CornerDownRight,
@@ -24,11 +23,9 @@ import {
   ChevronLeft,
   History,
   TrendingUp,
-  Calendar,
   User,
   GitCommit,
   Brain,
-  Star,
   Sparkles,
   Eye,
   EyeOff,
@@ -43,8 +40,6 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('MemoSection');
-
-// Types
 
 type MemoType = 'work-log' | 'idea' | 'issue' | 'solution' | 'general';
 
@@ -75,13 +70,12 @@ type MemoAnalysis = {
 type NoteData = Comment & {
   time: string;
   replies?: NoteData[];
-  memoType?: MemoType; // メモタイプ情報（ローカルに保存）
-  isPinned?: boolean; // ピン留めフラグ（ローカルに保存）
-  analysis?: MemoAnalysis; // AI分析結果（ローカルに保存）
-  showAnalysis?: boolean; // 分析結果表示フラグ
+  memoType?: MemoType;
+  isPinned?: boolean;
+  analysis?: MemoAnalysis;
+  showAnalysis?: boolean;
 };
 
-// タスク履歴のモックデータ生成関数
 const generateMockTaskActivities = (taskId: number): TaskActivity[] => [
   {
     id: `${taskId}-1`,
@@ -110,10 +104,9 @@ const generateMockTaskActivities = (taskId: number): TaskActivity[] => [
   },
 ];
 
-// メモ分析のモック関数
+// HACK: Mock implementation — replace with actual AI API call when backend endpoint is ready.
 const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
-  // 実際の実装ではAI APIを呼び出す
-  await new Promise((resolve) => setTimeout(resolve, 1500)); // API呼び出しをシミュレート
+  await new Promise((resolve) => setTimeout(resolve, 1500));
 
   const length = content.length;
   const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(
@@ -122,18 +115,15 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   const hasIssueWords = /問題|エラー|バグ|課題|困る|難しい|失敗/.test(content);
   const hasPositiveWords = /完了|成功|良い|改善|進捗|解決/.test(content);
 
-  // 重要度判定のロジック
   let importance: MemoAnalysis['importance'] = 'low';
   if (hasActionWords || hasIssueWords || length > 100) importance = 'medium';
   if (hasIssueWords && hasActionWords) importance = 'high';
   if (length > 200) importance = 'high';
 
-  // 感情分析
   let sentiment: MemoAnalysis['sentiment'] = 'neutral';
   if (hasPositiveWords) sentiment = 'positive';
   if (hasIssueWords) sentiment = 'negative';
 
-  // キーワード抽出（簡単な実装）
   const keywords: string[] = [];
   const keywordMatches =
     content.match(/\b[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+\b/g) || [];
@@ -157,7 +147,6 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
     }
   });
 
-  // アクションアイテム抽出
   const actionItems: string[] = [];
   const actionMatches = content.match(/[・\-\*]\s*(.+)/g) || [];
   actionMatches.forEach((match) => {
@@ -165,7 +154,6 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
     if (item) actionItems.push(item);
   });
 
-  // 要約生成（簡単な実装）
   let summary =
     content.length > 50 ? content.substring(0, 47) + '...' : content;
 
@@ -175,9 +163,9 @@ const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   return {
     summary,
     importance,
-    keywords: keywords.slice(0, 5), // 上位5個まで
+    keywords: keywords.slice(0, 5),
     sentiment,
-    actionItems: actionItems.slice(0, 3), // 上位3個まで
+    actionItems: actionItems.slice(0, 3),
     analyzedAt: new Date().toISOString(),
   };
 };
@@ -328,7 +316,6 @@ const timeAgo = (d: Date) => {
   return `${Math.floor(days / 30)}ヶ月前`;
 };
 
-// Note Component
 const Note = memo(function Note({
   note,
   depth = 0,
@@ -373,7 +360,6 @@ const Note = memo(function Note({
   const indent = Math.min(depth, 4);
   const isHighlighted = highlightedNoteId === note.id;
 
-  // ローカルストレージからメモタイプとピン留め情報を取得
   const savedMemoData = useMemo(() => {
     try {
       const saved = localStorage.getItem(`memo-data-${note.id}`);
@@ -390,7 +376,6 @@ const Note = memo(function Note({
   const typeConfig = MEMO_TYPE_CONFIG[memoType];
   const TypeIcon = typeConfig.icon;
 
-  // 分析状態
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   return (
@@ -524,7 +509,6 @@ const Note = memo(function Note({
                           `memo-data-${note.id}`,
                           JSON.stringify(newMemoData),
                         );
-                        // コンポーネントを再レンダリングするためにダミーの状態更新をトリガー
                         window.dispatchEvent(new Event('storage'));
                       }}
                       className={`p-1 transition-colors rounded ${
@@ -877,14 +861,12 @@ const TaskTimeline = memo(function TaskTimeline({
     [taskId],
   );
 
-  // メモと履歴を統合して時系列順に並べる
   const timelineItems = useMemo(() => {
     const items: Array<
       | { type: 'activity'; data: TaskActivity; timestamp: string }
       | { type: 'memo'; data: NoteData; timestamp: string }
     > = [];
 
-    // タスク履歴を追加
     activities.forEach((activity) => {
       items.push({
         type: 'activity',
@@ -893,7 +875,6 @@ const TaskTimeline = memo(function TaskTimeline({
       });
     });
 
-    // メモを追加（トップレベルのみ、リプライは除外）
     notes.forEach((note) => {
       items.push({
         type: 'memo',
@@ -902,7 +883,6 @@ const TaskTimeline = memo(function TaskTimeline({
       });
     });
 
-    // 時系列でソート（新しい順）
     return items.sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
@@ -1102,10 +1082,9 @@ export default function MemoSection({
   const [showFilters, setShowFilters] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
-  const [storageUpdate, setStorageUpdate] = useState(0); // ローカルストレージ更新のトリガー
+  const [storageUpdate, setStorageUpdate] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ローカルストレージの変更を監視
   useEffect(() => {
     const handleStorageChange = () => setStorageUpdate((prev) => prev + 1);
     window.addEventListener('storage', handleStorageChange);
@@ -1114,7 +1093,6 @@ export default function MemoSection({
 
   const notes = useMemo(() => {
     const process = (c: Comment): NoteData => {
-      // ローカルストレージからメモデータを取得
       let memoData: Record<string, unknown> = {};
       try {
         const saved = localStorage.getItem(`memo-data-${c.id}`);
@@ -1134,13 +1112,11 @@ export default function MemoSection({
 
     const processedNotes = comments.filter((c) => !c.parentId).map(process);
 
-    // フィルタリング
     const filtered =
       filterType === 'all'
         ? processedNotes
         : processedNotes.filter((note) => note.memoType === filterType);
 
-    // ソート: ピン留め優先、その後は作成日時順
     return filtered.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
@@ -1178,10 +1154,8 @@ export default function MemoSection({
   }, []);
   const handleSubmit = async () => {
     if (newComment.trim()) {
-      // 新しいコメントを追加し、作成されたコメントのIDを取得
       const newCommentId = await onAddComment(newComment);
 
-      // 作成されたコメントにメモタイプを設定
       if (newCommentId && selectedMemoType !== 'general') {
         const memoData = { memoType: selectedMemoType, isPinned: false };
         localStorage.setItem(
@@ -1191,10 +1165,8 @@ export default function MemoSection({
         setStorageUpdate((prev) => prev + 1);
       }
 
-      // メモタイプを一般に戻す
       setSelectedMemoType('general');
 
-      // 入力内容をクリア
       onNewCommentChange('');
     }
   };
@@ -1310,7 +1282,6 @@ export default function MemoSection({
             <div className="flex items-center gap-2 px-1 mt-2">
               <button
                 onClick={async () => {
-                  // 未分析のメモを一括分析
                   const unanalyzedNotes = notes.filter((note) => {
                     try {
                       const saved = localStorage.getItem(

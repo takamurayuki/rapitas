@@ -1,3 +1,9 @@
+/**
+ * ThemesPage
+ *
+ * Manages CRUD operations, drag-and-drop reordering, and directory
+ * validation for themes within each category.
+ */
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import {
@@ -43,12 +49,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('ThemesPage');
 
-// 作業ディレクトリをお気に入りに自動登録する関数
 const addWorkingDirectoryToFavorites = async (path: string) => {
   if (!path.trim()) return;
 
   try {
-    // まず既にお気に入りに登録されているか確認
     const checkRes = await fetch(`${API_BASE_URL}/directories/favorites`);
     const favorites = await checkRes.json();
 
@@ -59,7 +63,6 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
     );
     if (isAlreadyFavorite) return;
 
-    // お気に入りに追加
     await fetch(`${API_BASE_URL}/directories/favorites`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -119,7 +122,6 @@ export default function ThemesPage() {
   );
   const [initialCategorySet, setInitialCategorySet] = useState(false);
 
-  // 作業ディレクトリの存在チェック
   const checkDirectory = async (dirPath: string) => {
     if (!dirPath.trim()) {
       setDirStatus({ checking: false, exists: null, isGitRepo: false });
@@ -142,10 +144,8 @@ export default function ThemesPage() {
         isGitRepo: data.isGitRepo || false,
       });
 
-      // フォルダが存在しない場合、新規作成UIを表示
       if (!data.valid) {
         setShowCreateFolder(true);
-        // パスの最後のセグメントをフォルダ名のデフォルトとして設定
         const segments = dirPath.replace(/[\\/]+$/, '').split(/[\\/]/);
         setNewFolderName(segments[segments.length - 1] || '');
       } else {
@@ -157,7 +157,6 @@ export default function ThemesPage() {
     }
   };
 
-  // 新規フォルダ作成
   const handleCreateDirectory = async () => {
     const dirPath = formData.workingDirectory.trim();
     if (!dirPath) return;
@@ -187,21 +186,18 @@ export default function ThemesPage() {
     }
   };
 
-  // 親ディレクトリ + 新フォルダ名でパスを構成して作成
   const handleCreateNewFolder = async () => {
     if (!newFolderName.trim()) {
       showToast(t('folderNameRequired'), 'error');
       return;
     }
 
-    // フォルダ名のバリデーション
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(newFolderName)) {
       showToast(t('folderNameInvalid'), 'error');
       return;
     }
 
-    // 現在の作業ディレクトリパスの親ディレクトリを取得
     const currentPath = formData.workingDirectory.trim();
     const parentPath = currentPath.replace(/[\\/][^\\/]*[\\/]?$/, '');
     const separator = currentPath.includes('\\') ? '\\' : '/';
@@ -219,7 +215,6 @@ export default function ThemesPage() {
 
       if (data.success) {
         showToast(t('folderCreated'), 'success');
-        // 作成したフォルダをworkingDirectoryに設定
         setFormData({ ...formData, workingDirectory: data.path });
         setDirStatus({ checking: false, exists: true, isGitRepo: false });
         setShowCreateFolder(false);
@@ -264,7 +259,6 @@ export default function ThemesPage() {
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
-        // 初回ロード時: 最初のカテゴリを選択し、フォームにもカテゴリの初期値を設定
         if (data.length > 0) {
           if (!initialCategorySet) {
             setSelectedCategoryId(data[0].id);
@@ -309,7 +303,7 @@ export default function ThemesPage() {
 
       if (!res.ok) throw new Error(tc('createFailed'));
 
-      // 開発プロジェクトの場合、作業ディレクトリをお気に入りに自動登録
+      // NOTE: Auto-register working directory as favorite so it appears in the directory picker for future use.
       if (formData.isDevelopment && formData.workingDirectory) {
         await addWorkingDirectoryToFavorites(formData.workingDirectory);
       }
@@ -356,7 +350,7 @@ export default function ThemesPage() {
             errorMessage = errorData.error;
           }
         } catch {
-          // JSONパースに失敗した場合はテキストをそのまま使用
+          // NOTE: Non-JSON error responses (e.g. plain text from reverse proxy) are used as-is.
           if (responseText) {
             errorMessage = responseText;
           }
@@ -364,7 +358,7 @@ export default function ThemesPage() {
         throw new Error(errorMessage);
       }
 
-      // 開発プロジェクトの場合、作業ディレクトリをお気に入りに自動登録
+      // NOTE: Auto-register working directory as favorite so it appears in the directory picker for future use.
       if (formData.isDevelopment && formData.workingDirectory) {
         await addWorkingDirectoryToFavorites(formData.workingDirectory);
       }
@@ -429,7 +423,6 @@ export default function ThemesPage() {
       categoryId: item.categoryId ?? null,
     });
     setIconSearchQuery('');
-    // 開発プロジェクトの場合、作業ディレクトリをチェック
     if (item.isDevelopment && item.workingDirectory) {
       checkDirectory(item.workingDirectory);
     } else {
@@ -456,7 +449,6 @@ export default function ThemesPage() {
     if (!result.destination || result.source.index === result.destination.index)
       return;
 
-    // droppableId からカテゴリIDを取得
     const droppableId = result.source.droppableId;
     const categoryId = droppableId.startsWith('themes-category-')
       ? parseInt(droppableId.replace('themes-category-', ''))
@@ -464,7 +456,6 @@ export default function ThemesPage() {
 
     if (categoryId === null) return;
 
-    // 該当カテゴリのテーマのみ取得（表示中のもの）
     const categoryItems = items
       .filter((item) => item.categoryId === categoryId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -473,7 +464,6 @@ export default function ThemesPage() {
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
 
-    // items 全体の中で該当カテゴリのテーマのsortOrderを更新
     const reorderedMap = new Map(
       reordered.map((item, index) => [item.id, index]),
     );
@@ -505,10 +495,9 @@ export default function ThemesPage() {
     }
   };
 
-  // デバウンスされた検索クエリ
   const debouncedIconSearchQuery = useDebounce(iconSearchQuery, 300);
 
-  // メモ化されたアイコン検索結果（最大50個に制限）
+  // NOTE: Capped at 50 to prevent rendering lag with the full icon set (~1000 icons).
   const filteredIcons = useMemo(() => {
     const results = searchIcons(debouncedIconSearchQuery);
     return results.slice(0, 50);
