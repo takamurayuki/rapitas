@@ -9,17 +9,17 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useSplitView');
 
 interface UseSplitViewReturn {
-  /** 分割表示が現在アクティブかどうか */
+  /** Whether split view is currently active */
   isActive: boolean;
-  /** 外部URLを分割表示で開く */
+  /** Open external URL in split view */
   openSplitView: (url: string) => Promise<void>;
-  /** 分割表示状態を手動で更新（内部使用） */
+  /** Manually update split view status (internal use) */
   refreshStatus: () => void;
 }
 
 /**
- * 分割表示機能を管理するカスタムフック
- * Tauri環境では実際の分割表示機能を提供し、Web環境では通常の新しいタブで開く
+ * Custom hook for managing split view functionality
+ * Provides actual split view in Tauri environment, opens in new tab in web environment
  */
 export function useSplitView(): UseSplitViewReturn {
   const [isActive, setIsActive] = useState(false);

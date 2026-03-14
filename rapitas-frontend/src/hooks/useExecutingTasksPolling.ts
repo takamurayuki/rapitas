@@ -9,13 +9,13 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useExecutingTasksPolling');
 
 /**
- * 実行中のタスクをポーリングで検出し、グローバルストアに反映するフック
- * HomeClientやkanbanページなどの親コンポーネントで使用する
+ * Hook for detecting executing tasks via polling and reflecting to global store
+ * Used in parent components like HomeClient and kanban pages
  */
 export function useExecutingTasksPolling(options?: {
-  /** ポーリング間隔(ms) デフォルト5000ms */
+  /** Polling interval (ms) Default: 5000ms */
   interval?: number;
-  /** 実行中タスクが新たに見つかった時のコールバック */
+  /** Callback when new executing task is found */
   onExecutingTaskFound?: (taskId: number) => void;
 }) {
   const { interval = 5000, onExecutingTaskFound } = options || {};

@@ -1,6 +1,6 @@
 /**
- * カレンダーイベント管理用カスタムフック
- * APIからのイベント取得、追加、削除操作を提供する
+ * Custom hook for calendar event management
+ * Provides event retrieval, addition, and deletion operations from API
  */
 
 import { useState, useCallback, useEffect } from 'react';

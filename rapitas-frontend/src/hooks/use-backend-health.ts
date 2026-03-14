@@ -9,21 +9,21 @@ const logger = createLogger('useBackendHealth');
 type BackendHealthStatus = 'connected' | 'disconnected' | 'checking';
 
 type UseBackendHealthOptions = {
-  /** ヘルスチェック間隔（ミリ秒）。デフォルト: 5000 */
+  /** Health check interval (milliseconds). Default: 5000 */
   intervalMs?: number;
-  /** 切断検知後のリトライ間隔（ミリ秒）。デフォルト: 2000 */
+  /** Retry interval after disconnect detection (milliseconds). Default: 2000 */
   retryIntervalMs?: number;
-  /** 再接続時に呼ばれるコールバック */
+  /** Callback called on reconnection */
   onReconnectAction?: () => void;
-  /** 切断時に呼ばれるコールバック */
+  /** Callback called on disconnection */
   onDisconnectAction?: () => void;
 };
 
 /**
- * バックエンドの接続状態を監視し、再起動後の復帰を検知するフック。
- * 切断→復帰を検知した場合に onReconnect コールバックを呼び出す。
- * SSE経由でshutdownイベントを受信した場合は意図的な再起動として扱い、
- * isIntentionalRestartフラグをtrueにする。
+ * Hook for monitoring backend connection status and detecting recovery after restart.
+ * Calls onReconnect callback when disconnect→recovery is detected.
+ * When shutdown event is received via SSE, treats it as intentional restart
+ * and sets isIntentionalRestart flag to true.
  */
 export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const {
@@ -132,7 +132,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         setStatus('disconnected');
       }
     } catch (error) {
-      // タイムアウトエラーかどうかを判定
+      // Determine if error is a timeout error
       const isTimeout = error instanceof Error && error.name === 'AbortError';
       const errorMessage = isTimeout
         ? 'Request timeout'
