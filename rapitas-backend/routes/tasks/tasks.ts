@@ -20,10 +20,46 @@ import { analyzeTask, generateExecutionInstructions } from '../../services/claud
 import { analyzeTaskComplexity } from '../../services/workflow/complexity-analyzer';
 import { getDefaultProvider } from '../../utils/ai-client';
 import { generateTaskTitle } from '../../services/claude-agent/naming-service';
+import { QueryOptimizers } from '../../utils/prisma-optimization';
 
 const logger = createLogger('tasks');
 
 export const tasksRoutes = new Elysia({ prefix: '/tasks' })
+  // Test endpoint
+  .get('/test', async () => {
+    return { message: 'test endpoint working' };
+  })
+
+  // Get task statistics
+  .get('/statistics', async () => {
+    try {
+      const stats = await QueryOptimizers.getTaskStatistics(prisma, { parentId: null });
+
+      // Get category statistics separately
+      const categoryCounts = await prisma.task.groupBy({
+        by: ['categoryId'],
+        where: { parentId: null },
+        _count: { categoryId: true },
+      });
+
+      const byCategory = Object.fromEntries(
+        categoryCounts.map((c: { categoryId: number | null; _count: { categoryId: number } }) => [
+          c.categoryId ?? 0, // null categoryId を 0 として扱う
+          c._count.categoryId,
+        ]),
+      );
+
+      return {
+        total: stats.total,
+        byStatus: stats.byStatus,
+        byCategory,
+      };
+    } catch (error) {
+      logger.error({ err: error }, 'Statistics endpoint error');
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  })
+
   // Search task titles for autocomplete (enhanced with multi-word and description search)
   .get(
     '/search',
@@ -291,6 +327,17 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       }),
     },
   )
+
+  // Get task statistics
+  .get('/statistics', async () => {
+    try {
+      const stats = await QueryOptimizers.getTaskStatistics(prisma, {});
+      return stats;
+    } catch (error) {
+      logger.error('Failed to fetch task statistics', error);
+      throw new AppError('Failed to fetch task statistics', 500);
+    }
+  })
 
   // Get all tasks (supports incremental fetch via `since` param)
   .get('/', async (context) => {

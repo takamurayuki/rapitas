@@ -335,6 +335,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         defaultAiProvider,
         defaultCategoryId,
         activeMode,
+        ollamaUrl,
+        ollamaDefaultModel,
+        titleGenerationProvider,
       } = body as {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
@@ -348,6 +351,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         defaultAiProvider?: string;
         defaultCategoryId?: number;
         activeMode?: string;
+        ollamaUrl?: string;
+        ollamaDefaultModel?: string;
+        titleGenerationProvider?: string | null;
       };
 
       try {
@@ -366,6 +372,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
+              ...(ollamaUrl !== undefined && { ollamaUrl }),
+              ...(ollamaDefaultModel !== undefined && { ollamaDefaultModel }),
+              ...(titleGenerationProvider !== undefined && { titleGenerationProvider }),
             },
           });
         } else {
@@ -386,6 +395,9 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
+              ...(ollamaUrl !== undefined && { ollamaUrl }),
+              ...(ollamaDefaultModel !== undefined && { ollamaDefaultModel }),
+              ...(titleGenerationProvider !== undefined && { titleGenerationProvider }),
             },
           });
         }

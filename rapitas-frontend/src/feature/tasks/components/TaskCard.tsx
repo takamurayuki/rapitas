@@ -325,7 +325,7 @@ const TaskCard = memo(function TaskCard({
                     : currentStatus.borderColor
                   ).replace('border-l-', 'border-')}`
             } shrink-0`}
-            title={
+            aria-label={
               isWaitingForInput ? waitingAmberConfig.label : currentStatus.label
             }
           >
@@ -400,6 +400,8 @@ const TaskCard = memo(function TaskCard({
                       setExpandedSubtasks(!expandedSubtasks);
                     }}
                     className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition-all duration-200 ease-out hover:scale-105"
+                    aria-expanded={expandedSubtasks}
+                    aria-label={t('subtasks')}
                   >
                     <svg
                       className={`w-3 h-3 transition-transform duration-300 ease-out ${
@@ -524,9 +526,9 @@ const TaskCard = memo(function TaskCard({
                   onOpenInPage(task.id);
                 }}
                 className="w-7 h-7 rounded-md flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 ease-out hover:scale-110"
-                title={tHome('openInPage')}
+                aria-label={tHome('openInPage')}
               >
-                <ExternalLink className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -537,6 +539,8 @@ const TaskCard = memo(function TaskCard({
       {showContextMenu && (
         <div
           ref={contextMenuRef}
+          role="menu"
+          aria-label={tc('edit')}
           className="fixed z-50 bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 py-1 min-w-40 animate-in fade-in duration-100"
           style={{
             left: `${contextMenuPosition.x}px`,
@@ -544,28 +548,34 @@ const TaskCard = memo(function TaskCard({
           }}
         >
           <button
+            role="menuitem"
             onClick={() => {
               onTaskClick(task.id);
               setShowContextMenu(false);
             }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <Edit className="w-4 h-4" />
+            <Edit className="w-4 h-4" aria-hidden="true" />
             {tc('edit')}
           </button>
           <button
+            role="menuitem"
             onClick={duplicateTask}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="w-4 h-4" aria-hidden="true" />
             {tHome('duplicate')}
           </button>
-          <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+          <div
+            role="separator"
+            className="my-1 border-t border-slate-200 dark:border-slate-700"
+          />
           <button
+            role="menuitem"
             onClick={deleteTask}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
             {tc('delete')}
           </button>
         </div>
@@ -605,7 +615,7 @@ const TaskCard = memo(function TaskCard({
                     'border-l-',
                     'border-',
                   )} shrink-0`}
-                  title={subtaskStatus.label}
+                  aria-label={subtaskStatus.label}
                 >
                   {renderStatusIcon(subtask.status)}
                 </div>

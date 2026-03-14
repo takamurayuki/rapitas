@@ -25,6 +25,8 @@ import {
   notificationsRoutes,
   settingsRoutes,
   tasksRoutes,
+  taskStatisticsRoutes,
+  tempStatisticsRoutes,
   examGoalsRoutes,
   studyStreaksRoutes,
   resourcesRoutes,
@@ -72,13 +74,18 @@ import {
   experimentsRoutes,
   knowledgeGraphRoutes,
   learningRoutes,
+  localLLMRouter,
 } from './routes';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
 
-// Import orchestrator for startup recovery
-import { orchestrator } from './services/orchestrator-instance';
+// Import worker manager for agent process lifecycle
+import {
+  orchestrator,
+  workerManager,
+  setServerStopCallback,
+} from './services/orchestrator-instance';
 
 // Import realtime service for SSE cleanup on shutdown
 import { realtimeService } from './services/realtime-service';
@@ -161,6 +168,8 @@ app.use(timeEntriesRoutes);
 app.use(commentsRoutes);
 app.use(notificationsRoutes);
 app.use(settingsRoutes);
+app.use(tempStatisticsRoutes);
+app.use(taskStatisticsRoutes);
 app.use(tasksRoutes);
 app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);
@@ -206,6 +215,7 @@ app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
 app.use(intelligentSuggestionsRoutes);
 app.use(smartActionRoutes);
+app.use(localLLMRouter);
 app.use(experimentsRoutes);
 app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);
@@ -228,6 +238,11 @@ AIOrchestra.getInstance()
     log.error({ err: error }, 'AI Orchestra startup recovery failed');
   });
 
+// Initialize Agent Worker Manager（エージェント実行を別プロセスで処理）
+workerManager.initialize().catch((error) => {
+  log.error({ err: error }, 'Failed to initialize Agent Worker Manager');
+});
+
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({
@@ -238,8 +253,8 @@ app.listen({
 });
 log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
 
-// Orchestratorにサーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
-orchestrator.setServerStopCallback(() => {
+// サーバー停止コールバックを設定（グレースフルシャットダウン時にポートを正しく解放するため）
+setServerStopCallback(() => {
   app.stop();
 });
 
@@ -291,8 +306,26 @@ const handleProcessSignal = async (signal: string) => {
     log.info('Step 3: Waiting for connections to drain...');
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Step 4: データベース接続を閉じる
-    log.info('Step 4: Closing database connection...');
+    // Step 3.5: Local LLM server cleanup
+    log.info('Step 3.5: Cleaning up local LLM server...');
+    try {
+      const { cleanupLocalLLM } = await import('./services/local-llm');
+      cleanupLocalLLM();
+    } catch {
+      // ignore if module not loaded
+    }
+
+    // Step 4: Agent Worker Manager のシャットダウン
+    log.info('Step 4: Shutting down Agent Worker Manager...');
+    try {
+      await workerManager.gracefulShutdown();
+      log.info('Agent Worker Manager shutdown completed.');
+    } catch (error) {
+      log.error({ err: error }, 'Error shutting down Agent Worker Manager');
+    }
+
+    // Step 5: データベース接続を閉じる
+    log.info('Step 5: Closing database connection...');
     try {
       await prisma.$disconnect();
       log.info('Database connection closed.');
@@ -321,8 +354,20 @@ process.on('SIGINT', () => handleProcessSignal('SIGINT'));
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
-  // サーバーが完全に起動するまで少し待機
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // ワーカープロセスが起動するまで待機
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+
+  // ワーカーが準備完了するまで追加の待機
+  let retries = 0;
+  while (!workerManager.getIsWorkerReady() && retries < 20) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    retries++;
+  }
+
+  if (!workerManager.getIsWorkerReady()) {
+    log.warn('Startup recovery skipped: Worker not ready after 20s');
+    return;
+  }
 
   const result = await orchestrator.recoverStaleExecutions();
 

@@ -393,9 +393,7 @@ export class AgentOrchestrator {
     return this.gitOps.createCommit(workingDirectory, message);
   }
 
-  async getDiff(
-    workingDirectory: string,
-  ): Promise<
+  async getDiff(workingDirectory: string): Promise<
     Array<{
       filename: string;
       status: string;

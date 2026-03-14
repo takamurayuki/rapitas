@@ -29,8 +29,7 @@ export async function generateBranchName(
   ];
 
   const response = await sendAIMessage({
-    provider: provider || 'claude',
-    model,
+    provider: 'ollama',
     messages,
     systemPrompt,
     maxTokens: 100,
@@ -66,8 +65,7 @@ export async function generateTaskTitle(
   ];
 
   const response = await sendAIMessage({
-    provider: provider || 'claude',
-    model,
+    provider: 'ollama',
     messages,
     systemPrompt,
     maxTokens: 100,

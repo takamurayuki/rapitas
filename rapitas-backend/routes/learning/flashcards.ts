@@ -18,6 +18,55 @@ import {
 
 const log = createLogger('routes:flashcards');
 
+/**
+ * 難易度別のフラッシュカード生成ガイドラインを返す
+ */
+function getDifficultyGuidelines(difficulty: string, language: string): string {
+  if (language === 'ja') {
+    switch (difficulty) {
+      case 'beginner':
+        return `- 難易度: 初級
+- カード形式: 用語・キーワード → 短い定義（1〜2文、50文字以内）
+- 「〜とは？」「〜の意味は？」のようなシンプルな質問
+- 回答は暗記しやすい端的な表現にする（長い説明は不要）
+- 例: front「HTTP」→ back「Webブラウザとサーバー間の通信プロトコル」`;
+      case 'advanced':
+        return `- 難易度: 上級
+- カード形式: 応用・比較・分析の問題 → 論理的な回答（3〜4文、150文字以内）
+- 「なぜ〜か」「〜と〜の違いを実務の観点で説明せよ」のような深い質問
+- 回答は根拠や理由を含むが、冗長にならないこと
+- 例: front「RESTとGraphQLの使い分け基準は？」→ back「データ取得パターンが固定的ならREST、クライアントごとに異なるデータ要件があればGraphQLが適する。RESTは…」`;
+      default: // intermediate
+        return `- 難易度: 中級
+- カード形式: 概念・仕組み → 簡潔な説明（2〜3文、100文字以内）
+- 「〜の仕組みは？」「〜のメリットは？」のような理解を問う質問
+- 回答は要点を絞り、核心だけを述べる
+- 例: front「RESTful APIとは？」→ back「HTTPメソッドでリソースを操作するAPI設計。URLでリソースを特定し、GET/POST/PUT/DELETEで操作する」`;
+    }
+  } else {
+    switch (difficulty) {
+      case 'beginner':
+        return `- Difficulty: Beginner
+- Card format: Term/keyword → Short definition (1-2 sentences, under 50 words)
+- Use simple "What is...?" style questions
+- Answers should be brief and memorizable (no long explanations)
+- Example: front "HTTP" → back "A protocol for communication between web browsers and servers"`;
+      case 'advanced':
+        return `- Difficulty: Advanced
+- Card format: Applied/analytical questions → Reasoned answers (3-4 sentences, under 100 words)
+- Use "Why...?", "Compare... in practice" style questions
+- Answers should include reasoning but stay concise
+- Example: front "When to use REST vs GraphQL?" → back "Use REST when data access patterns are predictable. Use GraphQL when clients need different data shapes..."`;
+      default: // intermediate
+        return `- Difficulty: Intermediate
+- Card format: Concept/mechanism → Concise explanation (2-3 sentences, under 70 words)
+- Use "How does...work?", "What are the benefits of...?" style questions
+- Answers should focus on key points only
+- Example: front "What is a RESTful API?" → back "An API design using HTTP methods to operate on resources. URLs identify resources, and GET/POST/PUT/DELETE perform operations"`;
+    }
+  }
+}
+
 // FSRS scheduler instance
 const f = fsrs(generatorParameters());
 
@@ -339,38 +388,30 @@ ${
   language === 'ja'
     ? `「${topic}」に関するフラッシュカードを${count}枚作成してください。
 
+【重要】フラッシュカード設計原則：
+- 1枚のカードには1つの概念のみ（最小情報原則）
+- 回答は短く端的に。長い説明文は書かない
+- 暗記・復習に適した形式にする
+
 条件：
-- 難易度: ${difficulty === 'beginner' ? '初級' : difficulty === 'intermediate' ? '中級' : '上級'}
-- 各カードは「質問」と「回答」のペアで構成
-- 学習効果を高めるため、段階的に難しくなるように配置
-- 回答は簡潔で覚えやすく、必要に応じて例や説明を含める
+${getDifficultyGuidelines(difficulty, language)}
+- 段階的に難しくなるように配置
 
 以下のJSON形式で出力してください：
-{
-  "cards": [
-    {
-      "front": "質問内容",
-      "back": "回答内容"
-    }
-  ]
-}`
+{"cards":[{"front":"質問内容","back":"回答内容"}]}`
     : `Create ${count} flashcards about "${topic}".
 
+IMPORTANT - Flashcard design principles:
+- One concept per card (minimum information principle)
+- Keep answers short and direct. Do NOT write long explanations
+- Format for memorization and review
+
 Requirements:
-- Difficulty level: ${difficulty}
-- Each card consists of a "question" and "answer" pair
-- Arrange cards progressively from easier to harder concepts
-- Answers should be concise, memorable, and include examples when helpful
+${getDifficultyGuidelines(difficulty, language)}
+- Arrange cards progressively from easier to harder
 
 Output in the following JSON format:
-{
-  "cards": [
-    {
-      "front": "Question text",
-      "back": "Answer text"
-    }
-  ]
-}`
+{"cards":[{"front":"Question text","back":"Answer text"}]}`
 }`,
               },
             ],
@@ -439,12 +480,14 @@ Output in the following JSON format:
         deckId,
         count = 10,
         language = 'ja',
+        difficulty = 'intermediate',
       } = context.body as {
         text: string;
         deckName?: string;
         deckId?: number;
         count?: number;
         language?: string;
+        difficulty?: string;
       };
 
       if (!text || text.trim().length < 10) {
@@ -524,10 +567,14 @@ Output in the following JSON format:
 
 テキスト内容の重要な概念、用語、事実を抽出し、学習に最適なQ&Aペアを作成してください。
 
+【重要】フラッシュカード設計原則：
+- 1枚のカードには1つの概念のみ（最小情報原則）
+- 回答は短く端的に。長い説明文は書かない
+- 暗記・復習に適した形式にする
+
 条件：
 - テキストに含まれる情報のみを使用（外部知識は最小限に）
-- 質問は具体的で、回答は簡潔かつ正確に
-- 理解度を確認できる質問を優先（「〜とは何か」「〜の違いは」「〜の理由は」など）
+${getDifficultyGuidelines(difficulty, language)}
 - 段階的に基礎→応用の順で並べる
 
 以下のJSON形式のみで出力（余計なテキスト不要）：
@@ -539,10 +586,14 @@ ${truncatedText}`
 
 Extract key concepts, terms, and facts from the text and create optimal Q&A pairs for learning.
 
+IMPORTANT - Flashcard design principles:
+- One concept per card (minimum information principle)
+- Keep answers short and direct. Do NOT write long explanations
+- Format for memorization and review
+
 Requirements:
 - Use only information from the text (minimize external knowledge)
-- Questions should be specific, answers concise and accurate
-- Prioritize comprehension-checking questions ("What is...", "How does... differ from...", "Why...")
+${getDifficultyGuidelines(difficulty, language)}
 - Order from basic to advanced concepts
 
 Output ONLY in the following JSON format (no extra text):
@@ -611,6 +662,9 @@ ${truncatedText}`,
         deckId: t.Optional(t.Number()),
         count: t.Optional(t.Number({ minimum: 1, maximum: 30 })),
         language: t.Optional(t.String()),
+        difficulty: t.Optional(
+          t.Enum({ beginner: 'beginner', intermediate: 'intermediate', advanced: 'advanced' }),
+        ),
       }),
     },
   );

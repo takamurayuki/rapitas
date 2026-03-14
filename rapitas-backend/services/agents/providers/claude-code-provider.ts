@@ -5,6 +5,7 @@
 
 import { spawn, execSync } from 'child_process';
 import { existsSync } from 'fs';
+import { getProjectRoot } from '../../../config';
 import type {
   AgentCapabilities,
   AgentProviderConfig,
@@ -139,7 +140,7 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     this.claudeSessionId = null;
 
     const prompt = this.buildPrompt(task);
-    const workDir = context.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     return this.runClaudeCode(prompt, workDir, context);
   }
@@ -153,7 +154,7 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     this.lineBuffer = '';
 
     const prompt = continuation.userResponse || '';
-    const workDir = context.workingDirectory || this.config.workingDirectory || process.cwd();
+    const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
     // 継続実行フラグを設定
     const originalContinue = this.config.continueConversation;

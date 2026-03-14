@@ -36,14 +36,21 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
     const sessionId = parseInt(params.id);
 
     // オーケストレーターで停止を試みる
-    const executions = orchestrator.getSessionExecutions(sessionId);
-    for (const execution of executions) {
-      await orchestrator.stopExecution(execution.executionId).catch((err) => {
-        log.warn(
-          { err, executionId: execution.executionId },
-          'Failed to stop execution during session termination',
-        );
-      });
+    // ワーカープロセス経由で非同期にセッション内の実行を取得・停止
+    try {
+      const { AgentWorkerManager } = await import('../../services/agents/agent-worker-manager');
+      const executions =
+        await AgentWorkerManager.getInstance().getSessionExecutionsAsync(sessionId);
+      for (const execution of executions) {
+        await orchestrator.stopExecution(execution.executionId).catch((err) => {
+          log.warn(
+            { err, executionId: execution.executionId },
+            'Failed to stop execution during session termination',
+          );
+        });
+      }
+    } catch (err) {
+      log.warn({ err }, 'Failed to get session executions from worker');
     }
 
     // DBで実行中/待機中の実行をすべてキャンセル

@@ -8,7 +8,10 @@ import { useTranslations } from 'next-intl';
 // ─────────────────────────────────────────────────────────────────────────────
 const G = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.cmd-gen,
+.cmd-gen *,
+.cmd-gen *::before,
+.cmd-gen *::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#08080c;--s1:#0f0f15;--s2:#16161f;--s3:#1e1e2a;
   --border:#252535;--border2:#32324a;
@@ -16,7 +19,7 @@ const G = `
   --text:#eeeef5;--muted:#6b6b85;--dimmed:#3a3a55;
   --green:#4ade80;--amber:#fbbf24;--red:#f87171;
 }
-body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif}
+.cmd-gen{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif}
 
 .fade{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -306,6 +309,12 @@ interface AppProposal {
   score?: number;
 }
 
+interface DynamicItem {
+  id: string;
+  icon: string;
+  label: string;
+}
+
 interface GenerateResult {
   tech_rationale: string;
   score: number;
@@ -313,14 +322,25 @@ interface GenerateResult {
 }
 
 // Helper to resolve labels from translation function
-function resolveLabels(t: (key: string) => string, answers: AppAnswers) {
+function resolveLabels(
+  t: (key: string) => string,
+  answers: AppAnswers,
+  dynSubs?: DynamicItem[],
+  dynElems?: DynamicItem[],
+) {
   const genre = t('genre_' + answers.genre);
   const subs = (answers.subs || [])
-    .map((id: string) => t(`sub_${answers.genre}_${id}`))
+    .map((id: string) => {
+      const dynItem = dynSubs?.find((s) => s.id === id);
+      return dynItem?.label || t(`sub_${answers.genre}_${id}`);
+    })
     .filter(Boolean)
     .join('、');
   const elems = (answers.elements || [])
-    .map((id: string) => t('elem_' + id))
+    .map((id: string) => {
+      const dynItem = dynElems?.find((e) => e.id === id);
+      return dynItem?.label || t('elem_' + id);
+    })
     .filter(Boolean)
     .join('、');
   const plat = t('plat_' + answers.platform);
@@ -329,8 +349,18 @@ function resolveLabels(t: (key: string) => string, answers: AppAnswers) {
   return { genre, subs, elems, plat, scale, prio };
 }
 
-async function proposeApps(t: (key: string) => string, answers: AppAnswers) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers);
+async function proposeApps(
+  t: (key: string) => string,
+  answers: AppAnswers,
+  dynSubs?: DynamicItem[],
+  dynElems?: DynamicItem[],
+) {
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
+    t,
+    answers,
+    dynSubs,
+    dynElems,
+  );
 
   const response = await fetch('/api/generate-proposals', {
     method: 'POST',
@@ -345,7 +375,20 @@ async function proposeApps(t: (key: string) => string, answers: AppAnswers) {
     }),
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.error ||
+        `HTTP ${response.status}: プロポーザル生成に失敗しました`,
+    );
+  }
+
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  // Don't throw error for aiFailed, return the response with errorMessage
+  // The caller will handle the errorMessage appropriately
   return data;
 }
 
@@ -353,8 +396,15 @@ async function generateClaudeMd(
   t: (key: string) => string,
   answers: AppAnswers,
   proposal: AppProposal,
+  dynSubs?: DynamicItem[],
+  dynElems?: DynamicItem[],
 ) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers);
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
+    t,
+    answers,
+    dynSubs,
+    dynElems,
+  );
 
   const response = await fetch('/api/generate-claude-md', {
     method: 'POST',
@@ -370,7 +420,17 @@ async function generateClaudeMd(
     }),
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`,
+    );
+  }
+
   const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
   return data;
 }
 
@@ -470,10 +530,17 @@ export default function ClaudeMdGeneratorPage() {
     priority: '',
   });
   const [proposals, setProposals] = useState<AppProposal[]>([]);
+  const [aiErrorMessage, setAiErrorMessage] = useState('');
   const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [copied, setCopied] = useState(false);
   const topRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic AI-generated suggestions
+  const [dynamicSubs, setDynamicSubs] = useState<DynamicItem[]>([]);
+  const [dynamicElements, setDynamicElements] = useState<DynamicItem[]>([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+  const [elementsLoading, setElementsLoading] = useState(false);
 
   // Platform phase states (moved to top level to avoid conditional hooks)
   const [localPlatform, setLocalPlatform] = useState<string | null>(null);
@@ -485,14 +552,15 @@ export default function ClaudeMdGeneratorPage() {
     setLocalPlatform(answers.platform || null);
     setLocalScale(answers.scale || null);
     setLocalPrio(answers.priority || null);
-  }, [answers.platform, answers.scale, answers.priority]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     topRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [phase]);
 
   // ── helpers ─────────────────────────────────────────────────────────────
-  const go = (nextPhase: string, extra: Partial<AppAnswers> = {}) => {
+  const _go = (nextPhase: string, extra: Partial<AppAnswers> = {}) => {
     setAnswers((a) => ({ ...a, ...extra }));
     setPhase(nextPhase);
   };
@@ -504,10 +572,34 @@ export default function ClaudeMdGeneratorPage() {
         ? t('difficultyMedium')
         : t('difficultyHard');
 
+  const fetchSuggestions = async (
+    type: 'sub_genres' | 'elements',
+    genre: string,
+    subs?: string[],
+  ) => {
+    try {
+      const response = await fetch('/api/generate-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, genre, subs }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.suggestions && data.suggestions.length > 0) {
+          return data.suggestions as DynamicItem[];
+        }
+      }
+    } catch {
+      // Fall through to null
+    }
+    return null;
+  };
+
   // ── INTRO ────────────────────────────────────────────────────────────────
   if (phase === 'intro')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -640,7 +732,35 @@ export default function ClaudeMdGeneratorPage() {
             <div
               key={g.id}
               className="card"
-              onClick={() => go('sub', { genre: g.id, subs: [], elements: [] })}
+              onClick={async () => {
+                setAnswers((a) => ({
+                  ...a,
+                  genre: g.id,
+                  subs: [],
+                  elements: [],
+                }));
+                setPhase('sub');
+                setSubsLoading(true);
+                setDynamicSubs([]);
+                const aiSubs = await fetchSuggestions(
+                  'sub_genres',
+                  t('genre_' + g.id),
+                );
+                if (aiSubs) {
+                  setDynamicSubs(aiSubs);
+                } else {
+                  // Fallback to static sub-genres
+                  const staticSubs = SUB_GENRES[g.id] || [];
+                  setDynamicSubs(
+                    staticSubs.map((s) => ({
+                      id: s.id,
+                      icon: s.icon,
+                      label: t(`sub_${g.id}_${s.id}`),
+                    })),
+                  );
+                }
+                setSubsLoading(false);
+              }}
             >
               <div style={{ fontSize: 24, marginBottom: 6 }}>{g.icon}</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
@@ -654,7 +774,14 @@ export default function ClaudeMdGeneratorPage() {
 
   // ── SUB ──────────────────────────────────────────────────────────────────
   if (phase === 'sub') {
-    const subs = SUB_GENRES[answers.genre] || [];
+    const subs =
+      dynamicSubs.length > 0
+        ? dynamicSubs
+        : (SUB_GENRES[answers.genre] || []).map((s) => ({
+            id: s.id,
+            icon: s.icon,
+            label: t(`sub_${answers.genre}_${s.id}`),
+          }));
     const sel = answers.subs || [];
     const toggle = (id: string) =>
       setAnswers((a) => ({
@@ -671,7 +798,34 @@ export default function ClaudeMdGeneratorPage() {
         step={2}
         total={5}
         onBack={() => setPhase('genre')}
-        onNext={() => setPhase('elements')}
+        onNext={async () => {
+          setPhase('elements');
+          setElementsLoading(true);
+          setDynamicElements([]);
+
+          const selectedSubIds = subs
+            .filter((s) => sel.includes(s.id))
+            .map((s) => s.id);
+
+          const aiElements = await fetchSuggestions(
+            'elements',
+            answers.genre,
+            selectedSubIds,
+          );
+          if (aiElements) {
+            setDynamicElements(aiElements);
+          } else {
+            // Fallback to static elements
+            setDynamicElements(
+              ELEMENTS.map((e) => ({
+                id: e.id,
+                icon: e.icon,
+                label: t('elem_' + e.id),
+              })),
+            );
+          }
+          setElementsLoading(false);
+        }}
         nextLabel={t('next')}
         canNext={true}
         backLabel={t('back')}
@@ -684,16 +838,14 @@ export default function ClaudeMdGeneratorPage() {
             marginBottom: 32,
           }}
         >
-          {subs.map((s) => {
-            const isSel = sel.includes(s.id);
-            return (
-              <div
-                key={s.id}
-                className={`card ${isSel ? 'sel' : ''}`}
-                onClick={() => toggle(s.id)}
-              >
-                <div className="card-checkb">{isSel && <CheckIcon />}</div>
-                <div style={{ flex: 1 }}>
+          {subsLoading
+            ? // Loading skeleton
+              Array.from({ length: 6 }, (_, i) => (
+                <div
+                  key={`skeleton-${i}`}
+                  className="card"
+                  style={{ opacity: 0.6, pointerEvents: 'none' }}
+                >
                   <div
                     style={{
                       fontSize: 14,
@@ -703,22 +855,46 @@ export default function ClaudeMdGeneratorPage() {
                       gap: 6,
                     }}
                   >
-                    <span>{s.icon}</span>
-                    <span>{t(`sub_${answers.genre}_${s.id}`)}</span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--muted)',
-                      marginTop: 3,
-                    }}
-                  >
-                    {t(`sub_${answers.genre}_${s.id}_desc`)}
+                    <span>⏳</span>
+                    <span
+                      style={{
+                        background: 'var(--border)',
+                        borderRadius: 4,
+                        height: 16,
+                        width: 80,
+                      }}
+                    >
+                      &nbsp;
+                    </span>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              ))
+            : subs.map((s) => {
+                const isSel = sel.includes(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    className={`card ${isSel ? 'sel' : ''}`}
+                    onClick={() => toggle(s.id)}
+                  >
+                    <div className="card-checkb">{isSel && <CheckIcon />}</div>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <span>{s.icon}</span>
+                        <span>{s.label}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
         </div>
       </PageWrap>
     );
@@ -726,6 +902,14 @@ export default function ClaudeMdGeneratorPage() {
 
   // ── ELEMENTS ─────────────────────────────────────────────────────────────
   if (phase === 'elements') {
+    const elements =
+      dynamicElements.length > 0
+        ? dynamicElements
+        : ELEMENTS.map((e) => ({
+            id: e.id,
+            icon: e.icon,
+            label: t(`elem_${e.id}`),
+          }));
     const sel = answers.elements || [];
     const toggle = (id: string) =>
       setAnswers((a) => ({
@@ -755,30 +939,61 @@ export default function ClaudeMdGeneratorPage() {
             marginBottom: 32,
           }}
         >
-          {ELEMENTS.map((e) => {
-            const isSel = sel.includes(e.id);
-            return (
-              <div
-                key={e.id}
-                className={`card ${isSel ? 'sel' : ''}`}
-                onClick={() => toggle(e.id)}
-              >
-                <div className="card-checkb">{isSel && <CheckIcon />}</div>
+          {elementsLoading
+            ? // Loading skeleton
+              Array.from({ length: 10 }, (_, i) => (
                 <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
+                  key={`skeleton-${i}`}
+                  className="card"
+                  style={{ opacity: 0.6, pointerEvents: 'none' }}
                 >
-                  <span>{e.icon}</span>
-                  <span>{t('elem_' + e.id)}</span>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>⏳</span>
+                    <span
+                      style={{
+                        background: 'var(--border)',
+                        borderRadius: 4,
+                        height: 16,
+                        width: 90,
+                      }}
+                    >
+                      &nbsp;
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              ))
+            : elements.map((e) => {
+                const isSel = sel.includes(e.id);
+                return (
+                  <div
+                    key={e.id}
+                    className={`card ${isSel ? 'sel' : ''}`}
+                    onClick={() => toggle(e.id)}
+                  >
+                    <div className="card-checkb">{isSel && <CheckIcon />}</div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span>{e.icon}</span>
+                      <span>{e.label || t('elem_' + e.id)}</span>
+                    </div>
+                  </div>
+                );
+              })}
         </div>
       </PageWrap>
     );
@@ -796,10 +1011,20 @@ export default function ClaudeMdGeneratorPage() {
       setAnswers(next);
       setPhase('proposing');
       try {
-        const r = await proposeApps(t, next);
+        const r = await proposeApps(t, next, dynamicSubs, dynamicElements);
         setProposals(r.proposals || []);
-      } catch {
+        if (r.aiFailed && r.errorMessage) {
+          setAiErrorMessage(r.errorMessage);
+        } else {
+          setAiErrorMessage('');
+        }
+      } catch (error) {
         setProposals([]);
+        setAiErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'プロポーザル生成に失敗しました',
+        );
       }
       setPhase('proposals');
     };
@@ -964,6 +1189,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'proposing')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1009,6 +1235,7 @@ export default function ClaudeMdGeneratorPage() {
           : 'var(--red)';
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1047,6 +1274,78 @@ export default function ClaudeMdGeneratorPage() {
               {t('proposalsDescription')}
             </p>
           </div>
+
+          {proposals.length === 0 && (
+            <div
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 12,
+                padding: '32px 24px',
+                textAlign: 'center',
+                marginBottom: 32,
+                background: 'var(--s1)',
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>
+                &#x26A0;&#xFE0F;
+              </div>
+              {aiErrorMessage ? (
+                <p
+                  style={{
+                    color: 'var(--danger, #ef4444)',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    marginBottom: 20,
+                    padding: '12px 16px',
+                    background: 'var(--danger-bg, rgba(239, 68, 68, 0.1))',
+                    borderRadius: 8,
+                    border:
+                      '1px solid var(--danger-border, rgba(239, 68, 68, 0.2))',
+                  }}
+                >
+                  {aiErrorMessage}
+                </p>
+              ) : (
+                <p
+                  style={{
+                    color: 'var(--muted)',
+                    fontSize: 13,
+                    lineHeight: 1.8,
+                    marginBottom: 20,
+                  }}
+                >
+                  {t('proposalsEmpty')}
+                </p>
+              )}
+              <button
+                className="btn btn-p"
+                onClick={() => {
+                  setPhase('proposing');
+                  proposeApps(t, answers, dynamicSubs, dynamicElements)
+                    .then((r) => {
+                      setProposals(r.proposals || []);
+                      if (r.aiFailed && r.errorMessage) {
+                        setAiErrorMessage(r.errorMessage);
+                      } else {
+                        setAiErrorMessage('');
+                      }
+                      setPhase('proposals');
+                    })
+                    .catch((error) => {
+                      setProposals([]);
+                      setAiErrorMessage(
+                        error instanceof Error
+                          ? error.message
+                          : 'プロポーザル生成に失敗しました',
+                      );
+                      setPhase('proposals');
+                    });
+                }}
+              >
+                {t('retry')}
+              </button>
+            </div>
+          )}
 
           <div
             style={{
@@ -1185,13 +1484,33 @@ export default function ClaudeMdGeneratorPage() {
           >
             <button
               className="btn btn-g"
-              onClick={() => {
+              onClick={async () => {
                 setPhase('proposing');
-                proposeApps(t, answers).then((r) => {
+                try {
+                  const r = await proposeApps(
+                    t,
+                    answers,
+                    dynamicSubs,
+                    dynamicElements,
+                  );
                   setProposals(r.proposals || []);
+                  if (r.aiFailed && r.errorMessage) {
+                    setAiErrorMessage(r.errorMessage);
+                  } else {
+                    setAiErrorMessage('');
+                  }
                   setPickedProp(null);
                   setPhase('proposals');
-                });
+                } catch (error) {
+                  console.error('Failed to generate new proposals:', error);
+                  setProposals([]);
+                  setAiErrorMessage(
+                    error instanceof Error
+                      ? error.message
+                      : 'プロポーザル生成に失敗しました',
+                  );
+                  setPhase('proposals');
+                }
               }}
             >
               {t('otherProposals')}
@@ -1202,7 +1521,13 @@ export default function ClaudeMdGeneratorPage() {
               onClick={async () => {
                 setPhase('generating');
                 try {
-                  const r = await generateClaudeMd(t, answers, pickedProp!);
+                  const r = await generateClaudeMd(
+                    t,
+                    answers,
+                    pickedProp!,
+                    dynamicSubs,
+                    dynamicElements,
+                  );
                   setResult(r);
                 } catch {
                   setResult({
@@ -1226,6 +1551,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'generating')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1302,6 +1628,7 @@ export default function ClaudeMdGeneratorPage() {
   if (phase === 'result')
     return (
       <div
+        className="cmd-gen"
         style={{
           minHeight: '100vh',
           background: 'var(--bg)',
@@ -1461,6 +1788,7 @@ function PageWrap({
   const progress = ((step - 1) / total) * 100;
   return (
     <div
+      className="cmd-gen"
       style={{
         minHeight: '100vh',
         background: 'var(--bg)',

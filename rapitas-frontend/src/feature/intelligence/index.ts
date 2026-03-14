@@ -20,6 +20,7 @@ export type {
   ProductivityPattern,
   SuggestedTasksResponse,
   HeatmapCell,
+  HeatmapCellTask,
   HeatmapResponse,
   ReminderSummary,
   RelatedKnowledge,

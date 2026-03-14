@@ -3,6 +3,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateProposalsRoute');
 
+const BACKEND_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
+).replace('localhost', '127.0.0.1');
+
 interface ProposalRequest {
   genre: string;
   subs: string;
@@ -12,80 +16,159 @@ interface ProposalRequest {
   prio: string;
 }
 
+interface Proposal {
+  id: string;
+  name: string;
+  tagline: string;
+  concept: string;
+  unique: string;
+  difficulty: string;
+  tech_hint: string[];
+}
+
+function buildSystemPrompt(): string {
+  return `あなたは世界トップクラスのプロダクトストラテジストであり、テックスタートアップのビジョナリーです。
+ユーザーの選択から、**まだ誰も作っていない革新的なアプリ**のコンセプトを3案提案してください。
+
+## 出力形式（JSONのみ・説明文不要）
+{
+  "proposals": [
+    {
+      "id": "A",
+      "name": "アプリ名（キャッチーで記憶に残る）",
+      "tagline": "一言キャッチコピー（20字以内）",
+      "concept": "どんなアプリか。従来にない革新ポイントを含めて説明（80〜120字）",
+      "unique": "このアプリならではの独自機能・なぜ今までなかったか（50字以内）",
+      "difficulty": "easy|medium|hard",
+      "tech_hint": ["技術1", "技術2", "技術3", "技術4"]
+    }
+  ]
+}
+
+## 革新的な提案のための指針
+
+### 3案の方向性（必ずこの3軸で分ける）
+1. **ブルーオーシャン案**: 既存カテゴリの常識を壊す。異なる分野同士の掛け合わせ（例: フィットネス×音楽制作、家計簿×ゲーミフィケーション）。「なぜ今までなかったんだ」と思わせるもの
+2. **テクノロジー駆動案**: 最新技術（AI/ML, WebRTC, WebGPU, AR/VR, エッジコンピューティング, ローカルLLM等）を活用した、技術的にワクワクする体験。技術デモではなく実用的な価値を提供すること
+3. **社会課題×ニッチ案**: 見過ごされがちな社会課題やニッチなコミュニティのペインを解決する。小さいが熱狂的なユーザー基盤を持てるもの
+
+### 禁止事項
+- タスク管理アプリ、TODOアプリ、メモアプリなど**ありふれたジャンル**の提案
+- 「AIで〇〇を効率化」だけの表面的な提案
+- 既存の有名アプリ（Notion, Slack, Trello等）の焼き直し
+- 抽象的すぎて実装イメージが湧かない提案
+
+### 品質基準
+- アプリ名は造語や掛け合わせ語で、検索で一意になるもの
+- コンセプトは「誰の、どんな場面の、どんな課題を、どう解決するか」を具体的に
+- tech_hintは実際に使う具体的な技術スタック（3〜4個）
+- difficultyは実装の複雑さを正直に評価
+
+JSONのみ出力。`;
+}
+
+function parseAIResponse(content: string): { proposals: Proposal[] } | null {
+  // Remove markdown code blocks if present
+  let cleaned = content.trim();
+  cleaned = cleaned
+    .replace(/^```(?:json)?\s*\n?/i, '')
+    .replace(/\n?```\s*$/i, '');
+  cleaned = cleaned.trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (
+      parsed.proposals &&
+      Array.isArray(parsed.proposals) &&
+      parsed.proposals.length > 0
+    ) {
+      // Validate each proposal has required fields
+      const valid = parsed.proposals.every(
+        (p: Proposal) =>
+          p.id &&
+          p.name &&
+          p.tagline &&
+          p.concept &&
+          p.unique &&
+          p.difficulty &&
+          p.tech_hint,
+      );
+      if (valid) return parsed;
+    }
+  } catch {
+    // Try to extract JSON from mixed content
+    const jsonMatch = cleaned.match(/\{[\s\S]*"proposals"[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.proposals?.length > 0) return parsed;
+      } catch {
+        // Fall through to null
+      }
+    }
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: ProposalRequest = await request.json();
     const { genre, subs, elems, plat, scale, prio } = body;
 
-    const systemPrompt = `あなたはプロダクトデザイナーです。ユーザーの選択から、具体的なアプリのコンセプトを3案提案してください。
+    const systemPrompt = buildSystemPrompt();
+    const userMessage = `ジャンル: ${genre}
+サブジャンル: ${subs}
+追加要素: ${elems}
+プラットフォーム: ${plat}
+規模: ${scale}
+優先事項: ${prio}`;
 
-出力形式（JSONのみ・説明文不要）:
-{
-  "proposals": [
-    {
-      "id": "A",
-      "name": "アプリ名（キャッチーで短い）",
-      "tagline": "一言キャッチコピー（20字以内）",
-      "concept": "どんなアプリか（60〜80字）",
-      "unique": "このアプリならではの独自機能・差別化ポイント（40字以内）",
-      "difficulty": "easy|medium|hard",
-      "tech_hint": "主要技術スタックのヒント（3〜4個）"
+    // Try AI generation via backend
+    let errorMessage = '';
+    try {
+      const response = await fetch(`${BACKEND_URL}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          systemPrompt,
+          conversationHistory: [],
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.message) {
+          const parsed = parseAIResponse(data.message);
+          if (parsed) {
+            return NextResponse.json(parsed);
+          }
+          logger.warn(
+            'AI response could not be parsed as valid proposals JSON',
+          );
+          errorMessage =
+            'AIからの応答を解析できませんでした。再試行してください。';
+        }
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        logger.warn('Backend AI chat returned error:', errData);
+        errorMessage =
+          errData.error ||
+          `AIサーバーからエラーが返されました（ステータス: ${response.status}）`;
+      }
+    } catch (aiError) {
+      logger.warn('AI generation failed:', aiError);
+      if (aiError instanceof DOMException && aiError.name === 'TimeoutError') {
+        errorMessage =
+          'AIからの応答がタイムアウトしました。再試行してください。';
+      } else {
+        errorMessage = 'AIサービスへの接続に失敗しました。';
+      }
     }
-  ]
-}
 
-## ルール
-- 3案はそれぞれ方向性を変える（シンプル案・機能豊富案・ニッチ特化案 など）
-- 選択された要素を最大限に活かしたリアルなプロダクトを提案
-- アプリ名は日本語でも英語でもOK、ユニークで記憶に残るもの
-- 実現可能な現実的な提案にする
-- JSONのみ出力`;
-
-    const userMessage = `ジャンル: ${genre}\nサブジャンル: ${subs}\n追加要素: ${elems}\nプラットフォーム: ${plat}\n規模: ${scale}\n優先事項: ${prio}`;
-
-    // 実際のClaude APIの代わりに、モックデータを返します
-    // 本格実装時はここでClaude APIを呼び出します
-    const mockResponse = {
-      proposals: [
-        {
-          id: 'A',
-          name: 'TaskFlow',
-          tagline: '直感的なタスク管理',
-          concept:
-            'シンプルなインターフェースで日々のタスクを効率的に管理できるアプリ。ドラッグ&ドロップでタスクを整理し、進捗を可視化します。',
-          unique: 'AIによる優先度自動判定とスマートな時間配分提案',
-          difficulty: 'easy',
-          tech_hint: ['Next.js', 'Supabase', 'Tailwind CSS', 'Framer Motion'],
-        },
-        {
-          id: 'B',
-          name: 'CollabSpace',
-          tagline: 'チーム協働の新体験',
-          concept:
-            'リアルタイム同期機能付きのチーム協働プラットフォーム。プロジェクト管理からファイル共有まで一元管理できます。',
-          unique: 'バーチャル共同作業空間とAIアシスタント機能',
-          difficulty: 'medium',
-          tech_hint: ['Next.js', 'Socket.io', 'PostgreSQL', 'AWS S3'],
-        },
-        {
-          id: 'C',
-          name: 'FocusZone',
-          tagline: '集中力最大化ツール',
-          concept:
-            'ポモドーロテクニックとバイオリズム分析を組み合わせた集中力向上アプリ。個人の最適な作業パターンを学習します。',
-          unique: '生体データ連携による個人最適化された集中セッション',
-          difficulty: 'hard',
-          tech_hint: [
-            'React Native',
-            'Machine Learning',
-            'Firebase',
-            'HealthKit',
-          ],
-        },
-      ],
-    };
-
-    return NextResponse.json(mockResponse);
+    // No static fallback - return error so frontend can show retry
+    return NextResponse.json({ proposals: [], aiFailed: true, errorMessage });
   } catch (error) {
     logger.error('Error generating proposals:', error);
     return NextResponse.json(

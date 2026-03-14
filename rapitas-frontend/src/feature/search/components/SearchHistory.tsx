@@ -38,7 +38,6 @@ export default function SearchHistory({ onSelect }: SearchHistoryProps) {
   const [history, setHistory] = useState<string[]>([]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-compiler/react-compiler
     setHistory(loadHistory());
   }, []);
 

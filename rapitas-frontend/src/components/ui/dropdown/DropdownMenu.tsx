@@ -75,17 +75,19 @@ export default function DropdownMenu({
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        <MoreVertical className="w-5 h-5" />
+        <MoreVertical className="w-5 h-5" aria-hidden="true" />
       </button>
 
       {isOpen && (
         <div
           ref={menuRef}
+          role="menu"
           className={`absolute right-0 top-full mt-2 min-w-[180px] bg-white dark:bg-indigo-dark-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 py-1.5 z-50 ${menuClassName}`}
         >
           {items.map((item, index) => (
             <button
               key={index}
+              role="menuitem"
               onClick={() => handleItemClick(item)}
               disabled={item.disabled}
               className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors text-left ${
@@ -95,7 +97,9 @@ export default function DropdownMenu({
               } ${item.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {item.icon && (
-                <span className="w-4 h-4 shrink-0">{item.icon}</span>
+                <span className="w-4 h-4 shrink-0" aria-hidden="true">
+                  {item.icon}
+                </span>
               )}
               {item.label}
             </button>

@@ -12,6 +12,7 @@ import {
   getKnowledgeStats,
 } from '../../services/memory';
 import { searchKnowledge } from '../../services/memory/rag/search';
+import { resetEmbeddingPipeline } from '../../services/memory/rag/embedding';
 import { boostDecayOnAccess } from '../../services/memory/forgetting';
 import { prisma } from '../../config/database';
 import type {
@@ -118,6 +119,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge' })
   // GET /knowledge/stats - 統計情報
   .get('/stats', async () => {
     return getKnowledgeStats();
+  })
+
+  // POST /knowledge/embedding/reset - 埋め込みパイプラインリセット
+  .post('/embedding/reset', async () => {
+    resetEmbeddingPipeline();
+    return { success: true, message: 'Embedding pipeline reset successfully' };
   })
 
   // GET /knowledge/:id - エントリ詳細

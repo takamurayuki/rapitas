@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '../../config/logger';
+import { getProjectRoot } from '../../config';
 
 const log = createLogger('agent-service');
 
@@ -289,7 +290,7 @@ export class AgentService {
 
     const context: AgentExecutionContext = {
       executionId,
-      workingDirectory: execution.task.constraints?.allowedPaths?.[0] || process.cwd(),
+      workingDirectory: execution.task.constraints?.allowedPaths?.[0] || getProjectRoot(),
     };
 
     const result = await agent.continue(continuation, context);

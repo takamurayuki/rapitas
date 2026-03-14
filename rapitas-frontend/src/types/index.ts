@@ -639,7 +639,7 @@ export type Notification = {
   createdAt: string;
 };
 
-export type ApiProvider = 'claude' | 'chatgpt' | 'gemini';
+export type ApiProvider = 'claude' | 'chatgpt' | 'gemini' | 'ollama';
 
 export type ApiKeyStatus = {
   configured: boolean;
@@ -672,6 +672,9 @@ export type UserSettings = {
   chatgptDefaultModel?: string | null;
   geminiDefaultModel?: string | null;
   defaultAiProvider?: ApiProvider | null;
+  ollamaUrl?: string | null;
+  ollamaDefaultModel?: string | null;
+  titleGenerationProvider?: string | null;
   createdAt: string;
   updatedAt: string;
 };

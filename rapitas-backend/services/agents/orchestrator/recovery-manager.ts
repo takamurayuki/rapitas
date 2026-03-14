@@ -7,7 +7,7 @@ import type { AgentConfigInput, AgentType } from '../agent-factory';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import { decrypt } from '../../../utils/encryption';
 import { ExecutionFileLogger } from '../execution-file-logger';
-import { createLogger } from '../../../config/logger';
+import { createLogger, getProjectRoot } from '../../../config';
 import type {
   ExecutionState,
   ExecutionOptions,
@@ -261,7 +261,7 @@ export async function resumeInterruptedExecution(
   }
 
   const workingDirectory =
-    task.theme?.workingDirectory || options.workingDirectory || process.cwd();
+    task.theme?.workingDirectory || options.workingDirectory || getProjectRoot();
   const claudeSessionId = execution.claudeSessionId;
 
   logger.info(`[RecoveryManager] Resuming interrupted execution ${executionId}`);

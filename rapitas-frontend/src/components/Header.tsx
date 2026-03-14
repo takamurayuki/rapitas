@@ -1159,7 +1159,7 @@ export default function Header() {
       {/* サイドバーメニュー */}
       <nav
         ref={menuRef}
-        className={`fixed left-0 top-0 h-full w-72 bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
+        className={`fixed left-0 top-0 h-full w-72 flex flex-col bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
           isMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -1192,7 +1192,7 @@ export default function Header() {
         </div>
 
         {/* ナビゲーション項目 */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
           <div className="p-4 space-y-1 flex-1">
             {filteredNavItems.map((item) => renderNavItem(item, 0))}
           </div>

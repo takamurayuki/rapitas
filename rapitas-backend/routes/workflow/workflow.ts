@@ -5,7 +5,7 @@
 import { Elysia } from 'elysia';
 import { readFile, writeFile, mkdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { prisma } from '../../config';
+import { prisma, getProjectRoot } from '../../config';
 import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
 import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
 import {
@@ -131,7 +131,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     // workingDirectoryを解決: AgentExecutionConfig → theme → cwd
     const workingDirectory =
-      execConfig.workingDirectory || task.theme?.workingDirectory || process.cwd();
+      execConfig.workingDirectory || task.theme?.workingDirectory || getProjectRoot();
 
     // ブランチ名をAgentSessionから取得
     const latestSession = task.developerModeConfig?.agentSessions?.[0];

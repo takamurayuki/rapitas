@@ -1,7 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
-import { BookOpen, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  BookOpen,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+} from 'lucide-react';
 import { useKnowledgeReminders } from '../hooks/useIntelligence';
 
 const categoryColors: Record<string, string> = {
@@ -17,12 +25,64 @@ const categoryColors: Record<string, string> = {
 };
 
 export function KnowledgeReminderWidget() {
-  const { summary, loading, fetchSummary, markAsReviewed } =
-    useKnowledgeReminders();
+  const {
+    summary,
+    loading,
+    fetchSummary,
+    markAsReviewed,
+    snooze,
+    fetchContent,
+  } = useKnowledgeReminders();
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(
+    new Set(),
+  );
+  const [entryContents, setEntryContents] = useState<Map<number, string>>(
+    new Map(),
+  );
+  const [loadingContent, setLoadingContent] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
+
+  const toggleExpanded = useCallback(
+    async (entryId: number) => {
+      const newExpanded = new Set(expandedEntries);
+      if (newExpanded.has(entryId)) {
+        newExpanded.delete(entryId);
+      } else {
+        newExpanded.add(entryId);
+        // Fetch content if not already loaded
+        if (!entryContents.has(entryId)) {
+          setLoadingContent((prev) => new Set(prev).add(entryId));
+          const content = await fetchContent(entryId);
+          setEntryContents((prev) => new Map(prev).set(entryId, content));
+          setLoadingContent((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(entryId);
+            return newSet;
+          });
+        }
+      }
+      setExpandedEntries(newExpanded);
+    },
+    [expandedEntries, entryContents, fetchContent],
+  );
+
+  const handleSnooze = useCallback(
+    async (entryId: number) => {
+      const success = await snooze(entryId, 24);
+      if (success) {
+        // Remove from expanded entries if it was expanded
+        setExpandedEntries((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(entryId);
+          return newSet;
+        });
+      }
+    },
+    [snooze],
+  );
 
   if (loading) {
     return (
@@ -92,35 +152,88 @@ export function KnowledgeReminderWidget() {
             <AlertTriangle className="w-3.5 h-3.5" />
             <span>復習が必要なナレッジ</span>
           </div>
-          {summary.topAtRisk.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex items-center gap-2 p-2 rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-zinc-800 dark:text-zinc-200 truncate">
-                  {entry.title}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${categoryColors[entry.category] || categoryColors.general}`}
-                  >
-                    {entry.category}
-                  </span>
-                  <span className="text-[10px] text-zinc-400">
-                    記憶定着度: {Math.round(entry.decayScore * 100)}%
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => markAsReviewed(entry.id)}
-                className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors shrink-0"
-                title="復習済みにする"
+          {summary.topAtRisk.map((entry) => {
+            const isExpanded = expandedEntries.has(entry.id);
+            const isLoadingThis = loadingContent.has(entry.id);
+            const content = entryContents.get(entry.id);
+
+            return (
+              <div
+                key={entry.id}
+                className="rounded-lg bg-amber-50/50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30"
               >
-                <CheckCircle2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2 p-2">
+                  {/* Expand toggle */}
+                  <button
+                    onClick={() => toggleExpanded(entry.id)}
+                    className="p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors shrink-0"
+                    title={isExpanded ? '閉じる' : '内容を表示'}
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  <div className="flex-1 min-w-0">
+                    <button
+                      onClick={() => toggleExpanded(entry.id)}
+                      className="text-sm text-zinc-800 dark:text-zinc-200 truncate block w-full text-left hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      {entry.title}
+                    </button>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${categoryColors[entry.category] || categoryColors.general}`}
+                      >
+                        {entry.category}
+                      </span>
+                      <span className="text-[10px] text-zinc-400">
+                        記憶定着度: {Math.round(entry.decayScore * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Snooze button */}
+                    <button
+                      onClick={() => handleSnooze(entry.id)}
+                      className="p-1.5 text-zinc-400 dark:text-zinc-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-lg transition-colors"
+                      title="後で復習（24時間スヌーズ）"
+                    >
+                      <Clock className="w-4 h-4" />
+                    </button>
+                    {/* Reviewed button */}
+                    <button
+                      onClick={() => markAsReviewed(entry.id)}
+                      className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                      title="復習済みにする"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-1 border-t border-amber-100 dark:border-amber-900/20">
+                    {isLoadingThis ? (
+                      <div className="animate-pulse h-12 bg-zinc-200 dark:bg-zinc-700 rounded" />
+                    ) : content ? (
+                      <p className="text-xs text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap leading-relaxed">
+                        {content}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-zinc-400 italic">
+                        コンテンツなし
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="py-4 text-center text-sm text-zinc-400 dark:text-zinc-500">

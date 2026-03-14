@@ -4,7 +4,7 @@
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
-import { orchestrator } from '../../services/orchestrator-instance';
+import { orchestrator, stopServer } from '../../services/orchestrator-instance';
 import { isEncryptionKeyConfigured } from '../../utils/encryption';
 import { realtimeService } from '../../services/realtime-service';
 import { createLogger } from '../../config/logger';
@@ -297,7 +297,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
           log.info('[shutdown] Closing listening socket first for quick port release...');
-          await orchestrator.stopServer();
+          await stopServer();
           log.info('[shutdown] Listening socket closed, port released.');
 
           // Step 3: エージェント停止とDB保存
@@ -344,7 +344,7 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
           // Step 2: リスニングソケットを即座に閉じる（ポート解放を最優先）
           log.info('[restart] Closing listening socket first for quick port release...');
-          await orchestrator.stopServer();
+          await stopServer();
           log.info('[restart] Listening socket closed, port released.');
 
           // Step 3: エージェント停止とDB保存

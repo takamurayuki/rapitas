@@ -781,6 +781,9 @@ export default function NoteModal() {
       )}
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="note-modal-title"
         className={`fixed bg-white dark:bg-zinc-900 overflow-hidden note-modal-enter ${
           modalState.isMaximized ? 'rounded-none' : 'rounded-xl shadow-2xl'
         } ${
@@ -813,8 +816,18 @@ export default function NoteModal() {
           }`}
           onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
         >
-          <div className="relative flex items-center bg-white/15 rounded-md p-0.5">
+          <div
+            className="relative flex items-center bg-white/15 rounded-md p-0.5"
+            role="tablist"
+            aria-label="ノートモーダル"
+          >
+            <span id="note-modal-title" className="sr-only">
+              ノート
+            </span>
             <button
+              role="tab"
+              aria-selected={activeTab === 'note'}
+              aria-controls="note-tab-panel"
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
                 // ドラッグ中はクリックイベントを無視
@@ -830,10 +843,13 @@ export default function NoteModal() {
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <NotebookTabs className="w-3.5 h-3.5" />
+              <NotebookTabs className="w-3.5 h-3.5" aria-hidden="true" />
               <span>ノート</span>
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'ai'}
+              aria-controls="ai-tab-panel"
               onMouseDown={modalState.isMaximized ? undefined : handleDragStart}
               onClick={(e) => {
                 // ドラッグ中はクリックイベントを無視
@@ -849,7 +865,7 @@ export default function NoteModal() {
                   : 'text-white/60 hover:text-white'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>AI</span>
             </button>
           </div>
@@ -858,12 +874,16 @@ export default function NoteModal() {
           {activeTab === 'note' && (
             <div className="relative flex-1 flex items-center justify-center px-4">
               <div className="relative w-full max-w-xs">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
+                <Search
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50"
+                  aria-hidden="true"
+                />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ノートを検索..."
+                  aria-label="ノートを検索"
                   className="w-full pl-7 pr-2 py-1 bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder:text-white/50 text-sm rounded-lg border border-white/10 focus:border-white/30 focus:outline-none transition-all"
                 />
               </div>

@@ -11,6 +11,8 @@ import {
   DEFAULT_MODELS,
 } from './types';
 
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+
 const log = createLogger('ai-client:credentials');
 
 /**
@@ -37,6 +39,11 @@ export function isValidApiKeyFormat(apiKey: string, provider: AIProvider): boole
  * DBに保存されたキーを優先し、存在しない場合のみ環境変数にフォールバック
  */
 export async function getApiKeyForProvider(provider: AIProvider): Promise<string | null> {
+  // OllamaはAPIキー不要 - URLを返す
+  if (provider === 'ollama') {
+    return await getOllamaUrl();
+  }
+
   // まずDBから取得を試みる（ユーザーが設定画面で登録したキーを優先）
   const settings = await prisma.userSettings.findFirst();
   if (settings) {
@@ -72,6 +79,14 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
   }
 
   return null;
+}
+
+/**
+ * OllamaのURLをDBから取得
+ */
+export async function getOllamaUrl(): Promise<string> {
+  const settings = await prisma.userSettings.findFirst();
+  return ((settings as Record<string, unknown>)?.ollamaUrl as string) || DEFAULT_OLLAMA_URL;
 }
 
 /**
@@ -117,5 +132,7 @@ export async function getConfiguredProviders(): Promise<AIProvider[]> {
     const key = await getApiKeyForProvider(p);
     if (key) configured.push(p);
   }
+  // Ollamaは常に利用可能（ローカルサーバーが起動していれば）
+  configured.push('ollama');
   return configured;
 }

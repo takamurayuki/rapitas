@@ -78,6 +78,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
           deckName: note.title || undefined,
           count: 10,
           language: locale,
+          difficulty: 'intermediate',
         }),
       });
       if (!res.ok) throw new Error('Failed to generate flashcards');
