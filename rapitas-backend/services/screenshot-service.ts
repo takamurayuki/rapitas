@@ -1,10 +1,11 @@
 /**
  * Screenshot Service
- * Playwrightを使ってフロントエンド画面のスクリーンショットを撮影するサービス
- * 任意のプロジェクト（Next.js, Vite, CRA等）に対応
  *
- * Bun 環境では Playwright の pipe 接続がハングするため、
- * Node.js サブプロセスでスクリーンショットワーカーを実行する。
+ * Captures frontend screenshots using Playwright.
+ * Supports any project type (Next.js, Vite, CRA, etc.).
+ *
+ * NOTE: In Bun, Playwright pipe connections hang, so the screenshot
+ * worker runs as a Node.js subprocess instead.
  */
 import { join, basename, relative } from 'path';
 import { Dirent, existsSync, mkdirSync, readFileSync, readdirSync } from 'fs';
@@ -16,7 +17,7 @@ const log = createLogger('screenshot-service');
 
 const SCREENSHOT_DIR = join(process.cwd(), 'uploads', 'screenshots');
 
-// スクリーンショット保存ディレクトリの初期化
+// Initialize screenshot save directory
 function ensureScreenshotDir() {
   if (!existsSync(SCREENSHOT_DIR)) {
     mkdirSync(SCREENSHOT_DIR, { recursive: true });
@@ -40,7 +41,7 @@ export type ScreenshotOptions = {
   waitMs?: number;
   darkMode?: boolean;
   workingDirectory?: string;
-  /** 最大撮影ページ数（デフォルト: 5、全ページモード時は30） */
+  /** Max pages to capture (default: 5, 30 in all-pages mode) */
   maxPages?: number;
 };
 
@@ -61,7 +62,7 @@ interface PackageJson {
 }
 
 /**
- * 作業ディレクトリからプロジェクト構造を自動検出する
+ * Auto-detect project structure from the working directory.
  */
 export function detectProjectInfo(workingDirectory: string): ProjectInfo {
   const result: ProjectInfo = {
@@ -74,20 +75,20 @@ export function detectProjectInfo(workingDirectory: string): ProjectInfo {
     pagesDir: null,
   };
 
-  // フロントエンドディレクトリの候補を探す
+  // Search for frontend directory candidates
   const frontendDirCandidates = [
-    '', // ルートにフロントエンドがある場合
+    '', // When frontend is in root directory
     'frontend',
     'client',
     'web',
     'app',
   ];
 
-  // プロジェクト名-frontend パターン（例: rapitas-frontend）
+  // Add project-specific frontend directory (e.g., rapitas-frontend)
   const projectName = basename(workingDirectory);
   frontendDirCandidates.push(`${projectName}-frontend`);
 
-  // 子ディレクトリを検索してフロントエンド候補を追加
+  // Search child directories for frontend candidates
   try {
     const entries = require('fs').readdirSync(workingDirectory, { withFileTypes: true });
     for (const entry of entries) {
@@ -191,11 +192,11 @@ export function detectProjectInfo(workingDirectory: string): ProjectInfo {
 }
 
 /**
- * 設定ファイルからdevサーバーのポートを検出する
+ * Detect dev server port from config files.
  */
 function detectPort(dir: string, projectType: string): number | null {
   try {
-    // package.json の scripts から検出
+    // Check package.json scripts section
     const packageJsonPath = join(dir, 'package.json');
     if (existsSync(packageJsonPath)) {
       const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
@@ -208,7 +209,7 @@ function detectPort(dir: string, projectType: string): number | null {
 
     // Next.js: next.config.js / next.config.ts
     if (projectType === 'nextjs') {
-      // .env ファイルからポート検出
+      // .env
       const envPath = join(dir, '.env');
       if (existsSync(envPath)) {
         const env = readFileSync(envPath, 'utf-8');
@@ -249,19 +250,19 @@ function detectPort(dir: string, projectType: string): number | null {
 }
 
 /**
- * 変更されたファイルにUI関連のファイルが含まれるかチェック（厳格版）
+ * Check if file changes affect UI components that require screenshots.
  *
- * スクリーンショット取得を最小限にするため、以下の条件を満たす場合のみtrueを返す：
- * 1. ページコンポーネント（page.tsx, Client.tsx）の直接的な変更
- * 2. ルートレイアウトやグローバルスタイルの変更
- * 3. 特定のfeatureコンポーネントの変更（ページに直接表示されるもの）
+ * Returns true when:
+ * 1. Page components are modified (page.tsx, Client.tsx)
+ * 2. Important CSS files are changed
+ * 3. Feature components are updated (affecting user-facing UI)
  *
- * 除外するもの：
- * - 共通コンポーネント（components/common/, components/ui/）
- * - ユーティリティ関数（utils/, helpers/）
- * - 型定義ファイル（*.d.ts, types/）
- * - テストファイル（*.test.*, *.spec.*）
- * - ストア・フック（stores/, hooks/）※UIに直接影響しない
+ * Excludes:
+ * - Common/shared components (components/common/, components/ui/)
+ * - Utilities and helpers (utils/, helpers/)
+ * - Type definitions (*.d.ts, types/)
+ * - Test files (*.test.*, *.spec.*)
+ * - Store/hook files (stores/, hooks/) unless they affect UI directly
  */
 export function hasUIChanges(changedFiles: string[], workingDirectory?: string): boolean {
   const projectInfo = workingDirectory ? detectProjectInfo(workingDirectory) : null;
@@ -269,7 +270,6 @@ export function hasUIChanges(changedFiles: string[], workingDirectory?: string):
   return changedFiles.some((file) => {
     const normalized = file.replace(/\\/g, '/');
 
-    // 除外パターン（共通コンポーネント、ユーティリティなど）
     const excludePatterns = [
       /\/components\/common\//,
       /\/components\/ui\//,
@@ -290,19 +290,19 @@ export function hasUIChanges(changedFiles: string[], workingDirectory?: string):
       /__mocks__\//,
     ];
 
-    // 除外パターンに該当する場合はfalse
+    // Return false if matches exclusion patterns
     if (excludePatterns.some((pattern) => pattern.test(normalized))) {
       return false;
     }
 
-    // UI関連の拡張子（CSSは特定の場合のみ）
+    // Check for UI file extensions (including CSS)
     const isUIExtension =
       normalized.endsWith('.tsx') ||
       normalized.endsWith('.jsx') ||
       normalized.endsWith('.vue') ||
       normalized.endsWith('.svelte');
 
-    // CSSファイルは特定のもののみ対象
+    // Check for important CSS files
     const isImportantCSS =
       normalized.endsWith('globals.css') ||
       normalized.endsWith('global.css') ||
@@ -312,53 +312,46 @@ export function hasUIChanges(changedFiles: string[], workingDirectory?: string):
 
     if (!isUIExtension && !isImportantCSS) return false;
 
-    // プロジェクト固有の判定
     if (projectInfo && projectInfo.type !== 'unknown') {
       const frontendDirName = projectInfo.frontendDir ? basename(projectInfo.frontendDir) : null;
 
-      // フロントエンドディレクトリ外の変更は除外
       if (frontendDirName && !normalized.includes(`${frontendDirName}/`)) {
         return false;
       }
     }
 
-    // 重要なUIファイルのパターン
+    // Check for important UI file patterns
     const importantUIPatterns = [
-      // ページコンポーネント
       /\/page\.[tj]sx?$/,
       /[A-Z]\w*Client\.[tj]sx?$/,
       /\/views\/[^/]+\.[tj]sx?$/,
 
-      // レイアウトコンポーネント
       /\/layout\.[tj]sx?$/,
       /\/Layout\.[tj]sx?$/,
 
-      // ルートコンポーネント
       /\/App\.[tj]sx?$/,
       /\/_app\.[tj]sx?$/,
       /\/index\.[tj]sx?$/,
 
-      // 特定のfeatureコンポーネント（ページに直接表示される主要コンポーネント）
+      // Feature components affecting user-visible UI
       /\/feature\/[^/]+\/components\/[^/]+Panel\.[tj]sx?$/,
       /\/feature\/[^/]+\/components\/[^/]+View\.[tj]sx?$/,
       /\/feature\/[^/]+\/components\/[^/]+Page\.[tj]sx?$/,
     ];
 
-    // 重要なUIファイルの場合のみtrue
+    // Return true if matches important UI patterns
     return importantUIPatterns.some((pattern) => pattern.test(normalized)) || isImportantCSS;
   });
 }
 
 /**
- * 変更されたファイルから関連するページを推定する（厳格版）
+ * Detect pages affected by file changes for targeted screenshot capture.
  *
- * 精度重視: 直接的な影響があるページのみを検出
- * - ページコンポーネント（page.tsx, Client.tsx）の変更 → そのページのみ
- * - feature内の主要コンポーネント → マッピングされた特定ページのみ
- * - レイアウト変更 → そのレイアウトが適用されるページの代表的なもの1つ
- * - グローバルスタイル → ホームページのみ
- *
- * 最大撮影ページ数を制限して不要なスクリーンショットを防止する。
+ * Strategy:
+ * - Page components (page.tsx, Client.tsx) → capture corresponding route
+ * - Feature components → capture feature-mapped pages
+ * - Layout components → capture 1 representative page
+ * - Global CSS → capture home page
  */
 export function detectAffectedPages(
   changedFiles: string[],
@@ -369,7 +362,7 @@ export function detectAffectedPages(
   const affectedFeatures = new Set<string>();
 
   function addPage(path: string, label: string) {
-    // 動的ルート（[id]など）はスキップ
+    // Skip dynamic routes with parameters (e.g., [id])
     if (path.includes('[')) return;
     if (!addedPaths.has(path)) {
       addedPaths.add(path);
@@ -377,22 +370,22 @@ export function detectAffectedPages(
     }
   }
 
-  // feature ディレクトリからページへのマッピング（厳格版）
-  // 各featureの主要コンポーネントが直接表示される代表的なページのみをマッピング
+  // Feature-to-page mapping (prevents duplicate screenshots)
+  // Maps feature names to their primary pages
   const featurePageMapping: Record<string, Array<{ path: string; label: string }>> = {
     'developer-mode': [
-      { path: '/approvals', label: 'approvals' }, // 最大1ページ
+      { path: '/approvals', label: 'approvals' }, // Limited to 1 page
     ],
     calendar: [{ path: '/calendar', label: 'calendar' }],
     tasks: [
-      { path: '/', label: 'home' }, // タスク一覧が表示されるメインページのみ
+      { path: '/', label: 'home' }, // Main page where task list is displayed
     ],
   };
 
   for (const file of changedFiles) {
     const normalized = file.replace(/\\/g, '/');
 
-    // UI関連の拡張子チェック
+    // Only process UI-related files
     const isUIFile =
       normalized.endsWith('.tsx') ||
       normalized.endsWith('.jsx') ||
@@ -413,13 +406,13 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 2. Next.js App Router: ルートの page.tsx (src/app/page.tsx)
+    // 2. Next.js App Router: Root page.tsx (src/app/page.tsx)
     if (/(?:[\w-]+\/)?src\/app\/page\.[tj]sx?$/.test(normalized)) {
       addPage('/', 'home');
       continue;
     }
 
-    // 3. Next.js App Router: layout.tsx の変更 → そのルートとその子ルートの1つ
+    // 3. Next.js App Router: layout.tsx affects route → capture 1 page
     const layoutMatch = normalized.match(/(?:[\w-]+\/)?src\/app\/(.+?)\/layout\.[tj]sx?/);
     if (layoutMatch) {
       const routePath = `/${layoutMatch[1]}`;
@@ -427,7 +420,7 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 4. ルートの layout.tsx
+    // 4. Root layout.tsx
     if (/(?:[\w-]+\/)?src\/app\/layout\.[tj]sx?$/.test(normalized)) {
       addPage('/', 'home');
       continue;
@@ -463,20 +456,20 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 8. feature ディレクトリの変更 → 主要コンポーネントのみ対象
+    // 8. feature  →
     const featureMatch = normalized.match(/src\/feature\/([^/]+)\/components\/([^/]+)\.[tj]sx?$/);
     if (featureMatch) {
       const featureName = featureMatch[1];
       const componentName = featureMatch[2];
 
-      // 主要なコンポーネント（Panel, View, Page系）の場合のみ
+      // （Panel, View, Page）
       if (
         componentName.endsWith('Panel') ||
         componentName.endsWith('View') ||
         componentName.endsWith('Page') ||
         componentName.includes('Client')
       ) {
-        // すでにこのfeatureを処理済みの場合はスキップ（重複防止）
+        // feature（）
         if (affectedFeatures.has(featureName)) {
           continue;
         }
@@ -484,17 +477,17 @@ export function detectAffectedPages(
 
         const mappedPages = featurePageMapping[featureName];
         if (mappedPages && mappedPages.length > 0) {
-          // マッピングがある場合は最初の1ページのみ追加
+          // 1
           addPage(mappedPages[0].path, mappedPages[0].label);
         }
       }
       continue;
     }
 
-    // 9. src/app/xxx/ 内の任意のコンポーネントファイル変更は無視
-    // （page.tsx や *Client.tsx の直接的な変更のみを対象とする）
+    // 9. src/app/xxx/
+    // （page.tsx  *Client.tsx ）
 
-    // 10. グローバルCSS の変更 → トップページのみ
+    // 10. CSS  →
     if (
       normalized.includes('globals.css') ||
       normalized.includes('global.css') ||
@@ -504,15 +497,14 @@ export function detectAffectedPages(
       continue;
     }
 
-    // 11. その他の変更は無視（共通コンポーネント、ユーティリティなど）
+    // 11. （）
   }
 
   return pages;
 }
 
 /**
- * フロントエンドプロジェクトの全ページルートを自動検出する（汎用版）
- * Next.js App Router / Pages Router、Vite、Nuxt、Angular に対応
+ * Next.js App Router / Pages RouterViteNuxtAngular
  */
 export function detectAllPages(workingDirectory: string): Array<{ path: string; label: string }> {
   const projectInfo = detectProjectInfo(workingDirectory);
@@ -526,17 +518,17 @@ export function detectAllPages(workingDirectory: string): Array<{ path: string; 
     }
   }
 
-  // Next.js App Router: src/app/**/page.tsx を再帰的に探索
+  // Next.js App Router: src/app/**/page.tsx
   if (projectInfo.appDir && existsSync(projectInfo.appDir)) {
     scanNextJsAppDir(projectInfo.appDir, projectInfo.appDir, addPage);
   }
 
-  // Next.js Pages Router: pages/**/*.tsx を探索
+  // Next.js Pages Router: pages/**/*.tsx
   if (projectInfo.pagesDir && existsSync(projectInfo.pagesDir)) {
     scanPagesDir(projectInfo.pagesDir, projectInfo.pagesDir, addPage);
   }
 
-  // Vite / CRA: src/views/ や src/pages/ を探索
+  // Vite / CRA: src/views/  src/pages/
   if (projectInfo.srcDir && (projectInfo.type === 'vite' || projectInfo.type === 'cra')) {
     const viewsDir = join(projectInfo.srcDir, 'views');
     if (existsSync(viewsDir)) {
@@ -548,17 +540,16 @@ export function detectAllPages(workingDirectory: string): Array<{ path: string; 
     }
   }
 
-  // Nuxt: pages/*.vue を探索
+  // Nuxt: pages/*.vue
   if (projectInfo.type === 'nuxt' && projectInfo.pagesDir) {
     scanPagesDir(projectInfo.pagesDir, projectInfo.pagesDir, addPage);
   }
 
-  // Angular: app-routing.module.ts からルートを抽出
+  // Angular: app-routing.module.ts
   if (projectInfo.type === 'angular' && projectInfo.srcDir) {
     scanAngularRoutes(projectInfo.srcDir, addPage);
   }
 
-  // ホームページが含まれていない場合は追加
   if (pages.length === 0 || !addedPaths.has('/')) {
     addPage('/', 'home');
   }
@@ -567,7 +558,7 @@ export function detectAllPages(workingDirectory: string): Array<{ path: string; 
 }
 
 /**
- * Next.js App Router ディレクトリを再帰スキャンして page.tsx を探す
+ * Next.js App Router  page.tsx
  */
 function scanNextJsAppDir(
   dir: string,
@@ -581,12 +572,12 @@ function scanNextJsAppDir(
     return;
   }
 
-  // page.tsx / page.jsx が存在するかチェック
+  // page.tsx / page.jsx
   const hasPage = entries.some((e) => !e.isDirectory() && /^page\.[tj]sx?$/.test(e.name));
 
   if (hasPage) {
     const relPath = relative(appRoot, dir).replace(/\\/g, '/');
-    // 動的ルート（[id]など）はスキップ（実データが必要なため）
+    // （[id]）（）
     if (!relPath.includes('[')) {
       const routePath = relPath === '' ? '/' : `/${relPath}`;
       const label =
@@ -595,7 +586,6 @@ function scanNextJsAppDir(
     }
   }
 
-  // サブディレクトリを再帰探索
   for (const entry of entries) {
     if (entry.isDirectory() && !entry.name.startsWith('_') && !entry.name.startsWith('.')) {
       scanNextJsAppDir(join(dir, entry.name), appRoot, addPage);
@@ -604,7 +594,7 @@ function scanNextJsAppDir(
 }
 
 /**
- * Pages Router / Nuxt のpagesディレクトリをスキャン
+ * Pages Router / Nuxt pages
  */
 function scanPagesDir(
   dir: string,
@@ -628,14 +618,13 @@ function scanPagesDir(
       continue;
     }
 
-    // .tsx, .jsx, .vue ファイルを対象
+    // .tsx, .jsx, .vue
     const match = entry.name.match(/^(.+)\.(tsx|jsx|vue|ts|js)$/);
     if (!match) continue;
 
     const fileName = match[1];
-    // _app, _document, _error などはスキップ
+    // _app, _document, _error
     if (fileName.startsWith('_')) continue;
-    // 動的ルートはスキップ
     if (fileName.includes('[')) continue;
 
     const relDir = relative(pagesRoot, dir).replace(/\\/g, '/');
@@ -653,7 +642,7 @@ function scanPagesDir(
 }
 
 /**
- * Vite/CRA の views ディレクトリをスキャン
+ * Vite/CRA  views
  */
 function scanViewsDir(
   dir: string,
@@ -695,10 +684,10 @@ function scanViewsDir(
 }
 
 /**
- * Angular のルーティングモジュールからルートを抽出
+ * Angular
  */
 function scanAngularRoutes(srcDir: string, addPage: (path: string, label: string) => void) {
-  // app-routing.module.ts からパスを抽出
+  // app-routing.module.ts
   const routingFiles = [
     join(srcDir, 'app', 'app-routing.module.ts'),
     join(srcDir, 'app', 'app.routes.ts'),
@@ -709,12 +698,11 @@ function scanAngularRoutes(srcDir: string, addPage: (path: string, label: string
 
     try {
       const content = readFileSync(routingFile, 'utf-8');
-      // path: 'xxx' パターンを抽出
+      // path: 'xxx'
       const pathPattern = /path\s*:\s*['"]([^'"]*)['"]/g;
       let match;
       while ((match = pathPattern.exec(content)) !== null) {
         const routePath = match[1];
-        // 空パス、ワイルドカード、動的パラメータはスキップ
         if (routePath === '' || routePath === '**' || routePath.includes(':')) {
           if (routePath === '') {
             addPage('/', 'home');
@@ -730,16 +718,16 @@ function scanAngularRoutes(srcDir: string, addPage: (path: string, label: string
 }
 
 /**
- * Node.js サブプロセスでスクリーンショットワーカーを実行する
+ * Node.js
  *
- * Bun 環境では Playwright の pipe 接続（--remote-debugging-pipe）が
- * ハングするため、Node.js サブプロセスとして実行する。
- * ワーカーは NDJSON（1行1JSON）で逐次出力し、タイムアウト時も途中結果を回収可能。
- * 参考: https://github.com/oven-sh/bun/issues/23826
+ * Bun  Playwright  pipe （--remote-debugging-pipe）
+ * Node.js
+ * NDJSON（11JSON）Output
+ * : https://github.com/oven-sh/bun/issues/23826
  */
 
 /**
- * NDJSON（1行1JSON）をパースして ScreenshotResult 配列を返す
+ * NDJSON（11JSON） ScreenshotResult
  */
 function parseNdjson(stdout: string): ScreenshotResult[] {
   const results: ScreenshotResult[] = [];
@@ -749,7 +737,7 @@ function parseNdjson(stdout: string): ScreenshotResult[] {
     try {
       results.push(JSON.parse(trimmed));
     } catch {
-      // パース不能行はスキップ
+      // Skip unparseable lines
     }
   }
   return results;
@@ -760,8 +748,8 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
     const workerPath = join(import.meta.dir, 'screenshot-worker.cjs');
     const child = spawn('node', [workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      // Windows: 子プロセスとそのサブプロセス（Chromium等）を独立したプロセスグループで起動しない
-      // これにより、child.kill() で確実にクリーンアップできる
+      // Windows: （Chromium）
+      // child.kill()
       windowsHide: true,
     });
 
@@ -771,7 +759,6 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
 
     const cleanup = () => {
       try {
-        // パイプを明示的に破棄してリソースリークを防止
         child.stdout?.removeAllListeners();
         child.stderr?.removeAllListeners();
         child.removeAllListeners();
@@ -790,7 +777,7 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
     child.stderr.on('data', (data: Buffer) => {
       const msg = data.toString();
       stderr += msg;
-      // ワーカーのログをそのまま出力
+      // Output
       process.stderr.write(msg);
     });
 
@@ -801,7 +788,7 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
         log.error(`[ScreenshotService] Worker exited with code ${code}`);
       }
 
-      // NDJSON 形式でパース（1行1結果）
+      // NDJSON （11）
       const results = parseNdjson(stdout);
       cleanup();
       resolve(results);
@@ -815,17 +802,17 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
       resolve([]);
     });
 
-    // stdin にオプションを書き込んで閉じる
+    // stdin
     child.stdin.write(JSON.stringify(workerInput));
     child.stdin.end();
 
-    // タイムアウト: ページ数に応じて動的に設定（1ページあたり35秒 + ブラウザ起動30秒）
+    // : （135 + 30）
     const pages = (workerInput.pages as Array<unknown>) || [];
     const timeoutMs = 30000 + pages.length * 35000;
     setTimeout(() => {
       if (resolved) return;
       resolved = true;
-      // タイムアウト時も途中結果を返す（NDJSON で逐次出力されている分を回収）
+      // （NDJSON Output）
       const partialResults = parseNdjson(stdout);
       log.error(
         `[ScreenshotService] Worker timed out after ${timeoutMs / 1000}s, recovered ${partialResults.length} screenshot(s)`,
@@ -837,13 +824,13 @@ function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<Scre
 }
 
 /**
- * Playwrightを使ってスクリーンショットを撮影する
- * Bun 互換性のため Node.js サブプロセスで実行
+ * Playwright
+ * Bun  Node.js
  */
 export async function captureScreenshots(
   options: ScreenshotOptions = {},
 ): Promise<ScreenshotResult[]> {
-  // スクリーンショット撮影全体のセーフティタイムアウト（90秒）
+  // （90）
   const SAFETY_TIMEOUT_MS = 90000;
   const safetyPromise = new Promise<ScreenshotResult[]>((resolve) => {
     setTimeout(() => {
@@ -874,7 +861,7 @@ async function captureScreenshotsImpl(
     maxPages = 5,
   } = options;
 
-  // workingDirectory からプロジェクト情報を自動検出し、baseUrl を決定
+  // workingDirectory baseUrl
   const projectInfo = workingDirectory ? detectProjectInfo(workingDirectory) : null;
 
   const baseUrl = options.baseUrl || (projectInfo ? projectInfo.baseUrl : 'http://localhost:3000');
@@ -887,7 +874,6 @@ async function captureScreenshotsImpl(
 
   log.info(`[ScreenshotService] Capturing ${targetPages.length} page(s) via Node.js worker`);
 
-  // ページ数が多い場合はバッチ分割して実行（ワーカーの安定性確保）
   const BATCH_SIZE = 5;
   if (targetPages.length <= BATCH_SIZE) {
     return runScreenshotWorker({
@@ -900,7 +886,7 @@ async function captureScreenshotsImpl(
     });
   }
 
-  // バッチ実行: 5ページずつ順次処理
+  // : 5
   const allResults: ScreenshotResult[] = [];
   for (let i = 0; i < targetPages.length; i += BATCH_SIZE) {
     const batch = targetPages.slice(i, i + BATCH_SIZE);
@@ -921,10 +907,8 @@ async function captureScreenshotsImpl(
 }
 
 /**
- * プロジェクトの全ページのスクリーンショットを撮影する（汎用版）
- * フロントエンドのルート構造を自動検出して全静的ページを撮影
  *
- * changedFiles が指定された場合は変更されたファイルに関連するページのみを撮影する
+ * changedFiles
  */
 export async function captureAllScreenshots(
   options: ScreenshotOptions & { changedFiles?: string[] } = {},
@@ -938,7 +922,7 @@ export async function captureAllScreenshots(
   let targetPages: Array<{ path: string; label: string }>;
 
   if (options.changedFiles && options.changedFiles.length > 0) {
-    // diffベース: 変更ファイルから影響のあるページのみを対象にする
+    // diff:
     if (!hasUIChanges(options.changedFiles, workingDirectory)) {
       log.info('[ScreenshotService] captureAll: no UI changes detected, skipping.');
       return [];
@@ -951,14 +935,13 @@ export async function captureAllScreenshots(
       `[ScreenshotService] captureAll (diff-based): ${targetPages.length} affected page(s): ${targetPages.map((p) => p.path).join(', ')}`,
     );
   } else {
-    // 全ページモード
     targetPages = detectAllPages(workingDirectory);
     log.info(
       `[ScreenshotService] captureAll: detected ${targetPages.length} page(s): ${targetPages.map((p) => p.path).join(', ')}`,
     );
   }
 
-  // maxPages のデフォルトを5に制限（不要なスクリーンショットを防止）
+  // maxPages 5（）
   return captureScreenshots({
     ...options,
     pages: targetPages,
@@ -968,7 +951,7 @@ export async function captureAllScreenshots(
 }
 
 /**
- * AIエージェントの出力テキストからページパスを抽出する
+ * AIOutput
  */
 export function detectPagesFromAgentOutput(
   output: string,
@@ -980,7 +963,7 @@ export function detectPagesFromAgentOutput(
   const projectInfo = workingDirectory ? detectProjectInfo(workingDirectory) : null;
   const port = projectInfo?.devPort || 3000;
 
-  // localhost:PORT/path パターンを検出
+  // localhost:PORT/path
   const urlPattern = new RegExp(`(?:https?://)?localhost:${port}(/[\\w\\-/]*)`, 'g');
   let match;
   while ((match = urlPattern.exec(output)) !== null) {
@@ -994,7 +977,7 @@ export function detectPagesFromAgentOutput(
     }
   }
 
-  // src/app/xxx/page.tsx への言及パターン
+  // src/app/xxx/page.tsx
   const appRouterMentionPattern = /src\/app\/([^\s/]+(?:\/[^\s/]+)*)\/page\.[tj]sx?/g;
   while ((match = appRouterMentionPattern.exec(output)) !== null) {
     const pagePath = `/${match[1]}`;
@@ -1011,8 +994,7 @@ export function detectPagesFromAgentOutput(
 }
 
 /**
- * structuredDiffとエージェント出力からスクリーンショットを撮影
- * 変更されたページのみを対象にし、不要なスクリーンショットを防止する
+ * structuredDiffOutput
  */
 export async function captureScreenshotsForDiff(
   structuredDiff: Array<{ filename: string }>,
@@ -1034,7 +1016,7 @@ export async function captureScreenshotsForDiff(
     `[ScreenshotService] Detected ${pages.length} affected page(s) from diff: ${pages.map((p) => p.path).join(', ')}`,
   );
 
-  // エージェントの出力テキストからも追加ページを検出
+  // Output
   if (options?.agentOutput) {
     const agentPages = detectPagesFromAgentOutput(options.agentOutput, workingDirectory);
     const existingPaths = new Set(pages.map((p) => p.path));
@@ -1047,11 +1029,11 @@ export async function captureScreenshotsForDiff(
   }
 
   if (pages.length === 0) {
-    // UI変更はあるがページが特定できない場合、トップページを撮影
+    // UI
     pages.push({ path: '/', label: 'home' });
   }
 
-  // 最大ページ数を制限（デフォルト: 3）より厳格な制限
+  // （: 3）
   const maxPages = options?.maxPages || 3;
   const targetPages = pages.slice(0, maxPages);
   if (pages.length > maxPages) {

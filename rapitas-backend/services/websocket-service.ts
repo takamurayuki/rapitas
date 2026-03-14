@@ -5,7 +5,7 @@ import { createLogger } from '../config/logger';
 
 const log = createLogger('websocket-service');
 
-// WebSocketインスタンスの型
+// WebSocket instance type
 interface WebSocketInstance {
   send: (data: string) => void;
   close: () => void;
@@ -13,7 +13,7 @@ interface WebSocketInstance {
   data?: Record<string, unknown>;
 }
 
-// WebSocketクライアントの管理
+// WebSocket client management
 interface WSClient {
   id: string;
   ws: WebSocketInstance;
@@ -25,7 +25,7 @@ interface WSClient {
   };
 }
 
-// WebSocketルームの管理
+// WebSocket room management
 interface WSRoom {
   name: string;
   clients: Set<string>;
@@ -38,13 +38,13 @@ class WebSocketManager {
   private heartbeatInterval?: NodeJS.Timeout;
 
   constructor() {
-    // 定期的なヘルスチェック
+    // Periodic health check
     this.heartbeatInterval = setInterval(() => {
       this.checkClientHealth();
-    }, 30000); // 30秒ごと
+    }, 30000); // Every 30 seconds
   }
 
-  // クライアントの追加
+  // Add a client.
   addClient(
     id: string,
     ws: WebSocketInstance,
@@ -61,11 +61,11 @@ class WebSocketManager {
     log.info(`WebSocket client connected: ${id}`);
   }
 
-  // クライアントの削除
+  // Remove a client.
   removeClient(id: string): void {
     const client = this.clients.get(id);
     if (client) {
-      // すべての購読を解除
+      // Unsubscribe from all
       for (const room of client.subscriptions) {
         this.leaveRoom(id, room);
       }
@@ -74,12 +74,12 @@ class WebSocketManager {
     }
   }
 
-  // クライアントの取得
+  // Get a client.
   getClient(id: string): WSClient | undefined {
     return this.clients.get(id);
   }
 
-  // ルームに参加
+  // Join a room.
   joinRoom(clientId: string, roomName: string): void {
     let room = this.rooms.get(roomName);
     if (!room) {
@@ -100,13 +100,13 @@ class WebSocketManager {
     log.info(`Client ${clientId} joined room: ${roomName}`);
   }
 
-  // ルームから退出
+  // Leave a room.
   leaveRoom(clientId: string, roomName: string): void {
     const room = this.rooms.get(roomName);
     if (room) {
       room.clients.delete(clientId);
 
-      // 空になったルームは削除
+      // Delete empty rooms
       if (room.clients.size === 0) {
         this.rooms.delete(roomName);
       }
@@ -120,7 +120,7 @@ class WebSocketManager {
     log.info(`Client ${clientId} left room: ${roomName}`);
   }
 
-  // メッセージをルームに送信
+  // Send a message to a room.
   sendToRoom(roomName: string, message: unknown): void {
     const room = this.rooms.get(roomName);
     if (!room) return;
@@ -135,7 +135,7 @@ class WebSocketManager {
     }
   }
 
-  // 特定のクライアントにメッセージを送信
+  // Send a message to a specific client.
   sendToClient(clientId: string, message: unknown): void {
     const client = this.clients.get(clientId);
     if (client?.ws.readyState === 1) {
@@ -144,7 +144,7 @@ class WebSocketManager {
     }
   }
 
-  // すべてのクライアントにブロードキャスト
+  // Broadcast to all clients.
   broadcast(message: unknown): void {
     for (const [_, client] of this.clients) {
       if (client.ws.readyState === 1) {
@@ -154,23 +154,23 @@ class WebSocketManager {
     }
   }
 
-  // クライアントの健康チェック
+  // Client health check.
   private checkClientHealth(): void {
     const now = Date.now();
-    const timeout = 60000; // 60秒のタイムアウト
+    const timeout = 60000; // 60 second timeout
 
     for (const [id, client] of this.clients) {
       if (now - client.lastActivity > timeout) {
         log.info(`Client ${id} timed out, removing...`);
         this.removeClient(id);
       } else if (client.ws.readyState === 1) {
-        // Ping送信
+        // Send ping
         client.ws.send(JSON.stringify({ type: 'ping', timestamp: now }));
       }
     }
   }
 
-  // 統計情報の取得
+  // Get statistics
   getStats() {
     return {
       totalClients: this.clients.size,
@@ -188,19 +188,19 @@ class WebSocketManager {
     };
   }
 
-  // クリーンアップ
+  // Clean up.
   shutdown(): void {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
 
-    // すべてのクライアントに終了通知
+    // Send shutdown notification to all clients
     this.broadcast({
       type: 'server-shutdown',
       message: 'Server is shutting down',
     });
 
-    // 接続を閉じる
+    // Close connections
     for (const [_, client] of this.clients) {
       client.ws.close();
     }
@@ -210,23 +210,23 @@ class WebSocketManager {
   }
 }
 
-// WebSocketマネージャーのインスタンス
+// WebSocket manager instance
 const wsManager = new WebSocketManager();
 
-// WebSocketハンドラーの型
+// WebSocket handler type
 type WebSocketHandler<T = unknown> = (
   ws: WebSocketInstance,
   clientId: string,
   data: T,
 ) => void | Promise<void>;
 
-// WebSocketイベントハンドラー
+// WebSocket event handlers
 const webSocketHandlers = {
-  // タスクの更新を購読
+  // Subscribe to task updates
   subscribeTask: async (ws: WebSocketInstance, clientId: string, data: { taskId: string }) => {
     wsManager.joinRoom(clientId, `task:${data.taskId}`);
 
-    // 現在のタスクデータを送信
+    // Send current task data
     const task = await prisma.task.findUnique({
       where: { id: parseInt(data.taskId) },
       include: {
@@ -244,21 +244,21 @@ const webSocketHandlers = {
     }
   },
 
-  // カテゴリの更新を購読
+  // Subscribe to category updates
   subscribeCategory: (ws: WebSocketInstance, clientId: string, data: { categoryId: string }) => {
     wsManager.joinRoom(clientId, `category:${data.categoryId}`);
   },
 
-  // 統計情報の購読
+  // Subscribe to statistics
   subscribeStatistics: (ws: WebSocketInstance, clientId: string) => {
     wsManager.joinRoom(clientId, 'statistics');
   },
 
-  // リアルタイムコラボレーション
+  // Real-time collaboration
   joinCollaboration: (ws: WebSocketInstance, clientId: string, data: { sessionId: string }) => {
     wsManager.joinRoom(clientId, `collab:${data.sessionId}`);
 
-    // 他のクライアントに参加を通知
+    // Notify other clients about join
     wsManager.sendToRoom(`collab:${data.sessionId}`, {
       type: 'user-joined',
       clientId,
@@ -266,7 +266,7 @@ const webSocketHandlers = {
     });
   },
 
-  // カーソル位置の共有
+  // Share cursor position
   updateCursor: (
     ws: WebSocketInstance,
     clientId: string,
@@ -280,7 +280,7 @@ const webSocketHandlers = {
     });
   },
 
-  // タイピング状態の共有
+  // Share typing status
   setTypingStatus: (
     ws: WebSocketInstance,
     clientId: string,
@@ -294,7 +294,7 @@ const webSocketHandlers = {
     });
   },
 
-  // Pong応答（ヘルスチェック）
+  // Pong response (health check)
   pong: (ws: WebSocketInstance, clientId: string) => {
     const client = wsManager.getClient(clientId);
     if (client) {
@@ -303,9 +303,9 @@ const webSocketHandlers = {
   },
 };
 
-// データ変更の通知
+// Data change notifications
 export const notifyDataChange = {
-  // タスクが更新された場合
+  // When a task is updated
   taskUpdated: async (taskId: number, changeType: 'created' | 'updated' | 'deleted') => {
     const roomName = `task:${taskId}`;
 
@@ -334,7 +334,7 @@ export const notifyDataChange = {
           timestamp: new Date().toISOString(),
         });
 
-        // カテゴリルームにも通知（themeのcategoryIdがある場合のみ）
+        // Also notify category room (only if theme has categoryId)
         if (task.theme?.categoryId) {
           wsManager.sendToRoom(`category:${task.theme.categoryId}`, {
             type: 'category-task-updated',
@@ -346,11 +346,11 @@ export const notifyDataChange = {
       }
     }
 
-    // キャッシュを無効化
+    // Invalidate cache
     await cacheService.clear(`task:${taskId}`);
     await cacheService.clear('tasks:');
 
-    // 統計情報の更新を通知
+    // Notify statistics update
     wsManager.sendToRoom('statistics', {
       type: 'statistics-invalidated',
       reason: 'task-change',
@@ -358,7 +358,7 @@ export const notifyDataChange = {
     });
   },
 
-  // カテゴリが更新された場合
+  // When a category is updated
   categoryUpdated: async (categoryId: number) => {
     const category = await prisma.category.findUnique({
       where: { id: categoryId },
@@ -372,11 +372,11 @@ export const notifyDataChange = {
       });
     }
 
-    // キャッシュを無効化
+    // Invalidate cache
     await cacheService.clear('categories:');
   },
 
-  // バッチ更新通知
+  // Batch update notification
   batchUpdated: (updates: Array<{ type: string; id: string | number; data?: unknown }>) => {
     wsManager.broadcast({
       type: 'batch-update',
@@ -386,7 +386,7 @@ export const notifyDataChange = {
   },
 };
 
-// WebSocketルート
+// WebSocket routes
 export const websocketRoutes = new Elysia()
   .ws('/ws', {
     async message(ws, message) {
@@ -445,5 +445,5 @@ export const websocketRoutes = new Elysia()
     return wsManager.getStats();
   });
 
-// エクスポート
+// Export
 export { wsManager };

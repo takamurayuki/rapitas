@@ -1,6 +1,5 @@
 /**
- * 並列実行スケジューラー
- * 依存関係を考慮したタスクの並列スケジューリングを管理
+ * Dependencies
  */
 
 import { createLogger } from '../../config/logger';
@@ -19,7 +18,6 @@ import type {
 } from './types';
 
 /**
- * スケジュール済みタスク
  */
 type ScheduledTask = {
   taskId: number;
@@ -33,7 +31,6 @@ type ScheduledTask = {
 };
 
 /**
- * スケジューラーイベント
  */
 type SchedulerEvent = {
   type:
@@ -52,7 +49,6 @@ type SchedulerEvent = {
 type SchedulerEventListener = (event: SchedulerEvent) => void;
 
 /**
- * 並列スケジューラークラス
  */
 export class ParallelScheduler {
   private plan: ParallelExecutionPlan;
@@ -68,7 +64,6 @@ export class ParallelScheduler {
   private currentLevel: number = 0;
   private eventListeners: Set<SchedulerEventListener> = new Set();
 
-  // リソースロック管理
   private resourceLocks: Map<string, number> = new Map(); // resource -> taskId
 
   constructor(
@@ -83,7 +78,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * スケジュールを初期化
    */
   private initializeSchedule(): void {
     for (const group of this.plan.groups) {
@@ -104,19 +98,16 @@ export class ParallelScheduler {
   }
 
   /**
-   * タスクの優先度を計算
    */
   private calculatePriority(node: TaskNode): number {
     let priority = 0;
 
-    // クリティカルパス上のタスクは優先度を上げる
     if (
       this.plan.groups.some((g) => g.taskIds.includes(node.id) && g.internalDependencies.length > 0)
     ) {
       priority += 50;
     }
 
-    // 優先度設定を反映
     switch (node.priority) {
       case 'urgent':
         priority += 40;
@@ -132,23 +123,19 @@ export class ParallelScheduler {
         break;
     }
 
-    // 依存タスクが多いほど優先度を上げる（ブロッカーを早く完了）
     priority += (node.dependents?.length || 0) * 5;
 
-    // 推定時間が長いタスクは優先度を下げる（短いタスクを先に）
     priority -= Math.min(20, node.estimatedHours * 2);
 
     return priority;
   }
 
   /**
-   * 次に実行可能なタスクを取得
    */
   getNextExecutableTasks(): number[] {
     const executable: { taskId: number; priority: number }[] = [];
 
     for (const [taskId, scheduled] of this.scheduledTasks) {
-      // 既に実行中、完了、または失敗したタスクはスキップ
       if (
         this.runningTasks.has(taskId) ||
         this.completedTasks.has(taskId) ||
@@ -157,18 +144,18 @@ export class ParallelScheduler {
         continue;
       }
 
-      // 依存関係をチェック
+      // Dependencies
       if (!this.canExecute(taskId)) {
         this.blockedTasks.add(taskId);
         continue;
       }
 
-      // リソース制約をチェック
+      // Constraints
       if (!this.checkResourceConstraints(taskId)) {
         continue;
       }
 
-      // 最大同時実行数をチェック
+      // Max concurrent execution count
       if (this.runningTasks.size >= this.config.maxConcurrentAgents) {
         break;
       }
@@ -176,7 +163,6 @@ export class ParallelScheduler {
       executable.push({ taskId, priority: scheduled.priority });
     }
 
-    // 優先度順にソート
     executable.sort((a, b) => b.priority - a.priority);
 
     return executable
@@ -185,13 +171,11 @@ export class ParallelScheduler {
   }
 
   /**
-   * タスクが実行可能かチェック
    */
   canExecute(taskId: number): boolean {
     const node = this.nodes.get(taskId);
     if (!node) return false;
 
-    // すべての依存タスクが完了しているかチェック
     for (const depId of node.dependencies) {
       if (!this.completedTasks.has(depId)) {
         return false;
@@ -202,7 +186,7 @@ export class ParallelScheduler {
   }
 
   /**
-   * リソース制約をチェック
+   * Constraints
    */
   private checkResourceConstraints(taskId: number): boolean {
     const node = this.nodes.get(taskId);
@@ -210,7 +194,6 @@ export class ParallelScheduler {
 
     for (const constraint of this.plan.resourceConstraints) {
       if (constraint.affectedTasks.includes(taskId)) {
-        // 同じリソースを使用するタスクの実行数をカウント
         const concurrentUsage = Array.from(this.runningTasks).filter((runningId) =>
           constraint.affectedTasks.includes(runningId),
         ).length;
@@ -225,7 +208,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * タスクの実行を開始
    */
   startTask(taskId: number): boolean {
     if (!this.canExecute(taskId)) {
@@ -240,7 +222,6 @@ export class ParallelScheduler {
     this.runningTasks.add(taskId);
     this.blockedTasks.delete(taskId);
 
-    // リソースをロック
     this.acquireResourceLocks(taskId);
 
     this.emitEvent({
@@ -254,7 +235,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * リソースロックを取得
    */
   private acquireResourceLocks(taskId: number): void {
     const node = this.nodes.get(taskId);
@@ -266,7 +246,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * リソースロックを解放
    */
   private releaseResourceLocks(taskId: number): void {
     for (const [resource, lockedBy] of this.resourceLocks) {
@@ -277,7 +256,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * タスクを完了としてマーク
    */
   completeTask(taskId: number): void {
     const scheduled = this.scheduledTasks.get(taskId);
@@ -288,7 +266,6 @@ export class ParallelScheduler {
     this.runningTasks.delete(taskId);
     this.completedTasks.add(taskId);
 
-    // リソースロックを解放
     this.releaseResourceLocks(taskId);
 
     this.emitEvent({
@@ -298,15 +275,12 @@ export class ParallelScheduler {
       timestamp: new Date(),
     });
 
-    // レベル完了チェック
     this.checkLevelCompletion(scheduled.level);
 
-    // 全タスク完了チェック
     this.checkAllCompletion();
   }
 
   /**
-   * タスクを失敗としてマーク
    */
   failTask(taskId: number): void {
     const scheduled = this.scheduledTasks.get(taskId);
@@ -317,7 +291,6 @@ export class ParallelScheduler {
     this.runningTasks.delete(taskId);
     this.failedTasks.add(taskId);
 
-    // リソースロックを解放
     this.releaseResourceLocks(taskId);
 
     this.emitEvent({
@@ -327,7 +300,6 @@ export class ParallelScheduler {
       timestamp: new Date(),
     });
 
-    // 依存タスクをブロック状態に
     const node = this.nodes.get(taskId);
     if (node && node.dependents) {
       for (const dependentId of node.dependents) {
@@ -341,7 +313,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * レベル完了をチェック
    */
   private checkLevelCompletion(level: number): void {
     const group = this.plan.groups.find((g) => g.level === level);
@@ -362,7 +333,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * 全タスク完了をチェック
    */
   private checkAllCompletion(): void {
     const allTaskIds = this.plan.groups.flatMap((g) => g.taskIds);
@@ -384,7 +354,7 @@ export class ParallelScheduler {
   }
 
   /**
-   * 実行状態を取得
+   * Execution state
    */
   getStatus(): {
     currentLevel: number;
@@ -420,21 +390,18 @@ export class ParallelScheduler {
   }
 
   /**
-   * イベントリスナーを追加
    */
   addEventListener(listener: SchedulerEventListener): void {
     this.eventListeners.add(listener);
   }
 
   /**
-   * イベントリスナーを削除
    */
   removeEventListener(listener: SchedulerEventListener): void {
     this.eventListeners.delete(listener);
   }
 
   /**
-   * イベントを発火
    */
   private emitEvent(event: SchedulerEvent): void {
     for (const listener of this.eventListeners) {
@@ -447,7 +414,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * 特定のタスクの状態を取得
    */
   getTaskStatus(taskId: number): ParallelExecutionStatus {
     if (this.runningTasks.has(taskId)) return 'running';
@@ -459,7 +425,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * 緊急タスクを割り込み追加
    */
   insertUrgentTask(taskId: number, node: TaskNode): void {
     const highestLevel = Math.max(...Array.from(this.scheduledTasks.values()).map((s) => s.level));
@@ -468,9 +433,9 @@ export class ParallelScheduler {
     this.nodes.set(taskId, node);
     this.scheduledTasks.set(taskId, {
       taskId,
-      groupId: -1, // 特別グループ
+      groupId: -1, // Special group
       level: urgentLevel,
-      priority: 1000, // 最高優先度
+      priority: 1000, // Highest priority
       scheduledAt: new Date(),
       status: 'scheduled',
     });
@@ -485,7 +450,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * タスクの優先度を変更
    */
   updateTaskPriority(taskId: number, newPriority: number): void {
     const scheduled = this.scheduledTasks.get(taskId);
@@ -495,7 +459,6 @@ export class ParallelScheduler {
   }
 
   /**
-   * 推定残り時間を計算
    */
   getEstimatedRemainingTime(): number {
     let remaining = 0;
@@ -507,7 +470,6 @@ export class ParallelScheduler {
         );
 
         if (incompleteTasks.length > 0) {
-          // グループ内の最大推定時間
           const maxDuration = Math.max(
             ...incompleteTasks.map((id) => this.nodes.get(id)?.estimatedHours || 1),
           );
@@ -521,7 +483,6 @@ export class ParallelScheduler {
 }
 
 /**
- * スケジューラーのファクトリー関数
  */
 export function createParallelScheduler(
   plan: ParallelExecutionPlan,

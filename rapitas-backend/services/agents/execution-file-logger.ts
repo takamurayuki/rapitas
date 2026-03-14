@@ -1,6 +1,7 @@
 /**
- * エージェント実行ファイルロガー
- * 実行ログをAI分析しやすい構造化フォーマットでファイル出力する
+ * ExecutionFileLogger
+ *
+ * Outputs execution logs in a structured format optimized for AI analysis.
  */
 
 import { writeFile, mkdir, readdir, stat, unlink } from 'fs/promises';
@@ -11,7 +12,7 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('execution-file-logger');
 
 /**
- * ログイベントの種別
+ * Log event types.
  */
 type LogEventType =
   | 'execution_start'
@@ -28,7 +29,7 @@ type LogEventType =
   | 'recovery';
 
 /**
- * 構造化ログエントリ
+ * Structured log entry.
  */
 type StructuredLogEntry = {
   timestamp: string;
@@ -49,7 +50,7 @@ type StructuredLogEntry = {
 };
 
 /**
- * 実行サマリー (ファイル末尾に追記)
+ * Execution summary (appended at end of log file).
  */
 type ExecutionSummary = {
   executionId: number;
@@ -72,7 +73,7 @@ type ExecutionSummary = {
 };
 
 /**
- * ロガー設定
+ * File logger configuration.
  */
 type FileLoggerConfig = {
   logDir: string;
@@ -89,8 +90,8 @@ const DEFAULT_CONFIG: FileLoggerConfig = {
 };
 
 /**
- * エージェント実行ファイルロガー
- * 各実行ごとに1つのログファイルを生成し、AI分析に最適化された形式で出力する
+ * Agent execution file logger.
+ * Generates one log file per execution in a format optimized for AI analysis.
  */
 export class ExecutionFileLogger {
   private config: FileLoggerConfig;
@@ -136,7 +137,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * ログディレクトリを初期化
+   * Ensure the log directory exists.
    */
   private async ensureLogDir(): Promise<void> {
     if (this.initialized) return;
@@ -151,7 +152,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * ログエントリを追加
+   * Add a log entry.
    */
   log(
     level: StructuredLogEntry['level'],
@@ -193,7 +194,6 @@ export class ExecutionFileLogger {
 
     this.entries.push(entry);
 
-    // コンソールにもパススルー
     if (this.config.enableConsolePassthrough) {
       const prefix = `[ExecLog:${this.executionId}]`;
       switch (level) {
@@ -211,7 +211,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 出力データを記録
+   * Record output data.
    */
   logOutput(output: string, isError: boolean): void {
     this.outputSize += Buffer.byteLength(output, 'utf-8');
@@ -219,15 +219,14 @@ export class ExecutionFileLogger {
     if (isError && output.trim()) {
       this.log('ERROR', 'error', `[stderr] ${output.trim()}`);
     }
-    // 通常の出力は大量なのでDEBUGレベルにする (ファイルには記録)
-    // ただし意味のある出力だけを記録
+    // NOTE: Normal output uses DEBUG level to avoid flooding — only non-empty output is recorded
     if (!isError && output.trim().length > 0) {
       this.log('DEBUG', 'output', output.trim());
     }
   }
 
   /**
-   * 実行開始を記録
+   * Record execution start.
    */
   logExecutionStart(command: string, config: Record<string, unknown>): void {
     this.log(
@@ -247,7 +246,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 実行完了を記録
+   * Record execution end.
    */
   logExecutionEnd(
     status: string,
@@ -272,7 +271,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * ステータス変更を記録
+   * Record status change.
    */
   logStatusChange(from: string, to: string, reason?: string): void {
     this.log('INFO', 'status_change', `Status changed: ${from} -> ${to}`, {
@@ -283,7 +282,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 質問検出を記録
+   * Record question detection.
    */
   logQuestionDetected(question: string, questionType: string, claudeSessionId?: string): void {
     this.log('INFO', 'question_detected', `Question detected: ${question.substring(0, 200)}`, {
@@ -294,7 +293,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 質問応答を記録
+   * Record question response.
    */
   logQuestionAnswered(response: string, source: 'user' | 'auto_timeout'): void {
     this.log(
@@ -309,7 +308,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * Gitコミットを記録
+   * Record a Git commit.
    */
   logGitCommit(commitInfo: Record<string, unknown>): void {
     this.log(
@@ -321,15 +320,14 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * エラーを記録
+   * Record an error.
    */
   logError(message: string, error?: Error, context?: Record<string, unknown>): void {
     this.log('ERROR', 'error', message, context, error);
   }
 
   /**
-   * ログファイルに書き出し
-   * AI分析に最適化されたフォーマットで出力する
+   * Flush log entries to file in an AI-analysis-optimized format.
    */
   async flush(): Promise<string | null> {
     if (this.entries.length === 0) return null;
@@ -339,7 +337,6 @@ export class ExecutionFileLogger {
 
       const durationMs = Date.now() - this.startedAt.getTime();
 
-      // サマリーを生成
       const summary: ExecutionSummary = {
         executionId: this.executionId,
         sessionId: this.sessionId,
@@ -359,12 +356,10 @@ export class ExecutionFileLogger {
         outputSizeBytes: this.outputSize,
       };
 
-      // AI分析しやすいフォーマットでログファイルを構築
       const logContent = this.buildLogFileContent(summary);
 
       await writeFile(this.logFilePath, logContent, 'utf-8');
 
-      // 古いログファイルをクリーンアップ
       await this.cleanupOldLogs();
 
       return this.logFilePath;
@@ -375,13 +370,13 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * AI分析に最適化されたログファイルの内容を構築
+   * Build the log file content optimized for AI analysis.
    */
   private buildLogFileContent(summary: ExecutionSummary): string {
     const sections: string[] = [];
 
     // ============================================================
-    // Section 1: ヘッダー & サマリー
+    // Section 1: Header & Summary
     // ============================================================
     sections.push(`${'='.repeat(80)}`);
     sections.push(`AGENT EXECUTION LOG`);
@@ -413,7 +408,7 @@ export class ExecutionFileLogger {
     sections.push(``);
 
     // ============================================================
-    // Section 2: エラーサマリー (エラーがある場合のみ)
+    // Section 2: Error Summary (if errors exist)
     // ============================================================
     const errorEntries = this.entries.filter((e) => e.level === 'ERROR' || e.level === 'FATAL');
 
@@ -453,7 +448,7 @@ export class ExecutionFileLogger {
     }
 
     // ============================================================
-    // Section 3: 警告サマリー (警告がある場合のみ)
+    // Section 3: Warning Summary (if warnings exist)
     // ============================================================
     const warnEntries = this.entries.filter((e) => e.level === 'WARN');
 
@@ -473,7 +468,7 @@ export class ExecutionFileLogger {
     }
 
     // ============================================================
-    // Section 4: 全ログエントリ (時系列)
+    // Section 4: Full Log Entries (chronological)
     // ============================================================
     sections.push(`${'='.repeat(80)}`);
     sections.push(`[FULL EXECUTION LOG] (${this.entries.length} entries)`);
@@ -484,9 +479,7 @@ export class ExecutionFileLogger {
       const levelPad = entry.level.padEnd(5);
       const eventPad = entry.eventType.padEnd(20);
 
-      // 通常の出力はコンパクトに
       if (entry.eventType === 'output' && entry.level === 'DEBUG') {
-        // 出力行が長すぎる場合は省略
         const msg =
           entry.message.length > 500
             ? entry.message.substring(0, 500) + '... (truncated)'
@@ -518,7 +511,7 @@ export class ExecutionFileLogger {
     sections.push(``);
 
     // ============================================================
-    // Section 5: 構造化データ (JSON)
+    // Section 5: Structured Data (JSON)
     // ============================================================
     sections.push(`${'='.repeat(80)}`);
     sections.push(`[STRUCTURED DATA (JSON)]`);
@@ -551,7 +544,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 最新のステータスを取得
+   * Get the latest status from log entries.
    */
   private getLatestStatus(): string {
     for (let i = this.entries.length - 1; i >= 0; i--) {
@@ -567,7 +560,7 @@ export class ExecutionFileLogger {
   }
 
   /**
-   * 古いログファイルをクリーンアップ
+   * Clean up old log files when exceeding maxLogFiles.
    */
   private async cleanupOldLogs(): Promise<void> {
     try {
@@ -578,7 +571,6 @@ export class ExecutionFileLogger {
 
       if (logFiles.length <= this.config.maxLogFiles) return;
 
-      // 更新日時でソート (古い順)
       const fileStats = await Promise.all(
         logFiles.map(async (f) => ({
           path: f,
@@ -587,22 +579,19 @@ export class ExecutionFileLogger {
       );
       fileStats.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
 
-      // 古いファイルを削除
       const deleteCount = fileStats.length - this.config.maxLogFiles;
       for (let i = 0; i < deleteCount; i++) {
         try {
           await unlink(fileStats[i].path);
         } catch {
-          // 削除失敗は無視
         }
       }
     } catch {
-      // クリーンアップ失敗は無視
     }
   }
 
   /**
-   * ログファイルのパスを取得
+   * Get the log file path.
    */
   getLogFilePath(): string {
     return this.logFilePath;
@@ -610,7 +599,7 @@ export class ExecutionFileLogger {
 }
 
 /**
- * ログファイルの一覧を取得
+ * List execution log files.
  */
 export async function listExecutionLogFiles(
   logDir?: string,
@@ -636,7 +625,6 @@ export async function listExecutionLogFiles(
       }),
     );
 
-    // 更新日時の降順でソート
     results.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
     return results;
   } catch {
@@ -645,7 +633,7 @@ export async function listExecutionLogFiles(
 }
 
 /**
- * 特定の実行IDに紐づくログファイルを取得
+ * Get the log file for a specific execution ID.
  */
 export async function getExecutionLogFile(
   executionId: number,
