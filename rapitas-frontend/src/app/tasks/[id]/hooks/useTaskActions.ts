@@ -4,6 +4,7 @@ import type { Task, Priority } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
+import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useTaskActions');
@@ -66,7 +67,6 @@ export function useTaskActions({
     'all' | 'selected' | null
   >(null);
 
-
   const updateStatus = useCallback(
     async (taskId: number, newStatus: string) => {
       if (newStatus === 'done') {
@@ -100,6 +100,8 @@ export function useTaskActions({
           setTask(previousTask);
           throw new Error('ステータス更新に失敗しました');
         }
+        // NOTE: Invalidate apiFetch cache so subsequent fetches get fresh data
+        clearApiCache(`/tasks/${taskId}`);
         onTaskUpdated?.();
       } catch (err) {
         logger.error(err);
@@ -150,6 +152,8 @@ export function useTaskActions({
 
       if (!res.ok) throw new Error('更新に失敗しました');
       const updated = await res.json();
+      // NOTE: Invalidate apiFetch cache so subsequent fetches get fresh data
+      clearApiCache(`/tasks/${task.id}`);
       setTask(updated);
       setIsEditing(false);
     } catch (err) {
@@ -240,7 +244,6 @@ export function useTaskActions({
     }
   }, [resolvedTaskId, setTask]);
 
-
   const toggleAddSubtask = useCallback(() => {
     setIsAddingSubtask((prev) => !prev);
     setNewSubtaskTitle('');
@@ -313,7 +316,6 @@ export function useTaskActions({
     setTask,
     onTaskUpdated,
   ]);
-
 
   const startEditingSubtask = useCallback((subtask: Task) => {
     setEditingSubtaskId(subtask.id);
