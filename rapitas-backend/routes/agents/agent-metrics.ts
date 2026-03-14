@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 
-// メトリクスデータの型定義
 export interface AgentMetrics {
   agentId: number;
   agentName: string;
@@ -53,7 +52,6 @@ export interface MetricsOverview {
   averageExecutionTime: number | null;
 }
 
-// 日付範囲のクエリパラメータ
 export interface DateRange {
   startDate?: string;
   endDate?: string;
@@ -61,7 +59,7 @@ export interface DateRange {
 }
 
 /**
- * エージェントごとの詳細メトリクス取得
+ * Retrieves detailed metrics for each agent within an optional date range.
  */
 async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
   const whereClause: ExecutionWhereInput = {};
@@ -138,7 +136,7 @@ async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetrics[]> {
 }
 
 /**
- * 実行トレンドデータ取得
+ * Aggregates execution trend data grouped by date.
  */
 async function getExecutionTrends(
   period: 'day' | 'week' | 'month' = 'day',
@@ -161,7 +159,6 @@ async function getExecutionTrends(
     },
   });
 
-  // 日付ごとにグループ化
   const groupedData: Record<
     string,
     {
@@ -196,7 +193,6 @@ async function getExecutionTrends(
     }
   });
 
-  // 結果を配列に変換
   return Object.entries(groupedData)
     .map(([date, data]) => ({
       date,
@@ -214,7 +210,7 @@ async function getExecutionTrends(
 }
 
 /**
- * エージェント性能比較データ取得
+ * Compares performance across agent type + model combinations.
  */
 async function getAgentPerformanceComparison(
   dateRange?: DateRange,
@@ -243,7 +239,6 @@ async function getAgentPerformanceComparison(
     },
   });
 
-  // エージェントタイプ+モデルでグループ化
   const groupedData: Record<
     string,
     {
@@ -305,7 +300,7 @@ async function getAgentPerformanceComparison(
 }
 
 /**
- * メトリクス概要データ取得
+ * Returns a high-level overview of all agent execution metrics.
  */
 async function getMetricsOverview(dateRange?: DateRange): Promise<MetricsOverview> {
   const whereClause: ExecutionWhereInput = {};
@@ -362,10 +357,8 @@ async function getMetricsOverview(dateRange?: DateRange): Promise<MetricsOvervie
   };
 }
 
-// APIルート定義
 export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
 
-  // エージェントメトリクス一覧
   .get('/', async ({ query }) => {
     try {
       const dateRange: DateRange = {
@@ -378,11 +371,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       return { metrics };
     } catch (error) {
       log.error({ err: error }, 'Error fetching agent metrics');
-      return { error: 'エージェントメトリクスの取得に失敗しました' };
+      return { error: 'Failed to fetch agent metrics' };
     }
   })
 
-  // メトリクス概要
   .get('/overview', async ({ query }) => {
     try {
       const dateRange: DateRange = {
@@ -395,11 +387,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       return overview;
     } catch (error) {
       log.error({ err: error }, 'Error fetching metrics overview');
-      return { error: 'メトリクス概要の取得に失敗しました' };
+      return { error: 'Failed to fetch metrics overview' };
     }
   })
 
-  // 実行トレンド
   .get('/trends', async ({ query }) => {
     try {
       const period = (query.period as 'day' | 'week' | 'month') || 'day';
@@ -409,11 +400,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       return { trends };
     } catch (error) {
       log.error({ err: error }, 'Error fetching execution trends');
-      return { error: '実行トレンドの取得に失敗しました' };
+      return { error: 'Failed to fetch execution trends' };
     }
   })
 
-  // エージェント性能比較
   .get('/performance', async ({ query }) => {
     try {
       const dateRange: DateRange = {
@@ -426,11 +416,10 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       return { performance };
     } catch (error) {
       log.error({ err: error }, 'Error fetching agent performance');
-      return { error: 'エージェント性能比較の取得に失敗しました' };
+      return { error: 'Failed to fetch agent performance comparison' };
     }
   })
 
-  // 特定エージェントの詳細メトリクス
   .get('/:agentId', async ({ params, query }) => {
     try {
       const agentId = parseInt(params.agentId);
@@ -466,22 +455,21 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
                 orderBy: {
                   sequenceNumber: 'asc',
                 },
-                take: 100, // 最新100件のログ
+                take: 100,
               },
             },
             orderBy: {
               createdAt: 'desc',
             },
-            take: 50, // 最新50件の実行履歴
+            take: 50,
           },
         },
       });
 
       if (!agent) {
-        return { error: 'エージェントが見つかりません' };
+        return { error: 'Agent not found' };
       }
 
-      // 基本統計計算
       const executions = agent.executions;
       const totalExecutions = executions.length;
       const successfulExecutions = executions.filter((e) => e.status === 'completed').length;
@@ -533,6 +521,6 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       };
     } catch (error) {
       log.error({ err: error }, 'Error fetching agent detail metrics');
-      return { error: 'エージェント詳細メトリクスの取得に失敗しました' };
+      return { error: 'Failed to fetch agent detail metrics' };
     }
   });

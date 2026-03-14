@@ -1,6 +1,7 @@
 /**
  * Agent Configuration Router
- * エージェント設定管理（CRUD操作、デフォルト設定、スキーマ取得）
+ *
+ * Manages agent CRUD operations, default agent selection, and config schema retrieval.
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
@@ -20,13 +21,10 @@ export const agentConfigRouter = new Elysia()
       orderBy: { createdAt: 'desc' },
     });
 
-    // 開発用とレビュー用のエージェントのみを返す
+    // NOTE: Only expose development, review, and default agents — other types are internal-only.
     const filteredAgents = agents.filter((agent: (typeof agents)[0]) => {
-      // 開発用エージェント設定を確認
       const isDevelopmentAgent = agent.name.includes('Development Agent');
-      // レビュー用エージェント設定を確認
       const isReviewAgent = agent.name.includes('Review Agent');
-      // デフォルトエージェント
       const isDefaultAgent = agent.isDefault;
 
       return isDevelopmentAgent || isReviewAgent || isDefaultAgent;
@@ -66,7 +64,7 @@ export const agentConfigRouter = new Elysia()
         throw new NotFoundError('Agent not found');
       }
 
-      // デフォルトエージェントは無効化できない
+      // NOTE: Default agent must remain active — deactivation requires reassigning default first.
       if (agent.isDefault && agent.isActive) {
         throw new ValidationError(
           'デフォルトエージェントは無効化できません。先に別のエージェントをデフォルトに設定してください。',
@@ -103,7 +101,7 @@ export const agentConfigRouter = new Elysia()
       where: { isDefault: true, isActive: true },
     });
     if (!defaultAgent) {
-      // DBにデフォルトエージェントが設定されていない場合、組み込みのClaude Codeをフォールバックとして返す
+      // NOTE: Falls back to built-in Claude Code when no default is configured in DB.
       return {
         id: null,
         agentType: 'claude-code',
@@ -128,7 +126,6 @@ export const agentConfigRouter = new Elysia()
       const { params } = context;
       const agentId = parseId(params.id, 'agent ID');
 
-      // エージェントが存在し、アクティブであることを確認
       const agent = await prisma.aIAgentConfig.findUnique({
         where: { id: agentId },
       });
@@ -139,15 +136,13 @@ export const agentConfigRouter = new Elysia()
         throw new ValidationError('Cannot set inactive agent as default');
       }
 
-      // トランザクション内で実行して、同時に1つのエージェントだけがデフォルトであることを保証
+      // NOTE: Transaction ensures exactly one agent is default at any time.
       const result = await prisma.$transaction(async (tx) => {
-        // 既存のデフォルトエージェントをクリア
         await tx.aIAgentConfig.updateMany({
           where: { isDefault: true },
           data: { isDefault: false },
         });
 
-        // 新しいデフォルトエージェントを設定
         const newDefault = await tx.aIAgentConfig.update({
           where: { id: agentId },
           data: { isDefault: true },

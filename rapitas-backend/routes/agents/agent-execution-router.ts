@@ -1,6 +1,5 @@
 /**
  * Agent Execution Router
- * タスク実行機能（実行開始・停止・継続・ステータス確認・エージェント応答）
  */
 import { Elysia, t } from 'elysia';
 import { join } from 'path';
@@ -24,20 +23,16 @@ import { agentRateLimiter } from '../../middleware/rate-limiter';
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution');
 
-// エージェントワーカーマネージャーインスタンス
 const agentWorkerManager = AgentWorkerManager.getInstance();
 
 /**
- * タスク実行のインメモリロック
- * DB チェックでは非同期実行のレースコンディションを防げないため、
- * タスクID単位でロックを取得し、同一タスクの同時実行を確実に防止する。
+ * Task execution in-memory lock
  */
 const taskExecutionLocks = new Map<number, { lockedAt: Date; sessionId?: number }>();
 
 function acquireTaskExecutionLock(taskId: number): boolean {
   if (taskExecutionLocks.has(taskId)) {
     const lock = taskExecutionLocks.get(taskId)!;
-    // 10分以上経過したロックは古いとみなして解放（安全弁）
     const elapsed = Date.now() - lock.lockedAt.getTime();
     if (elapsed < 10 * 60 * 1000) {
       return false;
@@ -54,11 +49,11 @@ function releaseTaskExecutionLock(taskId: number): void {
 }
 
 /**
- * セッションステータス更新のリトライ処理付きヘルパー関数
- * @param sessionId - セッションID
- * @param status - 更新後のステータス
- * @param logPrefix - ログのプレフィックス
- * @param maxRetries - 最大リトライ回数（デフォルト3回）
+ * Helper function for updating session status with retry logic
+ * @param sessionId - Session ID
+ * @param status - Status to update to
+ * @param logPrefix - Log prefix
+ * @param maxRetries - Maximum retry count (default 3)
  */
 async function updateSessionStatusWithRetry(
   sessionId: number,
@@ -79,7 +74,6 @@ async function updateSessionStatusWithRetry(
         },
       });
 
-      // 成功した場合
       if (attempt > 1) {
         log.info(
           `${logPrefix} Session ${sessionId} status updated to ${status} on attempt ${attempt}`,
@@ -93,24 +87,21 @@ async function updateSessionStatusWithRetry(
         `${logPrefix} Failed to update session ${sessionId} status (attempt ${attempt}/${maxRetries})`,
       );
 
-      // 最後の試行でない場合は少し待つ
       if (attempt < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
 
-  // 全ての試行が失敗した場合
   log.error(
     { err: lastError },
     `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts`,
   );
-  // エラーを再投げせず、処理を継続（従来の動作と同様）
 }
 
 /**
- * 実行完了後のコードレビュー承認リクエスト作成（autoApprove対応）
- * 通常実行と継続実行の両方から呼び出される共通処理
+ * Create code review approval request after execution completion (autoApprove support)
+ * Common logic called from both normal and continued execution
  */
 async function createCodeReviewApproval(params: {
   taskId: number;
@@ -141,10 +132,9 @@ async function createCodeReviewApproval(params: {
 
     if (diff && diff !== 'No changes detected') {
       const implementationSummary = cleanImplementationSummary(
-        resultOutput || '実装が完了しました。',
+        resultOutput || 'Implementation completed.',
       );
 
-      // UI変更がある場合はスクリーンショットを撮影
       let screenshots: ScreenshotResult[] = [];
       try {
         screenshots = await captureScreenshotsForDiff(structuredDiff, {
@@ -162,7 +152,6 @@ async function createCodeReviewApproval(params: {
 
       const screenshotData = sanitizeScreenshots(screenshots);
 
-      // autoApprove設定を確認
       const devConfig = await prisma.developerModeConfig.findUnique({
         where: { id: configId },
         select: { autoApprove: true },
@@ -174,7 +163,7 @@ async function createCodeReviewApproval(params: {
           data: {
             configId,
             requestType: 'code_review',
-            title: `「${taskTitle}」のコードレビュー`,
+            title: `Code review for "${taskTitle}"`,
             description: implementationSummary,
             status: isAutoApprove ? 'approved' : 'pending',
             proposedChanges:
@@ -230,7 +219,7 @@ export const agentExecutionRouter = new Elysia()
           ip,
         )
       ) {
-        return { error: 'リクエストが多すぎます。しばらくしてから再試行してください。' };
+        return { error: 'Too many requests. Please try again later.' };
       }
       const params = context.params as { id: string };
       const body = context.body as {
@@ -280,7 +269,7 @@ export const agentExecutionRouter = new Elysia()
         log.error({ err: dbError, prismaCode }, `[API] Database error fetching task ${taskIdNum}`);
         context.set.status = 500;
         return {
-          error: 'データベースクエリエラーが発生しました',
+          error: 'Database query error occurred',
           code: prismaCode || undefined,
           details: dbError instanceof Error ? dbError.message : String(dbError),
         };
@@ -291,24 +280,21 @@ export const agentExecutionRouter = new Elysia()
         return { error: 'Task not found' };
       }
 
-      // 二重実行防止: インメモリロックで同一タスクの同時実行を確実にブロック
       if (!acquireTaskExecutionLock(taskIdNum)) {
         log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
         context.set.status = 409;
         return {
-          error: 'このタスクは既に実行中です。完了後に再実行してください。',
+          error: 'This task is already running. Please try again after completion.',
         };
       }
       const lockAcquired = true;
       log.info(`[API] Execution lock acquired for task ${taskIdNum}`);
 
-      // ロック取得後のエラー時はロックを解放するヘルパー
       const earlyReturnWithLockRelease = (response: Record<string, unknown>) => {
         if (lockAcquired) releaseTaskExecutionLock(taskIdNum);
         return response;
       };
 
-      // 自動複雑度評価の実行
       if (task.complexityScore === null && !task.workflowModeOverride) {
         log.info(`[API] Auto-analyzing task complexity for task ${taskIdNum}`);
         try {
@@ -323,7 +309,6 @@ export const agentExecutionRouter = new Elysia()
 
           const analysisResult = analyzeTaskComplexity(complexityInput);
 
-          // DBに結果を保存
           await prisma.task.update({
             where: { id: taskIdNum },
             data: {
@@ -332,7 +317,6 @@ export const agentExecutionRouter = new Elysia()
             },
           });
 
-          // taskオブジェクトも更新（後続の処理で使用）
           task.complexityScore = analysisResult.complexityScore;
           task.workflowMode = analysisResult.recommendedMode;
 
@@ -344,7 +328,6 @@ export const agentExecutionRouter = new Elysia()
             { err: error },
             `[API] Failed to analyze task complexity for task ${taskIdNum}`,
           );
-          // エラーが発生してもタスク実行は継続（フォールバック）
         }
       } else if (task.workflowModeOverride) {
         log.info(
@@ -356,7 +339,6 @@ export const agentExecutionRouter = new Elysia()
         );
       }
 
-      // 開発プロジェクトのテーマに属さず、workingDirectoryも明示指定されていない場合は実行拒否
       if (!task.theme?.isDevelopment && !workingDirectory) {
         log.error(
           `[API] Task ${taskIdNum} rejected: not in a development theme and no workingDirectory specified.`,
@@ -364,7 +346,7 @@ export const agentExecutionRouter = new Elysia()
         context.set.status = 400;
         return earlyReturnWithLockRelease({
           error:
-            '開発プロジェクトに設定されたテーマのタスクのみ実行できます。テーマの設定を確認してください。',
+            'Only tasks belonging to themes set in development projects can be executed. Please check theme settings.',
         });
       }
 
@@ -386,9 +368,7 @@ export const agentExecutionRouter = new Elysia()
           });
         }
 
-        // 継続実行の場合は既存のセッションを使用、なければ新規作成
         if (sessionId) {
-          // 既存のセッションを取得して検証
           const existingSession = await prisma.agentSession.findUnique({
             where: { id: sessionId },
           });
@@ -400,11 +380,9 @@ export const agentExecutionRouter = new Elysia()
             context.set.status = 400;
             return earlyReturnWithLockRelease({ error: 'Session does not belong to this task' });
           }
-          // セッションを再利用
           session = existingSession;
           log.info(`[API] Continuing execution with existing session ${sessionId}`);
         } else {
-          // 新規セッション作成
           session = await prisma.agentSession.create({
             data: {
               configId: developerModeConfig.id,
@@ -414,7 +392,6 @@ export const agentExecutionRouter = new Elysia()
           log.info(`[API] Created new session ${session.id}`);
         }
 
-        // ブランチ名の自動生成または手動指定
         if (!finalBranchName) {
           try {
             finalBranchName = await generateBranchName(task.title, task.description || undefined);
@@ -425,7 +402,6 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
-        // ブランチを作成またはチェックアウト
         const branchCreated = await agentWorkerManager.createBranch(workDir, finalBranchName);
         if (!branchCreated) {
           return earlyReturnWithLockRelease({
@@ -434,7 +410,6 @@ export const agentExecutionRouter = new Elysia()
           });
         }
 
-        // セッションにブランチ名を保存
         session = await prisma.agentSession.update({
           where: { id: session.id },
           data: { branchName: finalBranchName },
@@ -443,14 +418,13 @@ export const agentExecutionRouter = new Elysia()
         await prisma.notification.create({
           data: {
             type: 'agent_execution_started',
-            title: 'エージェント実行開始',
-            message: `「${task.title}」の自動実行を開始しました`,
+            title: 'Agent execution started',
+            message: `Started automatic execution of "${task.title}"`,
             link: `/tasks/${taskIdNum}`,
             metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
           },
         });
 
-        // タスクのステータスを「進行中」に更新
         await prisma.task.update({
           where: { id: taskIdNum },
           data: {
@@ -467,7 +441,7 @@ export const agentExecutionRouter = new Elysia()
         );
         context.set.status = 500;
         return earlyReturnWithLockRelease({
-          error: 'データベースクエリエラーが発生しました',
+          error: 'Database query error occurred',
           code: prismaCode || undefined,
           details: dbError instanceof Error ? dbError.message : String(dbError),
         });
@@ -476,30 +450,29 @@ export const agentExecutionRouter = new Elysia()
       let fullInstruction: string;
       if (optimizedPrompt) {
         fullInstruction = instruction
-          ? `${optimizedPrompt}\n\n追加指示:\n${instruction}`
+          ? `${optimizedPrompt}\n\nAdditional instructions:\n${instruction}`
           : optimizedPrompt;
         log.info(`[API] Using optimized prompt for task ${taskIdNum}`);
       } else {
         fullInstruction = instruction
-          ? `${task.description || task.title}\n\n追加指示:\n${instruction}`
+          ? `${task.description || task.title}\n\nAdditional instructions:\n${instruction}`
           : task.description || task.title;
       }
 
-      // 添付ファイル情報を指示に追加
       if (attachments && attachments.length > 0) {
         const attachmentInfo = attachments
           .map((a) => {
             let info = `- ${a.title} (${a.type})`;
-            if (a.fileName) info += ` - ファイル名: ${a.fileName}`;
-            if (a.description) info += ` - 説明: ${a.description}`;
+            if (a.fileName) info += ` - File name: ${a.fileName}`;
+            if (a.description) info += ` - Description: ${a.description}`;
             if (a.filePath) {
               const fullPath = join(UPLOAD_DIR, a.filePath);
-              info += `\n  パス: ${fullPath}`;
+              info += `\n  Path: ${fullPath}`;
             }
             return info;
           })
           .join('\n');
-        fullInstruction += `\n\n## 添付ファイル\n以下のファイルがタスクに添付されています。必要に応じて参照してください:\n${attachmentInfo}`;
+        fullInstruction += `\n\n## Attached Files\nThe following files are attached to this task. Please refer to them as needed:\n${attachmentInfo}`;
         log.info(`[API] Added ${attachments.length} attachments to instruction`);
       }
 
@@ -581,7 +554,6 @@ export const agentExecutionRouter = new Elysia()
             { err: dbError },
             `[API] Failed to fetch analysis action for task ${taskIdNum}`,
           );
-          // 分析データ取得失敗時は分析なしで実行を継続
         }
       }
 
@@ -606,7 +578,6 @@ export const agentExecutionRouter = new Elysia()
         )
         .then(async (result) => {
           if (result.waitingForInput) {
-            // 質問待ち状態: タスクは実行中のまま維持
             log.info(
               `[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`,
             );
@@ -622,7 +593,6 @@ export const agentExecutionRouter = new Elysia()
                 );
               });
 
-            // セッションも実行中のまま維持
             await prisma.agentSession
               .update({
                 where: { id: session.id },
@@ -638,7 +608,6 @@ export const agentExecutionRouter = new Elysia()
                 );
               });
           } else if (result.success) {
-            // ワークフローステータスに基づいてタスクステータスを決定
             try {
               const currentTask = await prisma.task.findUnique({
                 where: { id: taskIdNum },
@@ -649,7 +618,6 @@ export const agentExecutionRouter = new Elysia()
                 wfStatus === 'research_done' ||
                 wfStatus === 'verify_done'
               ) {
-                // 承認待ち・確認待ちフェーズではdoneにしない
                 try {
                   await prisma.task.update({
                     where: { id: taskIdNum },
@@ -667,7 +635,6 @@ export const agentExecutionRouter = new Elysia()
                 wfStatus === 'plan_approved' ||
                 wfStatus === 'completed'
               ) {
-                // 実行が成功完了したらタスクをdoneに更新
                 try {
                   await prisma.task.update({
                     where: { id: taskIdNum },
@@ -683,7 +650,6 @@ export const agentExecutionRouter = new Elysia()
                   );
                 }
               } else if (!wfStatus || wfStatus === 'draft') {
-                // ワークフロー未使用タスク、または初期状態は従来通り
                 try {
                   await prisma.task.update({
                     where: { id: taskIdNum },
@@ -697,7 +663,6 @@ export const agentExecutionRouter = new Elysia()
                   );
                 }
               } else {
-                // 未知のワークフローステータス: 安全のためin-progressを維持
                 log.info(
                   `[API] Task ${taskIdNum} kept as in-progress (unknown workflow status: ${wfStatus})`,
                 );
@@ -706,10 +671,8 @@ export const agentExecutionRouter = new Elysia()
               log.error({ err: taskError }, `[API] Failed to fetch or update task ${taskIdNum}`);
             }
 
-            // セッションのステータスも完了に更新（リトライ付き）
             await updateSessionStatusWithRetry(session.id, 'completed', '[API]', 3);
 
-            // コードレビュー承認リクエスト作成（autoApprove対応）
             await createCodeReviewApproval({
               taskId: taskIdNum,
               taskTitle: task.title,
@@ -722,7 +685,6 @@ export const agentExecutionRouter = new Elysia()
               logPrefix: '[API]',
             });
           } else {
-            // エラーが発生した場合
             log.error(
               { errorMessage: result.errorMessage },
               `[API] Execution failed for task ${taskIdNum}`,
@@ -832,7 +794,7 @@ export const agentExecutionRouter = new Elysia()
         });
 
         if (!config || !config.agentSessions[0]) {
-          return { status: 'none', message: '実行履歴がありません' };
+          return { status: 'none', message: 'No execution history' };
         }
 
         const latestSession = config.agentSessions[0];
@@ -844,7 +806,6 @@ export const agentExecutionRouter = new Elysia()
         const questionType: 'tool_call' | 'none' =
           execExtras?.questionType === 'tool_call' ? 'tool_call' : 'none';
 
-        // タイムアウト情報を取得
         let questionTimeoutInfo = null;
         if (isWaitingForInput && latestExecution?.id) {
           const timeoutInfo = await agentWorkerManager.getQuestionTimeoutInfoAsync(
@@ -859,7 +820,6 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
-        // エージェント設定情報を取得
         const agentConfigInfo = (latestExecution as Record<string, unknown>)?.agentConfig as {
           id: number;
           agentType: string;
@@ -890,7 +850,7 @@ export const agentExecutionRouter = new Elysia()
         log.error({ err: error }, '[execution-status] Error fetching status');
         return {
           status: 'error',
-          message: '状態の取得中にエラーが発生しました',
+          message: 'An error occurred while retrieving status',
         };
       }
     },
@@ -915,7 +875,6 @@ export const agentExecutionRouter = new Elysia()
       }
 
       try {
-        // 実行情報を取得してロックとタイムアウトキャンセルを試みる
         const config = await prisma.developerModeConfig.findUnique({
           where: { taskId },
           include: {
@@ -944,7 +903,6 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'No execution found' };
         }
 
-        // ステータスチェック: waiting_for_input でなければ応答不可
         if (latestExecution.status === 'running') {
           return { error: 'Execution is already running' };
         }
@@ -954,7 +912,6 @@ export const agentExecutionRouter = new Elysia()
           };
         }
 
-        // オーケストレーターでロックを取得（他のプロセスと競合防止）
         if (
           !(await agentWorkerManager.tryAcquireContinuationLockAsync(
             latestExecution.id,
@@ -966,20 +923,16 @@ export const agentExecutionRouter = new Elysia()
           };
         }
 
-        // タイムアウトキャンセルを試行
         agentWorkerManager.cancelQuestionTimeout(latestExecution.id);
         log.info(`[agent-respond] Cancelled timeout for execution ${latestExecution.id}`);
 
         const workingDirectory = config.task.theme?.workingDirectory || getProjectRoot();
 
-        // 応答を送信（ワーカープロセス経由で継続実行）
         const result = await agentWorkerManager.executeContinuation(latestExecution.id, response, {
           sessionId: session.id,
           taskId,
           workingDirectory,
         });
-
-        // ロック解放は executeContinuation 内部で自動的に処理される
 
         if (result.success) {
           return {
@@ -996,7 +949,7 @@ export const agentExecutionRouter = new Elysia()
       } catch (error) {
         log.error({ err: error }, '[agent-respond] Database error');
         return {
-          error: 'データベースエラーが発生しました。応答の送信に失敗しました。',
+          error: 'Database error occurred. Failed to send response.',
           message: 'Failed to send agent response due to database error',
         };
       }
@@ -1048,13 +1001,11 @@ export const agentExecutionRouter = new Elysia()
           });
 
           if (runningExecution) {
-            // オーケストレーターで停止を試みる
             const stopped = await orchestrator
               .stopExecution(runningExecution.id)
               .catch(() => false);
 
             try {
-              // 実行ログを削除
               await prisma.agentExecutionLog.deleteMany({
                 where: { executionId: runningExecution.id },
               });
@@ -1068,7 +1019,6 @@ export const agentExecutionRouter = new Elysia()
               );
             }
 
-            // オーケストレーターで停止できなかった場合でも DBのステータスを確実に更新
             if (!stopped) {
               try {
                 await prisma.agentExecution.update({
@@ -1124,7 +1074,6 @@ export const agentExecutionRouter = new Elysia()
 
         for (const execution of pendingExecutions) {
           try {
-            // 実行ログを削除
             await prisma.agentExecutionLog.deleteMany({
               where: { executionId: execution.id },
             });
@@ -1142,7 +1091,6 @@ export const agentExecutionRouter = new Elysia()
               { err: executionUpdateError },
               `[stop-execution] Failed to update execution ${execution.id}`,
             );
-            // 個別のエラーは継続（他の実行の停止処理は継続）
           }
         }
 
@@ -1171,7 +1119,6 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
-        // 実行停止時にインメモリロックも解放
         releaseTaskExecutionLock(taskId);
 
         return {
@@ -1181,11 +1128,10 @@ export const agentExecutionRouter = new Elysia()
         };
       } catch (error) {
         log.error({ err: error }, '[stop-execution] Database error');
-        // エラー時もロック解放を試みる
         releaseTaskExecutionLock(taskId);
         return {
           success: false,
-          error: 'データベースエラーが発生しました。実行の停止に失敗しました。',
+          error: 'Database error occurred. Failed to stop execution.',
           message: 'Failed to stop execution due to database error',
         };
       }
@@ -1213,20 +1159,18 @@ export const agentExecutionRouter = new Elysia()
         return { error: 'Instruction is required' };
       }
 
-      // 二重実行防止: インメモリロックで同一タスクの同時実行を確実にブロック
       if (!acquireTaskExecutionLock(taskId)) {
         log.warn(
           `[continue-execution] Duplicate execution rejected for task ${taskId}: in-memory lock held`,
         );
         context.set.status = 409;
         return {
-          error: 'このタスクは既に実行中です。完了後に再実行してください。',
+          error: 'This task is already running. Please try again after completion.',
         };
       }
       log.info(`[continue-execution] Execution lock acquired for task ${taskId}`);
 
       try {
-        // タスクと設定を取得
         const task = await prisma.task.findUnique({
           where: { id: taskId },
           include: {
@@ -1240,7 +1184,7 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'Task not found' };
         }
 
-        // セッションIDが指定されていない場合は最新の完了済み/失敗/中断セッションを取得
+        // NOTE: Falls back to latest finished session when no sessionId is provided — enables "resume last run" UX.
         let targetSessionId = sessionId;
         if (!targetSessionId && task.developerModeConfig) {
           const latestSession = await prisma.agentSession.findFirst({
@@ -1261,7 +1205,6 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'No completed session found for this task' };
         }
 
-        // セッション情報を取得
         const session = await prisma.agentSession.findUnique({
           where: { id: targetSessionId },
           include: {
@@ -1277,10 +1220,8 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'Session not found' };
         }
 
-        // セッションのステータスをログに出力（デバッグ用）
         log.info(`[continue-execution] Session ${targetSessionId} status: "${session.status}"`);
 
-        // 現在実行中のエージェントがある場合のみ拒否（二重実行防止）
         const activeCount = await agentWorkerManager.getActiveExecutionCountAsync();
         const hasRunningExecution = session.agentExecutions.some(
           (e: { status: string }) => e.status === 'running' || e.status === 'pending',
@@ -1290,11 +1231,9 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'An execution is already running for this session' };
         }
 
-        // 前回の実行情報を取得
         const previousExecution = session.agentExecutions[0];
         const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
-        // セッションのブランチ名を取得し、必要に応じてチェックアウト
         if (session.branchName) {
           try {
             const branchCreated = await agentWorkerManager.createBranch(
@@ -1305,7 +1244,6 @@ export const agentExecutionRouter = new Elysia()
               log.error(
                 `[continue-execution] Failed to checkout branch ${session.branchName} for task ${taskId}`,
               );
-              // ブランチチェックアウト失敗は警告のみで継続
             } else {
               log.info(
                 `[continue-execution] Checked out branch ${session.branchName} for task ${taskId}`,
@@ -1316,13 +1254,11 @@ export const agentExecutionRouter = new Elysia()
               { err: error },
               `[continue-execution] Branch checkout error for task ${taskId}`,
             );
-            // ブランチチェックアウト失敗は警告のみで継続
           }
         } else {
           log.info(`[continue-execution] No branch name stored in session ${targetSessionId}`);
         }
 
-        // セッションを再開状態に更新
         try {
           await prisma.agentSession.update({
             where: { id: targetSessionId },
@@ -1336,10 +1272,9 @@ export const agentExecutionRouter = new Elysia()
             { err: dbError },
             `[continue-execution] Failed to update session ${targetSessionId} status`,
           );
-          // セッション更新失敗でも実行は継続
+          // NOTE: Session update failure is non-fatal — execution can proceed with stale status.
         }
 
-        // タスクのステータスを「進行中」に更新
         try {
           await prisma.task.update({
             where: { id: taskId },
@@ -1352,20 +1287,19 @@ export const agentExecutionRouter = new Elysia()
             { err: dbError },
             `[continue-execution] Failed to update task ${taskId} status`,
           );
-          // タスク更新失敗でも実行は継続
+          // NOTE: Task status update failure is non-fatal — execution can proceed with stale status.
         }
 
         log.info(
           `[continue-execution] Continuing execution for task ${taskId} in session ${targetSessionId}`,
         );
 
-        // 通知を作成
         try {
           await prisma.notification.create({
             data: {
               type: 'agent_execution_continued',
-              title: '追加指示実行開始',
-              message: `「${task.title}」に追加指示を実行しています`,
+              title: 'Additional instruction execution started',
+              message: `Executing additional instructions for "${task.title}"`,
               link: `/tasks/${taskId}`,
               metadata: toJsonString({ sessionId: targetSessionId, taskId }),
             },
@@ -1375,19 +1309,15 @@ export const agentExecutionRouter = new Elysia()
             { err: dbError },
             `[continue-execution] Failed to create notification for task ${taskId}`,
           );
-          // 通知作成失敗でも実行は継続
         }
 
-        // 前回の実行ログを含めて新しい指示を作成
-        let fullInstruction = `## 追加指示\n\n${instruction}`;
+        let fullInstruction = `## Additional Instructions\n\n${instruction}`;
 
-        // 前回の実行で生成したコードや変更内容を参考情報として含める
         if (previousExecution?.output) {
           const prevOutput = previousExecution.output.substring(0, 3000);
-          fullInstruction = `## 前回の実行内容\n\n前回の実行で以下の作業を行いました：\n\n${prevOutput}${previousExecution.output.length > 3000 ? '\n...(省略)' : ''}\n\n${fullInstruction}`;
+          fullInstruction = `## Previous Execution Content\n\nThe following work was performed in the previous execution:\n\n${prevOutput}${previousExecution.output.length > 3000 ? '\n...(abbreviated)' : ''}\n\n${fullInstruction}`;
         }
 
-        // ワーカープロセス経由で実行（同じセッションで継続）
         agentWorkerManager
           .executeTask(
             {
@@ -1402,12 +1332,11 @@ export const agentExecutionRouter = new Elysia()
               sessionId: targetSessionId,
               agentConfigId: agentConfigId || (previousExecution?.agentConfigId ?? undefined),
               workingDirectory,
-              continueFromPrevious: true, // 前回の実行からの継続であることを示すフラグ
+              continueFromPrevious: true,
             },
           )
           .then(async (result) => {
             if (result.success) {
-              // ワークフローステータスに基づいてタスクステータスを決定
               try {
                 const currentTask = await prisma.task.findUnique({
                   where: { id: taskId },
@@ -1417,7 +1346,6 @@ export const agentExecutionRouter = new Elysia()
                   wfStatus &&
                   ['plan_created', 'research_done', 'verify_done'].includes(wfStatus)
                 ) {
-                  // 承認待ち・確認待ちフェーズではdoneにしない
                   try {
                     await prisma.task.update({
                       where: { id: taskId },
@@ -1434,7 +1362,6 @@ export const agentExecutionRouter = new Elysia()
                   wfStatus === 'plan_approved' ||
                   wfStatus === 'completed'
                 ) {
-                  // 実行が成功完了したらタスクをdoneに更新
                   try {
                     await prisma.task.update({
                       where: { id: taskId },
@@ -1447,7 +1374,6 @@ export const agentExecutionRouter = new Elysia()
                     );
                   }
                 } else if (!wfStatus || wfStatus === 'draft') {
-                  // ワークフロー未使用タスク、または初期状態は従来通り
                   try {
                     await prisma.task.update({
                       where: { id: taskId },
@@ -1467,7 +1393,6 @@ export const agentExecutionRouter = new Elysia()
                 );
               }
 
-              // セッションのステータスも完了に更新（リトライ付き）
               await updateSessionStatusWithRetry(
                 targetSessionId,
                 'completed',
@@ -1475,7 +1400,6 @@ export const agentExecutionRouter = new Elysia()
                 3,
               );
 
-              // コードレビュー承認リクエスト作成（autoApprove対応）
               if (task.developerModeConfig) {
                 await createCodeReviewApproval({
                   taskId,
@@ -1492,7 +1416,6 @@ export const agentExecutionRouter = new Elysia()
 
               log.info(`[continue-execution] Completed task ${taskId}`);
             } else {
-              // エラーが発生した場合
               log.error(
                 { errorMessage: result.errorMessage },
                 `[continue-execution] Failed for task ${taskId}`,
@@ -1602,18 +1525,15 @@ export const agentExecutionRouter = new Elysia()
           return { error: 'No developer mode config found for this task' };
         }
 
-        // 実行中のセッションがある場合は停止
         if (config.agentSessions.length > 0) {
           const latestSession = config.agentSessions[0];
 
           if (['running', 'pending'].includes(latestSession.status)) {
-            // アクティブな実行を停止
             const executions = await agentWorkerManager.getSessionExecutionsAsync(latestSession.id);
             for (const execution of executions) {
               await agentWorkerManager.stopExecution(execution.executionId);
             }
 
-            // DBの実行記録を更新
             const pendingExecutions = await prisma.agentExecution.findMany({
               where: {
                 sessionId: latestSession.id,
@@ -1647,7 +1567,6 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
-        // タスクのステータスをtodoに戻す
         await prisma.task.update({
           where: { id: taskId },
           data: {
@@ -1659,7 +1578,6 @@ export const agentExecutionRouter = new Elysia()
 
         log.info(`[reset-execution-state] Reset execution state for task ${taskId}`);
 
-        // リセット時にインメモリロックも解放
         releaseTaskExecutionLock(taskId);
 
         return {

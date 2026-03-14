@@ -9,7 +9,6 @@ import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:agent-version-management');
 
-// 型定義
 interface VersionInfo {
   version: string;
   releaseDate: string;
@@ -20,7 +19,7 @@ interface VersionInfo {
   fileSize: string;
 }
 
-// シミュレーション用のエージェント利用可能バージョン情報
+// NOTE: Simulated version registry — replace with actual registry API when available.
 const AVAILABLE_AGENT_VERSIONS: Record<string, Record<string, VersionInfo>> = {
   'claude-code': {
     '2.1.0': {
@@ -201,7 +200,6 @@ export const agentVersionManagementRoutes = new Elysia()
         };
       }
 
-      // バージョン情報を検証
       const availableVersions =
         AVAILABLE_AGENT_VERSIONS[agent.agentType as keyof typeof AVAILABLE_AGENT_VERSIONS];
       const targetVersionInfo =
@@ -216,7 +214,6 @@ export const agentVersionManagementRoutes = new Elysia()
 
       const previousVersion = agent.version;
 
-      // エージェント設定を更新
       const updatedAgent = await prisma.aIAgentConfig.update({
         where: { id: agentId },
         data: {
@@ -236,7 +233,6 @@ export const agentVersionManagementRoutes = new Elysia()
         },
       });
 
-      // 変更ログを記録
       await logAgentConfigChange({
         agentConfigId: agentId,
         action: 'update_version',
@@ -290,7 +286,6 @@ export const agentVersionManagementRoutes = new Elysia()
         };
       }
 
-      // 最新バージョンを取得
       const availableVersions =
         AVAILABLE_AGENT_VERSIONS[agent.agentType as keyof typeof AVAILABLE_AGENT_VERSIONS];
       const latestVersion = availableVersions
@@ -305,7 +300,6 @@ export const agentVersionManagementRoutes = new Elysia()
           )[0]
         : '1.0.0';
 
-      // エージェントをインストール済みに更新
       const updatedAgent = await prisma.aIAgentConfig.update({
         where: { id: agentId },
         data: {
@@ -317,7 +311,6 @@ export const agentVersionManagementRoutes = new Elysia()
         },
       });
 
-      // 変更ログを記録
       await logAgentConfigChange({
         agentConfigId: agentId,
         action: 'install',
@@ -372,7 +365,6 @@ export const agentVersionManagementRoutes = new Elysia()
       const previousVersion = agent.version;
       const previousPath = agent.installPath;
 
-      // エージェントをアンインストール状態に更新
       const updatedAgent = await prisma.aIAgentConfig.update({
         where: { id: agentId },
         data: {
@@ -383,7 +375,6 @@ export const agentVersionManagementRoutes = new Elysia()
         },
       });
 
-      // 変更ログを記録
       await logAgentConfigChange({
         agentConfigId: agentId,
         action: 'uninstall',
@@ -436,7 +427,6 @@ export const agentVersionManagementRoutes = new Elysia()
         };
       }
 
-      // エージェント設定変更ログを取得
       const auditLogs = await prisma.agentConfigAuditLog.findMany({
         where: {
           agentConfigId: agentId,
@@ -458,7 +448,7 @@ export const agentVersionManagementRoutes = new Elysia()
           if (log.previousValues) previousValues = JSON.parse(log.previousValues);
           if (log.newValues) newValues = JSON.parse(log.newValues);
         } catch (e) {
-          // JSON解析エラーは無視
+          // NOTE: Malformed audit log JSON is non-fatal — skip gracefully.
         }
 
         return {
@@ -501,7 +491,7 @@ export const agentVersionManagementRoutes = new Elysia()
   });
 
 /**
- * バージョン変更の説明文を生成
+ * Generates a human-readable description for a version change audit entry.
  */
 function getVersionChangeDescription(
   action: string,

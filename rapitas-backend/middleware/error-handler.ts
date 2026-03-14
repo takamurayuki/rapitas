@@ -82,13 +82,11 @@ function isPrismaError(error: unknown): boolean {
   const name = error.name || '';
   const message = error.message || '';
 
-  // Prismaエラーのクラス名検出
   if (name.includes('PrismaClient')) return true;
   if (name.includes('PrismaKnown')) return true;
   if (name.includes('PrismaUnknown')) return true;
   if (name.includes('PrismaValidation')) return true;
 
-  // Prismaエラーメッセージの検出
   if (message.includes('Invalid `prisma')) return true;
   if (message.includes('prisma.') && message.includes('invocation')) return true;
   if (message.includes('Prisma schema')) return true;
@@ -96,19 +94,17 @@ function isPrismaError(error: unknown): boolean {
   if (message.includes('Database connection')) return true;
   if (message.includes('prisma client')) return true;
 
-  // 追加のPrismaエラーパターン
   if (message.includes('PrismaClientKnownRequestError')) return true;
   if (message.includes('PrismaClientUnknownRequestError')) return true;
   if (message.includes('PrismaClientRustPanicError')) return true;
   if (message.includes('PrismaClientInitializationError')) return true;
   if (message.includes('PrismaClientValidationError')) return true;
 
-  // スタックトレースベースのフォールバック検出
+  // NOTE: Fallback - Prisma errors may not always have recognizable class names or messages
   const stack = error.stack || '';
   if (stack.includes('@prisma/client')) return true;
   if (stack.includes('PrismaClient')) return true;
 
-  // Prisma固有のエラーコードプロパティ（P2001-P2034等）
   if ('code' in error && typeof (error as Record<string, unknown>).code === 'string') {
     const code = (error as Record<string, unknown>).code as string;
     if (/^P\d{4}$/.test(code)) return true;
