@@ -616,6 +616,78 @@ const useWatch = args.includes("--watch");
 const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
 const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
+const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
+
+/**
+ * .agent-pids/ ディレクトリを走査し、前回クラッシュ時の残存エージェントプロセスをkillする。
+ * ポート3001をLISTENしているプロセスは保護（CLAUDE.md制約遵守）。
+ */
+function cleanupAgentPidFiles() {
+  if (!fs.existsSync(AGENT_PID_DIR)) return;
+
+  const files = fs.readdirSync(AGENT_PID_DIR).filter((f) => f.endsWith(".pid"));
+  if (files.length === 0) return;
+
+  console.log(`  Found ${files.length} agent PID file(s), cleaning up...`);
+
+  for (const file of files) {
+    const filepath = path.join(AGENT_PID_DIR, file);
+    try {
+      const content = fs.readFileSync(filepath, "utf-8");
+      const info = JSON.parse(content);
+      const pid = info.pid;
+
+      // プロセスが生存しているかチェック
+      let alive = false;
+      try {
+        const result = execSync(`tasklist /FI "PID eq ${pid}" /NH`, {
+          stdio: "pipe",
+          timeout: 5000,
+        }).toString();
+        alive = result.includes(String(pid));
+      } catch {
+        // tasklist失敗 → 非生存扱い
+      }
+
+      if (alive) {
+        // ポート3001のLISTENプロセスでないことを確認してからkill
+        let isBackend = false;
+        try {
+          const netResult = execSync(
+            `netstat -aon | findstr ":3001 " | findstr "LISTEN"`,
+            { stdio: "pipe", timeout: 5000 }
+          ).toString();
+          isBackend = netResult.includes(String(pid));
+        } catch {
+          // netstat失敗 → 安全側に倒してskip しない
+        }
+
+        if (isBackend) {
+          console.log(`  Skipping PID ${pid} (listening on port 3001)`);
+        } else {
+          try {
+            execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe", timeout: 5000 });
+            console.log(`  Killed zombie agent process PID ${pid} (${info.role})`);
+          } catch (killErr) {
+            const msg = killErr.message || "";
+            if (msg.includes("not found") || msg.includes("見つかりません")) {
+              console.log(`  PID ${pid} already terminated.`);
+            } else {
+              console.log(`  Failed to kill PID ${pid}: ${msg}`);
+            }
+          }
+        }
+      }
+
+      // PIDファイルを削除（生存有無に関わらず）
+      fs.unlinkSync(filepath);
+    } catch (err) {
+      // 不正なPIDファイルは削除
+      console.log(`  Removing invalid PID file: ${file}`);
+      try { fs.unlinkSync(filepath); } catch {}
+    }
+  }
+}
 
 if (useWatch) {
   console.log(
@@ -1170,6 +1242,10 @@ async function main() {
     console.log("CI environment detected. Skipping dev server startup.");
     process.exit(0);
   }
+
+  // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
+  console.log("\nCleaning up agent zombie processes...");
+  cleanupAgentPidFiles();
 
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
