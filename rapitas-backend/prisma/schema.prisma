@@ -470,6 +470,7 @@ model AgentSession {
   errorMessage      String?
   metadata          String?   // JSON stored as string
   branchName        String?   // Git branch name for the execution session
+  worktreePath      String?   // Absolute path to git worktree (non-null during execution)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

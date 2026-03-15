@@ -24,7 +24,10 @@ export default function SearchClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get('q') || '';
-  const initialType = searchParams.get('type') as SearchResultType | null;
+  const initialType = searchParams.get('type') as
+    | SearchResultType
+    | 'all'
+    | null;
   const initialPage = parseInt(searchParams.get('page') || '1', 10);
 
   const initialLimit = parseInt(searchParams.get('limit') || '10', 10);

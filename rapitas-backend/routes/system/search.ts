@@ -160,7 +160,6 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         return { success: false, error: 'Search query is required' };
       }
 
-      
       if (searchQuery.length > 500) {
         set.status = 400;
         return { success: false, error: 'Search query is too long (max 500 characters)' };
@@ -171,7 +170,6 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
       const offset = q.offset ? parseInt(q.offset) : 0;
       const sortBy = q.sortBy || 'relevance'; // relevance, updatedAt, createdAt
 
-      
       const statusFilter = q.status?.split(',');
       const priorityFilter = q.priority?.split(',');
       const labelIdFilter = q.labelId
@@ -189,20 +187,17 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
 
       // Task search: title + description (DB-level filtering)
       if (types.includes('task')) {
-        
         const taskWhere: any = {
           AND: [
-            
             ...words.map((word) => ({
               OR: [
-                { title: { contains: word, mode: 'insensitive' } },
-                { description: { contains: word, mode: 'insensitive' } },
+                { title: { contains: word, mode: 'insensitive' as const } },
+                { description: { contains: word, mode: 'insensitive' as const } },
               ],
             })),
           ],
         };
 
-        
         if (statusFilter) {
           taskWhere.AND.push({ status: { in: statusFilter } });
         }
@@ -287,7 +282,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           AND: [
             { note: { not: null } },
             ...words.map((word) => ({
-              note: { contains: word, mode: 'insensitive' },
+              note: { contains: word, mode: 'insensitive' as const },
             })),
           ],
         };
@@ -332,7 +327,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
           AND: [
             { note: { not: null } },
             ...words.map((word) => ({
-              note: { contains: word, mode: 'insensitive' },
+              note: { contains: word, mode: 'insensitive' as const },
             })),
           ],
         };
@@ -378,7 +373,7 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
       if (types.includes('comment')) {
         const commentWhere = {
           AND: words.map((word) => ({
-            content: { contains: word, mode: 'insensitive' },
+            content: { contains: word, mode: 'insensitive' as const },
           })),
         };
 
@@ -416,8 +411,8 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         const resourceWhere = {
           AND: words.map((word) => ({
             OR: [
-              { title: { contains: word, mode: 'insensitive' } },
-              { description: { contains: word, mode: 'insensitive' } },
+              { title: { contains: word, mode: 'insensitive' as const } },
+              { description: { contains: word, mode: 'insensitive' as const } },
             ],
           })),
         };
@@ -466,7 +461,6 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         }
       }
 
-      
       if (sortBy === 'relevance') {
         results.sort((a, b) => b.relevance - a.relevance);
       } else if (sortBy === 'updatedAt') {
@@ -475,7 +469,6 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       }
 
-      
       const total = results.length;
       const paginatedResults = results.slice(offset, offset + limit);
 
@@ -513,12 +506,11 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
 
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      
       const taskWhere = {
         AND: words.map((word) => ({
           OR: [
-            { title: { contains: word, mode: 'insensitive' } },
-            { description: { contains: word, mode: 'insensitive' } },
+            { title: { contains: word, mode: 'insensitive' as const } },
+            { description: { contains: word, mode: 'insensitive' as const } },
           ],
         })),
       };
@@ -536,10 +528,9 @@ export const searchRoutes = new Elysia({ prefix: '/search' })
         orderBy: { updatedAt: 'desc' },
       });
 
-      
       const commentWhere = {
         AND: words.map((word) => ({
-          content: { contains: word, mode: 'insensitive' },
+          content: { contains: word, mode: 'insensitive' as const },
         })),
       };
 

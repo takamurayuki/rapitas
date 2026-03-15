@@ -144,6 +144,7 @@ export function DeveloperModeConfigModal({
     claude: { configured: false, maskedKey: null },
     chatgpt: { configured: false, maskedKey: null },
     gemini: { configured: false, maskedKey: null },
+    ollama: { configured: false, maskedKey: null },
   });
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -293,6 +294,7 @@ export function DeveloperModeConfigModal({
           claude: data.claude ?? { configured: false, maskedKey: null },
           chatgpt: data.chatgpt ?? { configured: false, maskedKey: null },
           gemini: data.gemini ?? { configured: false, maskedKey: null },
+          ollama: data.ollama ?? { configured: false, maskedKey: null },
         });
       }
     } catch (err) {
@@ -482,6 +484,7 @@ export function DeveloperModeConfigModal({
     claude: ['anthropic-api'],
     chatgpt: ['openai', 'azure-openai'],
     gemini: ['gemini'],
+    ollama: ['ollama'],
   };
 
   // Filter available agents (CLI-based are always available)

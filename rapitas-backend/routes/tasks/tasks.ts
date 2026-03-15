@@ -16,7 +16,10 @@ import {
   cleanupAllDuplicateSubtasks,
 } from '../../services/task-service';
 import { parseNaturalLanguageTask } from '../../services/natural-language-parser';
-import { analyzeTask, generateExecutionInstructions } from '../../services/claude-agent/task-analyzer';
+import {
+  analyzeTask,
+  generateExecutionInstructions,
+} from '../../services/claude-agent/task-analyzer';
 import { analyzeTaskComplexity } from '../../services/workflow/complexity-analyzer';
 import { getDefaultProvider } from '../../utils/ai-client';
 import { generateTaskTitle } from '../../services/claude-agent/naming-service';
@@ -35,19 +38,17 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     try {
       const stats = await QueryOptimizers.getTaskStatistics(prisma, { parentId: null });
 
-      // Get category statistics separately
-      const categoryCounts = await prisma.task.groupBy({
-        by: ['categoryId'],
+      // Get category statistics via Theme relation (Task has no direct categoryId)
+      const tasksWithTheme = await prisma.task.findMany({
         where: { parentId: null },
-        _count: { categoryId: true },
+        select: { theme: { select: { categoryId: true } } },
       });
 
-      const byCategory = Object.fromEntries(
-        categoryCounts.map((c: { categoryId: number | null; _count: { categoryId: number } }) => [
-          c.categoryId ?? 0, // Treat null categoryId as 0
-          c._count.categoryId,
-        ]),
-      );
+      const byCategory: Record<number, number> = {};
+      for (const t of tasksWithTheme) {
+        const catId = t.theme?.categoryId ?? 0;
+        byCategory[catId] = (byCategory[catId] || 0) + 1;
+      }
 
       return {
         total: stats.total,
@@ -74,23 +75,20 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       }
 
       // Split query for multi-word search
-      const words = searchQuery.split(/\s+/).filter(w => w.length > 0);
+      const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      
       const whereCondition: any = {
         parentId: null,
-        AND: []
+        AND: [],
       };
 
       // Multi-word search (title + optional description)
-      const searchConditions = words.map(word => {
-        const conditions: any[] = [
-          { title: { contains: word, mode: "insensitive" } }
-        ];
+      const searchConditions = words.map((word) => {
+        const conditions: any[] = [{ title: { contains: word, mode: 'insensitive' } }];
 
         // Include description in search when searchDescription is true
         if (searchDescription === 'true') {
-          conditions.push({ description: { contains: word, mode: "insensitive" } });
+          conditions.push({ description: { contains: word, mode: 'insensitive' } });
         }
 
         return { OR: conditions };
@@ -98,7 +96,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
       whereCondition.AND.push(...searchConditions);
 
-      
       if (themeId) {
         whereCondition.themeId = parseInt(themeId);
       }
@@ -133,17 +130,15 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
       // Sort by relevance score for multi-word queries
       if (words.length > 1) {
-        const scored = tasks.map(task => {
+        const scored = tasks.map((task) => {
           let score = 0;
           const lowerTitle = task.title.toLowerCase();
           const lowerDesc = task.description?.toLowerCase() || '';
           const lowerQuery = searchQuery.toLowerCase();
 
-          
           if (lowerTitle.includes(lowerQuery)) score += 50;
           if (searchDescription === 'true' && lowerDesc.includes(lowerQuery)) score += 30;
 
-          
           for (const word of words) {
             if (lowerTitle.includes(word.toLowerCase())) score += 10;
             if (searchDescription === 'true' && lowerDesc.includes(word.toLowerCase())) score += 5;
@@ -334,8 +329,8 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       const stats = await QueryOptimizers.getTaskStatistics(prisma, {});
       return stats;
     } catch (error) {
-      logger.error('Failed to fetch task statistics', error);
-      throw new AppError('Failed to fetch task statistics', 500);
+      logger.error({ err: error }, 'Failed to fetch task statistics');
+      throw new AppError(500, 'Failed to fetch task statistics');
     }
   })
 
@@ -578,7 +573,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('無効なIDです');
     }
 
-    
     const parentTask = await prisma.task.findUnique({
       where: { id: parentId },
     });
@@ -587,7 +581,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('タスクが見つかりません');
     }
 
-    
     const subtasks = await prisma.task.findMany({
       where: { parentId },
       select: { id: true },
@@ -595,7 +588,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
 
     const deletedCount = subtasks.length;
 
-    
     await prisma.task.deleteMany({
       where: { parentId },
     });
@@ -627,7 +619,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         throw new ValidationError('削除するサブタスクが指定されていません');
       }
 
-      
       const parentTask = await prisma.task.findUnique({
         where: { id: parentId },
       });
@@ -713,7 +704,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
                 title = result.title;
               }
             } catch (e) {
-              logger.warn({ err: e }, '[quick-create] AI title summarization failed, using parsed title');
+              logger.warn(
+                { err: e },
+                '[quick-create] AI title summarization failed, using parsed title',
+              );
             }
             send({ step: 'summarizing', status: 'done', data: { title } });
 
@@ -762,7 +756,14 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
               },
               analysisConfig,
             );
-            send({ step: 'analyzing', status: 'done', data: { score: complexity.complexityScore, subtaskCount: analysis.result.suggestedSubtasks.length } });
+            send({
+              step: 'analyzing',
+              status: 'done',
+              data: {
+                score: complexity.complexityScore,
+                subtaskCount: analysis.result.suggestedSubtasks.length,
+              },
+            });
 
             // Step 5: Create subtasks
             send({ step: 'generating_subtasks', status: 'in_progress' });
@@ -778,7 +779,11 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
               });
               createdSubtasks.push(sub);
             }
-            send({ step: 'generating_subtasks', status: 'done', data: { count: createdSubtasks.length } });
+            send({
+              step: 'generating_subtasks',
+              status: 'done',
+              data: { count: createdSubtasks.length },
+            });
 
             // Step 6: Generate execution instructions
             send({ step: 'generating_instructions', status: 'in_progress' });
@@ -800,7 +805,11 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
             send({ step: 'complete', status: 'done', taskId: task.id });
           } catch (error) {
             logger.error({ err: error }, '[tasks/quick-create] Pipeline failed');
-            send({ step: 'error', status: 'error', message: error instanceof Error ? error.message : 'Quick create pipeline failed' });
+            send({
+              step: 'error',
+              status: 'error',
+              message: error instanceof Error ? error.message : 'Quick create pipeline failed',
+            });
           } finally {
             controller.close();
           }

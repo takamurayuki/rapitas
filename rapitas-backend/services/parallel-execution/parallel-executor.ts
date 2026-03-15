@@ -9,6 +9,7 @@ import { ParallelScheduler, createParallelScheduler } from './parallel-scheduler
 import { SubAgentController, createSubAgentController } from './sub-agent-controller';
 import { LogAggregator, LogFormatter, createLogAggregator } from './log-aggregator';
 import { AgentCoordinator, createAgentCoordinator } from './agent-coordinator';
+import { GitOperations } from '../agents/orchestrator/git-operations';
 import type {
   DependencyAnalysisInput,
   DependencyAnalysisResult,
@@ -173,9 +174,12 @@ export class ParallelExecutor extends EventEmitter {
   private agentController: SubAgentController;
   private logAggregator: LogAggregator;
   private coordinator: AgentCoordinator;
+  private gitOps: GitOperations;
 
   private sessions: Map<string, ParallelExecutionSession> = new Map();
   private schedulers: Map<string, ParallelScheduler> = new Map();
+  /** Tracks worktree paths per task for cleanup (taskId -> worktreePath) */
+  private taskWorktrees: Map<number, string> = new Map();
 
   // Prisma
   private prisma: PrismaClientInstance;
@@ -189,6 +193,7 @@ export class ParallelExecutor extends EventEmitter {
     this.agentController = createSubAgentController(this.config);
     this.logAggregator = createLogAggregator();
     this.coordinator = createAgentCoordinator();
+    this.gitOps = new GitOperations();
 
     this.setupEventHandlers();
   }
@@ -449,6 +454,22 @@ export class ParallelExecutor extends EventEmitter {
     logger.info(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
 
     try {
+      // NOTE: Create isolated worktree for this task to prevent git conflicts
+      let taskWorkDir = workingDirectory;
+      try {
+        const branchName = `feature/task-${taskId}-parallel`;
+        taskWorkDir = await this.gitOps.createWorktree(workingDirectory, branchName, taskId);
+        this.taskWorktrees.set(taskId, taskWorkDir);
+        logger.info(`[ParallelExecutor] Created worktree for task ${taskId}: ${taskWorkDir}`);
+      } catch (wtError) {
+        logger.error(
+          { err: wtError },
+          `[ParallelExecutor] Worktree creation failed for task ${taskId}, using shared directory`,
+        );
+        // HACK(agent): Fallback to shared directory if worktree creation fails
+        taskWorkDir = workingDirectory;
+      }
+
       // AgentExecutionDB（）
       await dbMutex.acquire();
       let agentSession;
@@ -483,7 +504,7 @@ export class ParallelExecutor extends EventEmitter {
         dbMutex.release();
       }
 
-      const agentId = this.agentController.createAgent(taskId, execution.id, workingDirectory);
+      const agentId = this.agentController.createAgent(taskId, execution.id, taskWorkDir);
 
       session.activeAgents.set(agentId, {
         agentId,
@@ -550,7 +571,7 @@ export class ParallelExecutor extends EventEmitter {
         id: taskId,
         title: node.title,
         description: node.description,
-        workingDirectory,
+        workingDirectory: taskWorkDir,
         resumeSessionId: previousSessionId || undefined,
       };
 
@@ -657,6 +678,9 @@ export class ParallelExecutor extends EventEmitter {
     session.lastActivityAt = new Date();
     session.totalTokensUsed += result.tokensUsed || 0;
     session.totalExecutionTimeMs += result.executionTimeMs || 0;
+
+    // NOTE: Clean up worktree after successful execution (branch is preserved on remote)
+    await this.cleanupTaskWorktree(taskId, session.workingDirectory);
 
     // DB（）
     try {
@@ -884,6 +908,28 @@ export class ParallelExecutor extends EventEmitter {
   }
 
   /**
+   * Clean up worktree for a specific task.
+   *
+   * @param taskId - Task whose worktree to remove / 削除対象のタスクID
+   * @param baseDir - Main repository root / メインリポジトリルート
+   */
+  private async cleanupTaskWorktree(taskId: number, baseDir: string): Promise<void> {
+    const worktreePath = this.taskWorktrees.get(taskId);
+    if (!worktreePath) return;
+
+    try {
+      await this.gitOps.removeWorktree(baseDir, worktreePath);
+      this.taskWorktrees.delete(taskId);
+      logger.info(`[ParallelExecutor] Cleaned up worktree for task ${taskId}: ${worktreePath}`);
+    } catch (error) {
+      logger.warn(
+        { err: error },
+        `[ParallelExecutor] Failed to cleanup worktree for task ${taskId}`,
+      );
+    }
+  }
+
+  /**
    * Clean up.
    */
   cleanup(): void {
@@ -891,6 +937,7 @@ export class ParallelExecutor extends EventEmitter {
     this.sessions.clear();
     this.schedulers.clear();
     this.coordinator.reset();
+    this.taskWorktrees.clear();
   }
 }
 

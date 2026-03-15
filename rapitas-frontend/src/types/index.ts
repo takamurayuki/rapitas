@@ -629,7 +629,9 @@ export type Notification = {
     | 'agent_error'
     | 'daily_summary'
     | 'pr_review_requested'
-    | 'agent_execution_started';
+    | 'agent_execution_started'
+    | 'knowledge_extracted'
+    | 'knowledge_reminder';
   title: string;
   message: string;
   link?: string | null;

@@ -36,12 +36,14 @@ const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',
   chatgpt: 'ChatGPT',
   gemini: 'Gemini',
+  ollama: 'Ollama',
 };
 
 const PROVIDER_COLORS: Record<ApiProvider, string> = {
   claude: 'bg-orange-500',
   chatgpt: 'bg-green-500',
   gemini: 'bg-blue-500',
+  ollama: 'bg-purple-500',
 };
 
 function ChatMessage({ message }: { message: AIChatMessage }) {

@@ -12,7 +12,7 @@ describe('createLogger', () => {
 
   it('creates a logger with the given name prefix', async () => {
     // In test env (not production), default level is "debug", so all levels should log
-    process.env.NODE_ENV = 'test';
+    (process.env as Record<string, string | undefined>).NODE_ENV = 'test';
     delete process.env.NEXT_PUBLIC_LOG_LEVEL;
 
     // Re-import to pick up env changes

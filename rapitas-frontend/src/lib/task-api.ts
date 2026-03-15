@@ -116,10 +116,8 @@ export async function fetchTaskStatistics(): Promise<{
       const total = tasks.length;
       const byStatus: Record<Status, number> = {
         todo: 0,
-        in_progress: 0,
+        'in-progress': 0,
         done: 0,
-        blocked: 0,
-        cancelled: 0,
       };
       const byCategory: Record<number, number> = {};
 
@@ -145,10 +143,8 @@ export async function fetchTaskStatistics(): Promise<{
         total: 0,
         byStatus: {
           todo: 0,
-          in_progress: 0,
+          'in-progress': 0,
           done: 0,
-          blocked: 0,
-          cancelled: 0,
         },
         byCategory: {},
       };

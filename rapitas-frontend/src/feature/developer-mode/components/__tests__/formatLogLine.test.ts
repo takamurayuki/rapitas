@@ -3,7 +3,7 @@
  * Tests for log line JSON formatting
  */
 
-import { test, describe, expect } from '@jest/globals';
+import { test, describe, expect } from 'vitest';
 
 // Extracted formatLogLine function for testing
 function formatLogLine(log: string): { formatted: string; hasJson: boolean } {

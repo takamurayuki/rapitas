@@ -49,9 +49,13 @@ async function initPipeline(): Promise<void> {
 
   try {
     // Dynamic import of @xenova/transformers
-    // @ts-expect-error @xenova/transformers has no type declarations
+    // NOTE: @xenova/transformers has no type declarations; dynamic import resolves to any
     const { pipeline: createPipeline } = await import('@xenova/transformers');
-    pipeline = await createPipeline('feature-extraction', MODEL_NAME);
+    // HACK(agent): Cast needed because @xenova/transformers has incompatible pooling type definitions
+    pipeline = (await createPipeline(
+      'feature-extraction',
+      MODEL_NAME,
+    )) as unknown as EmbeddingPipeline;
     log.info('Embedding pipeline initialized (direct)');
   } catch (_directError) {
     // If direct import fails, check if the module exists for subprocess fallback

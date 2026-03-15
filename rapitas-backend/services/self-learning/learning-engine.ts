@@ -326,7 +326,6 @@ export async function getGrowthTimeline(
         where: {
           status: 'completed',
           completedAt: { lte: endOfDay },
-          confidence: { not: null },
         },
         _avg: { confidence: true },
       }),
@@ -342,7 +341,7 @@ export async function getGrowthTimeline(
       learningPatterns: patternCount,
       experimentsCompleted: completedExpCount,
       successRate: totalExpCount > 0 ? completedExpCount / totalExpCount : 0,
-      avgConfidence: avgConfidenceResult._avg.confidence ?? 0,
+      avgConfidence: avgConfidenceResult._avg?.confidence ?? 0,
       promptImprovements: promptCount,
     });
   }

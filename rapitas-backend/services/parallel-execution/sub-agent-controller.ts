@@ -448,8 +448,7 @@ class SubAgent extends EventEmitter {
 
         this.lastFileSize = stat.size;
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   }
 
   /**
@@ -780,8 +779,8 @@ class SubAgent extends EventEmitter {
 
     sections.push('## 注意事項');
     sections.push('このタスクは他のタスクと並列で実行されている可能性があります。');
-    sections.push('- ファイルの編集が他のタスクと競合しないよう注意');
-    sections.push('- 共有リソースへのアクセスは最小限に');
+    sections.push('- このタスクは専用のgit worktreeで実行されています。git操作は安全に行えます。');
+    sections.push('- 作業完了後は変更をコミットし、リモートにプッシュしてください。');
     sections.push('- 進捗状況を明確にOutputすること');
 
     return sections.join('\n');
