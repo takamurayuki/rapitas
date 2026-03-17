@@ -355,17 +355,31 @@ export const agentExecutionRouter = new Elysia()
       let developerModeConfig = task.developerModeConfig;
       let session;
       let finalBranchName = branchName;
+      let worktreePath: string = workDir;
 
       try {
         if (!developerModeConfig) {
-          developerModeConfig = await prisma.developerModeConfig.upsert({
-            where: { taskId: taskIdNum },
-            update: {},
-            create: {
-              taskId: taskIdNum,
-              isEnabled: true,
-            },
-          });
+          try {
+            developerModeConfig = await prisma.developerModeConfig.upsert({
+              where: { taskId: taskIdNum },
+              update: {},
+              create: {
+                taskId: taskIdNum,
+                isEnabled: true,
+              },
+            });
+          } catch (error: any) {
+            if (error.code === 'P2002' && error.meta?.target?.includes('taskId')) {
+              logger.info(
+                `Race condition detected on developerModeConfig.upsert for taskId ${taskIdNum}, retrying with findUnique`,
+              );
+              developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
+                where: { taskId: taskIdNum },
+              });
+            } else {
+              throw error;
+            }
+          }
         }
 
         if (sessionId) {
@@ -403,7 +417,6 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // NOTE: Use git worktree for isolation — each task gets its own working directory
-        let worktreePath: string;
         try {
           worktreePath = await agentWorkerManager.createWorktree(
             workDir,
