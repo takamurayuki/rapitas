@@ -368,16 +368,21 @@ export const agentExecutionRouter = new Elysia()
                 isEnabled: true,
               },
             });
-          } catch (error: any) {
-            if (error.code === 'P2002' && error.meta?.target?.includes('taskId')) {
-              logger.info(
-                `Race condition detected on developerModeConfig.upsert for taskId ${taskIdNum}, retrying with findUnique`,
+          } catch (upsertError: unknown) {
+            // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
+            const isPrismaUniqueViolation =
+              upsertError instanceof Error &&
+              'code' in upsertError &&
+              (upsertError as { code: string }).code === 'P2002';
+            if (isPrismaUniqueViolation) {
+              log.warn(
+                `[API] Concurrent upsert race for taskId=${taskIdNum}, fetching existing record`,
               );
               developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
                 where: { taskId: taskIdNum },
               });
             } else {
-              throw error;
+              throw upsertError;
             }
           }
         }
@@ -417,6 +422,7 @@ export const agentExecutionRouter = new Elysia()
         }
 
         // NOTE: Use git worktree for isolation — each task gets its own working directory
+        let worktreePath: string;
         try {
           worktreePath = await agentWorkerManager.createWorktree(
             workDir,
