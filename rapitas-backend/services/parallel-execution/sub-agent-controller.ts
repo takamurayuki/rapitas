@@ -172,6 +172,10 @@ class SubAgent extends EventEmitter {
           args.push('--dangerously-skip-permissions');
         }
 
+        // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
+        // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
+        args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+
         // Windows: UTF-8
         let finalCommand: string;
         let finalArgs: string[];

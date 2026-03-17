@@ -230,6 +230,10 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push('--max-tokens', String(this.config.maxTokens));
       }
 
+      // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
+      // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
+      args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+
       // On Windows, use .cmd file (resolved to absolute path to avoid PATH resolution issues)
       const isWindows = process.platform === 'win32';
       const baseClaudePath = process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');

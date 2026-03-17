@@ -71,14 +71,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
           priority: priority ?? 'balanced',
         },
       });
-    } catch (error: any) {
-      if (error.code === 'P2002' && error.meta?.target?.includes('taskId')) {
-        log.info(
-          `Race condition detected on developerModeConfig.upsert for taskId ${taskId}, retrying with findUnique + update`,
-        );
-        config = await prisma.developerModeConfig.findUniqueOrThrow({
-          where: { taskId },
-        });
     } catch (upsertError: unknown) {
       // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
       const isPrismaUniqueViolation =

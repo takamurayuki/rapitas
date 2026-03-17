@@ -25,6 +25,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/recharts": "^2.0.1",
+    "dompurify": "^3.3.3",
     "framer-motion": "^12.34.2",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.562.0",

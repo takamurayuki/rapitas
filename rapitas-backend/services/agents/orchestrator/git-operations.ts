@@ -6,9 +6,9 @@
  */
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { join } from 'path';
+import { join, resolve, normalize } from 'path';
 import { existsSync } from 'fs';
-import { rm } from 'fs/promises';
+import { rm, stat } from 'fs/promises';
 import { randomBytes } from 'crypto';
 import { createLogger } from '../../../config/logger';
 
@@ -17,6 +17,57 @@ const logger = createLogger('git-operations');
 
 /** Directory name under baseDir where worktrees are created */
 const WORKTREE_DIR = '.worktrees';
+
+/**
+ * Normalize a path for consistent comparison across platforms.
+ * Resolves to absolute path and uses forward slashes on all platforms.
+ *
+ * @param p - Path to normalize / 正規化するパス
+ * @returns Normalized path with forward slashes / フォワードスラッシュに統一した正規化パス
+ */
+function normalizePath(p: string): string {
+  return resolve(normalize(p)).replace(/\\/g, '/');
+}
+
+/**
+ * Validate that a path is safely within the managed .worktrees/ directory.
+ * Prevents accidental deletion of the main repository or other directories.
+ *
+ * @param worktreePath - Path to validate / 検証するパス
+ * @param baseDir - Main repository root / メインリポジトリのルート
+ * @returns true if the path is safe to operate on / 操作が安全な場合true
+ */
+function isPathSafeForWorktreeOperation(worktreePath: string, baseDir: string): boolean {
+  const normalizedWT = normalizePath(worktreePath);
+  const normalizedBase = normalizePath(baseDir);
+  const normalizedWorktreeDir = normalizePath(join(baseDir, WORKTREE_DIR));
+
+  // NOTE: Block if path is the main repository root itself — deleting it would destroy .git/
+  if (normalizedWT === normalizedBase) {
+    logger.error(
+      `[SAFETY] Blocked operation on main repository root: ${worktreePath}`,
+    );
+    return false;
+  }
+
+  // NOTE: Block if path is not under the managed .worktrees/ directory
+  if (!normalizedWT.startsWith(normalizedWorktreeDir + '/')) {
+    logger.error(
+      `[SAFETY] Blocked operation on path outside .worktrees/: ${worktreePath} (expected under ${normalizedWorktreeDir})`,
+    );
+    return false;
+  }
+
+  // NOTE: Block if path contains traversal patterns that could escape the worktree directory
+  if (worktreePath.includes('..')) {
+    logger.error(
+      `[SAFETY] Blocked operation on path with traversal: ${worktreePath}`,
+    );
+    return false;
+  }
+
+  return true;
+}
 
 /**
  * Provides Git operations (diff, commit, branch, PR, merge, revert).
@@ -201,13 +252,19 @@ export class GitOperations {
   }
 
   /**
-   * Revert all changes.
+   * Revert all changes in a working directory.
+   * Protects .worktrees/ directory from being deleted by git clean.
+   *
+   * @param workingDirectory - Directory to revert changes in / 変更をリバートするディレクトリ
+   * @returns true if revert succeeded / リバート成功時true
    */
   async revertChanges(workingDirectory: string): Promise<boolean> {
     try {
       await execAsync('git reset HEAD', { cwd: workingDirectory });
       await execAsync('git checkout -- .', { cwd: workingDirectory });
-      await execAsync('git clean -fd', { cwd: workingDirectory });
+      // NOTE: Use -fd (not -fdx) and explicitly exclude .worktrees/ to prevent deleting active worktrees.
+      // Also exclude .agent-pids/ to avoid breaking process tracking.
+      await execAsync('git clean -fd -e .worktrees -e .agent-pids', { cwd: workingDirectory });
       return true;
     } catch (error) {
       logger.error({ err: error }, 'Failed to revert changes');
@@ -527,6 +584,14 @@ export class GitOperations {
    * @param worktreePath - Absolute path to the worktree to remove / 削除するworktreeの絶対パス
    */
   async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+    // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo
+    if (!isPathSafeForWorktreeOperation(worktreePath, baseDir)) {
+      logger.error(
+        `[removeWorktree] REFUSED to remove unsafe path: ${worktreePath} (baseDir: ${baseDir})`,
+      );
+      return;
+    }
+
     try {
       const quotedPath = `"${worktreePath}"`;
 
@@ -544,6 +609,24 @@ export class GitOperations {
       );
 
       if (existsSync(worktreePath)) {
+        // NOTE: Double-check that the target is NOT a real .git directory (indicates main repo, not worktree)
+        const gitDirPath = join(worktreePath, '.git');
+        if (existsSync(gitDirPath)) {
+          try {
+            const gitStat = await stat(gitDirPath);
+            if (gitStat.isDirectory()) {
+              // SAFETY: .git is a directory — this is a main repository, NOT a worktree
+              // Worktrees have a .git FILE pointing to the main repo's .git/worktrees/ entry
+              logger.error(
+                `[removeWorktree] REFUSED fs cleanup: ${worktreePath} contains .git directory (likely main repo, not worktree)`,
+              );
+              return;
+            }
+          } catch {
+            // NOTE: stat failed — proceed with caution, but the path validation above should protect us
+          }
+        }
+
         try {
           await rm(worktreePath, { recursive: true, force: true });
           logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
@@ -585,6 +668,7 @@ export class GitOperations {
       });
 
       const worktreeDir = join(baseDir, WORKTREE_DIR);
+      const normalizedWorktreeDir = normalizePath(worktreeDir);
       const entries = stdout.split('\n\n').filter(Boolean);
 
       for (const entry of entries) {
@@ -592,8 +676,9 @@ export class GitOperations {
         if (!pathMatch?.[1]) continue;
 
         const wtPath = pathMatch[1];
-        // Only clean up worktrees under our managed .worktrees/ directory
-        if (!wtPath.startsWith(worktreeDir)) continue;
+        // NOTE: Use normalized path comparison to handle Windows path separator differences
+        const normalizedWtPath = normalizePath(wtPath);
+        if (!normalizedWtPath.startsWith(normalizedWorktreeDir + '/')) continue;
 
         logger.info(`[cleanupStaleWorktrees] Removing stale worktree: ${wtPath}`);
         try {
