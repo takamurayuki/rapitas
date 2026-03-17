@@ -370,7 +370,7 @@ export const agentExecutionRouter = new Elysia()
             });
           } catch (error: any) {
             if (error.code === 'P2002' && error.meta?.target?.includes('taskId')) {
-              logger.info(
+              log.info(
                 `Race condition detected on developerModeConfig.upsert for taskId ${taskIdNum}, retrying with findUnique`,
               );
               developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
