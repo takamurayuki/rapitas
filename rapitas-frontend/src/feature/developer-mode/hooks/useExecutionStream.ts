@@ -478,10 +478,17 @@ export function useExecutionPolling(taskId: number | null) {
             if (newOutput) {
               logger.debug('New output received:', newOutput.length, 'chars');
               lastOutputLengthRef.current = data.output.length;
-              setState((prev) => ({
-                ...prev,
-                logs: trimLogs([...prev.logs, newOutput]),
-              }));
+              setState((prev) => {
+                // NOTE: Skip if identical to the last log entry (prevents duplicate output on rapid polls)
+                const lastLog = prev.logs[prev.logs.length - 1];
+                if (lastLog === newOutput) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  logs: trimLogs([...prev.logs, newOutput]),
+                };
+              });
             }
           }
 
