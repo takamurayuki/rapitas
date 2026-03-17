@@ -19,7 +19,7 @@ import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client'
 import { getLabelsArray, toJsonString, fromJsonString } from '../../utils/db-helpers';
 
 export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
-  
+
   .get('/config/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -39,7 +39,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     return config;
   })
 
-  
   .post('/enable/:taskId', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.taskId);
@@ -49,34 +48,54 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       priority?: string;
     };
 
-    
     await prisma.task.update({
       where: { id: taskId },
       data: { isDeveloperMode: true },
     });
 
-    
-    const config = await prisma.developerModeConfig.upsert({
-      where: { taskId },
-      update: {
-        isEnabled: true,
-        ...(autoApprove !== undefined && { autoApprove }),
-        ...(maxSubtasks !== undefined && { maxSubtasks }),
-        ...(priority !== undefined && { priority }),
-      },
-      create: {
-        taskId,
-        isEnabled: true,
-        autoApprove: autoApprove ?? false,
-        maxSubtasks: maxSubtasks ?? 10,
-        priority: priority ?? 'balanced',
-      },
-    });
+    let config;
+    try {
+      config = await prisma.developerModeConfig.upsert({
+        where: { taskId },
+        update: {
+          isEnabled: true,
+          ...(autoApprove !== undefined && { autoApprove }),
+          ...(maxSubtasks !== undefined && { maxSubtasks }),
+          ...(priority !== undefined && { priority }),
+        },
+        create: {
+          taskId,
+          isEnabled: true,
+          autoApprove: autoApprove ?? false,
+          maxSubtasks: maxSubtasks ?? 10,
+          priority: priority ?? 'balanced',
+        },
+      });
+    } catch (upsertError: unknown) {
+      // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
+      const isPrismaUniqueViolation =
+        upsertError instanceof Error &&
+        'code' in upsertError &&
+        (upsertError as { code: string }).code === 'P2002';
+      if (isPrismaUniqueViolation) {
+        log.warn(`[API] Concurrent upsert race for taskId=${taskId}, updating existing record`);
+        config = await prisma.developerModeConfig.update({
+          where: { taskId },
+          data: {
+            isEnabled: true,
+            ...(autoApprove !== undefined && { autoApprove }),
+            ...(maxSubtasks !== undefined && { maxSubtasks }),
+            ...(priority !== undefined && { priority }),
+          },
+        });
+      } else {
+        throw upsertError;
+      }
+    }
 
     return config;
   })
 
-  
   .delete('/disable/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -100,7 +119,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     return { success: true };
   })
 
-  
   .patch('/config/:taskId', async (context) => {
     const { params, body } = context;
     const taskId = parseInt(params.taskId);
@@ -127,7 +145,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     const { params, set } = context;
     const taskId = parseInt(params.taskId);
 
-    
     const defaultProvider = await getDefaultProvider();
     const apiKey = await getApiKeyForProvider(defaultProvider);
     if (!apiKey) {
@@ -137,7 +154,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -159,7 +175,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    
     const session = await prisma.agentSession.create({
       data: {
         configId: config.id,
@@ -169,7 +184,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     });
 
     try {
-      
       const { result, tokensUsed } = await analyzeTask(
         {
           id: task.id,
@@ -186,7 +200,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       );
 
-      
       await prisma.agentAction.create({
         data: {
           sessionId: session.id,
@@ -199,7 +212,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       });
 
-      
       await prisma.agentSession.update({
         where: { id: session.id },
         data: {
@@ -213,7 +225,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         // Atomic duplicate check and creation via transaction
         const createdSubtasks = await prisma.$transaction(
           async (tx) => {
-            
             const existingSubtasks = await tx.task.findMany({
               where: { parentId: taskId },
               select: { title: true },
@@ -224,7 +235,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
 
             const created = [];
             for (const subtask of result.suggestedSubtasks) {
-              
               const normalizedTitle = subtask.title.toLowerCase().trim();
               if (existingTitles.has(normalizedTitle)) {
                 log.info(`[developer-mode] Skipping duplicate subtask: ${subtask.title}`);
@@ -264,7 +274,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         };
       }
 
-      
       const approvalRequest = await prisma.approvalRequest.create({
         data: {
           configId: config.id,
@@ -283,7 +292,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         },
       });
 
-      
       if (config.notifyInApp) {
         await prisma.notification.create({
           data: {
@@ -330,7 +338,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       savePrompt?: boolean;
     };
 
-    
     const optimizeProvider = await getDefaultProvider();
     const optimizeApiKey = await getApiKeyForProvider(optimizeProvider);
     if (!optimizeApiKey) {
@@ -340,7 +347,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       };
     }
 
-    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -377,7 +383,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     }
 
     try {
-      
       const { result, tokensUsed } = await generateOptimizedPrompt(
         {
           title: task.title,
@@ -464,7 +469,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         return { error: 'optimizedResult is required' };
       }
 
-      
       const task = await prisma.task.findUnique({
         where: { id: taskId },
       });
@@ -514,7 +518,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
         return { error: 'タスクタイトルは必須です' };
       }
 
-      
       const branchProvider = await getDefaultProvider();
       const branchApiKey = await getApiKeyForProvider(branchProvider);
       if (!branchApiKey) {
@@ -544,7 +547,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
     },
   )
 
-  
   .get('/sessions/:taskId', async (context) => {
     const { params } = context;
     const taskId = parseInt(params.taskId);
@@ -581,7 +583,6 @@ export const developerModeRoutes = new Elysia({ prefix: '/developer-mode' })
       }
 
       try {
-        
         const settings = await prisma.userSettings.findFirst();
         const titleProviderRaw = (settings as Record<string, unknown>)?.titleGenerationProvider as
           | string

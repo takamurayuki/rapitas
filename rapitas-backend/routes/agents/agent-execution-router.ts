@@ -358,14 +358,32 @@ export const agentExecutionRouter = new Elysia()
 
       try {
         if (!developerModeConfig) {
-          developerModeConfig = await prisma.developerModeConfig.upsert({
-            where: { taskId: taskIdNum },
-            update: {},
-            create: {
-              taskId: taskIdNum,
-              isEnabled: true,
-            },
-          });
+          try {
+            developerModeConfig = await prisma.developerModeConfig.upsert({
+              where: { taskId: taskIdNum },
+              update: {},
+              create: {
+                taskId: taskIdNum,
+                isEnabled: true,
+              },
+            });
+          } catch (upsertError: unknown) {
+            // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
+            const isPrismaUniqueViolation =
+              upsertError instanceof Error &&
+              'code' in upsertError &&
+              (upsertError as { code: string }).code === 'P2002';
+            if (isPrismaUniqueViolation) {
+              log.warn(
+                `[API] Concurrent upsert race for taskId=${taskIdNum}, fetching existing record`,
+              );
+              developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
+                where: { taskId: taskIdNum },
+              });
+            } else {
+              throw upsertError;
+            }
+          }
         }
 
         if (sessionId) {
