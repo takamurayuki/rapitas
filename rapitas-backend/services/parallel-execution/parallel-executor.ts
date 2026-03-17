@@ -9,6 +9,8 @@ import { ParallelScheduler, createParallelScheduler } from './parallel-scheduler
 import { SubAgentController, createSubAgentController } from './sub-agent-controller';
 import { LogAggregator, LogFormatter, createLogAggregator } from './log-aggregator';
 import { AgentCoordinator, createAgentCoordinator } from './agent-coordinator';
+import { ConflictDetector } from './conflict-detector';
+import { MergeValidator } from './merge-validator';
 import { GitOperations } from '../agents/orchestrator/git-operations';
 import type {
   DependencyAnalysisInput,
@@ -77,7 +79,9 @@ type ParallelExecutionEvent = {
     | 'task_failed'
     | 'level_started'
     | 'level_completed'
-    | 'progress_updated';
+    | 'progress_updated'
+    | 'conflict_detected'
+    | 'safety_report_ready';
   sessionId: string;
   taskId?: number;
   level?: number;
@@ -175,6 +179,8 @@ export class ParallelExecutor extends EventEmitter {
   private logAggregator: LogAggregator;
   private coordinator: AgentCoordinator;
   private gitOps: GitOperations;
+  private conflictDetector: ConflictDetector;
+  private mergeValidator: MergeValidator;
 
   private sessions: Map<string, ParallelExecutionSession> = new Map();
   private schedulers: Map<string, ParallelScheduler> = new Map();
@@ -194,6 +200,12 @@ export class ParallelExecutor extends EventEmitter {
     this.logAggregator = createLogAggregator();
     this.coordinator = createAgentCoordinator();
     this.gitOps = new GitOperations();
+    this.conflictDetector = new ConflictDetector(this.coordinator, {
+      enabled: this.config.safetyCheckEnabled !== false,
+      pollingIntervalMs: this.config.conflictPollingIntervalMs,
+      pauseOnCritical: this.config.pauseOnCriticalConflict,
+    });
+    this.mergeValidator = new MergeValidator();
 
     this.setupEventHandlers();
   }
@@ -334,6 +346,7 @@ export class ParallelExecutor extends EventEmitter {
       activeAgents: new Map(),
       completedTasks: [],
       failedTasks: [],
+      taskBranches: new Map(),
       nodes,
       workingDirectory,
       startedAt: new Date(),
@@ -369,7 +382,7 @@ export class ParallelExecutor extends EventEmitter {
           timestamp: event.timestamp,
         });
       } else if (event.type === 'all_completed') {
-        this.completeSession(sessionId);
+        void this.completeSession(sessionId);
       }
     });
 
@@ -415,7 +428,7 @@ export class ParallelExecutor extends EventEmitter {
 
     if (executableTasks.length === 0) {
       if (this.agentController.getActiveAgentCount() === 0) {
-        this.completeSession(sessionId);
+        await this.completeSession(sessionId);
       }
       return;
     }
@@ -460,6 +473,8 @@ export class ParallelExecutor extends EventEmitter {
         const branchName = `feature/task-${taskId}-parallel`;
         taskWorkDir = await this.gitOps.createWorktree(workingDirectory, branchName, taskId);
         this.taskWorktrees.set(taskId, taskWorkDir);
+        session.taskBranches.set(taskId, branchName);
+        this.conflictDetector.startTracking(taskId, `agent-${taskId}`, taskWorkDir);
         logger.info(`[ParallelExecutor] Created worktree for task ${taskId}: ${taskWorkDir}`);
       } catch (wtError) {
         logger.error(
@@ -679,6 +694,8 @@ export class ParallelExecutor extends EventEmitter {
     session.totalTokensUsed += result.tokensUsed || 0;
     session.totalExecutionTimeMs += result.executionTimeMs || 0;
 
+    this.conflictDetector.stopTracking(taskId);
+
     // NOTE: Clean up worktree after successful execution (branch is preserved on remote)
     await this.cleanupTaskWorktree(taskId, session.workingDirectory);
 
@@ -793,7 +810,7 @@ export class ParallelExecutor extends EventEmitter {
 
   /**
    */
-  private completeSession(sessionId: string): void {
+  private async completeSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
@@ -805,6 +822,40 @@ export class ParallelExecutor extends EventEmitter {
     logger.info(`[ParallelExecutor] - Completed: ${session.completedTasks.length}`);
     logger.info(`[ParallelExecutor] - Failed: ${session.failedTasks.length}`);
     logger.info(`[ParallelExecutor] - Total time: ${session.totalExecutionTimeMs}ms`);
+
+    // NOTE: Run safety checks when multiple tasks completed and safety is enabled
+    if (this.config.safetyCheckEnabled !== false && session.completedTasks.length > 1) {
+      try {
+        const taskBranches = session.completedTasks
+          .map((id) => ({ taskId: id, branchName: session.taskBranches.get(id)! }))
+          .filter((b) => b.branchName);
+
+        if (taskBranches.length > 1) {
+          const report = await this.mergeValidator.generateSafetyReport(
+            sessionId,
+            session.workingDirectory,
+            taskBranches,
+            'develop',
+            this.conflictDetector.getActiveConflicts(),
+          );
+
+          this.coordinator.shareData(`safety-report:${sessionId}`, report, 'system');
+
+          this.emitEvent({
+            type: 'safety_report_ready',
+            sessionId,
+            timestamp: new Date(),
+            data: report,
+          });
+
+          logger.info(
+            `[ParallelExecutor] Safety report ready for session ${sessionId}: ${report.recommendation}`,
+          );
+        }
+      } catch (error) {
+        logger.error({ err: error }, '[ParallelExecutor] Failed to generate safety report');
+      }
+    }
 
     this.emitEvent({
       type: success ? 'session_completed' : 'session_failed',
@@ -934,6 +985,7 @@ export class ParallelExecutor extends EventEmitter {
    */
   cleanup(): void {
     this.agentController.stopAllAgents();
+    this.conflictDetector.cleanup();
     this.sessions.clear();
     this.schedulers.clear();
     this.coordinator.reset();

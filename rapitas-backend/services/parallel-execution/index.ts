@@ -22,5 +22,10 @@ export { LogAggregator, LogFormatter, createLogAggregator } from './log-aggregat
 // Agent coordination
 export { AgentCoordinator, createAgentCoordinator } from './agent-coordinator';
 
+// Conflict detection and merge validation
+export { ConflictDetector } from './conflict-detector';
+export { MergeValidator } from './merge-validator';
+export * from './safety-types';
+
 // Parallel execution orchestrator
 export { ParallelExecutor, createParallelExecutor } from './parallel-executor';
