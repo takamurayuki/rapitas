@@ -28,4 +28,11 @@ export const themeSchema = {
     categoryId: t.Optional(t.Nullable(t.Number())),
     sortOrder: t.Optional(t.Number()),
   }),
+
+  setupFromClaudeMd: t.Object({
+    appName: t.String({ minLength: 1 }),
+    claudeMd: t.String({ minLength: 1 }),
+    basePath: t.Optional(t.String()),
+    description: t.Optional(t.String()),
+  }),
 };

@@ -291,20 +291,7 @@
     "taskCreated": "タスクを作成しました",
     "taskCreateFailed": "タスクの作成に失敗しました",
     "createFailed": "作成に失敗しました",
-    "suggestionApplied": "提案を適用しました",
-    "nlInputPlaceholder": "自然文で入力（例: 金曜3時にレポート提出）\n複数行で詳細を記載できます",
-    "nlInputHint": "Ctrl+Enter でクイック作成。AIがタスク名を自動要約します",
-    "quickCreate": "クイック作成",
-    "quickCreateSuccess": "タスクとサブタスクを自動作成しました",
-    "quickCreateProcessing": "AIがタスクを解析・作成中...",
-    "quickCreateStepParsing": "入力内容を解析中...",
-    "quickCreateStepSummarizing": "タスク名をAIで要約中...",
-    "quickCreateStepCreating": "タスクを作成中...",
-    "quickCreateStepAnalyzing": "複雑度を分析中...",
-    "quickCreateStepGeneratingSubtasks": "サブタスクを生成中...",
-    "quickCreateStepGeneratingInstructions": "実行手順を生成中...",
-    "quickCreateStepComplete": "完了",
-    "quickCreateStepError": "エラーが発生しました"
+    "suggestionApplied": "提案を適用しました"
   },
   "auth": {
     "loginTitle": "Rapitas にログイン",
@@ -1577,7 +1564,15 @@
     "prio_scale": "スケール重視",
     "prio_scale_desc": "急成長に備える",
     "prio_security": "セキュリティ",
-    "prio_security_desc": "金融・医療・個人情報"
+    "prio_security_desc": "金融・医療・個人情報",
+    "createThemeSection": "テーマ作成",
+    "createTheme": "テーマを作成",
+    "createThemeDescription": "プロジェクトフォルダとGitリポジトリを作成し、CLAUDE.mdを配置してエージェント開発の準備を完了します。",
+    "creatingTheme": "テーマを作成中...",
+    "themeCreated": "テーマが作成されました",
+    "themeCreatedDescription": "プロジェクトフォルダとGitリポジトリが初期化され、CLAUDE.mdが配置されました。",
+    "themeCreateError": "テーマの作成に失敗しました",
+    "createAnother": "別のテーマを作成"
   },
   "knowledge": {
     "title": "知識ベース",

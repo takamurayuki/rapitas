@@ -178,8 +178,7 @@ export default function Header() {
             window.location.reload();
             return;
           }
-        } catch {
-        }
+        } catch {}
       }
       setIsRestarting(false);
       alert(t('restartTimeout'));

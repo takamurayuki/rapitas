@@ -24,7 +24,19 @@ import {
   CheckCircle2,
   AlertCircle,
   Square,
+  Eye,
+  Code,
+  FileEdit,
+  TestTube,
 } from 'lucide-react';
+import {
+  transformLogsToSimple,
+  detectCurrentPhase,
+  generateExecutionSummary,
+} from '../utils/log-message-transformer';
+import type { ExecutionSummary } from '../utils/log-message-transformer';
+import { SimpleLogEntryList } from './SimpleLogEntry';
+import { WorkflowProgressBar } from './WorkflowProgressBar';
 
 export type ExecutionLogStatus =
   | 'idle'
@@ -32,6 +44,8 @@ export type ExecutionLogStatus =
   | 'completed'
   | 'failed'
   | 'cancelled';
+
+export type ExecutionLogViewMode = 'simple' | 'detailed';
 
 export type ExecutionLogViewerProps = {
   /** Array of execution log lines */
@@ -46,6 +60,8 @@ export type ExecutionLogViewerProps = {
   defaultExpanded?: boolean;
   /** Whether to start in fullscreen mode */
   defaultFullscreen?: boolean;
+  /** Default view mode */
+  defaultViewMode?: ExecutionLogViewMode;
   /** Custom class name */
   className?: string;
   /** Whether collapsible */
@@ -289,10 +305,161 @@ const LogEntry = memo<{
 LogEntry.displayName = 'LogEntry';
 
 /**
+ * Completion summary card shown at the bottom of simple mode logs.
+ * Icon-only, no emoji.
+ */
+const ExecutionSummaryCard: React.FC<{
+  summary: ExecutionSummary;
+  status: ExecutionLogStatus;
+}> = ({ summary, status }) => {
+  const isSuccess = status === 'completed';
+  const totalFiles = summary.filesEdited.length + summary.filesCreated.length;
+
+  return (
+    <div
+      className={`mt-4 rounded-lg border p-4 ${
+        isSuccess
+          ? 'border-green-500/40 bg-green-950/20'
+          : 'border-red-500/40 bg-red-950/20'
+      }`}
+      style={{ animation: 'fadeInSlide 0.3s ease-out' }}
+    >
+      <div
+        className={`flex items-center gap-2 text-sm font-semibold mb-3 ${
+          isSuccess ? 'text-green-300' : 'text-red-300'
+        }`}
+      >
+        {isSuccess ? (
+          <CheckCircle2 className="w-4 h-4" />
+        ) : (
+          <AlertCircle className="w-4 h-4" />
+        )}
+        {isSuccess ? '完了しました' : '実行に失敗しました'}
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+        {totalFiles > 0 && (
+          <div className="flex items-center gap-2 text-zinc-300">
+            <FileEdit className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="text-zinc-500">変更:</span>
+            <span className="font-medium">{totalFiles}件</span>
+          </div>
+        )}
+        {summary.testsRun > 0 && (
+          <div className="flex items-center gap-2 text-zinc-300">
+            <TestTube className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="text-zinc-500">テスト:</span>
+            <span className="font-medium">
+              {summary.testsPassed > 0 && (
+                <span className="text-green-400">
+                  {summary.testsPassed}成功
+                </span>
+              )}
+              {summary.testsFailed > 0 && (
+                <span className="text-red-400 ml-1">
+                  {summary.testsFailed}失敗
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+        {summary.commits > 0 && (
+          <div className="flex items-center gap-2 text-zinc-300">
+            <CheckCircle2 className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="text-zinc-500">コミット:</span>
+            <span className="font-medium">{summary.commits}件</span>
+          </div>
+        )}
+        {summary.durationSeconds !== undefined && (
+          <div className="flex items-center gap-2 text-zinc-300">
+            <Square className="w-3.5 h-3.5 text-zinc-500" />
+            <span className="text-zinc-500">所要時間:</span>
+            <span className="font-medium">
+              {summary.durationSeconds >= 60
+                ? `${Math.floor(summary.durationSeconds / 60)}分${Math.round(summary.durationSeconds % 60)}秒`
+                : `${Math.round(summary.durationSeconds)}秒`}
+            </span>
+          </div>
+        )}
+        <div className="col-span-2 flex items-center gap-2 text-zinc-300">
+          <span className="text-zinc-500">課題:</span>
+          <span className="font-medium">
+            {summary.errors.length > 0
+              ? summary.errors.map((e, i) => (
+                  <span key={i} className="text-red-400">
+                    {e}
+                    {i < summary.errors.length - 1 ? ', ' : ''}
+                  </span>
+                ))
+              : 'なし'}
+          </span>
+        </div>
+      </div>
+      {(summary.filesEdited.length > 0 || summary.filesCreated.length > 0) && (
+        <details className="mt-3">
+          <summary className="text-xs text-zinc-500 cursor-pointer hover:text-zinc-400">
+            変更ファイル一覧
+          </summary>
+          <div className="mt-2 text-xs text-zinc-400 font-mono space-y-0.5 pl-2 border-l border-zinc-700">
+            {summary.filesCreated.map((f) => (
+              <div key={f} className="text-green-400">
+                + {f}
+              </div>
+            ))}
+            {summary.filesEdited.map((f) => (
+              <div key={f} className="text-amber-400">
+                ~ {f}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+};
+
+/**
  * ExecutionLogViewer - AI agent execution log viewer component
  *
  * Standalone execution log viewer independent of status cards.
  * Provides search, auto-scroll, and fullscreen mode.
+ */
+/**
+ * Displays execution logs with advanced features such as auto-scroll, search, copy, fullscreen, and view mode toggling.
+ *
+ * The `ExecutionLogViewer` component provides a user interface for viewing and interacting with execution logs.
+ * It supports both "simple" and "detailed" view modes, real-time streaming indication, search with navigation,
+ * auto-scroll to the latest logs, copying logs to clipboard, fullscreen mode, and collapsible UI.
+ *
+ * @param logs - Array of log strings to display.
+ * @param status - Current execution status ('running', 'completed', 'failed', 'cancelled', etc.).
+ * @param isConnected - Indicates if real-time streaming is active.
+ * @param isRunning - Indicates if the execution is currently running.
+ * @param defaultExpanded - Whether the log viewer is expanded by default.
+ * @param defaultFullscreen - Whether the log viewer starts in fullscreen mode.
+ * @param defaultViewMode - Initial view mode ('simple' or 'detailed').
+ * @param className - Additional CSS classes for the root element.
+ * @param collapsible - Whether the log viewer can be collapsed.
+ * @param showHeader - Whether to display the header bar.
+ * @param maxHeight - Maximum height of the log viewer (when not fullscreen).
+ *
+ * Features:
+ * - Collapsible and fullscreen modes for flexible UI.
+ * - Toggle between simple and detailed log views.
+ * - Search functionality with match highlighting and navigation.
+ * - Auto-scroll to the latest log entries, with manual override.
+ * - Copy all logs to clipboard with feedback.
+ * - Displays execution status and real-time streaming indicators.
+ * - Progress bar and summary card for workflow executions.
+ *
+ * @example
+ * ```tsx
+ * <ExecutionLogViewer
+ *   logs={logs}
+ *   status="running"
+ *   isConnected={true}
+ *   isRunning={true}
+ * />
+ * ```
  */
 export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   logs,
@@ -301,6 +468,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   isRunning = false,
   defaultExpanded = true,
   defaultFullscreen = false,
+  defaultViewMode = 'simple',
   className = '',
   collapsible = true,
   showHeader = true,
@@ -308,6 +476,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
+  const [viewMode, setViewMode] =
+    useState<ExecutionLogViewMode>(defaultViewMode);
   const [copied, setCopied] = useState(false);
 
   // Search feature state
@@ -425,6 +595,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         clearTimeout(searchTimerRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, logs]);
 
   // Jump to search match
@@ -525,6 +696,10 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     setIsExpanded((prev) => !prev);
   }, []);
 
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => (prev === 'simple' ? 'detailed' : 'simple'));
+  }, []);
+
   // Helper to highlight matching text
   const highlightText = useCallback(
     (text: string, query: string): React.ReactNode => {
@@ -563,11 +738,74 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     }
   }, [logs.length, displayedLogsCount]);
 
-  // Memoize log content
+  // Transform logs for simple mode
+  const simpleLogEntries = useMemo(() => {
+    return transformLogsToSimple(logs);
+  }, [logs]);
+
+  // Detect current phase for progress bar
+  const currentPhase = useMemo(() => {
+    return detectCurrentPhase(logs);
+  }, [logs]);
+
+  // Generate execution summary (live during execution, final on completion)
+  const executionSummary = useMemo(() => {
+    if (logs.length === 0) return null;
+    return generateExecutionSummary(logs);
+  }, [logs]);
+
+  // Track elapsed time for running status badge
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isRunning || status === 'running') {
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
+      }
+      const interval = setInterval(() => {
+        setElapsedSeconds(
+          Math.floor(
+            (Date.now() - (startTimeRef.current || Date.now())) / 1000,
+          ),
+        );
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+    // NOTE: Keep the final elapsed time visible after completion
+    return undefined;
+  }, [isRunning, status]);
+
+  /**
+   * Format seconds into human-readable elapsed time.
+   */
+  const formatElapsed = useCallback((secs: number): string => {
+    if (secs < 60) return `${secs}秒`;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}分${s.toString().padStart(2, '0')}秒`;
+  }, []);
+
+  // Memoize log content based on view mode
   const logContent = useMemo(() => {
     if (logs.length === 0) {
       return null;
     }
+
+    if (viewMode === 'simple') {
+      const newEntriesCount = Math.max(
+        0,
+        simpleLogEntries.length - (displayedLogsCount - 5),
+      );
+      return (
+        <SimpleLogEntryList
+          entries={simpleLogEntries}
+          newEntriesCount={newEntriesCount}
+        />
+      );
+    }
+
+    // Detailed mode (original)
     return logs.map((log, i) => {
       const isNewEntry = i >= displayedLogsCount - 5; // Animate the latest 5 entries
 
@@ -582,15 +820,25 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         />
       );
     });
-  }, [logs, searchQuery, highlightText, displayedLogsCount]);
+  }, [
+    logs,
+    searchQuery,
+    highlightText,
+    displayedLogsCount,
+    viewMode,
+    simpleLogEntries,
+  ]);
 
-  // Memoize status badge content
+  // Status badge with elapsed time
   const statusBadge = useMemo(() => {
+    const elapsed =
+      elapsedSeconds > 0 ? ` (${formatElapsed(elapsedSeconds)})` : '';
+
     if (isRunning || status === 'running') {
       return (
-        <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
-          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
-          実行中
+        <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
+          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+          実行中{elapsed}
         </span>
       );
     }
@@ -598,7 +846,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
           <Square className="w-3 h-3" />
-          停止
+          停止{elapsed}
         </span>
       );
     }
@@ -606,7 +854,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
           <CheckCircle2 className="w-3 h-3" />
-          完了
+          完了{elapsed}
         </span>
       );
     }
@@ -614,12 +862,12 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
           <AlertCircle className="w-3 h-3" />
-          Error
+          失敗{elapsed}
         </span>
       );
     }
     return null;
-  }, [isRunning, status]);
+  }, [isRunning, status, elapsedSeconds, formatElapsed]);
 
   if (collapsible && !isExpanded && logs.length > 0) {
     return (
@@ -666,53 +914,58 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative flex items-center gap-1">
-              <div className="relative">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={handleSearchQueryChange}
-                  onKeyDown={handleSearchKeyDown}
-                  placeholder="検索..."
-                  className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:w-56 transition-all"
-                />
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
-              </div>
-              {searchQuery && (
-                <>
-                  <span className="text-xs text-zinc-400 whitespace-nowrap">
-                    {searchMatches.length > 0
-                      ? `${currentMatchIndex + 1}/${searchMatches.length}`
-                      : '0件'}
-                  </span>
-                  <button
-                    onClick={goToPreviousMatch}
-                    disabled={searchMatches.length === 0}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="前の結果 (Shift+Enter)"
-                  >
-                    <ArrowUp className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={goToNextMatch}
-                    disabled={searchMatches.length === 0}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="次の結果 (Enter)"
-                  >
-                    <ArrowDown className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={clearSearchQuery}
-                    className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
-                    title="クリア"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </>
-              )}
-            </div>
-            <div className="w-px h-4 bg-zinc-600" />
+            {/* 検索機能は詳細モードでのみ表示 */}
+            {viewMode === 'detailed' && (
+              <>
+                <div className="relative flex items-center gap-1">
+                  <div className="relative">
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={handleSearchQueryChange}
+                      onKeyDown={handleSearchKeyDown}
+                      placeholder="検索..."
+                      className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:w-56 transition-all"
+                    />
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
+                  </div>
+                  {searchQuery && (
+                    <>
+                      <span className="text-xs text-zinc-400 whitespace-nowrap">
+                        {searchMatches.length > 0
+                          ? `${currentMatchIndex + 1}/${searchMatches.length}`
+                          : '0件'}
+                      </span>
+                      <button
+                        onClick={goToPreviousMatch}
+                        disabled={searchMatches.length === 0}
+                        className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="前の結果 (Shift+Enter)"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={goToNextMatch}
+                        disabled={searchMatches.length === 0}
+                        className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="次の結果 (Enter)"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={clearSearchQuery}
+                        className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded"
+                        title="クリア"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                <div className="w-px h-4 bg-zinc-600" />
+              </>
+            )}
             <button
               onClick={scrollToBottom}
               className={`p-1.5 rounded transition-colors ${
@@ -733,6 +986,25 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                 <Check className="w-4 h-4 text-green-400" />
               ) : (
                 <Copy className="w-4 h-4" />
+              )}
+            </button>
+            <button
+              onClick={toggleViewMode}
+              className={`p-1.5 rounded transition-colors ${
+                viewMode === 'simple'
+                  ? 'text-blue-400 bg-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+              }`}
+              title={
+                viewMode === 'simple'
+                  ? '詳細モードに切り替え'
+                  : 'シンプルモードに切り替え'
+              }
+            >
+              {viewMode === 'simple' ? (
+                <Code className="w-4 h-4" />
+              ) : (
+                <Eye className="w-4 h-4" />
               )}
             </button>
             <button
@@ -759,6 +1031,55 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         </div>
       )}
 
+      {/* ワークフロー進捗バー（シンプルモードで表示） */}
+      {viewMode === 'simple' && currentPhase && (
+        <WorkflowProgressBar currentPhase={currentPhase} />
+      )}
+
+      {/* Live execution stats bar */}
+      {viewMode === 'simple' &&
+        executionSummary &&
+        (isRunning || status === 'running') && (
+          <div className="flex items-center gap-4 px-4 py-1.5 bg-zinc-800/60 border-b border-zinc-700/50 text-xs text-zinc-400">
+            {(executionSummary.filesEdited.length > 0 ||
+              executionSummary.filesCreated.length > 0) && (
+              <span className="flex items-center gap-1">
+                <FileEdit className="w-3 h-3" />
+                {executionSummary.filesEdited.length +
+                  executionSummary.filesCreated.length}
+                ファイル
+              </span>
+            )}
+            {executionSummary.testsRun > 0 && (
+              <span className="flex items-center gap-1">
+                <TestTube className="w-3 h-3" />
+                {executionSummary.testsPassed > 0 && (
+                  <span className="text-green-400">
+                    {executionSummary.testsPassed}成功
+                  </span>
+                )}
+                {executionSummary.testsFailed > 0 && (
+                  <span className="text-red-400">
+                    {executionSummary.testsFailed}失敗
+                  </span>
+                )}
+              </span>
+            )}
+            {executionSummary.commits > 0 && (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                {executionSummary.commits}コミット
+              </span>
+            )}
+            {executionSummary.errors.length > 0 && (
+              <span className="flex items-center gap-1 text-red-400">
+                <AlertCircle className="w-3 h-3" />
+                {executionSummary.errors.length}エラー
+              </span>
+            )}
+          </div>
+        )}
+
       <div
         ref={logContainerRef}
         onScroll={handleScroll}
@@ -766,22 +1087,50 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onMouseUp={handleScrollEnd}
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
-        className={`bg-zinc-900 overflow-auto font-mono text-sm execution-log-container ${
-          isFullscreen ? 'flex-1' : ''
-        } ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
+        className={`bg-zinc-900 overflow-auto execution-log-container ${
+          viewMode === 'detailed' ? 'font-mono text-sm' : 'text-sm'
+        } ${isFullscreen ? 'flex-1' : ''} ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
       >
-        <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
-          {logContent || (
-            <span className="text-zinc-500 flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              実行ログを取得中...
-            </span>
-          )}
-          {(isRunning || status === 'running') && logs.length > 0 && (
-            <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
-          )}
-        </pre>
+        {viewMode === 'simple' ? (
+          <div className="p-4">
+            {logContent || (
+              <div className="flex items-center justify-center py-8 text-zinc-500">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                  <p>実行ログを取得中...</p>
+                </div>
+              </div>
+            )}
+            {(isRunning || status === 'running') && logs.length > 0 && (
+              <div className="flex justify-center mt-4">
+                <div className="flex items-center gap-2 text-blue-400">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                  <span className="text-sm">実行中...</span>
+                </div>
+              </div>
+            )}
+            {executionSummary &&
+              (status === 'completed' || status === 'failed') && (
+                <ExecutionSummaryCard
+                  summary={executionSummary}
+                  status={status}
+                />
+              )}
+          </div>
+        ) : (
+          <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">
+            {logContent || (
+              <span className="text-zinc-500 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                実行ログを取得中...
+              </span>
+            )}
+            {(isRunning || status === 'running') && logs.length > 0 && (
+              <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
+            )}
+          </pre>
+        )}
       </div>
     </div>
   );

@@ -534,6 +534,11 @@ export default function ClaudeMdGeneratorPage() {
   const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [setupPhase, setSetupPhase] = useState<
+    'idle' | 'loading' | 'success' | 'error'
+  >('idle');
+  const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   // Dynamic AI-generated suggestions
@@ -593,6 +598,40 @@ export default function ClaudeMdGeneratorPage() {
       // Fall through to null
     }
     return null;
+  };
+
+  const handleCreateTheme = async () => {
+    if (!pickedProp || !result) return;
+
+    setSetupPhase('loading');
+    setSetupError(null);
+
+    try {
+      const response = await fetch('/api/setup-theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appName: pickedProp.name,
+          claudeMd: result.claude_md,
+          description: pickedProp.tagline,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSetupPhase('success');
+        setCreatedThemePath(data.projectPath);
+      } else {
+        setSetupPhase('error');
+        setSetupError(data.error || 'テーマの作成に失敗しました');
+      }
+    } catch (error) {
+      setSetupPhase('error');
+      setSetupError(
+        error instanceof Error ? error.message : 'テーマの作成に失敗しました',
+      );
+    }
   };
 
   // ── INTRO ────────────────────────────────────────────────────────────────
@@ -1735,6 +1774,147 @@ export default function ClaudeMdGeneratorPage() {
           )}
 
           <div className="codebox">{result?.claude_md}</div>
+
+          {/* Theme Creation Section */}
+          <div
+            style={{
+              marginTop: 24,
+              padding: '20px 24px',
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+              background: 'var(--s1)',
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                letterSpacing: '.12em',
+                color: 'var(--accent)',
+                marginBottom: 8,
+              }}
+            >
+              {t('createThemeSection')}
+            </div>
+            <p
+              style={{
+                color: 'var(--text)',
+                fontSize: 14,
+                lineHeight: 1.6,
+                marginBottom: 16,
+              }}
+            >
+              {t('createThemeDescription')}
+            </p>
+
+            {setupPhase === 'idle' && (
+              <button
+                className="btn btn-p"
+                onClick={handleCreateTheme}
+                style={{
+                  background: '#10b981',
+                  fontSize: 14,
+                  padding: '12px 24px',
+                }}
+              >
+                {t('createTheme')}
+              </button>
+            )}
+
+            {setupPhase === 'loading' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="spin" style={{ width: 20, height: 20 }}></div>
+                <span style={{ color: 'var(--text)', fontSize: 14 }}>
+                  {t('creatingTheme')}
+                </span>
+              </div>
+            )}
+
+            {setupPhase === 'success' && (
+              <div>
+                <div
+                  style={{
+                    color: '#10b981',
+                    fontSize: 14,
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✅ {t('themeCreated')}
+                </div>
+                <p
+                  style={{
+                    color: 'var(--muted)',
+                    fontSize: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  {t('themeCreatedDescription')}
+                </p>
+                {createdThemePath && (
+                  <div
+                    style={{
+                      background: 'var(--s2)',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontFamily: "'JetBrains Mono',monospace",
+                      color: 'var(--accent2)',
+                      marginBottom: 12,
+                    }}
+                  >
+                    {createdThemePath}
+                  </div>
+                )}
+                <button
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setSetupPhase('idle');
+                    setCreatedThemePath(null);
+                  }}
+                  style={{ fontSize: 12, padding: '8px 16px' }}
+                >
+                  {t('createAnother')}
+                </button>
+              </div>
+            )}
+
+            {setupPhase === 'error' && (
+              <div>
+                <div
+                  style={{
+                    color: '#f87171',
+                    fontSize: 14,
+                    marginBottom: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  ❌ {t('themeCreateError')}
+                </div>
+                {setupError && (
+                  <p
+                    style={{
+                      color: 'var(--muted)',
+                      fontSize: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {setupError}
+                  </p>
+                )}
+                <button
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setSetupPhase('idle');
+                    setSetupError(null);
+                  }}
+                  style={{ fontSize: 12, padding: '8px 16px' }}
+                >
+                  {t('retry')}
+                </button>
+              </div>
+            )}
+          </div>
+
           <p
             style={{
               color: 'var(--dimmed)',

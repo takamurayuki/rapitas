@@ -197,6 +197,40 @@ describe('POST /developer-mode/enable/:taskId', () => {
     expect(mockPrisma.developerModeConfig.upsert).toHaveBeenCalledTimes(1);
   });
 
+  test('P2002 race condition時にupdateにフォールバックすること', async () => {
+    const p2002Error = new Error('Unique constraint failed on the fields: (`taskId`)');
+    Object.assign(p2002Error, {
+      code: 'P2002',
+      name: 'PrismaClientKnownRequestError',
+      meta: { target: ['taskId'] },
+    });
+    const config = {
+      id: 1,
+      taskId: 1,
+      isEnabled: true,
+      autoApprove: false,
+      maxSubtasks: 10,
+      priority: 'balanced',
+    };
+    mockPrisma.task.update.mockResolvedValue({});
+    mockPrisma.developerModeConfig.upsert.mockRejectedValue(p2002Error);
+    mockPrisma.developerModeConfig.update.mockResolvedValue(config);
+
+    const res = await app.handle(
+      new Request('http://localhost/developer-mode/enable/1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoApprove: false, maxSubtasks: 10 }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.isEnabled).toBe(true);
+    expect(mockPrisma.developerModeConfig.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.developerModeConfig.update).toHaveBeenCalledTimes(1);
+  });
+
   test('autoApproveオプション付きで有効化すること', async () => {
     const config = {
       id: 1,

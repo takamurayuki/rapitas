@@ -16,7 +16,6 @@ import {
   Bot,
   GitBranch,
   Sparkles,
-  Terminal,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -24,7 +23,6 @@ import {
   RefreshCw,
   Send,
   HelpCircle,
-  FileText,
   Settings,
   Clock,
   MessageSquarePlus,
@@ -113,8 +111,8 @@ export function AgentExecutionPanel({
   executionStatus,
   executionResult,
   error,
-  workingDirectory,
-  defaultBranch,
+  workingDirectory: _workingDirectory,
+  defaultBranch: _defaultBranch,
   useTaskAnalysis,
   optimizedPrompt,
   agentConfigId,
@@ -131,7 +129,7 @@ export function AgentExecutionPanel({
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
-  const [showLogs, setShowLogs] = useState(true);
+  const [_showLogs, _setShowLogs] = useState(true);
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
     agentConfigId ?? null,
   );
@@ -142,7 +140,7 @@ export function AgentExecutionPanel({
   const [followUpInstruction, setFollowUpInstruction] = useState('');
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [_isRestoring, setIsRestoring] = useState(false);
   const hasRestoredRef = useRef(false);
   // Question timeout countdown (remaining seconds)
   const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
@@ -169,7 +167,7 @@ export function AgentExecutionPanel({
     questionTimeout: pollingQuestionTimeout,
     sessionMode: pollingSessionMode,
     tokensUsed: pollingTokensUsed,
-    totalSessionTokens: pollingTotalSessionTokens,
+    totalSessionTokens: _pollingTotalSessionTokens,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -216,11 +214,12 @@ export function AgentExecutionPanel({
     return { hasQuestion: false, question: '', questionType: 'none' };
   };
 
-  const currentLogText = useMemo(() => logs.join(''), [logs]);
+  const _currentLogText = useMemo(() => logs.join(''), [logs]);
 
   // Memoize question detection result; uses only API status
   const { hasQuestion, question, questionType } = useMemo(() => {
     return detectQuestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
   // tool_call questionType indicates a confirmed question
@@ -290,7 +289,7 @@ export function AgentExecutionPanel({
       setIsExpanded(false);
       setSessionId(null);
       setIsRestoring(false);
-      setShowLogs(true);
+      _setShowLogs(true);
       setUserResponse('');
       setFollowUpInstruction('');
       setFollowUpError(null);
@@ -333,9 +332,9 @@ export function AgentExecutionPanel({
               preserveLogs: false,
             });
           }
-          setShowLogs(true);
+          _setShowLogs(true);
         }
-      } catch (err) {
+      } catch (_err) {
         // Silently handle restore failures
       } finally {
         setIsRestoring(false);
@@ -398,7 +397,7 @@ export function AgentExecutionPanel({
       agentConfigId: selectedAgentId ?? agentConfigId ?? undefined,
     });
     if (result?.sessionId) {
-      setShowLogs(true);
+      _setShowLogs(true);
     }
   };
 
@@ -449,7 +448,7 @@ export function AgentExecutionPanel({
           });
         }, 500);
 
-        setShowLogs(true);
+        _setShowLogs(true);
 
         // NOTE: Calling onExecute here would trigger a new execution,
         // overwriting logs and state
@@ -562,7 +561,7 @@ export function AgentExecutionPanel({
   };
 
   // Running or completed with logs
-  const showLogPanel =
+  const _showLogPanel =
     (isExecuting || isPollingRunning || isSseRunning || logs.length > 0) &&
     (executionStatus === 'completed' ||
       isExecuting ||
@@ -747,7 +746,7 @@ export function AgentExecutionPanel({
                     <h4 className="font-medium text-amber-800 dark:text-amber-200 text-sm">
                       Claude Codeからの質問
                     </h4>
-                                        {isConfirmedQuestion && (
+                    {isConfirmedQuestion && (
                       <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
                         確認済み
                       </span>
@@ -766,7 +765,7 @@ export function AgentExecutionPanel({
                   {question}
                 </p>
               </div>
-                            {timeoutCountdown !== null && timeoutCountdown > 0 && (
+              {timeoutCountdown !== null && timeoutCountdown > 0 && (
                 <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
                   <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <span className="text-sm text-blue-700 dark:text-blue-300">
@@ -778,7 +777,7 @@ export function AgentExecutionPanel({
                   </span>
                 </div>
               )}
-                            {timeoutCountdown !== null &&
+              {timeoutCountdown !== null &&
                 timeoutCountdown > 0 &&
                 timeoutCountdown <= 30 && (
                   <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
@@ -814,7 +813,7 @@ export function AgentExecutionPanel({
             </div>
           )}
 
-                    {renderLogs({ running: true, className: 'mx-6 mb-4' })}
+          {renderLogs({ running: true, className: 'mx-6 mb-4' })}
         </div>
       </>
     );
@@ -909,7 +908,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-                    <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
+          <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/50 dark:bg-indigo-dark-900/30">
             <div className="flex items-center gap-2 mb-2">
               <MessageSquarePlus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -969,7 +968,7 @@ export function AgentExecutionPanel({
             )}
           </div>
 
-                    {renderLogs({
+          {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-emerald-100/50 dark:bg-emerald-900/20 border-t border-emerald-200 dark:border-emerald-800',
@@ -1013,7 +1012,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-                    {renderLogs({
+          {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-yellow-100/50 dark:bg-yellow-900/20 border-t border-yellow-200 dark:border-yellow-800',
@@ -1070,7 +1069,7 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
-                    {renderLogs({
+          {renderLogs({
             running: false,
             className:
               'px-6 py-3 bg-red-100/50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800',
@@ -1083,7 +1082,7 @@ export function AgentExecutionPanel({
   // Initial state (collapsible expandable menu)
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <div
+      <div
         className="px-4 py-3 bg-linear-to-r from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 border-b border-zinc-200 dark:border-zinc-700 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -1101,7 +1100,7 @@ export function AgentExecutionPanel({
             )}
           </div>
           <div className="flex items-center gap-2">
-                        {!isExpanded && (
+            {!isExpanded && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1123,15 +1122,15 @@ export function AgentExecutionPanel({
         </div>
       </div>
 
-            {isExpanded && (
+      {isExpanded && (
         <>
-                    <div className="p-4">
+          <div className="p-4">
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
               Claude
               Codeがこのタスクを自動で実行します。完了後、差分をレビューしてコミットやPRを作成できます。
             </p>
 
-                        {optimizedPrompt && (
+            {optimizedPrompt && (
               <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 mb-4">
                 <Sparkles className="w-4 h-4 text-green-600 dark:text-green-400" />
                 <span className="text-sm text-green-700 dark:text-green-300">
@@ -1140,8 +1139,8 @@ export function AgentExecutionPanel({
               </div>
             )}
 
-                        <div className="flex items-center gap-3">
-                            <button
+            <div className="flex items-center gap-3">
+              <button
                 onClick={() => setShowOptions(!showOptions)}
                 className="flex-1 h-11 flex items-center justify-between px-4 bg-zinc-50 dark:bg-indigo-dark-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               >
@@ -1158,7 +1157,7 @@ export function AgentExecutionPanel({
                 />
               </button>
 
-                            <button
+              <button
                 onClick={handleExecute}
                 disabled={isExecuting}
                 className="h-11 flex items-center gap-2 px-6 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
@@ -1167,9 +1166,9 @@ export function AgentExecutionPanel({
                 実行
               </button>
             </div>
-                        {showOptions && (
+            {showOptions && (
               <div className="mt-3 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg border border-zinc-200 dark:border-zinc-700 animate-in slide-in-from-top-1 duration-200">
-                                <div>
+                <div>
                   <AgentSwitcher
                     selectedAgentId={selectedAgentId}
                     onSelect={setSelectedAgentId}
@@ -1178,7 +1177,7 @@ export function AgentExecutionPanel({
                   />
                 </div>
 
-                                <div>
+                <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                     追加の実行指示（任意）
                   </label>
@@ -1191,7 +1190,7 @@ export function AgentExecutionPanel({
                   />
                 </div>
 
-                                <div>
+                <div>
                   <label className="flex text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-2">
                     <GitBranch className="w-4 h-4" />
                     作業ブランチ名（空欄で自動生成）
@@ -1210,11 +1209,11 @@ export function AgentExecutionPanel({
               </div>
             )}
 
-                        <div className="mt-3">
+            <div className="mt-3">
               <AgentKnowledgeContext taskId={taskId} />
             </div>
 
-                        {renderLogs({ running: !!isRunning, className: 'mt-4' })}
+            {renderLogs({ running: !!isRunning, className: 'mt-4' })}
           </div>
         </>
       )}

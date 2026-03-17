@@ -59,6 +59,26 @@ export class AgentExecutionService {
         useTaskAnalysis,
       );
 
+      // Inject additional instructions from AgentExecutionConfig if available
+      try {
+        const executionConfig = await this.prisma.agentExecutionConfig.findUnique({
+          where: { taskId },
+        });
+
+        if (executionConfig?.additionalInstructions) {
+          executionInstruction = `${executionConfig.additionalInstructions}\n\n${executionInstruction}`;
+          log.info(
+            { taskId, additionalInstructionsLength: executionConfig.additionalInstructions.length },
+            'Additional instructions injected',
+          );
+        }
+      } catch (configErr) {
+        log.warn(
+          { err: configErr, taskId },
+          'Failed to load execution config, proceeding without additional instructions',
+        );
+      }
+
       // Inject shared knowledge context from previous executions
       try {
         const sharedKnowledge = await gatherSharedKnowledge(taskId);
