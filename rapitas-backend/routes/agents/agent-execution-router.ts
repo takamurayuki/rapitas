@@ -150,9 +150,7 @@ async function createCodeReviewApproval(params: {
         log.warn({ err: screenshotErr }, `${logPrefix} Screenshot capture failed (non-fatal)`);
       }
 
-      const screenshotData = sanitizeScreenshots(screenshots);
-
-      const devConfig = await prisma.developerModeConfig.findUnique({
+      const screenshotData = saniterModeConfig.findUnique({
         where: { id: configId },
         select: { autoApprove: true },
       });
