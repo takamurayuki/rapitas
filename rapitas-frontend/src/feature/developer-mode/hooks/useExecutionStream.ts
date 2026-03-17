@@ -478,10 +478,18 @@ export function useExecutionPolling(taskId: number | null) {
             if (newOutput) {
               logger.debug('New output received:', newOutput.length, 'chars');
               lastOutputLengthRef.current = data.output.length;
-              setState((prev) => ({
-                ...prev,
-                logs: trimLogs([...prev.logs, newOutput]),
-              }));
+              setState((prev) => {
+                // Skip if consecutive duplicate (same as last log entry)
+                const lastLog = prev.logs[prev.logs.length - 1];
+                if (lastLog && lastLog === newOutput) {
+                  logger.debug('Skipping duplicate consecutive log entry');
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  logs: trimLogs([...prev.logs, newOutput]),
+                };
+              });
             }
           }
 

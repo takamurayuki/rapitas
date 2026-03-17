@@ -355,6 +355,7 @@ export const agentExecutionRouter = new Elysia()
       let developerModeConfig = task.developerModeConfig;
       let session;
       let finalBranchName = branchName;
+      let worktreePath: string = workDir;
 
       try {
         if (!developerModeConfig) {

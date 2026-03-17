@@ -8,6 +8,7 @@ import { Elysia } from 'elysia';
 const mockPrisma = {
   developerModeConfig: {
     findUnique: mock(() => Promise.resolve(null)),
+    findUniqueOrThrow: mock(() => Promise.resolve({ id: 1, taskId: 1, isEnabled: true })),
     upsert: mock(() => Promise.resolve({ id: 1, taskId: 1, isEnabled: true })),
     update: mock(() => Promise.resolve({})),
   },
@@ -258,6 +259,56 @@ describe('POST /developer-mode/enable/:taskId', () => {
     expect(res.status).toBe(200);
     expect(body.autoApprove).toBe(true);
     expect(body.priority).toBe('aggressive');
+  });
+
+  test('P2002エラーが発生した場合にfindUnique + updateで復旧すること', async () => {
+    const existingConfig = {
+      id: 1,
+      taskId: 1,
+      isEnabled: false,
+      autoApprove: false,
+      maxSubtasks: 10,
+      priority: 'balanced',
+    };
+    const updatedConfig = {
+      id: 1,
+      taskId: 1,
+      isEnabled: true,
+      autoApprove: true,
+      maxSubtasks: 5,
+      priority: 'aggressive',
+    };
+
+    mockPrisma.task.update.mockResolvedValue({});
+
+    // Simulate P2002 error on upsert
+    const p2002Error = new Error('Unique constraint failed');
+    (p2002Error as any).code = 'P2002';
+    (p2002Error as any).meta = { target: ['taskId'] };
+
+    mockPrisma.developerModeConfig.upsert.mockRejectedValue(p2002Error);
+    mockPrisma.developerModeConfig.findUniqueOrThrow.mockResolvedValue(existingConfig);
+    mockPrisma.developerModeConfig.update.mockResolvedValue(updatedConfig);
+
+    const res = await app.handle(
+      new Request('http://localhost/developer-mode/enable/1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          autoApprove: true,
+          maxSubtasks: 5,
+          priority: 'aggressive',
+        }),
+      }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.autoApprove).toBe(true);
+    expect(body.priority).toBe('aggressive');
+    expect(mockPrisma.developerModeConfig.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.developerModeConfig.findUniqueOrThrow).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.developerModeConfig.update).toHaveBeenCalledTimes(1);
   });
 });
 
