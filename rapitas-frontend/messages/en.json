@@ -291,20 +291,7 @@
     "taskCreated": "Task created",
     "taskCreateFailed": "Failed to create task",
     "createFailed": "Failed to create",
-    "suggestionApplied": "Suggestion applied",
-    "nlInputPlaceholder": "Type naturally (e.g., Submit report by Friday 3pm)\nAdd details on multiple lines",
-    "nlInputHint": "Ctrl+Enter to quick create. AI will auto-summarize the task name",
-    "quickCreate": "Quick Create",
-    "quickCreateSuccess": "Task and subtasks auto-created",
-    "quickCreateProcessing": "AI is analyzing and creating tasks...",
-    "quickCreateStepParsing": "Parsing input...",
-    "quickCreateStepSummarizing": "Summarizing task name with AI...",
-    "quickCreateStepCreating": "Creating task...",
-    "quickCreateStepAnalyzing": "Analyzing complexity...",
-    "quickCreateStepGeneratingSubtasks": "Generating subtasks...",
-    "quickCreateStepGeneratingInstructions": "Generating instructions...",
-    "quickCreateStepComplete": "Complete",
-    "quickCreateStepError": "An error occurred"
+    "suggestionApplied": "Suggestion applied"
   },
   "auth": {
     "loginTitle": "Login to Rapitas",

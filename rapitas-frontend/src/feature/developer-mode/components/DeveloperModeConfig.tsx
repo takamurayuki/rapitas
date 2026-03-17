@@ -24,6 +24,7 @@ import {
   EyeOff,
   Trash2,
   Plus,
+  FileText,
 } from 'lucide-react';
 import type {
   DeveloperModeConfig,
@@ -86,10 +87,10 @@ export function DeveloperModeConfigModal({
   taskId,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('task-analysis');
-  const [autoApprove, setAutoApprove] = useState(config?.autoApprove ?? false);
-  const [notifyInApp, setNotifyInApp] = useState(config?.notifyInApp ?? true);
-  const [maxSubtasks, setMaxSubtasks] = useState(config?.maxSubtasks ?? 10);
-  const [priority, setPriority] = useState<string>(
+  const [autoApprove, _setAutoApprove] = useState(config?.autoApprove ?? false);
+  const [notifyInApp, _setNotifyInApp] = useState(config?.notifyInApp ?? true);
+  const [maxSubtasks, _setMaxSubtasks] = useState(config?.maxSubtasks ?? 10);
+  const [priority, _setPriority] = useState<string>(
     config?.priority ?? 'balanced',
   );
   const [isSaving, setIsSaving] = useState(false);
@@ -133,6 +134,7 @@ export function DeveloperModeConfigModal({
   const [execNotifyOnStart, setExecNotifyOnStart] = useState(true);
   const [execNotifyOnComplete, setExecNotifyOnComplete] = useState(true);
   const [execNotifyOnError, setExecNotifyOnError] = useState(true);
+  const [additionalInstructions, setAdditionalInstructions] = useState('');
 
   // Config loading state
   const [isLoadingConfigs, setIsLoadingConfigs] = useState(false);
@@ -181,6 +183,7 @@ export function DeveloperModeConfigModal({
         fetchConfigs();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, taskId]);
 
   // Reflect external selectedAgentConfigId changes
@@ -192,6 +195,7 @@ export function DeveloperModeConfigModal({
       if (!executionAgentConfigId)
         setExecutionAgentConfigId(selectedAgentConfigId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgentConfigId]);
 
   const fetchConfigs = async () => {
@@ -234,6 +238,7 @@ export function DeveloperModeConfigModal({
         setExecNotifyOnStart(data.notifyOnStart);
         setExecNotifyOnComplete(data.notifyOnComplete);
         setExecNotifyOnError(data.notifyOnError);
+        setAdditionalInstructions(data.additionalInstructions || '');
       }
     } catch (err) {
       logger.error('設定の取得に失敗:', err);
@@ -502,7 +507,7 @@ export function DeveloperModeConfigModal({
     );
   };
 
-  const hasAnyApiKey = Object.values(apiKeyStatuses).some((s) => s.configured);
+  const _hasAnyApiKey = Object.values(apiKeyStatuses).some((s) => s.configured);
 
   if (!isOpen) return null;
 
@@ -568,6 +573,7 @@ export function DeveloperModeConfigModal({
           notifyOnStart: execNotifyOnStart,
           notifyOnComplete: execNotifyOnComplete,
           notifyOnError: execNotifyOnError,
+          additionalInstructions,
         };
 
         const executionRes = await fetch(
@@ -1388,6 +1394,25 @@ export function DeveloperModeConfigModal({
           '最適化プロンプト使用',
           'タスク分析の最適化プロンプトを使用',
         )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-violet-500" />
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            実行ルール
+          </label>
+        </div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          エージェント実行時に追加で適用されるルールや指示を設定します
+        </p>
+        <textarea
+          value={additionalInstructions}
+          onChange={(e) => setAdditionalInstructions(e.target.value)}
+          rows={6}
+          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-vertical"
+          placeholder="例: ファイルを修正する際は必ずバックアップを作成すること&#10;コミット前に必ずテストを実行すること&#10;セキュリティリスクを慎重に検討すること"
+        />
       </div>
 
       <div className="space-y-3">

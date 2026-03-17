@@ -20,7 +20,6 @@ import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTranslations } from 'next-intl';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/localeStore';
-import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('TaskCard');
 
@@ -54,7 +53,7 @@ const TaskCard = memo(function TaskCard({
   const t = useTranslations('task');
   const tc = useTranslations('common');
   const tHome = useTranslations('home');
-  const locale = useLocaleStore((s) => s.locale);
+  const _locale = useLocaleStore((s) => s.locale);
   const cardRef = useRef<HTMLDivElement>(null);
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -94,7 +93,10 @@ const TaskCard = memo(function TaskCard({
   };
 
   // Rollback on subtask status change failure
-  const rollbackSubtaskStatus = (subtaskId: number, originalStatus: string) => {
+  const _rollbackSubtaskStatus = (
+    subtaskId: number,
+    originalStatus: string,
+  ) => {
     setLocalSubtasks((prevSubtasks) =>
       prevSubtasks.map((subtask) =>
         subtask.id === subtaskId
@@ -219,7 +221,7 @@ const TaskCard = memo(function TaskCard({
       // Prefetch related data when subtasks exist
       if (task.subtasks && task.subtasks.length > 0) {
         const subtaskPaths = task.subtasks.map((s) => `/tasks/${s.id}`);
-        await prefetch(subtaskPaths, 24 * 60 * 60 * 1000); 
+        await prefetch(subtaskPaths, 24 * 60 * 60 * 1000);
       }
     }
   };
@@ -235,7 +237,7 @@ const TaskCard = memo(function TaskCard({
   }, []);
 
   // Calculate circumference for progress ring
-  const perimeter =
+  const _perimeter =
     cardSize.w > 0 ? Math.round(2 * (cardSize.w + cardSize.h)) : 0;
 
   // Amber style for waiting_for_input state

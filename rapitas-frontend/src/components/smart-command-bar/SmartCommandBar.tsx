@@ -145,9 +145,7 @@ export default function SmartCommandBar() {
 
         switch (intent as Intent) {
           case 'create_task':
-            router.push(
-              `${action.route}?nl=${encodeURIComponent(action.prefill || input)}`,
-            );
+            router.push(action.route);
             break;
           case 'start_learning':
             router.push(

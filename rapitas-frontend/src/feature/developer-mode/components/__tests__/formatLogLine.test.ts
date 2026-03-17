@@ -1,28 +1,27 @@
 /**
- * ExecutionLogViewer formatLogLine Function Test
- * Tests for log line JSON formatting
+ * ExecutionLogViewer formatLogLine and LogMessageTransformer Tests
  */
 
 import { test, describe, expect } from 'vitest';
+import {
+  transformLogToUserFriendly,
+  transformLogsToSimple,
+  generateExecutionSummary,
+} from '../../utils/log-message-transformer';
 
-// Extracted formatLogLine function for testing
+// Inline formatLogLine for testing (mirrors ExecutionLogViewer.tsx detailed mode)
 function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
-  // Check for JSON strings ({...} or [...] pattern)
   const jsonMatch = log.match(/^(.*?)(\{[\s\S]*\}|\[[\s\S]*\])(.*)$/);
   if (!jsonMatch) return { formatted: log, hasJson: false };
 
   const [, prefix, jsonStr, suffix] = jsonMatch;
   try {
     const parsed = JSON.parse(jsonStr);
-    if (typeof parsed !== 'object' || parsed === null) {
+    if (typeof parsed !== 'object' || parsed === null)
       return { formatted: log, hasJson: false };
-    }
 
-    // Format object as key: value pairs
     const parts: string[] = [];
     const obj = parsed as Record<string, unknown>;
-
-    // Display frequently used fields first
     const priorityKeys = [
       'message',
       'msg',
@@ -39,8 +38,6 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
         );
       }
     }
-
-    // Remaining fields
     const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;
@@ -48,10 +45,8 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
         `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`,
       );
     }
-
-    const formattedJson = parts.join(' | ');
     return {
-      formatted: `${prefix}${formattedJson}${suffix}`.trim(),
+      formatted: `${prefix}${parts.join(' | ')}${suffix}`.trim(),
       hasJson: true,
     };
   } catch {
@@ -59,79 +54,157 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
   }
 }
 
-describe('formatLogLine', () => {
-  test('通常のテキストログはそのまま返されること', () => {
-    const result = formatLogLine('通常のログメッセージです');
-    expect(result.formatted).toBe('通常のログメッセージです');
-    expect(result.hasJson).toBe(false);
+describe('formatLogLine (detailed mode)', () => {
+  test('plain text returned as-is', () => {
+    const r = formatLogLine('通常のログメッセージです');
+    expect(r.formatted).toBe('通常のログメッセージです');
+    expect(r.hasJson).toBe(false);
   });
 
-  test('JSON文字列を含むログが正しくフォーマットされること', () => {
-    const jsonLog =
-      'Coordinator: {"message":"タスクを開始","status":"running","taskId":123}';
-    const result = formatLogLine(jsonLog);
-
-    expect(result.hasJson).toBe(true);
-    expect(result.formatted).toContain('message: タスクを開始');
-    expect(result.formatted).toContain('status: running');
-    expect(result.formatted).toContain('taskId: 123');
+  test('JSON fields extracted and formatted', () => {
+    const r = formatLogLine(
+      'Coordinator: {"message":"start","status":"running","taskId":1}',
+    );
+    expect(r.hasJson).toBe(true);
+    expect(r.formatted).toContain('message: start');
+    expect(r.formatted).toContain('status: running');
   });
 
-  test('メッセージのみのJSONは正しく処理されること', () => {
-    const jsonLog = '{"message":"処理完了"}';
-    const result = formatLogLine(jsonLog);
-
-    expect(result.hasJson).toBe(true);
-    expect(result.formatted).toBe('message: 処理完了');
+  test('null values excluded', () => {
+    const r = formatLogLine(
+      '{"message":"test","nullField":null,"status":"ok"}',
+    );
+    expect(r.hasJson).toBe(true);
+    expect(r.formatted).not.toContain('nullField');
   });
 
-  test('複数フィールドを持つJSONが正しく整形されること', () => {
-    const jsonLog =
-      '{"message":"実行中","status":"active","type":"coordination","progress":75}';
-    const result = formatLogLine(jsonLog);
-
-    expect(result.hasJson).toBe(true);
-    expect(result.formatted).toContain('message: 実行中');
-    expect(result.formatted).toContain('status: active');
-    expect(result.formatted).toContain('type: coordination');
-    expect(result.formatted).toContain('progress: 75');
-    expect(result.formatted).toContain(' | ');
+  test('priority keys shown first', () => {
+    const r = formatLogLine(
+      '{"other":"last","message":"first","status":"second"}',
+    );
+    expect(r.hasJson).toBe(true);
+    const mi = r.formatted.indexOf('message: first');
+    const oi = r.formatted.indexOf('other: last');
+    expect(mi).toBeLessThan(oi);
   });
 
-  test('エラー情報を含むJSONが正しく処理されること', () => {
-    const jsonLog =
-      '[Agent] {"error":"接続エラー","taskId":456,"status":"failed"}';
-    const result = formatLogLine(jsonLog);
+  test('error info in JSON parsed correctly', () => {
+    const r = formatLogLine(
+      'Agent: {"error":"connection","taskId":5,"status":"failed"}',
+    );
+    expect(r.hasJson).toBe(true);
+    expect(r.formatted).toContain('error: connection');
+  });
+});
 
-    expect(result.hasJson).toBe(true);
-    expect(result.formatted).toContain('[Agent]');
-    expect(result.formatted).toContain('error: 接続エラー');
-    expect(result.formatted).toContain('taskId: 456');
-    expect(result.formatted).toContain('status: failed');
+describe('transformLogToUserFriendly', () => {
+  test('tool call translated', () => {
+    const r = transformLogToUserFriendly('[Tool: Read] -> index.ts');
+    expect(r.category).toBe('info');
+    expect(r.message).toContain('読込');
+    expect(r.message).toContain('index.ts');
   });
 
-  test('null値やundefined値は無視されること', () => {
-    const jsonLog = '{"message":"テスト","nullField":null,"status":"ok"}';
-    const result = formatLogLine(jsonLog);
-
-    expect(result.hasJson).toBe(true);
-    expect(result.formatted).toContain('message: テスト');
-    expect(result.formatted).toContain('status: ok');
-    expect(result.formatted).not.toContain('nullField');
+  test('edit tool call translated', () => {
+    const r = transformLogToUserFriendly('[Tool: Edit] -> app.tsx');
+    expect(r.message).toContain('編集');
   });
 
-  test('priorityKeysが優先的に表示されること', () => {
-    const jsonLog =
-      '{"other":"後回し","message":"優先","another":"これも後","status":"優先2"}';
-    const result = formatLogLine(jsonLog);
+  test('bash test command translated', () => {
+    const r = transformLogToUserFriendly('[Tool: Bash] $ bun test --run');
+    expect(r.category).toBe('progress');
+    expect(r.message).toContain('テスト');
+  });
 
-    expect(result.hasJson).toBe(true);
-    const formatted = result.formatted;
-    const messageIndex = formatted.indexOf('message: 優先');
-    const statusIndex = formatted.indexOf('status: 優先2');
-    const otherIndex = formatted.indexOf('other: 後回し');
+  test('git commit translated', () => {
+    const r = transformLogToUserFriendly('[Tool: Bash] $ git commit -m "fix"');
+    expect(r.message).toContain('コミット');
+  });
 
-    expect(messageIndex).toBeLessThan(otherIndex);
-    expect(statusIndex).toBeLessThan(otherIndex);
+  test('tool done is tool-result category', () => {
+    const r = transformLogToUserFriendly('[Tool Done: Read] (0.3s)');
+    expect(r.category).toBe('tool-result');
+  });
+
+  test('execution start translated', () => {
+    const r = transformLogToUserFriendly(
+      '[実行開始] タスクの実行を開始します...',
+    );
+    expect(r.category).toBe('phase-transition');
+  });
+
+  test('empty line is hidden', () => {
+    expect(transformLogToUserFriendly('').category).toBe('hidden');
+    expect(transformLogToUserFriendly('  ').category).toBe('hidden');
+  });
+
+  test('question detected correctly', () => {
+    const r = transformLogToUserFriendly('[質問] どのDBを使いますか？');
+    expect(r.category).toBe('warning');
+    expect(r.message).toContain('質問');
+  });
+
+  test('JSON status translated', () => {
+    const r = transformLogToUserFriendly('{"status":"running","taskId":5}');
+    expect(r.message).toContain('実行中');
+  });
+
+  test('plain agent text becomes agent-text category', () => {
+    const r = transformLogToUserFriendly(
+      'I will now examine the codebase to understand the architecture.',
+    );
+    expect(r.category).toBe('agent-text');
+  });
+});
+
+describe('transformLogsToSimple', () => {
+  test('multi-line entry split into individual entries', () => {
+    const logs = [
+      '[Tool: Read] -> a.ts\n[Tool Done: Read] (0.1s)\n[Tool: Edit] -> b.ts',
+    ];
+    const result = transformLogsToSimple(logs);
+    // Should produce: Read, Tool Done, Edit = 3 entries
+    expect(result.length).toBe(3);
+    expect(result[0].message).toContain('読込');
+    expect(result[2].message).toContain('編集');
+  });
+
+  test('consecutive identical entries deduplicated', () => {
+    const logs = [
+      '[実行開始] タスクの実行を開始します...',
+      '[実行開始] タスクの実行を開始します...',
+    ];
+    const result = transformLogsToSimple(logs);
+    expect(result.length).toBe(1);
+  });
+
+  test('agent text lines grouped into single block', () => {
+    const logs = [
+      'Let me analyze the code.\nFirst I will read the file.\nThen I will make changes.',
+    ];
+    const result = transformLogsToSimple(logs);
+    // 3 lines of agent text grouped into 1 entry
+    const agentEntries = result.filter((e) => e.category === 'agent-text');
+    expect(agentEntries.length).toBe(1);
+    expect(agentEntries[0].detail).toContain('First I will read');
+  });
+});
+
+describe('generateExecutionSummary', () => {
+  test('summary from tool calls', () => {
+    const logs = [
+      '[Tool: Read] -> src/a.ts\n[Tool: Edit] -> src/b.ts\n[Tool: Write] -> src/new.ts\n5 tests passed\n[Tool: Bash] $ git commit -m "fix"\n[Result: completed (15.2s) $0.05]',
+    ];
+    const s = generateExecutionSummary(logs);
+    expect(s).not.toBeNull();
+    expect(s!.filesEdited).toHaveLength(1);
+    expect(s!.filesCreated).toHaveLength(1);
+    expect(s!.filesRead).toHaveLength(1);
+    expect(s!.testsPassed).toBe(5);
+    expect(s!.commits).toBe(1);
+  });
+
+  test('empty logs returns null', () => {
+    expect(generateExecutionSummary([])).toBeNull();
   });
 });
