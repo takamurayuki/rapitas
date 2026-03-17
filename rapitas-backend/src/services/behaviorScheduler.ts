@@ -3,6 +3,8 @@ import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';
 import { generateOptimizationRules } from '../../services/workflow/workflow-learning-optimizer';
+import { processAllPendingRecurrences } from '../../services/recurring-task-service';
+import { prisma } from '../../config/database';
 
 const log = createLogger('behavior-scheduler');
 

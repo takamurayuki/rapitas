@@ -11,6 +11,7 @@ import { spawn, type Subprocess, spawnSync } from 'bun';
 import { watch, readFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { createLogger } from '../config/logger';
+import { findAvailablePort } from '../utils/find-port';
 
 const pinoLog = createLogger('dev');
 
@@ -18,7 +19,10 @@ const ROOT_DIR = resolve(import.meta.dir, '..');
 const PRISMA_SCHEMA = join(ROOT_DIR, 'prisma', 'schema.prisma');
 const INDEX_FILE = join(ROOT_DIR, 'index.ts');
 const ENV_FILE = join(ROOT_DIR, '.env');
-const SERVER_PORT = parseInt(process.env.PORT || '3001', 10);
+const DEFAULT_PORT = parseInt(process.env.PORT || '3001', 10);
+
+// Dynamic port - will be set during startup
+let SERVER_PORT = DEFAULT_PORT;
 
 /** Loads .env file and sets environment variables. */
 function loadEnvFile() {
@@ -209,10 +213,10 @@ async function startServer(cleanupPort: boolean = false) {
     cmd: ['bun', 'run', INDEX_FILE],
     cwd: ROOT_DIR,
     stdio: ['inherit', 'inherit', 'inherit'],
-    env: { ...process.env, FORCE_COLOR: '1' },
+    env: { ...process.env, FORCE_COLOR: '1', PORT: SERVER_PORT.toString() },
   });
 
-  log.success(`Server started (http://localhost:${process.env.PORT || '3001'})`);
+  log.success(`Server started (http://localhost:${SERVER_PORT})`);
 }
 
 /** Handles Prisma schema changes: runs db push, generate, and restarts the server. */
@@ -460,6 +464,21 @@ async function main() {
   pinoLog.info('║  • Prisma schema change → auto db push     ║');
   pinoLog.info('║  • Ctrl+C to quit                          ║');
   pinoLog.info('╚════════════════════════════════════════════╝');
+
+  // Find an available port
+  try {
+    log.info(`Checking port availability starting from ${DEFAULT_PORT}...`);
+    SERVER_PORT = await findAvailablePort(DEFAULT_PORT);
+
+    if (SERVER_PORT !== DEFAULT_PORT) {
+      log.warn(`Port ${DEFAULT_PORT} is in use. Using port ${SERVER_PORT} instead.`);
+    } else {
+      log.info(`Using default port ${SERVER_PORT}`);
+    }
+  } catch (error) {
+    log.error(`Failed to find available port: ${error}`);
+    process.exit(1);
+  }
 
   log.info('Initial startup: syncing Prisma schema...');
   const pushResult = spawn({

@@ -125,11 +125,21 @@ model Task {
   autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
   workflowLearningRecords WorkflowLearningRecord[]
 
+  // Recurring task fields
+  isRecurring           Boolean   @default(false) // Whether this is a recurring master task
+  recurrenceRule        String?   // RRULE format: "FREQ=DAILY;INTERVAL=1"
+  recurrenceEndAt       DateTime? // When recurrence ends (null = indefinite)
+  sourceTaskId          Int?      // For generated tasks: ID of the master task
+  sourceTask            Task?     @relation("RecurringSource", fields: [sourceTaskId], references: [id], onDelete: SetNull)
+  generatedTasks        Task[]    @relation("RecurringSource")
+  nextOccurrence        DateTime? // Next scheduled generation date
+
   @@index([status])
   @@index([themeId])
   @@index([status, themeId])
   @@index([parentId])
   @@index([dueDate])
+  @@index([isRecurring, nextOccurrence])
 }
 
 model TimeEntry {

@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../config/logger';
 import { UserBehaviorService } from '../src/services/userBehaviorService';
 import { notifyTaskCompleted } from './notification-service';
+import { onGeneratedTaskCompleted } from './recurring-task-service';
 import {
   sendAIMessage,
   getDefaultProvider,
@@ -259,6 +260,10 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         await UserBehaviorService.recordTaskCompleted(taskId, updatedTask);
         notifyTaskCompleted(taskId, updatedTask.title).catch((err) => {
           logger.warn({ err, taskId }, 'Failed to send task completion notification');
+        });
+        // Trigger next recurring task generation if this was a generated task
+        onGeneratedTaskCompleted(prisma, updatedTask).catch((err) => {
+          logger.warn({ err, taskId }, 'Failed to generate next recurring task');
         });
       }
     }
