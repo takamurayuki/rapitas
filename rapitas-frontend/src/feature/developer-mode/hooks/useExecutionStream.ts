@@ -479,9 +479,10 @@ export function useExecutionPolling(taskId: number | null) {
               logger.debug('New output received:', newOutput.length, 'chars');
               lastOutputLengthRef.current = data.output.length;
               setState((prev) => {
-                // NOTE: Skip if identical to the last log entry (prevents duplicate output on rapid polls)
+                // Skip if consecutive duplicate (same as last log entry)
                 const lastLog = prev.logs[prev.logs.length - 1];
-                if (lastLog === newOutput) {
+                if (lastLog && lastLog === newOutput) {
+                  logger.debug('Skipping duplicate consecutive log entry');
                   return prev;
                 }
                 return {
