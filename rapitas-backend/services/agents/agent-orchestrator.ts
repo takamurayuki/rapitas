@@ -381,6 +381,38 @@ export class AgentOrchestrator {
     return this.gitOps.createBranch(workingDirectory, branchName);
   }
 
+  /**
+   * Create a git worktree for isolated task execution.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @param branchName - Branch to create / 作成するブランチ名
+   * @param taskId - Task ID for directory naming / ディレクトリ名用タスクID
+   * @returns Absolute path to the worktree / worktreeの絶対パス
+   */
+  async createWorktree(baseDir: string, branchName: string, taskId?: number): Promise<string> {
+    return this.gitOps.createWorktree(baseDir, branchName, taskId);
+  }
+
+  /**
+   * Remove a git worktree.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @param worktreePath - Worktree path to remove / 削除するworktreeパス
+   */
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+    return this.gitOps.removeWorktree(baseDir, worktreePath);
+  }
+
+  /**
+   * Clean up stale worktrees from previous crashes.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @returns Count of cleaned worktrees / クリーンアップ数
+   */
+  async cleanupStaleWorktrees(baseDir: string): Promise<number> {
+    return this.gitOps.cleanupStaleWorktrees(baseDir);
+  }
+
   async createCommit(
     workingDirectory: string,
     message: string,

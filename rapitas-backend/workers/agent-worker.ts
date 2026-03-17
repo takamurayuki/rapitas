@@ -179,6 +179,26 @@ class AgentWorker {
           );
           break;
 
+        case 'create-worktree':
+          result = await this.orchestrator.createWorktree(
+            data.baseDir as string,
+            data.branchName as string,
+            data.taskId as number | undefined,
+          );
+          break;
+
+        case 'remove-worktree':
+          await this.orchestrator.removeWorktree(
+            data.baseDir as string,
+            data.worktreePath as string,
+          );
+          result = true;
+          break;
+
+        case 'cleanup-stale-worktrees':
+          result = await this.orchestrator.cleanupStaleWorktrees(data.baseDir as string);
+          break;
+
         case 'revert-changes':
           result = await this.orchestrator.revertChanges(data.workingDirectory as string);
           break;

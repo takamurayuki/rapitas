@@ -2,13 +2,21 @@
  * GitOperations
  *
  * Git-related operations extracted from AgentOrchestrator.
+ * Includes worktree management for parallel task isolation.
  */
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { join } from 'path';
+import { existsSync } from 'fs';
+import { rm } from 'fs/promises';
+import { randomBytes } from 'crypto';
 import { createLogger } from '../../../config/logger';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations');
+
+/** Directory name under baseDir where worktrees are created */
+const WORKTREE_DIR = '.worktrees';
 
 /**
  * Provides Git operations (diff, commit, branch, PR, merge, revert).
@@ -437,8 +445,7 @@ export class GitOperations {
             });
             patch = filePatch;
           }
-        } catch {
-        }
+        } catch {}
 
         files.push({
           filename,
@@ -454,5 +461,156 @@ export class GitOperations {
       logger.error({ err: error }, 'Failed to get diff');
       return [];
     }
+  }
+
+  // ==================== Worktree Operations ====================
+
+  /**
+   * Create a git worktree with a new branch for isolated task execution.
+   *
+   * @param baseDir - The main repository root / メインリポジトリのルート
+   * @param branchName - Branch name to create in the worktree / worktree内に作成するブランチ名
+   * @param taskId - Task ID used to generate the worktree directory name / ディレクトリ名生成用タスクID
+   * @returns Absolute path to the created worktree / 作成されたworktreeの絶対パス
+   * @throws {Error} When git worktree add fails / git worktree addが失敗した場合
+   */
+  async createWorktree(baseDir: string, branchName: string, taskId?: number): Promise<string> {
+    const shortId = randomBytes(4).toString('hex');
+    const dirName = taskId ? `task-${taskId}-${shortId}` : `wt-${shortId}`;
+    const worktreePath = join(baseDir, WORKTREE_DIR, dirName);
+
+    // NOTE: Quote paths to handle Windows paths with spaces
+    const quotedPath = `"${worktreePath}"`;
+
+    try {
+      // Check if branch already exists
+      const { stdout: existingBranch } = await execAsync(`git branch --list ${branchName}`, {
+        cwd: baseDir,
+        encoding: 'utf8',
+      });
+
+      if (existingBranch.trim()) {
+        // Branch exists — create worktree with existing branch
+        logger.info(
+          `[createWorktree] Branch ${branchName} exists, creating worktree at ${worktreePath}`,
+        );
+        await execAsync(`git worktree add ${quotedPath} ${branchName}`, {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+      } else {
+        // Create worktree with new branch
+        logger.info(
+          `[createWorktree] Creating worktree at ${worktreePath} with new branch ${branchName}`,
+        );
+        await execAsync(`git worktree add -b ${branchName} ${quotedPath}`, {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+      }
+
+      logger.info(`[createWorktree] Worktree created: ${worktreePath} (branch: ${branchName})`);
+      return worktreePath;
+    } catch (error) {
+      logger.error(
+        { err: error },
+        `[createWorktree] Failed to create worktree for branch ${branchName}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a git worktree and prune stale entries.
+   *
+   * @param baseDir - The main repository root / メインリポジトリのルート
+   * @param worktreePath - Absolute path to the worktree to remove / 削除するworktreeの絶対パス
+   */
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+    try {
+      const quotedPath = `"${worktreePath}"`;
+
+      await execAsync(`git worktree remove ${quotedPath} --force`, {
+        cwd: baseDir,
+        encoding: 'utf8',
+      });
+
+      logger.info(`[removeWorktree] Removed worktree: ${worktreePath}`);
+    } catch (error) {
+      // NOTE: If git worktree remove fails (e.g., already deleted), try filesystem cleanup
+      logger.warn(
+        { err: error },
+        `[removeWorktree] git worktree remove failed, attempting fs cleanup`,
+      );
+
+      if (existsSync(worktreePath)) {
+        try {
+          await rm(worktreePath, { recursive: true, force: true });
+          logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
+        } catch (fsError) {
+          logger.error(
+            { err: fsError },
+            `[removeWorktree] Failed to clean up directory: ${worktreePath}`,
+          );
+        }
+      }
+    }
+
+    // Prune stale worktree metadata regardless of removal success
+    try {
+      await execAsync('git worktree prune', { cwd: baseDir });
+    } catch (pruneError) {
+      logger.warn({ err: pruneError }, '[removeWorktree] git worktree prune failed');
+    }
+  }
+
+  /**
+   * Clean up stale worktrees left over from crashes or abnormal exits.
+   * Called during server startup.
+   *
+   * @param baseDir - The main repository root / メインリポジトリのルート
+   * @returns Number of worktrees cleaned up / クリーンアップしたworktreeの数
+   */
+  async cleanupStaleWorktrees(baseDir: string): Promise<number> {
+    let cleanedCount = 0;
+
+    try {
+      // Prune metadata for worktrees whose directories no longer exist
+      await execAsync('git worktree prune', { cwd: baseDir });
+
+      // List remaining worktrees
+      const { stdout } = await execAsync('git worktree list --porcelain', {
+        cwd: baseDir,
+        encoding: 'utf8',
+      });
+
+      const worktreeDir = join(baseDir, WORKTREE_DIR);
+      const entries = stdout.split('\n\n').filter(Boolean);
+
+      for (const entry of entries) {
+        const pathMatch = entry.match(/^worktree\s+(.+)$/m);
+        if (!pathMatch?.[1]) continue;
+
+        const wtPath = pathMatch[1];
+        // Only clean up worktrees under our managed .worktrees/ directory
+        if (!wtPath.startsWith(worktreeDir)) continue;
+
+        logger.info(`[cleanupStaleWorktrees] Removing stale worktree: ${wtPath}`);
+        try {
+          await this.removeWorktree(baseDir, wtPath);
+          cleanedCount++;
+        } catch (error) {
+          logger.warn({ err: error }, `[cleanupStaleWorktrees] Failed to remove ${wtPath}`);
+        }
+      }
+
+      if (cleanedCount > 0) {
+        logger.info(`[cleanupStaleWorktrees] Cleaned up ${cleanedCount} stale worktrees`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, '[cleanupStaleWorktrees] Failed to clean up stale worktrees');
+    }
+
+    return cleanedCount;
   }
 }

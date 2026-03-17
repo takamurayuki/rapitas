@@ -449,6 +449,7 @@ model AgentSession {
   totalTokensUsed   Int       @default(0)
   errorMessage      String?
   metadata          String?   // JSON stored as string
+  worktreePath      String?   // Absolute path to git worktree (non-null during execution)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

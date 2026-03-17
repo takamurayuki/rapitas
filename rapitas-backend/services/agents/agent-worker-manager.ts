@@ -20,6 +20,7 @@ import {
   unregisterProcess,
   cleanupZombieProcesses,
 } from './agent-process-tracker';
+import { getProjectRoot } from '../../config';
 
 const logger = createLogger('agent-worker-manager');
 
@@ -72,6 +73,16 @@ export class AgentWorkerManager {
     // NOTE: Clean up zombie processes remaining from a previous crash before starting
     cleanupZombieProcesses();
     await this.setupWorker();
+
+    // NOTE: Clean up stale worktrees from previous crashes after worker is ready
+    try {
+      const cleanedCount = await this.cleanupStaleWorktrees(getProjectRoot());
+      if (cleanedCount > 0) {
+        logger.info(`[AgentWorkerManager] Cleaned up ${cleanedCount} stale worktrees on startup`);
+      }
+    } catch (error) {
+      logger.warn({ err: error }, '[AgentWorkerManager] Stale worktree cleanup failed on startup');
+    }
   }
 
   private generateRequestId(): string {
@@ -531,6 +542,42 @@ export class AgentWorkerManager {
       { workingDirectory, branchName },
       30000,
     ) as Promise<boolean>;
+  }
+
+  /**
+   * Create a git worktree for isolated task execution.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @param branchName - Branch to create / 作成するブランチ名
+   * @param taskId - Task ID for directory naming / ディレクトリ名用タスクID
+   * @returns Absolute path to the created worktree / worktreeの絶対パス
+   */
+  async createWorktree(baseDir: string, branchName: string, taskId?: number): Promise<string> {
+    return this.sendIPCRequest(
+      'create-worktree',
+      { baseDir, branchName, taskId },
+      30000,
+    ) as Promise<string>;
+  }
+
+  /**
+   * Remove a git worktree.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @param worktreePath - Worktree to remove / 削除するworktreeパス
+   */
+  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+    await this.sendIPCRequest('remove-worktree', { baseDir, worktreePath }, 30000);
+  }
+
+  /**
+   * Clean up stale worktrees from previous crashes.
+   *
+   * @param baseDir - Main repository root / メインリポジトリルート
+   * @returns Count of cleaned worktrees / クリーンアップ数
+   */
+  async cleanupStaleWorktrees(baseDir: string): Promise<number> {
+    return this.sendIPCRequest('cleanup-stale-worktrees', { baseDir }, 30000) as Promise<number>;
   }
 
   async revertChanges(workingDirectory: string): Promise<boolean> {

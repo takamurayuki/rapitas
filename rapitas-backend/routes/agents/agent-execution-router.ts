@@ -358,14 +358,32 @@ export const agentExecutionRouter = new Elysia()
 
       try {
         if (!developerModeConfig) {
-          developerModeConfig = await prisma.developerModeConfig.upsert({
-            where: { taskId: taskIdNum },
-            update: {},
-            create: {
-              taskId: taskIdNum,
-              isEnabled: true,
-            },
-          });
+          try {
+            developerModeConfig = await prisma.developerModeConfig.upsert({
+              where: { taskId: taskIdNum },
+              update: {},
+              create: {
+                taskId: taskIdNum,
+                isEnabled: true,
+              },
+            });
+          } catch (upsertError: unknown) {
+            // NOTE: Prisma upsert can race under concurrent requests — both see no row, both try to create, one gets P2002.
+            const isPrismaUniqueViolation =
+              upsertError instanceof Error &&
+              'code' in upsertError &&
+              (upsertError as { code: string }).code === 'P2002';
+            if (isPrismaUniqueViolation) {
+              log.warn(
+                `[API] Concurrent upsert race for taskId=${taskIdNum}, fetching existing record`,
+              );
+              developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
+                where: { taskId: taskIdNum },
+              });
+            } else {
+              throw upsertError;
+            }
+          }
         }
 
         if (sessionId) {
@@ -402,17 +420,29 @@ export const agentExecutionRouter = new Elysia()
           }
         }
 
-        const branchCreated = await agentWorkerManager.createBranch(workDir, finalBranchName);
-        if (!branchCreated) {
+        // NOTE: Use git worktree for isolation — each task gets its own working directory
+        let worktreePath: string;
+        try {
+          worktreePath = await agentWorkerManager.createWorktree(
+            workDir,
+            finalBranchName,
+            taskIdNum,
+          );
+          log.info(`[API] Created worktree at ${worktreePath} for task ${taskIdNum}`);
+        } catch (worktreeError) {
+          log.error(
+            { err: worktreeError },
+            `[API] Failed to create worktree for task ${taskIdNum}`,
+          );
           return earlyReturnWithLockRelease({
-            error: 'Failed to create branch',
+            error: 'Failed to create worktree',
             branchName: finalBranchName,
           });
         }
 
         session = await prisma.agentSession.update({
           where: { id: session.id },
-          data: { branchName: finalBranchName },
+          data: { branchName: finalBranchName, worktreePath },
         });
 
         await prisma.notification.create({
@@ -557,6 +587,9 @@ export const agentExecutionRouter = new Elysia()
         }
       }
 
+      // NOTE: Execute in worktree directory for git isolation
+      const executionDir = worktreePath;
+
       // Execute Claude Code asynchronously (via worker)
       agentWorkerManager
         .executeTask(
@@ -565,13 +598,13 @@ export const agentExecutionRouter = new Elysia()
             title: task.title,
             description: fullInstruction,
             context: task.executionInstructions || undefined,
-            workingDirectory: workDir,
+            workingDirectory: executionDir,
           },
           {
             taskId: taskIdNum,
             sessionId: session.id,
             agentConfigId,
-            workingDirectory: workDir,
+            workingDirectory: executionDir,
             timeout,
             analysisInfo,
           },
@@ -678,12 +711,24 @@ export const agentExecutionRouter = new Elysia()
               taskTitle: task.title,
               configId: developerModeConfig!.id,
               sessionId: session.id,
-              workDir,
+              workDir: executionDir,
               branchName,
               resultOutput: result.output,
               executionTimeMs: result.executionTimeMs,
               logPrefix: '[API]',
             });
+
+            // NOTE: Clean up worktree after successful execution (branch is pushed to remote)
+            try {
+              await agentWorkerManager.removeWorktree(workDir, executionDir);
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: { worktreePath: null },
+              });
+              log.info(`[API] Cleaned up worktree for task ${taskIdNum}`);
+            } catch (cleanupErr) {
+              log.warn({ err: cleanupErr }, `[API] Worktree cleanup failed for task ${taskIdNum}`);
+            }
           } else {
             log.error(
               { errorMessage: result.errorMessage },
@@ -1238,29 +1283,39 @@ export const agentExecutionRouter = new Elysia()
         const previousExecution = session.agentExecutions[0];
         const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
-        if (session.branchName) {
+        // NOTE: Reuse existing worktree if available, otherwise create a new one
+        let executionDir = (session as Record<string, unknown>).worktreePath as string | null;
+        if (executionDir) {
+          log.info(`[continue-execution] Reusing existing worktree: ${executionDir}`);
+        } else if (session.branchName) {
           try {
-            const branchCreated = await agentWorkerManager.createBranch(
+            executionDir = await agentWorkerManager.createWorktree(
               workingDirectory,
               session.branchName,
+              taskId,
             );
-            if (!branchCreated) {
-              log.error(
-                `[continue-execution] Failed to checkout branch ${session.branchName} for task ${taskId}`,
-              );
-            } else {
-              log.info(
-                `[continue-execution] Checked out branch ${session.branchName} for task ${taskId}`,
-              );
-            }
+            await prisma.agentSession.update({
+              where: { id: targetSessionId },
+              data: { worktreePath: executionDir },
+            });
+            log.info(`[continue-execution] Created worktree for task ${taskId}: ${executionDir}`);
           } catch (error) {
             log.error(
               { err: error },
-              `[continue-execution] Branch checkout error for task ${taskId}`,
+              `[continue-execution] Worktree creation error for task ${taskId}, falling back to branch checkout`,
             );
+            // Fallback to branch checkout
+            try {
+              await agentWorkerManager.createBranch(workingDirectory, session.branchName);
+              executionDir = workingDirectory;
+            } catch (branchError) {
+              log.error({ err: branchError }, `[continue-execution] Branch checkout also failed`);
+              executionDir = workingDirectory;
+            }
           }
         } else {
           log.info(`[continue-execution] No branch name stored in session ${targetSessionId}`);
+          executionDir = workingDirectory;
         }
 
         try {
@@ -1329,13 +1384,13 @@ export const agentExecutionRouter = new Elysia()
               title: task.title,
               description: fullInstruction,
               context: task.executionInstructions || undefined,
-              workingDirectory,
+              workingDirectory: executionDir,
             },
             {
               taskId,
               sessionId: targetSessionId,
               agentConfigId: agentConfigId || (previousExecution?.agentConfigId ?? undefined),
-              workingDirectory,
+              workingDirectory: executionDir,
               continueFromPrevious: true,
             },
           )
@@ -1410,12 +1465,29 @@ export const agentExecutionRouter = new Elysia()
                   taskTitle: task.title,
                   configId: task.developerModeConfig.id,
                   sessionId: targetSessionId,
-                  workDir: workingDirectory,
+                  workDir: executionDir,
                   branchName: session.branchName || undefined,
                   resultOutput: result.output,
                   executionTimeMs: result.executionTimeMs,
                   logPrefix: '[continue-execution]',
                 });
+              }
+
+              // NOTE: Clean up worktree after successful continued execution
+              if (executionDir !== workingDirectory) {
+                try {
+                  await agentWorkerManager.removeWorktree(workingDirectory, executionDir);
+                  await prisma.agentSession.update({
+                    where: { id: targetSessionId },
+                    data: { worktreePath: null },
+                  });
+                  log.info(`[continue-execution] Cleaned up worktree for task ${taskId}`);
+                } catch (cleanupErr) {
+                  log.warn(
+                    { err: cleanupErr },
+                    `[continue-execution] Worktree cleanup failed for task ${taskId}`,
+                  );
+                }
               }
 
               log.info(`[continue-execution] Completed task ${taskId}`);
