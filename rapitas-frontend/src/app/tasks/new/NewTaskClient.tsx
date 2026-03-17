@@ -21,9 +21,7 @@ import {
   ChevronUp,
   ChevronsUpDown,
   ChevronDown,
-  Wand2,
   Check,
-  Circle,
   X,
 } from 'lucide-react';
 import type {
@@ -101,17 +99,6 @@ function NewTaskClient() {
     null,
   );
 
-  const [nlInput, setNlInput] = useState('');
-  const [isQuickCreating, setIsQuickCreating] = useState(false);
-  const [quickCreateSteps, setQuickCreateSteps] = useState<
-    {
-      step: string;
-      status: 'pending' | 'in_progress' | 'done' | 'error';
-      data?: Record<string, unknown>;
-    }[]
-  >([]);
-  const nlTextareaRef = useRef<HTMLTextAreaElement>(null);
-
   const [subtasks, setSubtasks] = useState<
     {
       id: string;
@@ -140,87 +127,6 @@ function NewTaskClient() {
     }
   };
 
-  const QUICK_CREATE_STEP_ORDER = [
-    'parsing',
-    'summarizing',
-    'creating',
-    'analyzing',
-    'generating_subtasks',
-    'generating_instructions',
-  ] as const;
-
-  const handleQuickCreate = async () => {
-    if (!nlInput.trim() || isQuickCreating) return;
-    setIsQuickCreating(true);
-    setQuickCreateSteps(
-      QUICK_CREATE_STEP_ORDER.map((step) => ({ step, status: 'pending' })),
-    );
-
-    try {
-      const res = await fetch(`${API_BASE}/tasks/quick-create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: nlInput,
-          ...(themeId && { themeId }),
-        }),
-      });
-
-      if (!res.ok || !res.body) {
-        showToast(tc('errorOccurred'), 'error');
-        setIsQuickCreating(false);
-        setQuickCreateSteps([]);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const event = JSON.parse(line);
-            if (event.step === 'complete') {
-              showToast(t('quickCreateSuccess'), 'success');
-              const detailPath = await getTaskDetailPath(event.taskId);
-              router.push(detailPath);
-              return;
-            }
-            if (event.step === 'error') {
-              showToast(event.message || tc('errorOccurred'), 'error');
-              setIsQuickCreating(false);
-              return;
-            }
-            // Update step status
-            setQuickCreateSteps((prev) =>
-              prev.map((s) =>
-                s.step === event.step
-                  ? { ...s, status: event.status, data: event.data }
-                  : s,
-              ),
-            );
-          } catch {
-            // skip malformed lines
-          }
-        }
-      }
-    } catch (e) {
-      logger.error('Failed to quick create:', e);
-      showToast(tc('errorOccurred'), 'error');
-    } finally {
-      setIsQuickCreating(false);
-    }
-  };
-
   const initializedRef = useRef(false);
   useEffect(() => {
     if (initializedRef.current) return;
@@ -228,10 +134,6 @@ function NewTaskClient() {
     const themeIdParam = searchParams.get('themeId');
     if (themeIdParam) {
       setThemeId(Number(themeIdParam));
-    }
-    const nlParam = searchParams.get('nl');
-    if (nlParam) {
-      setNlInput(nlParam);
     }
     fetchThemes();
     fetchCategories();
@@ -771,97 +673,6 @@ function NewTaskClient() {
         onSubmit={(e) => handleSubmit(e)}
         className="max-w-2xl mx-auto px-4 pb-8"
       >
-        {/* Natural Language Quick Input */}
-        <div className="mb-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/30 dark:to-blue-950/30 rounded-xl border border-violet-200/50 dark:border-violet-800/50 p-3">
-          <div className="flex items-start gap-2">
-            <Wand2 className="w-4 h-4 text-violet-500 shrink-0 mt-2" />
-            <div className="flex-1 flex flex-col gap-2">
-              <textarea
-                ref={nlTextareaRef}
-                value={nlInput}
-                onChange={(e) => {
-                  setNlInput(e.target.value);
-                  // Auto-resize
-                  const el = e.target;
-                  el.style.height = 'auto';
-                  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    handleQuickCreate();
-                  }
-                }}
-                placeholder={t('nlInputPlaceholder')}
-                className="w-full bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-violet-400 dark:placeholder:text-violet-500 border-none outline-none resize-none min-h-[2.25rem]"
-                rows={1}
-                disabled={isQuickCreating}
-              />
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] text-violet-500/70 dark:text-violet-400/50">
-                  {t('nlInputHint')}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleQuickCreate}
-                  disabled={!nlInput.trim() || isQuickCreating}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shrink-0"
-                >
-                  {isQuickCreating ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Wand2 className="w-3.5 h-3.5" />
-                  )}
-                  {t('quickCreate')}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {isQuickCreating && quickCreateSteps.length > 0 && (
-            <div className="mt-3 ml-6 space-y-1">
-              {quickCreateSteps.map((s) => {
-                const stepLabelMap: Record<string, string> = {
-                  parsing: t('quickCreateStepParsing'),
-                  summarizing: t('quickCreateStepSummarizing'),
-                  creating: t('quickCreateStepCreating'),
-                  analyzing: t('quickCreateStepAnalyzing'),
-                  generating_subtasks: t('quickCreateStepGeneratingSubtasks'),
-                  generating_instructions: t(
-                    'quickCreateStepGeneratingInstructions',
-                  ),
-                };
-                return (
-                  <div key={s.step} className="flex items-center gap-2">
-                    {s.status === 'done' ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    ) : s.status === 'in_progress' ? (
-                      <Loader2 className="w-3.5 h-3.5 text-violet-500 animate-spin shrink-0" />
-                    ) : s.status === 'error' ? (
-                      <div className="w-3.5 h-3.5 rounded-full bg-red-500 shrink-0" />
-                    ) : (
-                      <div className="w-3.5 h-3.5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 shrink-0" />
-                    )}
-                    <span
-                      className={`text-xs ${
-                        s.status === 'done'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : s.status === 'in_progress'
-                            ? 'text-violet-600 dark:text-violet-400 font-medium'
-                            : s.status === 'error'
-                              ? 'text-red-500'
-                              : 'text-zinc-400 dark:text-zinc-500'
-                      }`}
-                    >
-                      {stepLabelMap[s.step] || s.step}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
           <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
             <TaskTitleAutocomplete
@@ -1352,5 +1163,7 @@ function NewTaskClient() {
   );
 }
 
-// Export as auth-required component
-export default requireAuth(NewTaskClient);
+// NOTE: Turbopack cannot statically analyze HOC-wrapped default exports in 'use client' files.
+// Assigning to a named const before exporting allows Turbopack to detect the default export.
+const AuthenticatedNewTaskClient = requireAuth(NewTaskClient);
+export default AuthenticatedNewTaskClient;

@@ -6,6 +6,9 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { themeSchema } from '../../schemas/theme.schema';
 import { NotFoundError, ValidationError } from '../../middleware/error-handler';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
 
 export const themesRoutes = new Elysia({ prefix: '/themes' })
   // Get all themes
@@ -243,4 +246,148 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       data: { isDefault: true },
       include: { category: true },
     });
-  });
+  })
+
+  // Setup theme from CLAUDE.md with directory initialization
+  .post(
+    '/setup-from-claude-md',
+    async (context) => {
+      const { body } = context;
+      const { appName, claudeMd, basePath, description } = body as {
+        appName: string;
+        claudeMd: string;
+        basePath?: string;
+        description?: string;
+      };
+
+      try {
+        // Sanitize app name to create folder name (kebab-case, ASCII-safe)
+        const sanitizedAppName = appName
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '') // Remove non-alphanumeric chars except spaces and hyphens
+          .replace(/\s+/g, '-') // Replace spaces with hyphens
+          .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+          .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+
+        if (!sanitizedAppName) {
+          throw new ValidationError('アプリ名から有効なフォルダ名を生成できませんでした');
+        }
+
+        // Determine base path (default to user home Projects folder)
+        const defaultBasePath =
+          process.platform === 'win32'
+            ? path.join(require('os').homedir(), 'Projects')
+            : path.join(require('os').homedir(), 'Projects');
+
+        const projectBasePath = basePath || defaultBasePath;
+        const projectPath = path.join(projectBasePath, sanitizedAppName);
+
+        // Check if directory already exists
+        if (fs.existsSync(projectPath)) {
+          throw new ValidationError(`フォルダ「${sanitizedAppName}」は既に存在します`);
+        }
+
+        // Create directory
+        fs.mkdirSync(projectPath, { recursive: true });
+
+        // Initialize git repository
+        try {
+          execSync('git init', { cwd: projectPath, stdio: 'pipe' });
+        } catch (error) {
+          throw new ValidationError('Git リポジトリの初期化に失敗しました');
+        }
+
+        // Create .claude directory
+        const claudeDir = path.join(projectPath, '.claude');
+        fs.mkdirSync(claudeDir, { recursive: true });
+
+        // Write CLAUDE.md file
+        const claudeFilePath = path.join(claudeDir, 'CLAUDE.md');
+        fs.writeFileSync(claudeFilePath, claudeMd, 'utf8');
+
+        // Make initial commit
+        try {
+          execSync('git add .', { cwd: projectPath, stdio: 'pipe' });
+          execSync('git commit -m "chore: initialize project with CLAUDE.md"', {
+            cwd: projectPath,
+            stdio: 'pipe',
+          });
+        } catch (error) {
+          throw new ValidationError('初期コミットの作成に失敗しました');
+        }
+
+        // Find or create Development category
+        let devCategory = await prisma.category.findFirst({
+          where: { name: '開発', isDefault: true },
+        });
+
+        if (!devCategory) {
+          // Create Development category if it doesn't exist
+          devCategory = await prisma.category.create({
+            data: {
+              name: '開発',
+              mode: 'development',
+              isDefault: true,
+            },
+          });
+        }
+
+        // Create theme record
+        const theme = await prisma.theme.create({
+          data: {
+            name: appName,
+            description: description || `${appName}プロジェクトのテーマ`,
+            categoryId: devCategory.id,
+            isDevelopment: true,
+            workingDirectory: projectPath,
+            defaultBranch: 'main',
+          },
+          include: { category: true },
+        });
+
+        return {
+          success: true,
+          theme,
+          projectPath,
+          message: 'テーマとプロジェクトディレクトリが正常に作成されました',
+        };
+      } catch (error) {
+        // Clean up if something went wrong
+        const projectPath = basePath
+          ? path.join(
+              basePath,
+              appName
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-'),
+            )
+          : path.join(
+              require('os').homedir(),
+              'Projects',
+              appName
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-'),
+            );
+
+        if (fs.existsSync(projectPath)) {
+          try {
+            fs.rmSync(projectPath, { recursive: true, force: true });
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+
+        if (error instanceof ValidationError) {
+          throw error;
+        } else {
+          throw new ValidationError(
+            error instanceof Error ? error.message : 'テーマ作成中にエラーが発生しました',
+          );
+        }
+      }
+    },
+    {
+      body: themeSchema.setupFromClaudeMd,
+    },
+  );

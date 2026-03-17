@@ -6,7 +6,6 @@ import {
   FileCode,
   AlertTriangle,
   CheckCircle2,
-  Loader2,
   RefreshCw,
   ChevronRight,
   ChevronDown,
@@ -18,12 +17,7 @@ import {
   RotateCcw,
   XCircle,
 } from 'lucide-react';
-import {
-  useSSE,
-  type SSEErrorData,
-  type SSERollbackData,
-  type SSERetryData,
-} from '@/hooks/use-sse';
+import { useSSE } from '@/hooks/use-sse';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { createLogger } from '@/lib/logger';
@@ -225,7 +219,7 @@ export function DependencyTree({ taskId }: Props) {
   const {
     isLoading,
     progress,
-    progressMessage,
+    progressMessage: _progressMessage,
     data: sseData,
     error: sseError,
     retryInfo,
@@ -567,9 +561,7 @@ export function DependencyTree({ taskId }: Props) {
             {currentAnalysis.tree.length === 0 && (
               <div className="text-center py-8 text-zinc-500">
                 <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">
-                  No subtasks or prompts to analyze
-                </p>
+                <p className="text-sm">No subtasks or prompts to analyze</p>
               </div>
             )}
           </div>

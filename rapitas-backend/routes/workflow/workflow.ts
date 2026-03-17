@@ -96,6 +96,7 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
     };
     autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
     autoMergeResult?: { success: boolean; mergeStrategy?: string; error?: string };
+    worktreeCleanupResult?: { success: boolean; worktreePath?: string; error?: string };
   } = {};
 
   try {
@@ -111,7 +112,6 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
       return result;
     }
 
-    
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
@@ -133,7 +133,6 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
     const workingDirectory =
       execConfig.workingDirectory || task.theme?.workingDirectory || getProjectRoot();
 
-    
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
 
@@ -219,7 +218,6 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
 
-          
           await prisma.notification.create({
             data: {
               type: 'auto_pr_created',
@@ -279,7 +277,6 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
             },
           });
 
-          
           await prisma.notification.create({
             data: {
               type: 'auto_pr_merged',
@@ -319,6 +316,39 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
         result.autoMergeResult = {
           success: false,
           error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+        };
+      }
+    }
+
+    // Clean up git worktree after commit/PR/merge is complete
+    const worktreePath = latestSession?.worktreePath;
+    if (worktreePath) {
+      try {
+        const baseDir = getProjectRoot();
+        await orchestrator.removeWorktree(baseDir, worktreePath);
+
+        // Clear worktreePath in AgentSession
+        await prisma.agentSession.update({
+          where: { id: latestSession.id },
+          data: { worktreePath: null },
+        });
+
+        result.worktreeCleanupResult = {
+          success: true,
+          worktreePath,
+        };
+
+        log.info(`[Workflow] Worktree cleaned up for task ${taskId}: ${worktreePath}`);
+      } catch (cleanupError) {
+        // NOTE: Cleanup failure should not fail the overall workflow
+        log.error(
+          { err: cleanupError },
+          `[Workflow] Worktree cleanup failed for task ${taskId}: ${worktreePath}`,
+        );
+        result.worktreeCleanupResult = {
+          success: false,
+          worktreePath,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
         };
       }
     }
@@ -391,7 +421,6 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         throw new ValidationError('content is required');
       }
 
-      
       await mkdir(dir, { recursive: true });
 
       // Mojibake detection and sanitization
@@ -404,7 +433,6 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         );
       }
 
-      
       const filePath = join(dir, `${fileType}.md`);
       await writeFile(filePath, sanitizeResult.content, 'utf-8');
 
@@ -551,6 +579,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         };
         autoPR?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
         autoMerge?: { success: boolean; mergeStrategy?: string; error?: string };
+        worktreeCleanup?: { success: boolean; worktreePath?: string; error?: string };
       } = {
         success: true,
         fileType,
@@ -574,6 +603,9 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
         }
         if (autoCommitPRResult.autoMergeResult) {
           response.autoMerge = autoCommitPRResult.autoMergeResult;
+        }
+        if (autoCommitPRResult.worktreeCleanupResult) {
+          response.worktreeCleanup = autoCommitPRResult.worktreeCleanupResult;
         }
       }
 

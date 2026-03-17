@@ -182,6 +182,7 @@ export default function NoteEditor({ note }: NoteEditorProps) {
       contentRef.current.innerHTML = DOMPurify.sanitize(note.content);
       normalizeLinkCards(contentRef.current, handleContentChange);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,7 +233,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     return () =>
       document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleDetectFormat]);
-
 
   const onApplyFormat = useCallback(
     (command: string, value?: string) => {
@@ -290,9 +290,9 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         handleContentChange,
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [handleContentChange],
   );
-
 
   const openLinkInput = useCallback(() => {
     if (isInTitleInput()) return;
@@ -458,7 +458,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     savedSelectionRef.current = null;
   }, [codeLanguage, handleContentChange]);
 
-
   const handleTextColorButtonClick = useCallback(() => {
     const wasOpen = showTextColorPicker;
     setShowTextColorPicker(!showTextColorPicker);
@@ -508,7 +507,6 @@ export default function NoteEditor({ note }: NoteEditorProps) {
     selectedTextColorRef.current = null;
     setShowTextColorPicker(false);
   }, []);
-
 
   const onEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
     handleEditorInputUtil(e, editorRefs, handleContentChange);

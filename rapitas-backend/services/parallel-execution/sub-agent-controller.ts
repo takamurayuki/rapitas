@@ -201,6 +201,7 @@ class SubAgent extends EventEmitter {
         this.process = spawn(finalCommand, finalArgs, {
           cwd: this.config.workingDirectory,
           shell: true,
+          windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
           stdio: ['pipe', 'pipe', 'pipe'],
           env: {
             ...process.env,
@@ -694,13 +695,16 @@ class SubAgent extends EventEmitter {
           return input.query ? `"${input.query}"` : '';
         case 'LSP':
           return input.operation ? String(input.operation) : '';
-        default:
+        default: {
+          // NOTE: Serialize object/array values as JSON to avoid "[object Object]"
           const firstKey = Object.keys(input)[0];
-          if (firstKey && input[firstKey]) {
-            const val = String(input[firstKey]);
-            return val.length > 40 ? `${val.substring(0, 40)}...` : val;
+          if (firstKey && input[firstKey] != null) {
+            const raw = input[firstKey];
+            const val = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+            return val.length > 80 ? `${val.substring(0, 80)}...` : val;
           }
           return '';
+        }
       }
     } catch {
       return '';
