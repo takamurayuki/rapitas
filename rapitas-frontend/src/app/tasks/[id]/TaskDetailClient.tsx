@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import type { Task, TimeEntry, Comment, UserSettings, Resource } from '@/types';
@@ -179,6 +179,21 @@ function TaskDetailClient({
     setNewComment,
     setIsAddingComment,
   });
+
+  // Callback to refresh task data after recurrence changes
+  const handleRefreshTask = useCallback(async () => {
+    if (!resolvedTaskId) return;
+    try {
+      clearApiCache(`/tasks/${resolvedTaskId}`);
+      const data = await apiFetch<Task>(`/tasks/${resolvedTaskId}`, {
+        cacheTime: 24 * 60 * 60 * 1000,
+      });
+      setTask(data);
+      if (onTaskUpdated) onTaskUpdated();
+    } catch (err) {
+      logger.error('Failed to refresh task:', err);
+    }
+  }, [resolvedTaskId, onTaskUpdated]);
 
   useEffect(() => {
     if (workflowStatus && workflowStatus !== currentWorkflowStatus) {
@@ -700,6 +715,7 @@ function TaskDetailClient({
               <CompactTaskDetailCard
                 task={task}
                 onStatusUpdate={taskActions.updateStatus}
+                onTaskUpdated={handleRefreshTask}
                 resources={resources}
                 onResourcesChange={async () => {
                   const res = await fetch(

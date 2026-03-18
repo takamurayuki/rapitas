@@ -179,6 +179,9 @@ export type ParallelExecutionSession = {
   nodes: Map<number, TaskNode>;
   workingDirectory: string;
 
+  /** Maps taskId to its git branch name for trial merge after completion. */
+  taskBranches: Map<number, string>;
+
   // Timing
   startedAt: Date;
   lastActivityAt: Date;
@@ -219,7 +222,9 @@ export type AgentMessageType =
   | 'resource_released'
   | 'dependency_resolved'
   | 'coordination_request'
-  | 'coordination_response';
+  | 'coordination_response'
+  | 'conflict_detected'
+  | 'safety_report_ready';
 
 /**
  * Execution log entry
@@ -244,6 +249,18 @@ export type ParallelExecutionConfig = {
   maxRetries: number;
   logSharing: boolean;
   coordinationEnabled: boolean;
+
+  // Safety system options
+  /** Enable conflict detection and merge validation. Default: true */
+  safetyCheckEnabled?: boolean;
+  /** Polling interval for conflict detection in ms. Default: 10000 */
+  conflictPollingIntervalMs?: number;
+  /** Pause execution when a critical conflict is detected. Default: false */
+  pauseOnCriticalConflict?: boolean;
+  /** Run trial merge after session completion. Default: true */
+  runTrialMerge?: boolean;
+  /** Run regression risk detection after session completion. Default: true */
+  runRegressionCheck?: boolean;
 };
 
 /**

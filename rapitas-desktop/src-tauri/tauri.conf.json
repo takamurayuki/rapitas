@@ -5,7 +5,7 @@
   "identifier": "com.rapitas.app",
   "build": {
     "beforeBuildCommand": "node scripts/build-all.js",
-    "beforeDevCommand": "node scripts/dev.js --watch",
+    "beforeDevCommand": "node scripts/dev.js",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../rapitas-frontend/.next-tauri"
   },
@@ -49,12 +49,7 @@
         ]
       },
       "rpm": {
-        "depends": [
-          "gtk3",
-          "webkit2gtk4.1",
-          "libappindicator-gtk3",
-          "librsvg2"
-        ]
+        "depends": ["gtk3", "webkit2gtk4.1", "libappindicator-gtk3", "librsvg2"]
       },
       "appimage": {
         "bundleMediaFramework": true,

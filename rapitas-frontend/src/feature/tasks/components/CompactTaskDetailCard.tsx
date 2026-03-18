@@ -12,6 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
   AccordionContent,
+  useAccordionContext,
 } from '@/components/ui/accordion/Accordion';
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
@@ -24,14 +25,42 @@ import {
   Info,
   Paperclip,
   StickyNote,
+  Repeat,
 } from 'lucide-react';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';
+
+/**
+ * Wrapper for RecurrenceSelector that can close the accordion
+ */
+function RecurrenceSelectorWithAccordionClose({
+  task,
+  onTaskUpdated,
+}: {
+  task: Task;
+  onTaskUpdated?: () => void;
+}) {
+  const { toggleItem } = useAccordionContext();
+
+  return (
+    <RecurrenceSelector
+      taskId={task.id}
+      isRecurring={task.isRecurring ?? false}
+      recurrenceRule={task.recurrenceRule ?? null}
+      recurrenceEndAt={task.recurrenceEndAt ?? null}
+      onUpdate={onTaskUpdated ?? (() => {})}
+      onClose={() => toggleItem('recurrence')}
+      inline={true}
+    />
+  );
+}
 
 interface CompactTaskDetailCardProps {
   task: Task;
   onStatusUpdate: (taskId: number, newStatus: string) => void;
+  onTaskUpdated?: () => void;
   resources?: Resource[];
   onResourcesChange?: () => void;
   // Memo-related props
@@ -49,6 +78,7 @@ interface CompactTaskDetailCardProps {
 export default function CompactTaskDetailCard({
   task,
   onStatusUpdate,
+  onTaskUpdated,
   resources = [],
   onResourcesChange,
   comments = [],
@@ -195,6 +225,29 @@ export default function CompactTaskDetailCard({
                 </span>
               </div>
             </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Recurrence Settings - Collapsible */}
+        <AccordionItem id="recurrence">
+          <AccordionTrigger
+            id="recurrence"
+            icon={<Repeat className="w-4 h-4" />}
+            badge={
+              task.isRecurring ? (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full">
+                  設定済み
+                </span>
+              ) : undefined
+            }
+          >
+            繰り返し設定
+          </AccordionTrigger>
+          <AccordionContent id="recurrence">
+            <RecurrenceSelectorWithAccordionClose
+              task={task}
+              onTaskUpdated={onTaskUpdated}
+            />
           </AccordionContent>
         </AccordionItem>
 

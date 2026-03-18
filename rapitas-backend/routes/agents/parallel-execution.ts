@@ -11,9 +11,11 @@ const log = createLogger('routes:parallel-execution');
 import {
   createParallelExecutor,
   createDependencyAnalyzer,
+  MergeValidator,
   type DependencyAnalysisInput,
   type TaskPriority,
   type ParallelExecutionConfig,
+  type SafetyReport,
 } from '../../services/parallel-execution';
 import { SSEStreamController, getUserFriendlyErrorMessage } from '../../services/sse-utils';
 import { AIOrchestra } from '../../services/workflow/ai-orchestra';
@@ -617,4 +619,146 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
         sessionId: t.String(),
       }),
     },
+  )
+
+  /**
+   * Retrieve the safety report for a completed session.
+   */
+  .get(
+    '/sessions/:sessionId/safety-report',
+    async (context) => {
+      const { params } = context;
+      try {
+        const executor = getParallelExecutor();
+        const status = executor.getSessionStatus(params.sessionId);
+        if (!status) {
+          return { success: false, error: 'セッションが見つかりません' };
+        }
+
+        // NOTE: Retrieve from coordinator shared data via a dedicated method on the executor
+        const safetyReport = getSafetyReportFromExecutor(executor, params.sessionId);
+        if (!safetyReport) {
+          return {
+            success: false,
+            error: 'セーフティレポートがまだ生成されていません',
+          };
+        }
+
+        return {
+          success: true,
+          data: safetyReport,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errorMessage };
+      }
+    },
+    {
+      params: t.Object({
+        sessionId: t.String(),
+      }),
+    },
+  )
+
+  /**
+   * Manually trigger a trial merge for a session (can be run before session completion).
+   */
+  .post(
+    '/sessions/:sessionId/trial-merge',
+    async (context) => {
+      const { params } = context;
+      try {
+        const executor = getParallelExecutor();
+        const status = executor.getSessionStatus(params.sessionId);
+
+        if (!status) {
+          return { success: false, error: 'セッションが見つかりません' };
+        }
+
+        const sessionData = getSessionFromExecutor(executor, params.sessionId);
+        if (!sessionData) {
+          return { success: false, error: 'セッションデータが見つかりません' };
+        }
+
+        const taskBranches = Array.from(sessionData.taskBranches.entries())
+          .map(([taskId, branchName]) => ({ taskId, branchName }));
+
+        if (taskBranches.length < 2) {
+          return {
+            success: false,
+            error: 'トライアルマージには2つ以上のブランチが必要です',
+          };
+        }
+
+        const validator = new MergeValidator();
+        const report = await validator.generateSafetyReport(
+          params.sessionId,
+          sessionData.workingDirectory,
+          taskBranches,
+          'develop',
+          [],
+        );
+
+        return {
+          success: true,
+          data: report,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log.error({ errorMessage }, '[ParallelExecution] Trial merge failed');
+        return { success: false, error: errorMessage };
+      }
+    },
+    {
+      params: t.Object({
+        sessionId: t.String(),
+      }),
+    },
   );
+
+/**
+ * Retrieve safety report from executor's internal coordinator shared data.
+ *
+ * @param executor - Parallel executor instance / パラレルエクゼキューターインスタンス
+ * @param sessionId - Session ID / セッションID
+ * @returns Safety report or null / セーフティレポートまたはnull
+ */
+function getSafetyReportFromExecutor(
+  executor: ReturnType<typeof createParallelExecutor>,
+  sessionId: string,
+): SafetyReport | null {
+  // NOTE: Access coordinator via executor's prototype — typed as 'any' because
+  // coordinator is private. A public accessor would be preferred long-term.
+  // HACK(agent): Private field access needed until a public getSafetyReport() is added.
+  const internal = executor as unknown as Record<string, unknown>;
+  const coordinator = internal['coordinator'] as
+    | { getSharedData: (key: string) => unknown }
+    | undefined;
+  if (!coordinator) return null;
+  return (coordinator.getSharedData(`safety-report:${sessionId}`) as SafetyReport) ?? null;
+}
+
+/**
+ * Retrieve session data from executor's internal sessions map.
+ *
+ * @param executor - Parallel executor instance / パラレルエクゼキューターインスタンス
+ * @param sessionId - Session ID / セッションID
+ * @returns Session data or null / セッションデータまたはnull
+ */
+function getSessionFromExecutor(
+  executor: ReturnType<typeof createParallelExecutor>,
+  sessionId: string,
+): { taskBranches: Map<number, string>; workingDirectory: string } | null {
+  // HACK(agent): Private field access needed until a public getSession() is added.
+  const internal = executor as unknown as Record<string, unknown>;
+  const sessions = internal['sessions'] as Map<string, ParallelExecutionSession> | undefined;
+  if (!sessions) return null;
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+  return { taskBranches: session.taskBranches, workingDirectory: session.workingDirectory };
+}
+
+type ParallelExecutionSession = {
+  taskBranches: Map<number, string>;
+  workingDirectory: string;
+};

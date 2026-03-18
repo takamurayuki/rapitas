@@ -264,6 +264,18 @@ export type Task = {
   complexityScore?: number | null;
   workflowModeOverride?: boolean | null;
   autoApprovePlan?: boolean;
+  // Recurring task fields
+  isRecurring?: boolean;
+  recurrenceRule?: string | null;
+  recurrenceEndAt?: string | null;
+  recurrenceTime?: string | null;
+  recurrenceCount?: number;
+  lastGeneratedAt?: string | null;
+  inheritWorkflowFiles?: boolean;
+  sourceTaskId?: number | null;
+  sourceTask?: Task | null;
+  generatedTasks?: Task[];
+  nextOccurrence?: string | null;
   createdAt: string;
   updatedAt: string;
 };

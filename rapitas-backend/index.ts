@@ -75,6 +75,7 @@ import {
   knowledgeGraphRoutes,
   learningRoutes,
   localLLMRouter,
+  recurringTaskRoutes,
 } from './routes';
 
 // Import shared database client
@@ -171,6 +172,7 @@ app.use(settingsRoutes);
 app.use(tempStatisticsRoutes);
 app.use(taskStatisticsRoutes);
 app.use(tasksRoutes);
+app.use(recurringTaskRoutes);
 app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);

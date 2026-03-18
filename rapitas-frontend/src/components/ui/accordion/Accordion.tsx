@@ -18,7 +18,7 @@ type AccordionContextType = {
 
 const AccordionContext = createContext<AccordionContextType | null>(null);
 
-function useAccordionContext() {
+export function useAccordionContext() {
   const context = useContext(AccordionContext);
   if (!context) {
     throw new Error('Accordion components must be used within an Accordion');

@@ -18,6 +18,7 @@ export { tempStatisticsRoutes } from './tasks/temp-statistics';
 export { taskDependencyRoutes } from './tasks/task-dependency';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';
+export { recurringTaskRoutes } from './tasks/recurring-tasks';
 
 // Agents
 export { approvalsRoutes } from './agents/approvals';
