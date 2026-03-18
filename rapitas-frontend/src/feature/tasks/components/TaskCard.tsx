@@ -8,7 +8,7 @@ import {
   statusConfig,
   renderStatusIcon,
 } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Copy, Trash2, Edit } from 'lucide-react';
+import { ExternalLink, Tag, Copy, Trash2, Edit, Repeat } from 'lucide-react';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/IconData';
 import { useToast } from '@/components/ui/toast/ToastContainer';
@@ -367,6 +367,23 @@ const TaskCard = memo(function TaskCard({
                 {task.title}
               </h3>
               <PriorityIcon priority={task.priority} size="md" />
+
+              {task.isRecurring && (
+                <Repeat
+                  size={14}
+                  className="text-indigo-500 dark:text-indigo-400 shrink-0"
+                  title="繰り返しタスク"
+                />
+              )}
+
+              {task.sourceTaskId && (
+                <span
+                  className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0"
+                  title="繰り返しから生成されたタスク"
+                >
+                  🔄
+                </span>
+              )}
 
               {executionClasses && (
                 <div

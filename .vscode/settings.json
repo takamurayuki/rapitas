@@ -1,4 +1,10 @@
 {
+  "json.schemas": [
+    {
+      "fileMatch": ["**/tauri*.conf.json"],
+      "url": "https://schema.tauri.app/config/2"
+    }
+  ],
   "typescript.tsdk": "rapitas-frontend/node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true
 }

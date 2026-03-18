@@ -1,0 +1,6 @@
+{
+  "identifier": "com.rapitas.app",
+  "build": {
+    "beforeDevCommand": "node scripts/dev.js --watch"
+  }
+}

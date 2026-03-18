@@ -129,6 +129,10 @@ model Task {
   isRecurring           Boolean   @default(false) // Whether this is a recurring master task
   recurrenceRule        String?   // RRULE format: "FREQ=DAILY;INTERVAL=1"
   recurrenceEndAt       DateTime? // When recurrence ends (null = indefinite)
+  recurrenceTime        String?   // Time of day to execute (HH:MM format, default: "00:00")
+  recurrenceCount       Int       @default(0) // Number of times this task has been generated
+  lastGeneratedAt       DateTime? // Last time a task instance was generated
+  inheritWorkflowFiles  Boolean   @default(true) // Whether to inherit workflow files from previous execution
   sourceTaskId          Int?      // For generated tasks: ID of the master task
   sourceTask            Task?     @relation("RecurringSource", fields: [sourceTaskId], references: [id], onDelete: SetNull)
   generatedTasks        Task[]    @relation("RecurringSource")

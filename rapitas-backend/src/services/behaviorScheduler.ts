@@ -88,6 +88,18 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
+    // Process recurring tasks every hour
+    const recurringTaskInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getMinutes() === 0) {
+        const currentHour = now.getHours();
+        log.info(`[BehaviorScheduler] Processing recurring tasks at hour ${currentHour}`);
+        await processAllPendingRecurrences(prisma, currentHour).catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Failed to process recurring tasks');
+        });
+      }
+    }, 60 * 1000);
+
     this.intervalIds.push(
       dailyInterval,
       weeklyInterval,
@@ -96,6 +108,7 @@ export class BehaviorScheduler {
       forgettingSweepInterval,
       knowledgeReminderInterval,
       workflowLearningInterval,
+      recurringTaskInterval,
     );
 
     // Initial execution (at server startup)

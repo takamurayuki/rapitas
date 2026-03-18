@@ -6,6 +6,7 @@
     "dev": "node scripts/dev.js",
     "dev:watch": "node scripts/dev.js --watch",
     "tauri": "tauri dev",
+    "tauri:watch": "tauri dev -c src-tauri/tauri.watch.conf.json",
     "tauri:only": "tauri dev --no-dev-server",
     "build": "tauri build --features custom-protocol -c src-tauri/tauri.build.conf.json",
     "ci:prepare": "node scripts/ci-build.js"
