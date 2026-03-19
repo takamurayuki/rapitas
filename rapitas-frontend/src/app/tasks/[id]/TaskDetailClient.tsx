@@ -38,6 +38,7 @@ import TaskPomodoroButton from './components/TaskPomodoroButton';
 import TaskWorkflowSection from './components/TaskWorkflowSection';
 import TaskEditForm from './components/TaskEditForm';
 import SubtaskSection from './components/SubtaskSection';
+import { TaskDependencyGraph } from '@/components/TaskDependencyGraph';
 import TaskDetailModals from './components/TaskDetailModals';
 
 const logger = createLogger('TaskDetailClient');
@@ -916,6 +917,13 @@ function TaskDetailClient({
                 onTaskUpdated={onTaskUpdated}
                 setTask={setTask}
               />
+            )}
+
+            {/* Dependency graph for tasks with subtasks */}
+            {(task.subtasks?.length ?? 0) >= 2 && (
+              <div className="mb-6">
+                <TaskDependencyGraph themeId={task.themeId || undefined} />
+              </div>
             )}
 
             <SubtaskSection

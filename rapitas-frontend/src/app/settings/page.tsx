@@ -26,6 +26,8 @@ import {
   GeminiIcon,
 } from '@/components/icons/ProviderIcons';
 import { requireAuth } from '@/contexts/AuthContext';
+import { WebhookSettings } from '@/components/WebhookSettings';
+import { MCPSetupGuide } from '@/components/MCPSetupGuide';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('SettingsPage');
@@ -1122,6 +1124,24 @@ function SettingsPage() {
                 <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors" />
               </div>
             </a>
+          </div>
+        </div>
+
+        {/* Integrations Section */}
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs dark:shadow-2xl dark:shadow-black/50 overflow-hidden">
+          <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+              外部連携
+            </h2>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Webhook通知とIDE統合の設定
+            </p>
+          </div>
+          <div className="p-6 space-y-6">
+            <WebhookSettings />
+            <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4">
+              <MCPSetupGuide />
+            </div>
           </div>
         </div>
       </div>

@@ -18,6 +18,8 @@ import { SuggestedTasksWidget } from '@/feature/intelligence/components/Suggeste
 import { KnowledgeReminderWidget } from '@/feature/intelligence/components/KnowledgeReminderWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
+import { ProgressSummaryWidget } from '@/components/ProgressSummaryWidget';
+import { CostOptimizationWidget } from '@/components/CostOptimizationWidget';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';
@@ -202,6 +204,12 @@ export default function DashboardPage() {
             {t('taskComplete')}
           </p>
         </div>
+      </div>
+
+      {/* AI Insights Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <ProgressSummaryWidget />
+        <CostOptimizationWidget />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
