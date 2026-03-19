@@ -129,9 +129,30 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     if (!task) return result;
 
-    // Resolve workingDirectory: AgentExecutionConfig → theme → cwd
+    // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
     const workingDirectory =
-      execConfig.workingDirectory || task.theme?.workingDirectory || getProjectRoot();
+      execConfig.workingDirectory || task.theme?.workingDirectory;
+    if (!workingDirectory) {
+      log.warn(
+        `[workflow] Task ${taskId} rejected: workingDirectory not configured.`,
+      );
+      return {
+        ...result,
+        error:
+          'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+      };
+    }
+    const projectRoot = getProjectRoot();
+    if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+      log.warn(
+        `[workflow] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+      );
+      return {
+        ...result,
+        error:
+          'workingDirectory must not point to the rapitas project itself.',
+      };
+    }
 
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;

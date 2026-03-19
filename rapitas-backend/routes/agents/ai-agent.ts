@@ -4,6 +4,7 @@
  * Aggregates sub-routers and hosts legacy routes not yet migrated to dedicated modules.
  */
 import { Elysia, t } from 'elysia';
+import { join } from 'path';
 import { prisma, getProjectRoot } from '../../config';
 import { createLogger } from '../../config/logger';
 
@@ -1035,6 +1036,7 @@ export const aiAgentRoutes = new Elysia()
                       description: true,
                       theme: {
                         select: {
+                          name: true,
                           workingDirectory: true,
                         },
                       },
@@ -1063,7 +1065,30 @@ export const aiAgentRoutes = new Elysia()
         return { success: false, error: 'Task not found for this execution' };
       }
 
-      const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
+      // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+      const workingDirectory = task.theme?.workingDirectory;
+      if (!workingDirectory) {
+        log.warn(
+          `[resume] Task ${task.id} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+        );
+        return {
+          success: false,
+          error:
+            'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
+        };
+      }
+      // Safety check: workingDirectory must not be the rapitas project itself
+      const projectRoot = getProjectRoot();
+      if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+        log.warn(
+          `[resume] Task ${task.id} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+        );
+        return {
+          success: false,
+          error:
+            'workingDirectory must not point to the rapitas project itself. Please configure a separate project directory.',
+        };
+      }
 
       // Check for in-progress subtasks
       const subtasks = await prisma.task.findMany({
