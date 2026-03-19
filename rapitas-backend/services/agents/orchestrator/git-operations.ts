@@ -822,14 +822,52 @@ export class GitOperations {
    *
    * @param baseDir - The main repository root / メインリポジトリのルート
    * @param worktreePath - Absolute path to the worktree to remove / 削除するworktreeの絶対パス
+   * @param deleteBranch - Whether to delete the associated branch (default: true) / 関連するブランチを削除するか（デフォルト: true）
    */
-  async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
+  async removeWorktree(
+    baseDir: string,
+    worktreePath: string,
+    deleteBranch: boolean = true,
+  ): Promise<void> {
     // NOTE: Validate path before any destructive operation — prevents accidental deletion of .git/ or main repo
     if (!isPathSafeForWorktreeOperation(worktreePath, baseDir)) {
       logger.error(
         `[removeWorktree] REFUSED to remove unsafe path: ${worktreePath} (baseDir: ${baseDir})`,
       );
       return;
+    }
+
+    // Get the branch name associated with this worktree before removing it
+    let branchName: string | null = null;
+    if (deleteBranch) {
+      try {
+        const { stdout } = await execAsync('git worktree list --porcelain', {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+
+        // Parse worktree list to find the branch for this worktree path
+        const entries = stdout.split('\n\n').filter(Boolean);
+        for (const entry of entries) {
+          const pathMatch = entry.match(/^worktree\s+(.+)$/m);
+          const branchMatch = entry.match(/^branch\s+refs\/heads\/(.+)$/m);
+
+          if (pathMatch && branchMatch) {
+            const normalizedEntryPath = normalizePath(pathMatch[1]);
+            const normalizedWorktreePath = normalizePath(worktreePath);
+
+            if (normalizedEntryPath === normalizedWorktreePath) {
+              branchName = branchMatch[1];
+              logger.info(
+                `[removeWorktree] Found branch ${branchName} for worktree ${worktreePath}`,
+              );
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn({ err: error }, `[removeWorktree] Failed to get branch name for worktree`);
+      }
     }
 
     try {
@@ -876,6 +914,39 @@ export class GitOperations {
             `[removeWorktree] Failed to clean up directory: ${worktreePath}`,
           );
         }
+      }
+    }
+
+    // Delete the associated branch if requested and found
+    if (deleteBranch && branchName) {
+      try {
+        // Check if branch is already merged (safe to delete)
+        const { stdout: mergedBranches } = await execAsync('git branch --merged', {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+
+        const isMerged = mergedBranches
+          .split('\n')
+          .some((line) => line.trim() === branchName || line.trim() === `* ${branchName}`);
+
+        if (isMerged) {
+          // Use -d for merged branches (safer)
+          await execAsync(`git branch -d "${branchName}"`, {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.info(`[removeWorktree] Deleted merged branch: ${branchName}`);
+        } else {
+          // Use -D for unmerged branches (force delete)
+          await execAsync(`git branch -D "${branchName}"`, {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          logger.info(`[removeWorktree] Force deleted unmerged branch: ${branchName}`);
+        }
+      } catch (branchError) {
+        logger.warn({ err: branchError }, `[removeWorktree] Failed to delete branch ${branchName}`);
       }
     }
 

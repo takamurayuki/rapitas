@@ -78,6 +78,7 @@ import {
   recurringTaskRoutes,
   mcpRoutes,
   progressSummaryRoutes,
+  gitCleanupRoutes,
 } from './routes';
 
 // Import shared database client
@@ -225,6 +226,7 @@ app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);
 app.use(mcpRoutes);
 app.use(progressSummaryRoutes);
+app.use(gitCleanupRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from './src/services/behaviorScheduler';

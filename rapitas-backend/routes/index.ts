@@ -64,6 +64,7 @@ export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
 export { mcpRoutes } from './system/mcp';
 export { progressSummaryRoutes } from './system/progress-summary';
+export { gitCleanupRoutes } from './system/git-cleanup';
 
 // Workflow
 export { workflowRoutes } from './workflow/workflow';
