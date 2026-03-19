@@ -3,6 +3,7 @@
  *
  * Detects, recovers, and resumes interrupted executions.
  */
+import { join } from 'path';
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput, AgentType } from '../agent-factory';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
@@ -258,8 +259,20 @@ export async function resumeInterruptedExecution(
     throw new Error(`Task not found for execution: ${executionId}`);
   }
 
+  // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
   const workingDirectory =
-    task.theme?.workingDirectory || options.workingDirectory || getProjectRoot();
+    task.theme?.workingDirectory || options.workingDirectory;
+  if (!workingDirectory) {
+    throw new Error(
+      `Task ${task.id} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}". Please set the working directory in theme settings.`,
+    );
+  }
+  const projectRoot = getProjectRoot();
+  if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+    throw new Error(
+      `Task ${task.id} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+    );
+  }
   const claudeSessionId = execution.claudeSessionId;
 
   logger.info(`[RecoveryManager] Resuming interrupted execution ${executionId}`);

@@ -8,6 +8,7 @@ import type {
   WorkflowRoleConfig,
 } from '@/types';
 import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
+import { useLocaleStore } from '@/stores/localeStore';
 import { API_BASE_URL } from '@/utils/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -169,6 +170,7 @@ export default function WorkflowViewer({
   className = '',
 }: WorkflowViewerProps) {
   const [activeTab, setActiveTab] = useState<WorkflowFileType>('research');
+  const locale = useLocaleStore((s) => s.locale);
   const {
     files,
     isLoading,
@@ -302,6 +304,7 @@ export default function WorkflowViewer({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language: locale }),
         },
       );
       const data = await res.json();
@@ -321,7 +324,7 @@ export default function WorkflowViewer({
     } finally {
       setIsAdvancing(false);
     }
-  }, [taskId, refetch, startPolling]);
+  }, [taskId, locale, refetch, startPolling]);
 
   // Stop polling and refetch when status reaches final state
   const prevFetchedStatusRef = useRef<WorkflowStatus | null>(null);

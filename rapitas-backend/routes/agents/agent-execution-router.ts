@@ -1002,7 +1002,28 @@ export const agentExecutionRouter = new Elysia()
         agentWorkerManager.cancelQuestionTimeout(latestExecution.id);
         log.info(`[agent-respond] Cancelled timeout for execution ${latestExecution.id}`);
 
-        const workingDirectory = config.task.theme?.workingDirectory || getProjectRoot();
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        const workingDirectory = config.task.theme?.workingDirectory;
+        if (!workingDirectory) {
+          log.warn(
+            `[agent-respond] Task ${taskId} rejected: workingDirectory not configured for theme "${config.task.theme?.name || 'unknown'}".`,
+          );
+          return {
+            error:
+              'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
+          };
+        }
+        // Safety check: workingDirectory must not be the rapitas project itself
+        const projectRoot = getProjectRoot();
+        if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+          log.warn(
+            `[agent-respond] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          );
+          return {
+            error:
+              'workingDirectory must not point to the rapitas project itself. Please configure a separate project directory.',
+          };
+        }
 
         const result = await agentWorkerManager.executeContinuation(latestExecution.id, response, {
           sessionId: session.id,

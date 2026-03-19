@@ -161,7 +161,7 @@ export class WorkflowOrchestrator {
   /**
    * Execute the next phase of the workflow.
    */
-  async advanceWorkflow(taskId: number): Promise<WorkflowAdvanceResult> {
+  async advanceWorkflow(taskId: number, language: 'ja' | 'en' = 'ja'): Promise<WorkflowAdvanceResult> {
     // Fetch task
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -271,7 +271,7 @@ export class WorkflowOrchestrator {
     }
 
     // Build role context (artifacts from previous phases)
-    const context = await this.buildRoleContext(taskId, transition.role, workflowInfo.dir, task);
+    const context = await this.buildRoleContext(taskId, transition.role, workflowInfo.dir, task, language);
 
     const agentConfig = roleConfig.agentConfig;
     const agentType = agentConfig.agentType;
@@ -299,6 +299,7 @@ export class WorkflowOrchestrator {
           context,
           transition,
           workflowInfo.dir,
+          language,
         );
         return result;
       } else {
@@ -311,6 +312,7 @@ export class WorkflowOrchestrator {
           context,
           transition,
           workflowInfo.dir,
+          language,
         );
         return result;
       }
@@ -334,22 +336,83 @@ export class WorkflowOrchestrator {
     role: WorkflowRole,
     dir: string,
     task: { title: string; description: string | null },
+    language: 'ja' | 'en' = 'ja',
   ): Promise<string> {
-    const taskInfo = `# タスク情報\n- **タイトル**: ${task.title}\n- **説明**: ${task.description || '(なし)'}\n- **タスクID**: ${taskId}`;
+    // Multi-language text definitions
+    const texts = {
+      ja: {
+        taskInfo: `# タスク情報\n- **タイトル**: ${task.title}\n- **説明**: ${task.description || '(なし)'}\n- **タスクID**: ${taskId}`,
+        researcher: {
+          instruction: '上記のタスクについてコードベースを調査してください。',
+          items: '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価',
+          output: '調査結果をresearch.mdとしてMarkdown形式でまとめてください。'
+        },
+        planner: {
+          researchHeader: '# リサーチャーの調査結果 (research.md)',
+          instruction: '上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。'
+        },
+        reviewer: {
+          researchHeader: '# 調査結果 (research.md)',
+          planHeader: '# 実装計画 (plan.md)',
+          instruction: '上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。'
+        },
+        implementer: {
+          researchHeader: '# 調査結果 (research.md)',
+          planHeader: '# 承認済み実装計画 (plan.md)',
+          reviewHeader: '# レビュー指摘事項 (question.md)',
+          instruction: '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。'
+        },
+        verifier: {
+          planHeader: '# 実装計画 (plan.md)',
+          diffHeader: '# 変更差分 (git diff)',
+          instruction: '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。'
+        }
+      },
+      en: {
+        taskInfo: `# Task Information\n- **Title**: ${task.title}\n- **Description**: ${task.description || '(None)'}\n- **Task ID**: ${taskId}`,
+        researcher: {
+          instruction: 'Please investigate the codebase for the above task.',
+          items: 'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar implementations\n- Risk assessment and impact analysis',
+          output: 'Please summarize the research results as research.md in Markdown format.'
+        },
+        planner: {
+          researchHeader: '# Research Results (research.md)',
+          instruction: 'Based on the research results above, please create an implementation plan as plan.md in Markdown format.\n\nDescribe implementation steps in checklist format, including a list of files to be changed, risk assessment, and completion criteria.'
+        },
+        reviewer: {
+          researchHeader: '# Research Results (research.md)',
+          planHeader: '# Implementation Plan (plan.md)',
+          instruction: 'Please review the plan above and create risks, unclear points, and improvement suggestions as question.md in Markdown format. Include at least 5 points of feedback.'
+        },
+        implementer: {
+          researchHeader: '# Research Results (research.md)',
+          planHeader: '# Approved Implementation Plan (plan.md)',
+          reviewHeader: '# Review Feedback (question.md)',
+          instruction: 'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.'
+        },
+        verifier: {
+          planHeader: '# Implementation Plan (plan.md)',
+          diffHeader: '# Changes (git diff)',
+          instruction: 'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\nInclude the completion status of the plan checklist, test results, and quality metrics.'
+        }
+      }
+    };
+
+    const t = texts[language];
+    const taskInfo = t.taskInfo;
 
     switch (role) {
       case 'researcher': {
-        return `${taskInfo}\n\n上記のタスクについてコードベースを調査してください。\n\n調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価\n\n調査結果をresearch.mdとしてMarkdown形式でまとめてください。`;
+        return `${taskInfo}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
       }
 
       case 'planner': {
         const research = await readWorkflowFile(dir, 'research');
         let ctx = taskInfo;
         if (research) {
-          ctx += `\n\n# リサーチャーの調査結果 (research.md)\n\n${research}`;
+          ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
         }
-        ctx +=
-          '\n\n上記の調査結果を基に、実装計画をplan.mdとしてMarkdown形式で作成してください。\n\nチェックリスト形式で実装手順を記述し、変更予定ファイル一覧、リスク評価、完了条件を含めてください。';
+        ctx += `\n\n${t.planner.instruction}`;
         return ctx;
       }
 
@@ -358,13 +421,12 @@ export class WorkflowOrchestrator {
         const research = await readWorkflowFile(dir, 'research');
         let ctx = taskInfo;
         if (research) {
-          ctx += `\n\n# 調査結果 (research.md)\n\n${research}`;
+          ctx += `\n\n${t.reviewer.researchHeader}\n\n${research}`;
         }
         if (plan) {
-          ctx += `\n\n# 実装計画 (plan.md)\n\n${plan}`;
+          ctx += `\n\n${t.reviewer.planHeader}\n\n${plan}`;
         }
-        ctx +=
-          '\n\n上記の計画をレビューし、リスク・不明点・改善提案をquestion.mdとしてMarkdown形式で作成してください。5つ以上の指摘事項を含めてください。';
+        ctx += `\n\n${t.reviewer.instruction}`;
         return ctx;
       }
 
@@ -374,16 +436,15 @@ export class WorkflowOrchestrator {
         const research = await readWorkflowFile(dir, 'research');
         let ctx = taskInfo;
         if (research) {
-          ctx += `\n\n# 調査結果 (research.md)\n\n${research}`;
+          ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
         }
         if (plan) {
-          ctx += `\n\n# 承認済み実装計画 (plan.md)\n\n${plan}`;
+          ctx += `\n\n${t.implementer.planHeader}\n\n${plan}`;
         }
         if (question) {
-          ctx += `\n\n# レビュー指摘事項 (question.md)\n\n${question}`;
+          ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
         }
-        ctx +=
-          '\n\n上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。';
+        ctx += `\n\n${t.implementer.instruction}`;
         return ctx;
       }
 
@@ -391,7 +452,7 @@ export class WorkflowOrchestrator {
         const plan = await readWorkflowFile(dir, 'plan');
         let ctx = taskInfo;
         if (plan) {
-          ctx += `\n\n# 実装計画 (plan.md)\n\n${plan}`;
+          ctx += `\n\n${t.verifier.planHeader}\n\n${plan}`;
         }
         // Get git diff if available
         try {
@@ -402,13 +463,12 @@ export class WorkflowOrchestrator {
             timeout: 10000,
           });
           if (diff.trim()) {
-            ctx += `\n\n# 変更差分 (git diff)\n\n\`\`\`diff\n${diff.substring(0, 50000)}\n\`\`\``;
+            ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diff.substring(0, 50000)}\n\`\`\``;
           }
         } catch {
           // Continue even if git diff fails
         }
-        ctx +=
-          '\n\n上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。';
+        ctx += `\n\n${t.verifier.instruction}`;
         return ctx;
       }
 
@@ -428,6 +488,7 @@ export class WorkflowOrchestrator {
     context: string,
     transition: RoleTransition,
     workflowDir: string,
+    language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
@@ -448,26 +509,57 @@ export class WorkflowOrchestrator {
       ? join(workflowDir, `${transition.outputFile}.md`).replace(/\\/g, '/')
       : null;
 
-    // Build prompt
+    // Multi-language text definitions for CLI instructions
+    const cliTexts = {
+      ja: {
+        systemHeader: '## システム指示',
+        fileHeader: '## 重要: 結果ファイルの保存',
+        fileInstruction: '調査・分析が完了したら、結果を以下のAPI経由で保存してください。',
+        noRootFiles: '**プロジェクトルートには絶対にファイルを作成しないでください。**',
+        apiCommand: '**API保存コマンド**:',
+        contentPlaceholder: '# ファイル内容をここに記述',
+        prohibitions: '**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。',
+        mandatory: '必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。'
+      },
+      en: {
+        systemHeader: '## System Instructions',
+        fileHeader: '## Important: Saving Result Files',
+        fileInstruction: 'After completing the research/analysis, please save the results via the following API.',
+        noRootFiles: '**Never create files in the project root directory.**',
+        apiCommand: '**API Save Command**:',
+        contentPlaceholder: '# Write file content here',
+        prohibitions: '**Prohibited**: Direct file creation to the project root using Write, mkdir, echo, etc. is strictly forbidden.',
+        mandatory: 'Please make sure to save files using the API command above before completing.'
+      }
+    };
+
+    const cliT = cliTexts[language];
+
+    // Build prompt with language instruction
+    const languageInstruction = language === 'ja'
+      ? 'すべての出力（Markdownファイル含む）を日本語で記述してください。'
+      : 'Write all output (including Markdown files) in English.';
     let fullPrompt = '';
     if (systemPrompt) {
-      fullPrompt += `## システム指示\n${systemPrompt}\n\n`;
+      fullPrompt += `${cliT.systemHeader}\n${systemPrompt}\n\n`;
     }
+    // NOTE: Language instruction placed before context so agents see the language requirement early.
+    fullPrompt += `## ${language === 'ja' ? '出力言語' : 'Output Language'}\n${languageInstruction}\n\n`;
     fullPrompt += context;
 
     // Instruct CLI agents to save files via API
     if (outputFilePath) {
-      fullPrompt += `\n\n## 重要: 結果ファイルの保存\n`;
-      fullPrompt += `調査・分析が完了したら、結果を以下のAPI経由で保存してください。\n`;
-      fullPrompt += `**プロジェクトルートには絶対にファイルを作成しないでください。**\n\n`;
-      fullPrompt += `**API保存コマンド**:\n`;
+      fullPrompt += `\n\n${cliT.fileHeader}\n`;
+      fullPrompt += `${cliT.fileInstruction}\n`;
+      fullPrompt += `${cliT.noRootFiles}\n\n`;
+      fullPrompt += `${cliT.apiCommand}\n`;
       fullPrompt += `\`\`\`bash\n`;
       fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
       fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
-      fullPrompt += `  -d '{"content":"# ファイル内容をここに記述"}'`;
+      fullPrompt += `  -d '{"content":"${cliT.contentPlaceholder}"}'`;
       fullPrompt += `\n\`\`\`\n\n`;
-      fullPrompt += `**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。\n`;
-      fullPrompt += `必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。`;
+      fullPrompt += `${cliT.prohibitions}\n`;
+      fullPrompt += `${cliT.mandatory}`;
     }
 
     const result = await orchestrator.executeTask(
@@ -553,7 +645,7 @@ export class WorkflowOrchestrator {
       try {
         // Start verification phase async (return response immediately)
         setTimeout(async () => {
-          await this.advanceWorkflow(taskId);
+          await this.advanceWorkflow(taskId, language);
         }, 1000); // 1s delay to ensure DB updates have committed
       } catch (error) {
         log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');
@@ -581,6 +673,7 @@ export class WorkflowOrchestrator {
     context: string,
     transition: RoleTransition,
     workflowDir: string,
+    language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
     const devConfig = await this.getOrCreateDevConfig(taskId);
     const session = await prisma.agentSession.create({
@@ -608,6 +701,13 @@ export class WorkflowOrchestrator {
         apiKey = await this.decryptApiKey(agentConfig.apiKeyEncrypted);
       }
 
+      // Add language instruction to system prompt
+      const languageInstructions = {
+        ja: 'すべての出力を日本語で記述してください。',
+        en: 'Write all output in English.'
+      };
+      const enhancedSystemPrompt = systemPrompt + '\n\n' + languageInstructions[language];
+
       // Call based on API type
       let output = '';
       const startTime = Date.now();
@@ -616,21 +716,21 @@ export class WorkflowOrchestrator {
         output = await this.callAnthropicAPI(
           apiKey,
           agentConfig.modelId || 'claude-sonnet-4-20250514',
-          systemPrompt,
+          enhancedSystemPrompt,
           context,
         );
       } else if (agentConfig.agentType === 'openai') {
         output = await this.callOpenAIAPI(
           apiKey,
           agentConfig.modelId || 'gpt-4o',
-          systemPrompt,
+          enhancedSystemPrompt,
           context,
         );
       } else if (agentConfig.agentType === 'azure-openai') {
         output = await this.callOpenAIAPI(
           apiKey,
           agentConfig.modelId || 'gpt-4o',
-          systemPrompt,
+          enhancedSystemPrompt,
           context,
           agentConfig.endpoint || undefined,
         );
@@ -682,7 +782,7 @@ export class WorkflowOrchestrator {
         try {
           // Start verification phase async (return response immediately)
           setTimeout(async () => {
-            await this.advanceWorkflow(taskId);
+            await this.advanceWorkflow(taskId, language);
           }, 1000); // 1s delay to ensure DB updates have committed
         } catch (error) {
           log.error({ err: error }, '[WorkflowOrchestrator] Failed to auto-advance to verifier');

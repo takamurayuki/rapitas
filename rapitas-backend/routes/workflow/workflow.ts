@@ -129,9 +129,30 @@ async function performAutoCommitAndPR(taskId: number, verifyContent: string) {
 
     if (!task) return result;
 
-    // Resolve workingDirectory: AgentExecutionConfig → theme → cwd
+    // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
     const workingDirectory =
-      execConfig.workingDirectory || task.theme?.workingDirectory || getProjectRoot();
+      execConfig.workingDirectory || task.theme?.workingDirectory;
+    if (!workingDirectory) {
+      log.warn(
+        `[workflow] Task ${taskId} rejected: workingDirectory not configured.`,
+      );
+      return {
+        ...result,
+        error:
+          'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+      };
+    }
+    const projectRoot = getProjectRoot();
+    if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+      log.warn(
+        `[workflow] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+      );
+      return {
+        ...result,
+        error:
+          'workingDirectory must not point to the rapitas project itself.',
+      };
+    }
 
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
@@ -416,10 +437,11 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
       }
 
       const { dir } = resolved;
-      const parsedBody = body as { content: string };
+      const parsedBody = body as { content: string; language?: 'ja' | 'en' };
       if (!parsedBody?.content && parsedBody?.content !== '') {
         throw new ValidationError('content is required');
       }
+      const fileLanguage = parsedBody?.language || 'ja';
 
       await mkdir(dir, { recursive: true });
 
@@ -526,7 +548,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
               await import('../../services/workflow/workflow-orchestrator');
             const orchestrator = WorkflowOrchestrator.getInstance();
             orchestrator
-              .advanceWorkflow(taskId)
+              .advanceWorkflow(taskId, fileLanguage)
               .then((result) => {
                 log.info(
                   `[Workflow] Auto-advance after auto-approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
@@ -622,10 +644,11 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     try {
       const taskId = parseId(params.taskId, 'task ID');
 
-      const parsedBody = body as { approved: boolean; reason?: string };
+      const parsedBody = body as { approved: boolean; reason?: string; language?: 'ja' | 'en' };
       if (typeof parsedBody?.approved !== 'boolean') {
         throw new ValidationError('approved (boolean) is required');
       }
+      const language = parsedBody?.language || 'ja';
 
       const task = await prisma.task.findUnique({ where: { id: taskId } });
       if (!task) {
@@ -679,7 +702,7 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
           const orchestrator = WorkflowOrchestrator.getInstance();
           // Start implementation phase asynchronously (fire-and-forget)
           orchestrator
-            .advanceWorkflow(taskId)
+            .advanceWorkflow(taskId, language)
             .then((result) => {
               log.info(
                 `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
@@ -760,16 +783,18 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
   })
 
   // Advance to the next workflow phase
-  .post('/workflow/tasks/:taskId/advance', async ({ params, set }) => {
+  .post('/workflow/tasks/:taskId/advance', async ({ params, body, set }) => {
     try {
       const taskId = parseId(params.taskId, 'task ID');
+      const parsedBody = body as { language?: 'ja' | 'en' } | undefined;
+      const language = parsedBody?.language || 'ja';
 
       const { WorkflowOrchestrator } =
         await import('../../services/workflow/workflow-orchestrator');
       const orchestrator = WorkflowOrchestrator.getInstance();
 
       // Start async execution (return response without waiting for result)
-      const resultPromise = orchestrator.advanceWorkflow(taskId);
+      const resultPromise = orchestrator.advanceWorkflow(taskId, language);
 
       // Return synchronous error for immediate failures (validation errors, etc.)
       // Wait 100ms and check if any errors occurred
