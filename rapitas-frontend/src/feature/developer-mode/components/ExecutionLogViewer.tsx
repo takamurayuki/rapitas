@@ -754,37 +754,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     return generateExecutionSummary(logs);
   }, [logs]);
 
-  // Track elapsed time for running status badge
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const startTimeRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (isRunning || status === 'running') {
-      if (!startTimeRef.current) {
-        startTimeRef.current = Date.now();
-      }
-      const interval = setInterval(() => {
-        setElapsedSeconds(
-          Math.floor(
-            (Date.now() - (startTimeRef.current || Date.now())) / 1000,
-          ),
-        );
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-    // NOTE: Keep the final elapsed time visible after completion
-    return undefined;
-  }, [isRunning, status]);
-
-  /**
-   * Format seconds into human-readable elapsed time.
-   */
-  const formatElapsed = useCallback((secs: number): string => {
-    if (secs < 60) return `${secs}秒`;
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}分${s.toString().padStart(2, '0')}秒`;
-  }, []);
 
   // Memoize log content based on view mode
   const logContent = useMemo(() => {
@@ -829,16 +798,13 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     simpleLogEntries,
   ]);
 
-  // Status badge with elapsed time
+  // Status badge
   const statusBadge = useMemo(() => {
-    const elapsed =
-      elapsedSeconds > 0 ? ` (${formatElapsed(elapsedSeconds)})` : '';
-
     if (isRunning || status === 'running') {
       return (
         <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">
           <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-          実行中{elapsed}
+          実行中
         </span>
       );
     }
@@ -846,7 +812,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
           <Square className="w-3 h-3" />
-          停止{elapsed}
+          停止
         </span>
       );
     }
@@ -854,7 +820,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
           <CheckCircle2 className="w-3 h-3" />
-          完了{elapsed}
+          完了
         </span>
       );
     }
@@ -862,12 +828,12 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       return (
         <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
           <AlertCircle className="w-3 h-3" />
-          失敗{elapsed}
+          失敗
         </span>
       );
     }
     return null;
-  }, [isRunning, status, elapsedSeconds, formatElapsed]);
+  }, [isRunning, status]);
 
   if (collapsible && !isExpanded && logs.length > 0) {
     return (
@@ -1102,14 +1068,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                 </div>
               </div>
             )}
-            {(isRunning || status === 'running') && logs.length > 0 && (
-              <div className="flex justify-center mt-4">
-                <div className="flex items-center gap-2 text-blue-400">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                  <span className="text-sm">実行中...</span>
-                </div>
-              </div>
-            )}
             {executionSummary &&
               (status === 'completed' || status === 'failed') && (
                 <ExecutionSummaryCard
@@ -1125,9 +1083,6 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 実行ログを取得中...
               </span>
-            )}
-            {(isRunning || status === 'running') && logs.length > 0 && (
-              <span className="inline-flex w-2 h-4 bg-green-400 ml-1 animate-pulse" />
             )}
           </pre>
         )}
