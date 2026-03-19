@@ -348,7 +348,34 @@ export const agentExecutionRouter = new Elysia()
         });
       }
 
-      const workDir = workingDirectory || task.theme?.workingDirectory || getProjectRoot();
+      // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+      const workDir = workingDirectory || task.theme?.workingDirectory;
+      if (!workDir) {
+        log.error(
+          `[API] Task ${taskIdNum} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+        );
+        context.set.status = 400;
+        return earlyReturnWithLockRelease({
+          error:
+            'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
+        });
+      }
+
+      // Safety check: workingDirectory must not be the rapitas project itself
+      const projectRoot = getProjectRoot();
+      if (workDir === projectRoot || workDir.startsWith(join(projectRoot, 'rapitas-'))) {
+        log.error(
+          `[API] Task ${taskIdNum} rejected: workingDirectory points to rapitas project itself (${workDir}).`,
+        );
+        context.set.status = 400;
+        return earlyReturnWithLockRelease({
+          error:
+            'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
+        });
+      }
+
+      log.info(`[API] Executing task ${taskIdNum} in working directory: ${workDir}`);
+      log.info(`[API] Theme: ${task.theme?.name || 'none'}, ThemeID: ${task.theme?.id || 'none'}`);
 
       let developerModeConfig = task.developerModeConfig;
       let session;
@@ -1281,7 +1308,40 @@ export const agentExecutionRouter = new Elysia()
         }
 
         const previousExecution = session.agentExecutions[0];
-        const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
+        const workingDirectory = task.theme?.workingDirectory;
+
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        if (!workingDirectory) {
+          log.error(
+            `[continue-execution] Task ${taskId} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+          );
+          return {
+            error:
+              'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
+          };
+        }
+
+        // Safety check: workingDirectory must not be the rapitas project itself
+        const projectRoot = getProjectRoot();
+        if (
+          workingDirectory === projectRoot ||
+          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+        ) {
+          log.error(
+            `[continue-execution] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          );
+          return {
+            error:
+              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
+          };
+        }
+
+        log.info(
+          `[continue-execution] Continuing task ${taskId} in working directory: ${workingDirectory}`,
+        );
+        log.info(
+          `[continue-execution] Theme: ${task.theme?.name || 'none'}, ThemeID: ${task.theme?.id || 'none'}`,
+        );
 
         // NOTE: Reuse existing worktree if available, otherwise create a new one
         let executionDir = (session as Record<string, unknown>).worktreePath as string | null;

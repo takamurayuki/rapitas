@@ -328,7 +328,19 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           return {
             success: true,
             data: {
-              nodes: n ? [{ id: n.id, title: n.title, depth: 0, independenceScore: 100, parallelizability: 100, status: 'pending', files: n.files || [] }] : [],
+              nodes: n
+                ? [
+                    {
+                      id: n.id,
+                      title: n.title,
+                      depth: 0,
+                      independenceScore: 100,
+                      parallelizability: 100,
+                      status: 'pending',
+                      files: n.files || [],
+                    },
+                  ]
+                : [],
               edges: [],
               groups: [],
             },
@@ -506,12 +518,48 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           };
         }
 
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        const workingDirectory = task.theme?.workingDirectory;
+        if (!workingDirectory) {
+          log.error(
+            `[parallel-start] Task ${taskId} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+          );
+          return {
+            success: false,
+            error:
+              'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
+          };
+        }
+
+        // Safety check: workingDirectory must not be the rapitas project itself
+        const projectRoot = getProjectRoot();
+        if (
+          workingDirectory === projectRoot ||
+          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+        ) {
+          log.error(
+            `[parallel-start] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          );
+          return {
+            success: false,
+            error:
+              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
+          };
+        }
+
+        log.info(
+          `[parallel-start] Starting parallel session for task ${taskId} in working directory: ${workingDirectory}`,
+        );
+        log.info(
+          `[parallel-start] Theme: ${task.theme?.name || 'none'}, ThemeID: ${task.theme?.id || 'none'}`,
+        );
+
         const executor = getParallelExecutor();
         const session = await executor.startSession(
           taskId,
           analysisResult.plan,
           analysisResult.treeMap.nodes,
-          task.theme?.workingDirectory || getProjectRoot(),
+          workingDirectory,
         );
 
         return {
@@ -876,9 +924,37 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
 
         if (!task) return { success: false, error: 'タスクが見つかりません' };
 
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        const workingDirectory = task.theme?.workingDirectory;
+        if (!workingDirectory) {
+          log.error(
+            `[create-pr] Task ${taskId} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+          );
+          return {
+            success: false,
+            error:
+              'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+          };
+        }
+
+        // Safety check: workingDirectory must not be the rapitas project itself
+        const projectRoot = getProjectRoot();
+        if (
+          workingDirectory === projectRoot ||
+          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+        ) {
+          log.error(
+            `[create-pr] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          );
+          return {
+            success: false,
+            error:
+              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
+          };
+        }
+
         const latestSession = task.developerModeConfig?.agentSessions?.[0];
         const branchName = latestSession?.branchName;
-        const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
 
         if (!branchName) return { success: false, error: 'ブランチが見つかりません' };
 
@@ -991,7 +1067,34 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
         if (!task.githubPrId)
           return { success: false, error: 'PRが見つかりません。先にPRを作成してください。' };
 
-        const workingDirectory = task.theme?.workingDirectory || getProjectRoot();
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        const workingDirectory = task.theme?.workingDirectory;
+        if (!workingDirectory) {
+          log.error(
+            `[approve-merge] Task ${taskId} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}".`,
+          );
+          return {
+            success: false,
+            error:
+              'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+          };
+        }
+
+        // Safety check: workingDirectory must not be the rapitas project itself
+        const projectRoot = getProjectRoot();
+        if (
+          workingDirectory === projectRoot ||
+          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+        ) {
+          log.error(
+            `[approve-merge] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          );
+          return {
+            success: false,
+            error:
+              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
+          };
+        }
         const gitOps = new GitOperations();
 
         const mergeResult = await gitOps.mergePullRequest(
