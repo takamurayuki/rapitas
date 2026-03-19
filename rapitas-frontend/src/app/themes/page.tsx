@@ -93,7 +93,7 @@ const defaultFormData: FormData = {
   isDevelopment: false,
   repositoryUrl: '',
   workingDirectory: '',
-  defaultBranch: 'main',
+  defaultBranch: 'develop',
   categoryId: null,
 };
 
@@ -121,6 +121,47 @@ export default function ThemesPage() {
     null,
   );
   const [initialCategorySet, setInitialCategorySet] = useState(false);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [branchError, setBranchError] = useState<string | null>(null);
+
+  const fetchBranches = async (repoUrl: string) => {
+    if (!repoUrl.trim()) {
+      setBranches([]);
+      setBranchError(null);
+      return;
+    }
+
+    setLoadingBranches(true);
+    setBranchError(null);
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/themes/branches?repositoryUrl=${encodeURIComponent(repoUrl)}`,
+      );
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setBranches(data.branches || []);
+        // Auto-select first branch if current defaultBranch is not in the list
+        if (
+          data.branches.length > 0 &&
+          !data.branches.includes(formData.defaultBranch)
+        ) {
+          setFormData({ ...formData, defaultBranch: data.branches[0] });
+        }
+      } else {
+        setBranchError(data.message || 'ブランチの取得に失敗しました');
+        setBranches([]);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch branches:', error);
+      setBranchError('ブランチの取得中にエラーが発生しました');
+      setBranches([]);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
 
   const checkDirectory = async (dirPath: string) => {
     if (!dirPath.trim()) {
@@ -143,6 +184,18 @@ export default function ThemesPage() {
         exists: data.valid,
         isGitRepo: data.isGitRepo || false,
       });
+
+      // Auto-fill repository URL if detected and form is empty (new theme creation)
+      if (
+        data.valid &&
+        data.remoteUrl &&
+        !formData.repositoryUrl &&
+        !editingId
+      ) {
+        setFormData({ ...formData, repositoryUrl: data.remoteUrl });
+        // Also fetch branches for the detected repository
+        fetchBranches(data.remoteUrl);
+      }
 
       if (!data.valid) {
         setShowCreateFolder(true);
@@ -419,7 +472,7 @@ export default function ThemesPage() {
       isDevelopment: item.isDevelopment || false,
       repositoryUrl: item.repositoryUrl || '',
       workingDirectory: item.workingDirectory || '',
-      defaultBranch: item.defaultBranch || 'main',
+      defaultBranch: item.defaultBranch || 'develop',
       categoryId: item.categoryId ?? null,
     });
     setIconSearchQuery('');
@@ -429,6 +482,13 @@ export default function ThemesPage() {
       setDirStatus({ checking: false, exists: null, isGitRepo: false });
       setShowCreateFolder(false);
     }
+    // Fetch branches if repository URL exists
+    if (item.isDevelopment && item.repositoryUrl) {
+      fetchBranches(item.repositoryUrl);
+    } else {
+      setBranches([]);
+      setBranchError(null);
+    }
   };
 
   const resetForm = () => {
@@ -437,6 +497,8 @@ export default function ThemesPage() {
     setDirStatus({ checking: false, exists: null, isGitRepo: false });
     setShowCreateFolder(false);
     setNewFolderName('');
+    setBranches([]);
+    setBranchError(null);
   };
 
   const cancelEdit = () => {
@@ -722,12 +784,33 @@ export default function ThemesPage() {
               <input
                 type="text"
                 value={formData.repositoryUrl}
-                onChange={(e) =>
-                  setFormData({ ...formData, repositoryUrl: e.target.value })
-                }
+                onChange={(e) => {
+                  const newUrl = e.target.value;
+                  setFormData({ ...formData, repositoryUrl: newUrl });
+                  // Fetch branches when URL is entered
+                  if (newUrl.trim()) {
+                    fetchBranches(newUrl);
+                  } else {
+                    setBranches([]);
+                    setBranchError(null);
+                  }
+                }}
+                onBlur={(e) => {
+                  // Fetch branches on blur if not already loaded
+                  const url = e.target.value.trim();
+                  if (url && branches.length === 0 && !loadingBranches) {
+                    fetchBranches(url);
+                  }
+                }}
                 placeholder="https://github.com/username/repository"
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
+              {dirStatus.isGitRepo && formData.repositoryUrl && !editingId && (
+                <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  リポジトリURLを自動検出しました
+                </p>
+              )}
             </div>
 
             <div>
@@ -843,16 +926,54 @@ export default function ThemesPage() {
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
                 <GitBranch className="w-3.5 h-3.5" />
                 {t('defaultBranch')}
+                {loadingBranches && (
+                  <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                )}
               </label>
-              <input
-                type="text"
-                value={formData.defaultBranch}
-                onChange={(e) =>
-                  setFormData({ ...formData, defaultBranch: e.target.value })
-                }
-                placeholder="main"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-              />
+
+              {branches.length > 0 ? (
+                <select
+                  value={formData.defaultBranch}
+                  onChange={(e) =>
+                    setFormData({ ...formData, defaultBranch: e.target.value })
+                  }
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                >
+                  {branches.map((branch) => (
+                    <option key={branch} value={branch}>
+                      {branch}
+                      {branch === 'develop' && ' (推奨)'}
+                      {branch === 'main' &&
+                        branches.length > 1 &&
+                        ' (GitHub Flow)'}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.defaultBranch}
+                  onChange={(e) =>
+                    setFormData({ ...formData, defaultBranch: e.target.value })
+                  }
+                  placeholder="develop"
+                  disabled={loadingBranches}
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              )}
+
+              {branchError && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {branchError}
+                </p>
+              )}
+
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {branches.length > 0
+                  ? `${branches.length}個のブランチが見つかりました`
+                  : 'リポジトリURLを入力するとブランチ一覧が表示されます'}
+              </p>
             </div>
           </div>
         )}

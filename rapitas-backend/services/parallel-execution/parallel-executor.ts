@@ -467,11 +467,24 @@ export class ParallelExecutor extends EventEmitter {
     logger.info(`[ParallelExecutor] Starting task ${taskId}: ${node.title}`);
 
     try {
+      // Fetch task to get theme information
+      const dbTask = await this.prisma.task.findUnique({
+        where: { id: taskId },
+        include: { theme: true },
+      });
+
+      const repositoryUrl = dbTask?.theme?.repositoryUrl || null;
+
       // NOTE: Create isolated worktree for this task to prevent git conflicts
       let taskWorkDir = workingDirectory;
       try {
         const branchName = `feature/task-${taskId}-parallel`;
-        taskWorkDir = await this.gitOps.createWorktree(workingDirectory, branchName, taskId);
+        taskWorkDir = await this.gitOps.createWorktree(
+          workingDirectory,
+          branchName,
+          taskId,
+          repositoryUrl,
+        );
         this.taskWorktrees.set(taskId, taskWorkDir);
         session.taskBranches.set(taskId, branchName);
         this.conflictDetector.startTracking(taskId, `agent-${taskId}`, taskWorkDir);
@@ -582,7 +595,7 @@ export class ParallelExecutor extends EventEmitter {
         logger.info(`[ParallelExecutor] No previous session found for task ${taskId}`);
       }
 
-      const task: AgentTask = {
+      const agentTask: AgentTask = {
         id: taskId,
         title: node.title,
         description: node.description,
@@ -590,7 +603,7 @@ export class ParallelExecutor extends EventEmitter {
         resumeSessionId: previousSessionId || undefined,
       };
 
-      const result = await this.agentController.executeTask(agentId, task);
+      const result = await this.agentController.executeTask(agentId, agentTask);
 
       // DB（）
       try {

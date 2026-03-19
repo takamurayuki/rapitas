@@ -355,7 +355,7 @@ export class AgentOrchestrator {
     workingDirectory: string,
     title: string,
     body: string,
-    baseBranch: string = 'main',
+    baseBranch?: string,
   ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
     return this.gitOps.createPullRequest(workingDirectory, title, body, baseBranch);
   }
@@ -387,10 +387,16 @@ export class AgentOrchestrator {
    * @param baseDir - Main repository root / メインリポジトリルート
    * @param branchName - Branch to create / 作成するブランチ名
    * @param taskId - Task ID for directory naming / ディレクトリ名用タスクID
+   * @param repositoryUrl - Expected remote URL for validation / 検証用リモートURL
    * @returns Absolute path to the worktree / worktreeの絶対パス
    */
-  async createWorktree(baseDir: string, branchName: string, taskId?: number): Promise<string> {
-    return this.gitOps.createWorktree(baseDir, branchName, taskId);
+  async createWorktree(
+    baseDir: string,
+    branchName: string,
+    taskId?: number,
+    repositoryUrl?: string | null,
+  ): Promise<string> {
+    return this.gitOps.createWorktree(baseDir, branchName, taskId, repositoryUrl);
   }
 
   /**

@@ -19,6 +19,9 @@ import {
 } from '../../services/parallel-execution';
 import { SSEStreamController, getUserFriendlyErrorMessage } from '../../services/sse-utils';
 import { AIOrchestra } from '../../services/workflow/ai-orchestra';
+import { GitOperations } from '../../services/agents/orchestrator/git-operations';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 let parallelExecutor: ReturnType<typeof createParallelExecutor> | null = null;
 

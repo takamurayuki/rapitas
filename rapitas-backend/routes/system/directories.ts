@@ -5,6 +5,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
 export const directoriesRoutes = new Elysia({ prefix: '/directories' })
   // Browse directories
@@ -162,10 +163,29 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
           return { valid: false, error: 'ディレクトリではありません' };
         }
 
+        const isGitRepo = fs.existsSync(path.join(normalizedPath, '.git'));
+        let remoteUrl: string | null = null;
+
+        // Get remote URL if it's a git repository
+        if (isGitRepo) {
+          try {
+            const output = execSync('git remote get-url origin', {
+              cwd: normalizedPath,
+              encoding: 'utf8',
+              timeout: 5000,
+            });
+            remoteUrl = output.trim() || null;
+          } catch {
+            // Remote 'origin' doesn't exist or git command failed
+            remoteUrl = null;
+          }
+        }
+
         return {
           valid: true,
           path: normalizedPath,
-          isGitRepo: fs.existsSync(path.join(normalizedPath, '.git')),
+          isGitRepo,
+          remoteUrl,
         };
       } catch (error) {
         return {

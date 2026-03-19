@@ -150,7 +150,7 @@ async function createCodeReviewApproval(params: {
         log.warn({ err: screenshotErr }, `${logPrefix} Screenshot capture failed (non-fatal)`);
       }
 
-      const screenshotData = saniterModeConfig.findUnique({
+      const devConfig = await prisma.developerModeConfig.findUnique({
         where: { id: configId },
         select: { autoApprove: true },
       });
@@ -173,7 +173,7 @@ async function createCodeReviewApproval(params: {
                 structuredDiff,
                 implementationSummary,
                 executionTimeMs,
-                screenshots: screenshotData,
+                screenshots,
               }) ?? '',
             executionType: 'code_review',
             estimatedChanges: toJsonString({
@@ -426,6 +426,7 @@ export const agentExecutionRouter = new Elysia()
             workDir,
             finalBranchName,
             taskIdNum,
+            task.theme?.repositoryUrl || null,
           );
           log.info(`[API] Created worktree at ${worktreePath} for task ${taskIdNum}`);
         } catch (worktreeError) {
@@ -1292,6 +1293,7 @@ export const agentExecutionRouter = new Elysia()
               workingDirectory,
               session.branchName,
               taskId,
+              task.theme?.repositoryUrl || null,
             );
             await prisma.agentSession.update({
               where: { id: targetSessionId },

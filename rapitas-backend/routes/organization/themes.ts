@@ -340,7 +340,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
             categoryId: devCategory.id,
             isDevelopment: true,
             workingDirectory: projectPath,
-            defaultBranch: 'main',
+            defaultBranch: 'develop',
           },
           include: { category: true },
         });
@@ -390,4 +390,73 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     {
       body: themeSchema.setupFromClaudeMd,
     },
-  );
+  )
+
+  // Get branches from a repository URL
+  .get('/branches', async (context) => {
+    const { query } = context;
+    const repositoryUrl = query.repositoryUrl as string | undefined;
+
+    if (!repositoryUrl) {
+      throw new ValidationError('repositoryUrl パラメータが必要です');
+    }
+
+    // Validate URL format
+    if (!repositoryUrl.match(/^https?:\/\/.+\/.+\.git$|^https?:\/\/.+\/.+$/)) {
+      throw new ValidationError('無効なリポジトリURLです');
+    }
+
+    try {
+      // Use git ls-remote to fetch branches
+      const command = `git ls-remote --heads "${repositoryUrl}"`;
+      const output = execSync(command, {
+        encoding: 'utf8',
+        timeout: 10000, // 10 second timeout
+        maxBuffer: 1024 * 1024, // 1MB buffer
+      });
+
+      // Parse output: format is "hash\trefs/heads/branch-name"
+      const branches = output
+        .trim()
+        .split('\n')
+        .filter((line) => line)
+        .map((line) => {
+          const match = line.match(/refs\/heads\/(.+)$/);
+          return match ? match[1] : null;
+        })
+        .filter((branch): branch is string => branch !== null)
+        .sort((a, b) => {
+          // Sort: develop first, main second, master third, then alphabetically
+          if (a === 'develop') return -1;
+          if (b === 'develop') return 1;
+          if (a === 'main') return -1;
+          if (b === 'main') return 1;
+          if (a === 'master') return -1;
+          if (b === 'master') return 1;
+          return a.localeCompare(b);
+        });
+
+      return {
+        success: true,
+        branches,
+        count: branches.length,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        // Check for common errors
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          throw new NotFoundError('リポジトリが見つかりません');
+        }
+        if (error.message.includes('timeout')) {
+          throw new ValidationError('リポジトリへの接続がタイムアウトしました');
+        }
+        if (error.message.includes('Authentication failed')) {
+          throw new ValidationError(
+            '認証に失敗しました。プライベートリポジトリの場合は、SSH認証が必要です',
+          );
+        }
+        throw new ValidationError(`ブランチ取得中にエラーが発生しました: ${error.message}`);
+      }
+      throw new ValidationError('ブランチ取得中に不明なエラーが発生しました');
+    }
+  });

@@ -184,6 +184,7 @@ class AgentWorker {
             data.baseDir as string,
             data.branchName as string,
             data.taskId as number | undefined,
+            data.repositoryUrl as string | null | undefined,
           );
           break;
 
