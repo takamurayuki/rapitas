@@ -564,6 +564,8 @@ model UserSettings {
   autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
   autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
   autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
+  slackWebhookUrl             String?   // Slack Incoming Webhook URL for notifications
+  discordWebhookUrl           String?   // Discord Webhook URL for notifications
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }

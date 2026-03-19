@@ -30,6 +30,7 @@ import type {
   ParallelExecutionConfig,
 } from './types';
 import type { AgentTask, AgentExecutionResult } from '../agents/base-agent';
+import { findRelatedKnowledge } from '../memory/task-knowledge-extractor';
 import { createLogger } from '../../config/logger';
 
 const logger = createLogger('sub-agent-controller');
@@ -131,6 +132,9 @@ class SubAgent extends EventEmitter {
     );
     logger.info(`[SubAgent ${this.config.agentId}] Log file: ${this.logFilePath}`);
 
+    // NOTE: Build prompt before entering the Promise constructor (async → sync boundary)
+    const prompt = await this.buildPrompt(task);
+
     return new Promise((resolve, reject) => {
       let timeoutCheckInterval: NodeJS.Timeout | null = null;
       let isTimedOut = false;
@@ -148,7 +152,6 @@ class SubAgent extends EventEmitter {
       };
 
       try {
-        const prompt = this.buildPrompt(task);
 
         // Windows
         const isWindows = process.platform === 'win32';
@@ -175,6 +178,13 @@ class SubAgent extends EventEmitter {
         // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
         // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
         args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+
+        // NOTE: Model selection — use task-specific model or fall back to default
+        const modelId = (task as Record<string, unknown>).modelId as string | undefined;
+        if (modelId) {
+          args.push('--model', modelId);
+          logger.info(`[SubAgent ${this.config.agentId}] Using model: ${modelId}`);
+        }
 
         // Windows: UTF-8
         let finalCommand: string;
@@ -718,7 +728,7 @@ class SubAgent extends EventEmitter {
   /**
    * （buildStructuredPrompt）
    */
-  private buildPrompt(task: AgentTask): string {
+  private async buildPrompt(task: AgentTask): Promise<string> {
     if (task.optimizedPrompt) {
       logger.info(
         `[SubAgent ${this.config.agentId}] Using optimized prompt (${task.optimizedPrompt.length} chars)`,
@@ -778,6 +788,25 @@ class SubAgent extends EventEmitter {
         sections.push(analysis.reasoning);
         sections.push('');
       }
+    }
+
+    // NOTE: Inject related knowledge from agent memory to avoid repeating past mistakes
+    try {
+      const knowledge = await findRelatedKnowledge(
+        task.title,
+        task.description,
+        task.themeId,
+        3,
+      );
+      if (knowledge.length > 0) {
+        sections.push('## 過去の知見（エージェントメモリ）');
+        for (const entry of knowledge) {
+          sections.push(`- **${entry.title}**: ${entry.content.slice(0, 200)}`);
+        }
+        sections.push('');
+      }
+    } catch {
+      // NOTE: Knowledge retrieval failure should not block execution
     }
 
     sections.push('## 実行指示');
@@ -925,8 +954,40 @@ export class SubAgentController extends EventEmitter {
       payload: { taskId: task.id, title: task.title },
     });
 
+    const maxRetries = this.config.retryOnFailure ? (this.config.maxRetries || 3) : 0;
+
     try {
-      const result = await agent.execute(task);
+      let result = await agent.execute(task);
+      let retryCount = 0;
+
+      // NOTE: Self-healing loop — retry on retryable failures (test/lint/type errors)
+      while (!result.success && !result.waitingForInput && retryCount < maxRetries) {
+        const failureType = classifyFailure(result.output, result.errorMessage);
+        if (failureType === 'unknown') break;
+
+        retryCount++;
+        logger.info(
+          `[SubAgentController] Task ${task.id} retry ${retryCount}/${maxRetries} (${failureType})`,
+        );
+
+        // NOTE: Inject error context so the agent knows what to fix on the next attempt
+        const errorContext = buildRetryContext(failureType, result.output, result.errorMessage);
+        const retryTask: AgentTask = {
+          ...task,
+          description: `${task.description || task.title}\n\n---\n## 前回の実行で発生したエラー（自動リトライ ${retryCount}/${maxRetries}）\n\n${errorContext}\n\n上記のエラーを修正してタスクを完了してください。`,
+          resumeSessionId: result.claudeSessionId || task.resumeSessionId,
+        };
+
+        const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+        await new Promise((r) => setTimeout(r, delay));
+
+        result = await agent.execute(retryTask);
+      }
+
+      result.retryCount = retryCount;
+      if (!result.success && retryCount > 0) {
+        result.failureType = classifyFailure(result.output, result.errorMessage);
+      }
 
       this.emit(result.success ? 'task_completed' : 'task_failed', {
         agentId,
@@ -945,6 +1006,7 @@ export class SubAgentController extends EventEmitter {
           taskId: task.id,
           success: result.success,
           executionTimeMs: result.executionTimeMs,
+          retryCount,
         },
       });
 
@@ -1118,6 +1180,64 @@ export class SubAgentController extends EventEmitter {
     }
     return taskIds;
   }
+}
+
+/**
+ * Classify a failure from agent output to decide if retry is worthwhile.
+ *
+ * @param output - Agent execution output / エージェント実行出力
+ * @param errorMessage - Error message if any / エラーメッセージ
+ * @returns Failure type or 'unknown' if not retryable / 失敗タイプ
+ */
+function classifyFailure(
+  output: string,
+  errorMessage?: string,
+): 'test_failed' | 'lint_error' | 'type_error' | 'timeout' | 'unknown' {
+  const text = `${output}\n${errorMessage || ''}`;
+
+  if (/\bFAIL\b|test.*fail|failed.*test|× |✕ |FAILED/i.test(text)) {
+    return 'test_failed';
+  }
+  if (/eslint|lint.*error|prettier.*error|lint-staged/i.test(text)) {
+    return 'lint_error';
+  }
+  if (/error TS\d+|type.*error|TypeError|cannot find name/i.test(text)) {
+    return 'type_error';
+  }
+  if (/timed?\s*out|timeout exceeded/i.test(text)) {
+    return 'timeout';
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Build context string for retry prompt so the agent knows what to fix.
+ *
+ * @param failureType - Classified failure type / 分類された失敗タイプ
+ * @param output - Previous execution output / 前回の実行出力
+ * @param errorMessage - Error message / エラーメッセージ
+ * @returns Retry context for prompt injection / プロンプト注入用リトライコンテキスト
+ */
+function buildRetryContext(
+  failureType: string,
+  output: string,
+  errorMessage?: string,
+): string {
+  const errorLines = (output || '')
+    .split('\n')
+    .filter((line) => /error|fail|FAIL|×|✕|warn/i.test(line))
+    .slice(-30)
+    .join('\n');
+
+  const typeLabel: Record<string, string> = {
+    test_failed: 'テスト失敗',
+    lint_error: 'Lintエラー',
+    type_error: '型エラー',
+    timeout: 'タイムアウト',
+  };
+
+  return `**エラー種別**: ${typeLabel[failureType] || failureType}\n${errorMessage ? `**メッセージ**: ${errorMessage}\n` : ''}\n**関連するエラー出力**:\n\`\`\`\n${errorLines || '(出力なし)'}\n\`\`\``;
 }
 
 /**

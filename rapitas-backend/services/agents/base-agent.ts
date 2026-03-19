@@ -58,6 +58,8 @@ export type AgentTask = {
   optimizedPrompt?: string;
   /** Claude Code CLI session ID (used with --resume to continue conversation). */
   resumeSessionId?: string;
+  /** Model ID override for this task (e.g., "claude-sonnet-4-5-20250514"). */
+  modelId?: string;
 };
 
 /**
@@ -90,6 +92,10 @@ export type AgentExecutionResult = {
   questionKey?: import('./question-detection').QuestionKey;
   /** Claude Code CLI session ID (used with --resume to continue conversation). */
   claudeSessionId?: string;
+  /** Number of retry attempts before this result. */
+  retryCount?: number;
+  /** Classified failure reason (for retry decisions). */
+  failureType?: 'test_failed' | 'lint_error' | 'type_error' | 'timeout' | 'unknown';
 };
 
 export type AgentArtifact = {

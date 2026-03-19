@@ -9,6 +9,10 @@ import { UserBehaviorService } from '../src/services/userBehaviorService';
 import { notifyTaskCompleted } from './notification-service';
 import { onGeneratedTaskCompleted } from './recurring-task-service';
 import {
+  analyzeTaskComplexityWithLearning,
+  type TaskComplexityInput,
+} from './workflow/complexity-analyzer';
+import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
@@ -165,6 +169,32 @@ async function createParentTask(
 
   if (createdTask) {
     await UserBehaviorService.recordTaskCreated(createdTask.id, createdTask);
+
+    // NOTE: Auto-assign workflow mode based on complexity analysis + learning history
+    try {
+      const complexityInput: TaskComplexityInput = {
+        title,
+        description: data.description || undefined,
+        estimatedHours: data.estimatedHours || undefined,
+        priority: (data.priority as 'low' | 'medium' | 'high' | 'urgent') || 'medium',
+        labels: [],
+      };
+      const analysis = await analyzeTaskComplexityWithLearning(complexityInput);
+
+      await prisma.task.update({
+        where: { id: createdTask.id },
+        data: {
+          workflowMode: analysis.recommendedMode,
+          complexityScore: analysis.complexityScore,
+        },
+      });
+      logger.info(
+        `[task-service] Auto-assigned workflow mode: ${analysis.recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
+      );
+    } catch (err) {
+      // NOTE: Complexity analysis failure should not block task creation
+      logger.debug({ err }, `[task-service] Complexity analysis failed for task ${createdTask.id}`);
+    }
   }
 
   return createdTask;

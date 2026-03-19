@@ -2,9 +2,11 @@
  * Notification Service
  *
  * Creates notifications and delivers them in real-time via SSE.
+ * Also forwards to external webhooks (Slack/Discord) when configured.
  */
 import { prisma } from '../config/database';
 import { realtimeService } from './realtime-service';
+import { sendWebhookNotification, type WebhookEventType } from './webhook-notification-service';
 
 export type NotificationType =
   | 'task_completed'
@@ -54,9 +56,17 @@ export async function createNotification(params: CreateNotificationParams) {
 }
 
 /**
- * Send a task completion notification.
+ * Send a task completion notification (in-app + external webhooks).
  */
 export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
+  // NOTE: Fire-and-forget webhook — should not block in-app notification
+  void sendWebhookNotification('task_completed', {
+    taskId,
+    taskTitle,
+    message: `タスク「${taskTitle}」が完了しました`,
+    url: `/tasks?taskId=${taskId}`,
+  });
+
   return createNotification({
     type: 'task_completed',
     title: 'タスク完了',
@@ -67,13 +77,22 @@ export async function notifyTaskCompleted(taskId: number, taskTitle: string) {
 }
 
 /**
- * Send an AI execution completion notification.
+ * Send an AI execution completion notification (in-app + external webhooks).
  */
 export async function notifyAgentExecutionCompleted(
   executionId: number,
   taskTitle: string,
   success: boolean,
 ) {
+  const webhookEvent: WebhookEventType = success ? 'task_completed' : 'execution_error';
+  void sendWebhookNotification(webhookEvent, {
+    taskId: executionId,
+    taskTitle,
+    message: success
+      ? `AI実行完了: 「${taskTitle}」`
+      : `AI実行失敗: 「${taskTitle}」`,
+  });
+
   return createNotification({
     type: success ? 'agent_execution_completed' : 'agent_execution_failed',
     title: success ? 'AI実行完了' : 'AI実行失敗',

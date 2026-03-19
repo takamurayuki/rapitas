@@ -62,6 +62,8 @@ export { rateLimitRoutes } from './system/rate-limits';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
+export { mcpRoutes } from './system/mcp';
+export { progressSummaryRoutes } from './system/progress-summary';
 
 // Workflow
 export { workflowRoutes } from './workflow/workflow';
