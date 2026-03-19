@@ -859,7 +859,9 @@ export class ClaudeCodeAgent extends BaseAgent {
 
               // Append any unprocessed data remaining in the lineBuffer
               if (this.lineBuffer.trim()) {
-                errorParts.push(`\n\n【Unprocessed Buffer】\n${this.lineBuffer.trim().slice(-500)}`);
+                errorParts.push(
+                  `\n\n【Unprocessed Buffer】\n${this.lineBuffer.trim().slice(-500)}`,
+                );
               }
 
               // NOTE: Very short execution time suggests a failed session resume
@@ -1365,7 +1367,9 @@ export class ClaudeCodeAgent extends BaseAgent {
     sections.push('## Overview');
     sections.push(`**Task Name:** ${task.title}`);
     sections.push(`**Analysis Summary:** ${analysis.summary}`);
-    sections.push(`**Complexity:** ${complexityLabels[analysis.complexity] || analysis.complexity}`);
+    sections.push(
+      `**Complexity:** ${complexityLabels[analysis.complexity] || analysis.complexity}`,
+    );
     sections.push(`**Estimated Total Hours:** ${analysis.estimatedTotalHours} hours`);
     sections.push('');
 
@@ -1427,12 +1431,21 @@ export class ClaudeCodeAgent extends BaseAgent {
     sections.push('');
     sections.push('1. **Research**: Investigate the codebase and save results as research.md');
     sections.push(
-      '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion. Skip if no unclear points',
+      '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion.',
     );
+    sections.push(
+      '   - **Important**: Prefer multiple-choice questions (2-4 options) for better user experience',
+    );
+    sections.push(
+      '   - Format: "Question text\\nOptions:\\nA) Option 1\\nB) Option 2\\nC) Option 3"',
+    );
+    sections.push('   - Skip questions only if requirements are completely clear');
     sections.push(
       '3. **Planning**: Create and save plan.md reflecting research results and answers. **After saving plan.md, stop implementation here and wait for approval**',
     );
-    sections.push('4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)');
+    sections.push(
+      '4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)',
+    );
     sections.push('5. **Verification**: Save implementation results as verify.md');
     sections.push('');
     sections.push('### How to Save Workflow Files');
@@ -1481,9 +1494,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     sections.push('If you have unclear points, please ask questions.');
     sections.push('');
     sections.push('## Important Notes');
-    sections.push(
-      '- **Do not use plan mode (EnterPlanMode).** Implement code directly.',
-    );
+    sections.push('- **Do not use plan mode (EnterPlanMode).** Implement code directly.');
     sections.push('- Do not stop at planning, make sure to complete file creation and editing.');
     sections.push('- **Never create files in the project root.**');
     sections.push(

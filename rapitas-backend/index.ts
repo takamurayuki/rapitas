@@ -76,6 +76,8 @@ import {
   learningRoutes,
   localLLMRouter,
   recurringTaskRoutes,
+  mcpRoutes,
+  progressSummaryRoutes,
 } from './routes';
 
 // Import shared database client
@@ -221,6 +223,8 @@ app.use(localLLMRouter);
 app.use(experimentsRoutes);
 app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);
+app.use(mcpRoutes);
+app.use(progressSummaryRoutes);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from './src/services/behaviorScheduler';

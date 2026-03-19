@@ -139,6 +139,67 @@ export function AgentExecutionPanel({
   const [branchName, setBranchName] = useState('');
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
+
+  // Parse question to extract options (if multiple-choice format)
+  const parseQuestionOptions = (
+    questionText: string,
+  ): { text: string; options: string[] } | null => {
+    if (!questionText) return null;
+
+    // Match format: "Question text\nOptions:\nA) Option 1\nB) Option 2\n..."
+    const optionsMatch = questionText.match(
+      /(?:オプション|Options?|選択肢)[:：]\s*\n((?:[A-D]\)|[①-④]|\d\))[^\n]+\n?)+/i,
+    );
+
+    if (!optionsMatch) {
+      // Alternative format: "Question?\n1. Option1\n2. Option2"
+      const numMatch = questionText.match(/\n(\d+[.．、]\s*[^\n]+(\n|$))+/);
+      if (numMatch) {
+        const lines = questionText.split('\n');
+        const optionLines: string[] = [];
+        let questionPart = '';
+        let inOptions = false;
+
+        for (const line of lines) {
+          if (/^\d+[.．、]\s*.+/.test(line.trim())) {
+            inOptions = true;
+            optionLines.push(line.trim());
+          } else if (inOptions) {
+            break;
+          } else {
+            questionPart += line + '\n';
+          }
+        }
+
+        if (optionLines.length >= 2) {
+          return {
+            text: questionPart.trim(),
+            options: optionLines.map((l) => l.replace(/^\d+[.．、]\s*/, '')),
+          };
+        }
+      }
+      return null;
+    }
+
+    const questionPart = questionText.substring(0, optionsMatch.index).trim();
+    const optionsPart = optionsMatch[1];
+    const optionLines = optionsPart.split('\n').filter((l) => l.trim());
+
+    const options = optionLines
+      .map((line) => {
+        // Remove prefix like "A)", "1)", "①"
+        return line.replace(/^[A-D]\)|^[①-④]|^\d+\)/, '').trim();
+      })
+      .filter((o) => o);
+
+    if (options.length < 2) return null;
+
+    return {
+      text: questionPart,
+      options,
+    };
+  };
+
   const [followUpInstruction, setFollowUpInstruction] = useState('');
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -149,7 +210,13 @@ export function AgentExecutionPanel({
 
   // PR approval state
   const [prState, setPrState] = useState<{
-    status: 'idle' | 'creating_pr' | 'pr_created' | 'merging' | 'merged' | 'error';
+    status:
+      | 'idle'
+      | 'creating_pr'
+      | 'pr_created'
+      | 'merging'
+      | 'merged'
+      | 'error';
     prUrl?: string;
     prNumber?: number;
     error?: string;
@@ -231,6 +298,10 @@ export function AgentExecutionPanel({
     return detectQuestion();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
+
+  // Parse question to extract options (if multiple-choice format)
+  const questionParsed = question ? parseQuestionOptions(question) : null;
+  const hasOptions = questionParsed && questionParsed.options.length >= 2;
 
   // tool_call questionType indicates a confirmed question
   const isConfirmedQuestion = questionType === 'tool_call';
@@ -575,11 +646,14 @@ export function AgentExecutionPanel({
   const handleCreatePR = async () => {
     setPrState({ status: 'creating_pr' });
     try {
-      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${taskId}/create-pr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseBranch: 'develop' }),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/parallel/tasks/${taskId}/create-pr`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ baseBranch: 'develop' }),
+        },
+      );
       const data = await res.json();
       if (data.success) {
         setPrState({
@@ -602,10 +676,13 @@ export function AgentExecutionPanel({
   const handleApproveMerge = async () => {
     setPrState((prev) => ({ ...prev, status: 'merging' }));
     try {
-      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${taskId}/approve-merge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/parallel/tasks/${taskId}/approve-merge`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
       const data = await res.json();
       if (data.success) {
         setPrState((prev) => ({ ...prev, status: 'merged' }));
@@ -822,9 +899,44 @@ export function AgentExecutionPanel({
                     : 'bg-white/60 dark:bg-zinc-800/60'
                 }`}
               >
-                <p className="text-sm text-amber-800 dark:text-amber-200 font-mono whitespace-pre-wrap">
-                  {question}
+                <p className="text-sm text-amber-800 dark:text-amber-200 font-mono whitespace-pre-wrap mb-3">
+                  {hasOptions ? questionParsed.text : question}
                 </p>
+
+                {/* Multiple choice options */}
+                {hasOptions && (
+                  <div className="grid gap-2 mt-4">
+                    {questionParsed.options.map((option, index) => {
+                      const optionKey = String.fromCharCode(65 + index); // A, B, C, D
+                      const isSelected = userResponse === option;
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setUserResponse(option)}
+                          className={`text-left px-4 py-3 rounded-lg border-2 transition-all duration-200 ${
+                            isSelected
+                              ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100'
+                              : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span
+                              className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                isSelected
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                              }`}
+                            >
+                              {optionKey}
+                            </span>
+                            <span className="text-sm flex-1">{option}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {timeoutCountdown !== null && timeoutCountdown > 0 && (
                 <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
@@ -1092,7 +1204,8 @@ export function AgentExecutionPanel({
             {prState.status === 'merged' && (
               <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
                 <GitMerge className="w-4 h-4" />
-                PR #{prState.prNumber} がマージされました。ローカルのdevelopは最新です。
+                PR #{prState.prNumber}{' '}
+                がマージされました。ローカルのdevelopは最新です。
               </div>
             )}
 

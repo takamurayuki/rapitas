@@ -523,4 +523,101 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
       log.error({ err: error }, 'Error fetching agent detail metrics');
       return { error: 'Failed to fetch agent detail metrics' };
     }
+  })
+
+  /**
+   * Cost optimization insights — compares model performance and suggests cost savings.
+   */
+  .get('/cost-optimization', async () => {
+    try {
+      const executions = await prisma.agentExecution.findMany({
+        where: { status: 'completed', tokensUsed: { gt: 0 } },
+        include: {
+          agentConfig: { select: { modelId: true, agentType: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      });
+
+      // NOTE: Token cost rates per 1K tokens (input+output average estimate)
+      const costPer1kTokens: Record<string, number> = {
+        'claude-opus-4-20250514': 0.025,
+        'claude-sonnet-4-20250514': 0.006,
+        'claude-haiku-4-5-20251001': 0.002,
+        'claude-3-5-sonnet-20241022': 0.006,
+        default: 0.010,
+      };
+
+      type ModelStats = {
+        model: string;
+        executions: number;
+        successCount: number;
+        successRate: number;
+        totalTokens: number;
+        avgTokens: number;
+        avgTimeMs: number;
+        estimatedCost: number;
+      };
+
+      const modelMap = new Map<string, { total: number; success: number; tokens: number; time: number; costs: number }>();
+
+      for (const exec of executions) {
+        const modelId = exec.agentConfig?.modelId || 'unknown';
+        const rate = costPer1kTokens[modelId] || costPer1kTokens['default'];
+        const cost = (exec.tokensUsed / 1000) * rate;
+
+        const existing = modelMap.get(modelId) || { total: 0, success: 0, tokens: 0, time: 0, costs: 0 };
+        existing.total++;
+        if (exec.status === 'completed') existing.success++;
+        existing.tokens += exec.tokensUsed;
+        existing.time += exec.executionTimeMs || 0;
+        existing.costs += cost;
+        modelMap.set(modelId, existing);
+      }
+
+      const modelStats: ModelStats[] = Array.from(modelMap.entries()).map(([model, s]) => ({
+        model,
+        executions: s.total,
+        successCount: s.success,
+        successRate: s.total > 0 ? Math.round((s.success / s.total) * 100) : 0,
+        totalTokens: s.tokens,
+        avgTokens: s.total > 0 ? Math.round(s.tokens / s.total) : 0,
+        avgTimeMs: s.total > 0 ? Math.round(s.time / s.total) : 0,
+        estimatedCost: Math.round(s.costs * 100) / 100,
+      }));
+
+      // Generate optimization suggestions
+      const suggestions: string[] = [];
+      const sorted = [...modelStats].sort((a, b) => b.estimatedCost - a.estimatedCost);
+
+      if (sorted.length >= 2) {
+        const expensive = sorted[0];
+        const cheaper = sorted.find(
+          (s) => s.model !== expensive.model && s.successRate >= expensive.successRate * 0.9,
+        );
+        if (cheaper) {
+          const savings = expensive.estimatedCost - cheaper.estimatedCost;
+          suggestions.push(
+            `${expensive.model}の代わりに${cheaper.model}を使用すると、成功率を維持しながら$${savings.toFixed(2)}の削減が見込めます`,
+          );
+        }
+      }
+
+      const totalCost = modelStats.reduce((sum, s) => sum + s.estimatedCost, 0);
+      const totalTokens = modelStats.reduce((sum, s) => sum + s.totalTokens, 0);
+
+      return {
+        success: true,
+        data: {
+          totalCost: Math.round(totalCost * 100) / 100,
+          totalTokens,
+          totalExecutions: executions.length,
+          modelBreakdown: modelStats,
+          suggestions,
+        },
+      };
+    } catch (error) {
+      log.error({ err: error }, 'Error generating cost optimization insights');
+      return { error: 'Failed to generate cost optimization insights' };
+    }
   });

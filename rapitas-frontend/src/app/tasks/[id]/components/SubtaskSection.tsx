@@ -255,38 +255,34 @@ export default function SubtaskSection({
                     : t('selectAll')}
                 </button>
                 {selectedSubtaskIds.size > 0 && (
-                  <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSetDeleteConfirm('selected');
-                      }}
-                      className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span className="font-mono text-xs font-black tracking-tight">
-                        {t('deleteCount', { count: selectedSubtaskIds.size })}
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSetDeleteConfirm('selected');
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="font-mono text-xs font-black tracking-tight">
+                      {t('deleteCount', { count: selectedSubtaskIds.size })}
+                    </span>
+                  </button>
                 )}
               </>
             )}
             {!isSubtaskSelectionMode && (
-              <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSetDeleteConfirm('all');
-                  }}
-                  className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="font-mono text-xs font-black tracking-tight">
-                    {t('deleteAll')}
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetDeleteConfirm('all');
+                }}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {t('deleteAll')}
+                </span>
+              </button>
             )}
           </div>
         </div>
@@ -301,32 +297,28 @@ export default function SubtaskSection({
               : t('deleteSelectedConfirm', { count: selectedSubtaskIds.size })}
           </p>
           <div className="flex gap-2">
-            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400">
-              <button
-                onClick={
-                  showSubtaskDeleteConfirm === 'all'
-                    ? onDeleteAll
-                    : onDeleteSelected
-                }
-                className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span className="font-mono text-xs font-black tracking-tight">
-                  {t('confirmDelete')}
-                </span>
-              </button>
-            </div>
-            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
-              <button
-                onClick={() => onSetDeleteConfirm(null)}
-                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <span className="font-mono text-xs font-black tracking-tight">
-                  {tc('cancel')}
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={
+                showSubtaskDeleteConfirm === 'all'
+                  ? onDeleteAll
+                  : onDeleteSelected
+              }
+              className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">
+                {t('confirmDelete')}
+              </span>
+            </button>
+            <button
+              onClick={() => onSetDeleteConfirm(null)}
+              className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">
+                {tc('cancel')}
+              </span>
+            </button>
           </div>
         </div>
       )}
@@ -404,31 +396,25 @@ export default function SubtaskSection({
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 pt-1">
-              <div
-                className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 dark:hover:border-emerald-400'}`}
+              <button
+                onClick={onAddSubtask}
+                disabled={!newSubtaskTitle.trim()}
+                className={`flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!newSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600' : 'hover:border-emerald-500 dark:hover:border-emerald-400 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer'}`}
               >
-                <button
-                  onClick={onAddSubtask}
-                  disabled={!newSubtaskTitle.trim()}
-                  className={`flex items-center gap-2 transition-all ${!newSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 cursor-pointer'}`}
-                >
-                  <Check className="w-4 h-4" />
-                  <span className="font-mono text-xs font-black tracking-tight">
-                    {tc('save')}
-                  </span>
-                </button>
-              </div>
-              <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
-                <button
-                  onClick={onCancelAddSubtask}
-                  className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                  <span className="font-mono text-xs font-black tracking-tight">
-                    {tc('cancel')}
-                  </span>
-                </button>
-              </div>
+                <Check className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {tc('save')}
+                </span>
+              </button>
+              <button
+                onClick={onCancelAddSubtask}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+                <span className="font-mono text-xs font-black tracking-tight">
+                  {tc('cancel')}
+                </span>
+              </button>
             </div>
           </div>
         </div>
@@ -555,31 +541,25 @@ export default function SubtaskSection({
 
                   {/* Action buttons */}
                   <div className="flex items-center gap-2 pt-1">
-                    <div
-                      className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!editingSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-green-500 dark:hover:border-green-400'}`}
+                    <button
+                      onClick={onSaveSubtaskEdit}
+                      disabled={!editingSubtaskTitle.trim()}
+                      className={`flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${!editingSubtaskTitle.trim() ? 'opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-600' : 'hover:border-green-500 dark:hover:border-green-400 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'}`}
                     >
-                      <button
-                        onClick={onSaveSubtaskEdit}
-                        disabled={!editingSubtaskTitle.trim()}
-                        className={`flex items-center gap-2 transition-all ${!editingSubtaskTitle.trim() ? 'cursor-not-allowed text-gray-400 dark:text-gray-600' : 'text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer'}`}
-                      >
-                        <Check className="w-4 h-4" />
-                        <span className="font-mono text-xs font-black tracking-tight">
-                          {tc('save')}
-                        </span>
-                      </button>
-                    </div>
-                    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
-                      <button
-                        onClick={onCancelEditingSubtask}
-                        className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
-                      >
-                        <X className="w-4 h-4" />
-                        <span className="font-mono text-xs font-black tracking-tight">
-                          {tc('cancel')}
-                        </span>
-                      </button>
-                    </div>
+                      <Check className="w-4 h-4" />
+                      <span className="font-mono text-xs font-black tracking-tight">
+                        {tc('save')}
+                      </span>
+                    </button>
+                    <button
+                      onClick={onCancelEditingSubtask}
+                      className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                      <span className="font-mono text-xs font-black tracking-tight">
+                        {tc('cancel')}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -708,15 +688,13 @@ export default function SubtaskSection({
                         );
                       },
                     )}
-                    <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
-                      <button
-                        onClick={() => onStartEditingSubtask(subtask)}
-                        className="flex items-center justify-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
-                        title={t('subtaskDetails')}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => onStartEditingSubtask(subtask)}
+                      className="flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+                      title={t('subtaskDetails')}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>

@@ -729,18 +729,45 @@ export class GitOperations {
     const quotedPath = `"${worktreePath}"`;
 
     try {
+      // Check if branch is already in use by another worktree
+      let effectiveBranchName = branchName;
+      try {
+        const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+
+        // Parse worktree list to check if branch is in use
+        const branchInUse = worktreeList.includes(`branch refs/heads/${branchName}`);
+
+        if (branchInUse) {
+          // Branch is already checked out in another worktree — create unique branch name
+          const uniqueSuffix = taskId ? `task-${taskId}` : `wt-${shortId}`;
+          effectiveBranchName = `${branchName}-${uniqueSuffix}`;
+          logger.warn(
+            `[createWorktree] Branch ${branchName} is already in use, using ${effectiveBranchName} instead`,
+          );
+        }
+      } catch (listError) {
+        // If worktree list fails, proceed with original branch name
+        logger.debug(`[createWorktree] Could not check worktree list: ${listError}`);
+      }
+
       // Check if branch already exists
-      const { stdout: existingBranch } = await execAsync(`git branch --list ${branchName}`, {
-        cwd: baseDir,
-        encoding: 'utf8',
-      });
+      const { stdout: existingBranch } = await execAsync(
+        `git branch --list ${effectiveBranchName}`,
+        {
+          cwd: baseDir,
+          encoding: 'utf8',
+        },
+      );
 
       if (existingBranch.trim()) {
         // Branch exists — create worktree with existing branch
         logger.info(
-          `[createWorktree] Branch ${branchName} exists, creating worktree at ${worktreePath}`,
+          `[createWorktree] Branch ${effectiveBranchName} exists, creating worktree at ${worktreePath}`,
         );
-        await execAsync(`git worktree add ${quotedPath} ${branchName}`, {
+        await execAsync(`git worktree add ${quotedPath} ${effectiveBranchName}`, {
           cwd: baseDir,
           encoding: 'utf8',
         });
@@ -766,15 +793,20 @@ export class GitOperations {
 
         // Create worktree with new branch from parent
         logger.info(
-          `[createWorktree] Creating worktree at ${worktreePath} with new branch ${branchName} from ${parentBranch}`,
+          `[createWorktree] Creating worktree at ${worktreePath} with new branch ${effectiveBranchName} from ${parentBranch}`,
         );
-        await execAsync(`git worktree add -b ${branchName} ${quotedPath} ${parentBranch}`, {
-          cwd: baseDir,
-          encoding: 'utf8',
-        });
+        await execAsync(
+          `git worktree add -b ${effectiveBranchName} ${quotedPath} ${parentBranch}`,
+          {
+            cwd: baseDir,
+            encoding: 'utf8',
+          },
+        );
       }
 
-      logger.info(`[createWorktree] Worktree created: ${worktreePath} (branch: ${branchName})`);
+      logger.info(
+        `[createWorktree] Worktree created: ${worktreePath} (branch: ${effectiveBranchName})`,
+      );
       return worktreePath;
     } catch (error) {
       logger.error(
