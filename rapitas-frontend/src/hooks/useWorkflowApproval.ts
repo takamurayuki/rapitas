@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useLocaleStore } from '@/stores/localeStore';
 import { API_BASE_URL } from '@/utils/api';
 
 export function useWorkflowApproval(
@@ -9,6 +10,7 @@ export function useWorkflowApproval(
 ) {
   const [isApproving, setIsApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const locale = useLocaleStore((s) => s.locale);
 
   const approvePlan = useCallback(
     async (approved: boolean, reason?: string) => {
@@ -21,7 +23,7 @@ export function useWorkflowApproval(
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ approved, reason }),
+            body: JSON.stringify({ approved, reason, language: locale }),
           },
         );
 
@@ -46,7 +48,7 @@ export function useWorkflowApproval(
         setIsApproving(false);
       }
     },
-    [taskId, onComplete],
+    [taskId, locale, onComplete],
   );
 
   const clearError = useCallback(() => setError(null), []);
