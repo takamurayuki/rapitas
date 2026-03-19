@@ -169,27 +169,30 @@ export function useDeveloperMode(taskId: number) {
         statusData.executionStatus === 'completed' ||
         statusData.executionStatus === 'failed'
       ) {
-        // Fetch log history
+        // NOTE: statusData.output contains the full output including the initial
+        // "[実行開始]" message, while AgentExecutionLog chunks only contain streaming
+        // output. Use statusData.output as primary source to preserve the initial message.
         let fullOutput = statusData.output || '';
-        try {
-          const logsRes = await fetch(
-            `${API_BASE_URL}/tasks/${taskId}/execution-logs`,
-          );
-          if (logsRes.ok) {
-            const logsData = await logsRes.json();
-            if (logsData.logs && logsData.logs.length > 0) {
-              // Join log chunks to reconstruct full output
-              fullOutput = logsData.logs
-                .map((log: { chunk: string }) => log.chunk)
-                .join('');
-              logger.debug(`Restored ${logsData.logs.length} log chunks`);
+        if (!fullOutput) {
+          try {
+            const logsRes = await fetch(
+              `${API_BASE_URL}/tasks/${taskId}/execution-logs`,
+            );
+            if (logsRes.ok) {
+              const logsData = await logsRes.json();
+              if (logsData.logs && logsData.logs.length > 0) {
+                fullOutput = logsData.logs
+                  .map((log: { chunk: string }) => log.chunk)
+                  .join('');
+                logger.debug(`Restored ${logsData.logs.length} log chunks`);
+              }
             }
+          } catch (logErr) {
+            logger.warn(
+              'Failed to fetch execution logs, using status output:',
+              logErr,
+            );
           }
-        } catch (logErr) {
-          logger.warn(
-            'Failed to fetch execution logs, using status output:',
-            logErr,
-          );
         }
 
         // Update UI state to "running" for running or input-waiting cases
