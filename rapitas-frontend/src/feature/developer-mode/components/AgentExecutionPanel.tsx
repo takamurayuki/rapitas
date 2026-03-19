@@ -15,6 +15,8 @@ import {
   Rocket,
   Bot,
   GitBranch,
+  GitPullRequest,
+  GitMerge,
   Sparkles,
   ChevronDown,
   ChevronUp,
@@ -144,6 +146,14 @@ export function AgentExecutionPanel({
   const hasRestoredRef = useRef(false);
   // Question timeout countdown (remaining seconds)
   const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
+
+  // PR approval state
+  const [prState, setPrState] = useState<{
+    status: 'idle' | 'creating_pr' | 'pr_created' | 'merging' | 'merged' | 'error';
+    prUrl?: string;
+    prNumber?: number;
+    error?: string;
+  }>({ status: 'idle' });
 
   // SSE-based real-time log retrieval
   const {
@@ -557,7 +567,58 @@ export function AgentExecutionPanel({
     clearLogs();
     setSessionId(null); // Reset SSE connection
     hasRestoredRef.current = false; // Allow restoration on next mount
+    setPrState({ status: 'idle' });
     onReset();
+  };
+
+  /** Create a PR for this task's branch. */
+  const handleCreatePR = async () => {
+    setPrState({ status: 'creating_pr' });
+    try {
+      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${taskId}/create-pr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseBranch: 'develop' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPrState({
+          status: 'pr_created',
+          prUrl: data.data.prUrl,
+          prNumber: data.data.prNumber,
+        });
+      } else {
+        setPrState({ status: 'error', error: data.error });
+      }
+    } catch (err) {
+      setPrState({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'PR作成に失敗しました',
+      });
+    }
+  };
+
+  /** Approve and merge the PR, then update local develop. */
+  const handleApproveMerge = async () => {
+    setPrState((prev) => ({ ...prev, status: 'merging' }));
+    try {
+      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${taskId}/approve-merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPrState((prev) => ({ ...prev, status: 'merged' }));
+      } else {
+        setPrState((prev) => ({ ...prev, status: 'error', error: data.error }));
+      }
+    } catch (err) {
+      setPrState((prev) => ({
+        ...prev,
+        status: 'error',
+        error: err instanceof Error ? err.message : 'マージに失敗しました',
+      }));
+    }
   };
 
   // Running or completed with logs
@@ -964,6 +1025,89 @@ export function AgentExecutionPanel({
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* PR Approval Section */}
+          <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/30 dark:bg-indigo-dark-900/20">
+            <div className="flex items-center gap-2 mb-3">
+              <GitPullRequest className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                PR & マージ
+              </span>
+            </div>
+
+            {prState.status === 'idle' && (
+              <button
+                onClick={handleCreatePR}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <GitPullRequest className="w-4 h-4" />
+                PR作成
+              </button>
+            )}
+
+            {prState.status === 'creating_pr' && (
+              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                PR作成中...
+              </div>
+            )}
+
+            {prState.status === 'pr_created' && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  PR #{prState.prNumber} 作成済み
+                  {prState.prUrl && (
+                    <a
+                      href={prState.prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      GitHub で確認
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+                <button
+                  onClick={handleApproveMerge}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <GitMerge className="w-4 h-4" />
+                  承認 & マージ
+                </button>
+              </div>
+            )}
+
+            {prState.status === 'merging' && (
+              <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                マージ中...（ローカルのdevelopも更新されます）
+              </div>
+            )}
+
+            {prState.status === 'merged' && (
+              <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                <GitMerge className="w-4 h-4" />
+                PR #{prState.prNumber} がマージされました。ローカルのdevelopは最新です。
+              </div>
+            )}
+
+            {prState.status === 'error' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                  <AlertCircle className="w-4 h-4" />
+                  {prState.error}
+                </div>
+                <button
+                  onClick={() => setPrState({ status: 'idle' })}
+                  className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                >
+                  リトライ
+                </button>
               </div>
             )}
           </div>

@@ -44,9 +44,7 @@ function isPathSafeForWorktreeOperation(worktreePath: string, baseDir: string): 
 
   // NOTE: Block if path is the main repository root itself — deleting it would destroy .git/
   if (normalizedWT === normalizedBase) {
-    logger.error(
-      `[SAFETY] Blocked operation on main repository root: ${worktreePath}`,
-    );
+    logger.error(`[SAFETY] Blocked operation on main repository root: ${worktreePath}`);
     return false;
   }
 
@@ -60,9 +58,7 @@ function isPathSafeForWorktreeOperation(worktreePath: string, baseDir: string): 
 
   // NOTE: Block if path contains traversal patterns that could escape the worktree directory
   if (worktreePath.includes('..')) {
-    logger.error(
-      `[SAFETY] Blocked operation on path with traversal: ${worktreePath}`,
-    );
+    logger.error(`[SAFETY] Blocked operation on path with traversal: ${worktreePath}`);
     return false;
   }
 
@@ -158,12 +154,13 @@ export class GitOperations {
 
   /**
    * Create a pull request.
+   * Automatically determines base branch (prefer develop, fallback to main) if not specified.
    */
   async createPullRequest(
     workingDirectory: string,
     title: string,
     body: string,
-    baseBranch: string = 'main',
+    baseBranch?: string,
   ): Promise<{
     success: boolean;
     prUrl?: string;
@@ -171,6 +168,31 @@ export class GitOperations {
     error?: string;
   }> {
     try {
+      // Determine base branch if not specified
+      let targetBranch = baseBranch;
+      if (!targetBranch) {
+        try {
+          // Check if develop branch exists
+          const { stdout: developCheck } = await execAsync('git branch --list develop', {
+            cwd: workingDirectory,
+            encoding: 'utf8',
+          });
+          if (developCheck.trim()) {
+            targetBranch = 'develop';
+          } else {
+            // Check if main branch exists, otherwise use master
+            const { stdout: mainCheck } = await execAsync('git branch --list main', {
+              cwd: workingDirectory,
+              encoding: 'utf8',
+            });
+            targetBranch = mainCheck.trim() ? 'main' : 'master';
+          }
+        } catch {
+          targetBranch = 'main';
+        }
+        logger.info(`[createPullRequest] Auto-determined base branch: ${targetBranch}`);
+      }
+
       const ghPath =
         process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
@@ -184,7 +206,7 @@ export class GitOperations {
       });
 
       const { stdout } = await execAsync(
-        `${ghPath} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${baseBranch}`,
+        `${ghPath} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${targetBranch}`,
         { cwd: workingDirectory, encoding: 'utf8' },
       );
 
@@ -197,6 +219,7 @@ export class GitOperations {
 
       const prNumber = prMatch ? parseInt(prMatch[1], 10) : undefined;
 
+      logger.info(`[createPullRequest] Created PR #${prNumber} to ${targetBranch}: ${prUrl}`);
       return { success: true, prUrl, prNumber };
     } catch (error) {
       return {
@@ -523,15 +546,181 @@ export class GitOperations {
   // ==================== Worktree Operations ====================
 
   /**
+   * Ensure a directory is a valid Git repository. Initialize if not.
+   * For new repositories, creates initial commit and develop branch following Git-flow.
+   * Also sets up remote URL if provided.
+   *
+   * @param directory - Directory to check / 確認するディレクトリ
+   * @param repositoryUrl - Repository URL to set as remote origin / remoteのoriginとして設定するリポジトリURL
+   * @returns true if repository exists or was initialized / リポジトリが存在または初期化された場合true
+   */
+  async ensureGitRepository(directory: string, repositoryUrl?: string | null): Promise<boolean> {
+    try {
+      // Check if .git exists
+      await execAsync('git rev-parse --git-dir', {
+        cwd: directory,
+        encoding: 'utf8',
+      });
+      logger.info(`[ensureGitRepository] Git repository already exists at ${directory}`);
+      return true;
+    } catch {
+      // Not a git repository - initialize
+      logger.info(`[ensureGitRepository] Initializing Git repository at ${directory}`);
+      try {
+        // Step 1: Initialize repository
+        await execAsync('git init', {
+          cwd: directory,
+          encoding: 'utf8',
+        });
+        logger.info(`[ensureGitRepository] Git repository initialized at ${directory}`);
+
+        // Step 2: Check if repository has any commits
+        let hasCommits = false;
+        try {
+          await execAsync('git rev-parse HEAD', {
+            cwd: directory,
+            encoding: 'utf8',
+          });
+          hasCommits = true;
+        } catch {
+          hasCommits = false;
+        }
+
+        // Step 3: If no commits, create initial setup following Git-flow
+        if (!hasCommits) {
+          logger.info(
+            `[ensureGitRepository] New repository detected, creating initial commit and develop branch`,
+          );
+
+          // Create initial commit on main branch
+          const { writeFile } = await import('fs/promises');
+          const { join } = await import('path');
+
+          await writeFile(join(directory, '.gitkeep'), '', 'utf8');
+          await execAsync('git add .gitkeep', {
+            cwd: directory,
+            encoding: 'utf8',
+          });
+          await execAsync('git commit -m "Initial commit"', {
+            cwd: directory,
+            encoding: 'utf8',
+          });
+          logger.info(`[ensureGitRepository] Created initial commit`);
+
+          // Create and checkout develop branch
+          await execAsync('git branch develop', {
+            cwd: directory,
+            encoding: 'utf8',
+          });
+          await execAsync('git checkout develop', {
+            cwd: directory,
+            encoding: 'utf8',
+          });
+          logger.info(`[ensureGitRepository] Created and switched to develop branch`);
+
+          // Step 4: Setup remote if repository URL is provided
+          if (repositoryUrl) {
+            await this.validateAndSetupRemote(directory, repositoryUrl);
+            logger.info(`[ensureGitRepository] Remote configured for new repository`);
+          }
+        }
+
+        return true;
+      } catch (error) {
+        logger.error(
+          { err: error },
+          `[ensureGitRepository] Failed to initialize repository at ${directory}`,
+        );
+        return false;
+      }
+    }
+  }
+
+  /**
+   * Validate and setup remote for the repository.
+   * Ensures the remote 'origin' points to the correct repository URL.
+   *
+   * @param directory - Repository directory / リポジトリディレクトリ
+   * @param repositoryUrl - Expected remote URL / 期待されるリモートURL
+   * @returns true if remote is correctly configured / リモートが正しく設定されている場合true
+   */
+  async validateAndSetupRemote(directory: string, repositoryUrl?: string | null): Promise<boolean> {
+    if (!repositoryUrl) {
+      logger.debug(`[validateAndSetupRemote] No repository URL provided, skipping remote setup`);
+      return true;
+    }
+
+    try {
+      // Get current remote URL
+      const { stdout: currentRemote } = await execAsync('git remote get-url origin', {
+        cwd: directory,
+        encoding: 'utf8',
+      });
+
+      const currentUrl = currentRemote.trim();
+      const expectedUrl = repositoryUrl.trim();
+
+      if (currentUrl === expectedUrl) {
+        logger.info(`[validateAndSetupRemote] Remote 'origin' is correctly set to ${expectedUrl}`);
+        return true;
+      }
+
+      // Remote exists but URL is different - update it
+      logger.warn(
+        `[validateAndSetupRemote] Remote URL mismatch! Current: ${currentUrl}, Expected: ${expectedUrl}. Updating...`,
+      );
+      await execAsync(`git remote set-url origin "${expectedUrl}"`, {
+        cwd: directory,
+        encoding: 'utf8',
+      });
+      logger.info(`[validateAndSetupRemote] Updated remote 'origin' to ${expectedUrl}`);
+      return true;
+    } catch {
+      // Remote 'origin' doesn't exist - add it
+      logger.info(`[validateAndSetupRemote] Adding remote 'origin' with URL ${repositoryUrl}`);
+      try {
+        await execAsync(`git remote add origin "${repositoryUrl}"`, {
+          cwd: directory,
+          encoding: 'utf8',
+        });
+        logger.info(`[validateAndSetupRemote] Remote 'origin' added successfully`);
+        return true;
+      } catch (error) {
+        logger.error({ err: error }, `[validateAndSetupRemote] Failed to add remote 'origin'`);
+        return false;
+      }
+    }
+  }
+
+  /**
    * Create a git worktree with a new branch for isolated task execution.
    *
    * @param baseDir - The main repository root / メインリポジトリのルート
    * @param branchName - Branch name to create in the worktree / worktree内に作成するブランチ名
    * @param taskId - Task ID used to generate the worktree directory name / ディレクトリ名生成用タスクID
+   * @param repositoryUrl - Expected remote URL for validation / 検証用の期待されるリモートURL
    * @returns Absolute path to the created worktree / 作成されたworktreeの絶対パス
    * @throws {Error} When git worktree add fails / git worktree addが失敗した場合
    */
-  async createWorktree(baseDir: string, branchName: string, taskId?: number): Promise<string> {
+  async createWorktree(
+    baseDir: string,
+    branchName: string,
+    taskId?: number,
+    repositoryUrl?: string | null,
+  ): Promise<string> {
+    // Step 1: Ensure baseDir is a valid Git repository with remote configured
+    const isRepo = await this.ensureGitRepository(baseDir, repositoryUrl);
+    if (!isRepo) {
+      throw new Error(`Failed to initialize Git repository at ${baseDir}`);
+    }
+
+    // Step 2: Validate and setup remote (in case repository already existed)
+    const isRemoteValid = await this.validateAndSetupRemote(baseDir, repositoryUrl);
+    if (!isRemoteValid && repositoryUrl) {
+      logger.warn(`[createWorktree] Remote validation failed, proceeding anyway`);
+    }
+
+    // Step 3: Create worktree
     const shortId = randomBytes(4).toString('hex');
     const dirName = taskId ? `task-${taskId}-${shortId}` : `wt-${shortId}`;
     const worktreePath = join(baseDir, WORKTREE_DIR, dirName);
@@ -556,11 +745,30 @@ export class GitOperations {
           encoding: 'utf8',
         });
       } else {
-        // Create worktree with new branch
+        // Determine parent branch (prefer develop, fallback to main)
+        let parentBranch = 'develop';
+        try {
+          const { stdout: developCheck } = await execAsync('git branch --list develop', {
+            cwd: baseDir,
+            encoding: 'utf8',
+          });
+          if (!developCheck.trim()) {
+            // develop doesn't exist, try main
+            const { stdout: mainCheck } = await execAsync('git branch --list main', {
+              cwd: baseDir,
+              encoding: 'utf8',
+            });
+            parentBranch = mainCheck.trim() ? 'main' : 'master';
+          }
+        } catch {
+          parentBranch = 'main';
+        }
+
+        // Create worktree with new branch from parent
         logger.info(
-          `[createWorktree] Creating worktree at ${worktreePath} with new branch ${branchName}`,
+          `[createWorktree] Creating worktree at ${worktreePath} with new branch ${branchName} from ${parentBranch}`,
         );
-        await execAsync(`git worktree add -b ${branchName} ${quotedPath}`, {
+        await execAsync(`git worktree add -b ${branchName} ${quotedPath} ${parentBranch}`, {
           cwd: baseDir,
           encoding: 'utf8',
         });

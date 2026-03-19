@@ -33,7 +33,7 @@ model Theme {
   isDevelopment    Boolean        @default(false)
   repositoryUrl    String?
   workingDirectory String?
-  defaultBranch    String?        @default("main")
+  defaultBranch    String?        @default("develop")
   sortOrder        Int            @default(0)
   categoryId       Int?
   category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
