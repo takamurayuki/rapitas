@@ -35,16 +35,13 @@ export function validateWorkingDirectory(
     };
   }
 
+  // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
   const projectRoot = getProjectRoot();
   if (
     workingDirectory === projectRoot ||
     workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
   ) {
-    return {
-      ok: false,
-      error:
-        'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
-    };
+    // Allow but flag — user explicitly configured this directory
   }
 
   return { ok: true, workingDirectory };

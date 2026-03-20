@@ -74,10 +74,10 @@ export async function performAutoCommitAndPR(
       return { ...result, error: 'Task theme must have workingDirectory configured. Please set the working directory in theme settings.' };
     }
 
+    // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
     const projectRoot = getProjectRoot();
     if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
-      log.warn(`[workflow] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`);
-      return { ...result, error: 'workingDirectory must not point to the rapitas project itself.' };
+      log.warn(`[workflow] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding.`);
     }
 
     const latestSession = task.developerModeConfig?.agentSessions?.[0];

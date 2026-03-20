@@ -114,20 +114,15 @@ export const agentResumeRouter = new Elysia()
         };
       }
 
-      // Safety check: workingDirectory must not be the rapitas project itself
+      // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
       const projectRoot = getProjectRoot();
       if (
         workingDirectory === projectRoot ||
         workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
       ) {
         log.warn(
-          `[resume] Task ${task.id} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+          `[resume] Task ${task.id}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding.`,
         );
-        return {
-          success: false,
-          error:
-            'workingDirectory must not point to the rapitas project itself. Please configure a separate project directory.',
-        };
       }
 
       // Check for in-progress subtasks

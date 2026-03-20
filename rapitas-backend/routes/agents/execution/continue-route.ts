@@ -104,16 +104,15 @@ export const continueRoute = new Elysia().post(
         };
       }
 
-      // Safety check: workingDirectory must not be the rapitas project itself
+      // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
       const projectRoot = getProjectRoot();
       if (
         workingDirectory === projectRoot ||
         workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
       ) {
-        return {
-          error:
-            'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
-        };
+        log.warn(
+          `[continue-execution] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding.`,
+        );
       }
 
       log.info(`[continue-execution] Continuing task ${taskId} in: ${workingDirectory}`);
