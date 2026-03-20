@@ -247,10 +247,15 @@ export function useAgentExecution(
         ? pollingStatus
         : props.executionStatus;
 
-  // NOTE: If executionResult already has a terminal status (success is defined),
-  // polling is only fetching logs — the task is NOT actively running.
+  // NOTE: isRestoredTerminal is only true for the initial mount when restoring
+  // a previously completed execution. Once a new execution starts (isExecuting becomes true),
+  // the flag is permanently disabled for the rest of the component lifecycle.
+  const hasExecutedRef = useRef(false);
+  if (isExecuting) hasExecutedRef.current = true;
   const isRestoredTerminal =
-    executionResult?.success !== undefined && !isExecuting;
+    !hasExecutedRef.current &&
+    executionResult?.success !== undefined &&
+    !isExecuting;
 
   // NOTE: waiting_for_input is NOT considered completed
   // For restored terminal executions, derive status immediately from executionResult.

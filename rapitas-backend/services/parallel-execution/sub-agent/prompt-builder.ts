@@ -105,7 +105,8 @@ export async function buildPrompt(agentId: string, task: AgentTask): Promise<str
 
   sections.push('## 実行指示');
   sections.push('上記のタスクを実装してください。');
-  sections.push('不明点がある場合は、質問してください。');
+  sections.push('不明点がある場合は、AskUserQuestionで質問してください。');
+  sections.push('質問時は必ず選択肢（options配列）を提供してください（2-4個）。フリーテキスト入力はAPIキーやパスなどの場合のみ許可。');
   sections.push('');
 
   sections.push('## 注意事項');

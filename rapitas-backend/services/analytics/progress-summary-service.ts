@@ -6,8 +6,6 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { ensureLocalLLM } from '../local-llm/local-llm-manager';
-import { callOllama } from '../../utils/ai-client/ollama-provider';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -55,20 +53,10 @@ export async function generateProgressSummary(days: number = 7): Promise<Progres
     taskDetails.push(detail);
   }
 
-  let summary: string;
-  let highlights: string[];
-
-  try {
-    const { url, model } = await ensureLocalLLM();
-    const aiResult = await generateAISummary(url, model, taskDetails, days, completedTasks.length, totalHours);
-    summary = aiResult.summary;
-    highlights = aiResult.highlights;
-  } catch (error) {
-    // NOTE: LLM unavailable — fall back to template-based summary
-    log.warn({ err: error }, '[ProgressSummary] LLM unavailable, using template');
-    summary = buildTemplateSummary(completedTasks.length, totalHours, days);
-    highlights = taskDetails.slice(0, 3);
-  }
+  // NOTE: Use template-based summary (no LLM call). LLM summarization was removed because
+  // the small local model (Qwen 0.5B) frequently times out and the template output is sufficient.
+  const summary = buildTemplateSummary(completedTasks.length, totalHours, days);
+  const highlights = taskDetails.slice(0, 3);
 
   return {
     period: `${days}日間`,
@@ -82,43 +70,6 @@ export async function generateProgressSummary(days: number = 7): Promise<Progres
       title: t.title,
       completedAt: t.updatedAt,
     })),
-  };
-}
-
-/**
- * Generate AI-powered summary using local LLM.
- */
-async function generateAISummary(
-  url: string,
-  model: string,
-  taskDetails: string[],
-  days: number,
-  count: number,
-  hours: number,
-): Promise<{ summary: string; highlights: string[] }> {
-  const prompt = `以下は過去${days}日間に完了したタスク一覧です（${count}件、合計${hours.toFixed(1)}時間）：
-
-${taskDetails.join('\n')}
-
-上記を3-5行で要約し、主要な成果を3つのハイライトとしてまとめてください。
-
-出力形式:
-SUMMARY: (要約テキスト)
-HIGHLIGHT: (成果1)
-HIGHLIGHT: (成果2)
-HIGHLIGHT: (成果3)`;
-
-  const result = await callOllama(url, model, [{ role: 'user', content: prompt }], undefined, 512);
-
-  const lines = result.content.split('\n');
-  const summaryLine = lines.find((l) => l.startsWith('SUMMARY:'));
-  const highlightLines = lines.filter((l) => l.startsWith('HIGHLIGHT:'));
-
-  return {
-    summary: summaryLine?.replace('SUMMARY:', '').trim() || result.content.slice(0, 300),
-    highlights: highlightLines.length > 0
-      ? highlightLines.map((l) => l.replace('HIGHLIGHT:', '').trim())
-      : [result.content.slice(0, 100)],
   };
 }
 

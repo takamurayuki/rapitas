@@ -55,7 +55,7 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     `## Workflow Steps`,
     `Please execute the task in the following order:`,
     `1. Research → Save research.md`,
-    `2. If unclear points exist, save question.md + AskUserQuestion`,
+    `2. If unclear points exist, save question.md + AskUserQuestion (MUST use multiple-choice options — see Question Format below)`,
     task.autoApprovePlan
       ? `3. Create and save plan.md → **Plan will be auto-approved. Proceed to implementation immediately after saving.**`
       : `3. Create and save plan.md → **Stop implementation and wait for approval**`,
@@ -65,6 +65,14 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     `5. Save verify.md`,
     ``,
     `**ファイル保存API**: \`curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
+    ``,
+    `## Question Format (MANDATORY)`,
+    `When asking questions via AskUserQuestion, you MUST provide multiple-choice options.`,
+    `- Always include 2-4 selectable options`,
+    `- Use this format: provide options array in the AskUserQuestion tool input`,
+    `- Free-text questions are only allowed for truly open-ended inputs (e.g., API keys, custom paths)`,
+    `- For yes/no questions, provide "はい" and "いいえ" as options`,
+    `- For scope/approach questions, provide concrete choices (e.g., "A: minimal change", "B: full refactor")`,
     ``,
     `**Important Notes**:`,
     `- Do not use plan mode (EnterPlanMode), implement code directly. Do not stop at planning, make sure to complete file creation and editing.`,
@@ -178,10 +186,19 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
     '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion.',
   );
   sections.push(
-    '   - **Important**: Prefer multiple-choice questions (2-4 options) for better user experience',
+    '   - **MANDATORY**: Always provide multiple-choice options (2-4 choices) in AskUserQuestion',
   );
   sections.push(
-    '   - Format: "Question text\\nOptions:\\nA) Option 1\\nB) Option 2\\nC) Option 3"',
+    '   - Provide options array in the tool input, NOT as plain text',
+  );
+  sections.push(
+    '   - For yes/no questions: options = ["はい", "いいえ"]',
+  );
+  sections.push(
+    '   - For scope questions: options = ["A: minimal", "B: standard", "C: comprehensive"]',
+  );
+  sections.push(
+    '   - Free-text input is ONLY for open-ended inputs (API keys, custom paths, etc.)',
   );
   sections.push('   - Skip questions only if requirements are completely clear');
   sections.push(

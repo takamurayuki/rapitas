@@ -148,8 +148,18 @@ Investigate and save before writing any code:
 
 #### Step 1.5 — Questions (`question.md`) — optional
 
-If the spec is unclear, save `question.md` and stop.
+If the spec is unclear, save `question.md` and ask via AskUserQuestion.
 Resume only after the user answers.
+
+**Question format rules (MANDATORY):**
+
+- **Always provide multiple-choice options** (2-4 choices) in AskUserQuestion.
+- Use the `options` array in the tool input, not plain text options.
+- Free-text input is ONLY for truly open-ended inputs (API keys, custom file paths, etc.).
+- For yes/no decisions: `options: ["はい", "いいえ"]`
+- For scope decisions: `options: ["A: 最小限の変更", "B: 標準的なリファクタリング", "C: 包括的な再設計"]`
+- For approach decisions: `options: ["方法A: (具体的な説明)", "方法B: (具体的な説明)"]`
+- When multiple independent questions exist, ask them as separate AskUserQuestion calls with individual option sets.
 
 #### Step 2 — Plan (`plan.md`)
 

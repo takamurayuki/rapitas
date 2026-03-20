@@ -62,7 +62,7 @@ export function useAgentExecutionActions(
   agentConfigId: number | null,
   setters: AgentExecutionSetters,
 ): UseAgentExecutionActionsReturn {
-  const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
+  const { setExecutingTask, removeExecutingTask, setTaskLoading, setTaskLoaded } = useExecutionStateStore();
   const { setIsExecuting, setExecutionStatus, setExecutionResult, setError } = setters;
 
   // Ref-based mutex: prevents double execution immediately, bypassing async React state updates
@@ -266,6 +266,10 @@ export function useAgentExecutionActions(
     setError(null);
     removeExecutingTask(taskId);
 
+    // NOTE: Briefly set loading flag to force TaskAISection unmount→remount.
+    // This resets all internal hook state (hasExecutedRef, isRestoring, etc.)
+    setTaskLoading(taskId);
+
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/reset-execution-state`, {
         method: 'POST',
@@ -279,15 +283,15 @@ export function useAgentExecutionActions(
       logger.error('Error resetting execution state:', err);
     }
 
-    // NOTE: Force idle state again after a delay to counteract any in-flight
-    // polling responses that may re-set status to 'completed' before React flushes.
+    // NOTE: Clear loading flag after a brief delay so the component remounts fresh
     setTimeout(() => {
       isExecutingRef.current = false;
       setIsExecuting(false);
       setExecutionStatus('idle');
       setExecutionResult(null);
-    }, 500);
-  }, [taskId, setIsExecuting, setExecutionStatus, setExecutionResult, setError, removeExecutingTask]);
+      setTaskLoaded(taskId);
+    }, 300);
+  }, [taskId, setIsExecuting, setExecutionStatus, setExecutionResult, setError, removeExecutingTask, setTaskLoading, setTaskLoaded]);
 
   /** Cancel execution immediately without waiting for the server. */
   const setExecutionCancelled = useCallback((): void => {

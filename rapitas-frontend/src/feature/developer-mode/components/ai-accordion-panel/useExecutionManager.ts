@@ -326,10 +326,15 @@ export function useExecutionManager({
         ? pollingStatus
         : 'idle';
 
-  // NOTE: executionResult.success being defined means the execution has already reached a terminal state.
-  // In that case, polling is only running to fetch logs — not because the task is actively executing.
+  // NOTE: isRestoredTerminal is only true for the initial mount when restoring
+  // a previously completed execution. Once a new execution starts, the flag is
+  // permanently disabled for the rest of the component lifecycle.
+  const hasExecutedRef = useRef(false);
+  if (isExecuting) hasExecutedRef.current = true;
   const isRestoredTerminal =
-    executionResult?.success !== undefined && !isExecuting;
+    !hasExecutedRef.current &&
+    executionResult?.success !== undefined &&
+    !isExecuting;
 
   // NOTE: For restored terminal executions, derive status from executionResult immediately
   // rather than waiting for polling, to avoid the blank/idle flash.

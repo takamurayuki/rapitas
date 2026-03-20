@@ -240,10 +240,28 @@ export async function executeContinuationInternal(
   });
 
   try {
+    // NOTE: Include the original task context so the agent knows to continue the task,
+    // not just respond to the answer. Without this, the agent treats the user's answer
+    // as the entire task and may immediately complete.
+    const continuationPrompt = [
+      `# 質問への回答を受け取りました。元のタスクの実行を継続してください。`,
+      ``,
+      `## 元のタスク`,
+      `タイトル: ${task?.title || `Task ${taskId}`}`,
+      task?.description ? `説明: ${task.description.slice(0, 500)}` : '',
+      ``,
+      `## ユーザーからの回答`,
+      response,
+      ``,
+      `## 指示`,
+      `上記の回答を踏まえて、元のタスクの実行を継続してください。`,
+      `回答の確認だけで完了せず、タスク本来の作業を最後まで実行してください。`,
+    ].filter(Boolean).join('\n');
+
     const agentTask: AgentTask = {
       id: taskId,
-      title: response,
-      description: response,
+      title: task?.title || `Task ${taskId}`,
+      description: continuationPrompt,
       workingDirectory: task?.workingDirectory || undefined,
     };
 
