@@ -1,259 +1,63 @@
+/**
+ * FlashcardsPage
+ *
+ * Root page component for the flashcards feature. Delegates all state to
+ * useFlashcards and conditionally renders StudyView, DeckView, or DeckListView
+ * based on the current navigation state.
+ */
 'use client';
-import { useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
-import type { FlashcardDeck } from '@/types';
-import {
-  Plus,
-  Trash2,
-  ChevronLeft,
-  RotateCcw,
-  Brain,
-  Check,
-  X,
-  Layers,
-  Sparkles,
-} from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
 
-const logger = createLogger('FlashcardsPage');
+import { useFlashcards } from './useFlashcards';
+import { StudyView } from './StudyView';
+import { DeckView } from './DeckView';
+import { DeckListView } from './DeckListView';
 
 export default function FlashcardsPage() {
-  const t = useTranslations('flashcards');
-  const tc = useTranslations('common');
-  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
-  const [selectedDeck, setSelectedDeck] = useState<FlashcardDeck | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
-  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [isStudyMode, setIsStudyMode] = useState(false);
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [deckName, setDeckName] = useState('');
-  const [deckColor] = useState('#3B82F6');
-  const [cardFront, setCardFront] = useState('');
-  const [cardBack, setCardBack] = useState('');
-  const [generateTopic, setGenerateTopic] = useState('');
-  const [generateCount, setGenerateCount] = useState(10);
-  const [generateDifficulty, setGenerateDifficulty] = useState<
-    'beginner' | 'intermediate' | 'advanced'
-  >('intermediate');
-  const [generateLanguage, setGenerateLanguage] = useState<'ja' | 'en'>('ja');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [schedulePreview, setSchedulePreview] = useState<Record<
-    string,
-    { due: string; interval: number }
-  > | null>(null);
-
-  useEffect(() => {
-    fetchDecks();
-  }, []);
-
-  const fetchDecks = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/flashcard-decks`);
-      if (res.ok) {
-        setDecks(await res.json());
-      }
-    } catch (e) {
-      logger.error('Failed to fetch decks:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDeck = async (id: number) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`);
-      if (res.ok) {
-        setSelectedDeck(await res.json());
-      }
-    } catch (e) {
-      logger.error('Failed to fetch deck:', e);
-    }
-  };
-
-  const handleCreateDeck = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!deckName.trim()) return;
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/flashcard-decks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: deckName, color: deckColor }),
-      });
-      if (res.ok) {
-        fetchDecks();
-        setIsCreateModalOpen(false);
-        setDeckName('');
-      }
-    } catch (e) {
-      logger.error('Failed to create deck:', e);
-    }
-  };
-
-  const handleDeleteDeck = async (id: number) => {
-    if (!confirm(t('confirmDelete'))) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/flashcard-decks/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        fetchDecks();
-        if (selectedDeck?.id === id) {
-          setSelectedDeck(null);
-        }
-      }
-    } catch (e) {
-      logger.error('Failed to delete deck:', e);
-    }
-  };
-
-  const handleAddCard = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cardFront.trim() || !cardBack.trim() || !selectedDeck) return;
-
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/cards`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ front: cardFront, back: cardBack }),
-        },
-      );
-      if (res.ok) {
-        fetchDeck(selectedDeck.id);
-        setIsCardModalOpen(false);
-        setCardFront('');
-        setCardBack('');
-      }
-    } catch (e) {
-      logger.error('Failed to add card:', e);
-    }
-  };
-
-  const handleDeleteCard = async (cardId: number) => {
-    if (!confirm(t('confirmDeleteCard'))) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}`, {
-        method: 'DELETE',
-      });
-      if (res.ok && selectedDeck) {
-        fetchDeck(selectedDeck.id);
-      }
-    } catch (e) {
-      logger.error('Failed to delete card:', e);
-    }
-  };
-
-  const handleReview = async (quality: number) => {
-    if (!selectedDeck?.cards?.[currentCardIndex]) return;
-
-    const card = selectedDeck.cards[currentCardIndex];
-    try {
-      await fetch(`${API_BASE_URL}/flashcards/${card.id}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quality }),
-      });
-
-      setSchedulePreview(null);
-      if (currentCardIndex < (selectedDeck.cards?.length || 0) - 1) {
-        setCurrentCardIndex(currentCardIndex + 1);
-        setIsFlipped(false);
-      } else {
-        // Review session complete
-        setIsStudyMode(false);
-        setCurrentCardIndex(0);
-        fetchDeck(selectedDeck.id);
-      }
-    } catch (e) {
-      logger.error('Failed to review card:', e);
-    }
-  };
-
-  const formatInterval = (dateStr: string): string => {
-    const now = new Date();
-    const due = new Date(dateStr);
-    const diffMs = due.getTime() - now.getTime();
-    const diffMin = Math.round(diffMs / 60000);
-    const diffHours = Math.round(diffMs / 3600000);
-    const diffDays = Math.round(diffMs / 86400000);
-
-    if (diffMin < 1) return '<1m';
-    if (diffMin < 60) return `${diffMin}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    return `${diffDays}d`;
-  };
-
-  const fetchSchedulePreview = async (cardId: number) => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/flashcards/${cardId}/schedule-preview`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setSchedulePreview(data);
-      }
-    } catch (e) {
-      logger.error('Failed to fetch schedule preview:', e);
-      setSchedulePreview(null);
-    }
-  };
-
-  const startStudy = () => {
-    if (!selectedDeck?.cards?.length) return;
-    setCurrentCardIndex(0);
-    setIsFlipped(false);
-    setSchedulePreview(null);
-    setIsStudyMode(true);
-  };
-
-  const handleGenerateCards = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!generateTopic.trim() || !selectedDeck) return;
-
-    setIsGenerating(true);
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/generate`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            topic: generateTopic,
-            count: generateCount,
-            difficulty: generateDifficulty,
-            language: generateLanguage,
-          }),
-        },
-      );
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        fetchDeck(selectedDeck.id);
-        setIsGenerateModalOpen(false);
-        setGenerateTopic('');
-        setGenerateCount(10);
-        setGenerateDifficulty('intermediate');
-      } else {
-        if (data.error === 'API key not configured') {
-          alert(t('apiKeyNotSet'));
-        } else {
-          alert(data.error || t('generationFailed'));
-        }
-      }
-    } catch (e) {
-      logger.error('Failed to generate cards:', e);
-      alert(t('generationFailed'));
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  const {
+    decks,
+    selectedDeck,
+    loading,
+    isCreateModalOpen,
+    isCardModalOpen,
+    isGenerateModalOpen,
+    isStudyMode,
+    currentCardIndex,
+    isFlipped,
+    deckName,
+    cardFront,
+    cardBack,
+    generateTopic,
+    generateCount,
+    generateDifficulty,
+    generateLanguage,
+    isGenerating,
+    schedulePreview,
+    setSelectedDeck,
+    setIsCreateModalOpen,
+    setIsCardModalOpen,
+    setIsGenerateModalOpen,
+    setIsStudyMode,
+    setCurrentCardIndex,
+    setIsFlipped,
+    setDeckName,
+    setCardFront,
+    setCardBack,
+    setGenerateTopic,
+    setGenerateCount,
+    setGenerateDifficulty,
+    setGenerateLanguage,
+    setSchedulePreview,
+    fetchDeck,
+    handleCreateDeck,
+    handleDeleteDeck,
+    handleAddCard,
+    handleDeleteCard,
+    handleReview,
+    fetchSchedulePreview,
+    startStudy,
+    handleGenerateCards,
+    formatInterval,
+  } = useFlashcards();
 
   if (loading) {
     return (
@@ -262,10 +66,7 @@ export default function FlashcardsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
-              />
+              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
             ))}
           </div>
         </div>
@@ -273,526 +74,76 @@ export default function FlashcardsPage() {
     );
   }
 
+  // Study mode takes priority over deck view
   if (isStudyMode && selectedDeck?.cards) {
-    const card = selectedDeck.cards[currentCardIndex];
-    if (!card) return null;
-
     return (
-      <div className="max-w-2xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => {
-              setIsStudyMode(false);
-              setCurrentCardIndex(0);
-            }}
-            className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-          >
-            <ChevronLeft className="w-5 h-5" />
-            {tc('back')}
-          </button>
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {currentCardIndex + 1} / {selectedDeck.cards.length}
-          </span>
-        </div>
-
-        <div
-          onClick={() => {
-            if (!isFlipped) {
-              setIsFlipped(true);
-              fetchSchedulePreview(card.id);
-            } else {
-              setIsFlipped(false);
-              setSchedulePreview(null);
-            }
-          }}
-          className="aspect-3/2 bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center p-8 cursor-pointer transition-all hover:shadow-2xl"
-        >
-          <div className="text-center">
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-4">
-              {isFlipped ? t('answer') : t('question')}
-            </p>
-            <p className="text-2xl font-medium text-zinc-900 dark:text-zinc-50">
-              {isFlipped ? card.back : card.front}
-            </p>
-            {!isFlipped && (
-              <p className="mt-6 text-sm text-zinc-400 dark:text-zinc-500">
-                {t('tapToSeeAnswer')}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {isFlipped && (
-          <div className="mt-6 grid grid-cols-4 gap-3">
-            <button
-              onClick={() => handleReview(1)}
-              className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-            >
-              <X className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs block">{t('forgot')}</span>
-              {schedulePreview?.again && (
-                <span className="text-[10px] opacity-70 block">
-                  {formatInterval(schedulePreview.again.due)}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleReview(3)}
-              className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors"
-            >
-              <RotateCcw className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs block">{t('difficult')}</span>
-              {schedulePreview?.hard && (
-                <span className="text-[10px] opacity-70 block">
-                  {formatInterval(schedulePreview.hard.due)}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleReview(4)}
-              className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-            >
-              <Check className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs block">{t('remembered')}</span>
-              {schedulePreview?.good && (
-                <span className="text-[10px] opacity-70 block">
-                  {formatInterval(schedulePreview.good.due)}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleReview(5)}
-              className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
-            >
-              <Brain className="w-5 h-5 mx-auto mb-1" />
-              <span className="text-xs block">{t('perfect')}</span>
-              {schedulePreview?.easy && (
-                <span className="text-[10px] opacity-70 block">
-                  {formatInterval(schedulePreview.easy.due)}
-                </span>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+      <StudyView
+        deck={selectedDeck}
+        currentCardIndex={currentCardIndex}
+        isFlipped={isFlipped}
+        schedulePreview={schedulePreview}
+        onFlip={() => {
+          setIsFlipped(true);
+          const card = selectedDeck.cards?.[currentCardIndex];
+          if (card) fetchSchedulePreview(card.id);
+        }}
+        onUnflip={() => {
+          setIsFlipped(false);
+          setSchedulePreview(null);
+        }}
+        onReview={handleReview}
+        onExit={() => {
+          setIsStudyMode(false);
+          setCurrentCardIndex(0);
+        }}
+        formatInterval={formatInterval}
+      />
     );
   }
 
   if (selectedDeck) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSelectedDeck(null)}
-              className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: `${selectedDeck.color}20`,
-                color: selectedDeck.color,
-              }}
-            >
-              <Layers className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-                {selectedDeck.name}
-              </h1>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {selectedDeck.cards?.length || 0} {t('cardsCount')}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setIsGenerateModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
-            >
-              <Sparkles className="w-4 h-4" />
-              {t('aiGenerate')}
-            </button>
-            <button
-              onClick={() => setIsCardModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
-            >
-              <Plus className="w-4 h-4" />
-              {t('addCard')}
-            </button>
-            {(selectedDeck.cards?.length || 0) > 0 && (
-              <button
-                onClick={startStudy}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Brain className="w-4 h-4" />
-                {t('startLearning')}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {selectedDeck.cards?.map((card, index) => (
-            <div
-              key={card.id}
-              className="flex items-center gap-4 p-4 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700"
-            >
-              <span className="w-8 h-8 bg-zinc-100 dark:bg-zinc-700 rounded-full flex items-center justify-center text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                {index + 1}
-              </span>
-              <div className="flex-1 grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    {t('question')}
-                  </p>
-                  <p className="text-zinc-900 dark:text-zinc-100">
-                    {card.front}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                    {t('answer')}
-                  </p>
-                  <p className="text-zinc-900 dark:text-zinc-100">
-                    {card.back}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleDeleteCard(card.id)}
-                className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {(!selectedDeck.cards || selectedDeck.cards.length === 0) && (
-          <div className="text-center py-12">
-            <Layers className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400 mb-4">
-              {t('noCards')}
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => setIsGenerateModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Sparkles className="w-4 h-4" />
-                {t('generateWithAi')}
-              </button>
-              <button
-                onClick={() => setIsCardModalOpen(true)}
-                className="px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700"
-              >
-                {t('addManually')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {isCardModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {t('addCardTitle')}
-              </h2>
-              <form onSubmit={handleAddCard} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('questionFront')}
-                  </label>
-                  <textarea
-                    value={cardFront}
-                    onChange={(e) => setCardFront(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('answerBack')}
-                  </label>
-                  <textarea
-                    value={cardBack}
-                    onChange={(e) => setCardBack(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                    required
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCardModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg"
-                  >
-                    {tc('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg"
-                  >
-                    {tc('add')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {isGenerateModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {t('generateTitle')}
-                </h2>
-              </div>
-              <form onSubmit={handleGenerateCards} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('topic')}
-                  </label>
-                  <input
-                    type="text"
-                    value={generateTopic}
-                    onChange={(e) => setGenerateTopic(e.target.value)}
-                    placeholder={t('topicExample')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                    required
-                    disabled={isGenerating}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      {t('generationCount')}
-                    </label>
-                    <select
-                      value={generateCount}
-                      onChange={(e) => setGenerateCount(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                      disabled={isGenerating}
-                    >
-                      <option value={5}>{t('cards5')}</option>
-                      <option value={10}>{t('cards10')}</option>
-                      <option value={15}>{t('cards15')}</option>
-                      <option value={20}>{t('cards20')}</option>
-                      <option value={30}>{t('cards30')}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                      {t('difficulty')}
-                    </label>
-                    <select
-                      value={generateDifficulty}
-                      onChange={(e) =>
-                        setGenerateDifficulty(
-                          e.target.value as
-                            | 'beginner'
-                            | 'intermediate'
-                            | 'advanced',
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-                      disabled={isGenerating}
-                    >
-                      <option value="beginner">{tc('beginner')}</option>
-                      <option value="intermediate">{tc('intermediate')}</option>
-                      <option value="advanced">{tc('advanced')}</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {tc('language')}
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="language"
-                        value="ja"
-                        checked={generateLanguage === 'ja'}
-                        onChange={(e) =>
-                          setGenerateLanguage(e.target.value as 'ja')
-                        }
-                        className="mr-2"
-                        disabled={isGenerating}
-                      />
-                      {tc('japanese')}
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="language"
-                        value="en"
-                        checked={generateLanguage === 'en'}
-                        onChange={(e) =>
-                          setGenerateLanguage(e.target.value as 'en')
-                        }
-                        className="mr-2"
-                        disabled={isGenerating}
-                      />
-                      {tc('english')}
-                    </label>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsGenerateModalOpen(false)}
-                    disabled={isGenerating}
-                    className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg disabled:opacity-50"
-                  >
-                    {tc('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isGenerating}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        {t('generating')}
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        {t('generate')}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
+      <DeckView
+        deck={selectedDeck}
+        isCardModalOpen={isCardModalOpen}
+        isGenerateModalOpen={isGenerateModalOpen}
+        cardFront={cardFront}
+        cardBack={cardBack}
+        generateTopic={generateTopic}
+        generateCount={generateCount}
+        generateDifficulty={generateDifficulty}
+        generateLanguage={generateLanguage}
+        isGenerating={isGenerating}
+        onBack={() => setSelectedDeck(null)}
+        onStartStudy={startStudy}
+        onDeleteCard={handleDeleteCard}
+        onOpenCardModal={() => setIsCardModalOpen(true)}
+        onCloseCardModal={() => setIsCardModalOpen(false)}
+        onOpenGenerateModal={() => setIsGenerateModalOpen(true)}
+        onCloseGenerateModal={() => setIsGenerateModalOpen(false)}
+        onCardFrontChange={setCardFront}
+        onCardBackChange={setCardBack}
+        onGenerateTopicChange={setGenerateTopic}
+        onGenerateCountChange={setGenerateCount}
+        onGenerateDifficultyChange={setGenerateDifficulty}
+        onGenerateLanguageChange={setGenerateLanguage}
+        onAddCard={handleAddCard}
+        onGenerateCards={handleGenerateCards}
+      />
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Brain className="w-8 h-8 text-blue-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus className="w-5 h-5" />
-          {t('newDeck')}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {decks.map((deck) => (
-          <div
-            key={deck.id}
-            onClick={() => fetchDeck(deck.id)}
-            className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 cursor-pointer hover:shadow-lg transition-all"
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div
-                className="w-12 h-12 rounded-lg flex items-center justify-center"
-                style={{
-                  backgroundColor: `${deck.color}20`,
-                  color: deck.color,
-                }}
-              >
-                <Layers className="w-6 h-6" />
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteDeck(deck.id);
-                }}
-                className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-              {deck.name}
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {deck._count?.cards || 0} {t('cardsUnit')}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {decks.length === 0 && (
-        <div className="text-center py-12">
-          <Brain className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400">{t('noDecks')}</p>
-        </div>
-      )}
-
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-              {t('newDeckTitle')}
-            </h2>
-            <form onSubmit={handleCreateDeck} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  {t('deckName')}
-                </label>
-                <input
-                  type="text"
-                  value={deckName}
-                  onChange={(e) => setDeckName(e.target.value)}
-                  placeholder={t('deckExample')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700"
-                  required
-                />
-              </div>
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                <p className="text-sm text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 mt-0.5 shrink-0" />
-                  {t('deckInfo')}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg"
-                >
-                  {tc('cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg"
-                >
-                  {tc('create')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+    <DeckListView
+      decks={decks}
+      isCreateModalOpen={isCreateModalOpen}
+      deckName={deckName}
+      onDeckNameChange={setDeckName}
+      onSelectDeck={fetchDeck}
+      onDeleteDeck={handleDeleteDeck}
+      onOpenCreateModal={() => setIsCreateModalOpen(true)}
+      onCloseCreateModal={() => setIsCreateModalOpen(false)}
+      onCreateDeck={handleCreateDeck}
+    />
   );
 }

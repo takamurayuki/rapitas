@@ -1,215 +1,36 @@
 'use client';
 
+/**
+ * DependencyTree
+ *
+ * Developer-mode panel analysing subtask file dependencies for a given task.
+ * Supports SSE streaming (default) with a REST fallback, and three view modes.
+ */
+
 import { useState, useEffect, useCallback } from 'react';
 import {
   GitBranch,
-  FileCode,
+  RefreshCw,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
-  ChevronRight,
-  ChevronDown,
-  Layers,
-  Zap,
-  Link2,
-  Unlink,
-  Info,
-  RotateCcw,
-  XCircle,
 } from 'lucide-react';
 import { useSSE } from '@/hooks/use-sse';
 import { API_BASE_URL } from '@/utils/api';
-import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { createLogger } from '@/lib/logger';
+import {
+  RetryPanel,
+  RollbackPanel,
+  LoadingPanel,
+  ErrorPanel,
+} from './dependency-tree/DependencyStatusPanels';
+import { TreeView, ListView, GroupsView, SummaryStats } from './dependency-tree/DependencyViews';
+import type { AnalysisResult } from './dependency-tree/types';
 
 const logger = createLogger('DependencyTree');
-
-type DependencyInfo = {
-  taskId: number;
-  title: string;
-  files: string[];
-  dependencies: Array<{
-    taskId: number;
-    title: string;
-    sharedFiles: string[];
-    dependencyScore: number;
-  }>;
-  independenceScore: number;
-  canRunParallel: boolean;
-};
-
-type TreeNode = {
-  id: number;
-  title: string;
-  files: string[];
-  independenceScore: number;
-  canRunParallel: boolean;
-  level: number;
-  children: TreeNode[];
-  dependsOn: Array<{ id: number; title: string; sharedFiles: string[] }>;
-};
-
-type ParallelGroup = {
-  groupId: number;
-  tasks: Array<{ id: number; title: string }>;
-  canRunTogether: boolean;
-};
-
-type AnalysisResult = {
-  taskId: number;
-  taskTitle: string;
-  hasSubtasks: boolean;
-  subtaskCount: number;
-  analysis: DependencyInfo[];
-  tree: TreeNode[];
-  parallelGroups: ParallelGroup[];
-  summary: {
-    totalTasks: number;
-    independentTasks: number;
-    dependentTasks: number;
-    totalFiles: number;
-    averageIndependence: number;
-  };
-};
 
 type Props = {
   taskId: number;
 };
-
-function TreeNodeItem({
-  node,
-  isExpanded,
-  onToggle,
-  depth = 0,
-}: {
-  node: TreeNode;
-  isExpanded: boolean;
-  onToggle: () => void;
-  depth?: number;
-}) {
-  const hasChildren = node.children.length > 0;
-  const hasDependencies = node.dependsOn.length > 0;
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 dark:text-green-400';
-    if (score >= 50) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-red-600 dark:text-red-400';
-  };
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-green-100 dark:bg-green-900/30';
-    if (score >= 50) return 'bg-yellow-100 dark:bg-yellow-900/30';
-    return 'bg-red-100 dark:bg-red-900/30';
-  };
-
-  return (
-    <div className="select-none">
-      <div
-        className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
-          depth > 0
-            ? 'ml-6 border-l-2 border-zinc-200 dark:border-zinc-700'
-            : ''
-        }`}
-      >
-        <button
-          onClick={onToggle}
-          className={`p-0.5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 ${
-            !hasChildren && !hasDependencies ? 'invisible' : ''
-          }`}
-        >
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-zinc-400" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-zinc-400" />
-          )}
-        </button>
-
-        {node.canRunParallel ? (
-          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-        ) : (
-          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-        )}
-
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate flex-1">
-          {node.title}
-        </span>
-
-        <span
-          className={`px-2 py-0.5 text-xs rounded ${getScoreBgColor(node.independenceScore)} ${getScoreColor(node.independenceScore)}`}
-        >
-          {node.independenceScore}%
-        </span>
-
-        {node.files.length > 0 && (
-          <span className="flex items-center gap-1 text-xs text-zinc-500">
-            <FileCode className="w-3 h-3" />
-            {node.files.length}
-          </span>
-        )}
-      </div>
-
-      {isExpanded && (
-        <div className="ml-10 mt-1 space-y-2">
-          {hasDependencies && (
-            <div className="p-2 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
-              <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-1">
-                <Link2 className="w-3 h-3" />
-                <span className="font-medium">Dependencies</span>
-              </div>
-              <div className="space-y-1">
-                {node.dependsOn.map((dep) => (
-                  <div
-                    key={dep.id}
-                    className="text-xs text-amber-600 dark:text-amber-400"
-                  >
-                    <span className="font-medium">{dep.title}</span>
-                    <span className="text-amber-500 dark:text-amber-500 ml-2">
-                      ({dep.sharedFiles.join(', ')})
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {node.files.length > 0 && (
-            <div className="p-2 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 mb-1">
-                <FileCode className="w-3 h-3" />
-                <span className="font-medium">Related Files</span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {node.files.slice(0, 10).map((file, i) => (
-                  <span
-                    key={i}
-                    className="px-1.5 py-0.5 text-xs bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded font-mono"
-                  >
-                    {file.split('/').pop()}
-                  </span>
-                ))}
-                {node.files.length > 10 && (
-                  <span className="text-xs text-zinc-500">
-                    +{node.files.length - 10} more
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {node.children.map((child) => (
-            <TreeNodeItem
-              key={child.id}
-              node={child}
-              isExpanded={false}
-              onToggle={() => {}}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function DependencyTree({ taskId }: Props) {
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
@@ -303,130 +124,50 @@ export function DependencyTree({ taskId }: Props) {
 
   const expandAll = () => {
     if (currentAnalysis) {
-      const allIds = new Set(currentAnalysis.analysis.map((a) => a.taskId));
-      setExpandedNodes(allIds);
+      setExpandedNodes(new Set(currentAnalysis.analysis.map((a) => a.taskId)));
     }
   };
 
-  const collapseAll = () => {
-    setExpandedNodes(new Set());
+  const collapseAll = () => setExpandedNodes(new Set());
+
+  const switchToNormal = () => {
+    setUseSSEMode(false);
+    reset();
   };
 
   if (retryInfo && isLoading) {
     return (
-      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-        <div className="flex items-center gap-3 mb-3">
-          <RotateCcw className="w-5 h-5 text-amber-600 dark:text-amber-400 animate-spin" />
-          <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              Retrying... ({retryInfo.retryCount}/{retryInfo.maxRetries})
-            </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              {retryInfo.reason}
-            </p>
-          </div>
-        </div>
-        <div className="w-full bg-amber-200 dark:bg-amber-800 rounded-full h-1.5">
-          <div
-            className="bg-amber-600 h-1.5 rounded-full transition-all duration-300"
-            style={{
-              width: `${(retryInfo.retryCount / retryInfo.maxRetries) * 100}%`,
-            }}
-          />
-        </div>
-      </div>
+      <RetryPanel
+        retryCount={retryInfo.retryCount}
+        maxRetries={retryInfo.maxRetries}
+        reason={retryInfo.reason}
+      />
     );
   }
 
   if (rollbackInfo) {
     return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        <div className="flex items-center gap-3 mb-3">
-          <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-          <div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              Processing failed
-            </p>
-            <p className="text-xs text-red-600 dark:text-red-400">
-              {rollbackInfo.rollbackReason}
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-          Error details: {rollbackInfo.errorDetails}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={startSSEAnalysis}
-            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Retry
-          </button>
-          <button
-            onClick={() => {
-              setUseSSEMode(false);
-              reset();
-            }}
-            className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
-          >
-            Try normal mode
-          </button>
-        </div>
-      </div>
+      <RollbackPanel
+        rollbackReason={rollbackInfo.rollbackReason}
+        errorDetails={rollbackInfo.errorDetails}
+        onRetry={startSSEAnalysis}
+        onSwitchToNormal={switchToNormal}
+      />
     );
   }
 
   if (currentIsLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <SkeletonBlock className="w-5 h-5 rounded" />
-          <SkeletonBlock className="h-4 w-40" />
-        </div>
-        {useSSEMode && progress > 0 && (
-          <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-            <div
-              className="bg-violet-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        )}
-      </div>
-    );
+    return <LoadingPanel useSSEMode={useSSEMode} progress={progress} />;
   }
 
   if (currentError) {
     return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
-          <AlertTriangle className="w-4 h-4" />
-          <span className="text-sm font-medium">An error occurred</span>
-        </div>
-        <p className="text-sm text-red-600 dark:text-red-400 mb-3">
-          {currentError.error}
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
-            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Retry
-          </button>
-          {useSSEMode && (
-            <button
-              onClick={() => {
-                setUseSSEMode(false);
-                reset();
-              }}
-              className="px-3 py-1.5 text-red-600 hover:text-red-700 text-sm"
-            >
-              Try normal mode
-            </button>
-          )}
-        </div>
-      </div>
+      <ErrorPanel
+        errorMessage={currentError.error}
+        useSSEMode={useSSEMode}
+        onRetry={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
+        onSwitchToNormal={switchToNormal}
+      />
     );
   }
 
@@ -448,228 +189,61 @@ export function DependencyTree({ taskId }: Props) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
-            disabled={currentIsLoading}
-            className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
-            title="Refresh"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`}
-            />
-          </button>
-        </div>
+        <button
+          onClick={useSSEMode ? startSSEAnalysis : fetchAnalysisFallback}
+          disabled={currentIsLoading}
+          className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
+          title="Refresh"
+        >
+          <RefreshCw
+            className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`}
+          />
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
-          <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
-            <Layers className="w-3 h-3" />
-            Tasks
-          </div>
-          <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            {currentAnalysis.summary.totalTasks}
-          </div>
-        </div>
-        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-          <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mb-1">
-            <Unlink className="w-3 h-3" />
-            Independent
-          </div>
-          <div className="text-lg font-bold text-green-700 dark:text-green-300">
-            {currentAnalysis.summary.independentTasks}
-          </div>
-        </div>
-        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-          <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1">
-            <Link2 className="w-3 h-3" />
-            Dependent
-          </div>
-          <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
-            {currentAnalysis.summary.dependentTasks}
-          </div>
-        </div>
-        <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
-          <div className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 mb-1">
-            <Zap className="w-3 h-3" />
-            Avg Independence
-          </div>
-          <div className="text-lg font-bold text-violet-700 dark:text-violet-300">
-            {currentAnalysis.summary.averageIndependence}%
-          </div>
-        </div>
-      </div>
+      <SummaryStats summary={currentAnalysis.summary} />
 
+      {/* View mode tabs */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
-        <button
-          onClick={() => setViewMode('tree')}
-          className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === 'tree'
-              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
-              : 'text-zinc-500 hover:text-zinc-700'
-          }`}
-        >
-          Tree View
-        </button>
-        <button
-          onClick={() => setViewMode('list')}
-          className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === 'list'
-              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
-              : 'text-zinc-500 hover:text-zinc-700'
-          }`}
-        >
-          List View
-        </button>
-        <button
-          onClick={() => setViewMode('groups')}
-          className={`px-3 py-2 text-sm font-medium transition-colors ${
-            viewMode === 'groups'
-              ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
-              : 'text-zinc-500 hover:text-zinc-700'
-          }`}
-        >
-          Group View
-        </button>
+        {(['tree', 'list', 'groups'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setViewMode(mode)}
+            className={`px-3 py-2 text-sm font-medium transition-colors capitalize ${
+              viewMode === mode
+                ? 'text-violet-600 dark:text-violet-400 border-b-2 border-violet-600'
+                : 'text-zinc-500 hover:text-zinc-700'
+            }`}
+          >
+            {mode === 'tree' ? 'Tree View' : mode === 'list' ? 'List View' : 'Group View'}
+          </button>
+        ))}
         <div className="flex-1" />
-        <button
-          onClick={expandAll}
-          className="text-xs text-zinc-500 hover:text-zinc-700"
-        >
+        <button onClick={expandAll} className="text-xs text-zinc-500 hover:text-zinc-700">
           Expand All
         </button>
-        <button
-          onClick={collapseAll}
-          className="text-xs text-zinc-500 hover:text-zinc-700"
-        >
+        <button onClick={collapseAll} className="text-xs text-zinc-500 hover:text-zinc-700">
           Collapse All
         </button>
       </div>
 
       <div className="max-h-96 overflow-y-auto">
         {viewMode === 'tree' && (
-          <div className="space-y-1">
-            {currentAnalysis.tree.map((node) => (
-              <TreeNodeItem
-                key={node.id}
-                node={node}
-                isExpanded={expandedNodes.has(node.id)}
-                onToggle={() => toggleNode(node.id)}
-              />
-            ))}
-            {currentAnalysis.tree.length === 0 && (
-              <div className="text-center py-8 text-zinc-500">
-                <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No subtasks or prompts to analyze</p>
-              </div>
-            )}
-          </div>
+          <TreeView
+            nodes={currentAnalysis.tree}
+            expandedNodes={expandedNodes}
+            onToggle={toggleNode}
+          />
         )}
-
         {viewMode === 'list' && (
-          <div className="space-y-2">
-            {currentAnalysis.analysis
-              .sort((a, b) => b.independenceScore - a.independenceScore)
-              .map((item) => (
-                <div
-                  key={item.taskId}
-                  className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {item.canRunParallel ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      )}
-                      <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                        {item.title}
-                      </span>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded ${
-                        item.independenceScore >= 80
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                          : item.independenceScore >= 50
-                            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600'
-                            : 'bg-red-100 dark:bg-red-900/30 text-red-600'
-                      }`}
-                    >
-                      Independence: {item.independenceScore}%
-                    </span>
-                  </div>
-                  {item.dependencies.length > 0 && (
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="font-medium">Dependencies:</span>{' '}
-                      {item.dependencies.map((d) => d.title).join(', ')}
-                    </div>
-                  )}
-                  {item.files.length > 0 && (
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                      <span className="font-medium">Files:</span>{' '}
-                      {item.files.length}
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
+          <ListView analysis={currentAnalysis.analysis} />
         )}
-
         {viewMode === 'groups' && (
-          <div className="space-y-4">
-            {currentAnalysis.parallelGroups.map((group) => (
-              <div
-                key={group.groupId}
-                className={`p-4 rounded-lg border ${
-                  group.canRunTogether
-                    ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
-                    : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  {group.canRunTogether ? (
-                    <>
-                      <Zap className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                        Parallel execution ({group.tasks.length} tasks)
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                        Sequential execution ({group.tasks.length} tasks)
-                      </span>
-                    </>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {group.tasks.map((task) => (
-                    <span
-                      key={task.id}
-                      className={`px-2 py-1 text-xs rounded ${
-                        group.canRunTogether
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                      }`}
-                    >
-                      {task.title}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {currentAnalysis.parallelGroups.length === 0 && (
-              <div className="text-center py-8 text-zinc-500">
-                <Info className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No tasks can be grouped</p>
-              </div>
-            )}
-          </div>
+          <GroupsView parallelGroups={currentAnalysis.parallelGroups} />
         )}
       </div>
 
+      {/* Legend */}
       <div className="flex items-center gap-4 pt-3 border-t border-zinc-200 dark:border-zinc-700 text-xs text-zinc-500">
         <div className="flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3 text-green-500" />

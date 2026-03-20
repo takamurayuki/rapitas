@@ -1,240 +1,65 @@
+/**
+ * CalendarPage
+ *
+ * Next.js page entry point for /calendar.
+ * Delegates data fetching to useCalendarEvents and rendering to sub-components.
+ */
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import type { ExamGoal, ScheduleEvent, ScheduleEventInput } from '@/types';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Calendar as CalendarIcon,
-  Target,
-  CheckCircle2,
-  Circle,
-  Plus,
-  X,
-  Clock,
-  Bell,
-  Trash2,
-  Coffee,
-} from 'lucide-react';
+import { Calendar as CalendarIcon, Coffee } from 'lucide-react';
+import type { ScheduleEventInput, PaidLeaveBalance } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import { getTaskDetailPath } from '@/utils/tauri';
-import { API_BASE_URL } from '@/utils/api';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
-import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
 import ScheduleEventDialog from '@/feature/calendar/components/ScheduleEventDialog';
 import PaidLeaveDialog from '@/feature/calendar/components/PaidLeaveDialog';
 import { getHolidaysForMonth } from '@/utils/holidays';
-import type { PaidLeaveBalance } from '@/types';
-import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
-import { toDateLocale } from '@/lib/utils';
-
-const logger = createLogger('CalendarPage');
-const API_BASE = API_BASE_URL;
-
-type CalendarEvent = {
-  id: number;
-  title: string;
-  date: string;
-  endDate?: string;
-  type: 'task' | 'exam' | 'schedule';
-  status?: string;
-  color?: string;
-  time?: string;
-  endTime?: string;
-  reminderMinutes?: number | null;
-  description?: string | null;
-};
+import { useCalendarEvents } from './_hooks/useCalendarEvents';
+import { CalendarGrid } from './_components/CalendarGrid';
+import { DayEventsSidebar } from './_components/DayEventsSidebar';
+import { CreateTaskModal } from './_components/CreateTaskModal';
 
 export default function CalendarPage() {
-  const router = useRouter();
   const t = useTranslations('calendar');
-  const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const { showToast } = useToast();
-  const cachedTasks = useTaskCacheStore((s) => s.tasks);
-  const taskCacheInitialized = useTaskCacheStore((s) => s.initialized);
-  const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
-  const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
+
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showPaidLeaveModal, setShowPaidLeaveModal] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [exams, setExams] = useState<ExamGoal[]>([]);
-  const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
-  const [paidLeaveBalance, setPaidLeaveBalance] =
-    useState<PaidLeaveBalance | null>(null);
 
-  const fetchPaidLeaveBalance = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/paid-leave/balance`);
-      if (res.ok) {
-        const balance = await res.json();
-        setPaidLeaveBalance(balance.data || balance);
-      }
-    } catch (e) {
-      logger.error('Failed to fetch paid leave balance:', e);
-    }
-  }, []);
+  const {
+    events,
+    loading,
+    schedules,
+    paidLeaveBalance,
+    createTask,
+    createScheduleEvent,
+    createPaidLeave,
+    deleteScheduleEvent,
+  } = useCalendarEvents();
 
-  const fetchEvents = useCallback(async () => {
-    try {
-      // Use cache store for tasks; fetch exams, schedules, and paid leave balance
-      const taskFetch = taskCacheInitialized
-        ? fetchTaskUpdates()
-        : fetchAllTasks();
+  const holidays = useMemo(
+    () => getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
+    [currentDate],
+  );
 
-      const [, examsRes, schedulesRes] = await Promise.all([
-        taskFetch,
-        fetch(`${API_BASE}/exam-goals`),
-        fetch(`${API_BASE}/schedules`),
-        fetchPaidLeaveBalance(),
-      ]);
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of holidays) map.set(h.date, h.name);
+    return map;
+  }, [holidays]);
 
-      const examsData: ExamGoal[] = examsRes.ok ? await examsRes.json() : [];
-      const schedulesData: ScheduleEvent[] = schedulesRes.ok
-        ? await schedulesRes.json()
-        : [];
-
-      setExams(examsData);
-      setSchedules(schedulesData);
-    } catch (e) {
-      logger.error('Failed to fetch events:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    taskCacheInitialized,
-    fetchTaskUpdates,
-    fetchAllTasks,
-    fetchPaidLeaveBalance,
-  ]);
-
-  useTaskAutoSync({
-    enabled: true,
-    interval: 30000,
-    silent: true,
-  });
-
-  // Build events from cached tasks + local exams/schedules
-  useEffect(() => {
-    const taskEvents: CalendarEvent[] = cachedTasks
-      .filter((t) => t.dueDate)
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        date: t.dueDate!.split('T')[0],
-        type: 'task' as const,
-        status: t.status,
-        color: t.theme?.color,
-      }));
-
-    const examEvents: CalendarEvent[] = exams.map((e) => ({
-      id: e.id,
-      title: e.name,
-      date: e.examDate.split('T')[0],
-      type: 'exam' as const,
-      color: e.color,
-    }));
-
-    const scheduleEvents: CalendarEvent[] = schedules.map((s) => {
-      // NOTE: Extract time directly from UTC ISO string to avoid timezone conversion issues.
-      const extractUTCTime = (isoStr: string) => {
-        const timePart = isoStr.split('T')[1]; // "HH:MM:SS.000Z"
-        if (!timePart) return undefined;
-        return timePart.slice(0, 5); // "HH:MM"
-      };
-      const timeStr = s.isAllDay ? undefined : extractUTCTime(s.startAt);
-      const endTimeStr =
-        s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
-      const startDateStr = s.startAt.split('T')[0];
-      const endDateStr = s.endAt ? s.endAt.split('T')[0] : undefined;
-      return {
-        id: s.id,
-        title: s.title,
-        date: startDateStr,
-        endDate:
-          endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
-        type: 'schedule' as const,
-        color: s.color,
-        time: timeStr,
-        endTime: endTimeStr,
-        reminderMinutes: s.reminderMinutes,
-        description: s.description,
-      };
-    });
-
-    setEvents([...taskEvents, ...examEvents, ...scheduleEvents]);
-  }, [cachedTasks, exams, schedules]);
-
-  useEffect(() => {
-    fetchEvents();
-
-    const handleFocus = () => {
-      fetchTaskUpdates();
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchEvents, fetchTaskUpdates]);
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDay = firstDay.getDay();
-
-    const days: (number | null)[] = [];
-
-    for (let i = 0; i < startingDay; i++) {
-      days.push(null);
-    }
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(i);
-    }
-
-    return days;
-  };
-
-  const getEventsForDate = (day: number) => {
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const dayStr = String(day).padStart(2, '0');
-    const dateStr = `${year}-${month}-${dayStr}`;
-    return events.filter((e) => {
-      if (e.date === dateStr) return true;
-      if (e.endDate && e.date <= dateStr && e.endDate >= dateStr) return true;
-      return false;
-    });
-  };
-
-  const formatDateStr = (day: number) => {
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const dayStr = String(day).padStart(2, '0');
-    return `${year}-${month}-${dayStr}`;
-  };
-
-  const prevMonth = () => {
+  const prevMonth = () =>
     setCurrentDate(
       new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1),
     );
-  };
 
-  const nextMonth = () => {
+  const nextMonth = () =>
     setCurrentDate(
       new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
     );
-  };
 
   const goToToday = () => {
     const today = new Date();
@@ -245,251 +70,21 @@ export default function CalendarPage() {
     setSelectedDate(`${year}-${month}-${day}`);
   };
 
-  const isToday = (day: number) => {
-    const today = new Date();
-    return (
-      day === today.getDate() &&
-      currentDate.getMonth() === today.getMonth() &&
-      currentDate.getFullYear() === today.getFullYear()
-    );
+  const handleTaskSubmit = async (title: string) => {
+    if (!selectedDate) return;
+    const ok = await createTask(title, selectedDate);
+    if (ok) setShowCreateModal(false);
   };
 
-  const openCreateModal = () => {
-    if (selectedDate) {
-      setShowCreateModal(true);
-    }
+  const handleScheduleSubmit = async (data: ScheduleEventInput) => {
+    const ok = await createScheduleEvent(data);
+    if (ok) setShowScheduleModal(false);
   };
 
-  const createTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim() || !selectedDate) return;
-
-    setCreating(true);
-    try {
-      const res = await fetch(`${API_BASE}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTaskTitle,
-          dueDate: `${selectedDate}T00:00:00.000Z`,
-          status: 'todo',
-        }),
-      });
-
-      if (res.ok) {
-        showToast(t('taskCreated'), 'success');
-        setNewTaskTitle('');
-        setShowCreateModal(false);
-        // Refresh task cache so new task appears on calendar
-        await fetchTaskUpdates();
-      } else {
-        showToast(t('taskCreateFailed'), 'error');
-      }
-    } catch (e) {
-      logger.error('Failed to create task:', e);
-      showToast(tc('errorOccurred'), 'error');
-    } finally {
-      setCreating(false);
-    }
+  const handlePaidLeaveSubmit = async (data: ScheduleEventInput) => {
+    const ok = await createPaidLeave(data);
+    if (ok) setShowPaidLeaveModal(false);
   };
-
-  const createScheduleEvent = async (data: ScheduleEventInput) => {
-    try {
-      const res = await fetch(`${API_BASE}/schedules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        showToast(t('scheduleAdded'), 'success');
-        setShowScheduleModal(false);
-        fetchEvents();
-      } else {
-        showToast(t('scheduleAddFailed'), 'error');
-      }
-    } catch (e) {
-      logger.error('Failed to create schedule:', e);
-      showToast(tc('errorOccurred'), 'error');
-    }
-  };
-
-  const createPaidLeave = async (data: ScheduleEventInput) => {
-    try {
-      const res = await fetch(`${API_BASE}/schedules`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, type: 'PAID_LEAVE' }),
-      });
-
-      if (res.ok) {
-        showToast(t('paidLeaveCreated'), 'success');
-        setShowPaidLeaveModal(false);
-        fetchEvents(); // Will refresh paid leave balance too
-      } else {
-        showToast(t('paidLeaveCreateFailed'), 'error');
-      }
-    } catch (e) {
-      logger.error('Failed to create paid leave:', e);
-      showToast(tc('errorOccurred'), 'error');
-    }
-  };
-
-  const deleteScheduleEvent = async (eventId: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/schedules/${eventId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        showToast(t('scheduleDeleted'), 'success');
-        fetchEvents();
-      } else {
-        showToast(t('scheduleDeleteFailed'), 'error');
-      }
-    } catch (e) {
-      logger.error('Failed to delete schedule:', e);
-      showToast(tc('errorOccurred'), 'error');
-    }
-  };
-
-  const getReminderLabel = (minutes: number) => {
-    if (minutes < 60) return t('reminderMinutesBefore', { count: minutes });
-    if (minutes < 1440)
-      return t('reminderHoursBefore', { count: minutes / 60 });
-    return t('reminderDaysBefore', { count: minutes / 1440 });
-  };
-
-  const days = getDaysInMonth(currentDate);
-  const weekDays = [
-    t('weekSun'),
-    t('weekMon'),
-    t('weekTue'),
-    t('weekWed'),
-    t('weekThu'),
-    t('weekFri'),
-    t('weekSat'),
-  ];
-
-  const holidays = useMemo(() => {
-    return getHolidaysForMonth(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-    );
-  }, [currentDate]);
-
-  const holidayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const h of holidays) {
-      map.set(h.date, h.name);
-    }
-    return map;
-  }, [holidays]);
-
-  const getMultiDayBars = () => {
-    const multiDayEvents = events.filter(
-      (e) => e.endDate && e.type === 'schedule',
-    );
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-    const startingWeekday = firstDayOfMonth.getDay();
-
-    type BarSegment = {
-      event: CalendarEvent;
-      gridCol: number; // 0-6 (column in grid)
-      gridRow: number; // week row
-      span: number; // cell span width
-      isStart: boolean;
-      isEnd: boolean;
-      lane: number; // vertical lane (0, 1, 2...)
-    };
-
-    const bars: BarSegment[] = [];
-    const cellLanes: Map<string, Set<number>> = new Map();
-
-    const getGridPosition = (day: number) => {
-      const index = startingWeekday + day - 1;
-      return { col: index % 7, row: Math.floor(index / 7) };
-    };
-
-    for (const event of multiDayEvents) {
-      const eventStart = new Date(event.date + 'T00:00:00');
-      const eventEnd = new Date(event.endDate! + 'T00:00:00');
-
-      const visibleStart =
-        eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
-      const visibleEnd = eventEnd > lastDayOfMonth ? lastDayOfMonth : eventEnd;
-
-      if (visibleStart > lastDayOfMonth || visibleEnd < firstDayOfMonth)
-        continue;
-
-      const startDay = visibleStart.getDate();
-      const endDay = visibleEnd.getDate();
-
-      let currentDay = startDay;
-      while (currentDay <= endDay) {
-        const pos = getGridPosition(currentDay);
-        const remainInWeek = 7 - pos.col;
-        const remainInEvent = endDay - currentDay + 1;
-        const span = Math.min(remainInWeek, remainInEvent);
-
-        // Find an available lane for this segment
-        let lane = 0;
-        let laneFound = false;
-        while (!laneFound) {
-          laneFound = true;
-          for (let d = currentDay; d < currentDay + span; d++) {
-            const key = `${pos.row}-${getGridPosition(d).col}`;
-            const used = cellLanes.get(key);
-            if (used && used.has(lane)) {
-              laneFound = false;
-              lane++;
-              break;
-            }
-          }
-        }
-
-        for (let d = currentDay; d < currentDay + span; d++) {
-          const key = `${pos.row}-${getGridPosition(d).col}`;
-          if (!cellLanes.has(key)) cellLanes.set(key, new Set());
-          cellLanes.get(key)!.add(lane);
-        }
-
-        const isEventStart =
-          eventStart.getMonth() === month &&
-          currentDay === eventStart.getDate();
-        const isEventEnd =
-          eventEnd.getMonth() === month &&
-          currentDay + span - 1 === eventEnd.getDate();
-
-        bars.push({
-          event,
-          gridCol: pos.col,
-          gridRow: pos.row,
-          span,
-          isStart: isEventStart,
-          isEnd: isEventEnd,
-          lane,
-        });
-
-        currentDay += span;
-      }
-    }
-
-    return bars;
-  };
-
-  const multiDayBars = getMultiDayBars();
-  const selectedDateEvents = selectedDate
-    ? events.filter((e) => {
-        if (e.date === selectedDate) return true;
-        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate)
-          return true;
-        return false;
-      })
-    : [];
 
   if (loading) {
     return (
@@ -504,6 +99,7 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
+      {/* Page header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <CalendarIcon className="w-8 h-8 text-indigo-500" />
@@ -517,571 +113,67 @@ export default function CalendarPage() {
           </div>
         </div>
 
+        {/* Paid leave balance */}
         {paidLeaveBalance && (
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                {t('paidLeaveBalance')}
-              </p>
-              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {t('paidLeaveDays', { count: paidLeaveBalance.remainingDays })}
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                {t('fiscalYear', { year: paidLeaveBalance.fiscalYear })}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                if (selectedDate) {
-                  setShowPaidLeaveModal(true);
-                } else {
-                  showToast(t('selectDateForPaidLeave'), 'info');
-                }
-              }}
-              className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center gap-2"
-            >
-              <Coffee className="w-4 h-4" />
-              {t('paidLeaveRequest')}
-            </button>
-          </div>
+          <PaidLeaveHeaderWidget
+            balance={paidLeaveBalance}
+            onRequest={() => {
+              if (selectedDate) {
+                setShowPaidLeaveModal(true);
+              } else {
+                showToast(t('selectDateForPaidLeave'), 'info');
+              }
+            }}
+            t={t}
+          />
         )}
       </div>
 
+      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={prevMonth}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 min-w-[140px] text-center">
-                {t('yearMonth', {
-                  year: currentDate.getFullYear(),
-                  month: currentDate.getMonth() + 1,
-                })}
-              </h2>
-              <button
-                onClick={nextMonth}
-                className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-            <button
-              onClick={goToToday}
-              className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50"
-            >
-              {tc('today')}
-            </button>
-          </div>
+        <CalendarGrid
+          currentDate={currentDate}
+          events={events}
+          schedules={schedules}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onDoubleClickDate={(dateStr) => {
+            setSelectedDate(dateStr);
+            setShowScheduleModal(true);
+          }}
+          onPrevMonth={prevMonth}
+          onNextMonth={nextMonth}
+          onGoToToday={goToToday}
+        />
 
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {weekDays.map((day, index) => (
-              <div
-                key={day}
-                className={`text-center text-sm font-medium py-2 ${
-                  index === 0
-                    ? 'text-red-500'
-                    : index === 6
-                      ? 'text-blue-500'
-                      : 'text-zinc-500 dark:text-zinc-400'
-                }`}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {(() => {
-            const weeks: (number | null)[][] = [];
-            for (let i = 0; i < days.length; i += 7) {
-              weeks.push(days.slice(i, i + 7));
-            }
-            // Pad last week with nulls to fill 7 columns
-            const lastWeek = weeks[weeks.length - 1];
-            while (lastWeek.length < 7) {
-              lastWeek.push(null);
-            }
-
-            const MAX_VISIBLE_EVENTS = 3;
-
-            return weeks.map((week, weekIndex) => {
-              const weekBars = multiDayBars.filter(
-                (b) => b.gridRow === weekIndex,
-              );
-              const maxLaneInWeek =
-                weekBars.length > 0
-                  ? Math.max(...weekBars.map((b) => b.lane)) + 1
-                  : 0;
-              const barAreaHeight = maxLaneInWeek * 18;
-
-              return (
-                <div key={`week-${weekIndex}`} className="relative">
-                  <div className="grid grid-cols-7">
-                    {week.map((day, colIndex) => {
-                      if (day === null) {
-                        return (
-                          <div
-                            key={`empty-${weekIndex}-${colIndex}`}
-                            className="border border-zinc-100 dark:border-zinc-700/50 flex flex-col bg-zinc-100/70 dark:bg-zinc-900/50"
-                          >
-                            <div className="w-full px-1 py-0.5 bg-zinc-200/50 dark:bg-zinc-800/90">
-                              <div className="w-5 h-5" />
-                            </div>
-                            <div className="w-full border-b border-zinc-200/50 dark:border-zinc-700/30" />
-                            <div className="w-full aspect-square bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(0,0,0,0.03)_4px,rgba(0,0,0,0.03)_5px)] dark:bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(255,255,255,0.02)_4px,rgba(255,255,255,0.02)_5px)]" />
-                          </div>
-                        );
-                      }
-
-                      const dayEvents = getEventsForDate(day);
-                      const singleDayEvents = dayEvents.filter(
-                        (e) => !(e.endDate && e.type === 'schedule'),
-                      );
-                      const dateStr = formatDateStr(day);
-                      const isSelected = selectedDate === dateStr;
-                      const today = isToday(day);
-                      const dayOfWeek = colIndex;
-                      const holidayName = holidayMap.get(dateStr);
-                      const isHoliday = !!holidayName;
-                      const hiddenCount =
-                        singleDayEvents.length - MAX_VISIBLE_EVENTS;
-
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => setSelectedDate(dateStr)}
-                          onDoubleClick={() => {
-                            setSelectedDate(dateStr);
-                            setShowScheduleModal(true);
-                          }}
-                          className={`p-0 transition-all border border-zinc-200 dark:border-zinc-700/50 text-left flex flex-col relative ${
-                            isSelected
-                              ? 'outline-2 outline-indigo-500 -outline-offset-2 z-10'
-                              : 'hover:bg-zinc-50 dark:hover:bg-zinc-700/30'
-                          }`}
-                        >
-                          <div
-                            className={`w-full flex items-center px-1 py-0.5 gap-0.5 min-w-0 ${
-                              isSelected
-                                ? 'bg-indigo-50 dark:bg-indigo-900/30'
-                                : isHoliday
-                                  ? 'bg-red-50 dark:bg-red-900/15'
-                                  : 'bg-zinc-50 dark:bg-zinc-800/80'
-                            }`}
-                          >
-                            <div
-                              className={`flex items-center justify-center w-5 h-5 rounded-sm shrink-0 ${
-                                today ? 'bg-indigo-500' : ''
-                              }`}
-                            >
-                              <span
-                                className={`text-xs font-semibold leading-none ${
-                                  today
-                                    ? 'text-white'
-                                    : dayOfWeek === 0 || isHoliday
-                                      ? 'text-red-500'
-                                      : dayOfWeek === 6
-                                        ? 'text-blue-500'
-                                        : 'text-zinc-700 dark:text-zinc-300'
-                                }`}
-                              >
-                                {day}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
-                          <div className="w-full aspect-square relative">
-                            {barAreaHeight > 0 && (
-                              <div style={{ height: barAreaHeight }} />
-                            )}
-                            <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
-                              {singleDayEvents
-                                .slice(0, MAX_VISIBLE_EVENTS)
-                                .map((event) => {
-                                  let bgColor = event.color || '#3B82F6';
-                                  let eventIcon = null;
-
-                                  if (event.type === 'exam') {
-                                    bgColor = event.color || '#10B981';
-                                  } else if (event.type === 'schedule') {
-                                    const scheduleEvent = schedules.find(
-                                      (s) => s.id === event.id,
-                                    );
-                                    if (scheduleEvent?.type === 'PAID_LEAVE') {
-                                      bgColor = event.color || '#FF6B6B';
-                                      eventIcon = (
-                                        <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />
-                                      );
-                                    } else {
-                                      bgColor = event.color || '#6366F1';
-                                    }
-                                  }
-
-                                  return (
-                                    <div
-                                      key={`${event.type}-${event.id}`}
-                                      className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
-                                      style={{
-                                        backgroundColor: `${bgColor}18`,
-                                        color: bgColor,
-                                        borderLeft: `2px solid ${bgColor}`,
-                                      }}
-                                    >
-                                      {eventIcon}
-                                      {event.time && (
-                                        <span className="shrink-0 opacity-70">
-                                          {event.time}
-                                        </span>
-                                      )}
-                                      <span className="truncate">
-                                        {event.title}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              {hiddenCount > 0 && (
-                                <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
-                                  +{hiddenCount}
-                                  {tc('items')}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {weekBars.map((bar, i) => {
-                    const color = bar.event.color || '#6366F1';
-                    const leftPercent = (bar.gridCol / 7) * 100;
-                    const widthPercent = (bar.span / 7) * 100;
-
-                    return (
-                      <div
-                        key={`bar-${bar.event.id}-${weekIndex}-${i}`}
-                        className="absolute pointer-events-none"
-                        style={{
-                          left: `${leftPercent}%`,
-                          width: `${widthPercent}%`,
-                          top: `${25 + bar.lane * 18}px`,
-                          height: '16px',
-                          paddingLeft: '1px',
-                          paddingRight: '1px',
-                        }}
-                      >
-                        <div
-                          className="h-full flex items-center overflow-hidden text-[10px] font-medium text-white leading-none px-1.5"
-                          style={{
-                            backgroundColor: color,
-                            opacity: 0.9,
-                            borderRadius: `${bar.isStart ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isStart ? '3px' : '0'}`,
-                          }}
-                        >
-                          {bar.isStart && (
-                            <span className="truncate">{bar.event.title}</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            });
-          })()}
-
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-700">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <div className="w-8 h-3 rounded-sm bg-indigo-500 opacity-90" />
-                {t('legendMultiDay')}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <div className="w-1 h-3 rounded-sm bg-indigo-500" />
-                {t('legendSchedule')}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <div className="w-1 h-3 rounded-sm bg-blue-500" />
-                {t('legendTask')}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <div className="w-1 h-3 rounded-sm bg-emerald-500" />
-                {t('legendExam')}
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <span className="text-[10px] font-medium text-red-500">
-                  {t('legendHolidayIcon')}
-                </span>
-                {t('legendHoliday')}
-              </div>
-            </div>
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-              {t('doubleClickToAdd')}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
-                {selectedDate
-                  ? new Date(selectedDate).toLocaleDateString(dateLocale, {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      weekday: 'short',
-                    })
-                  : t('selectDate')}
-              </h3>
-              {selectedDate && holidayMap.get(selectedDate) && (
-                <p className="text-xs font-medium text-red-500 dark:text-red-400 mt-0.5">
-                  {holidayMap.get(selectedDate)}
-                </p>
-              )}
-            </div>
-            {selectedDate && (
-              <div className="flex gap-1 flex-wrap">
-                <button
-                  onClick={() => setShowScheduleModal(true)}
-                  className="flex items-center gap-1 px-2 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  {t('addScheduleShort')}
-                </button>
-                <button
-                  onClick={openCreateModal}
-                  className="flex items-center gap-1 px-2 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  {t('addTaskShort')}
-                </button>
-                <button
-                  onClick={() => setShowPaidLeaveModal(true)}
-                  className="flex items-center gap-1 px-2 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                >
-                  <Coffee className="w-4 h-4" />
-                  {t('paidLeaveShort')}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {selectedDate ? (
-            selectedDateEvents.length > 0 ? (
-              <div className="space-y-3">
-                {selectedDateEvents.map((event) => (
-                  <div
-                    key={`${event.type}-${event.id}`}
-                    className="w-full flex items-start gap-3 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors text-left group"
-                  >
-                    <button
-                      onClick={() => {
-                        if (event.type === 'task') {
-                          const path = getTaskDetailPath(event.id);
-                          const separator = path.includes('?') ? '&' : '?';
-                          router.push(`${path}${separator}showHeader=true`);
-                        }
-                      }}
-                      className="flex items-start gap-3 flex-1 min-w-0"
-                    >
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                        style={{
-                          backgroundColor: `${event.color || '#3B82F6'}20`,
-                          color: event.color || '#3B82F6',
-                        }}
-                      >
-                        {event.type === 'exam' ? (
-                          <Target className="w-4 h-4" />
-                        ) : event.type === 'schedule' ? (
-                          schedules.find((s) => s.id === event.id)?.type ===
-                          'PAID_LEAVE' ? (
-                            <Coffee className="w-4 h-4" />
-                          ) : (
-                            <CalendarIcon className="w-4 h-4" />
-                          )
-                        ) : event.status === 'done' ? (
-                          <CheckCircle2 className="w-4 h-4" />
-                        ) : (
-                          <Circle className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-zinc-800 dark:text-zinc-200 text-sm truncate">
-                          {event.title}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {event.type === 'exam'
-                              ? t('legendExam')
-                              : event.type === 'schedule'
-                                ? schedules.find((s) => s.id === event.id)
-                                    ?.type === 'PAID_LEAVE'
-                                  ? t('paidLeaveLabel')
-                                  : t('legendSchedule')
-                                : t('legendTask')}
-                            {event.status === 'done' &&
-                              ` ・ ${tc('completed')}`}
-                          </p>
-                          {event.endDate && (
-                            <span className="flex items-center gap-1 text-xs text-indigo-500 dark:text-indigo-400">
-                              <CalendarIcon className="w-3 h-3" />
-                              {new Date(event.date).toLocaleDateString(
-                                dateLocale,
-                                { month: 'short', day: 'numeric' },
-                              )}
-                              {' 〜 '}
-                              {new Date(event.endDate).toLocaleDateString(
-                                dateLocale,
-                                { month: 'short', day: 'numeric' },
-                              )}
-                            </span>
-                          )}
-                          {event.time && (
-                            <span className="flex items-center gap-1 text-xs text-zinc-400 dark:text-zinc-500">
-                              <Clock className="w-3 h-3" />
-                              {event.time}
-                              {event.endTime && ` 〜 ${event.endTime}`}
-                            </span>
-                          )}
-                          {event.reminderMinutes != null && (
-                            <span className="flex items-center gap-1 text-xs text-amber-500">
-                              <Bell className="w-3 h-3" />
-                              {getReminderLabel(event.reminderMinutes)}
-                            </span>
-                          )}
-                        </div>
-                        {event.description && (
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 truncate">
-                            {event.description}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                    {event.type === 'schedule' && (
-                      <button
-                        onClick={() => deleteScheduleEvent(event.id)}
-                        className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                        title={tc('delete')}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-100 dark:bg-zinc-700/50 flex items-center justify-center">
-                  <CalendarIcon className="w-6 h-6 text-zinc-400 dark:text-zinc-500" />
-                </div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-                  {t('noEventsOnDay')}
-                </p>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => setShowScheduleModal(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors text-sm font-medium"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('addSchedule')}
-                  </button>
-                  <button
-                    onClick={() => setShowPaidLeaveModal(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium"
-                  >
-                    <Coffee className="w-4 h-4" />
-                    {t('paidLeaveRequest')}
-                  </button>
-                  <button
-                    onClick={openCreateModal}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 text-zinc-500 dark:text-zinc-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('addTask')}
-                  </button>
-                </div>
-              </div>
-            )
-          ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-8">
-              {t('selectDateFromCalendar')}
-            </p>
-          )}
-        </div>
+        <DayEventsSidebar
+          selectedDate={selectedDate}
+          events={events}
+          schedules={schedules}
+          holidayMap={holidayMap}
+          onAddSchedule={() => setShowScheduleModal(true)}
+          onAddTask={() => {
+            if (selectedDate) setShowCreateModal(true);
+          }}
+          onAddPaidLeave={() => setShowPaidLeaveModal(true)}
+          onDeleteSchedule={deleteScheduleEvent}
+        />
       </div>
 
+      {/* Modals */}
       {showCreateModal && selectedDate && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowCreateModal(false)}
-        >
-          <div
-            className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6 w-full max-w-md"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {t('addTask')}
-              </h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-              {t('deadline')}:{' '}
-              {new Date(selectedDate).toLocaleDateString(dateLocale, {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-
-            <form onSubmit={createTask}>
-              <input
-                type="text"
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                placeholder={t('taskNamePlaceholder')}
-                className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                autoFocus
-              />
-
-              <div className="flex gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
-                >
-                  {tc('cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={!newTaskTitle.trim() || creating}
-                  className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {creating ? t('creating') : tc('create')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateTaskModal
+          selectedDate={selectedDate}
+          onSubmit={handleTaskSubmit}
+          onClose={() => setShowCreateModal(false)}
+        />
       )}
 
       {showScheduleModal && selectedDate && (
         <ScheduleEventDialog
           selectedDate={selectedDate}
           onClose={() => setShowScheduleModal(false)}
-          onSubmit={createScheduleEvent}
+          onSubmit={handleScheduleSubmit}
         />
       )}
 
@@ -1089,10 +181,47 @@ export default function CalendarPage() {
         <PaidLeaveDialog
           selectedDate={selectedDate}
           onClose={() => setShowPaidLeaveModal(false)}
-          onSubmit={createPaidLeave}
+          onSubmit={handlePaidLeaveSubmit}
           remainingDays={paidLeaveBalance?.remainingDays || 0}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Inline widget showing paid leave balance and request button.
+ * Kept here because it is only rendered once and is tightly coupled to page state.
+ */
+function PaidLeaveHeaderWidget({
+  balance,
+  onRequest,
+  t,
+}: {
+  balance: PaidLeaveBalance;
+  onRequest: () => void;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="text-right">
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          {t('paidLeaveBalance')}
+        </p>
+        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+          {t('paidLeaveDays', { count: balance.remainingDays })}
+        </p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {t('fiscalYear', { year: balance.fiscalYear })}
+        </p>
+      </div>
+      <button
+        onClick={onRequest}
+        className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors text-sm font-medium flex items-center gap-2"
+      >
+        <Coffee className="w-4 h-4" />
+        {t('paidLeaveRequest')}
+      </button>
     </div>
   );
 }

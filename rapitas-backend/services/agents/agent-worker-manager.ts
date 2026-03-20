@@ -6,55 +6,37 @@
  *
  * Provides the same interface as AgentOrchestrator,
  * transparently delegating calls from agent-execution-router to the worker.
+ * Implementation details are split across agent-worker/*.ts sub-modules.
  */
 
-import type { ChildProcess } from 'child_process';
-import { join } from 'path';
 import { createLogger } from '../../config/logger';
 import type { AgentTask, AgentExecutionResult } from './base-agent';
 import type { ExecutionOptions, ExecutionState } from './orchestrator/types';
 import type { QuestionKey } from './question-detection';
-import { realtimeService } from '../realtime-service';
-import {
-  registerProcess,
-  unregisterProcess,
-  cleanupZombieProcesses,
-} from './agent-process-tracker';
 import { getProjectRoot } from '../../config';
+import { sendIPCRequest, type PendingRequest } from './agent-worker/ipc';
+import { type WorkerState } from './agent-worker/lifecycle';
+import { initializeWorker, gracefulShutdown } from './agent-worker/worker-shutdown';
+import * as api from './agent-worker/public-api';
+import * as git from './agent-worker/git-api';
 
 const logger = createLogger('agent-worker-manager');
 
-interface IPCRequest {
-  id: string;
-  type: string;
-  data: Record<string, unknown>;
-  timestamp: number;
-}
-
-interface IPCResponse {
-  id: string;
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-  timeout: ReturnType<typeof setTimeout>;
-  type: string;
-}
-
 export class AgentWorkerManager {
   private static instance: AgentWorkerManager;
-  private workerProcess: ChildProcess | null = null;
-  private pendingRequests = new Map<string, PendingRequest>();
-  private isWorkerReady = false;
-  private isShuttingDown = false;
-  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
-  private restartPromise: Promise<void> | null = null;
-  private requestIdCounter = 0;
-  private readyResolve: (() => void) | null = null;
+
+  // NOTE: state is a single mutable object so sub-modules can mutate it by reference
+  private state: WorkerState = {
+    workerProcess: null,
+    pendingRequests: new Map<string, PendingRequest>(),
+    isWorkerReady: false,
+    isShuttingDown: false,
+    healthCheckInterval: null,
+    restartPromise: null,
+    requestIdCounter: 0,
+    readyResolve: null,
+    cachedActiveCount: 0,
+  };
 
   private constructor() {}
 
@@ -65,483 +47,97 @@ export class AgentWorkerManager {
     return AgentWorkerManager.instance;
   }
 
+  private generateRequestId(): string {
+    return `req_${Date.now()}_${++this.state.requestIdCounter}`;
+  }
+
+  private ipc(type: string, data: Record<string, unknown>, timeoutMs: number = 60000): Promise<unknown> {
+    return sendIPCRequest(
+      this.state.workerProcess,
+      this.state.isWorkerReady,
+      this.state.pendingRequests,
+      this.generateRequestId.bind(this),
+      type,
+      data,
+      timeoutMs,
+    );
+  }
+
   /**
    * Starts the worker process and waits until it reaches the ready state.
    * Called during server startup in index.ts.
    */
   public async initialize(): Promise<void> {
-    // NOTE: Clean up zombie processes remaining from a previous crash before starting
-    cleanupZombieProcesses();
-    await this.setupWorker();
-
-    // NOTE: Clean up stale worktrees from previous crashes after worker is ready
-    try {
-      const cleanedCount = await this.cleanupStaleWorktrees(getProjectRoot());
-      if (cleanedCount > 0) {
-        logger.info(`[AgentWorkerManager] Cleaned up ${cleanedCount} stale worktrees on startup`);
-      }
-    } catch (error) {
-      logger.warn({ err: error }, '[AgentWorkerManager] Stale worktree cleanup failed on startup');
-    }
-  }
-
-  private generateRequestId(): string {
-    return `req_${Date.now()}_${++this.requestIdCounter}`;
-  }
-
-  private async setupWorker(): Promise<void> {
-    if (this.isShuttingDown) {
-      return;
-    }
-
-    try {
-      const workerPath = join(process.cwd(), 'workers', 'agent-worker.ts');
-      logger.info({ workerPath }, '[AgentWorkerManager] Starting agent worker process');
-
-      // Use spawn to start in the Bun environment
-      const { spawn } = await import('child_process');
-      this.workerProcess = spawn('bun', [workerPath], {
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-        windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops child process from holding port 3001 socket
-        env: {
-          ...process.env,
-          NODE_ENV: process.env.NODE_ENV || 'development',
-          AGENT_WORKER: '1',
-        },
-        cwd: process.cwd(),
-      });
-
-      // Register PID for tracking even after crashes
-      if (this.workerProcess.pid) {
-        registerProcess({
-          pid: this.workerProcess.pid,
-          role: 'worker',
-          startedAt: new Date().toISOString(),
-          parentPid: process.pid,
-        });
-      }
-
-      // Create a Promise for the ready state
-      const readyPromise = new Promise<void>((resolve) => {
-        this.readyResolve = resolve;
-      });
-
-      // IPC message handler
-      this.workerProcess.on('message', (message: Record<string, unknown>) => {
-        this.handleWorkerMessage(message);
-      });
-
-      this.workerProcess.on('error', (error) => {
-        logger.error({ err: error }, '[AgentWorkerManager] Worker process error');
-        this.handleWorkerCrash();
-      });
-
-      this.workerProcess.on('exit', (code, signal) => {
-        logger.warn({ code, signal }, '[AgentWorkerManager] Worker process exited');
-        if (this.workerProcess?.pid) {
-          unregisterProcess(this.workerProcess.pid);
-        }
-        this.isWorkerReady = false;
-
-        if (!this.isShuttingDown) {
-          this.handleWorkerCrash();
-        }
-      });
-
-      // STDIO stream handling
-      if (this.workerProcess.stdout) {
-        this.workerProcess.stdout.on('data', (data: Buffer) => {
-          const lines = data.toString().trim();
-          if (lines) {
-            logger.debug(`[AgentWorker stdout] ${lines}`);
-          }
-        });
-      }
-
-      if (this.workerProcess.stderr) {
-        this.workerProcess.stderr.on('data', (data: Buffer) => {
-          const lines = data.toString().trim();
-          if (lines) {
-            logger.warn(`[AgentWorker stderr] ${lines}`);
-          }
-        });
-      }
-
-      // Wait for worker startup to complete (timeout: 30 seconds)
-      const timeoutPromise = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error('Worker startup timeout')), 30000);
-      });
-
-      await Promise.race([readyPromise, timeoutPromise]);
-
-      // Start health check
-      this.startHealthCheck();
-
-      logger.info('[AgentWorkerManager] Agent worker manager initialized successfully');
-    } catch (error) {
-      logger.error({ err: error }, '[AgentWorkerManager] Failed to setup worker');
-      throw error;
-    }
-  }
-
-  private handleWorkerMessage(message: Record<string, unknown>): void {
-    try {
-      const type = message.type as string;
-      const data = message.data as Record<string, unknown>;
-
-      switch (type) {
-        case 'worker-ready':
-          this.isWorkerReady = true;
-          logger.info({ pid: data?.pid }, '[AgentWorkerManager] Worker ready');
-          if (this.readyResolve) {
-            this.readyResolve();
-            this.readyResolve = null;
-          }
-          break;
-
-        case 'worker-shutting-down':
-          logger.info({ signal: data?.signal }, '[AgentWorkerManager] Worker shutting down');
-          this.isWorkerReady = false;
-          break;
-
-        case 'response':
-          this.handleIPCResponse(data as unknown as IPCResponse);
-          break;
-
-        case 'orchestrator-event':
-          this.handleOrchestratorEvent(data);
-          break;
-
-        default:
-          logger.warn({ type }, '[AgentWorkerManager] Unknown message type from worker');
-      }
-    } catch (error) {
-      logger.error({ err: error }, '[AgentWorkerManager] Error handling worker message');
-    }
-  }
-
-  private handleIPCResponse(responseData: IPCResponse): void {
-    const { id, success, data, error } = responseData;
-    const pendingRequest = this.pendingRequests.get(id);
-
-    if (!pendingRequest) {
-      logger.warn({ id }, '[AgentWorkerManager] Received response for unknown request');
-      return;
-    }
-
-    clearTimeout(pendingRequest.timeout);
-    this.pendingRequests.delete(id);
-
-    if (success) {
-      pendingRequest.resolve(data);
-    } else {
-      pendingRequest.reject(new Error(error || 'Unknown worker error'));
-    }
-  }
-
-  private handleOrchestratorEvent(eventData: Record<string, unknown>): void {
-    const executionId = eventData.executionId as number;
-    const sessionId = eventData.sessionId as number;
-    const taskId = eventData.taskId as number;
-    const eventType = eventData.eventType as string;
-    const timestamp = eventData.timestamp as string;
-
-    const executionChannel = `execution:${executionId}`;
-    const sessionChannel = `session:${sessionId}`;
-
-    const broadcastToBoth = (type: string, data: Record<string, unknown>) => {
-      realtimeService.broadcast(executionChannel, type, data);
-      realtimeService.broadcast(sessionChannel, type, data);
-    };
-
-    switch (eventType) {
-      case 'execution_started':
-        broadcastToBoth('execution_started', {
-          executionId,
-          sessionId,
-          taskId,
-          timestamp,
-        });
-        break;
-
-      case 'execution_output': {
-        const outputData = eventData.data as { output: string; isError: boolean } | undefined;
-        if (outputData) {
-          realtimeService.broadcast(executionChannel, 'execution_output', {
-            executionId,
-            output: outputData.output,
-            isError: outputData.isError,
-            timestamp: new Date().toISOString(),
-          });
-          realtimeService.broadcast(sessionChannel, 'execution_output', {
-            executionId,
-            output: outputData.output,
-            isError: outputData.isError,
-            timestamp: new Date().toISOString(),
-          });
-        }
-        break;
-      }
-
-      case 'execution_completed':
-        broadcastToBoth('execution_completed', {
-          executionId,
-          sessionId,
-          taskId,
-          result: eventData.data,
-          timestamp,
-        });
-        break;
-
-      case 'execution_failed':
-        broadcastToBoth('execution_failed', {
-          executionId,
-          sessionId,
-          taskId,
-          error: eventData.data,
-          timestamp,
-        });
-        break;
-
-      case 'execution_cancelled':
-        broadcastToBoth('execution_cancelled', {
-          executionId,
-          sessionId,
-          taskId,
-          timestamp,
-        });
-        break;
-
-      default:
-        logger.debug({ eventType }, '[AgentWorkerManager] Unhandled orchestrator event');
-    }
-  }
-
-  private async handleWorkerCrash(): Promise<void> {
-    if (this.isShuttingDown || this.restartPromise) {
-      return;
-    }
-
-    logger.warn('[AgentWorkerManager] Worker crashed, attempting restart...');
-    this.rejectPendingRequests(new Error('Worker process crashed'));
-
-    this.restartPromise = this.restartWorker();
-    await this.restartPromise;
-    this.restartPromise = null;
-  }
-
-  private async restartWorker(): Promise<void> {
-    try {
-      if (this.healthCheckInterval) {
-        clearInterval(this.healthCheckInterval);
-        this.healthCheckInterval = null;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      await this.setupWorker();
-      logger.info('[AgentWorkerManager] Worker successfully restarted');
-    } catch (error) {
-      logger.error({ err: error }, '[AgentWorkerManager] Failed to restart worker');
-
-      setTimeout(() => {
-        if (!this.isShuttingDown) {
-          this.handleWorkerCrash();
-        }
-      }, 5000);
-    }
-  }
-
-  private startHealthCheck(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-    }
-
-    this.healthCheckInterval = setInterval(async () => {
-      if (this.isShuttingDown || !this.isWorkerReady) {
-        return;
-      }
-
-      try {
-        const result = await this.sendIPCRequest('get-status', {}, 5000);
-        const status = result as { activeExecutionCount: number };
-        this._cachedActiveCount = status.activeExecutionCount;
-      } catch (error) {
-        logger.error({ err: error }, '[AgentWorkerManager] Health check failed');
-        this.handleWorkerCrash();
-      }
-    }, 30000);
-  }
-
-  private rejectPendingRequests(error: Error): void {
-    for (const request of this.pendingRequests.values()) {
-      clearTimeout(request.timeout);
-      request.reject(error);
-    }
-    this.pendingRequests.clear();
-  }
-
-  private async sendIPCRequest(
-    type: string,
-    data: Record<string, unknown>,
-    timeoutMs: number = 60000,
-  ): Promise<unknown> {
-    if (!this.workerProcess || !this.isWorkerReady) {
-      throw new Error('Worker not ready');
-    }
-
-    const id = this.generateRequestId();
-    const request: IPCRequest = {
-      id,
-      type,
-      data,
-      timestamp: Date.now(),
-    };
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        reject(new Error(`IPC request timeout: ${type}`));
-      }, timeoutMs);
-
-      this.pendingRequests.set(id, {
-        resolve,
-        reject,
-        timeout,
-        type,
-      });
-
-      this.workerProcess!.send(request);
-    });
+    await initializeWorker(
+      this.state,
+      (baseDir) => this.cleanupStaleWorktrees(baseDir),
+      getProjectRoot(),
+    );
   }
 
   // ==================== Public API (Orchestrator-compatible) ====================
 
   async executeTask(task: AgentTask, options: ExecutionOptions): Promise<AgentExecutionResult> {
-    logger.info({ taskId: task.id }, '[AgentWorkerManager] Delegating task execution to worker');
-    return this.sendIPCRequest(
-      'execute-task',
-      { task, options } as unknown as Record<string, unknown>,
-      1200000,
-    ) as Promise<AgentExecutionResult>;
+    return api.executeTask(this.ipc.bind(this), task, options);
   }
 
-  async executeContinuation(
-    executionId: number,
-    response: string,
-    options: Partial<ExecutionOptions> = {},
-  ): Promise<AgentExecutionResult> {
-    return this.sendIPCRequest(
-      'continue-execution',
-      { executionId, response, options } as unknown as Record<string, unknown>,
-      1200000,
-    ) as Promise<AgentExecutionResult>;
+  async executeContinuation(executionId: number, response: string, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+    return api.executeContinuation(this.ipc.bind(this), executionId, response, options);
   }
 
-  async executeContinuationWithLock(
-    executionId: number,
-    response: string,
-    options: Partial<ExecutionOptions> = {},
-  ): Promise<AgentExecutionResult> {
-    return this.sendIPCRequest(
-      'continue-with-lock',
-      { executionId, response, options } as unknown as Record<string, unknown>,
-      1200000,
-    ) as Promise<AgentExecutionResult>;
+  async executeContinuationWithLock(executionId: number, response: string, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+    return api.executeContinuationWithLock(this.ipc.bind(this), executionId, response, options);
   }
 
   async stopExecution(executionId: number): Promise<boolean> {
-    return this.sendIPCRequest('stop-execution', { executionId }, 10000) as Promise<boolean>;
+    return this.ipc('stop-execution', { executionId }, 10000) as Promise<boolean>;
   }
 
-  /**
-   * Retrieves active executions within a session (async).
-   */
+  /** Retrieves active executions within a session (async). */
   async getSessionExecutionsAsync(sessionId: number): Promise<ExecutionState[]> {
-    const result = await this.sendIPCRequest('get-session-executions', { sessionId }, 5000);
-    return (
-      result as Array<{
-        executionId: number;
-        sessionId: number;
-        agentId: string;
-        taskId: number;
-        status: string;
-        startedAt: string;
-        output: string;
-      }>
-    ).map((s) => ({
-      executionId: s.executionId,
-      sessionId: s.sessionId,
-      agentId: s.agentId,
-      taskId: s.taskId,
-      status: s.status as ExecutionState['status'],
-      startedAt: new Date(s.startedAt),
-      output: s.output,
-    }));
+    return api.getSessionExecutionsAsync(this.ipc.bind(this), sessionId);
   }
 
-  private _cachedActiveCount = 0;
-
-  /**
-   * Retrieves the active execution count (async).
-   */
+  /** Retrieves the active execution count (async). */
   async getActiveExecutionCountAsync(): Promise<number> {
-    const result = await this.sendIPCRequest('get-active-count', {}, 5000);
-    const count = result as number;
-    this._cachedActiveCount = count;
+    const count = (await this.ipc('get-active-count', {}, 5000)) as number;
+    this.state.cachedActiveCount = count;
     return count;
   }
 
-  /**
-   * Retrieves the active execution count synchronously (cached value).
-   */
+  /** Retrieves the active execution count synchronously (cached value). */
   getActiveExecutionCount(): number {
-    return this._cachedActiveCount;
+    return this.state.cachedActiveCount;
   }
 
-  /**
-   * Async version of lock acquisition.
-   */
-  async tryAcquireContinuationLockAsync(
-    executionId: number,
-    source: 'user_response' | 'auto_timeout',
-  ): Promise<boolean> {
-    const result = await this.sendIPCRequest('try-acquire-lock', { executionId, source }, 5000);
-    return result as boolean;
+  /** Async version of lock acquisition. */
+  async tryAcquireContinuationLockAsync(executionId: number, source: 'user_response' | 'auto_timeout'): Promise<boolean> {
+    return this.ipc('try-acquire-lock', { executionId, source }, 5000) as Promise<boolean>;
   }
 
   cancelQuestionTimeout(executionId: number): void {
-    this.sendIPCRequest('cancel-timeout', { executionId }, 5000).catch((err) => {
+    this.ipc('cancel-timeout', { executionId }, 5000).catch((err) => {
       logger.error({ err }, '[AgentWorkerManager] Failed to cancel timeout');
     });
   }
 
-  /**
-   * Async retrieval of question timeout info.
-   */
-  async getQuestionTimeoutInfoAsync(executionId: number): Promise<{
-    remainingSeconds: number;
-    deadline: Date;
-    questionKey?: QuestionKey;
-  } | null> {
-    const result = await this.sendIPCRequest('get-timeout-info', { executionId }, 5000);
-    if (!result) return null;
-    const info = result as {
-      remainingSeconds: number;
-      deadline: string;
-      questionKey?: QuestionKey;
-    };
-    return {
-      ...info,
-      deadline: new Date(info.deadline),
-    };
+  /** Async retrieval of question timeout info. */
+  async getQuestionTimeoutInfoAsync(executionId: number): Promise<{ remainingSeconds: number; deadline: Date; questionKey?: QuestionKey } | null> {
+    return api.getQuestionTimeoutInfoAsync(this.ipc.bind(this), executionId);
   }
 
+  async resumeInterruptedExecution(executionId: number, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+    return api.resumeInterruptedExecution(this.ipc.bind(this), executionId, options);
+  }
+
+  async recoverStaleExecutions(): Promise<{ recoveredExecutions: number; updatedTasks: number; updatedSessions: number; interruptedExecutionIds: number[] }> {
+    return this.ipc('recover-stale', {}, 30000) as Promise<{ recoveredExecutions: number; updatedTasks: number; updatedSessions: number; interruptedExecutionIds: number[] }>;
+  }
+
+  // ==================== Git Operations ====================
+
   async createBranch(workingDirectory: string, branchName: string): Promise<boolean> {
-    return this.sendIPCRequest(
-      'create-branch',
-      { workingDirectory, branchName },
-      30000,
-    ) as Promise<boolean>;
+    return git.createBranch(this.ipc.bind(this), workingDirectory, branchName);
   }
 
   /**
@@ -553,17 +149,8 @@ export class AgentWorkerManager {
    * @param repositoryUrl - Expected remote URL for validation / 検証用リモートURL
    * @returns Absolute path to the created worktree / worktreeの絶対パス
    */
-  async createWorktree(
-    baseDir: string,
-    branchName: string,
-    taskId?: number,
-    repositoryUrl?: string | null,
-  ): Promise<string> {
-    return this.sendIPCRequest(
-      'create-worktree',
-      { baseDir, branchName, taskId, repositoryUrl },
-      30000,
-    ) as Promise<string>;
+  async createWorktree(baseDir: string, branchName: string, taskId?: number, repositoryUrl?: string | null): Promise<string> {
+    return git.createWorktree(this.ipc.bind(this), baseDir, branchName, taskId, repositoryUrl);
   }
 
   /**
@@ -573,7 +160,7 @@ export class AgentWorkerManager {
    * @param worktreePath - Worktree to remove / 削除するworktreeパス
    */
   async removeWorktree(baseDir: string, worktreePath: string): Promise<void> {
-    await this.sendIPCRequest('remove-worktree', { baseDir, worktreePath }, 30000);
+    return git.removeWorktree(this.ipc.bind(this), baseDir, worktreePath);
   }
 
   /**
@@ -583,131 +170,39 @@ export class AgentWorkerManager {
    * @returns Count of cleaned worktrees / クリーンアップ数
    */
   async cleanupStaleWorktrees(baseDir: string): Promise<number> {
-    return this.sendIPCRequest('cleanup-stale-worktrees', { baseDir }, 30000) as Promise<number>;
+    return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir);
   }
 
-  async revertChanges(workingDirectory: string): Promise<boolean> {
-    return this.sendIPCRequest('revert-changes', { workingDirectory }, 10000) as Promise<boolean>;
+  async commitChanges(workingDirectory: string, message: string, taskTitle?: string): Promise<{ success: boolean; commitHash?: string; error?: string }> {
+    return git.commitChanges(this.ipc.bind(this), workingDirectory, message, taskTitle);
   }
 
-  async getFullGitDiff(workingDirectory: string): Promise<string> {
-    return this.sendIPCRequest('get-full-git-diff', { workingDirectory }, 10000) as Promise<string>;
+  async createCommit(workingDirectory: string, message: string): Promise<{ hash: string; branch: string; filesChanged: number; additions: number; deletions: number }> {
+    return git.createCommit(this.ipc.bind(this), workingDirectory, message);
   }
 
-  async getDiff(workingDirectory: string): Promise<
-    Array<{
-      filename: string;
-      status: string;
-      additions: number;
-      deletions: number;
-      patch?: string;
-    }>
-  > {
-    return this.sendIPCRequest('get-diff', { workingDirectory }, 10000) as Promise<
-      Array<{
-        filename: string;
-        status: string;
-        additions: number;
-        deletions: number;
-        patch?: string;
-      }>
-    >;
+  async createPullRequest(workingDirectory: string, title: string, body: string, baseBranch: string = 'main'): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
+    return git.createPullRequest(this.ipc.bind(this), workingDirectory, title, body, baseBranch);
   }
 
-  async recoverStaleExecutions(): Promise<{
-    recoveredExecutions: number;
-    updatedTasks: number;
-    updatedSessions: number;
-    interruptedExecutionIds: number[];
-  }> {
-    return this.sendIPCRequest('recover-stale', {}, 30000) as Promise<{
-      recoveredExecutions: number;
-      updatedTasks: number;
-      updatedSessions: number;
-      interruptedExecutionIds: number[];
-    }>;
-  }
-
-  async resumeInterruptedExecution(
-    executionId: number,
-    options: Partial<ExecutionOptions> = {},
-  ): Promise<AgentExecutionResult> {
-    return this.sendIPCRequest(
-      'resume-execution',
-      { executionId, options } as unknown as Record<string, unknown>,
-      1200000,
-    ) as Promise<AgentExecutionResult>;
-  }
-
-  // ==================== Git Operations ====================
-
-  async commitChanges(
-    workingDirectory: string,
-    message: string,
-    taskTitle?: string,
-  ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
-    return this.sendIPCRequest(
-      'commit-changes',
-      { workingDirectory, message, taskTitle },
-      30000,
-    ) as Promise<{ success: boolean; commitHash?: string; error?: string }>;
-  }
-
-  async createPullRequest(
-    workingDirectory: string,
-    title: string,
-    body: string,
-    baseBranch: string = 'main',
-  ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
-    return this.sendIPCRequest(
-      'create-pull-request',
-      { workingDirectory, title, body, baseBranch },
-      60000,
-    ) as Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }>;
-  }
-
-  async createCommit(
-    workingDirectory: string,
-    message: string,
-  ): Promise<{
-    hash: string;
-    branch: string;
-    filesChanged: number;
-    additions: number;
-    deletions: number;
-  }> {
-    return this.sendIPCRequest('create-commit', { workingDirectory, message }, 30000) as Promise<{
-      hash: string;
-      branch: string;
-      filesChanged: number;
-      additions: number;
-      deletions: number;
-    }>;
-  }
-
-  async mergePullRequest(
-    workingDirectory: string,
-    prNumber: number,
-    commitThreshold: number = 5,
-    baseBranch: string = 'master',
-  ): Promise<{
-    success: boolean;
-    mergeStrategy?: 'squash' | 'merge';
-    error?: string;
-  }> {
-    return this.sendIPCRequest(
-      'merge-pull-request',
-      { workingDirectory, prNumber, commitThreshold, baseBranch },
-      60000,
-    ) as Promise<{
-      success: boolean;
-      mergeStrategy?: 'squash' | 'merge';
-      error?: string;
-    }>;
+  async mergePullRequest(workingDirectory: string, prNumber: number, commitThreshold: number = 5, baseBranch: string = 'master'): Promise<{ success: boolean; mergeStrategy?: 'squash' | 'merge'; error?: string }> {
+    return git.mergePullRequest(this.ipc.bind(this), workingDirectory, prNumber, commitThreshold, baseBranch);
   }
 
   async getGitDiff(workingDirectory: string): Promise<string> {
-    return this.sendIPCRequest('get-git-diff', { workingDirectory }, 10000) as Promise<string>;
+    return git.getGitDiff(this.ipc.bind(this), workingDirectory);
+  }
+
+  async getFullGitDiff(workingDirectory: string): Promise<string> {
+    return git.getFullGitDiff(this.ipc.bind(this), workingDirectory);
+  }
+
+  async getDiff(workingDirectory: string): Promise<Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>> {
+    return git.getDiff(this.ipc.bind(this), workingDirectory);
+  }
+
+  async revertChanges(workingDirectory: string): Promise<boolean> {
+    return git.revertChanges(this.ipc.bind(this), workingDirectory);
   }
 
   // ==================== Sync Compatibility Methods ====================
@@ -717,23 +212,11 @@ export class AgentWorkerManager {
    * Worker communication is async, so this always returns an empty array.
    * Use getSessionExecutionsAsync() when accurate values are needed.
    */
-  getSessionExecutions(_sessionId: number): ExecutionState[] {
-    return [];
-  }
+  getSessionExecutions(_sessionId: number): ExecutionState[] { return []; }
 
-  getActiveAgentInfos(): Array<{
-    executionId: number;
-    sessionId: number;
-    taskId: number;
-    startedAt: Date;
-    lastOutput: string;
-  }> {
-    return [];
-  }
+  getActiveAgentInfos(): Array<{ executionId: number; sessionId: number; taskId: number; startedAt: Date; lastOutput: string }> { return []; }
 
-  getActiveExecutions(): ExecutionState[] {
-    return [];
-  }
+  getActiveExecutions(): ExecutionState[] { return []; }
 
   /**
    * Asynchronously retrieves the list of active execution IDs from the worker process.
@@ -742,19 +225,10 @@ export class AgentWorkerManager {
    * @returns Array of active execution IDs
    */
   async getActiveExecutionIdsAsync(): Promise<number[]> {
-    try {
-      const result = await this.sendIPCRequest('get-active-agent-infos', {}, 5000);
-      const infos = result as Array<{ executionId: number }>;
-      return infos.map((info) => info.executionId);
-    } catch (error) {
-      logger.warn({ err: error }, '[AgentWorkerManager] Failed to get active execution IDs');
-      return [];
-    }
+    return api.getActiveExecutionIdsAsync(this.ipc.bind(this));
   }
 
-  getExecutionState(_executionId: number): ExecutionState | undefined {
-    return undefined;
-  }
+  getExecutionState(_executionId: number): ExecutionState | undefined { return undefined; }
 
   // ==================== Stub Methods (Orchestrator-compatible) ====================
 
@@ -764,76 +238,21 @@ export class AgentWorkerManager {
 
   removeEventListener(_listener: (event: unknown) => void): void {}
 
-  isInShutdown(): boolean {
-    return this.isShuttingDown;
-  }
+  isInShutdown(): boolean { return this.state.isShuttingDown; }
 
   setServerStopCallback(_callback: () => Promise<void> | void): void {
     // Worker does not stop the server
   }
 
   async stopServer(): Promise<void> {
-    // Server stop is not needed in the worker manager
     // Handled directly in the main process index.ts
   }
 
   // ==================== Lifecycle ====================
 
-  public getIsWorkerReady(): boolean {
-    return this.isWorkerReady;
-  }
+  public getIsWorkerReady(): boolean { return this.state.isWorkerReady; }
 
   public async gracefulShutdown(_options?: { skipServerStop?: boolean }): Promise<void> {
-    if (this.isShuttingDown) {
-      return;
-    }
-
-    this.isShuttingDown = true;
-    logger.info('[AgentWorkerManager] Starting graceful shutdown');
-
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-    }
-
-    // Notify the worker to shut down
-    if (this.workerProcess && this.isWorkerReady) {
-      try {
-        await this.sendIPCRequest('shutdown', {}, 8000);
-      } catch (error) {
-        logger.warn({ err: error }, '[AgentWorkerManager] Shutdown request to worker failed');
-      }
-    }
-
-    this.rejectPendingRequests(new Error('Manager is shutting down'));
-
-    if (this.workerProcess) {
-      try {
-        if (!this.workerProcess.killed) {
-          this.workerProcess.kill('SIGTERM');
-        }
-
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(() => {
-            if (this.workerProcess && !this.workerProcess.killed) {
-              logger.warn('[AgentWorkerManager] Force killing worker process');
-              this.workerProcess.kill('SIGKILL');
-            }
-            resolve();
-          }, 5000);
-
-          this.workerProcess!.on('exit', () => {
-            clearTimeout(timeout);
-            resolve();
-          });
-        });
-      } catch (error) {
-        logger.error({ err: error }, '[AgentWorkerManager] Error during worker shutdown');
-      }
-
-      this.workerProcess = null;
-    }
-
-    logger.info('[AgentWorkerManager] Graceful shutdown complete');
+    await gracefulShutdown(this.state);
   }
 }

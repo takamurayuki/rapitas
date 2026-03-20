@@ -1,60 +1,41 @@
+/**
+ * ExamGoalsPage
+ *
+ * Orchestrates data fetching and CRUD operations for exam goals.
+ * Rendering is delegated to GoalCard and GoalModal sub-components.
+ */
+
 'use client';
+
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ExamGoal } from '@/types';
-import {
-  Plus,
-  Edit2,
-  Trash2,
-  Calendar,
-  Target,
-  CheckCircle2,
-  Clock,
-  Trophy,
-} from 'lucide-react';
-import {
-  getIconComponent,
-  ICON_DATA,
-  searchIcons,
-} from '@/components/category/IconData';
-import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
+import { Plus, Clock, Trophy, Target } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
-import { toDateLocale } from '@/lib/utils';
+import { UpcomingGoalCard, CompletedGoalCard } from './_components/GoalCard';
+import { GoalModal } from './_components/GoalModal';
+import type { ExamGoalFormData } from './_components/constants';
 
 const logger = createLogger('ExamGoalsPage');
 
-const PRESET_COLORS = [
-  '#10B981', // emerald
-  '#3B82F6', // blue
-  '#8B5CF6', // violet
-  '#EC4899', // pink
-  '#F59E0B', // amber
-  '#EF4444', // red
-  '#06B6D4', // cyan
-  '#84CC16', // lime
-];
+const DEFAULT_FORM: ExamGoalFormData = {
+  name: '',
+  description: '',
+  examDate: '',
+  targetScore: '',
+  color: '#10B981',
+  icon: '',
+};
 
 export default function ExamGoalsPage() {
   const t = useTranslations('examGoals');
   const tc = useTranslations('common');
-  const locale = useLocaleStore((s) => s.locale);
-  const dateLocale = toDateLocale(locale);
   const [examGoals, setExamGoals] = useState<ExamGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ExamGoal | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    examDate: '',
-    targetScore: '',
-    color: '#10B981',
-    icon: '',
-  });
-  const [iconSearch, setIconSearch] = useState('');
-  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [formData, setFormData] = useState<ExamGoalFormData>(DEFAULT_FORM);
 
   useEffect(() => {
     fetchExamGoals();
@@ -76,15 +57,11 @@ export default function ExamGoalsPage() {
 
   const openCreateModal = () => {
     setEditingGoal(null);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 30);
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 30);
     setFormData({
-      name: '',
-      description: '',
-      examDate: tomorrow.toISOString().split('T')[0],
-      targetScore: '',
-      color: '#10B981',
-      icon: '',
+      ...DEFAULT_FORM,
+      examDate: defaultDate.toISOString().split('T')[0],
     });
     setIsModalOpen(true);
   };
@@ -137,12 +114,8 @@ export default function ExamGoalsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm(t('confirmDeleteGoal'))) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        fetchExamGoals();
-      }
+      const res = await fetch(`${API_BASE_URL}/exam-goals/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchExamGoals();
     } catch (e) {
       logger.error('Failed to delete exam goal:', e);
     }
@@ -154,30 +127,13 @@ export default function ExamGoalsPage() {
       const res = await fetch(`${API_BASE_URL}/exam-goals/${goal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          isCompleted: true,
-          actualScore: actualScore || null,
-        }),
+        body: JSON.stringify({ isCompleted: true, actualScore: actualScore || null }),
       });
-      if (res.ok) {
-        fetchExamGoals();
-      }
+      if (res.ok) fetchExamGoals();
     } catch (e) {
       logger.error('Failed to complete exam goal:', e);
     }
   };
-
-  const renderIcon = (iconName: string | null | undefined, size = 20) => {
-    const IconComponent = getIconComponent(iconName || '');
-    if (!IconComponent) {
-      return <Target size={size} />;
-    }
-    return <IconComponent size={size} />;
-  };
-
-  const filteredIcons = iconSearch
-    ? searchIcons(iconSearch)
-    : Object.keys(ICON_DATA).slice(0, 30);
 
   if (loading) {
     return (
@@ -186,10 +142,7 @@ export default function ExamGoalsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
-              />
+              <div key={i} className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
             ))}
           </div>
         </div>
@@ -204,12 +157,8 @@ export default function ExamGoalsPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            {t('subtitle')}
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{t('subtitle')}</p>
         </div>
         <button
           onClick={openCreateModal}
@@ -227,80 +176,15 @@ export default function ExamGoalsPage() {
             {t('upcoming')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingGoals.map((goal) => {
-              return (
-                <div
-                  key={goal.id}
-                  className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{
-                          backgroundColor: `${goal.color}20`,
-                          color: goal.color,
-                        }}
-                      >
-                        {renderIcon(goal.icon, 22)}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                          {goal.name}
-                        </h3>
-                        {goal.targetScore && (
-                          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                            {t('target')} {goal.targetScore}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleComplete(goal)}
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
-                        title={t('markComplete')}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => openEditModal(goal)}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(goal.id)}
-                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {goal.description && (
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
-                      {goal.description}
-                    </p>
-                  )}
-
-                  <div className="mt-1">
-                    <ExamCountdown
-                      examDate={goal.examDate}
-                      color={goal.color}
-                    />
-                  </div>
-
-                  {goal._count && goal._count.tasks > 0 && (
-                    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700">
-                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {t('relatedTasks', { count: goal._count.tasks })}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {upcomingGoals.map((goal) => (
+              <UpcomingGoalCard
+                key={goal.id}
+                goal={goal}
+                onComplete={handleComplete}
+                onEdit={openEditModal}
+                onDelete={handleDelete}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -313,46 +197,7 @@ export default function ExamGoalsPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {completedGoals.map((goal) => (
-              <div
-                key={goal.id}
-                className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 opacity-75"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{
-                        backgroundColor: `${goal.color}20`,
-                        color: goal.color,
-                      }}
-                    >
-                      {renderIcon(goal.icon, 22)}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 line-through">
-                        {goal.name}
-                      </h3>
-                      {goal.actualScore && (
-                        <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                          {t('result')} {goal.actualScore}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(goal.id)}
-                    className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
-                  <Calendar className="w-4 h-4" />
-                  <span>
-                    {new Date(goal.examDate).toLocaleDateString(dateLocale)}
-                  </span>
-                </div>
-              </div>
+              <CompletedGoalCard key={goal.id} goal={goal} onDelete={handleDelete} />
             ))}
           </div>
         </div>
@@ -366,166 +211,13 @@ export default function ExamGoalsPage() {
       )}
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-                {editingGoal ? t('editTitle') : t('newTitle')}
-              </h2>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('examName')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder={t('examNameExample')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('examDate')}
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.examDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, examDate: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {t('targetScore')}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.targetScore}
-                    onChange={(e) =>
-                      setFormData({ ...formData, targetScore: e.target.value })
-                    }
-                    placeholder={t('scoreExample')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    {tc('descriptionOptional')}
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    placeholder={t('descriptionPlaceholder')}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    {tc('color')}
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {PRESET_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          formData.color === color
-                            ? 'border-zinc-900 dark:border-white scale-110'
-                            : 'border-transparent hover:scale-105'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    {tc('icon')}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowIconPicker(!showIconPicker)}
-                    className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors"
-                  >
-                    <span style={{ color: formData.color }}>
-                      {renderIcon(formData.icon, 20)}
-                    </span>
-                    <span className="text-sm">
-                      {formData.icon || tc('selectIcon')}
-                    </span>
-                  </button>
-
-                  {showIconPicker && (
-                    <div className="mt-2 p-3 border border-zinc-200 dark:border-zinc-600 rounded-lg bg-zinc-50 dark:bg-zinc-700">
-                      <input
-                        type="text"
-                        value={iconSearch}
-                        onChange={(e) => setIconSearch(e.target.value)}
-                        placeholder={tc('searchIcon')}
-                        className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                      <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto">
-                        {filteredIcons.map((iconName) => (
-                          <button
-                            key={iconName}
-                            type="button"
-                            onClick={() => {
-                              setFormData({ ...formData, icon: iconName });
-                              setShowIconPicker(false);
-                              setIconSearch('');
-                            }}
-                            className={`p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors ${
-                              formData.icon === iconName
-                                ? 'bg-zinc-200 dark:bg-zinc-600'
-                                : ''
-                            }`}
-                            title={iconName}
-                          >
-                            {renderIcon(iconName, 18)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    {tc('cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-                  >
-                    {editingGoal ? tc('update') : tc('create')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <GoalModal
+          isEditing={editingGoal !== null}
+          formData={formData}
+          onChange={setFormData}
+          onSubmit={handleSubmit}
+          onClose={() => setIsModalOpen(false)}
+        />
       )}
     </div>
   );

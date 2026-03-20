@@ -1,30 +1,25 @@
 'use client';
 
+/**
+ * PullRequestDetailClient
+ *
+ * Page-level client component for the pull request detail view.
+ * Manages data fetching, tab state, and interaction handlers,
+ * delegating all rendering to sub-components.
+ */
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import {
-  ArrowLeft,
-  GitPullRequest,
-  GitMerge,
-  XCircle,
-  MessageSquare,
-  CheckCircle2,
-  AlertCircle,
-  FileCode,
-  ExternalLink,
-  Send,
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Minus,
-} from 'lucide-react';
+import { MessageSquare, FileCode } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { createLogger } from '@/lib/logger';
+import { PRHeader } from './components/PRHeader';
+import { PRConversationTab } from './components/PRConversationTab';
+import { PRFilesTab } from './components/PRFilesTab';
+import { PRSidebar } from './components/PRSidebar';
 
 const logger = createLogger('PullRequestDetailClient');
 
@@ -120,30 +115,6 @@ export default function PullRequestDetailClient() {
     });
   };
 
-  const getStatusIcon = (state: string) => {
-    switch (state) {
-      case 'open':
-        return <GitPullRequest className="w-6 h-6 text-green-500" />;
-      case 'merged':
-        return <GitMerge className="w-6 h-6 text-purple-500" />;
-      case 'closed':
-        return <XCircle className="w-6 h-6 text-red-500" />;
-      default:
-        return <GitPullRequest className="w-6 h-6" />;
-    }
-  };
-
-  const getReviewIcon = (state: string) => {
-    switch (state) {
-      case 'APPROVED':
-        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'CHANGES_REQUESTED':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <MessageSquare className="w-4 h-4 text-zinc-400" />;
-    }
-  };
-
   if (loading) {
     return <LoadingSpinner />;
   }
@@ -158,41 +129,14 @@ export default function PullRequestDetailClient() {
     );
   }
 
+  const conversationCount =
+    (pr.reviews?.length || 0) + (pr.comments?.length || 0);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-start gap-4 mb-6">
-        <Link
-          href="/github/pull-requests"
-          className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        {getStatusIcon(pr.state)}
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            {pr.title}
-            <span className="ml-2 text-zinc-400 font-normal">
-              #{pr.prNumber}
-            </span>
-          </h1>
-          <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            <span>by {pr.authorLogin}</span>
-            <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-2 py-1 rounded">
-              {pr.headBranch} → {pr.baseBranch}
-            </span>
-            <a
-              href={pr.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              <ExternalLink className="w-3 h-3" />
-              {t('openInGitHub')}
-            </a>
-          </div>
-        </div>
-      </div>
+      <PRHeader pr={pr} />
 
+      {/* Tab nav */}
       <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
         <button
           onClick={() => setActiveTab('conversation')}
@@ -205,9 +149,9 @@ export default function PullRequestDetailClient() {
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
             {t('conversation')}
-            {(pr.reviews?.length || 0) + (pr.comments?.length || 0) > 0 && (
+            {conversationCount > 0 && (
               <span className="px-1.5 py-0.5 text-xs bg-zinc-100 dark:bg-zinc-700 rounded">
-                {(pr.reviews?.length || 0) + (pr.comments?.length || 0)}
+                {conversationCount}
               </span>
             )}
           </div>
@@ -235,270 +179,25 @@ export default function PullRequestDetailClient() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           {activeTab === 'conversation' ? (
-            <div className="space-y-4">
-              {pr.body && (
-                <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                  <div className="prose dark:prose-invert max-w-none text-sm">
-                    {pr.body}
-                  </div>
-                </div>
-              )}
-
-              {pr.reviews?.map((review) => (
-                <div
-                  key={review.id}
-                  className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {getReviewIcon(review.state)}
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {review.authorLogin}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded ${
-                        review.state === 'APPROVED'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : review.state === 'CHANGES_REQUESTED'
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300'
-                      }`}
-                    >
-                      {review.state === 'APPROVED'
-                        ? 'Approved'
-                        : review.state === 'CHANGES_REQUESTED'
-                          ? 'Changes requested'
-                          : 'Commented'}
-                    </span>
-                    <span className="text-xs text-zinc-400">
-                      {new Date(review.submittedAt).toLocaleString('ja-JP')}
-                    </span>
-                  </div>
-                  {review.body && (
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      {review.body}
-                    </p>
-                  )}
-                </div>
-              ))}
-
-              {pr.comments?.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <MessageSquare className="w-4 h-4 text-zinc-400" />
-                    <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {comment.authorLogin}
-                    </span>
-                    {comment.path && (
-                      <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">
-                        {comment.path}:{comment.line}
-                      </span>
-                    )}
-                    <span className="text-xs text-zinc-400">
-                      {new Date(comment.createdAt).toLocaleString('ja-JP')}
-                    </span>
-                  </div>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                    {comment.body}
-                  </p>
-                </div>
-              ))}
-
-              <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                <textarea
-                  value={commentBody}
-                  onChange={(e) => setCommentBody(e.target.value)}
-                  placeholder={t('commentPlaceholder')}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                />
-                <div className="flex items-center justify-between mt-3">
-                  <div className="flex items-center gap-2">
-                    {pr.state === 'open' && (
-                      <>
-                        <button
-                          onClick={() => handleReview('approve')}
-                          disabled={reviewAction !== null}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          {t('approve')}
-                        </button>
-                        <button
-                          onClick={() => handleReview('request_changes')}
-                          disabled={
-                            reviewAction !== null || !commentBody.trim()
-                          }
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <AlertCircle className="w-4 h-4" />
-                          {t('requestChanges')}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleComment}
-                    disabled={commenting || !commentBody.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                  >
-                    {commenting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    {t('comment')}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <PRConversationTab
+              pr={pr}
+              commentBody={commentBody}
+              commenting={commenting}
+              reviewAction={reviewAction}
+              onCommentChange={setCommentBody}
+              onComment={handleComment}
+              onReview={handleReview}
+            />
           ) : (
-            <div className="space-y-2">
-              {diff.map((file) => (
-                <div
-                  key={file.filename}
-                  className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden"
-                >
-                  <button
-                    onClick={() => toggleFile(file.filename)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {expandedFiles.has(file.filename) ? (
-                        <ChevronDown className="w-4 h-4 text-zinc-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-zinc-400" />
-                      )}
-                      <FileCode className="w-4 h-4 text-zinc-400" />
-                      <span className="font-mono text-sm text-zinc-900 dark:text-zinc-100">
-                        {file.filename}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 text-xs rounded ${
-                          file.status === 'added'
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : file.status === 'removed'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                        }`}
-                      >
-                        {file.status}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                        <Plus className="w-3 h-3" />
-                        {file.additions}
-                      </span>
-                      <span className="text-red-600 dark:text-red-400 flex items-center gap-0.5">
-                        <Minus className="w-3 h-3" />
-                        {file.deletions}
-                      </span>
-                    </div>
-                  </button>
-                  {expandedFiles.has(file.filename) && file.patch && (
-                    <div className="border-t border-zinc-200 dark:border-zinc-700">
-                      <pre className="p-4 text-xs font-mono overflow-x-auto bg-zinc-50 dark:bg-indigo-dark-900">
-                        {file.patch.split('\n').map((line, i) => (
-                          <div
-                            key={i}
-                            className={`${
-                              line.startsWith('+') && !line.startsWith('+++')
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                                : line.startsWith('-') &&
-                                    !line.startsWith('---')
-                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                                  : line.startsWith('@@')
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
-                                    : 'text-zinc-600 dark:text-zinc-400'
-                            }`}
-                          >
-                            {line}
-                          </div>
-                        ))}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <PRFilesTab
+              diff={diff}
+              expandedFiles={expandedFiles}
+              onToggleFile={toggleFile}
+            />
           )}
         </div>
 
-        <div className="space-y-4">
-          <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-              {t('status')}
-            </h3>
-            <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                pr.state === 'open'
-                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                  : pr.state === 'merged'
-                    ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400'
-                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-              }`}
-            >
-              {getStatusIcon(pr.state)}
-              <span className="font-medium capitalize">{pr.state}</span>
-            </div>
-          </div>
-
-          {pr.reviews && pr.reviews.length > 0 && (
-            <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-              <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-                {t('reviews')}
-              </h3>
-              <div className="space-y-2">
-                {pr.reviews.map((review) => (
-                  <div
-                    key={review.id}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    {getReviewIcon(review.state)}
-                    <span className="text-zinc-600 dark:text-zinc-400">
-                      {review.authorLogin}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-            <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-              {t('changes')}
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  {t('fileCount')}
-                </span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {diff.length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  {t('additions')}
-                </span>
-                <span className="font-medium text-green-600 dark:text-green-400">
-                  +{diff.reduce((sum, f) => sum + f.additions, 0)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500 dark:text-zinc-400">
-                  {t('deletions')}
-                </span>
-                <span className="font-medium text-red-600 dark:text-red-400">
-                  -{diff.reduce((sum, f) => sum + f.deletions, 0)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PRSidebar pr={pr} diff={diff} />
       </div>
     </div>
   );
