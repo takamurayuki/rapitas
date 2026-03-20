@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { useTaskSorting } from '../useTaskSorting';
+import { useTaskSorting } from '../task/useTaskSorting';
 import type { Task } from '@/types';
 
 const createMockTask = (overrides: Partial<Task> = {}): Task =>

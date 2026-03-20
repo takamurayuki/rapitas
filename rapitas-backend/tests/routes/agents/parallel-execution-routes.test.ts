@@ -87,7 +87,7 @@ mock.module('../../../services/parallel-execution', () => ({
   })),
 }));
 
-mock.module('../../../services/sse-utils', () => ({
+mock.module('../../../services/communication/sse-utils', () => ({
   SSEStreamController: class {
     createStream() {
       return new ReadableStream({

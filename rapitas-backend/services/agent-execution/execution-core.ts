@@ -7,7 +7,7 @@
  * Read-only queries live in execution-queries.ts.
  */
 import { PrismaClient } from '@prisma/client';
-import { orchestrator } from '../orchestrator-instance';
+import { orchestrator } from '../core/orchestrator-instance';
 import type { ExecutionRequest, ExecutionResult } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';
 import {

@@ -22,7 +22,7 @@ const {
   getUserFriendlyErrorMessage,
   SSEStreamController,
   DEFAULT_RETRY_CONFIG,
-} = await import('../../services/sse-utils');
+} = await import('../../services/communication/sse-utils');
 
 describe('createSSEHeaders', () => {
   test('Content-Typeがtext/event-streamであること', () => {

@@ -7,7 +7,7 @@
 
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput, AgentType } from '../agent-factory';
-import { decrypt } from '../../../utils/encryption';
+import { decrypt } from '../../../utils/common/encryption';
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
 

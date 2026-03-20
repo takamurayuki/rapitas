@@ -10,7 +10,7 @@ import DebugLogAnalyzer, {
   LogAnalysisResult,
   AnalyzeOptions,
 } from '../../utils/debug-log-analyzer';
-import { LogParserFactory } from '../../utils/debug-log-parsers';
+import { LogParserFactory } from '../../utils/common/debug-log-parsers';
 
 const log = createLogger('routes:debug-logs');
 

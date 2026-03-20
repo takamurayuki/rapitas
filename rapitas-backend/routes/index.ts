@@ -21,17 +21,17 @@ export { batchRoutes } from './tasks/batch';
 export { recurringTaskRoutes } from './tasks/recurring-tasks';
 
 // Agents
-export { approvalsRoutes } from './agents/approvals';
-export { orchestrator } from '../services/orchestrator-instance';
-export { aiAgentRoutes } from './agents/ai-agent';
-export { parallelExecutionRoutes } from './agents/parallel-execution';
-export { agentExecutionConfigRoutes } from './agents/agent-execution-config';
-export { executionLogsRoutes } from './agents/execution-logs';
-export { agentMetricsRouter } from './agents/agent-metrics';
-export { agentVersionManagementRoutes } from './agents/agent-version-management';
-export { cliToolsManagementRoutes } from './agents/cli-tools-management';
-export { executionForkRoutes } from './agents/execution-fork-routes';
-export { smartRouterRoutes } from './agents/smart-router-routes';
+export { approvalsRoutes } from './agents/integrations/approvals';
+export { orchestrator } from '../services/core/orchestrator-instance';
+export { aiAgentRoutes } from './agents/integrations/ai-agent';
+export { parallelExecutionRoutes } from './agents/integrations/parallel-execution';
+export { agentExecutionConfigRoutes } from './agents/config/agent-execution-config';
+export { executionLogsRoutes } from './agents/monitoring/execution-logs';
+export { agentMetricsRouter } from './agents/monitoring/agent-metrics';
+export { agentVersionManagementRoutes } from './agents/system/agent-version-management';
+export { cliToolsManagementRoutes } from './agents/integrations/cli-tools-management';
+export { executionForkRoutes } from './agents/execution-management/execution-fork-routes';
+export { smartRouterRoutes } from './agents/system/smart-router-routes';
 
 // AI
 export { aiChatRoutes } from './ai/ai-chat';

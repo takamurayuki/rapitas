@@ -8,10 +8,10 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { toJsonString, fromJsonString } from '../../utils/db-helpers';
-import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../utils/encryption';
-import { validateApiKeyFormat } from '../../utils/agent-config-schema';
-import { logAgentConfigChange } from '../../utils/agent-audit-log';
+import { toJsonString, fromJsonString } from '../../utils/database/db-helpers';
+import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../utils/common/encryption';
+import { validateApiKeyFormat } from '../../utils/agent/agent-config-schema';
+import { logAgentConfigChange } from '../../utils/agent/agent-audit-log';
 import type { AIAgentConfig } from '@prisma/client';
 import { getAgentById } from './crud';
 

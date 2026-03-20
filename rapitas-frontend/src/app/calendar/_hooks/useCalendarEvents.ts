@@ -13,7 +13,7 @@ import type { ExamGoal, ScheduleEvent, ScheduleEventInput, PaidLeaveBalance } fr
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
-import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
+import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { createLogger } from '@/lib/logger';
 import type { CalendarEvent } from '../_utils/calendarHelpers';
 

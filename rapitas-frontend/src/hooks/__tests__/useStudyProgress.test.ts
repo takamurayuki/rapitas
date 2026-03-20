@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useStudyProgress } from '../useStudyProgress';
+import { useStudyProgress } from '../study/useStudyProgress';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({

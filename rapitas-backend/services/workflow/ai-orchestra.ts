@@ -8,7 +8,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type EnqueueOptions } from './workflow-queue';
 import { WorkflowRunner } from './workflow-runner';
-import { realtimeService } from '../realtime-service';
+import { realtimeService } from '../communication/realtime-service';
 
 const log = createLogger('ai-orchestra');
 

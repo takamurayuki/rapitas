@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useLocalStorageState } from '../useLocalStorageState';
+import { useLocalStorageState } from '../common/useLocalStorageState';
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({

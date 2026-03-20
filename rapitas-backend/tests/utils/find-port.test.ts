@@ -6,7 +6,7 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { createServer, type Server } from 'net';
-import { isPortAvailable, findAvailablePort } from '../../utils/find-port';
+import { isPortAvailable, findAvailablePort } from '../../utils/common/find-port';
 
 describe('Port Detection Utilities', () => {
   let testServers: Server[] = [];

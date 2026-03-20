@@ -96,10 +96,10 @@ import {
   orchestrator,
   workerManager,
   setServerStopCallback,
-} from './services/orchestrator-instance';
+} from './services/core/orchestrator-instance';
 
 // Import realtime service for SSE cleanup on shutdown
-import { realtimeService } from './services/realtime-service';
+import { realtimeService } from './services/communication/realtime-service';
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();

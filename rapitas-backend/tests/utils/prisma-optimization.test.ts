@@ -15,7 +15,7 @@ mock.module('../../config/logger', () => ({
 }));
 
 const { PrismaOptimizer, PrismaDataLoader, QueryOptimizers } =
-  await import('../../utils/prisma-optimization');
+  await import('../../utils/database/prisma-optimization');
 
 describe('PrismaOptimizer', () => {
   describe('selectFields', () => {

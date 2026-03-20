@@ -9,7 +9,7 @@ import { AIOrchestra } from '../../services/workflow/ai-orchestra';
 import { WorkflowQueueService } from '../../services/workflow/workflow-queue';
 import { WorkflowRunner } from '../../services/workflow/workflow-runner';
 import { createLogger } from '../../config/logger';
-import { realtimeService } from '../../services/realtime-service';
+import { realtimeService } from '../../services/communication/realtime-service';
 
 const log = createLogger('routes:orchestra');
 

@@ -9,13 +9,13 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
-import { toJsonString } from '../../../utils/db-helpers';
+import { toJsonString } from '../../../utils/database/db-helpers';
 import {
   cleanImplementationSummary,
   sanitizeScreenshots,
-} from '../../../utils/agent-response-cleaner';
-import { captureScreenshotsForDiff } from '../../../services/screenshot-service';
-import type { ScreenshotResult } from '../../../services/screenshot-service';
+} from '../../../utils/agent/agent-response-cleaner';
+import { captureScreenshotsForDiff } from '../../../services/misc/screenshot-service';
+import type { ScreenshotResult } from '../../../services/misc/screenshot-service';
 
 const log = createLogger('routes:agent-execution:helpers');
 const agentWorkerManager = AgentWorkerManager.getInstance();

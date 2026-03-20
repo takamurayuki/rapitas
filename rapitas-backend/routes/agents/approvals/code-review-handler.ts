@@ -10,9 +10,9 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { orchestrator } from '../../../services/orchestrator-instance';
-import { GitHubService } from '../../../services/github-service';
-import { toJsonString, fromJsonString } from '../../../utils/db-helpers';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
+import { GitHubService } from '../../../services/core/github-service';
+import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:approvals:code-review');
 

@@ -7,7 +7,7 @@
  * maskApiKeyとisEncryptionKeyConfiguredは独立してテスト可能。
  */
 import { describe, test, expect } from 'bun:test';
-import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../utils/encryption';
+import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../utils/common/encryption';
 
 describe('encrypt / decrypt', () => {
   test('暗号化と復号化のラウンドトリップが正しく動作すること', () => {

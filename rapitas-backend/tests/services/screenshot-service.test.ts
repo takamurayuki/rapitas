@@ -16,7 +16,7 @@ mock.module('../../config/logger', () => ({
 }));
 
 const { detectProjectInfo, hasUIChanges, detectAffectedPages, detectPagesFromAgentOutput } =
-  await import('../../services/screenshot-service');
+  await import('../../services/misc/screenshot-service');
 
 describe('detectProjectInfo', () => {
   test('存在しないディレクトリでunknownタイプを返すこと', () => {
@@ -79,7 +79,7 @@ describe('hasUIChanges', () => {
   test('バックエンドファイルの変更でfalseを返すこと', () => {
     const result = hasUIChanges([
       'rapitas-backend/routes/tasks.ts',
-      'rapitas-backend/services/task-service.ts',
+      'rapitas-backend/services/task/task-service.ts',
     ]);
     expect(result).toBe(false);
   });
@@ -132,7 +132,7 @@ describe('detectAffectedPages', () => {
   });
 
   test('UI変更のないファイルで空配列を返すこと', () => {
-    const pages = detectAffectedPages(['rapitas-backend/services/task-service.ts']);
+    const pages = detectAffectedPages(['rapitas-backend/services/task/task-service.ts']);
     expect(pages).toHaveLength(0);
   });
 

@@ -8,7 +8,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
-import { realtimeService } from '../realtime-service';
+import { realtimeService } from '../communication/realtime-service';
 import type { GitHubWebhookPayload } from './types';
 
 const log = createLogger('github-service:webhook-handlers');

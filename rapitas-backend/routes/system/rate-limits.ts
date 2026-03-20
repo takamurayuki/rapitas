@@ -4,7 +4,7 @@
 import { Elysia, t } from 'elysia';
 import { getApiKeyForProvider } from '../../utils/ai-client';
 import { prisma } from '../../config/database';
-import { decrypt } from '../../utils/encryption';
+import { decrypt } from '../../utils/common/encryption';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:rate-limits');

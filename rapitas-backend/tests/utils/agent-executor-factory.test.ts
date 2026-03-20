@@ -17,7 +17,7 @@ mock.module('@prisma/client', () => ({
 }));
 
 const { getParallelExecutor, cleanupParallelExecutor, isParallelExecutorActive } =
-  await import('../../utils/agent-executor-factory');
+  await import('../../utils/agent/agent-executor-factory');
 
 type MockPrismaClient = Record<string, unknown>;
 

@@ -8,7 +8,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { orchestrator } from '../../../services/orchestrator-instance';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { releaseTaskExecutionLock } from './execution-lock';
 

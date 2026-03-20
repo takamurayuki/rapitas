@@ -43,7 +43,7 @@ mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
 mock.module("../../../services/achievement-checker", () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
-mock.module("../../../services/notification-service", () => ({
+mock.module("../../../services/communication/notification-service", () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
 mock.module("../../../src/services/userBehaviorService", () => ({

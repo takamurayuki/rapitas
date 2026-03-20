@@ -22,7 +22,7 @@ mock.module('../../config/logger', () => ({
 }));
 
 const { getEventsForRange, createEvent, checkConflicts } =
-  await import('../../services/calendar-service');
+  await import('../../services/scheduling/calendar-service');
 
 function resetAllMocks() {
   mockPrisma.scheduleEvent.findMany.mockReset();

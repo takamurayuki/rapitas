@@ -51,13 +51,13 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-mock.module('../../services/realtime-service', () => ({
+mock.module('../../services/communication/realtime-service', () => ({
   realtimeService: {
     sendGitHubEvent: mock(() => {}),
   },
 }));
 
-const { GitHubService } = await import('../../services/github-service');
+const { GitHubService } = await import('../../services/core/github-service');
 
 function resetAllMocks() {
   mockExecAsync.mockReset();

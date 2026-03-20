@@ -7,7 +7,7 @@ import { prisma } from "../../config/database";
 import {
   SSEStreamController,
   getUserFriendlyErrorMessage,
-} from "../../services/sse-utils";
+} from "../../services/communication/sse-utils";
 
 // Type definitions
 type SubtaskFileInfo = {

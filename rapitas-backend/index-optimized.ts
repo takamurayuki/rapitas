@@ -57,22 +57,22 @@ import {
 import { batchRoutesV2 } from './routes/tasks/batch-v2';
 
 // Import WebSocket routes
-import { websocketRoutes, wsManager } from './services/websocket-service';
+import { websocketRoutes, wsManager } from './services/communication/websocket-service';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
 
 // Import Prisma optimizations
-import { setupPrismaOptimizations } from './utils/prisma-optimization';
+import { setupPrismaOptimizations } from './utils/database/prisma-optimization';
 
 // Import cache service
-import { cacheService } from './services/cache-service';
+import { cacheService } from './services/core/cache-service';
 
 // Import orchestrator for startup recovery
-import { orchestrator } from './services/orchestrator-instance';
+import { orchestrator } from './services/core/orchestrator-instance';
 
 // Import realtime service for SSE cleanup on shutdown
-import { realtimeService } from './services/realtime-service';
+import { realtimeService } from './services/communication/realtime-service';
 
 // Ensure database connection before starting server
 await ensureDatabaseConnection();

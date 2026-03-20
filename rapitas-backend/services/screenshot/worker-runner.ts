@@ -43,7 +43,7 @@ function parseNdjson(stdout: string): ScreenshotResult[] {
  */
 export function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<ScreenshotResult[]> {
   return new Promise((resolve, reject) => {
-    const workerPath = join(import.meta.dir, '..', 'screenshot-worker.cjs');
+    const workerPath = join(import.meta.dir, '..', 'misc', 'screenshot-worker.cjs');
     const child = spawn('node', [workerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       // Windows: prevent Chromium from inheriting handles

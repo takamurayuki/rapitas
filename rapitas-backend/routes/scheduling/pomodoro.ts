@@ -12,7 +12,7 @@ import {
   cancelPomodoro,
   getStatistics,
   getHistory,
-} from '../../services/pomodoro-service';
+} from '../../services/scheduling/pomodoro-service';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:pomodoro');

@@ -8,7 +8,7 @@ import {
   parseRRule,
   expandRecurrence,
   RECURRENCE_PRESETS,
-} from '../../services/recurrence-service';
+} from '../../services/scheduling/recurrence-service';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:schedules');

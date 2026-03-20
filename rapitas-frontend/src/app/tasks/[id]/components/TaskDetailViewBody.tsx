@@ -9,7 +9,7 @@
 'use client';
 import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
-import { TaskDependencyGraph } from '@/components/TaskDependencyGraph';
+import { TaskDependencyGraph } from '@/components/widgets/TaskDependencyGraph';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';

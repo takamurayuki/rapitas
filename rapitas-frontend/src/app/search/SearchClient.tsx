@@ -7,7 +7,7 @@ import { Search, SearchX } from 'lucide-react';
 import {
   useGlobalSearch,
   type SearchResultType,
-} from '@/hooks/useGlobalSearch';
+} from '@/hooks/search/useGlobalSearch';
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 

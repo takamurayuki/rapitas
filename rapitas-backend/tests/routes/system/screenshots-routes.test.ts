@@ -43,7 +43,7 @@ const mockDetectProjectInfo = mock(() => ({
 
 const mockDetectAllPages = mock(() => [{ path: '/', name: 'Home' }]);
 
-mock.module('../../../services/screenshot-service', () => ({
+mock.module('../../../services/misc/screenshot-service', () => ({
   captureScreenshots: mockCaptureScreenshots,
   captureAllScreenshots: mockCaptureAllScreenshots,
   detectProjectInfo: mockDetectProjectInfo,

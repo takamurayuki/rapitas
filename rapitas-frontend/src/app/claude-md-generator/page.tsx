@@ -7,15 +7,15 @@
 
 'use client';
 
-import { useWizard } from './use-wizard';
-import { IntroPhase } from './intro-phase';
-import { GenrePhase } from './genre-phase';
-import { SubPhase } from './sub-phase';
-import { ElementsPhase } from './elements-phase';
-import { PlatformPhase } from './platform-phase';
-import { LoadingPhase } from './loading-phase';
-import { ProposalsPhase } from './proposals-phase';
-import { ResultPhase } from './result-phase';
+import { useWizard } from './_hooks/use-wizard';
+import { IntroPhase } from './_components/intro-phase';
+import { GenrePhase } from './_components/genre-phase';
+import { SubPhase } from './_components/sub-phase';
+import { ElementsPhase } from './_components/elements-phase';
+import { PlatformPhase } from './_components/platform-phase';
+import { LoadingPhase } from './_components/loading-phase';
+import { ProposalsPhase } from './_components/proposals-phase';
+import { ResultPhase } from './_components/result-phase';
 
 export default function ClaudeMdGeneratorPage() {
   const w = useWizard();

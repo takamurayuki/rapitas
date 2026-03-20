@@ -10,7 +10,7 @@
 import { join } from 'path';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { fromJsonString } from '../../../utils/db-helpers';
+import { fromJsonString } from '../../../utils/database/db-helpers';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 const log = createLogger('routes:agent-execution:instruction-builder');

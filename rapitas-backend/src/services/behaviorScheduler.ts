@@ -3,9 +3,9 @@ import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';
 import { generateOptimizationRules } from '../../services/workflow/workflow-learning-optimizer';
-import { processAllPendingRecurrences } from '../../services/recurring-task-service';
-import { runScheduledTechDebtScan } from '../../services/tech-debt-liquidator';
-import { runProjectHealthScan } from '../../services/project-health-monitor';
+import { processAllPendingRecurrences } from '../../services/scheduling/recurring-task-service';
+import { runScheduledTechDebtScan } from '../../services/misc/tech-debt-liquidator';
+import { runProjectHealthScan } from '../../services/analytics/project-health-monitor';
 import { prisma } from '../../config/database';
 
 const log = createLogger('behavior-scheduler');
