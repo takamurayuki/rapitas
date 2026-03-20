@@ -35,8 +35,7 @@ const { agentExecutionConfigRoutes } =
   await import('../../../routes/agents/agent-execution-config');
 
 describe('Agent Execution Config Routes', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
 
   beforeEach(() => {
     mockPrisma.agentExecutionConfig.findUnique.mockReset();

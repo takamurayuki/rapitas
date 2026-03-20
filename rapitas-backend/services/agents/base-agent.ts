@@ -60,6 +60,8 @@ export type AgentTask = {
   resumeSessionId?: string;
   /** Model ID override for this task (e.g., "claude-sonnet-4-5-20250514"). */
   modelId?: string;
+  /** Whether plan.md should be auto-approved (skips waiting for user approval). */
+  autoApprovePlan?: boolean;
 };
 
 /**

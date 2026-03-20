@@ -9,6 +9,8 @@ interface ExecutingTask {
 interface ExecutionStateStore {
   /** List of currently executing tasks */
   executingTasks: Map<number, ExecutingTask>;
+  /** Task IDs that are currently loading execution status (show skeleton) */
+  loadingTaskIds: Set<number>;
   /** Add/update executing task */
   setExecutingTask: (task: ExecutingTask) => void;
   /** Remove completed tasks */
@@ -21,11 +23,33 @@ interface ExecutionStateStore {
   getExecutingTaskStatus: (
     taskId: number,
   ) => 'running' | 'waiting_for_input' | null;
+  /** Mark a task as loading execution status (skeleton should be shown) */
+  setTaskLoading: (taskId: number) => void;
+  /** Mark a task as done loading execution status */
+  setTaskLoaded: (taskId: number) => void;
+  /** Whether a task is currently loading execution status */
+  isTaskLoading: (taskId: number) => boolean;
 }
 
 export const useExecutionStateStore = create<ExecutionStateStore>()(
   (set, get) => ({
     executingTasks: new Map(),
+    loadingTaskIds: new Set(),
+    setTaskLoading: (taskId) =>
+      set((state) => {
+        if (state.loadingTaskIds.has(taskId)) return state;
+        const newSet = new Set(state.loadingTaskIds);
+        newSet.add(taskId);
+        return { loadingTaskIds: newSet };
+      }),
+    setTaskLoaded: (taskId) =>
+      set((state) => {
+        if (!state.loadingTaskIds.has(taskId)) return state;
+        const newSet = new Set(state.loadingTaskIds);
+        newSet.delete(taskId);
+        return { loadingTaskIds: newSet };
+      }),
+    isTaskLoading: (taskId) => get().loadingTaskIds.has(taskId),
     setExecutingTask: (task) =>
       set((state) => {
         const existing = state.executingTasks.get(task.taskId);

@@ -35,8 +35,7 @@ const { agentVersionManagementRoutes } =
   await import('../../../routes/agents/agent-version-management');
 
 describe('Agent Version Management Routes', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
 
   beforeEach(() => {
     mockPrisma.aIAgentConfig.findMany.mockReset();

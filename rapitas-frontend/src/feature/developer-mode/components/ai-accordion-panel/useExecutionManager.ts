@@ -18,7 +18,10 @@ import {
   useExecutionPolling,
   useExecutionStream,
 } from '../../hooks/useExecutionStream';
-import type { ExecutionResult, ExecutionStatus } from '../../hooks/useDeveloperMode';
+import type {
+  ExecutionResult,
+  ExecutionStatus,
+} from '../../hooks/useDeveloperMode';
 import type { Resource } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { AccordionSection } from './types';
@@ -99,7 +102,7 @@ type UseExecutionManagerResult = {
   isCancelled: boolean;
   isFailed: boolean | string | null | undefined;
   isInterrupted: boolean | string | null | undefined;
-  isWaitingForInput: boolean;
+  isWaitingForInput: boolean | null | undefined;
   logViewerStatus: ExecutionLogStatus;
   hasQuestion: boolean;
   question: string;
@@ -152,7 +155,8 @@ export function useExecutionManager({
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [isRestoring, setIsRestoring] = useState(false);
+  // NOTE: Start as true — show skeleton until execution state is restored from DB
+  const [isRestoring, setIsRestoring] = useState(!executionResult);
   const [continueInstruction, setContinueInstruction] = useState('');
   const hasRestoredRef = useRef(false);
   const prevTaskIdRef = useRef(taskId);
@@ -209,44 +213,19 @@ export function useExecutionManager({
     }
   }, [taskId, stopPolling, clearLogs]);
 
-  // Restore previous execution state on mount (once per task)
+  // NOTE: Execution state restoration is handled by useDeveloperMode's auto-restore.
+  // This hook only needs to react to executionResult changes (handled below).
+
+  // NOTE: Stop showing skeleton once execution state is determined (from any source).
+  // Timeout ensures "no history" case doesn't show skeleton forever.
   useEffect(() => {
-    const restoreState = async () => {
-      if (hasRestoredRef.current || !onRestoreExecutionState) return;
-      // Skip if already executing externally (prevents conflict with autoExecute)
-      if (isExecuting) return;
-      if (sessionId || executionResult?.sessionId) return;
-
-      hasRestoredRef.current = true;
-      setIsRestoring(true);
-
-      try {
-        const restoredState = await onRestoreExecutionState();
-        if (restoredState) {
-          setSessionId(restoredState.sessionId);
-
-          if (
-            restoredState.status === 'running' ||
-            restoredState.status === 'waiting_for_input'
-          ) {
-            startPolling({ initialOutput: restoredState.output, preserveLogs: false });
-          } else if (restoredState.output) {
-            // Interrupted/completed: display logs only — first poll detects terminal status
-            startPolling({ initialOutput: restoredState.output, preserveLogs: false });
-          }
-
-          setShowLogs(true);
-          setExpandedSection('execution');
-        }
-      } catch {
-        // Restoration failure is non-fatal; the panel remains in idle state
-      } finally {
-        setIsRestoring(false);
-      }
-    };
-
-    restoreState();
-  }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (executionResult !== null || isExecuting) {
+      setIsRestoring(false);
+      return;
+    }
+    const timeout = setTimeout(() => setIsRestoring(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [executionResult, isExecuting]);
 
   // Start polling when a new execution session arrives
   const executionSessionId = executionResult?.sessionId;
@@ -266,8 +245,6 @@ export function useExecutionManager({
           startPolling({
             initialOutput: executionOutput,
             preserveLogs: false,
-            // NOTE: New executions take time to create in the worker; grace period avoids
-            // treating the previous completed execution as the current one
             terminalGraceMs: 5000,
           });
         } else {
@@ -292,7 +269,12 @@ export function useExecutionManager({
       pollingStatus === 'completed' ||
       pollingStatus === 'failed' ||
       pollingStatus === 'cancelled';
-    if (isExecuting && !isPollingRunning && !isRestoring && !isTerminalPolling) {
+    if (
+      isExecuting &&
+      !isPollingRunning &&
+      !isRestoring &&
+      !isTerminalPolling
+    ) {
       startPolling({ terminalGraceMs: 5000 });
     }
   }, [isExecuting, isPollingRunning, startPolling, isRestoring, pollingStatus]);
@@ -313,7 +295,13 @@ export function useExecutionManager({
       // Reset when returning to running / waiting_for_input
       handledTerminalStatusRef.current = null;
     }
-  }, [pollingStatus, onStopExecution, onExecutionComplete, removeExecutingTask, taskId]);
+  }, [
+    pollingStatus,
+    onStopExecution,
+    onExecutionComplete,
+    removeExecutingTask,
+    taskId,
+  ]);
 
   // Derived status flags
   const hasSubtasks = subtasks && subtasks.length > 0;
@@ -338,11 +326,24 @@ export function useExecutionManager({
         ? pollingStatus
         : 'idle';
 
-  const isCompleted = finalStatus === 'completed' && !isWaitingForInput;
+  // NOTE: executionResult.success being defined means the execution has already reached a terminal state.
+  // In that case, polling is only running to fetch logs — not because the task is actively executing.
+  const isRestoredTerminal =
+    executionResult?.success !== undefined && !isExecuting;
+
+  // NOTE: For restored terminal executions, derive status from executionResult immediately
+  // rather than waiting for polling, to avoid the blank/idle flash.
+  const isCompleted =
+    (finalStatus === 'completed' && !isWaitingForInput) ||
+    (isRestoredTerminal && executionResult?.success === true);
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    !isCompleted &&
-    (finalStatus === 'failed' || executionError || pollingError || sseError);
+    (!isCompleted &&
+      (finalStatus === 'failed' ||
+        executionError ||
+        pollingError ||
+        sseError)) ||
+    (isRestoredTerminal && executionResult?.success === false);
   const isInterrupted =
     !isCompleted &&
     !isFailed &&
@@ -356,6 +357,7 @@ export function useExecutionManager({
   const isRunning =
     !isTerminalStatus &&
     !isInterrupted &&
+    !isRestoredTerminal &&
     (isExecuting ||
       isPollingRunning ||
       isSseRunning ||
@@ -400,7 +402,11 @@ export function useExecutionManager({
     }
 
     const fileResources = resources?.filter(
-      (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
+      (r) =>
+        r.filePath ||
+        r.type === 'file' ||
+        r.type === 'image' ||
+        r.type === 'pdf',
     );
     const attachments = fileResources?.map((r) => ({
       id: r.id,
@@ -418,7 +424,8 @@ export function useExecutionManager({
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
       agentConfigId: agentConfigId ?? undefined,
-      attachments: attachments && attachments.length > 0 ? attachments : undefined,
+      attachments:
+        attachments && attachments.length > 0 ? attachments : undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);
@@ -462,7 +469,8 @@ export function useExecutionManager({
 
   const handleSendResponse = async () => {
     const trimmedResponse = userResponse.trim();
-    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
+      return;
 
     // Immediately set ref to prevent duplicate submissions
     sendingResponseRef.current = true;

@@ -31,6 +31,8 @@ import { ExecutionIdlePanel } from './ExecutionIdlePanel';
 export type Props = {
   taskId: number;
   isExecuting: boolean;
+  /** When true, show skeleton loader unconditionally — takes priority over all other states. */
+  forceSkeletonLoader?: boolean;
   executionStatus: ExecutionStatus;
   executionResult: ExecutionResult | null;
   error: string | null;
@@ -174,6 +176,26 @@ export function AgentExecutionPanel(props: Props) {
 
     return null;
   };
+
+  // NOTE: forceSkeletonLoader takes absolute priority — show skeleton before any state check
+  if (props.forceSkeletonLoader || state.isRestoring) {
+    return (
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse">
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+            <div className="flex-1 space-y-3">
+              <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-72" />
+            </div>
+          </div>
+        </div>
+        <div className="px-6 pb-4">
+          <div className="h-24 bg-zinc-100 dark:bg-zinc-800 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
 
   if (isRunning) {
     return (

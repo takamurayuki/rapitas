@@ -174,8 +174,31 @@ export class WorkflowRunner {
           break;
         }
 
-        // plan_created: waiting for approval
+        // plan_created: check auto-approve setting before waiting
         if (currentStatus === 'plan_created') {
+          const { prisma } = await import('../../config/database');
+          const taskForApproval = await prisma.task.findUnique({
+            where: { id: item.taskId },
+            select: { autoApprovePlan: true, parentId: true },
+          });
+          const userSettings = await prisma.userSettings.findFirst();
+          const isSubtask = taskForApproval?.parentId != null;
+          const shouldAutoApprove =
+            taskForApproval?.autoApprovePlan ||
+            userSettings?.autoApprovePlan ||
+            (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
+
+          if (shouldAutoApprove) {
+            // NOTE: Auto-approve — skip waiting and advance immediately
+            await prisma.task.update({
+              where: { id: item.taskId },
+              data: { workflowStatus: 'plan_approved' },
+            });
+            this.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', 'plan_created');
+            log.info(`[WorkflowRunner] Plan auto-approved for task ${item.taskId}`);
+            continue;
+          }
+
           await this.queue.updateStatus(item.id, 'waiting_approval', {
             currentPhase: 'plan_created',
           });

@@ -229,8 +229,8 @@ describe('SSEStreamController', () => {
         callCount++;
         throw new Error('invalid input'); // not retryable
       });
-    } catch (e: any) {
-      expect(e.message).toBe('invalid input');
+    } catch (e: unknown) {
+      expect(e instanceof Error ? e.message : String(e)).toBe('invalid input');
     }
     expect(callCount).toBe(1);
   });
@@ -302,7 +302,7 @@ describe('SSE統合テスト', () => {
     const controller = new SSEStreamController();
     const stream = controller.createStream();
 
-    const events: any[] = [];
+    const events: unknown[] = [];
     stream.on('data', (data) => {
       events.push(data);
     });
@@ -346,7 +346,7 @@ describe('SSE統合テスト', () => {
       new SSEStreamController(),
     ];
 
-    const receivedMessages: any[][] = [[], [], []];
+    const receivedMessages: unknown[][] = [[], [], []];
 
     controllers.forEach((controller, index) => {
       const stream = controller.createStream();

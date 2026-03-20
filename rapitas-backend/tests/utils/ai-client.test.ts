@@ -56,7 +56,7 @@ describe('getApiKeyForProvider', () => {
     mockSettings.claudeApiKeyEncrypted = null;
     mockSettings.chatgptApiKeyEncrypted = null;
     mockSettings.geminiApiKeyEncrypted = null;
-    delete (process.env as any).CLAUDE_API_KEY;
+    delete (process.env as Record<string, string | undefined>).CLAUDE_API_KEY;
   });
 
   test('DBに保存されたAPIキーを復号して返すこと（Claude）', async () => {
@@ -183,8 +183,9 @@ describe('sendAIMessage', () => {
         provider: 'claude',
       });
       expect(true).toBe(false); // should not reach
-    } catch (e: any) {
-      expect(e.message).toContain('APIキーが設定されていません');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      expect(message).toContain('APIキーが設定されていません');
     }
   });
 
@@ -192,12 +193,13 @@ describe('sendAIMessage', () => {
     try {
       await sendAIMessage({
         messages: [{ role: 'user', content: 'hello' }],
-        provider: 'unknown' as any,
+        provider: 'unknown' as 'claude' | 'chatgpt' | 'gemini',
       });
       expect(true).toBe(false);
-    } catch (e: any) {
+    } catch (e: unknown) {
       // unknown provider has no API key mapping → throws key not configured or unsupported error
-      expect(e.message).toBeTruthy();
+      const message = e instanceof Error ? e.message : String(e);
+      expect(message).toBeTruthy();
     }
   });
 });
@@ -216,8 +218,9 @@ describe('sendAIMessageStream', () => {
         provider: 'claude',
       });
       expect(true).toBe(false);
-    } catch (e: any) {
-      expect(e.message).toContain('APIキーが設定されていません');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      expect(message).toContain('APIキーが設定されていません');
     }
   });
 });

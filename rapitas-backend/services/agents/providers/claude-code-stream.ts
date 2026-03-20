@@ -136,6 +136,7 @@ export async function runClaudeCode(
 
     if (config.dangerouslySkipPermissions || context.dangerouslySkipPermissions) {
       args.push('--dangerously-skip-permissions');
+      args.push('--permission-mode', 'bypassPermissions');
     }
 
     if (config.model) args.push('--model', config.model);

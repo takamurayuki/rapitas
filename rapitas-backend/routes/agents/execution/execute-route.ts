@@ -206,6 +206,7 @@ export const executeRoute = new Elysia().post(
           description: fullInstruction,
           context: task.executionInstructions || undefined,
           workingDirectory: executionDir,
+          autoApprovePlan: task.autoApprovePlan || false,
         },
         {
           taskId: taskIdNum,

@@ -174,6 +174,15 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       }
     }
 
+  // Subtask completion: check if all siblings are done → generate parent verify.md
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+    import('./workflow/subtask-completion-handler').then(({ onSubtaskCompleted }) => {
+      onSubtaskCompleted(taskId).catch((err) => {
+        logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+      });
+    }).catch(() => {});
+  }
+
     if (
       fields.title ||
       fields.description !== undefined ||

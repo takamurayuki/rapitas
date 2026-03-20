@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useSplitView } from '../use-split-view';
+import { useSplitView } from '../useSplitView';
 
 const mockIsTauri = vi.fn().mockReturnValue(false);
 const mockOpenExternalUrlInSplitView = vi.fn().mockResolvedValue(undefined);

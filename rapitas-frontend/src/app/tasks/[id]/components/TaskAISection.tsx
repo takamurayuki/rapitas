@@ -62,6 +62,8 @@ export interface TaskAISectionProps {
   refetchWorkflowFiles: () => void;
   onTaskUpdated?: () => void;
   startSession: () => void;
+  /** True while the initial execution status fetch is in progress. */
+  isRestoringState?: boolean;
 }
 
 /**
@@ -108,7 +110,32 @@ export default function TaskAISection({
   refetchWorkflowFiles,
   onTaskUpdated,
   startSession,
+  isRestoringState,
 }: TaskAISectionProps) {
+  // Show skeleton while execution status is being fetched
+  if (isRestoringState) {
+    return (
+      <div className="mb-6">
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse">
+          <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded" />
+            <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-32" />
+          </div>
+          <div className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+              <div className="flex-1 space-y-3">
+                <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
+                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-72" />
+                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-56" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubtasksCreated = async () => {
     try {
       const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);

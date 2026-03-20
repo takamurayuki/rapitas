@@ -5,10 +5,10 @@
  * Not responsible for file I/O, mode management, or complexity analysis.
  */
 
-import { prisma } from '../../config';
-import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
-import { createLogger } from '../../config/logger';
-import { VALID_WORKFLOW_STATUSES } from './workflow-helpers';
+import { prisma } from '../../../config';
+import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
+import { createLogger } from '../../../config/logger';
+import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
 
 const log = createLogger('routes:workflow:handlers:plan');
 

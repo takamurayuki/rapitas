@@ -23,8 +23,17 @@ import type {
 } from './agentExecutionTypes';
 
 // Re-export utilities and types consumed by external callers
-export { formatTokenCount, formatCountdown, parseQuestionOptions } from './agentExecutionUtils';
-export type { PrState, QuestionType, UseAgentExecutionProps, UseAgentExecutionReturn } from './agentExecutionTypes';
+export {
+  formatTokenCount,
+  formatCountdown,
+  parseQuestionOptions,
+} from './agentExecutionUtils';
+export type {
+  PrState,
+  QuestionType,
+  UseAgentExecutionProps,
+  UseAgentExecutionReturn,
+} from './agentExecutionTypes';
 
 /**
  * Core hook for AgentExecutionPanel state and side effects.
@@ -63,7 +72,11 @@ export function useAgentExecution(
   const [followUpInstruction, setFollowUpInstruction] = useState('');
   const [followUpError, setFollowUpError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [_isRestoring, setIsRestoring] = useState(false);
+  // NOTE: Start as restoring=true when no execution result yet (initial page load).
+  // This shows the skeleton loader until auto-restore in useDeveloperMode completes.
+  const [isRestoring, setIsRestoring] = useState(
+    !props.executionResult && props.executionStatus === 'idle',
+  );
   const hasRestoredRef = useRef(false);
   const [timeoutCountdown, setTimeoutCountdown] = useState<number | null>(null);
   const [prState, setPrState] = useState<PrState>({ status: 'idle' });
@@ -125,12 +138,18 @@ export function useAgentExecution(
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
+        questionType:
+          pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
     return { hasQuestion: false, question: '', questionType: 'none' };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType, isTerminalStatus]);
+  }, [
+    pollingWaitingForInput,
+    pollingQuestion,
+    pollingQuestionType,
+    isTerminalStatus,
+  ]);
 
   const questionParsed = question ? parseQuestionOptions(question) : null;
   const hasOptions = !!(questionParsed && questionParsed.options.length >= 2);
@@ -144,7 +163,9 @@ export function useAgentExecution(
     }
     setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
     const interval = setInterval(() => {
-      setTimeoutCountdown((prev) => (prev === null || prev <= 0 ? 0 : prev - 1));
+      setTimeoutCountdown((prev) =>
+        prev === null || prev <= 0 ? 0 : prev - 1,
+      );
     }, 1000);
     return () => clearInterval(interval);
   }, [isWaitingForInput, pollingQuestionTimeout]);
@@ -173,30 +194,19 @@ export function useAgentExecution(
     }
   }, [taskId, stopPolling, clearPollingLogs, clearSseLogs]);
 
-  // Restore execution state on mount
+  // NOTE: Execution state restoration is handled solely by useDeveloperMode's auto-restore.
+  // This hook only reacts to executionResult/executionStatus changes.
+
+  // NOTE: Once execution result arrives (from any source), stop showing skeleton.
+  // Also stop after 2 seconds max to handle "no execution history" case.
   useEffect(() => {
-    const restoreState = async () => {
-      if (hasRestoredRef.current || !onRestoreExecutionState) return;
-      if (sessionId || executionResult?.sessionId) return;
-      hasRestoredRef.current = true;
-      setIsRestoring(true);
-      try {
-        const restoredState = await onRestoreExecutionState();
-        if (restoredState) {
-          setSessionId(restoredState.sessionId);
-          if (restoredState.status !== 'interrupted') {
-            startPolling({ initialOutput: restoredState.output, preserveLogs: false });
-          }
-          _setShowLogs(true);
-        }
-      } catch (_err) {
-        // Silently handle restore failures
-      } finally {
-        setIsRestoring(false);
-      }
-    };
-    restoreState();
-  }, [onRestoreExecutionState]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (executionResult !== null || props.executionStatus !== 'idle') {
+      setIsRestoring(false);
+      return;
+    }
+    const timeout = setTimeout(() => setIsRestoring(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [executionResult, props.executionStatus]);
 
   // Start SSE + polling when a new execution result arrives
   const executionSessionId = executionResult?.sessionId;
@@ -205,7 +215,9 @@ export function useAgentExecution(
     if (executionSessionId) {
       setSessionId(executionSessionId);
       startPolling(
-        executionOutput ? { initialOutput: executionOutput, preserveLogs: false } : undefined,
+        executionOutput
+          ? { initialOutput: executionOutput, preserveLogs: false }
+          : undefined,
       );
     }
   }, [executionSessionId, executionOutput, startPolling]);
@@ -229,21 +241,43 @@ export function useAgentExecution(
 
   // Derived status flags
   const finalStatus =
-    sseStatus !== 'idle' ? sseStatus
-    : pollingStatus !== 'idle' ? pollingStatus
-    : props.executionStatus;
+    sseStatus !== 'idle'
+      ? sseStatus
+      : pollingStatus !== 'idle'
+        ? pollingStatus
+        : props.executionStatus;
+
+  // NOTE: If executionResult already has a terminal status (success is defined),
+  // polling is only fetching logs — the task is NOT actively running.
+  const isRestoredTerminal =
+    executionResult?.success !== undefined && !isExecuting;
 
   // NOTE: waiting_for_input is NOT considered completed
+  // For restored terminal executions, derive status immediately from executionResult.
   const isCompleted =
-    finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput;
+    (finalStatus === 'completed' &&
+      !isPollingRunning &&
+      !isSseRunning &&
+      !isWaitingForInput) ||
+    (isRestoredTerminal && executionResult?.success === true);
   const isCancelled = finalStatus === 'cancelled';
-  const isFailed = !!(finalStatus === 'failed' || error || pollingError || sseError);
-  // NOTE: waiting_for_input is treated as running (awaiting user response)
+  const isFailed =
+    !!(finalStatus === 'failed' || error || pollingError || sseError) ||
+    (isRestoredTerminal && executionResult?.success === false);
   const isRunning =
-    isExecuting || isPollingRunning || isSseRunning ||
-    pollingStatus === 'running' || sseStatus === 'running' || isWaitingForInput;
+    !isRestoredTerminal &&
+    (isExecuting ||
+      isPollingRunning ||
+      isSseRunning ||
+      pollingStatus === 'running' ||
+      sseStatus === 'running' ||
+      isWaitingForInput);
 
-  const hasSubtaskTabs = !!(subtasks && subtasks.length > 0 && parallelSessionId);
+  const hasSubtaskTabs = !!(
+    subtasks &&
+    subtasks.length > 0 &&
+    parallelSessionId
+  );
 
   const logViewerStatus = useMemo(() => {
     if (isRunning) return 'running' as const;
@@ -254,36 +288,77 @@ export function useAgentExecution(
   }, [isRunning, isCancelled, isCompleted, isFailed]);
 
   const handlers = useAgentExecutionHandlers({
-    taskId, sessionId, setSessionId, isExecuting, executionResult,
-    instruction, branchName, selectedAgentId, agentConfigId,
+    taskId,
+    sessionId,
+    setSessionId,
+    isExecuting,
+    executionResult,
+    instruction,
+    branchName,
+    selectedAgentId,
+    agentConfigId,
     useTaskAnalysis: props.useTaskAnalysis,
     optimizedPrompt: props.optimizedPrompt,
-    followUpInstruction, setFollowUpInstruction, setFollowUpError,
-    userResponse, setUserResponse, isSendingResponse, setIsSendingResponse,
-    onExecute, onReset, onStopExecution,
-    startPolling, stopPolling, clearPollingLogs, clearSseLogs,
-    setPollingCancelled, clearPollingQuestion, setPrState,
-    hasRestoredRef, _setShowLogs,
+    followUpInstruction,
+    setFollowUpInstruction,
+    setFollowUpError,
+    userResponse,
+    setUserResponse,
+    isSendingResponse,
+    setIsSendingResponse,
+    onExecute,
+    onReset,
+    onStopExecution,
+    startPolling,
+    stopPolling,
+    clearPollingLogs,
+    clearSseLogs,
+    setPollingCancelled,
+    clearPollingQuestion,
+    setPrState,
+    hasRestoredRef,
+    _setShowLogs,
   });
 
   return {
-    isExpanded, setIsExpanded,
-    showOptions, setShowOptions,
-    selectedAgentId, setSelectedAgentId,
-    instruction, setInstruction,
-    branchName, setBranchName,
-    userResponse, setUserResponse,
+    isExpanded,
+    setIsExpanded,
+    showOptions,
+    setShowOptions,
+    selectedAgentId,
+    setSelectedAgentId,
+    instruction,
+    setInstruction,
+    branchName,
+    setBranchName,
+    userResponse,
+    setUserResponse,
     isSendingResponse,
-    followUpInstruction, setFollowUpInstruction,
-    followUpError, setFollowUpError,
-    sessionId, prState, setPrState,
+    followUpInstruction,
+    setFollowUpInstruction,
+    followUpError,
+    setFollowUpError,
+    sessionId,
+    prState,
+    setPrState,
     timeoutCountdown,
-    logs, isSseConnected,
-    pollingTokensUsed, pollingSessionMode,
-    isRunning, isCompleted, isCancelled, isFailed,
-    isWaitingForInput, logViewerStatus,
-    hasQuestion, question, questionType,
-    questionParsed, hasOptions, isConfirmedQuestion,
+    logs,
+    isSseConnected,
+    pollingTokensUsed,
+    pollingSessionMode,
+    isRunning,
+    isCompleted,
+    isCancelled,
+    isFailed,
+    isRestoring,
+    isWaitingForInput,
+    logViewerStatus,
+    hasQuestion,
+    question,
+    questionType,
+    questionParsed,
+    hasOptions,
+    isConfirmedQuestion,
     hasSubtaskTabs,
     ...handlers,
   };

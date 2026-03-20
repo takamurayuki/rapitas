@@ -13,7 +13,7 @@ import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/CacheWarmupInitializer';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { AuthProvider } from '@/contexts/AuthContext';
-import ConditionalHeader from '@/components/ConditionalHeader';
+import ConditionalHeader from '@/components/conditional-header';
 import IntlProvider from '@/components/IntlProvider';
 // import WindowResizeOptimizer from '@/components/WindowResizeOptimizer';
 

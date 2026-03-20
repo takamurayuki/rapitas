@@ -15,6 +15,7 @@ import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 
 const API_BASE = API_BASE_URL;
 
@@ -130,6 +131,8 @@ export default function TaskDetailViewBody({
   isParallelExecutionRunning,
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
+  const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
+
   return (
     <>
       <div className="mb-6">
@@ -157,12 +160,32 @@ export default function TaskDetailViewBody({
       </div>
 
       {showAIPanel && (
-        <TaskAISection
-          task={task}
-          taskId={taskId}
-          resolvedTaskId={resolvedTaskId}
-          {...aiSectionProps}
-        />
+        isTaskStatusLoading ? (
+          <div className="mb-6">
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse">
+              <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
+                <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded" />
+                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-32" />
+              </div>
+              <div className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+                  <div className="flex-1 space-y-3">
+                    <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
+                    <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-64" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <TaskAISection
+            task={task}
+            taskId={taskId}
+            resolvedTaskId={resolvedTaskId}
+            {...aiSectionProps}
+          />
+        )
       )}
 
       {task.theme?.isDevelopment === true && (

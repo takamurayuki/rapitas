@@ -138,6 +138,8 @@ export function AIAccordionPanelInner({
     | 'cancelled'
     | 'interrupted'
     | 'idle' => {
+    // NOTE: Show idle during state restoration to prevent flash of "running" spinner
+    if (exec.isRestoring) return 'idle';
     if (exec.isRunning) return 'loading';
     if (exec.isFailed) return 'error';
     if (exec.isCompleted) return 'success';

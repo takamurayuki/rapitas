@@ -569,6 +569,8 @@ export class ClaudeCodeAgent extends BaseAgent {
 
       if (this.config.dangerouslySkipPermissions) {
         args.push('--dangerously-skip-permissions');
+        // NOTE: Also set permission-mode to ensure all file edits (including .claude/) are allowed
+        args.push('--permission-mode', 'bypassPermissions');
       }
       if (this.config.model) {
         args.push('--model', this.config.model);

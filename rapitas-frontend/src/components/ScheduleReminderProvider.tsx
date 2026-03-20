@@ -1,5 +1,5 @@
 'use client';
-import { useScheduleReminders } from '@/hooks/use-schedule-reminders';
+import { useScheduleReminders } from '@/hooks/useScheduleReminders';
 
 /**
  * スケジュールリマインド通知をバックグラウンドでチェックするプロバイダー

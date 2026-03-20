@@ -16,13 +16,13 @@ import {
   handleSetMode,
   handleAnalyzeComplexity,
   handleGetModes,
-} from './workflow-handlers';
+} from '../handlers/workflow-handlers';
 
 // Re-export helpers and types for consumers that import from this path
 export { VALID_FILE_TYPES, VALID_WORKFLOW_STATUSES, resolveWorkflowDir, getFileInfo } from './workflow-helpers';
 export type { WorkflowFileType } from './workflow-helpers';
-export { performAutoCommitAndPR } from './workflow-auto-commit';
-export type { AutoCommitPRResult } from './workflow-auto-commit';
+export { performAutoCommitAndPR } from '../workflow-auto-commit';
+export type { AutoCommitPRResult } from '../workflow-auto-commit';
 
 export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 

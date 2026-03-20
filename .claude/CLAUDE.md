@@ -161,9 +161,83 @@ Required sections:
 
 **After saving plan.md — STOP. Do not implement until the user approves.**
 
+#### Step 2.5 — Subtask Splitting (automatic when plan is large)
+
+When the plan meets **any** of the following thresholds, split into subtasks:
+
+| Condition | Threshold |
+|-----------|-----------|
+| Changed files in plan | ≥ 8 files |
+| Estimated total lines changed | ≥ 500 lines |
+| Checklist items in plan | ≥ 10 items |
+| Plan has independent feature groups | ≥ 3 groups |
+
+**Splitting rules:**
+
+1. Each subtask MUST be independently executable and testable.
+2. Each subtask should target **3-5 files max** or **one logical unit of change**.
+3. Order subtasks by dependency: foundational changes first, dependent changes later.
+4. Mark dependency between subtasks explicitly (e.g., "depends on subtask 01").
+5. Subtasks that share no files can be marked as parallelizable.
+
+**Subtask registration:**
+```bash
+# Register subtasks via API (parent taskId = current task)
+curl -X POST http://localhost:3001/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"<subtask title>","parentId":<parentTaskId>,"description":"<scope>"}'
+```
+
+**Subtask workflow directory:**
+```
+tasks/{categoryId}/{themeId}/{taskId}/
+├── research.md
+├── plan.md
+├── subtasks/
+│   ├── 01-<name>/
+│   │   ├── instruction.md   # Execution instruction for agent
+│   │   └── verify.md        # Per-subtask verification
+│   ├── 02-<name>/
+│   │   ├── instruction.md
+│   │   └── verify.md
+│   └── ...
+└── verify.md                # Final integration verification
+```
+
+**instruction.md format (for each subtask):**
+```markdown
+# Subtask: <title>
+
+## Context
+- Summary of research findings relevant to this subtask
+- Files changed by previous subtasks (if dependent)
+
+## Scope
+- Target files: (list)
+- Do NOT modify: (list — other subtasks' scope)
+
+## Instructions
+1. (specific steps)
+
+## Constraints
+- (constraints from parent plan)
+
+## Acceptance Criteria
+- [ ] (measurable criteria)
+```
+
+**Execution flow:**
+1. After plan approval, execute subtasks in dependency order.
+2. Parallelizable subtasks run concurrently.
+3. Each subtask creates its own `verify.md` in `subtasks/<nn>-<name>/`.
+4. After ALL subtasks complete, create the parent task's `verify.md` with integration check.
+5. If a subtask fails after 3 retries, check dependency level:
+   - High dependency: pause subsequent dependent subtasks, report to user.
+   - Low dependency: continue with remaining subtasks, flag the failure in verify.md.
+
 #### Step 3 — Approval gate
 
-Wait for the user to approve via the UI.
+Wait for the user to approve via the UI (unless auto-approve is enabled).
 Status transitions: `plan_created` → `plan_approved` → `in_progress`.
 Only then begin implementation.
 

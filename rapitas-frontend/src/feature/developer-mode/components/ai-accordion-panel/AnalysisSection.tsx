@@ -111,7 +111,7 @@ export function AnalysisSection({
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-4 h-4 text-violet-500" />
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            タスク分析・最適化
+            タスク分析
           </span>
           {analysisStatusIcon === 'loading' && (
             <SkeletonBlock className="w-3 h-3 rounded" />

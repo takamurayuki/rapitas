@@ -14,7 +14,16 @@ import type {
   KnowledgeCategory,
   ForgettingStage,
   ValidationStatus,
+  KnowledgeEntry,
+  KnowledgeSearchResult,
 } from '@/feature/knowledge/types';
+
+// 型ガード: エントリーが検索結果かどうかを判定
+function isKnowledgeSearchResult(
+  entry: KnowledgeEntry | KnowledgeSearchResult
+): entry is KnowledgeSearchResult {
+  return 'similarity' in entry && typeof (entry as KnowledgeSearchResult).similarity === 'number';
+}
 
 export default function KnowledgeClient() {
   const t = useTranslations('knowledge');
@@ -171,7 +180,7 @@ export default function KnowledgeClient() {
               key={entry.id}
               entry={entry}
               similarity={
-                'similarity' in entry ? (entry as any).similarity : undefined
+                isKnowledgeSearchResult(entry) ? entry.similarity : undefined
               }
             />
           ))}

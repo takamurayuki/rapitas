@@ -3,7 +3,7 @@ import { DarkModeToggle } from '../DarkModeToggle';
 
 const mockToggleTheme = vi.fn();
 
-vi.mock('@/hooks/use-dark-mode', () => ({
+vi.mock('@/hooks/useDarkMode', () => ({
   useDarkMode: () => ({
     isDarkMode: false,
     mounted: true,
@@ -40,7 +40,7 @@ describe('DarkModeToggle (unmounted state)', () => {
 
   it('renders placeholder button when not mounted', async () => {
     // Override mock for this test
-    vi.doMock('@/hooks/use-dark-mode', () => ({
+    vi.doMock('@/hooks/useDarkMode', () => ({
       useDarkMode: () => ({
         isDarkMode: false,
         mounted: false,

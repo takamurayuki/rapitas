@@ -264,21 +264,30 @@ export function useAgentExecutionActions(
     setExecutionStatus('idle');
     setExecutionResult(null);
     setError(null);
+    removeExecutingTask(taskId);
 
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/reset-execution-state`, {
         method: 'POST',
       });
       if (res.ok) {
-        const data = await res.json();
-        logger.debug('Execution state reset:', data);
+        logger.debug('Execution state reset successfully');
       } else {
         logger.error('Failed to reset execution state in DB');
       }
     } catch (err) {
       logger.error('Error resetting execution state:', err);
     }
-  }, [taskId, setIsExecuting, setExecutionStatus, setExecutionResult, setError]);
+
+    // NOTE: Force idle state again after a delay to counteract any in-flight
+    // polling responses that may re-set status to 'completed' before React flushes.
+    setTimeout(() => {
+      isExecutingRef.current = false;
+      setIsExecuting(false);
+      setExecutionStatus('idle');
+      setExecutionResult(null);
+    }, 500);
+  }, [taskId, setIsExecuting, setExecutionStatus, setExecutionResult, setError, removeExecutingTask]);
 
   /** Cancel execution immediately without waiting for the server. */
   const setExecutionCancelled = useCallback((): void => {

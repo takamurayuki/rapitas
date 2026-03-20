@@ -24,8 +24,11 @@ export function useDeveloperMode(taskId: number) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle');
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  /** True while fetching execution state from DB on initial load. */
+  const [isRestoringState, setIsRestoringState] = useState(true);
 
-  const { setExecutingTask } = useExecutionStateStore();
+  const { setExecutingTask, setTaskLoaded } = useExecutionStateStore();
+  const hasAutoRestoredRef = useRef(false);
 
   // Reset execution state when navigating to a different task
   const prevTaskIdRef = useRef(taskId);
@@ -37,6 +40,9 @@ export function useDeveloperMode(taskId: number) {
       setIsExecuting(false);
       setExecutionStatus('idle');
       setExecutionResult(null);
+      setIsRestoringState(true);
+      // NOTE: Reset auto-restore flag so the new task's state is restored
+      hasAutoRestoredRef.current = false;
     }
   }, [taskId]);
 
@@ -71,6 +77,29 @@ export function useDeveloperMode(taskId: number) {
       setExecutionResult,
       setError,
     });
+
+  // NOTE: Auto-restore execution state on mount so the execution panel is visible
+  // immediately without requiring a page reload. The ref prevents duplicate calls.
+  useEffect(() => {
+    if (hasAutoRestoredRef.current || !taskId) return;
+    hasAutoRestoredRef.current = true;
+    setIsRestoringState(true);
+
+    restoreExecutionState()
+      .then((restored) => {
+        if (restored) {
+          logger.debug(`[useDeveloperMode] Auto-restored execution state for task ${taskId}: ${restored.status}`);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setIsRestoringState(false);
+        // NOTE: Clear skeleton. isCompleted/isFailed are now derived directly from
+        // executionResult.success (via isRestoredTerminal), so no polling wait needed.
+        setTaskLoaded(taskId);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
 
   /**
    * Restore in-progress execution state on mount.
@@ -174,9 +203,12 @@ export function useDeveloperMode(taskId: number) {
     config,
     isLoading,
     isAnalyzing,
-    isExecuting,
-    executionStatus,
-    executionResult,
+    // NOTE: While restoring, suppress execution state to prevent "running" flash.
+    // Downstream components see idle state and show skeleton instead of running panel.
+    isExecuting: isRestoringState ? false : isExecuting,
+    isRestoringState,
+    executionStatus: isRestoringState ? ('idle' as ExecutionStatus) : executionStatus,
+    executionResult: isRestoringState ? null : executionResult,
     analysisResult,
     analysisApprovalId,
     sessions,

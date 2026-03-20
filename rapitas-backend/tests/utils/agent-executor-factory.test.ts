@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test';
 
 class MockParallelExecutor {
-  constructor(public prisma: any) {}
+  constructor(public prisma: unknown) {}
 }
 
 mock.module('../../services/parallel-execution/parallel-executor', () => ({
@@ -19,6 +19,8 @@ mock.module('@prisma/client', () => ({
 const { getParallelExecutor, cleanupParallelExecutor, isParallelExecutorActive } =
   await import('../../utils/agent-executor-factory');
 
+type MockPrismaClient = Record<string, unknown>;
+
 describe('Agent Executor Factory', () => {
   beforeEach(() => {
     cleanupParallelExecutor();
@@ -29,21 +31,21 @@ describe('Agent Executor Factory', () => {
   });
 
   test('getParallelExecutorでインスタンスを作成できること', () => {
-    const mockPrisma = {} as any;
+    const mockPrisma = {} as MockPrismaClient;
     const executor = getParallelExecutor(mockPrisma);
     expect(executor).toBeDefined();
     expect(isParallelExecutorActive()).toBe(true);
   });
 
   test('同じインスタンスを返すこと（シングルトン）', () => {
-    const mockPrisma = {} as any;
+    const mockPrisma = {} as MockPrismaClient;
     const executor1 = getParallelExecutor(mockPrisma);
     const executor2 = getParallelExecutor(mockPrisma);
     expect(executor1).toBe(executor2);
   });
 
   test('cleanupでインスタンスを破棄できること', () => {
-    const mockPrisma = {} as any;
+    const mockPrisma = {} as MockPrismaClient;
     getParallelExecutor(mockPrisma);
     expect(isParallelExecutorActive()).toBe(true);
     cleanupParallelExecutor();
@@ -51,7 +53,7 @@ describe('Agent Executor Factory', () => {
   });
 
   test('cleanup後に新しいインスタンスを作成できること', () => {
-    const mockPrisma = {} as any;
+    const mockPrisma = {} as MockPrismaClient;
     const executor1 = getParallelExecutor(mockPrisma);
     cleanupParallelExecutor();
     const executor2 = getParallelExecutor(mockPrisma);

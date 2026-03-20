@@ -72,12 +72,14 @@ function resetAllMocks() {
   }
 }
 
+type MockPrismaType = typeof mockPrisma;
+
 describe('GitHubService', () => {
   let service: InstanceType<typeof GitHubService>;
 
   beforeEach(() => {
     resetAllMocks();
-    service = new GitHubService(mockPrisma as any);
+    service = new GitHubService(mockPrisma as unknown as MockPrismaType);
   });
 
   describe('isGhAvailable', () => {

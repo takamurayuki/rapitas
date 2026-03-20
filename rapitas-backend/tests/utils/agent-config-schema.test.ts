@@ -283,8 +283,8 @@ describe('validateAgentConfig', () => {
 
 describe('エッジケーステスト', () => {
   test('null値やundefinedの処理', () => {
-    expect(getAgentConfigSchema(null as any)).toBeNull();
-    expect(getAgentConfigSchema(undefined as any)).toBeNull();
+    expect(getAgentConfigSchema(null as unknown as string)).toBeNull();
+    expect(getAgentConfigSchema(undefined as unknown as string)).toBeNull();
   });
 
   test('空オブジェクトの設定バリデーション', () => {
@@ -301,7 +301,7 @@ describe('エッジケーステスト', () => {
     const result = validateAgentConfig('claude-code', {
       endpoint: null,
       modelId: undefined,
-      additionalConfig: null as any,
+      additionalConfig: null as unknown as Record<string, unknown>,
     });
     expect(result).toBeDefined();
     expect(typeof result.valid).toBe('boolean');
@@ -437,7 +437,7 @@ describe('セキュリティテスト', () => {
       constructor: { prototype: { isAdmin: true } },
     };
 
-    const result = validateAgentConfig('claude-code', maliciousConfig as any);
+    const result = validateAgentConfig('claude-code', maliciousConfig as Record<string, unknown>);
     expect(result).toBeDefined();
     expect(typeof result.valid).toBe('boolean');
   });

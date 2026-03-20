@@ -34,6 +34,7 @@ export interface UseDeveloperModeSetupResult {
   setAgentConfigId: (id: number | null) => void;
   agents: unknown[];
   fetchAgents: () => void;
+  isRestoringState: boolean;
   approveRequest: (id: number, selectedSubtasks?: number[]) => Promise<{ success?: boolean } | null | undefined>;
   rejectRequest: (id: number) => Promise<unknown>;
   approvalLoading: boolean;
@@ -66,6 +67,7 @@ export function useDeveloperModeSetup(taskId: number): UseDeveloperModeSetupResu
     restoreExecutionState,
     approveSubtaskCreation,
     setExecutionCancelled,
+    isRestoringState,
     agentConfigId,
     setAgentConfigId,
     agents,
@@ -102,6 +104,7 @@ export function useDeveloperModeSetup(taskId: number): UseDeveloperModeSetupResu
     setAgentConfigId,
     agents,
     fetchAgents,
+    isRestoringState,
     approveRequest,
     rejectRequest,
     approvalLoading,

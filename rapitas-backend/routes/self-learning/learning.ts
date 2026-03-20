@@ -2,7 +2,7 @@
  * Learning API - 学習エンジンエンドポイント
  */
 
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import {
   analyzeFailure,
   extractStrategy,
@@ -13,6 +13,12 @@ import {
   getLearningStats,
   getGrowthTimeline,
   getMemoryOverview,
+  CreatePatternInput,
+  LearningPatternType,
+  LearningCategory,
+  CriticPhase,
+  EpisodePhase,
+  CreatePromptEvolutionInput,
 } from '../../services/self-learning';
 import { getAverageScores } from '../../services/self-learning';
 import { findSimilarEpisodes, getEpisodeStats } from '../../services/self-learning';
@@ -28,15 +34,31 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
     const patternType = query.patternType as string | undefined;
     const category = query.category as string | undefined;
     return listPatterns({
-      patternType: patternType as any,
-      category: category as any,
+      patternType: patternType as LearningPatternType | undefined,
+      category: category as LearningCategory | undefined,
       page,
       limit,
     });
   })
 
   .post('/patterns', async ({ body }) => {
-    return createPattern(body as any);
+    return createPattern({
+      ...body,
+      patternType: body.patternType as LearningPatternType,
+      category: body.category as LearningCategory
+    });
+  }, {
+    body: t.Object({
+      patternType: t.String(),
+      title: t.String(),
+      description: t.String(),
+      category: t.String(),
+      conditions: t.Array(t.String()),
+      examples: t.Array(t.String()),
+      relatedStrategies: t.Optional(t.Array(t.String())),
+      confidence: t.Number(),
+      frequency: t.Optional(t.Number())
+    })
   })
 
   // --- Analysis ---
@@ -56,7 +78,7 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   // --- Critic Scores ---
   .get('/critic-scores', async ({ query }) => {
     const phase = query.phase as string | undefined;
-    return getAverageScores(phase as any);
+    return getAverageScores(phase as CriticPhase | undefined);
   })
 
   // --- Prompt Evolution ---
@@ -66,7 +88,16 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   })
 
   .post('/prompt-evolution', async ({ body }) => {
-    return recordPromptEvolution(body as any);
+    return recordPromptEvolution(body);
+  }, {
+    body: t.Object({
+      category: t.String(),
+      iteration: t.Number(),
+      prompt: t.String(),
+      results: t.String(),
+      improvements: t.Array(t.String()),
+      performanceScore: t.Number()
+    })
   })
 
   // --- Episode Search ---
@@ -79,7 +110,7 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
     if (!q) return { error: "Query parameter 'q' is required" };
 
     return findSimilarEpisodes(q, {
-      phase: phase as any,
+      phase: phase as EpisodePhase | undefined,
       limit,
       minImportance,
     });

@@ -176,12 +176,13 @@ export const useFilterDataStore = create<FilterDataStore>()(
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error occurred';
 
+          const hasCachedData = state.categories.length > 0 || state.themes.length > 0;
           set({
             isLoading: false,
-            error: `Failed to load filter data: ${errorMessage}`,
-            // Continue using cache data even if error occurs
-            isInitialized:
-              state.categories.length > 0 || state.themes.length > 0,
+            // NOTE: Suppress error display when cached data is available (e.g., during server restart).
+            // The user already has usable data; showing an error card is disruptive.
+            error: hasCachedData ? null : `Failed to load filter data: ${errorMessage}`,
+            isInitialized: hasCachedData,
           });
         }
       },

@@ -217,7 +217,7 @@ export function useAgentExecutionHandlers(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.taskId, s.sessionId]);
 
-  const handleReset = () => {
+  const handleReset = async () => {
     s.stopPolling();
     s.clearPollingLogs();
     s.clearSseLogs();
@@ -225,7 +225,10 @@ export function useAgentExecutionHandlers(
     // NOTE: Allow restoration on next mount
     s.hasRestoredRef.current = false;
     s.setPrState({ status: 'idle' });
-    s.onReset();
+    // NOTE: onReset calls resetExecutionState which POSTs to API and resets task to 'todo'.
+    // Do NOT call onExecutionComplete here — it has "wait for done" retry logic
+    // that conflicts with reset-to-todo intent.
+    await Promise.resolve(s.onReset());
   };
 
   /** Create a PR for this task's branch. */

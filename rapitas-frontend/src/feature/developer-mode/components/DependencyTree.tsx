@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from 'lucide-react';
-import { useSSE } from '@/hooks/use-sse';
+import { useSSE } from '@/hooks/useSse';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import {

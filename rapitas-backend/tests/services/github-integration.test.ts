@@ -65,12 +65,14 @@ function resetAllMocks() {
   }
 }
 
+type MockPrismaType = typeof mockPrisma;
+
 describe('GitHub Integration - Webhook Handling', () => {
   let service: InstanceType<typeof GitHubService>;
 
   beforeEach(() => {
     resetAllMocks();
-    service = new GitHubService(mockPrisma as any);
+    service = new GitHubService(mockPrisma as unknown as MockPrismaType);
   });
 
   test('pull_request openedイベントを処理できること', async () => {

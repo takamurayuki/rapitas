@@ -41,7 +41,7 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-dark-mode', () => ({
+vi.mock('@/hooks/useDarkMode', () => ({
   useDarkMode: () => ({
     isDarkMode: false,
     mounted: true,
@@ -73,7 +73,7 @@ vi.mock('next-intl', () => ({
 }));
 
 // Mock components
-vi.mock('@/components/AppIcon', () => ({
+vi.mock('@/components/app-icon', () => ({
   default: ({ size, className }: { size?: number; className?: string }) => (
     <div data-testid="app-icon" />
   ),

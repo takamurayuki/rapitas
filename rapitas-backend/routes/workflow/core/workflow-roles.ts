@@ -3,7 +3,7 @@
  * AI agent role configuration for each workflow phase (research, plan, review, implement, verify)
  */
 import { Elysia } from 'elysia';
-import { prisma } from '../../config';
+import { prisma } from '../../../config';
 
 const VALID_ROLES = [
   'researcher',

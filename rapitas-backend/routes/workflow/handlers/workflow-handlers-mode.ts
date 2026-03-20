@@ -5,14 +5,14 @@
  * Not responsible for file I/O, plan approval, or status transitions.
  */
 
-import { prisma } from '../../config';
-import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
+import { prisma } from '../../../config';
+import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import {
   analyzeTaskComplexityWithLearning,
   getWorkflowModeConfig,
   type TaskComplexityInput,
-} from '../../services/workflow/complexity-analyzer';
-import { createLogger } from '../../config/logger';
+} from '../../../services/workflow/complexity-analyzer';
+import { createLogger } from '../../../config/logger';
 
 const log = createLogger('routes:workflow:handlers:mode');
 

@@ -19,7 +19,7 @@ export interface TaskWorkflowSectionProps {
   currentWorkflowStatus: WorkflowStatus | null;
   setCurrentWorkflowStatus: (status: WorkflowStatus) => void;
   isWorkflowLoading: boolean;
-  workflowError: string | null;
+  workflowError: string | null | undefined;
   onPlanApprovalRequest: () => void;
   onWorkflowComplete: () => Promise<void>;
   onTaskUpdated?: () => void;

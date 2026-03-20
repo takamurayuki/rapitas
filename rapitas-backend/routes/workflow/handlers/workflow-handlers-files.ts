@@ -7,20 +7,20 @@
  */
 
 import { mkdir, writeFile } from 'fs/promises';
-import { join } from 'path';
-import { prisma } from '../../config';
-import { NotFoundError, ValidationError, parseId } from '../../middleware/error-handler';
-import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
-import { createLogger } from '../../config/logger';
-import { recordWorkflowCompletion } from '../../services/workflow/workflow-learning-optimizer';
-import { extractKnowledgeFromTask } from '../../services/memory/task-knowledge-extractor';
+import { join, dirname } from 'path';
+import { prisma } from '../../../config';
+import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
+import { sanitizeMarkdownContent } from '../../../utils/mojibake-detector';
+import { createLogger } from '../../../config/logger';
+import { recordWorkflowCompletion } from '../../../services/workflow/workflow-learning-optimizer';
+import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
 import {
   VALID_FILE_TYPES,
   type WorkflowFileType,
   resolveWorkflowDir,
   getFileInfo,
-} from './workflow-helpers';
-import { performAutoCommitAndPR } from './workflow-auto-commit';
+} from '../core/workflow-helpers';
+import { performAutoCommitAndPR } from '../workflow-auto-commit';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -149,6 +149,35 @@ export async function handleSaveFile({
       });
     }
 
+    // Auto-split into subtasks when plan.md is saved and task is large enough
+    let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;
+    if (fileType === 'plan' && newStatus === 'plan_created') {
+      try {
+        const { analyzePlanForSplitting, createSubtasksFromPlan } = await import(
+          '../../../services/workflow/subtask-splitter'
+        );
+        const analysis = analyzePlanForSplitting(sanitizeResult.content);
+        if (analysis.shouldSplit) {
+          log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
+          // Load research.md for context inheritance
+          let researchContent: string | undefined;
+          try {
+            const researchPath = join(dirname(filePath), 'research.md');
+            const { readFile: rf } = await import('fs/promises');
+            researchContent = await rf(researchPath, 'utf-8');
+          } catch { /* no research.md — non-fatal */ }
+
+          const result = await createSubtasksFromPlan(taskId, analysis, researchContent);
+          if (result.success) {
+            splitResult = { subtasksCreated: result.subtasksCreated, subtaskIds: result.subtaskIds };
+            log.info(`[Workflow] Created ${result.subtasksCreated} subtasks for task ${taskId}`);
+          }
+        }
+      } catch (splitErr) {
+        log.error({ err: splitErr }, `[Workflow] Subtask splitting failed for task ${taskId}`);
+      }
+    }
+
     // Auto-approve when saving plan.md if autoApprovePlan is enabled
     let autoApproved = false;
     if (fileType === 'plan' && newStatus === 'plan_created') {
@@ -175,7 +204,7 @@ export async function handleSaveFile({
       });
 
       // Record reasoning trace for temporal debugging (async)
-      import('../../services/temporal-debugger').then(({ recordReasoningTrace }) => {
+      import('../../../services/temporal-debugger').then(({ recordReasoningTrace }) => {
         // Find the latest execution for this task to record its trace
         prisma.agentExecution.findFirst({
           where: { session: { config: { taskId } }, status: 'completed' },
@@ -194,6 +223,10 @@ export async function handleSaveFile({
       workflowStatus: newStatus || currentStatus,
       autoApproved,
     };
+
+    if (splitResult) {
+      response.subtaskSplit = splitResult;
+    }
 
     if (fileType === 'verify' && newStatus === 'completed') {
       response.taskCompleted = true;
@@ -274,7 +307,7 @@ async function _handlePlanAutoApprove(
 
   // Automatically start the implementation phase
   try {
-    const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+    const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
     const orchestrator = WorkflowOrchestrator.getInstance();
     orchestrator
       .advanceWorkflow(taskId, fileLanguage)

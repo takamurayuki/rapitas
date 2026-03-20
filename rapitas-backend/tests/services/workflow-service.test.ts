@@ -78,7 +78,7 @@ describe('WorkflowOrchestrator', () => {
   beforeEach(() => {
     resetAllMocks();
     // Reset singleton for clean tests
-    (WorkflowOrchestrator as any).instance = undefined;
+    (WorkflowOrchestrator as unknown as { instance: undefined }).instance = undefined;
     orchestrator = WorkflowOrchestrator.getInstance();
   });
 

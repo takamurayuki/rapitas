@@ -282,9 +282,12 @@ describe('POST /developer-mode/enable/:taskId', () => {
     mockPrisma.task.update.mockResolvedValue({});
 
     // Simulate P2002 error on upsert
-    const p2002Error = new Error('Unique constraint failed');
-    (p2002Error as any).code = 'P2002';
-    (p2002Error as any).meta = { target: ['taskId'] };
+    const p2002Error = new Error('Unique constraint failed') as Error & {
+      code: string;
+      meta: { target: string[] }
+    };
+    p2002Error.code = 'P2002';
+    p2002Error.meta = { target: ['taskId'] };
 
     mockPrisma.developerModeConfig.upsert.mockRejectedValue(p2002Error);
     mockPrisma.developerModeConfig.findUniqueOrThrow.mockResolvedValue(existingConfig);

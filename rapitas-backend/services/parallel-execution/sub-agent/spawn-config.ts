@@ -48,6 +48,8 @@ export function buildSpawnSpec(
 
   if (dangerouslySkipPermissions) {
     args.push('--dangerously-skip-permissions');
+    // NOTE: Also set permission-mode to ensure all file edits (including .claude/) are allowed
+    args.push('--permission-mode', 'bypassPermissions');
   }
 
   // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees

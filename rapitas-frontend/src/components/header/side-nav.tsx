@@ -8,7 +8,7 @@
 
 import { usePathname } from 'next/navigation';
 import { Keyboard, Pin, PinOff } from 'lucide-react';
-import AppIcon from '@/components/AppIcon';
+import AppIcon from '@/components/app-icon';
 import { OPEN_SHORTCUTS_EVENT } from '@/components/KeyboardShortcuts';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';

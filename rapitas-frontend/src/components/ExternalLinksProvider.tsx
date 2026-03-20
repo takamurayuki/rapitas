@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { setupExternalLinkHandlers } from '@/utils/external-links';
-import { useSplitViewExit } from '@/hooks/use-split-view-exit';
+import { useSplitViewExit } from '@/hooks/useSplitViewExit';
 
 interface ExternalLinksProviderProps {
   children: React.ReactNode;

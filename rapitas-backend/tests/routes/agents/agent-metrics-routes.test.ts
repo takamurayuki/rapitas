@@ -38,7 +38,7 @@ const { agentMetricsRouter } = await import('../../../routes/agents/agent-metric
 
 describe('Agent Metrics Router', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let app: any;
+  let app: Elysia;
 
   beforeEach(() => {
     mockFindMany.mockReset();

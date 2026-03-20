@@ -7,7 +7,7 @@
 
 import { readFile, stat } from 'fs/promises';
 import { join } from 'path';
-import { prisma } from '../../config';
+import { prisma } from '../../../config';
 
 export const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 export type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];

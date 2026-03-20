@@ -39,7 +39,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { workflowRolesRoutes } = await import('../../../routes/workflow/workflow-roles');
+const { workflowRolesRoutes } = await import('../../../routes/workflow/core/workflow-roles');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

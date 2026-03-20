@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
-import { useBackendHealth } from '@/hooks/use-backend-health';
+import { useBackendHealth } from '@/hooks/useBackendHealth';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { createLogger } from '@/lib/logger';
 import type { ResumableExecution } from './types';
@@ -60,54 +60,93 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   const [connectionError, setConnectionError] = useState<Error | null>(null);
 
   const autoResumeCheckedRef = useRef(false);
-  const executingTasksSize = useExecutionStateStore((state) => state.executingTasks.size);
+  const disconnectTimerRef = useRef<number | null>(null);
+  const executingTasksSize = useExecutionStateStore(
+    (state) => state.executingTasks.size,
+  );
 
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/settings`, undefined, 2, 500, 10000, { silent: true });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/settings`,
+        undefined,
+        2,
+        500,
+        10000,
+        { silent: true },
+      );
       if (res.ok) {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
       }
-    } catch { setAutoResume(false); }
+    } catch {
+      setAutoResume(false);
+    }
   }, []);
 
   const fetchResumableExecutions = useCallback(async () => {
     try {
       setConnectionError(null);
-      const res = await fetchWithRetry(`${API_BASE_URL}/agents/resumable-executions`, undefined, 2, 500, 5000, { silent: true });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/agents/resumable-executions`,
+        undefined,
+        2,
+        500,
+        5000,
+        { silent: true },
+      );
       if (res.ok) {
         const data: ResumableExecution[] = await res.json();
         setExecutions((prev) => {
           const prevIds = new Set(prev.map((e) => e.id));
           // Reset dismissed only when genuinely new executions arrive
-          if (data.some((e) => !prevIds.has(e.id)) && data.length > 0) setIsDismissed(false);
+          if (data.some((e) => !prevIds.has(e.id)) && data.length > 0)
+            setIsDismissed(false);
           return data;
         });
         return data;
       } else {
-        logger.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
+        logger.warn(
+          `Failed to fetch resumable executions: ${res.status} ${res.statusText}`,
+        );
         setExecutions([]);
       }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.warn(`Failed to fetch resumable executions: ${errMsg}`);
-      setConnectionError(error instanceof Error ? error : new Error(String(error)));
+      setConnectionError(
+        error instanceof Error ? error : new Error(String(error)),
+      );
       setExecutions([]);
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
     return [];
   }, []);
 
   const { isConnected, isIntentionalRestart } = useBackendHealth({
     onReconnectAction: () => {
       logger.info('Backend reconnected, re-fetching executions');
+      // NOTE: Cancel pending disconnect error timer (server came back before the delay)
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
       setIsLoading(true);
       setConnectionError(null);
       fetchResumableExecutions();
+      // NOTE: Also refresh filter data (categories/themes) which may have errored during restart
+      import('@/stores/filterDataStore').then(({ useFilterDataStore }) => {
+        useFilterDataStore.getState().refreshData(true);
+      }).catch(() => {});
     },
     onDisconnectAction: () => {
       logger.info('Backend disconnected');
-      setConnectionError(new Error(t('backendDisconnected')));
+      // NOTE: Delay error display by 10 seconds to suppress toast during intentional manual restarts.
+      // If the server comes back within this window, onReconnectAction clears the error.
+      disconnectTimerRef.current = window.setTimeout(() => {
+        setConnectionError(new Error(t('backendDisconnected')));
+      }, 10000);
     },
   });
 
@@ -123,15 +162,23 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   // Re-fetch immediately when new executing tasks appear in the global store
   const prevExecutingTasksSizeRef = useRef(executingTasksSize);
   useEffect(() => {
-    if (executingTasksSize > prevExecutingTasksSizeRef.current && isConnected) fetchResumableExecutions();
+    if (executingTasksSize > prevExecutingTasksSizeRef.current && isConnected)
+      fetchResumableExecutions();
     prevExecutingTasksSizeRef.current = executingTasksSize;
   }, [executingTasksSize, isConnected, fetchResumableExecutions]);
 
   // Periodic polling — 10 s while tasks are running, 15 s otherwise
   useEffect(() => {
     if (isDismissed || !isConnected) return;
-    const hasRunning = executions.some((e) => e.status === 'running' || e.status === 'waiting_for_input');
-    const interval = setInterval(() => { if (isConnected) fetchResumableExecutions(); }, hasRunning ? 10000 : 15000);
+    const hasRunning = executions.some(
+      (e) => e.status === 'running' || e.status === 'waiting_for_input',
+    );
+    const interval = setInterval(
+      () => {
+        if (isConnected) fetchResumableExecutions();
+      },
+      hasRunning ? 10000 : 15000,
+    );
     return () => clearInterval(interval);
   }, [executions, isDismissed, isConnected, fetchResumableExecutions]);
 
@@ -144,7 +191,9 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
     if (sessionStorage.getItem(AUTO_RESUME_SESSION_KEY) === 'true') return;
     logger.info(`Starting auto-resume for ${resumable.length} executions`);
     sessionStorage.setItem(AUTO_RESUME_SESSION_KEY, 'true');
-    (async () => { for (const exec of resumable) await handleResume(exec.id, true); })();
+    (async () => {
+      for (const exec of resumable) await handleResume(exec.id, true);
+    })();
   }, [autoResume, isLoading, executions]);
 
   const handleResume = async (executionId: number, isAutoResume = false) => {
@@ -163,30 +212,52 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
-        logger.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
+        logger.error(
+          `Failed to resume execution: ${res.status} ${res.statusText}`,
+        );
         if (!isAutoResume) alert(`${tc('errorOccurred')}: ${res.status}`);
       }
-    } catch (error) { logger.warn('Error resuming execution:', error); }
-    finally {
-      setResumingIds((prev) => { const next = new Set(prev); next.delete(executionId); return next; });
+    } catch (error) {
+      logger.warn('Error resuming execution:', error);
+    } finally {
+      setResumingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(executionId);
+        return next;
+      });
     }
   };
 
   const handleDismiss = async (executionId: number) => {
     const exec = executions.find((e) => e.id === executionId);
-    if (exec && (exec.status === 'running' || exec.status === 'waiting_for_input')) {
+    if (
+      exec &&
+      (exec.status === 'running' || exec.status === 'waiting_for_input')
+    ) {
       // Running tasks are removed client-side only — do not acknowledge on the backend
       setExecutions((prev) => prev.filter((e) => e.id !== executionId));
       return;
     }
     setDismissingIds((prev) => new Set(prev).add(executionId));
     try {
-      const res = await fetchWithRetry(`${API_BASE_URL}/agents/executions/${executionId}/acknowledge`, { method: 'POST' });
-      if (res.ok) setExecutions((prev) => prev.filter((e) => e.id !== executionId));
-      else logger.error(`Failed to dismiss execution: ${res.status} ${res.statusText}`);
-    } catch (error) { logger.warn('Error dismissing execution:', error); }
-    finally {
-      setDismissingIds((prev) => { const next = new Set(prev); next.delete(executionId); return next; });
+      const res = await fetchWithRetry(
+        `${API_BASE_URL}/agents/executions/${executionId}/acknowledge`,
+        { method: 'POST' },
+      );
+      if (res.ok)
+        setExecutions((prev) => prev.filter((e) => e.id !== executionId));
+      else
+        logger.error(
+          `Failed to dismiss execution: ${res.status} ${res.statusText}`,
+        );
+    } catch (error) {
+      logger.warn('Error dismissing execution:', error);
+    } finally {
+      setDismissingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(executionId);
+        return next;
+      });
     }
   };
 
@@ -196,7 +267,8 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   };
 
   const handleResumeAll = async () => {
-    for (const exec of executions) if (exec.canResume) await handleResume(exec.id, true);
+    for (const exec of executions)
+      if (exec.canResume) await handleResume(exec.id, true);
   };
 
   /**
@@ -216,14 +288,31 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
     return tNotification('justNow');
   };
 
-  const runningCount = executions.filter((e) => e.status === 'running' || e.status === 'waiting_for_input').length;
-  const interruptedCount = executions.filter((e) => e.status === 'interrupted').length;
+  const runningCount = executions.filter(
+    (e) => e.status === 'running' || e.status === 'waiting_for_input',
+  ).length;
+  const interruptedCount = executions.filter(
+    (e) => e.status === 'interrupted',
+  ).length;
 
   return {
-    executions, isLoading, isDismissed, resumingIds, dismissingIds,
-    connectionError, isConnected, isIntentionalRestart,
-    runningCount, interruptedCount,
-    setIsDismissed, setConnectionError, fetchResumableExecutions,
-    handleResume, handleDismiss, handleDismissAll, handleResumeAll, formatTimeAgo,
+    executions,
+    isLoading,
+    isDismissed,
+    resumingIds,
+    dismissingIds,
+    connectionError,
+    isConnected,
+    isIntentionalRestart,
+    runningCount,
+    interruptedCount,
+    setIsDismissed,
+    setConnectionError,
+    fetchResumableExecutions,
+    handleResume,
+    handleDismiss,
+    handleDismissAll,
+    handleResumeAll,
+    formatTimeAgo,
   };
 }

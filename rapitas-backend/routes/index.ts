@@ -72,8 +72,8 @@ export { projectHealthRoutes } from './system/project-health';
 export { gitCleanupRoutes } from './system/git-cleanup';
 
 // Workflow
-export { workflowRoutes } from './workflow/workflow';
-export { workflowRolesRoutes } from './workflow/workflow-roles';
+export { workflowRoutes } from './workflow/core/workflow';
+export { workflowRolesRoutes } from './workflow/core/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
 export { intentRoutes } from './workflow/intent-routes';

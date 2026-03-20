@@ -51,7 +51,8 @@ const WORKFLOW_PHASE_MAP: Record<
   'workflow-verifier': {
     title: '検証フェーズ完了',
     message: '検証者による検証が完了しました。',
-    nextAction: 'ワークフロータブで検証結果を確認し、問題なければ完了にしてください。',
+    nextAction:
+      'ワークフロータブで検証結果を確認し、問題なければ完了にしてください。',
   },
 };
 
@@ -125,7 +126,8 @@ export function ExecutionCompletedPanel({
                 {workflowPhaseInfo?.title || '実行完了'}
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                {workflowPhaseInfo?.message || 'AIエージェントによる実行が完了しました。'}
+                {workflowPhaseInfo?.message ||
+                  'AIエージェントによる実行が完了しました。'}
               </p>
               <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
                 {workflowPhaseInfo?.nextAction ||
@@ -170,7 +172,8 @@ export function ExecutionCompletedPanel({
               value={followUpInstruction}
               onChange={(e) => setFollowUpInstruction(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) onFollowUpExecute();
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey))
+                  onFollowUpExecute();
               }}
               placeholder="追加の修正や変更の指示を入力してください..."
               rows={2}

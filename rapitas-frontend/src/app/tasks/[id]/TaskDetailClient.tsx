@@ -113,6 +113,7 @@ function TaskDetailClient({
     restoreExecutionState,
     approveSubtaskCreation,
     setExecutionCancelled,
+    isRestoringState,
     agentConfigId,
     setAgentConfigId,
     agents,
@@ -254,7 +255,8 @@ function TaskDetailClient({
       isParallelExecutionRunning ||
       executionResult !== null ||
       analysisResult !== null ||
-      isTaskExecutingInStore);
+      isTaskExecutingInStore ||
+      isRestoringState);
 
   // ─── Render ───────────────────────────────────────────────────────────────
   const aiSectionProps = {
@@ -295,6 +297,7 @@ function TaskDetailClient({
     refetchWorkflowFiles,
     onTaskUpdated,
     startSession,
+    isRestoringState,
   };
 
   const viewBodyProps: Omit<

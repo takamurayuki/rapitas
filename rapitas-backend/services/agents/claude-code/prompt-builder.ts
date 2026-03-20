@@ -56,8 +56,12 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     `Please execute the task in the following order:`,
     `1. Research → Save research.md`,
     `2. If unclear points exist, save question.md + AskUserQuestion`,
-    `3. Create and save plan.md → **Stop implementation and wait for approval**`,
-    `4. Implement after approval`,
+    task.autoApprovePlan
+      ? `3. Create and save plan.md → **Plan will be auto-approved. Proceed to implementation immediately after saving.**`
+      : `3. Create and save plan.md → **Stop implementation and wait for approval**`,
+    task.autoApprovePlan
+      ? `4. Implement immediately (auto-approved)`
+      : `4. Implement after approval`,
     `5. Save verify.md`,
     ``,
     `**ファイル保存API**: \`curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
@@ -181,10 +185,14 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   );
   sections.push('   - Skip questions only if requirements are completely clear');
   sections.push(
-    '3. **Planning**: Create and save plan.md reflecting research results and answers. **After saving plan.md, stop implementation here and wait for approval**',
+    task.autoApprovePlan
+      ? '3. **Planning**: Create and save plan.md reflecting research results and answers. **Plan will be auto-approved. Proceed to implementation immediately after saving plan.md.**'
+      : '3. **Planning**: Create and save plan.md reflecting research results and answers. **After saving plan.md, stop implementation here and wait for approval**',
   );
   sections.push(
-    '4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)',
+    task.autoApprovePlan
+      ? '4. **Implementation**: Implement immediately (auto-approved — do not wait for user approval)'
+      : '4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)',
   );
   sections.push('5. **Verification**: Save implementation results as verify.md');
   sections.push('');

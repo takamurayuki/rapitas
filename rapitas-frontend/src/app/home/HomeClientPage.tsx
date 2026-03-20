@@ -16,6 +16,7 @@ import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore
 import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
 import { useAppModeStore } from '@/stores/appModeStore';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { useTaskCompletionAnimation } from '@/feature/tasks/components/TaskCompletionAnimation';
 import { useFilteredTasks } from '@/hooks/useFilteredTasks';
 import { useTaskSorting } from '@/hooks/useTaskSorting';
@@ -166,9 +167,11 @@ function HomeClientPage() {
     setQuickTaskTitle,
   });
 
+  const { setTaskLoading } = useExecutionStateStore();
   const openTaskPanel = useCallback((taskId: number) => {
+    setTaskLoading(taskId);
     setSelectedTaskId(taskId); setIsPanelOpen(true); showTaskDetail();
-  }, [showTaskDetail, setSelectedTaskId, setIsPanelOpen]);
+  }, [showTaskDetail, setSelectedTaskId, setIsPanelOpen, setTaskLoading]);
 
   const closeTaskPanel = useCallback(() => {
     setIsPanelOpen(false); hideTaskDetail();
