@@ -78,6 +78,13 @@ import {
   recurringTaskRoutes,
   mcpRoutes,
   progressSummaryRoutes,
+  techDebtRoutes,
+  crossProjectKnowledgeRoutes,
+  executionForkRoutes,
+  smartRouterRoutes,
+  temporalDebugRoutes,
+  projectHealthRoutes,
+  intentRoutes,
   gitCleanupRoutes,
 } from './routes';
 
@@ -226,6 +233,13 @@ app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);
 app.use(mcpRoutes);
 app.use(progressSummaryRoutes);
+app.use(techDebtRoutes);
+app.use(crossProjectKnowledgeRoutes);
+app.use(executionForkRoutes);
+app.use(smartRouterRoutes);
+app.use(temporalDebugRoutes);
+app.use(projectHealthRoutes);
+app.use(intentRoutes);
 app.use(gitCleanupRoutes);
 
 // Start behavior scheduler

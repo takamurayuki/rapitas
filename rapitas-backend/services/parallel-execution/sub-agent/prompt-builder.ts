@@ -91,7 +91,11 @@ export async function buildPrompt(agentId: string, task: AgentTask): Promise<str
     if (knowledge.length > 0) {
       sections.push('## 過去の知見（エージェントメモリ）');
       for (const entry of knowledge) {
-        sections.push(`- **${entry.title}**: ${entry.content.slice(0, 200)}`);
+        // NOTE: Flag cross-project knowledge so the agent knows it came from a different context
+        const crossLabel = (entry as Record<string, unknown>).isCrossProject
+          ? ' 🔗(別プロジェクト)'
+          : '';
+        sections.push(`- **${entry.title}**${crossLabel}: ${entry.content.slice(0, 200)}`);
       }
       sections.push('');
     }

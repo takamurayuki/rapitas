@@ -19,7 +19,7 @@ export interface UseDeveloperModeEffectsParams {
   isExecuting: boolean;
   executionResult: unknown;
   isParallelExecutionRunning: boolean;
-  parallelSessionId: number | null;
+  parallelSessionId: string | null;
   isTaskExecutingInStore: boolean;
   fetchDevModeConfig: () => void;
   fetchAgents: () => void;

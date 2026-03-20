@@ -430,6 +430,7 @@ export async function executePoll(
         questionType:
           data.questionType === 'tool_call' ? 'tool_call' : 'none',
         questionTimeout: timeoutInfo,
+        questionDetails: (data.questionDetails as ExecutionStreamState['questionDetails']) || null,
       }));
     } else if (data.executionStatus === 'running') {
       if (refs.lastProcessedStatusRef.current === 'cancelled') return;

@@ -102,6 +102,10 @@ export const statusRoute = new Elysia().get(
         question: questionText,
         questionType,
         questionTimeout: questionTimeoutInfo,
+        // NOTE: questionDetails is stored as JSON string in DB — parse back to object for frontend
+        questionDetails: execExtras?.questionDetails
+          ? (() => { try { return JSON.parse(execExtras.questionDetails as string); } catch { return null; } })()
+          : null,
         claudeSessionId: execExtras?.claudeSessionId || null,
         agentConfig: agentConfigInfo || null,
       };

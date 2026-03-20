@@ -197,6 +197,9 @@ export async function findRelatedKnowledge(
         category: entry.category,
         confidence: entry.confidence,
         relevanceScore: Math.round(relevanceScore * 100) / 100,
+        /** True when this knowledge came from a different project/theme. */
+        isCrossProject: themeId ? entry.themeId !== themeId : false,
+        sourceThemeId: entry.themeId,
       };
     });
 
@@ -204,6 +207,113 @@ export async function findRelatedKnowledge(
   } catch (error) {
     log.error({ err: error }, 'Failed to find related knowledge');
     return [];
+  }
+}
+
+/**
+ * Search knowledge across ALL projects, explicitly surfacing cross-project insights.
+ * Groups results by source theme to show "where this knowledge came from."
+ *
+ * @param query - Search query text / 検索クエリ
+ * @param excludeThemeId - Current theme to de-prioritize (still included but flagged) / 除外するテーマ
+ * @param limit - Max results / 最大結果数
+ * @returns Knowledge grouped by source project / ソースプロジェクト別にグループ化された知識
+ */
+export async function searchCrossProjectKnowledge(
+  query: string,
+  excludeThemeId?: number | null,
+  limit: number = 10,
+): Promise<{
+  results: Array<{
+    id: number;
+    title: string;
+    content: string;
+    category: string;
+    confidence: number;
+    relevanceScore: number;
+    isCrossProject: boolean;
+    sourceThemeId: number | null;
+    sourceThemeName?: string;
+  }>;
+  totalAcrossProjects: number;
+  projectCount: number;
+}> {
+  try {
+    const keywords = query
+      .toLowerCase()
+      .split(/[\s\-_\/\\:;,.\(\)\[\]{}]+/)
+      .filter((w) => w.length >= 2)
+      .slice(0, 10);
+
+    if (keywords.length === 0) return { results: [], totalAcrossProjects: 0, projectCount: 0 };
+
+    const entries = await prisma.knowledgeEntry.findMany({
+      where: {
+        forgettingStage: { in: ['active', 'dormant'] },
+        OR: keywords.map((kw) => ({
+          OR: [
+            { title: { contains: kw, mode: 'insensitive' as const } },
+            { content: { contains: kw, mode: 'insensitive' as const } },
+          ],
+        })),
+      },
+      select: {
+        id: true, title: true, content: true, category: true,
+        confidence: true, decayScore: true, themeId: true, tags: true,
+      },
+      orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
+      take: limit * 5,
+    });
+
+    // Fetch theme names for context
+    const themeIds = [...new Set(entries.map((e) => e.themeId).filter(Boolean))] as number[];
+    const themes = themeIds.length > 0
+      ? await prisma.theme.findMany({
+          where: { id: { in: themeIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const themeMap = new Map(themes.map((t) => [t.id, t.name]));
+
+    const scored = entries.map((entry) => {
+      let relevanceScore = 0;
+      const entryText = `${entry.title} ${entry.content}`.toLowerCase();
+      const matchCount = keywords.filter((kw) => entryText.includes(kw)).length;
+      relevanceScore += (matchCount / keywords.length) * 50;
+
+      // NOTE: Cross-project knowledge gets a BONUS (not penalty) to surface diverse insights
+      const isCrossProject = excludeThemeId ? entry.themeId !== excludeThemeId : false;
+      if (isCrossProject && entry.themeId) {
+        relevanceScore += 15;
+      }
+
+      relevanceScore += entry.confidence * 10;
+      relevanceScore += entry.decayScore * 10;
+
+      return {
+        id: entry.id,
+        title: entry.title,
+        content: entry.content.slice(0, 500),
+        category: entry.category,
+        confidence: entry.confidence,
+        relevanceScore: Math.round(relevanceScore * 100) / 100,
+        isCrossProject,
+        sourceThemeId: entry.themeId,
+        sourceThemeName: entry.themeId ? themeMap.get(entry.themeId) : undefined,
+      };
+    });
+
+    const sorted = scored.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, limit);
+    const uniqueThemes = new Set(entries.map((e) => e.themeId).filter(Boolean));
+
+    return {
+      results: sorted,
+      totalAcrossProjects: entries.length,
+      projectCount: uniqueThemes.size,
+    };
+  } catch (error) {
+    log.error({ err: error }, 'Failed to search cross-project knowledge');
+    return { results: [], totalAcrossProjects: 0, projectCount: 0 };
   }
 }
 

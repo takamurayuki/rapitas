@@ -173,6 +173,17 @@ export async function handleSaveFile({
       extractKnowledgeFromTask(taskId).catch((err) => {
         log.error({ err, taskId }, 'Failed to extract knowledge from task');
       });
+
+      // Record reasoning trace for temporal debugging (async)
+      import('../../services/temporal-debugger').then(({ recordReasoningTrace }) => {
+        // Find the latest execution for this task to record its trace
+        prisma.agentExecution.findFirst({
+          where: { session: { config: { taskId } }, status: 'completed' },
+          orderBy: { completedAt: 'desc' },
+        }).then((exec) => {
+          if (exec) recordReasoningTrace(exec.id).catch(() => {});
+        }).catch(() => {});
+      }).catch(() => {});
     }
 
     // Build response

@@ -42,58 +42,106 @@ export function formatCountdown(seconds: number): string {
  * @param questionText - Raw question text from the AI agent
  * @returns Parsed question with text and options, or null if no options detected
  */
+/** Parsed question result, optionally with sub-questions for multi-question mode. */
+export type ParsedQuestion = {
+  text: string;
+  options: string[];
+  /** Individual sub-questions that each need a yes/no answer. */
+  subQuestions?: Array<{ question: string; key: string }>;
+  /** Whether this contains multiple questions requiring individual answers. */
+  isMultiQuestion?: boolean;
+};
+
+/** Check if a line is a Japanese question (ending with ？ even if followed by ...) */
+function isJpQuestionLine(line: string): boolean {
+  const stripped = line.replace(/[.…。、\s]+$/, '');
+  return /[？?]$/.test(stripped) && stripped.length > 5;
+}
+
+/** Check if a line contains Japanese question keywords */
+function containsJpQuestionKeyword(line: string): boolean {
+  return /(?:しますか|ですか|でしょうか|どうしますか|よろしいですか|含めますか|スキップしますか|適用しますか|実行しますか|確認しますか)/.test(line);
+}
+
+/**
+ * Parse question text to extract options or sub-questions.
+ * Handles: explicit option lists, numbered lists, Japanese yes/no questions,
+ * and multi-line question format with trailing punctuation.
+ */
 export function parseQuestionOptions(
   questionText: string,
-): { text: string; options: string[] } | null {
+): ParsedQuestion | null {
   if (!questionText) return null;
 
-  // Match format: "Question text\nOptions:\nA) Option 1\nB) Option 2\n..."
+  // 1. Explicit option list: "Options:\nA) ...\nB) ..."
   const optionsMatch = questionText.match(
     /(?:オプション|Options?|選択肢)[:：]\s*\n((?:[A-D]\)|[①-④]|\d\))[^\n]+\n?)+/i,
   );
-
-  if (!optionsMatch) {
-    // Alternative format: "Question?\n1. Option1\n2. Option2"
-    const numMatch = questionText.match(/\n(\d+[.．、]\s*[^\n]+(\n|$))+/);
-    if (numMatch) {
-      const lines = questionText.split('\n');
-      const optionLines: string[] = [];
-      let questionPart = '';
-      let inOptions = false;
-
-      for (const line of lines) {
-        if (/^\d+[.．、]\s*.+/.test(line.trim())) {
-          inOptions = true;
-          optionLines.push(line.trim());
-        } else if (inOptions) {
-          break;
-        } else {
-          questionPart += line + '\n';
-        }
-      }
-
-      if (optionLines.length >= 2) {
-        return {
-          text: questionPart.trim(),
-          options: optionLines.map((l) => l.replace(/^\d+[.．、]\s*/, '')),
-        };
-      }
-    }
-    return null;
+  if (optionsMatch) {
+    const questionPart = questionText.substring(0, optionsMatch.index).trim();
+    const optionLines = optionsMatch[1].split('\n').filter((l) => l.trim());
+    const options = optionLines
+      .map((line) => line.replace(/^[A-D]\)|^[①-④]|^\d+\)/, '').trim())
+      .filter((o) => o);
+    if (options.length >= 2) return { text: questionPart, options };
   }
 
-  const questionPart = questionText.substring(0, optionsMatch.index).trim();
-  const optionsPart = optionsMatch[1];
-  const optionLines = optionsPart.split('\n').filter((l) => l.trim());
+  // 2. Numbered list: "1. Option1\n2. Option2"
+  const lines = questionText.split('\n').map((l) => l.trim()).filter(Boolean);
+  const numberedLines = lines.filter((l) => /^\d+[.．、)\]]\s*.+/.test(l));
+  if (numberedLines.length >= 2) {
+    const nonNumbered = lines.filter((l) => !numberedLines.includes(l));
+    return {
+      text: nonNumbered.join('\n'),
+      options: numberedLines.map((l) => l.replace(/^\d+[.．、)\]]\s*/, '')),
+    };
+  }
 
-  const options = optionLines
-    .map((line) => {
-      // Remove prefix like "A)", "1)", "①"
-      return line.replace(/^[A-D]\)|^[①-④]|^\d+\)/, '').trim();
-    })
-    .filter((o) => o);
+  // 3. Multiple Japanese yes/no questions
+  const jpQuestionLines = lines.filter((l) => isJpQuestionLine(l) || containsJpQuestionKeyword(l));
+  if (jpQuestionLines.length >= 2) {
+    const contextLines = lines.filter((l) => !jpQuestionLines.includes(l));
+    return {
+      text: contextLines.join('\n') || jpQuestionLines[0],
+      options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+      subQuestions: jpQuestionLines.map((q, i) => ({
+        question: q.replace(/[.…]+$/, ''),
+        key: `q${i}`,
+      })),
+      isMultiQuestion: true,
+    };
+  }
 
-  if (options.length < 2) return null;
+  // 4. Single Japanese yes/no question
+  if (jpQuestionLines.length === 1 || isJpQuestionLine(questionText.trim()) || containsJpQuestionKeyword(questionText)) {
+    return {
+      text: questionText,
+      options: ['はい', 'いいえ'],
+    };
+  }
 
-  return { text: questionPart, options };
+  // 5. English yes/no / confirm patterns
+  if (/\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(questionText)) {
+    return {
+      text: questionText,
+      options: ['Yes', 'No'],
+    };
+  }
+
+  // 6. Fallback: any multi-line text with 2+ lines containing ?
+  const anyQuestionLines = lines.filter((l) => /[？?]/.test(l) && l.length > 5);
+  if (anyQuestionLines.length >= 2) {
+    const contextLines = lines.filter((l) => !anyQuestionLines.includes(l));
+    return {
+      text: contextLines.join('\n'),
+      options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+      subQuestions: anyQuestionLines.map((q, i) => ({
+        question: q,
+        key: `q${i}`,
+      })),
+      isMultiQuestion: true,
+    };
+  }
+
+  return null;
 }

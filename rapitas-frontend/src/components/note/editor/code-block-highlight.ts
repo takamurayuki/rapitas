@@ -33,7 +33,7 @@ const LANGUAGE_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
-/** Languages that use C-style `//` and `/* */` comments. */
+// Languages that use C-style // and block comments.
 const C_STYLE_COMMENT_LANGS = [
   'javascript', 'typescript', 'java', 'c', 'cpp', 'csharp', 'go', 'rust',
   'swift', 'kotlin', 'php',

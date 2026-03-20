@@ -102,6 +102,14 @@ export const stopRoute = new Elysia().post(
             }
           }
 
+          // NOTE: Reset task status to 'todo' so it doesn't stay in a limbo state
+          try {
+            await prisma.task.update({ where: { id: taskId }, data: { status: 'todo' } });
+            log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
+          } catch (taskErr) {
+            log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
+          }
+
           return {
             success: true,
             message: 'Execution cancelled and changes reverted',
@@ -170,6 +178,14 @@ export const stopRoute = new Elysia().post(
         } catch (revertError) {
           log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
         }
+      }
+
+      // NOTE: Reset task status to 'todo' so it doesn't stay in 'in-progress' or 'waiting' state
+      try {
+        await prisma.task.update({ where: { id: taskId }, data: { status: 'todo' } });
+        log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
+      } catch (taskErr) {
+        log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
       }
 
       releaseTaskExecutionLock(taskId);

@@ -30,6 +30,8 @@ export { executionLogsRoutes } from './agents/execution-logs';
 export { agentMetricsRouter } from './agents/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/agent-version-management';
 export { cliToolsManagementRoutes } from './agents/cli-tools-management';
+export { executionForkRoutes } from './agents/execution-fork-routes';
+export { smartRouterRoutes } from './agents/smart-router-routes';
 
 // AI
 export { aiChatRoutes } from './ai/ai-chat';
@@ -64,6 +66,9 @@ export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
 export { mcpRoutes } from './system/mcp';
 export { progressSummaryRoutes } from './system/progress-summary';
+export { techDebtRoutes } from './system/tech-debt';
+export { temporalDebugRoutes } from './system/temporal-debug';
+export { projectHealthRoutes } from './system/project-health';
 export { gitCleanupRoutes } from './system/git-cleanup';
 
 // Workflow
@@ -71,6 +76,7 @@ export { workflowRoutes } from './workflow/workflow';
 export { workflowRolesRoutes } from './workflow/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
+export { intentRoutes } from './workflow/intent-routes';
 
 // Social
 export { commentsRoutes } from './social/comments';
@@ -88,6 +94,7 @@ export { paidLeaveRoutes } from './lifestyle/paid-leave';
 // Memory
 export { knowledgeRoutes } from './memory/knowledge';
 export { memorySystemRoutes } from './memory/memory-system';
+export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
 
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';

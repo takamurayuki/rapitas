@@ -30,6 +30,7 @@ import { useDeveloperModeSetup } from './hooks/useDeveloperModeSetup';
 // Extracted components
 import TaskDetailErrorState from './components/TaskDetailErrorState';
 import TaskDetailContent from './components/TaskDetailContent';
+import type { TaskDetailViewBodyProps } from './components/TaskDetailViewBody';
 
 const logger = createLogger('TaskDetailClient');
 
@@ -257,48 +258,92 @@ function TaskDetailClient({
 
   // ─── Render ───────────────────────────────────────────────────────────────
   const aiSectionProps = {
-    devModeConfig, isAnalyzing, analysisResult, analysisError,
-    analysisApprovalId, isExecuting, executionStatus, executionResult,
-    isParallelExecutionRunning, parallelSessionId, isApproving: approvalLoading,
-    optimizedPrompt, resources, agentConfigId, agents, subtaskLogs,
+    devModeConfig,
+    isAnalyzing,
+    analysisResult,
+    analysisError,
+    analysisApprovalId,
+    isExecuting,
+    executionStatus,
+    executionResult,
+    isParallelExecutionRunning,
+    parallelSessionId,
+    isApproving: approvalLoading,
+    optimizedPrompt,
+    resources,
+    agentConfigId,
+    agents,
+    subtaskLogs,
     onOpenSettings: () => setShowDevModeConfig(true),
-    onAnalyze: handleAnalyze, onApprove: handleApproveAnalysis,
-    onReject: handleRejectAnalysis, onApproveSubtasks: approveSubtaskCreation,
-    onPromptGenerated: setOptimizedPrompt, onAgentChange: setAgentConfigId,
+    onAnalyze: handleAnalyze,
+    onApprove: handleApproveAnalysis,
+    onReject: handleRejectAnalysis,
+    onApproveSubtasks: approveSubtaskCreation,
+    onPromptGenerated: setOptimizedPrompt,
+    onAgentChange: setAgentConfigId,
     onExecute: async (options?: unknown) => {
       const result = await executeAgent(options);
       return result as { sessionId?: number; message?: string } | null;
     },
-    onReset: resetExecutionState, onRestoreExecutionState: restoreExecutionState,
-    onStopExecution: setExecutionCancelled, onStartParallelExecution: startSession,
-    getSubtaskStatus, onRefreshSubtaskLogs: refreshSubtaskLogs,
-    setTask, refetchWorkflowFiles, onTaskUpdated, startSession,
+    onReset: resetExecutionState,
+    onRestoreExecutionState: restoreExecutionState,
+    onStopExecution: setExecutionCancelled,
+    onStartParallelExecution: startSession,
+    getSubtaskStatus,
+    onRefreshSubtaskLogs: refreshSubtaskLogs,
+    setTask,
+    refetchWorkflowFiles,
+    onTaskUpdated,
+    startSession,
   };
 
-  const viewBodyProps = {
-    resources, setResources, comments, newComment, isAddingComment,
-    setNewComment, commentSystem, refreshTask, showAIPanel,
+  const viewBodyProps: Omit<
+    TaskDetailViewBodyProps,
+    'task' | 'taskId' | 'resolvedTaskId' | 'taskActions'
+  > = {
+    resources,
+    setResources,
+    comments,
+    newComment,
+    isAddingComment,
+    setNewComment,
+    commentSystem,
+    refreshTask,
+    showAIPanel,
     aiSectionProps,
-    currentWorkflowStatus, setCurrentWorkflowStatus,
-    isWorkflowLoading, workflowError,
+    currentWorkflowStatus,
+    setCurrentWorkflowStatus,
+    isWorkflowLoading,
+    workflowError,
     onPlanApprovalRequest: handlePlanApprovalRequest,
     onWorkflowComplete: handleWorkflowComplete,
-    onTaskUpdated, setTask, isParallelExecutionRunning, getSubtaskStatus,
+    onTaskUpdated,
+    setTask,
+    isParallelExecutionRunning,
+    getSubtaskStatus,
   };
 
   return (
     <TaskDetailContent
-      task={task} taskId={taskId} resolvedTaskId={resolvedTaskId!}
-      showSkeleton={showSkeleton} isPageMode={isPageMode}
-      isThisTaskTimer={isThisTaskTimer} pomodoroState={pomodoroState}
-      showPomodoroModal={showPomodoroModal} setShowPomodoroModal={setShowPomodoroModal}
-      showDevModeConfig={showDevModeConfig} setShowDevModeConfig={setShowDevModeConfig}
+      task={task}
+      taskId={taskId}
+      resolvedTaskId={resolvedTaskId!}
+      showSkeleton={showSkeleton}
+      isPageMode={isPageMode}
+      isThisTaskTimer={isThisTaskTimer}
+      pomodoroState={pomodoroState}
+      showPomodoroModal={showPomodoroModal}
+      setShowPomodoroModal={setShowPomodoroModal}
+      showDevModeConfig={showDevModeConfig}
+      setShowDevModeConfig={setShowDevModeConfig}
       showSaveTemplateDialog={showSaveTemplateDialog}
       setShowSaveTemplateDialog={setShowSaveTemplateDialog}
       showPlanApprovalModal={showPlanApprovalModal}
       onClosePlanApprovalModal={closePlanApprovalModal}
-      devModeConfig={devModeConfig} updateDevModeConfig={updateDevModeConfig}
-      agentConfigId={agentConfigId} setAgentConfigId={setAgentConfigId}
+      devModeConfig={devModeConfig}
+      updateDevModeConfig={updateDevModeConfig}
+      agentConfigId={agentConfigId}
+      setAgentConfigId={setAgentConfigId}
       planFile={workflowFiles?.plan || null}
       onApprovalComplete={handleApprovalComplete}
       onBack={() => router.back()}

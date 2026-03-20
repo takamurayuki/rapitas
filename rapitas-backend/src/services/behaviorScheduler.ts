@@ -4,6 +4,8 @@ import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';
 import { generateOptimizationRules } from '../../services/workflow/workflow-learning-optimizer';
 import { processAllPendingRecurrences } from '../../services/recurring-task-service';
+import { runScheduledTechDebtScan } from '../../services/tech-debt-liquidator';
+import { runProjectHealthScan } from '../../services/project-health-monitor';
 import { prisma } from '../../config/database';
 
 const log = createLogger('behavior-scheduler');
@@ -100,6 +102,28 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
+    // Autonomous tech debt scan at 4 AM daily (uses only local analysis, no API cost)
+    const techDebtInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 4 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Running autonomous tech debt scan');
+        await runScheduledTechDebtScan().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Tech debt scan failed');
+        });
+      }
+    }, 60 * 1000);
+
+    // Ambient project health monitoring at 6 AM daily
+    const healthMonitorInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getHours() === 6 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Running project health scan');
+        await runProjectHealthScan().catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Project health scan failed');
+        });
+      }
+    }, 60 * 1000);
+
     this.intervalIds.push(
       dailyInterval,
       weeklyInterval,
@@ -109,6 +133,8 @@ export class BehaviorScheduler {
       knowledgeReminderInterval,
       workflowLearningInterval,
       recurringTaskInterval,
+      techDebtInterval,
+      healthMonitorInterval,
     );
 
     // Initial execution (at server startup)

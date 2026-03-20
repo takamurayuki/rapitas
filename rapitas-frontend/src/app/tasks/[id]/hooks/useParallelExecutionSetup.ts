@@ -9,6 +9,8 @@
 import { useMemo } from 'react';
 import { useParallelExecutionStatus } from '@/feature/tasks/hooks/useParallelExecutionStatus';
 import { useSubtaskLogs } from '@/feature/tasks/hooks/useSubtaskLogs';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { SubtaskLogState } from '@/feature/tasks/hooks/useSubtaskLogs';
 import type { Task } from '@/types';
 
 export interface UseParallelExecutionSetupParams {
@@ -17,12 +19,12 @@ export interface UseParallelExecutionSetupParams {
 }
 
 export interface UseParallelExecutionSetupResult {
-  parallelSessionId: number | null;
+  parallelSessionId: string | null;
   parallelSessionState: { status?: string } | null;
   isParallelExecutionRunning: boolean;
-  getSubtaskStatus: (subtaskId: number) => unknown;
+  getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
   startSession: () => void;
-  subtaskLogs: unknown;
+  subtaskLogs: Map<number, SubtaskLogState>;
   refreshSubtaskLogs: () => void;
 }
 

@@ -27,7 +27,7 @@ import { parseArtifacts, parseCommits } from './output-parser';
 import { spawnCodexProcess } from './process-runner';
 import type { ProcessRunnerState } from './process-runner';
 
-export { CodexCliAgentConfig } from './types';
+export type { CodexCliAgentConfig } from './types';
 
 const logger = createLogger('codex-cli-agent');
 

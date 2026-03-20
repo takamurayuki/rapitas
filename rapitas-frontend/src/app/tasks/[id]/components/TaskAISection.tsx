@@ -35,7 +35,7 @@ export interface TaskAISectionProps {
   executionStatus: unknown;
   executionResult: { error?: string | null } | null;
   isParallelExecutionRunning: boolean;
-  parallelSessionId: number | null;
+  parallelSessionId: string | null;
   isApproving: boolean;
   optimizedPrompt: string | null;
   resources: Resource[];
@@ -49,7 +49,9 @@ export interface TaskAISectionProps {
   onApproveSubtasks: (...args: unknown[]) => unknown;
   onPromptGenerated: (prompt: string) => void;
   onAgentChange: (id: number | null) => void;
-  onExecute: (options?: unknown) => Promise<{ sessionId?: number; message?: string } | null>;
+  onExecute: (
+    options?: unknown,
+  ) => Promise<{ sessionId?: number; message?: string } | null>;
   onReset: () => void;
   onRestoreExecutionState: () => Promise<unknown>;
   onStopExecution: (...args: unknown[]) => unknown;
@@ -166,10 +168,12 @@ export default function TaskAISection({
   const handleExecutionComplete = async () => {
     // NOTE: Invalidate cache first so any re-fetch gets fresh data
     clearApiCache(`/tasks/${resolvedTaskId}`);
-    for (let attempt = 0; attempt < EXECUTION_COMPLETE_MAX_ATTEMPTS; attempt++) {
-      await new Promise((r) =>
-        setTimeout(r, attempt === 0 ? 1000 : 2000),
-      );
+    for (
+      let attempt = 0;
+      attempt < EXECUTION_COMPLETE_MAX_ATTEMPTS;
+      attempt++
+    ) {
+      await new Promise((r) => setTimeout(r, attempt === 0 ? 1000 : 2000));
       try {
         const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
         if (res.ok) {

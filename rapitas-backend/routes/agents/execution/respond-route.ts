@@ -66,6 +66,25 @@ export const respondRoute = new Elysia().post(
         };
       }
 
+      // NOTE: Validate workingDirectory BEFORE acquiring lock to avoid orphaned locks on early return
+      const workingDirectory = config.task.theme?.workingDirectory;
+      if (!workingDirectory) {
+        log.warn(
+          `[agent-respond] Task ${taskId} rejected: workingDirectory not configured for theme "${config.task.theme?.name || 'unknown'}".`,
+        );
+        return {
+          error:
+            'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+        };
+      }
+      // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
+      const projectRoot = getProjectRoot();
+      if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+        log.warn(
+          `[agent-respond] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding as user-intended.`,
+        );
+      }
+
       if (
         !(await agentWorkerManager.tryAcquireContinuationLockAsync(
           latestExecution.id,
@@ -80,30 +99,9 @@ export const respondRoute = new Elysia().post(
       agentWorkerManager.cancelQuestionTimeout(latestExecution.id);
       log.info(`[agent-respond] Cancelled timeout for execution ${latestExecution.id}`);
 
-      // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
-      const workingDirectory = config.task.theme?.workingDirectory;
-      if (!workingDirectory) {
-        log.warn(
-          `[agent-respond] Task ${taskId} rejected: workingDirectory not configured for theme "${config.task.theme?.name || 'unknown'}".`,
-        );
-        return {
-          error:
-            'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
-        };
-      }
-      // Safety check: workingDirectory must not be the rapitas project itself
-      const projectRoot = getProjectRoot();
-      if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
-        log.warn(
-          `[agent-respond] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
-        );
-        return {
-          error:
-            'workingDirectory must not point to the rapitas project itself. Please configure a separate project directory.',
-        };
-      }
-
-      const result = await agentWorkerManager.executeContinuation(latestExecution.id, response, {
+      // NOTE: Use executeContinuationWithLock because the lock is already held by this endpoint.
+      // executeContinuation() would try to acquire the same lock again and fail immediately.
+      const result = await agentWorkerManager.executeContinuationWithLock(latestExecution.id, response, {
         sessionId: session.id,
         taskId,
         workingDirectory,
@@ -132,6 +130,9 @@ export const respondRoute = new Elysia().post(
   {
     params: t.Object({
       id: t.String(),
+    }),
+    body: t.Object({
+      response: t.String(),
     }),
   },
 );

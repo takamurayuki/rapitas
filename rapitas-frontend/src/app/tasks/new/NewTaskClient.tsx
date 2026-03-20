@@ -29,15 +29,55 @@ import {
   usePriorityOptions,
 } from './components';
 import { useNewTaskForm } from './hooks';
+import { IntentCreator } from '@/components/IntentCreator';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 function NewTaskClient() {
   const form = useNewTaskForm();
   const t = useTranslations('task');
   const tc = useTranslations('common');
   const priorityOptions = usePriorityOptions(t);
+  const router = useRouter();
+  const [creationMode, setCreationMode] = useState<'form' | 'intent'>('form');
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
+      {/* Creation mode toggle */}
+      <div className="max-w-2xl mx-auto px-4 pt-4 flex gap-2">
+        <button
+          onClick={() => setCreationMode('form')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            creationMode === 'form'
+              ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+              : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+          }`}
+        >
+          <FileText className="w-3 h-3 inline mr-1" />
+          フォーム
+        </button>
+        <button
+          onClick={() => setCreationMode('intent')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            creationMode === 'intent'
+              ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300'
+              : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+          }`}
+        >
+          <Sparkles className="w-3 h-3 inline mr-1" />
+          Intent
+        </button>
+      </div>
+
+      {creationMode === 'intent' ? (
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <IntentCreator
+            themeId={form.themeId || undefined}
+            onCreated={(taskId) => router.push(`/tasks?taskId=${taskId}`)}
+          />
+        </div>
+      ) : (
+      <>
       <NewTaskHeader
         isSubmitting={form.isSubmitting}
         hasTitle={form.title.trim().length > 0}
@@ -272,6 +312,8 @@ function NewTaskClient() {
         selectedTheme={form.selectedTheme}
         onApply={form.handleApplyTemplate}
       />
+      </>
+      )}
     </div>
   );
 }
