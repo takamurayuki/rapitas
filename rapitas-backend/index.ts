@@ -243,7 +243,7 @@ app.use(intentRoutes);
 app.use(gitCleanupRoutes);
 
 // Start behavior scheduler
-import { BehaviorScheduler } from './src/services/behaviorScheduler';
+import { BehaviorScheduler } from './src/services/behavior-scheduler';
 BehaviorScheduler.start();
 
 // Initialize memory system

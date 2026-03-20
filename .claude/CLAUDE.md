@@ -57,12 +57,15 @@ Automatically handles on each start:
 
 ### Naming conventions
 
-| Target                | Convention       | Example             |
-| --------------------- | ---------------- | ------------------- |
-| Classes               | PascalCase       | `AgentOrchestrator` |
-| Functions / Variables | camelCase        | `assignTask`        |
-| Constants             | UPPER_SNAKE_CASE | `MAX_TOKENS`        |
-| Component files       | kebab-case       | `task-card.tsx`     |
+| Target                | Convention       | Example                  |
+| --------------------- | ---------------- | ------------------------ |
+| Classes               | PascalCase       | `AgentOrchestrator`      |
+| Functions / Variables | camelCase        | `assignTask`             |
+| Constants             | UPPER_SNAKE_CASE | `MAX_TOKENS`             |
+| Component files       | PascalCase       | `TaskCard.tsx`           |
+| Hook files            | camelCase        | `useAgentExecution.ts`   |
+| Utility/service files | kebab-case       | `branch-name-generator.ts` |
+| Type definition files | kebab-case       | `agent-execution-types.ts` |
 
 ### Commit message format
 

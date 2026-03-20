@@ -1,4 +1,4 @@
-import { UserBehaviorService } from './userBehaviorService';
+import { UserBehaviorService } from './user-behavior-service';
 import { createLogger } from '../../config/logger';
 import { memoryTaskQueue } from '../../services/memory';
 import { scanAndRemind } from '../../services/memory/knowledge-reminder';

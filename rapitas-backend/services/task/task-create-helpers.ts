@@ -6,7 +6,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
-import { UserBehaviorService } from '../../src/services/userBehaviorService';
+import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import {
   analyzeTaskComplexityWithLearning,
   type TaskComplexityInput,

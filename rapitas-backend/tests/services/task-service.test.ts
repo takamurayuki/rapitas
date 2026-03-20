@@ -30,7 +30,7 @@ mock.module('../../config/database', () => ({ prisma: mockPrisma }));
 mock.module('../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
-mock.module('../../src/services/userBehaviorService', () => ({
+mock.module('../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {
     recordTaskCreated: mock(() => Promise.resolve()),
     recordTaskStarted: mock(() => Promise.resolve()),
@@ -60,7 +60,7 @@ const {
   cleanupAllDuplicateSubtasks,
 } = await import('../../services/task/task-service');
 
-const { UserBehaviorService } = await import('../../src/services/userBehaviorService');
+const { UserBehaviorService } = await import('../../src/services/user-behavior-service');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
