@@ -139,65 +139,111 @@ export function AgentExecutionPanel({
   const [branchName, setBranchName] = useState('');
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
+  /** Per-sub-question answers for multi-question mode (key → 'はい'|'いいえ') */
+  const [subAnswers, setSubAnswers] = useState<Record<string, string>>({});
+  const [showSubQuestionForm, setShowSubQuestionForm] = useState(false);
 
-  // Parse question to extract options (if multiple-choice format)
+  /** Parsed question with sub-questions for individual answering. */
+  type ParsedQuestion = {
+    text: string;
+    options: string[];
+    /** Individual sub-questions that each need a yes/no answer. */
+    subQuestions?: Array<{ question: string; key: string }>;
+    /** Whether this is a multi-question form (not single-select). */
+    isMultiQuestion?: boolean;
+  };
+
+  /**
+   * Parse question text to extract options or sub-questions.
+   * Handles: explicit option lists, numbered lists, Japanese questions,
+   * and multi-line question format with trailing punctuation.
+   */
   const parseQuestionOptions = (
     questionText: string,
-  ): { text: string; options: string[] } | null => {
+  ): ParsedQuestion | null => {
     if (!questionText) return null;
 
-    // Match format: "Question text\nOptions:\nA) Option 1\nB) Option 2\n..."
+    // 1. Explicit option list: "Options:\nA) ...\nB) ..."
     const optionsMatch = questionText.match(
       /(?:オプション|Options?|選択肢)[:：]\s*\n((?:[A-D]\)|[①-④]|\d\))[^\n]+\n?)+/i,
     );
-
-    if (!optionsMatch) {
-      // Alternative format: "Question?\n1. Option1\n2. Option2"
-      const numMatch = questionText.match(/\n(\d+[.．、]\s*[^\n]+(\n|$))+/);
-      if (numMatch) {
-        const lines = questionText.split('\n');
-        const optionLines: string[] = [];
-        let questionPart = '';
-        let inOptions = false;
-
-        for (const line of lines) {
-          if (/^\d+[.．、]\s*.+/.test(line.trim())) {
-            inOptions = true;
-            optionLines.push(line.trim());
-          } else if (inOptions) {
-            break;
-          } else {
-            questionPart += line + '\n';
-          }
-        }
-
-        if (optionLines.length >= 2) {
-          return {
-            text: questionPart.trim(),
-            options: optionLines.map((l) => l.replace(/^\d+[.．、]\s*/, '')),
-          };
-        }
-      }
-      return null;
+    if (optionsMatch) {
+      const questionPart = questionText.substring(0, optionsMatch.index).trim();
+      const optionLines = optionsMatch[1].split('\n').filter((l) => l.trim());
+      const options = optionLines
+        .map((line) => line.replace(/^[A-D]\)|^[①-④]|^\d+\)/, '').trim())
+        .filter((o) => o);
+      if (options.length >= 2) return { text: questionPart, options };
     }
 
-    const questionPart = questionText.substring(0, optionsMatch.index).trim();
-    const optionsPart = optionsMatch[1];
-    const optionLines = optionsPart.split('\n').filter((l) => l.trim());
+    // 2. Numbered list: "1. Option1\n2. Option2"
+    const lines = questionText.split('\n').map((l) => l.trim()).filter(Boolean);
+    const numberedLines = lines.filter((l) => /^\d+[.．、)\]]\s*.+/.test(l));
+    if (numberedLines.length >= 2) {
+      const nonNumbered = lines.filter((l) => !numberedLines.includes(l));
+      return {
+        text: nonNumbered.join('\n'),
+        options: numberedLines.map((l) => l.replace(/^\d+[.．、)\]]\s*/, '')),
+      };
+    }
 
-    const options = optionLines
-      .map((line) => {
-        // Remove prefix like "A)", "1)", "①"
-        return line.replace(/^[A-D]\)|^[①-④]|^\d+\)/, '').trim();
-      })
-      .filter((o) => o);
-
-    if (options.length < 2) return null;
-
-    return {
-      text: questionPart,
-      options,
+    // 3. Detect Japanese question lines (〜しますか？ / 〜ですか？ / 〜どうしますか？)
+    // NOTE: Also match lines where ？ is followed by trailing ... or other punctuation
+    const isJpQuestion = (line: string): boolean => {
+      const stripped = line.replace(/[.…。、\s]+$/, '');
+      return /[？?]$/.test(stripped) && stripped.length > 5;
     };
+    const containsJpQuestion = (line: string): boolean => {
+      return /(?:しますか|ですか|でしょうか|どうしますか|よろしいですか|含めますか|スキップしますか|適用しますか|実行しますか|確認しますか)/.test(line);
+    };
+
+    const jpQuestionLines = lines.filter((l) => isJpQuestion(l) || containsJpQuestion(l));
+
+    if (jpQuestionLines.length >= 2) {
+      const contextLines = lines.filter((l) => !jpQuestionLines.includes(l));
+      return {
+        text: contextLines.join('\n') || jpQuestionLines[0],
+        options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+        subQuestions: jpQuestionLines.map((q, i) => ({
+          question: q.replace(/[.…]+$/, ''),
+          key: `q${i}`,
+        })),
+        isMultiQuestion: true,
+      };
+    }
+
+    // 4. Single question with yes/no pattern
+    if (jpQuestionLines.length === 1 || isJpQuestion(questionText.trim()) || containsJpQuestion(questionText)) {
+      return {
+        text: questionText,
+        options: ['はい', 'いいえ'],
+      };
+    }
+
+    // 5. English yes/no / confirm patterns
+    if (/\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(questionText)) {
+      return {
+        text: questionText,
+        options: ['Yes', 'No'],
+      };
+    }
+
+    // 6. Fallback: any multi-line text with 2+ lines ending in ? — treat each as a question
+    const anyQuestionLines = lines.filter((l) => /[？?]/.test(l) && l.length > 5);
+    if (anyQuestionLines.length >= 2) {
+      const contextLines = lines.filter((l) => !anyQuestionLines.includes(l));
+      return {
+        text: contextLines.join('\n'),
+        options: ['はい（すべて）', 'いいえ（すべて）', '個別に回答する'],
+        subQuestions: anyQuestionLines.map((q, i) => ({
+          question: q,
+          key: `q${i}`,
+        })),
+        isMultiQuestion: true,
+      };
+    }
+
+    return null;
   };
 
   const [followUpInstruction, setFollowUpInstruction] = useState('');
@@ -242,6 +288,7 @@ export function AgentExecutionPanel({
     question: pollingQuestion,
     questionType: pollingQuestionType,
     questionTimeout: pollingQuestionTimeout,
+    questionDetails: pollingQuestionDetails,
     sessionMode: pollingSessionMode,
     tokensUsed: pollingTokensUsed,
     totalSessionTokens: _pollingTotalSessionTokens,
@@ -299,8 +346,21 @@ export function AgentExecutionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType]);
 
-  // Parse question to extract options (if multiple-choice format)
-  const questionParsed = question ? parseQuestionOptions(question) : null;
+  // NOTE: Prioritize structured questionDetails from the API over regex-based text parsing.
+  // questionDetails comes from the agent's AskUserQuestion tool call with explicit options.
+  const questionParsed = useMemo(() => {
+    // 1. Use structured options from API if available
+    if (pollingQuestionDetails?.options && pollingQuestionDetails.options.length >= 2) {
+      return {
+        text: question || '',
+        options: pollingQuestionDetails.options.map((o) =>
+          typeof o === 'string' ? o : o.label || String(o),
+        ),
+      };
+    }
+    // 2. Fall back to regex parsing of question text
+    return question ? parseQuestionOptions(question) : null;
+  }, [question, pollingQuestionDetails]);
   const hasOptions = questionParsed && questionParsed.options.length >= 2;
 
   // tool_call questionType indicates a confirmed question
@@ -867,57 +927,121 @@ export function AgentExecutionPanel({
             </div>
           </div>
 
+          {/* Q&A Tab — Question & Answer Interface */}
           {hasQuestion && (
-            <div
-              className={`mx-6 mb-4 p-4 rounded-lg ${
-                showWaitingUI
-                  ? 'bg-white/60 dark:bg-indigo-dark-900/40 border border-amber-200 dark:border-amber-700'
-                  : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
-              }`}
-            >
-              {!showWaitingUI && (
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="p-1.5 bg-amber-100 dark:bg-amber-900/40 rounded-lg shrink-0">
-                    <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div className="flex-1 flex items-center gap-2">
-                    <h4 className="font-medium text-amber-800 dark:text-amber-200 text-sm">
-                      Claude Codeからの質問
-                    </h4>
-                    {isConfirmedQuestion && (
-                      <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
-                        確認済み
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div
-                className={`mb-3 p-3 rounded-lg ${
-                  showWaitingUI
-                    ? 'bg-amber-50 dark:bg-amber-900/30'
-                    : 'bg-white/60 dark:bg-zinc-800/60'
-                }`}
-              >
-                <p className="text-sm text-amber-800 dark:text-amber-200 font-mono whitespace-pre-wrap mb-3">
+            <div className="mx-6 mb-4 rounded-xl border border-amber-200 dark:border-amber-700 overflow-hidden bg-white dark:bg-zinc-900">
+              {/* Q&A Header */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700">
+                <HelpCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  Q&A
+                </span>
+                {isConfirmedQuestion && (
+                  <span className="px-1.5 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">
+                    AskUserQuestion
+                  </span>
+                )}
+                {timeoutCountdown !== null && timeoutCountdown > 0 && (
+                  <span className="ml-auto flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                    <Clock className="w-3 h-3" />
+                    {formatCountdown(timeoutCountdown)}
+                  </span>
+                )}
+              </div>
+
+              {/* Question Content */}
+              <div className="p-4">
+                <p className="text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap leading-relaxed">
                   {hasOptions ? questionParsed.text : question}
                 </p>
+              </div>
 
-                {/* Multiple choice options */}
-                {hasOptions && (
-                  <div className="grid gap-2 mt-4">
+              {/* Sub-question individual form (for multi-question mode) */}
+              {hasOptions && questionParsed.isMultiQuestion && showSubQuestionForm && questionParsed.subQuestions && (
+                <div className="px-4 pb-4 space-y-3">
+                  {questionParsed.subQuestions.map((sq) => (
+                    <div key={sq.key} className="flex items-center justify-between gap-3 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300 flex-1">{sq.question}</span>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button
+                          onClick={() => {
+                            setSubAnswers((prev) => ({ ...prev, [sq.key]: 'はい' }));
+                          }}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            subAnswers[sq.key] === 'はい'
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                          }`}
+                        >
+                          はい
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSubAnswers((prev) => ({ ...prev, [sq.key]: 'いいえ' }));
+                          }}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            subAnswers[sq.key] === 'いいえ'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-red-100 dark:hover:bg-red-900/30'
+                          }`}
+                        >
+                          いいえ
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      // NOTE: Compose all sub-answers into a single response string
+                      const answers = (questionParsed.subQuestions || []).map((sq) =>
+                        `${sq.question} → ${subAnswers[sq.key] || '未回答'}`,
+                      );
+                      setUserResponse(answers.join('\n'));
+                    }}
+                    className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400"
+                  >
+                    回答をまとめて送信準備
+                  </button>
+                </div>
+              )}
+
+              {/* Selection Options (primary interaction mode) */}
+              {hasOptions && !showSubQuestionForm && (
+                <div className="px-4 pb-4">
+                  <div className="grid gap-2">
                     {questionParsed.options.map((option, index) => {
-                      const optionKey = String.fromCharCode(65 + index); // A, B, C, D
-                      const isSelected = userResponse === option;
+                      const optionKey = String.fromCharCode(65 + index);
+                      const isMultiSelect = pollingQuestionDetails?.multiSelect === true;
+                      const isSelected = isMultiSelect
+                        ? userResponse.split('\n').includes(option)
+                        : userResponse === option;
+
+                      const handleOptionClick = () => {
+                        // NOTE: "個別に回答する" toggles sub-question form
+                        if (questionParsed.isMultiQuestion && option === '個別に回答する') {
+                          setShowSubQuestionForm(true);
+                          return;
+                        }
+                        if (isMultiSelect) {
+                          const current = userResponse ? userResponse.split('\n').filter(Boolean) : [];
+                          if (current.includes(option)) {
+                            setUserResponse(current.filter((o) => o !== option).join('\n'));
+                          } else {
+                            setUserResponse([...current, option].join('\n'));
+                          }
+                        } else {
+                          setUserResponse(option);
+                        }
+                      };
 
                       return (
                         <button
                           key={index}
-                          onClick={() => setUserResponse(option)}
-                          className={`text-left px-4 py-3 rounded-lg border-2 transition-all duration-200 ${
+                          onClick={handleOptionClick}
+                          className={`text-left px-4 py-3 rounded-lg border-2 transition-all duration-150 ${
                             isSelected
-                              ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100'
-                              : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                              ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100'
+                              : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-amber-300 hover:bg-amber-50/50 dark:hover:border-amber-600 dark:hover:bg-amber-900/20'
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -925,10 +1049,10 @@ export function AgentExecutionPanel({
                               className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                                 isSelected
                                   ? 'bg-amber-500 text-white'
-                                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                                  : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400'
                               }`}
                             >
-                              {optionKey}
+                              {isMultiSelect ? (isSelected ? '✓' : '') : optionKey}
                             </span>
                             <span className="text-sm flex-1">{option}</span>
                           </div>
@@ -936,52 +1060,61 @@ export function AgentExecutionPanel({
                       );
                     })}
                   </div>
-                )}
-              </div>
-              {timeoutCountdown !== null && timeoutCountdown > 0 && (
-                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm text-blue-700 dark:text-blue-300">
-                    回答がない場合、
-                    <span className="font-mono font-medium">
-                      {formatCountdown(timeoutCountdown)}
-                    </span>{' '}
-                    後に自動的に続行します。
+                  {pollingQuestionDetails?.multiSelect && (
+                    <p className="mt-2 text-xs text-zinc-400">複数選択可能</p>
+                  )}
+                </div>
+              )}
+
+              {/* Free-text Input (for when no options could be detected at all) */}
+              {!hasOptions && (
+                <div className="px-4 pb-4">
+                  <textarea
+                    value={userResponse}
+                    onChange={(e) => setUserResponse(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        handleSendResponse();
+                      }
+                    }}
+                    placeholder="回答を入力してください..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 resize-none"
+                    autoFocus={showWaitingUI}
+                  />
+                  <p className="mt-1 text-xs text-zinc-400">Ctrl+Enter で送信</p>
+                </div>
+              )}
+
+              {/* Timeout Warning */}
+              {timeoutCountdown !== null && timeoutCountdown > 0 && timeoutCountdown <= 30 && (
+                <div className="mx-4 mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
+                  <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                  <span className="text-xs text-orange-700 dark:text-orange-300 font-medium">
+                    まもなく自動的に続行します
                   </span>
                 </div>
               )}
-              {timeoutCountdown !== null &&
-                timeoutCountdown > 0 &&
-                timeoutCountdown <= 30 && (
-                  <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
-                    <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                    <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
-                      まもなく自動的に続行します。
-                    </span>
-                  </div>
-                )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={userResponse}
-                  onChange={(e) => setUserResponse(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendResponse()}
-                  placeholder="回答を入力してEnterで送信..."
-                  className="flex-1 px-3 py-2 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
-                  autoFocus={showWaitingUI}
-                />
+
+              {/* Submit Button */}
+              <div className="px-4 pb-4 flex items-center gap-2">
                 <button
                   onClick={handleSendResponse}
                   disabled={!userResponse.trim() || isSendingResponse}
-                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingResponse ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  送信
+                  回答を送信
                 </button>
+                {hasOptions && userResponse && (
+                  <span className="text-xs text-zinc-400">
+                    選択中: {userResponse.split('\n').filter(Boolean).length}件
+                  </span>
+                )}
               </div>
             </div>
           )}

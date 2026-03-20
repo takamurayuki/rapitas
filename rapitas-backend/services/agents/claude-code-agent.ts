@@ -230,11 +230,6 @@ export class ClaudeCodeAgent extends BaseAgent {
         args.push('--max-tokens', String(this.config.maxTokens));
       }
 
-      // CRITICAL: Specify working directory for Claude Code CLI
-      // NOTE: cwd in spawn() only sets the shell's working directory,
-      // but Claude Code needs --directory to know where to work
-      args.push('--directory', workDir);
-
       // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
       // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
       args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');

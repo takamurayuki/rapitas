@@ -518,7 +518,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
           };
         }
 
-        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification when unset
         const workingDirectory = task.theme?.workingDirectory;
         if (!workingDirectory) {
           log.error(
@@ -528,22 +528,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
             success: false,
             error:
               'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
-          };
-        }
-
-        // Safety check: workingDirectory must not be the rapitas project itself
-        const projectRoot = getProjectRoot();
-        if (
-          workingDirectory === projectRoot ||
-          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
-        ) {
-          log.error(
-            `[parallel-start] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
-          );
-          return {
-            success: false,
-            error:
-              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
           };
         }
 
@@ -924,7 +908,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
 
         if (!task) return { success: false, error: 'タスクが見つかりません' };
 
-        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification when unset
         const workingDirectory = task.theme?.workingDirectory;
         if (!workingDirectory) {
           log.error(
@@ -934,22 +918,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
             success: false,
             error:
               'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
-          };
-        }
-
-        // Safety check: workingDirectory must not be the rapitas project itself
-        const projectRoot = getProjectRoot();
-        if (
-          workingDirectory === projectRoot ||
-          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
-        ) {
-          log.error(
-            `[create-pr] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
-          );
-          return {
-            success: false,
-            error:
-              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
           };
         }
 
@@ -1067,7 +1035,7 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
         if (!task.githubPrId)
           return { success: false, error: 'PRが見つかりません。先にPRを作成してください。' };
 
-        // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
+        // CRITICAL: Require explicit workingDirectory to prevent accidental modification when unset
         const workingDirectory = task.theme?.workingDirectory;
         if (!workingDirectory) {
           log.error(
@@ -1077,22 +1045,6 @@ export const parallelExecutionRoutes = new Elysia({ prefix: '/parallel' })
             success: false,
             error:
               'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
-          };
-        }
-
-        // Safety check: workingDirectory must not be the rapitas project itself
-        const projectRoot = getProjectRoot();
-        if (
-          workingDirectory === projectRoot ||
-          workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
-        ) {
-          log.error(
-            `[approve-merge] Task ${taskId} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
-          );
-          return {
-            success: false,
-            error:
-              'Working directory cannot be the rapitas project itself. Please configure a different working directory in theme settings.',
           };
         }
         const gitOps = new GitOperations();

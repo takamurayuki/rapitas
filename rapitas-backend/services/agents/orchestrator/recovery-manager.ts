@@ -267,10 +267,11 @@ export async function resumeInterruptedExecution(
       `Task ${task.id} rejected: workingDirectory not configured for theme "${task.theme?.name || 'unknown'}". Please set the working directory in theme settings.`,
     );
   }
+  // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
   const projectRoot = getProjectRoot();
   if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
-    throw new Error(
-      `Task ${task.id} rejected: workingDirectory points to rapitas project itself (${workingDirectory}).`,
+    logger.warn(
+      `[RecoveryManager] Task ${task.id}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding as user-intended.`,
     );
   }
   const claudeSessionId = execution.claudeSessionId;

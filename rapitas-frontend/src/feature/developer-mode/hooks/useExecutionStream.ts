@@ -59,6 +59,8 @@ export type ExecutionStreamState = {
   questionType?: QuestionType;
   /** Question timeout info (only when waiting for input) */
   questionTimeout?: QuestionTimeoutInfo;
+  /** Structured question details from the agent (options, headers, multiSelect, etc.) */
+  questionDetails?: { options?: Array<{ label: string; description?: string }>; headers?: string[]; multiSelect?: boolean } | null;
   /** Session mode (e.g. workflow-researcher) */
   sessionMode?: string | null;
   /** Tokens used in this execution */
@@ -755,6 +757,7 @@ export function useExecutionPolling(taskId: number | null) {
               questionType:
                 data.questionType === 'tool_call' ? 'tool_call' : 'none',
               questionTimeout: timeoutInfo,
+              questionDetails: data.questionDetails || null,
             }));
           } else if (data.executionStatus === 'running') {
             // Don't overwrite cancelled state
