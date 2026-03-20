@@ -221,7 +221,7 @@
     "descriptionMarkdown": "説明（マークダウン対応）",
     "labelsCommaSeparated": "ラベル（カンマ区切り）",
     "estimatedHours": "見積もり時間（h）",
-    "addSubtask": "+ サブタスクを追加",
+    "addSubtask": "サブタスクを追加",
     "subtaskDetails": "詳細",
     "subtaskPriority": "優先度",
     "subtaskLabels": "ラベル",

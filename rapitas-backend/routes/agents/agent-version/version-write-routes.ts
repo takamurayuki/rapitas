@@ -7,7 +7,7 @@
 
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
-import { logAgentConfigChange } from '../../../utils/agent-audit-log';
+import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 import { createLogger } from '../../../config/logger';
 import { AVAILABLE_AGENT_VERSIONS, getLatestVersionKey } from './version-registry';
 

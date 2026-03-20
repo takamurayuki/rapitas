@@ -8,7 +8,7 @@
  */
 
 import { prisma } from '../../../config/database';
-import { decrypt } from '../../../utils/encryption';
+import { decrypt } from '../../../utils/common/encryption';
 import { getApiKeyForProvider } from '../../../utils/ai-client';
 import { createLogger } from '../../../config/logger';
 import {

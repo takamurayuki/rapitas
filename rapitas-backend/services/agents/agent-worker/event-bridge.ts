@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from '../../../config/logger';
-import { realtimeService } from '../../realtime-service';
+import { realtimeService } from '../../communication/realtime-service';
 import { handleIPCResponse, type IPCResponse, type PendingRequest } from './ipc';
 
 const logger = createLogger('agent-worker-manager:event-bridge');

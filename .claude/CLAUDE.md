@@ -194,14 +194,12 @@ tasks/{categoryId}/{themeId}/{taskId}/
 ├── research.md
 ├── plan.md
 ├── subtasks/
-│   ├── 01-<name>/
-│   │   ├── instruction.md   # Execution instruction for agent
-│   │   └── verify.md        # Per-subtask verification
-│   ├── 02-<name>/
-│   │   ├── instruction.md
-│   │   └── verify.md
+│   ├── 1/
+│   │   └── instruction.md   # Execution instruction for agent
+│   ├── 2/
+│   │   └── instruction.md
 │   └── ...
-└── verify.md                # Final integration verification
+└── verify.md                # Final integration verification (covers ALL subtasks)
 ```
 
 **instruction.md format (for each subtask):**
@@ -229,8 +227,8 @@ tasks/{categoryId}/{themeId}/{taskId}/
 **Execution flow:**
 1. After plan approval, execute subtasks in dependency order.
 2. Parallelizable subtasks run concurrently.
-3. Each subtask creates its own `verify.md` in `subtasks/<nn>-<name>/`.
-4. After ALL subtasks complete, create the parent task's `verify.md` with integration check.
+3. After ALL subtasks complete, create the parent task's `verify.md` covering all subtasks.
+4. verify.md should include per-subtask results as sections (not separate files).
 5. If a subtask fails after 3 retries, check dependency level:
    - High dependency: pause subsequent dependent subtasks, report to user.
    - Low dependency: continue with remaining subtasks, flag the failure in verify.md.

@@ -11,7 +11,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { getApiKeyForProvider } from '../../../utils/ai-client';
-import { encrypt, decrypt, maskApiKey } from '../../../utils/encryption';
+import { encrypt, decrypt, maskApiKey } from '../../../utils/common/encryption';
 import { systemSchemas } from '../../../schemas/system.schema';
 import {
   PROVIDER_COLUMNS,

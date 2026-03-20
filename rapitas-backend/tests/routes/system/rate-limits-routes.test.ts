@@ -23,7 +23,7 @@ mock.module('../../../config/logger', () => ({
 mock.module('../../../utils/ai-client', () => ({
   getApiKeyForProvider: mock(() => Promise.resolve(null)),
 }));
-mock.module('../../../utils/encryption', () => ({
+mock.module('../../../utils/common/encryption', () => ({
   decrypt: mock((v: string) => `decrypted:${v}`),
 }));
 

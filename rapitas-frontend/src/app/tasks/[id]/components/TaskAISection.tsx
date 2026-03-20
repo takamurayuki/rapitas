@@ -8,6 +8,7 @@
  */
 
 'use client';
+import { useEffect, useRef } from 'react';
 import type { Task, Resource, DeveloperModeConfig } from '@/types';
 import { AIAccordionPanel } from '@/feature/developer-mode/components/AIAccordionPanel';
 import { API_BASE_URL } from '@/utils/api';
@@ -135,6 +136,30 @@ export default function TaskAISection({
       </div>
     );
   }
+
+  // NOTE: Poll for subtask status updates while execution is in progress.
+  // Refreshes the parent task every 5 seconds to pick up newly created subtasks
+  // and their status changes (todo → in-progress → done).
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (isExecuting || isParallelExecutionRunning) {
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
+          if (res.ok) {
+            const freshTask = await res.json();
+            setTask(freshTask);
+          }
+        } catch { /* non-critical */ }
+      }, 5000);
+    }
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isExecuting, isParallelExecutionRunning, resolvedTaskId, setTask]);
 
   const handleSubtasksCreated = async () => {
     try {

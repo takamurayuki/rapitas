@@ -7,7 +7,7 @@
  */
 
 import { createLogger } from '../../../config/logger';
-import { fromJsonString } from '../../../utils/db-helpers';
+import { fromJsonString } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:approvals:helpers');
 

@@ -31,7 +31,7 @@ const mockRealtimeService = {
 // Mock modules
 mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
 mock.module('../../../routes/agents/approvals', () => ({ orchestrator: mockOrchestrator }));
-mock.module('../../../utils/encryption', () => ({
+mock.module('../../../utils/common/encryption', () => ({
   isEncryptionKeyConfigured: mock(() => true),
 }));
 mock.module('../../../utils/agent-config-schema', () => ({

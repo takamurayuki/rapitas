@@ -31,7 +31,7 @@ mock.module('../../config/logger', () => ({
 }));
 
 const mockDecrypt = mock((val: string) => val);
-mock.module('../../utils/encryption', () => ({
+mock.module('../../utils/common/encryption', () => ({
   decrypt: mockDecrypt,
   encrypt: mock((val: string) => `encrypted:${val}`),
   maskApiKey: mock((val: string) => `${val.slice(0, 4)}...`),

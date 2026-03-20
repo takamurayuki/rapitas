@@ -221,7 +221,7 @@
     "descriptionMarkdown": "Description (Markdown)",
     "labelsCommaSeparated": "Labels (comma-separated)",
     "estimatedHours": "Estimated hours (h)",
-    "addSubtask": "+ Add subtask",
+    "addSubtask": "Add subtask",
     "subtaskDetails": "Details",
     "subtaskPriority": "Priority",
     "subtaskLabels": "Labels",

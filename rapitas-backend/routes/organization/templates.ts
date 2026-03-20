@@ -3,7 +3,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { toJsonString, fromJsonString } from '../../utils/db-helpers';
+import { toJsonString, fromJsonString } from '../../utils/database/db-helpers';
 
 export const templatesRoutes = new Elysia({ prefix: '/templates' })
   .get('/', async (context) => {

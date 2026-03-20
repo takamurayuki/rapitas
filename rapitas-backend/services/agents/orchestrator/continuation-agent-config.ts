@@ -5,7 +5,7 @@
  * Does NOT start agents, manage state, or interact with the event bus.
  */
 import type { AgentConfigInput, AgentType } from '../agent-factory';
-import { decrypt } from '../../../utils/encryption';
+import { decrypt } from '../../../utils/common/encryption';
 import { createLogger } from '../../../config/logger';
 import type { ExecutionOptions } from './types';
 

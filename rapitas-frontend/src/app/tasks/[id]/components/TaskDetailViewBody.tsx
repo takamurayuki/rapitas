@@ -9,7 +9,6 @@
 'use client';
 import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
-import { TaskDependencyGraph } from '@/components/TaskDependencyGraph';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
@@ -201,12 +200,6 @@ export default function TaskDetailViewBody({
           onTaskUpdated={onTaskUpdated}
           setTask={setTask}
         />
-      )}
-
-      {(task.subtasks?.length ?? 0) >= 2 && (
-        <div className="mb-6">
-          <TaskDependencyGraph themeId={task.themeId || undefined} />
-        </div>
       )}
 
       <SubtaskSection

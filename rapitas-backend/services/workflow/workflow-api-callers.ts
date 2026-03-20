@@ -105,7 +105,7 @@ export async function callOpenAIAPI(
  */
 export async function decryptApiKey(encrypted: string): Promise<string> {
   try {
-    const { decrypt } = await import('../../utils/encryption');
+    const { decrypt } = await import('../../utils/common/encryption');
     return decrypt(encrypted);
   } catch {
     // Return as-is if not encrypted or utility unavailable

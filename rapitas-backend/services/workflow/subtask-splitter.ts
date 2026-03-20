@@ -7,6 +7,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -148,11 +149,26 @@ export async function createSubtasksFromPlan(
     const subtaskIds: number[] = [];
 
     for (const planned of analysis.subtasks) {
+      // Build instruction.md content first (used for both file and DB description)
+      const instructionContent = buildInstructionMd(planned, researchContent, subtaskIds);
+
+      // Build a readable description from the planned subtask data
+      const descParts: string[] = [];
+      if (planned.instructions.length > 0) {
+        descParts.push(planned.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n'));
+      }
+      if (planned.scope.length > 0) {
+        descParts.push(`\n対象ファイル: ${planned.scope.join(', ')}`);
+      }
+      if (planned.acceptanceCriteria.length > 0) {
+        descParts.push(`\n受入基準:\n${planned.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`);
+      }
+
       // Create subtask in DB
       const subtask = await prisma.task.create({
         data: {
           title: planned.title,
-          description: planned.scope.join('\n'),
+          description: descParts.join('\n') || instructionContent.slice(0, 1000),
           parentId: parentTaskId,
           themeId: parentTask.themeId,
           priority: parentTask.priority,
@@ -170,12 +186,9 @@ export async function createSubtasksFromPlan(
       const categoryDir = parentTask.theme?.categoryId ? String(parentTask.theme.categoryId) : '0';
       const themeDir = parentTask.themeId ? String(parentTask.themeId) : '0';
       const parentDir = join(process.cwd(), 'tasks', categoryDir, themeDir, String(parentTaskId));
-      const subtaskDir = join(parentDir, 'subtasks', `${String(planned.order).padStart(2, '0')}-${sanitizeDirName(planned.title)}`);
+      const subtaskDir = join(parentDir, 'subtasks', `${planned.order}`);
 
       await mkdir(subtaskDir, { recursive: true });
-
-      // Build instruction.md
-      const instructionContent = buildInstructionMd(planned, researchContent, subtaskIds.slice(0, -1));
       await writeFile(join(subtaskDir, 'instruction.md'), instructionContent, 'utf-8');
 
       log.info(`[SubtaskSplitter] Created subtask #${subtask.id}: "${planned.title}" (order: ${planned.order})`);
@@ -191,6 +204,13 @@ export async function createSubtasksFromPlan(
     });
 
     log.info(`[SubtaskSplitter] Split task #${parentTaskId} into ${subtaskIds.length} subtasks`);
+
+    // NOTE: Broadcast subtask creation so the frontend can update in real-time
+    realtimeService.broadcast('tasks', 'subtasks_created', {
+      parentTaskId,
+      subtaskIds,
+      subtasksCreated: subtaskIds.length,
+    });
 
     return {
       success: true,
@@ -314,7 +334,7 @@ function buildInstructionMd(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`# Subtask ${String(planned.order).padStart(2, '0')}: ${planned.title}`);
+  lines.push(`# Subtask ${planned.order}: ${planned.title}`);
   lines.push('');
 
   lines.push('## Context');
@@ -361,11 +381,3 @@ function buildInstructionMd(
   return lines.join('\n');
 }
 
-function sanitizeDirName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 30);
-}

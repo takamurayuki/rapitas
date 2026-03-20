@@ -33,7 +33,7 @@ mock.module('../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
-mock.module('../../../utils/encryption', () => ({
+mock.module('../../../utils/common/encryption', () => ({
   encrypt: (value: string) => `encrypted_${value}`,
   decrypt: (value: string) => value.replace('encrypted_', ''),
   maskApiKey: (value: string) => `${value.slice(0, 4)}****`,

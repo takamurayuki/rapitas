@@ -6,8 +6,6 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
 
 const log = createLogger('subtask-completion');
 
@@ -89,10 +87,6 @@ async function buildIntegrationVerify(
   lines.push(`## Subtask Summary`);
   lines.push('');
 
-  const categoryDir = parentTask.theme?.categoryId ? String(parentTask.theme.categoryId) : '0';
-  const themeDir = parentTask.themeId ? String(parentTask.themeId) : '0';
-  const parentDir = join(process.cwd(), 'tasks', categoryDir, themeDir, String(parentTask.id));
-
   let allPassed = true;
 
   for (const st of subtasks) {
@@ -104,32 +98,6 @@ async function buildIntegrationVerify(
     }
   }
   lines.push('');
-
-  // Collect individual verify.md contents
-  lines.push('## Subtask Verification Details');
-  lines.push('');
-
-  try {
-    const { readdir } = await import('fs/promises');
-    const subtasksDir = join(parentDir, 'subtasks');
-    const dirs = await readdir(subtasksDir).catch(() => [] as string[]);
-
-    for (const dir of dirs.sort()) {
-      const verifyPath = join(subtasksDir, dir, 'verify.md');
-      try {
-        const content = await readFile(verifyPath, 'utf-8');
-        lines.push(`### ${dir}`);
-        lines.push(content.slice(0, 500));
-        lines.push('');
-      } catch {
-        lines.push(`### ${dir}`);
-        lines.push('(verify.md not found)');
-        lines.push('');
-      }
-    }
-  } catch {
-    lines.push('(subtasks directory not found)');
-  }
 
   lines.push('## Integration Check');
   lines.push(`- [${allPassed ? 'x' : ' '}] All subtasks completed successfully`);

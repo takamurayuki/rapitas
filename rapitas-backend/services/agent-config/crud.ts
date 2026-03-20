@@ -8,7 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { toJsonString } from '../../utils/db-helpers';
-import { encrypt, isEncryptionKeyConfigured } from '../../utils/encryption';
+import { encrypt, isEncryptionKeyConfigured } from '../../utils/common/encryption';
 import { logAgentConfigChange, calculateChanges } from '../../utils/agent-audit-log';
 import type { AIAgentConfig } from '@prisma/client';
 import type { CreateAgentConfigRequest, UpdateAgentConfigRequest } from './types';

@@ -112,6 +112,35 @@ This text contains \uD800 invalid surrogate characters.`;
   });
 });
 
+describe('Enhanced Mojibake Detection', () => {
+  test('二重エンコーディングパターンを検出すること', () => {
+    const doubleEncodedText = `Document with â€œquotesâ€\x9D and â€" dashes.`;
+
+    const result = detectMojibake(doubleEncodedText);
+    expect(result.hasMojibake).toBe(true);
+    expect(result.score).toBeGreaterThan(20);
+    expect(result.issues.some((issue) => issue.includes('二重エンコーディング'))).toBe(true);
+  });
+
+  test('Windows-1252特有パターンを検出すること', () => {
+    const windows1252Text = `Text with â€¦ ellipsis and â€™ apostrophe.`;
+
+    const result = detectMojibake(windows1252Text);
+    expect(result.hasMojibake).toBe(true);
+    expect(result.score).toBeGreaterThan(0);
+    expect(result.patterns.invalidSequences.length).toBeGreaterThan(0);
+  });
+
+  test('複数のUTF-8→Latin-1誤解釈パターンを同時検出すること', () => {
+    const multiPatternText = `ã\x81\x82ã\x81\x84ã\x81\x86 and â€œtestâ€\x9D with � chars`;
+
+    const result = detectMojibake(multiPatternText);
+    expect(result.hasMojibake).toBe(true);
+    expect(result.score).toBeGreaterThan(40); // Multiple issues should increase score
+    expect(result.issues.length).toBeGreaterThan(2); // Multiple types of issues
+  });
+});
+
 describe('Mojibake Fixing', () => {
   test('置換文字(U+FFFD)を除去すること', () => {
     const textWithReplacements = `Hello � World � Test`;
@@ -164,6 +193,41 @@ describe('Mojibake Fixing', () => {
     const normalJapanese = `こんにちは世界\nこれは正常な日本語テキストです。`;
     const fixed = fixMojibake(normalJapanese);
     expect(fixed).toBe(normalJapanese);
+  });
+
+  test('Windows-1252二重エンコーディングを修復すること', () => {
+    const doubleEncodedText = `Text with â€œquotesâ€\x9D and â€" dash.`;
+    const fixed = fixMojibake(doubleEncodedText);
+
+    expect(fixed).toContain('"'); // Should contain proper quotes
+    expect(fixed).toContain('—'); // Should contain proper em dash
+    expect(fixed).not.toContain('â€œ'); // Should not contain broken pattern
+    expect(fixed).not.toContain('â€"'); // Should not contain broken pattern
+  });
+
+  test('拡張ひらがなパターンを修復すること（元実装範囲外）', () => {
+    // Test repair beyond the original "aiueo" limitation
+    const katakanaText = `Text with broken カ character patterns`;
+    const mixed = `Mixed ひらがな and カタカナ patterns`;
+
+    // These should not be corrupted by the fix function
+    const katakanaFixed = fixMojibake(katakanaText);
+    const mixedFixed = fixMojibake(mixed);
+
+    expect(katakanaFixed).toContain('カ');
+    expect(mixedFixed).toContain('ひらがな');
+    expect(mixedFixed).toContain('カタカナ');
+  });
+
+  test('複数種類の文字化けを同時修復すること', () => {
+    const complexMojibake = `Ã£Â\x81\x82 with � and â€œquoteâ€\x9D and \x00control`;
+    const fixed = fixMojibake(complexMojibake);
+
+    expect(fixed).toContain('あ'); // UTF-8→Latin-1 pattern fixed
+    expect(fixed).not.toContain('�'); // Replacement char removed
+    expect(fixed).toContain('"'); // Double encoding fixed
+    expect(fixed).not.toContain('\x00'); // Control chars removed
+    expect(fixed.length).toBeGreaterThan(0); // Should not be empty
   });
 });
 
@@ -260,6 +324,44 @@ Content with ã\x81\x82 mojibake patterns.
     expect(Array.isArray(result.issues)).toBe(true);
     expect(typeof result.originalLength).toBe('number');
     expect(typeof result.fixedLength).toBe('number');
+  });
+
+  test('二重エンコーディングを含むMarkdownを適切に処理すること', () => {
+    const doubleEncodedMarkdown = `# Title with â€œSpecial Quotesâ€\x9D
+
+Content with â€" em dash and â€¦ ellipsis.
+
+- List item with â€™ apostrophe
+- Normal list item
+`;
+
+    const result = sanitizeMarkdownContent(doubleEncodedMarkdown);
+    expect(result.wasFixed).toBe(true);
+    expect(result.content).toContain('"'); // Proper quotes
+    expect(result.content).toContain('—'); // Proper em dash
+    expect(result.content).toContain('…'); // Proper ellipsis
+    expect(result.content).toContain("'"); // Proper apostrophe
+    expect(result.issues.some((issue) => issue.includes('文字化けを修正'))).toBe(true);
+  });
+
+  test('混合文字化けMarkdownでスコア改善を確認すること', () => {
+    const mixedMojibakeMarkdown = `# Document Title
+
+Content with Ã£Â\x81\x82 Japanese patterns, � replacement chars,
+and â€œspecial quotesâ€\x9D along with \x00 control characters.
+
+## Section
+More content here.
+`;
+
+    const result = sanitizeMarkdownContent(mixedMojibakeMarkdown);
+    expect(result.wasFixed).toBe(true);
+    expect(result.content).toContain('あ'); // Japanese character restored
+    expect(result.content).not.toContain('�'); // Replacement chars removed
+    expect(result.content).toContain('"'); // Proper quotes
+    expect(result.content).not.toContain('\x00'); // Control chars removed
+    expect(result.issues.length).toBeGreaterThan(1); // Multiple issues detected
+    expect(result.fixedLength).toBeLessThan(result.originalLength); // Content should be shorter after fixes
   });
 });
 
