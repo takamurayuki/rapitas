@@ -76,6 +76,23 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
       },
     });
 
+    // NOTE: Reset task status to 'todo' so it doesn't stay in 'in-progress' or 'waiting' state
+    try {
+      const sessionWithConfig = await prisma.agentSession.findUnique({
+        where: { id: sessionId },
+        include: { config: { select: { taskId: true } } },
+      });
+      if (sessionWithConfig?.config?.taskId) {
+        await prisma.task.update({
+          where: { id: sessionWithConfig.config.taskId },
+          data: { status: 'todo' },
+        });
+        log.info(`[session-stop] Reset task ${sessionWithConfig.config.taskId} status to 'todo'`);
+      }
+    } catch (taskErr) {
+      log.warn({ err: taskErr }, '[session-stop] Failed to reset task status');
+    }
+
     return { success: true };
   })
 

@@ -191,11 +191,12 @@ const TaskCard = memo(function TaskCard({
               <PriorityIcon priority={task.priority} size="md" />
 
               {task.isRecurring && (
-                <Repeat
-                  size={14}
-                  className="text-indigo-500 dark:text-indigo-400 shrink-0"
-                  title="繰り返しタスク"
-                />
+                <span title="繰り返しタスク">
+                  <Repeat
+                    size={14}
+                    className="text-indigo-500 dark:text-indigo-400 shrink-0"
+                  />
+                </span>
               )}
 
               {task.sourceTaskId && (
