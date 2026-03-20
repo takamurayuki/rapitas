@@ -5,7 +5,7 @@
  * Does not perform any database reads or writes.
  */
 
-import { validateApiKeyFormat, validateAgentConfig } from '../../utils/agent-config-schema';
+import { validateApiKeyFormat, validateAgentConfig } from '../../utils/agent/agent-config-schema';
 import type { ValidationError, ValidationResult } from './types';
 
 /**

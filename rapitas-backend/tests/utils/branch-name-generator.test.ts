@@ -8,7 +8,7 @@ import {
   isValidBranchName,
   generateFallbackBranchName,
   extractBranchName,
-} from '../../utils/branch-name-generator';
+} from '../../utils/common/branch-name-generator';
 
 describe('sanitizeBranchName', () => {
   test('正常なブランチ名をそのまま返すこと', () => {

@@ -1,21 +1,21 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import Header from '@/components/Header';
-import KeyboardShortcuts from '@/components/KeyboardShortcuts';
-import { ResumableExecutionsBanner } from '@/components/ResumableExecutionsBanner';
-import ScheduleReminderProvider from '@/components/ScheduleReminderProvider';
+import Header from '@/components/common/Header';
+import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
+import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
+import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
 import { Suspense } from 'react';
 import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 import { PomodoroProvider } from '@/feature/tasks/pomodoro/PomodoroProvider';
-import ExternalLinksProvider from '@/components/ExternalLinksProvider';
+import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider';
 import NoteProvider from '@/components/note/NoteProvider';
-import CacheWarmupInitializer from '@/components/CacheWarmupInitializer';
+import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { AuthProvider } from '@/contexts/AuthContext';
-import ConditionalHeader from '@/components/conditional-header';
-import IntlProvider from '@/components/IntlProvider';
-// import WindowResizeOptimizer from '@/components/WindowResizeOptimizer';
+import ConditionalHeader from '@/components/common/conditional-header';
+import IntlProvider from '@/components/providers/IntlProvider';
+// import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

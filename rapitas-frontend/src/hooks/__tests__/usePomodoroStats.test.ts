@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { usePomodoroStats } from '../usePomodoroStats';
+import { usePomodoroStats } from '../study/usePomodoroStats';
 
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',

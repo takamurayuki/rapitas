@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react';
-import { useFilteredTasks } from '../useFilteredTasks';
+import { useFilteredTasks } from '../task/useFilteredTasks';
 import type { Task, Theme } from '@/types';
 
 const createTask = (overrides: Partial<Task> = {}): Task =>

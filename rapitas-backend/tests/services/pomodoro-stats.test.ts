@@ -22,7 +22,7 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { getStatistics } = await import('../../services/pomodoro-service');
+const { getStatistics } = await import('../../services/scheduling/pomodoro-service');
 
 describe('getStatistics - 集計テスト', () => {
   beforeEach(() => {

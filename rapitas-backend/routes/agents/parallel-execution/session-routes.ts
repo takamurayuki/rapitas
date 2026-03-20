@@ -12,7 +12,7 @@
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../../config';
 import { MergeValidator } from '../../../services/parallel-execution';
-import { SSEStreamController } from '../../../services/sse-utils';
+import { SSEStreamController } from '../../../services/communication/sse-utils';
 import { getSafetyReportFromExecutor, getSessionFromExecutor } from './pr-helpers';
 import type { getParallelExecutor } from './executor-singleton';
 

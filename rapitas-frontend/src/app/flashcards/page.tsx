@@ -7,10 +7,10 @@
  */
 'use client';
 
-import { useFlashcards } from './useFlashcards';
-import { StudyView } from './StudyView';
-import { DeckView } from './DeckView';
-import { DeckListView } from './DeckListView';
+import { useFlashcards } from './_hooks/useFlashcards';
+import { StudyView } from './_components/StudyView';
+import { DeckView } from './_components/DeckView';
+import { DeckListView } from './_components/DeckListView';
 
 export default function FlashcardsPage() {
   const {

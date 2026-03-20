@@ -4,7 +4,7 @@
 
 export { DebugLogAnalyzer } from './DebugLogAnalyzer';
 export { LogAnalysisViewer } from './LogAnalysisViewer';
-export { useDebugLogAnalyzer } from '@/hooks/useDebugLogAnalyzer';
+export { useDebugLogAnalyzer } from '@/hooks/feature/useDebugLogAnalyzer';
 export type {
   LogType,
   LogLevel,

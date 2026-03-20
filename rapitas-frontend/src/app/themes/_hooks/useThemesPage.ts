@@ -12,7 +12,7 @@ import { searchIcons, getIconComponent, ICON_DATA } from '@/components/category/
 import { SwatchBook } from 'lucide-react';
 import type { Theme, Category } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebounce } from '@/hooks/common/useDebounce';
 import { createLogger } from '@/lib/logger';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useDirectoryStatus } from './useDirectoryStatus';

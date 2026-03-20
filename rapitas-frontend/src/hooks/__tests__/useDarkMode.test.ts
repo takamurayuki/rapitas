@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useDarkMode } from '../useDarkMode';
+import { useDarkMode } from '../ui/useDarkMode';
 
 describe('useDarkMode', () => {
   let mockClassList: {

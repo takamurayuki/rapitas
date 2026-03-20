@@ -29,7 +29,7 @@ import {
   usePriorityOptions,
 } from './components';
 import { useNewTaskForm } from './hooks';
-import { IntentCreator } from '@/components/IntentCreator';
+import { IntentCreator } from '@/components/ai/IntentCreator';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 

@@ -8,7 +8,7 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
-import { realtimeService } from '../realtime-service';
+import { realtimeService } from '../communication/realtime-service';
 
 const log = createLogger('workflow-runner');
 

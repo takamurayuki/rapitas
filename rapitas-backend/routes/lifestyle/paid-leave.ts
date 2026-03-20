@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { PrismaClient } from '@prisma/client';
-import { createResponse, createErrorResponse } from '../../utils/response';
+import { createResponse, createErrorResponse } from '../../utils/common/response';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:paid-leave');

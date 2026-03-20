@@ -16,7 +16,7 @@ type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 import type { AgentTask, AgentExecutionResult } from './base-agent';
 import type { AgentConfigInput, AgentType } from './agent-factory';
-import { decrypt } from '../../utils/encryption';
+import { decrypt } from '../../utils/common/encryption';
 import type { QuestionKey } from './question-detection';
 import { agentFactory } from './agent-factory';
 import { createLogger } from '../../config/logger';

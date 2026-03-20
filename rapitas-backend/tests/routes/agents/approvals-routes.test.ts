@@ -73,7 +73,7 @@ mock.module('../../../services/agents/agent-orchestrator', () => ({
   })),
 }));
 
-mock.module('../../../services/github-service', () => ({
+mock.module('../../../services/core/github-service', () => ({
   GitHubService: class {
     constructor() {}
     createPR() {
@@ -82,7 +82,7 @@ mock.module('../../../services/github-service', () => ({
   },
 }));
 
-mock.module('../../../services/realtime-service', () => ({
+mock.module('../../../services/communication/realtime-service', () => ({
   realtimeService: {
     broadcast: mock(() => {}),
   },
@@ -99,7 +99,7 @@ mock.module('../../../utils/db-helpers', () => ({
   }),
 }));
 
-mock.module('../../../services/screenshot-service', () => ({
+mock.module('../../../services/misc/screenshot-service', () => ({
   captureScreenshotsForDiff: mock(() => Promise.resolve([])),
 }));
 

@@ -9,7 +9,7 @@ import {
   getSuggestedTasks,
   getProductivityHeatmap,
   getHeatmapCellTasks,
-} from '../../services/predictive-task-suggester';
+} from '../../services/ai/predictive-task-suggester';
 import {
   scanAndRemind,
   markAsReviewed,

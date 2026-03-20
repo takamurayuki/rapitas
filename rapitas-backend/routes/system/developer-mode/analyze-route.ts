@@ -9,7 +9,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { analyzeTask } from '../../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
-import { toJsonString } from '../../../utils/db-helpers';
+import { toJsonString } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:developer-mode:analyze');
 

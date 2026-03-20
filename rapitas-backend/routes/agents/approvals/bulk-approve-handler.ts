@@ -9,8 +9,8 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { orchestrator } from '../../../services/orchestrator-instance';
-import { toJsonString, fromJsonString } from '../../../utils/db-helpers';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
+import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
 
 const log = createLogger('routes:approvals:bulk-approve');

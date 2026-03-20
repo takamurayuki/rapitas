@@ -12,9 +12,9 @@ import { useRouter } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
 import { API_BASE_URL } from '@/utils/api';
-import { useExecutingTasksPolling } from '@/hooks/useExecutingTasksPolling';
+import { useExecutingTasksPolling } from '@/hooks/task/useExecutingTasksPolling';
 import { useTaskCacheStore } from '@/stores/taskCacheStore';
-import { useTaskAutoSync } from '@/hooks/useTaskAutoSync';
+import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { createLogger } from '@/lib/logger';
 

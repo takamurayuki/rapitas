@@ -14,8 +14,8 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
-import { toJsonString } from '../../../utils/db-helpers';
-import { generateBranchName } from '../../../utils/branch-name-generator';
+import { toJsonString } from '../../../utils/database/db-helpers';
+import { generateBranchName } from '../../../utils/common/branch-name-generator';
 
 const log = createLogger('routes:agent-execution:setup');
 const agentWorkerManager = AgentWorkerManager.getInstance();

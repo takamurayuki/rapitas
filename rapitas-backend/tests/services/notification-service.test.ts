@@ -28,7 +28,7 @@ mock.module('../../config/database', () => ({
   prisma: mockPrisma,
 }));
 
-mock.module('../../services/realtime-service', () => ({
+mock.module('../../services/communication/realtime-service', () => ({
   realtimeService: {
     broadcast: mockBroadcast,
   },
@@ -40,7 +40,7 @@ const {
   notifyAgentExecutionCompleted,
   notifyApprovalRequested,
   notifyPomodoroCompleted,
-} = await import('../../services/notification-service');
+} = await import('../../services/communication/notification-service');
 
 describe('createNotification', () => {
   beforeEach(() => {

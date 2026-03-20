@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useTaskSearch, useAdvancedTaskSearch } from '../useTaskSearch';
+import { useTaskSearch, useAdvancedTaskSearch } from '../task/useTaskSearch';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({

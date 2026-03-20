@@ -4,7 +4,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { GitHubService, type GitHubWebhookPayload } from '../../services/github-service';
+import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
 
 // Create GitHub service instance

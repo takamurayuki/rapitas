@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/toast/ToastContainer';
 import { searchIcons } from '@/components/category/IconData';
 import type { Category, CategoryMode, Theme } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { useDebounce } from '@/hooks/useDebounce';
+import { useDebounce } from '@/hooks/common/useDebounce';
 import { useFilterDataStore } from '@/stores/filterDataStore';
 import { createLogger } from '@/lib/logger';
 

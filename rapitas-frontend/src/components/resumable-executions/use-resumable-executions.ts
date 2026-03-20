@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
-import { useBackendHealth } from '@/hooks/useBackendHealth';
+import { useBackendHealth } from '@/hooks/common/useBackendHealth';
 import { useExecutionStateStore } from '@/stores/executionStateStore';
 import { createLogger } from '@/lib/logger';
 import type { ResumableExecution } from './types';

@@ -10,12 +10,12 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { orchestrator } from '../../../services/orchestrator-instance';
-import { toJsonString, fromJsonString } from '../../../utils/db-helpers';
+import { orchestrator } from '../../../services/core/orchestrator-instance';
+import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import {
   captureScreenshotsForDiff,
   type ScreenshotResult,
-} from '../../../services/screenshot-service';
+} from '../../../services/misc/screenshot-service';
 
 const log = createLogger('routes:approvals:reject');
 

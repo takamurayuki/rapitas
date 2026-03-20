@@ -13,7 +13,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import BurnupChart from '@/components/BurnupChart';
+import BurnupChart from '@/components/widgets/BurnupChart';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';

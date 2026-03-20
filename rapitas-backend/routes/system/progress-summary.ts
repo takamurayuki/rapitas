@@ -4,7 +4,7 @@
  * API endpoints for AI-generated progress summaries.
  */
 import { Elysia, t } from 'elysia';
-import { generateProgressSummary } from '../../services/progress-summary-service';
+import { generateProgressSummary } from '../../services/analytics/progress-summary-service';
 
 export const progressSummaryRoutes = new Elysia({ prefix: '/progress' })
   /**

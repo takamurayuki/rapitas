@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useAsyncOperation } from '../useAsyncOperation';
+import { useAsyncOperation } from '../common/useAsyncOperation';
 
 describe('useAsyncOperation', () => {
   it('should have correct initial state', () => {

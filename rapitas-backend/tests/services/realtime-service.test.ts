@@ -13,7 +13,7 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { RealtimeService } = await import('../../services/realtime-service');
+const { RealtimeService } = await import('../../services/communication/realtime-service');
 
 describe('RealtimeService', () => {
   let service: InstanceType<typeof RealtimeService>;

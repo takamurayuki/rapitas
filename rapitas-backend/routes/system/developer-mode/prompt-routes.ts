@@ -16,7 +16,7 @@ import {
   type OptimizedPromptResult,
 } from '../../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../../utils/ai-client';
-import { getLabelsArray, toJsonString, fromJsonString } from '../../../utils/db-helpers';
+import { getLabelsArray, toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:developer-mode:prompt');
 

@@ -10,7 +10,7 @@
 
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
-import { decrypt } from '../../../utils/encryption';
+import { decrypt } from '../../../utils/common/encryption';
 import { createLogger } from '../../../config/logger';
 import { NotFoundError, ValidationError, AppError, parseId } from '../../../middleware/error-handler';
 import { type ClaudeAPIResponse } from './fsrs-helpers';

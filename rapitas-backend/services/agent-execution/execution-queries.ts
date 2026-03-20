@@ -6,7 +6,7 @@
  * Mutation operations live in execution-core.ts.
  */
 import { PrismaClient } from '@prisma/client';
-import { orchestrator } from '../orchestrator-instance';
+import { orchestrator } from '../core/orchestrator-instance';
 import type { AgentExecutionWithExtras } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';
 

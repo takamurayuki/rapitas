@@ -5,7 +5,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { generateOptimizedPrompt } from '../../services/claude-agent';
 import { getDefaultProvider, getApiKeyForProvider } from '../../utils/ai-client';
-import { getLabelsArray, toJsonString } from '../../utils/db-helpers';
+import { getLabelsArray, toJsonString } from '../../utils/database/db-helpers';
 
 export const promptsRoutes = new Elysia()
   .get('/tasks/:id/prompts', async ({ params }) => {

@@ -13,7 +13,7 @@ import type {
   WorkflowRole,
   WorkflowRoleConfig,
 } from '@/types';
-import { useWorkflowFiles } from '@/hooks/useWorkflowFiles';
+import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/localeStore';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowMode } from './CompactWorkflowSelector';

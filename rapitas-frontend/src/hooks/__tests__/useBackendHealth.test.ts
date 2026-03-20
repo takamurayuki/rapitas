@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useBackendHealth } from '../use-backend-health';
+import { useBackendHealth } from '../common/useBackendHealth';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({

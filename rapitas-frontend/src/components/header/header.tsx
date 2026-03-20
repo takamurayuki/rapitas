@@ -9,7 +9,7 @@
 
 import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
-import AppIcon from '@/components/app-icon';
+import AppIcon from '@/components/common/app-icon';
 import { useTranslations } from 'next-intl';
 import {
   Home,

@@ -26,7 +26,7 @@ const mockRealtimeService = {
   getChannelHistory: mock(() => []),
 };
 
-mock.module('../../../services/realtime-service', () => ({
+mock.module('../../../services/communication/realtime-service', () => ({
   realtimeService: mockRealtimeService,
 }));
 

@@ -6,20 +6,20 @@
  * without coupling consumers to internal file locations.
  */
 
-export type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from './types';
-export { GENRES, SUB_GENRES, ELEMENTS, PLATFORMS, SCALES, PRIORITIES } from './constants';
-export { GLOBAL_CSS } from './styles';
-export { resolveLabels, proposeApps, generateClaudeMd, fetchSuggestions } from './api';
-export { useWizard } from './use-wizard';
-export type { WizardPhase, SetupPhase } from './use-wizard';
-export { CheckIcon, DotIcon } from './icons';
-export { ScoreRing } from './score-ring';
-export { PageWrap } from './page-wrap';
-export { IntroPhase } from './intro-phase';
-export { GenrePhase } from './genre-phase';
-export { SubPhase } from './sub-phase';
-export { ElementsPhase } from './elements-phase';
-export { PlatformPhase } from './platform-phase';
-export { LoadingPhase } from './loading-phase';
-export { ProposalsPhase } from './proposals-phase';
-export { ResultPhase } from './result-phase';
+export type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from './_types/types';
+export { GENRES, SUB_GENRES, ELEMENTS, PLATFORMS, SCALES, PRIORITIES } from './_utils/constants';
+export { GLOBAL_CSS } from './_utils/styles';
+export { resolveLabels, proposeApps, generateClaudeMd, fetchSuggestions } from './_utils/api';
+export { useWizard } from './_hooks/use-wizard';
+export type { WizardPhase, SetupPhase } from './_hooks/use-wizard';
+export { CheckIcon, DotIcon } from './_components/icons';
+export { ScoreRing } from './_components/score-ring';
+export { PageWrap } from './_components/page-wrap';
+export { IntroPhase } from './_components/intro-phase';
+export { GenrePhase } from './_components/genre-phase';
+export { SubPhase } from './_components/sub-phase';
+export { ElementsPhase } from './_components/elements-phase';
+export { PlatformPhase } from './_components/platform-phase';
+export { LoadingPhase } from './_components/loading-phase';
+export { ProposalsPhase } from './_components/proposals-phase';
+export { ResultPhase } from './_components/result-phase';

@@ -3,7 +3,7 @@
  * エージェント出力のクリーンアップ処理のテスト
  */
 import { describe, test, expect } from 'bun:test';
-import { cleanImplementationSummary } from '../../utils/agent-response-cleaner';
+import { cleanImplementationSummary } from '../../utils/agent/agent-response-cleaner';
 
 describe('cleanImplementationSummary', () => {
   test('空入力でデフォルトメッセージを返すこと', () => {

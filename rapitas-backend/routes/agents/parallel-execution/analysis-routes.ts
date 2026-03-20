@@ -12,7 +12,7 @@ import {
   createDependencyAnalyzer,
   type TaskPriority,
 } from '../../../services/parallel-execution';
-import { SSEStreamController, getUserFriendlyErrorMessage } from '../../../services/sse-utils';
+import { SSEStreamController, getUserFriendlyErrorMessage } from '../../../services/communication/sse-utils';
 import { prisma } from '../../../config/database';
 import { buildAnalysisInput, extractFilePaths } from './analysis-helpers';
 

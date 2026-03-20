@@ -12,7 +12,7 @@ import { spawn } from 'bun';
 import { readFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { createLogger } from '../config/logger';
-import { findAvailablePort } from '../utils/find-port';
+import { findAvailablePort } from '../utils/common/find-port';
 import {
   serverProcess,
   log,

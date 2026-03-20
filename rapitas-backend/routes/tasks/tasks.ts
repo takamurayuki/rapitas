@@ -14,8 +14,8 @@ import {
   generateAISuggestions,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
-} from '../../services/task-service';
-import { parseNaturalLanguageTask } from '../../services/natural-language-parser';
+} from '../../services/task/task-service';
+import { parseNaturalLanguageTask } from '../../services/ai/natural-language-parser';
 import {
   analyzeTask,
   generateExecutionInstructions,
