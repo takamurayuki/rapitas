@@ -33,12 +33,12 @@ mock.module('../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
-mock.module('../../../services/realtime-service', () => ({
+mock.module('../../../services/communication/realtime-service', () => ({
   realtimeService: {
     broadcast: mock(() => {}),
   },
 }));
-mock.module('../../../services/cache-service', () => ({
+mock.module('../../../services/core/cache-service', () => ({
   cacheService: {
     get: mock(() => null),
     set: mock(() => {}),

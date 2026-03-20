@@ -5,7 +5,7 @@
  * to ensure proper resource management and avoid memory leaks.
  */
 
-import { ParallelExecutor } from '../services/parallel-execution/parallel-executor';
+import { ParallelExecutor } from '../../services/parallel-execution/parallel-executor';
 import { PrismaClient } from '@prisma/client';
 
 // Singleton instance management

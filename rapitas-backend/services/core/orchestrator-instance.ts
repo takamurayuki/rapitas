@@ -9,7 +9,7 @@
  * SSE broadcasts are achieved by the manager receiving IPC events from workers
  * and forwarding them to realtimeService.
  */
-import { AgentWorkerManager } from './agents/agent-worker-manager';
+import { AgentWorkerManager } from '../agents/agent-worker-manager';
 
 // Use AgentWorkerManager in the main process
 const workerManager = AgentWorkerManager.getInstance();

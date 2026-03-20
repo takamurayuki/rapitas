@@ -4,8 +4,8 @@
  * Delivers notifications to external webhook endpoints (Slack, Discord).
  * Not responsible for in-app notifications — those are handled by notification-service.ts.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('webhook-notification');
 

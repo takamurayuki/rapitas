@@ -8,7 +8,7 @@ import { Elysia } from 'elysia';
 import {
   agentAuditRouter,
   taskExecutionLogsRouter,
-} from '../../../routes/agents/agent-audit-router';
+} from '../../../routes/agents/monitoring/agent-audit-router';
 
 interface AuditLogResponse {
   logs: unknown[];

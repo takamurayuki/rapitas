@@ -1,4 +1,9 @@
-// Communication サービス関連のbarrel export
+/**
+ * Communication Services — Barrel Export
+ *
+ * Re-exports all communication-related service modules.
+ */
+
 export * from './realtime-service';
 export * from './websocket-service';
 export * from './webhook-notification-service';

@@ -1,5 +1,5 @@
-import { sendAIMessage } from './ai-client';
-import { createLogger } from '../config/logger';
+import { sendAIMessage } from '../ai-client';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('branch-name-generator');
 

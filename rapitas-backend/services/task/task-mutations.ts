@@ -7,10 +7,10 @@
  * Does NOT handle suggestions, cleanup utilities, or query-only operations.
  */
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
-import { UserBehaviorService } from '../src/services/userBehaviorService';
+import { createLogger } from '../../config/logger';
+import { UserBehaviorService } from '../../src/services/userBehaviorService';
 import { notifyTaskCompleted } from '../communication/notification-service';
-import { onGeneratedTaskCompleted } from './recurring-task-service';
+import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
@@ -174,14 +174,16 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       }
     }
 
-  // Subtask completion: check if all siblings are done → generate parent verify.md
-  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
-    import('./workflow/subtask-completion-handler').then(({ onSubtaskCompleted }) => {
-      onSubtaskCompleted(taskId).catch((err) => {
-        logger.warn({ err, taskId }, 'Failed to handle subtask completion');
-      });
-    }).catch(() => {});
-  }
+    // Subtask completion: check if all siblings are done → generate parent verify.md
+    if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+      import('./workflow/subtask-completion-handler')
+        .then(({ onSubtaskCompleted }) => {
+          onSubtaskCompleted(taskId).catch((err) => {
+            logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+          });
+        })
+        .catch(() => {});
+    }
 
     if (
       fields.title ||

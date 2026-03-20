@@ -5,7 +5,7 @@
  * Uses the existing recurrence-service.ts for RRULE parsing.
  */
 import { PrismaClient, Task } from '@prisma/client';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from './recurrence-service';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';

@@ -6,7 +6,7 @@
  */
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('ai-code-review');

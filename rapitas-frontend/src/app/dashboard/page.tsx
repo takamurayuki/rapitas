@@ -12,14 +12,14 @@ import {
   Award,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import BurnupChart from '@/components/BurnupChart';
+import BurnupChart from '@/components/widgets/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
 import { KnowledgeReminderWidget } from '@/feature/intelligence/components/KnowledgeReminderWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
-import { ProgressSummaryWidget } from '@/components/ProgressSummaryWidget';
-import { CostOptimizationWidget } from '@/components/CostOptimizationWidget';
+import { ProgressSummaryWidget } from '@/components/widgets/ProgressSummaryWidget';
+import { CostOptimizationWidget } from '@/components/widgets/CostOptimizationWidget';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/localeStore';
 import { toDateLocale } from '@/lib/utils';

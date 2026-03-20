@@ -4,7 +4,7 @@
  * Creates notifications and delivers them in real-time via SSE.
  * Also forwards to external webhooks (Slack/Discord) when configured.
  */
-import { prisma } from '../config/database';
+import { prisma } from '../../config/database';
 import { realtimeService } from './realtime-service';
 import { sendWebhookNotification, type WebhookEventType } from './webhook-notification-service';
 

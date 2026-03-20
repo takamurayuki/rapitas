@@ -5,9 +5,9 @@
  * a queryable timeline of "why this code was written."
  * Enables developers to understand past decisions months later.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
-import { appendEvent } from './memory/timeline';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { appendEvent } from '../memory/timeline';
 
 const log = createLogger('temporal-debugger');
 

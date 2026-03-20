@@ -5,7 +5,7 @@
  * Does NOT handle task creation, updates, or suggestions.
  */
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 

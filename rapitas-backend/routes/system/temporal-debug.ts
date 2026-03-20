@@ -7,7 +7,7 @@ import { Elysia, t } from 'elysia';
 import {
   getFileTemporalHistory,
   getExecutionTrace,
-} from '../../services/temporal-debugger';
+} from '../../services/analytics/temporal-debugger';
 
 export const temporalDebugRoutes = new Elysia({ prefix: '/temporal-debug' })
   /**

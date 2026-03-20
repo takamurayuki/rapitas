@@ -2,8 +2,8 @@
  * Study Streak Service
  * Tracks study streaks (consecutive study days) and calculates bonus points.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('study-streak-service');
 

@@ -1,6 +1,6 @@
 import { Redis } from 'ioredis';
 import { LRUCache } from 'lru-cache';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('cache-service');
 

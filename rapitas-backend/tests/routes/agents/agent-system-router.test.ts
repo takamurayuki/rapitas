@@ -37,7 +37,7 @@ mock.module('../../../utils/common/encryption', () => ({
 mock.module('../../../utils/agent-config-schema', () => ({
   getAllAgentConfigSchemas: mock(() => ({})),
 }));
-mock.module('../../../services/realtime-service', () => ({
+mock.module('../../../services/communication/realtime-service', () => ({
   realtimeService: mockRealtimeService,
 }));
 mock.module('../../../config/logger', () => ({

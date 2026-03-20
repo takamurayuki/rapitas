@@ -6,16 +6,22 @@
  * uncommitted work, and potential conflicts with teammate changes.
  * Runs at zero API cost (local git commands only).
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 import { createNotification } from '../communication/notification-service';
-import { sendWebhookNotification } from './webhook-notification-service';
+import { sendWebhookNotification } from '../communication/webhook-notification-service';
 
 const log = createLogger('project-health-monitor');
 
 /** Individual health check result. */
 export type HealthCheckItem = {
-  type: 'stale_branch' | 'uncommitted_work' | 'low_commit_frequency' | 'dependency_issue' | 'large_diff' | 'conflict_risk';
+  type:
+    | 'stale_branch'
+    | 'uncommitted_work'
+    | 'low_commit_frequency'
+    | 'dependency_issue'
+    | 'large_diff'
+    | 'conflict_risk';
   severity: 'info' | 'warning' | 'critical';
   project: string;
   message: string;
@@ -61,7 +67,9 @@ export async function checkProjectHealth(
         const branch = parts[0];
         const dateStr = parts.slice(1).join(' ');
         if (
-          branch !== 'develop' && branch !== 'main' && branch !== 'master' &&
+          branch !== 'develop' &&
+          branch !== 'main' &&
+          branch !== 'master' &&
           (dateStr.includes('month') || dateStr.includes('year'))
         ) {
           items.push({
@@ -74,7 +82,9 @@ export async function checkProjectHealth(
           });
         }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 2. Uncommitted work
     try {
@@ -90,7 +100,9 @@ export async function checkProjectHealth(
           suggestedAction: 'git add . && git commit',
         });
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 3. Commit frequency (no commits in 7+ days on active branch)
     try {
@@ -108,7 +120,9 @@ export async function checkProjectHealth(
           });
         }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 4. Dependency issues (npm audit / outdated)
     try {
@@ -129,9 +143,13 @@ export async function checkProjectHealth(
               suggestedAction: 'npm audit fix',
             });
           }
-        } catch { /* npm audit may fail */ }
+        } catch {
+          /* npm audit may fail */
+        }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 5. Large uncommitted diff
     try {
@@ -139,7 +157,7 @@ export async function checkProjectHealth(
       if (diffStat) {
         const insertions = diffStat.match(/(\d+) insertion/);
         const deletions = diffStat.match(/(\d+) deletion/);
-        const totalChanges = (parseInt(insertions?.[1] || '0') + parseInt(deletions?.[1] || '0'));
+        const totalChanges = parseInt(insertions?.[1] || '0') + parseInt(deletions?.[1] || '0');
         if (totalChanges > 500) {
           items.push({
             type: 'large_diff',
@@ -151,16 +169,16 @@ export async function checkProjectHealth(
           });
         }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
 
     // 6. Remote branch conflict detection
     try {
       run('git fetch --dry-run 2>&1');
       const currentBranch = run('git branch --show-current');
       if (currentBranch && currentBranch !== 'develop' && currentBranch !== 'main') {
-        const behindCount = run(
-          `git rev-list --count HEAD..origin/develop 2>/dev/null || echo 0`,
-        );
+        const behindCount = run(`git rev-list --count HEAD..origin/develop 2>/dev/null || echo 0`);
         const behind = parseInt(behindCount || '0');
         if (behind > 20) {
           items.push({
@@ -173,8 +191,9 @@ export async function checkProjectHealth(
           });
         }
       }
-    } catch { /* non-fatal */ }
-
+    } catch {
+      /* non-fatal */
+    }
   } catch (error) {
     log.error({ err: error }, `[HealthMonitor] Health check failed for ${projectName}`);
   }
@@ -211,9 +230,7 @@ export async function runProjectHealthScan(): Promise<ProjectHealthReport> {
   const warningCount = allItems.filter((i) => i.severity === 'warning').length;
 
   const overallHealth: ProjectHealthReport['overallHealth'] =
-    criticalCount > 0 ? 'critical'
-    : warningCount > 2 ? 'attention_needed'
-    : 'healthy';
+    criticalCount > 0 ? 'critical' : warningCount > 2 ? 'attention_needed' : 'healthy';
 
   const summary =
     allItems.length === 0

@@ -27,7 +27,7 @@ const mockPrisma = {
 };
 
 mock.module('../../config/database', () => ({ prisma: mockPrisma }));
-mock.module('../../services/notification-service', () => ({
+mock.module('../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
 mock.module('../../src/services/userBehaviorService', () => ({
@@ -58,7 +58,7 @@ const {
   getFrequencyBasedSuggestions,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
-} = await import('../../services/task-service');
+} = await import('../../services/task/task-service');
 
 const { UserBehaviorService } = await import('../../src/services/userBehaviorService');
 

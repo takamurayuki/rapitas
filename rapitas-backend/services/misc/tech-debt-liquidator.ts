@@ -5,17 +5,23 @@
  * Uses local LLM (zero cost) to analyze code and generate small, safe PRs.
  * Runs as a background scheduled job via BehaviorScheduler.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 import { createNotification } from '../communication/notification-service';
-import { sendWebhookNotification } from './webhook-notification-service';
+import { sendWebhookNotification } from '../communication/webhook-notification-service';
 
 const log = createLogger('tech-debt-liquidator');
 
 /** A single detected tech debt item. */
 export type TechDebtItem = {
   id: string;
-  type: 'dead_code' | 'type_safety' | 'missing_test' | 'complexity' | 'deprecated_api' | 'large_file';
+  type:
+    | 'dead_code'
+    | 'type_safety'
+    | 'missing_test'
+    | 'complexity'
+    | 'deprecated_api'
+    | 'large_file';
   severity: 'low' | 'medium' | 'high';
   file: string;
   line?: number;
@@ -57,9 +63,7 @@ export type TechDebtDigest = {
  * @param workingDirectory - Project root to scan / スキャン対象のプロジェクトルート
  * @returns Scan result with detected items / 検出されたアイテムを含むスキャン結果
  */
-export async function scanForTechDebt(
-  workingDirectory: string,
-): Promise<TechDebtScanResult> {
+export async function scanForTechDebt(workingDirectory: string): Promise<TechDebtScanResult> {
   const items: TechDebtItem[] = [];
   let totalFiles = 0;
 
@@ -68,17 +72,20 @@ export async function scanForTechDebt(
 
     // 1. Find large files (>500 lines)
     try {
-      const result = execSync(
-        `git ls-files "*.ts" "*.tsx" "*.js" "*.jsx" | head -200`,
-        { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
-      );
+      const result = execSync(`git ls-files "*.ts" "*.tsx" "*.js" "*.jsx" | head -200`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        timeout: 15000,
+      });
       const files = result.trim().split('\n').filter(Boolean);
       totalFiles = files.length;
 
       for (const file of files) {
         try {
           const wc = execSync(`wc -l < "${file}"`, {
-            cwd: workingDirectory, encoding: 'utf8', timeout: 5000,
+            cwd: workingDirectory,
+            encoding: 'utf8',
+            timeout: 5000,
           }).trim();
           const lineCount = parseInt(wc);
           if (lineCount > 500) {
@@ -91,7 +98,9 @@ export async function scanForTechDebt(
               estimatedEffort: 'medium',
             });
           }
-        } catch { /* skip individual file errors */ }
+        } catch {
+          /* skip individual file errors */
+        }
       }
     } catch (err) {
       log.debug({ err }, '[TechDebt] File size scan failed');
@@ -99,10 +108,11 @@ export async function scanForTechDebt(
 
     // 2. Find any type usage
     try {
-      const anyUsage = execSync(
-        `git grep -n ": any" -- "*.ts" "*.tsx" | head -50`,
-        { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
-      );
+      const anyUsage = execSync(`git grep -n ": any" -- "*.ts" "*.tsx" | head -50`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        timeout: 15000,
+      });
       const anyLines = anyUsage.trim().split('\n').filter(Boolean);
       // NOTE: Group by file to avoid noise
       const fileGroups = new Map<string, number>();
@@ -123,14 +133,17 @@ export async function scanForTechDebt(
           });
         }
       }
-    } catch { /* grep returns non-zero if no matches */ }
+    } catch {
+      /* grep returns non-zero if no matches */
+    }
 
     // 3. Find TODO/FIXME/HACK comments
     try {
-      const todos = execSync(
-        `git grep -n "TODO\\|FIXME\\|HACK" -- "*.ts" "*.tsx" | head -50`,
-        { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
-      );
+      const todos = execSync(`git grep -n "TODO\\|FIXME\\|HACK" -- "*.ts" "*.tsx" | head -50`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+        timeout: 15000,
+      });
       const todoLines = todos.trim().split('\n').filter(Boolean);
       const fileGroups = new Map<string, string[]>();
       for (const line of todoLines) {
@@ -153,7 +166,9 @@ export async function scanForTechDebt(
           });
         }
       }
-    } catch { /* grep returns non-zero if no matches */ }
+    } catch {
+      /* grep returns non-zero if no matches */
+    }
 
     // 4. Find files with no corresponding test file
     try {
@@ -165,14 +180,22 @@ export async function scanForTechDebt(
         `git ls-files "**/*.test.ts" "**/*.spec.ts" "tests/**/*.ts" | head -200`,
         { cwd: workingDirectory, encoding: 'utf8', timeout: 10000 },
       );
-      const testSet = new Set(testFiles.trim().split('\n').filter(Boolean).map((f) =>
-        f.replace(/\.test\.ts$|\.spec\.ts$/, '').replace(/^tests\//, ''),
-      ));
+      const testSet = new Set(
+        testFiles
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((f) => f.replace(/\.test\.ts$|\.spec\.ts$/, '').replace(/^tests\//, '')),
+      );
 
-      const untestedFiles = srcFiles.trim().split('\n').filter(Boolean).filter((f) => {
-        const baseName = f.replace(/\.ts$/, '');
-        return !testSet.has(baseName) && !testSet.has(f.replace(/\.ts$/, ''));
-      });
+      const untestedFiles = srcFiles
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .filter((f) => {
+          const baseName = f.replace(/\.ts$/, '');
+          return !testSet.has(baseName) && !testSet.has(f.replace(/\.ts$/, ''));
+        });
 
       if (untestedFiles.length > 10) {
         items.push({
@@ -184,8 +207,9 @@ export async function scanForTechDebt(
           estimatedEffort: 'medium',
         });
       }
-    } catch { /* non-fatal */ }
-
+    } catch {
+      /* non-fatal */
+    }
   } catch (error) {
     log.error({ err: error }, '[TechDebt] Scan failed');
   }
@@ -263,9 +287,7 @@ export async function runScheduledTechDebtScan(): Promise<TechDebtDigest> {
     });
   }
 
-  log.info(
-    `[TechDebt] Scheduled scan complete: ${themes.length} themes, ${allItems.length} items`,
-  );
+  log.info(`[TechDebt] Scheduled scan complete: ${themes.length} themes, ${allItems.length} items`);
 
   return digest;
 }

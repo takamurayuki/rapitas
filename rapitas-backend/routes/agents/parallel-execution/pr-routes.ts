@@ -10,9 +10,9 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger, getProjectRoot } from '../../../config';
 import { GitOperations } from '../../../services/agents/orchestrator/git-operations';
-import { reviewBranchDiff, postReviewToPR } from '../../../services/ai-code-review';
-import { sendWebhookNotification } from '../../../services/webhook-notification-service';
-import { pollDeploymentStatus } from '../../../services/preview-deploy-service';
+import { reviewBranchDiff, postReviewToPR } from '../../../services/ai/ai-code-review';
+import { sendWebhookNotification } from '../../../services/communication/webhook-notification-service';
+import { pollDeploymentStatus } from '../../../services/misc/preview-deploy-service';
 import { buildPRBody, readWorkflowFile } from './pr-helpers';
 import { validateWorkingDirectory } from './working-dir-guard';
 

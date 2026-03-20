@@ -5,8 +5,8 @@
  * based on task complexity, historical performance, and budget constraints.
  * Routes simple tasks to cheaper/local models and complex tasks to powerful ones.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('smart-model-router');
 

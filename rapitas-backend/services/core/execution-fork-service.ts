@@ -5,9 +5,9 @@
  * approaches with different models, constraints, or instructions.
  * Each fork creates a new git worktree branch from the same base point.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
-import { GitOperations } from './agents/orchestrator/git-operations';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { GitOperations } from '../agents/orchestrator/git-operations';
 
 const log = createLogger('execution-fork');
 

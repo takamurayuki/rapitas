@@ -2,8 +2,8 @@
  * Habit Tracking Service
  * 習慣の追跡・統計・ストリーク計算
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('habit-tracking-service');
 

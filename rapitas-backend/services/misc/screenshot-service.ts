@@ -5,16 +5,16 @@
  * Maintained for backward compatibility — import from this path as before.
  */
 
-export type { ScreenshotResult, ScreenshotOptions, ProjectInfo } from './screenshot/types';
-export { detectProjectInfo } from './screenshot/project-detector';
+export type { ScreenshotResult, ScreenshotOptions, ProjectInfo } from '../screenshot/types';
+export { detectProjectInfo } from '../screenshot/project-detector';
 export {
   hasUIChanges,
   detectAffectedPages,
   detectAllPages,
   detectPagesFromAgentOutput,
-} from './screenshot/page-scanner';
+} from '../screenshot/page-scanner';
 export {
   captureScreenshots,
   captureAllScreenshots,
   captureScreenshotsForDiff,
-} from './screenshot/capture';
+} from '../screenshot/capture';

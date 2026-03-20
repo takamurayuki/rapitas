@@ -4,8 +4,8 @@
  * Analyzes user behavior patterns (time of day, day of week, completion rate)
  * and suggests tasks to work on now, ranked by relevance.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const _log = createLogger('predictive-suggester');
 

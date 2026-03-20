@@ -5,12 +5,12 @@
  * Called exclusively by task-mutations.ts — not part of the public API.
  */
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
-import { UserBehaviorService } from '../src/services/userBehaviorService';
+import { createLogger } from '../../config/logger';
+import { UserBehaviorService } from '../../src/services/userBehaviorService';
 import {
   analyzeTaskComplexityWithLearning,
   type TaskComplexityInput,
-} from './workflow/complexity-analyzer';
+} from '../workflow/complexity-analyzer';
 import { TASK_FULL_INCLUDE } from './task-mutations';
 import type { CreateTaskInput } from './task-mutations';
 

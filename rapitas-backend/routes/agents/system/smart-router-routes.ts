@@ -8,7 +8,7 @@ import {
   estimateCost,
   getSmartRoute,
   getBudgetStatus,
-} from '../../../services/smart-model-router';
+} from '../../../services/ai/smart-model-router';
 import { createLogger } from '../../../config/logger';
 
 const log = createLogger('routes:smart-router');

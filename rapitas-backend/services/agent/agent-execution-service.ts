@@ -13,13 +13,13 @@ import type {
   ExecutionRequest,
   ExecutionResult,
   AgentExecutionWithExtras,
-} from '../types/agent-execution-types';
+} from '../../types/agent-execution-types';
 import {
   executeTask as _executeTask,
   stopExecution as _stopExecution,
   stopSession as _stopSession,
-} from './agent-execution/execution-core';
-import { continueExecution as _continueExecution } from './agent-execution/execution-continue';
+} from '../agent-execution/execution-core';
+import { continueExecution as _continueExecution } from '../agent-execution/execution-continue';
 import {
   getExecutionStatus as _getExecutionStatus,
   getLatestExecution as _getLatestExecution,
@@ -27,7 +27,7 @@ import {
   resetExecutionState as _resetExecutionState,
   getResumableExecutions as _getResumableExecutions,
   getInterruptedExecutions as _getInterruptedExecutions,
-} from './agent-execution/execution-queries';
+} from '../agent-execution/execution-queries';
 
 export class AgentExecutionService {
   private prisma: PrismaClient;

@@ -11,11 +11,11 @@ import { useTranslations } from 'next-intl';
 import { Download, AlertCircle, XCircle } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
-import { useMetricsData } from './useMetricsData';
-import { MetricsOverviewCards } from './MetricsOverviewCards';
-import { MetricsFilters } from './MetricsFilters';
-import { MetricsCharts } from './MetricsCharts';
-import { MetricsTable } from './MetricsTable';
+import { useMetricsData } from './_hooks/useMetricsData';
+import { MetricsOverviewCards } from './_components/MetricsOverviewCards';
+import { MetricsFilters } from './_components/MetricsFilters';
+import { MetricsCharts } from './_components/MetricsCharts';
+import { MetricsTable } from './_components/MetricsTable';
 
 function AgentMetricsPage() {
   const t = useTranslations('agents');

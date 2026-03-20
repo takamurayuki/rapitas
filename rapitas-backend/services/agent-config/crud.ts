@@ -7,9 +7,9 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { toJsonString } from '../../utils/db-helpers';
+import { toJsonString } from '../../utils/database/db-helpers';
 import { encrypt, isEncryptionKeyConfigured } from '../../utils/common/encryption';
-import { logAgentConfigChange, calculateChanges } from '../../utils/agent-audit-log';
+import { logAgentConfigChange, calculateChanges } from '../../utils/agent/agent-audit-log';
 import type { AIAgentConfig } from '@prisma/client';
 import type { CreateAgentConfigRequest, UpdateAgentConfigRequest } from './types';
 import { validateConfig } from './validation';
@@ -66,7 +66,13 @@ export { getDefaultAgent } from './defaults';
 export async function createAgentConfig(config: CreateAgentConfigRequest): Promise<AIAgentConfig> {
   const { agentType, name, apiKey, endpoint, modelId, capabilities, isDefault } = config;
 
-  const validation = await validateConfig({ agentType, apiKey, endpoint, modelId, additionalConfig: capabilities });
+  const validation = await validateConfig({
+    agentType,
+    apiKey,
+    endpoint,
+    modelId,
+    additionalConfig: capabilities,
+  });
   if (!validation.isValid) {
     throw new Error(
       `Validation failed: ${validation.errors.map((e) => `${e.field}: ${e.message}`).join(', ')}`,
@@ -285,4 +291,3 @@ export async function clearDefaultAgent(): Promise<void> {
     data: { isDefault: false },
   });
 }
-

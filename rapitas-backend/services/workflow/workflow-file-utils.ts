@@ -7,7 +7,7 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { prisma } from '../../config';
-import { sanitizeMarkdownContent } from '../../utils/mojibake-detector';
+import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('workflow-file-utils');

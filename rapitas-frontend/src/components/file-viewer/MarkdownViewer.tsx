@@ -7,7 +7,7 @@ import {
   oneDark,
   oneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useDarkMode } from '@/hooks/useDarkMode';
+import { useDarkMode } from '@/hooks/ui/useDarkMode';
 import { Copy, Check, List, ExternalLink } from 'lucide-react';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('MarkdownViewer');

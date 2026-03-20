@@ -7,7 +7,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { orchestrator, stopServer } from '../../../services/core/orchestrator-instance';
 import { isEncryptionKeyConfigured } from '../../../utils/common/encryption';
-import { realtimeService } from '../../../services/realtime-service';
+import { realtimeService } from '../../../services/communication/realtime-service';
 import { createLogger } from '../../../config/logger';
 
 const log = createLogger('routes:agent-system');
@@ -176,10 +176,12 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
   .get('/system-status', async () => {
     // NOTE: Sync getActiveExecutionCount() returns a cached value (0 right after startup).
     // Use the async version when available to get the accurate count from the worker.
-    const workerMgr = orchestrator as unknown as { getActiveExecutionCountAsync?: () => Promise<number> };
+    const workerMgr = orchestrator as unknown as {
+      getActiveExecutionCountAsync?: () => Promise<number>;
+    };
     const activeExecutions = workerMgr.getActiveExecutionCountAsync
       ? await workerMgr.getActiveExecutionCountAsync()
-      : (orchestrator.getActiveExecutionCount?.() || 0);
+      : orchestrator.getActiveExecutionCount?.() || 0;
     const isShuttingDown = orchestrator.isInShutdown();
 
     const runningExecutions = await prisma.agentExecution.count({

@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
-import { agentSessionRouter } from '../../../routes/agents/agent-session-router';
+import { agentSessionRouter } from '../../../routes/agents/crud/agent-session-router';
 
 describe('Agent Session Router', () => {
   let app: Elysia;

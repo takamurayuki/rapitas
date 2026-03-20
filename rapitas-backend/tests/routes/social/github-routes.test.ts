@@ -86,7 +86,7 @@ mock.module('../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
-mock.module('../../../services/github-service', () => ({
+mock.module('../../../services/core/github-service', () => ({
   GitHubService: MockGitHubService,
 }));
 // Re-export the real schemas - they use elysia's t() which needs to be real

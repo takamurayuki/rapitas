@@ -8,7 +8,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { isGhAvailable, isAuthenticated } from './github/gh-client';
+import { isGhAvailable, isAuthenticated } from '../github/gh-client';
 import {
   getPullRequests,
   getPullRequest,
@@ -19,14 +19,14 @@ import {
   approvePullRequest,
   requestChanges,
   createPullRequest,
-} from './github/pr-operations';
+} from '../github/pr-operations';
 import {
   getIssues,
   getIssue,
   createIssue,
   addIssueComment,
-} from './github/issue-operations';
-import { syncPullRequests, syncIssues, handleWebhook } from './github/sync-webhook';
+} from '../github/issue-operations';
+import { syncPullRequests, syncIssues, handleWebhook } from '../github/sync-webhook';
 
 // Re-export all public types so consumers can import from the original path
 export type {
@@ -38,7 +38,7 @@ export type {
   CreateIssueInput,
   CreatePRCommentInput,
   GitHubWebhookPayload,
-} from './github/types';
+} from '../github/types';
 
 type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 

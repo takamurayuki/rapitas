@@ -5,7 +5,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('agent-audit-log');
 

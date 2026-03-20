@@ -2,8 +2,8 @@
  * Calendar Service
  * カレンダーイベントの取得・作成・競合チェック
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('calendar-service');
 

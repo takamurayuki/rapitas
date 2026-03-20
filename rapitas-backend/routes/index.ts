@@ -30,7 +30,7 @@ export { executionLogsRoutes } from './agents/monitoring/execution-logs';
 export { agentMetricsRouter } from './agents/monitoring/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/system/agent-version-management';
 export { cliToolsManagementRoutes } from './agents/integrations/cli-tools-management';
-export { executionForkRoutes } from './agents/integrations/execution-fork-routes';
+export { executionForkRoutes } from './agents/execution-management/execution-fork-routes';
 export { smartRouterRoutes } from './agents/system/smart-router-routes';
 
 // AI

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { UsageRateLimitGraph } from '@/components/UsageRateLimitGraph';
+import { UsageRateLimitGraph } from '@/components/widgets/UsageRateLimitGraph';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
 import { createLogger } from '@/lib/logger';
 

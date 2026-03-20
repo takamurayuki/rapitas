@@ -4,7 +4,7 @@
  * Includes retry logic and rollback handling.
  */
 
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('sse-utils');
 

@@ -34,7 +34,7 @@ const {
   getActiveSession,
   getStatistics,
   getHistory,
-} = await import('../../services/pomodoro-service');
+} = await import('../../services/scheduling/pomodoro-service');
 
 describe('startPomodoro', () => {
   beforeEach(() => {

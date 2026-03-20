@@ -3,7 +3,7 @@
  *
  * Business logic for the pomodoro timer.
  */
-import { prisma } from '../config/database';
+import { prisma } from '../../config/database';
 
 // Default settings
 const WORK_DURATION = 25 * 60; // 25 minutes

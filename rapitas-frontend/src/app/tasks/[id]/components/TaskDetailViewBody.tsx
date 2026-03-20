@@ -7,8 +7,15 @@
  */
 
 'use client';
-import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
+import type {
+  Task,
+  Resource,
+  Comment,
+  WorkflowStatus,
+  Priority,
+} from '@/types';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
+import { TaskDependencyGraph } from '@/components/widgets/TaskDependencyGraph';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
@@ -61,10 +68,17 @@ interface TaskActionsViewSlice {
 
 /** Subset of useCommentSystem return values consumed by the view body. */
 interface CommentSystemSlice {
-  handleAddComment: (content?: string, parentId?: number) => Promise<number | null>;
+  handleAddComment: (
+    content?: string,
+    parentId?: number,
+  ) => Promise<number | null>;
   handleUpdateComment: (id: number, content: string) => Promise<void>;
   handleDeleteComment: (id: number) => Promise<void>;
-  handleCreateCommentLink: (from: number, to: number, label?: string) => Promise<void>;
+  handleCreateCommentLink: (
+    from: number,
+    to: number,
+    label?: string,
+  ) => Promise<void>;
   handleDeleteCommentLink: (linkId: number) => Promise<void>;
 }
 
@@ -84,10 +98,15 @@ export interface TaskDetailViewBodyProps {
 
   /** Whether the AI assistant panel should be shown. */
   showAIPanel: boolean;
-  aiSectionProps: Omit<TaskAISectionProps, 'task' | 'taskId' | 'resolvedTaskId'>;
+  aiSectionProps: Omit<
+    TaskAISectionProps,
+    'task' | 'taskId' | 'resolvedTaskId'
+  >;
 
   currentWorkflowStatus: WorkflowStatus | null;
-  setCurrentWorkflowStatus: React.Dispatch<React.SetStateAction<WorkflowStatus | null>>;
+  setCurrentWorkflowStatus: React.Dispatch<
+    React.SetStateAction<WorkflowStatus | null>
+  >;
   isWorkflowLoading: boolean;
   workflowError: string | null | undefined;
   onPlanApprovalRequest: () => void;
@@ -130,7 +149,9 @@ export default function TaskDetailViewBody({
   isParallelExecutionRunning,
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
-  const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
+  const isTaskStatusLoading = useExecutionStateStore((s) =>
+    s.loadingTaskIds.has(taskId),
+  );
 
   return (
     <>
@@ -158,8 +179,8 @@ export default function TaskDetailViewBody({
         />
       </div>
 
-      {showAIPanel && (
-        isTaskStatusLoading ? (
+      {showAIPanel &&
+        (isTaskStatusLoading ? (
           <div className="mb-6">
             <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse">
               <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
@@ -184,8 +205,7 @@ export default function TaskDetailViewBody({
             resolvedTaskId={resolvedTaskId}
             {...aiSectionProps}
           />
-        )
-      )}
+        ))}
 
       {task.theme?.isDevelopment === true && (
         <TaskWorkflowSection
@@ -224,10 +244,14 @@ export default function TaskDetailViewBody({
         onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
         onStartEditingSubtask={taskActions.startEditingSubtask}
         onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-        onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
+        onSetEditingSubtaskDescription={
+          taskActions.setEditingSubtaskDescription
+        }
         onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
         onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
-        onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
+        onSetEditingSubtaskEstimatedHours={
+          taskActions.setEditingSubtaskEstimatedHours
+        }
         onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
         onCancelEditingSubtask={taskActions.cancelEditingSubtask}
         onUpdateStatus={taskActions.updateStatus}

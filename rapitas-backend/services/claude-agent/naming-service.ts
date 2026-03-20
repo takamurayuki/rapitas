@@ -4,7 +4,7 @@ import {
   sanitizeBranchName,
   isValidBranchName,
   generateFallbackBranchName,
-} from '../../utils/branch-name-generator';
+} from '../../utils/common/branch-name-generator';
 
 /**
  * タスク情報から意味のあるブランチ名を生成する

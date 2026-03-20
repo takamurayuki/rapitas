@@ -14,8 +14,8 @@ import {
   generateAISuggestions,
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
-} from '../../services/task-service';
-import { parseNaturalLanguageTask } from '../../services/natural-language-parser';
+} from '../../services/task/task-service';
+import { parseNaturalLanguageTask } from '../../services/ai/natural-language-parser';
 import {
   analyzeTask,
   generateExecutionInstructions,
@@ -23,7 +23,7 @@ import {
 import { analyzeTaskComplexity } from '../../services/workflow/complexity-analyzer';
 import { getDefaultProvider } from '../../utils/ai-client';
 import { generateTaskTitle } from '../../services/claude-agent/naming-service';
-import { QueryOptimizers } from '../../utils/prisma-optimization';
+import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
 

@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useLoginForm } from '../useLoginForm';
+import { useLoginForm } from '../auth/useLoginForm';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({

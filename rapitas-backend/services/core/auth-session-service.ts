@@ -3,8 +3,8 @@
  *
  * Validates, refreshes, and cleans up expired sessions.
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('auth-session-service');
 

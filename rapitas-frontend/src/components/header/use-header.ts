@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { useDarkMode } from '@/hooks/useDarkMode';
+import { useDarkMode } from '@/hooks/ui/useDarkMode';
 import { isTauri } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';

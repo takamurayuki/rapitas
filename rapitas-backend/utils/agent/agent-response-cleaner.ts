@@ -1,4 +1,4 @@
-import { type ScreenshotResult } from '../services/screenshot-service';
+import { type ScreenshotResult } from '../../services/misc/screenshot-service';
 
 /**
  * Strips the filesystem path from screenshot results before sending to the frontend.

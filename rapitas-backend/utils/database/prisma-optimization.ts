@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('prisma-optimization');
 

@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useNotificationPreferences } from '../useNotificationPreferences';
+import { useNotificationPreferences } from '../feature/useNotificationPreferences';
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({

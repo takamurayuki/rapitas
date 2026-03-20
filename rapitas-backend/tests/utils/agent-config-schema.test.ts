@@ -9,7 +9,7 @@ import {
   getAllAgentConfigSchemas,
   validateApiKeyFormat,
   validateAgentConfig,
-} from '../../utils/agent-config-schema';
+} from '../../utils/agent/agent-config-schema';
 
 describe('getAgentConfigSchema', () => {
   test('claude-codeのスキーマを取得できること', () => {

@@ -7,13 +7,13 @@
  * Does NOT handle task mutations or duplicate cleanup.
  */
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 import {
   sendAIMessage,
   getDefaultProvider,
   isAnyApiKeyConfigured,
   type AIMessage,
-} from '../utils/ai-client';
+} from '../../utils/ai-client';
 import {
   AI_SUGGESTION_SYSTEM_PROMPT,
   buildTaskSummary,

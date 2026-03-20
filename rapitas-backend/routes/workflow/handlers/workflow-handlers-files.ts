@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { sanitizeMarkdownContent } from '../../../utils/mojibake-detector';
+import { sanitizeMarkdownContent } from '../../../utils/common/mojibake-detector';
 import { createLogger } from '../../../config/logger';
 import { recordWorkflowCompletion } from '../../../services/workflow/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
@@ -204,7 +204,7 @@ export async function handleSaveFile({
       });
 
       // Record reasoning trace for temporal debugging (async)
-      import('../../../services/temporal-debugger').then(({ recordReasoningTrace }) => {
+      import('../../../services/analytics/temporal-debugger').then(({ recordReasoningTrace }) => {
         // Find the latest execution for this task to record its trace
         prisma.agentExecution.findFirst({
           where: { session: { config: { taskId } }, status: 'completed' },

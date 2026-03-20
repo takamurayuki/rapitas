@@ -8,8 +8,8 @@
 
 import { useTranslations } from 'next-intl';
 import { Terminal, ChevronRight } from 'lucide-react';
-import { WebhookSettings } from '@/components/WebhookSettings';
-import { MCPSetupGuide } from '@/components/MCPSetupGuide';
+import { WebhookSettings } from '@/components/settings/WebhookSettings';
+import { MCPSetupGuide } from '@/components/settings/MCPSetupGuide';
 
 /**
  * Developer tools and integrations panels.

@@ -4,8 +4,8 @@
  * Triggers preview deployments on Vercel/Netlify when PRs are created.
  * Checks deployment status and posts preview URLs back to PR comments.
  */
-import { createLogger } from '../config/logger';
-import { prisma } from '../config/database';
+import { createLogger } from '../../config/logger';
+import { prisma } from '../../config/database';
 
 const log = createLogger('preview-deploy');
 

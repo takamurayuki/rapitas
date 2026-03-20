@@ -16,7 +16,7 @@ import {
   Cpu,
 } from 'lucide-react';
 import type { AIAgentConfig, WorkflowRole } from '@/types';
-import { useWorkflowRoles } from '@/hooks/useWorkflowRoles';
+import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('WorkflowRolesConfig');

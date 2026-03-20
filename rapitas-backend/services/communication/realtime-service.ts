@@ -4,7 +4,7 @@
  * Streams agent execution status and GitHub events via SSE (Server-Sent Events).
  */
 
-import { createLogger } from '../config/logger';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('realtime-service');
 

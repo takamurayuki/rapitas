@@ -5,4 +5,4 @@
  * smaller modules under ./parallel-execution/. Import from there directly
  * for new code.
  */
-export { parallelExecutionRoutes } from './parallel-execution/index';
+export { parallelExecutionRoutes } from '../parallel-execution/index';

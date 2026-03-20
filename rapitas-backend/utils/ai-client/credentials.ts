@@ -2,7 +2,7 @@
  * AI Provider API Key Management and Authentication
  */
 import { prisma } from '../../config/database';
-import { decrypt } from '../encryption';
+import { decrypt } from '../common/encryption';
 import { createLogger } from '../../config/logger';
 import {
   type AIProvider,

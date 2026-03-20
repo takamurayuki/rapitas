@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
-import { agentExecutionRouter } from '../../../routes/agents/agent-execution-router';
+import { agentExecutionRouter } from '../../../routes/agents/execution-management/agent-execution-router';
 
 describe('Agent Execution Router', () => {
   let app: Elysia;

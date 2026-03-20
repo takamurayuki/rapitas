@@ -11,7 +11,7 @@ export type {
   UpdateAgentConfigRequest,
   ValidationError,
   ValidationResult,
-} from './agent-config/types';
+} from '../agent-config/types';
 
 export {
   getActiveAgents,
@@ -24,9 +24,9 @@ export {
   deleteAgentConfig,
   setDefaultAgent,
   clearDefaultAgent,
-} from './agent-config/crud';
+} from '../agent-config/crud';
 
-export { validateConfig } from './agent-config/validation';
+export { validateConfig } from '../agent-config/validation';
 
 export {
   setApiKey,
@@ -35,10 +35,10 @@ export {
   getMaskedApiKey,
   getCapabilities,
   updateCapabilities,
-} from './agent-config/api-key';
+} from '../agent-config/api-key';
 
-import { createLogger } from '../config/logger';
-import { getAgentConfigSchema } from '../utils/agent-config-schema';
+import { createLogger } from '../../config/logger';
+import { getAgentConfigSchema } from '../../utils/agent/agent-config-schema';
 import {
   getActiveAgents,
   getAllAgents,
@@ -50,8 +50,8 @@ import {
   deleteAgentConfig,
   setDefaultAgent,
   clearDefaultAgent,
-} from './agent-config/crud';
-import { validateConfig } from './agent-config/validation';
+} from '../agent-config/crud';
+import { validateConfig } from '../agent-config/validation';
 import {
   setApiKey,
   deleteApiKey,
@@ -59,12 +59,12 @@ import {
   getMaskedApiKey,
   getCapabilities,
   updateCapabilities,
-} from './agent-config/api-key';
+} from '../agent-config/api-key';
 import type {
   CreateAgentConfigRequest,
   UpdateAgentConfigRequest,
   ValidationResult,
-} from './agent-config/types';
+} from '../agent-config/types';
 
 // NOTE: AgentConfigService class preserved for backward compatibility with callers that
 // instantiate the service via `new AgentConfigService()` or use the singleton export.

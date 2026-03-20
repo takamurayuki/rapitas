@@ -10,7 +10,7 @@ import {
   sanitizeMarkdownContent,
   type MojibakeDetectionResult,
   type SanitizeResult,
-} from '../../utils/mojibake-detector';
+} from '../../utils/common/mojibake-detector';
 
 describe('Mojibake Detection', () => {
   test('正常なMarkdown（英語）を誤検出しないこと', () => {

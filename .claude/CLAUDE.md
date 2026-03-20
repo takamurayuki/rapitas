@@ -306,3 +306,7 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 ## 8. Component Splitting Policy
 
 @COMPONENT_SPLITTING_POLICY.md
+
+## 9. Folder Organization Policy
+
+@FOLDER_ORGANIZATION_POLICY.md

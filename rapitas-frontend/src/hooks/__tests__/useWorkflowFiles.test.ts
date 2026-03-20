@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { useWorkflowFiles } from '../useWorkflowFiles';
+import { useWorkflowFiles } from '../workflow/useWorkflowFiles';
 
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',

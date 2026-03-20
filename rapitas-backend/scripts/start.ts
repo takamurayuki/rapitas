@@ -10,7 +10,7 @@ import { spawn, spawnSync } from 'bun';
 import { resolve } from 'path';
 import { readFileSync, existsSync } from 'fs';
 import { createLogger } from '../config/logger';
-import { findAvailablePort } from '../utils/find-port';
+import { findAvailablePort } from '../utils/common/find-port';
 
 const pinoLog = createLogger('start');
 const log = {

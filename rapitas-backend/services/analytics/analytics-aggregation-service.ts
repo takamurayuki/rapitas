@@ -2,8 +2,8 @@
  * Analytics Aggregation Service
  * タスク統計の集約・生産性トレンド・週次レポート生成
  */
-import { prisma } from '../config/database';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('analytics-aggregation-service');
 

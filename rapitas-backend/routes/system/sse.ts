@@ -3,7 +3,7 @@
  * Real-time event streaming endpoints
  */
 import { Elysia, t } from 'elysia';
-import { realtimeService } from '../../services/realtime-service';
+import { realtimeService } from '../../services/communication/realtime-service';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:sse');

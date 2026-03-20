@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useWindowResize } from '../useWindowResize';
+import { useWindowResize } from '../ui/useWindowResize';
 import { fireEvent } from '@testing-library/react';
 
 vi.mock('@/lib/logger', () => ({

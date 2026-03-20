@@ -12,7 +12,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useNoteStore } from '@/stores/noteStore';
-import { useDarkMode } from '@/hooks/useDarkMode';
+import { useDarkMode } from '@/hooks/ui/useDarkMode';
 import { useUIModeStore } from '@/stores/uiModeStore';
 import DeleteNoteModal from './DeleteNoteModal';
 import { useLocaleStore } from '@/stores/localeStore';

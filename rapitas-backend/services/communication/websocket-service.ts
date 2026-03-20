@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
-import { prisma } from '../config';
-import { cacheService } from './cache-service';
-import { createLogger } from '../config/logger';
+import { prisma } from '../../config';
+import { cacheService } from '../core/cache-service';
+import { createLogger } from '../../config/logger';
 
 const log = createLogger('websocket-service');
 

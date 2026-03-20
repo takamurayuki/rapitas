@@ -28,7 +28,7 @@ mock.module('./cache-service', () => ({
   },
 }));
 
-const { wsManager } = await import('../../services/websocket-service');
+const { wsManager } = await import('../../services/communication/websocket-service');
 
 function createMockWs(readyState: number = 1) {
   return {

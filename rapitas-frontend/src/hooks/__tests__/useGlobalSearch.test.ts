@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useGlobalSearch, useSearchSuggest } from '../useGlobalSearch';
+import { useGlobalSearch, useSearchSuggest } from '../search/useGlobalSearch';
 
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
