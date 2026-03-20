@@ -230,3 +230,7 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 ## 7. Comment Policy
 
 @COMMENT_POLICY.md
+
+## 8. Component Splitting Policy
+
+@COMPONENT_SPLITTING_POLICY.md

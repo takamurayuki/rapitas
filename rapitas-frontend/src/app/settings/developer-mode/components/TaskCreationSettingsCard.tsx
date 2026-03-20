@@ -1,0 +1,214 @@
+/**
+ * TaskCreationSettingsCard
+ *
+ * Settings card for task creation automation options: auto-execute, auto-generate title,
+ * title-generation delay, auto-create after title, and auto-fetch suggestions.
+ */
+
+'use client';
+
+import { Zap } from 'lucide-react';
+import type { UserSettings } from '@/types';
+import { useTranslations } from 'next-intl';
+
+interface TaskCreationSettingsCardProps {
+  settings: UserSettings | null;
+  isSaving: boolean;
+  localDelay: number | '';
+  onUpdateSettings: (updates: Partial<UserSettings>) => void;
+  onDelayChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onDelayBlur: () => void;
+}
+
+/**
+ * Renders all task-creation-related settings toggles and the delay input.
+ *
+ * @param settings - Current user settings / 現在のユーザー設定
+ * @param isSaving - Whether a save is in progress / 保存中かどうか
+ * @param localDelay - Local state for the title-generation delay input / タイトル生成遅延のローカル値
+ * @param onUpdateSettings - Callback to persist settings updates / 設定を保存するコールバック
+ * @param onDelayChange - Handler for delay input changes / 遅延入力の変更ハンドラー
+ * @param onDelayBlur - Handler for delay input blur / 遅延入力のblurハンドラー
+ */
+export function TaskCreationSettingsCard({
+  settings,
+  isSaving,
+  localDelay,
+  onUpdateSettings,
+  onDelayChange,
+  onDelayBlur,
+}: TaskCreationSettingsCardProps) {
+  const t = useTranslations('settings');
+
+  const toggleClass = (enabled: boolean | undefined) =>
+    `relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+      enabled ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
+    }`;
+
+  const thumbClass = (enabled: boolean | undefined) =>
+    `pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+      enabled ? 'translate-x-5' : 'translate-x-0'
+    }`;
+
+  return (
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-8">
+      <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center gap-3">
+          <Zap className="w-5 h-5 text-violet-500" />
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+            {t('devTaskCreationSettings')}
+          </h2>
+        </div>
+      </div>
+      <div className="p-6 space-y-5">
+        {/* Auto execute after create */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {t('devAutoExecuteAfterCreate')}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {t('devAutoExecuteDescription')}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                onUpdateSettings({
+                  autoExecuteAfterCreate: !settings?.autoExecuteAfterCreate,
+                })
+              }
+              disabled={isSaving}
+              className={toggleClass(settings?.autoExecuteAfterCreate)}
+              role="switch"
+              aria-checked={settings?.autoExecuteAfterCreate ?? false}
+            >
+              <span className={thumbClass(settings?.autoExecuteAfterCreate)} />
+            </button>
+          </div>
+        </div>
+
+        {/* Auto generate title */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {t('devAutoGenerateTitle')}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {t('devAutoGenerateTitleDescription')}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                onUpdateSettings({
+                  autoGenerateTitle: !settings?.autoGenerateTitle,
+                })
+              }
+              disabled={isSaving}
+              className={toggleClass(settings?.autoGenerateTitle)}
+              role="switch"
+              aria-checked={settings?.autoGenerateTitle ?? false}
+            >
+              <span className={thumbClass(settings?.autoGenerateTitle)} />
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-settings shown only when autoGenerateTitle is enabled */}
+        {settings?.autoGenerateTitle && (
+          <>
+            {/* Delay input */}
+            <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+              <div>
+                <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                  {t('devAutoGenerateDelay')}
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('devAutoGenerateDelayDescription')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={localDelay}
+                  onChange={onDelayChange}
+                  onBlur={onDelayBlur}
+                  className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('devSeconds')}
+                </span>
+              </div>
+            </div>
+
+            {/* Auto create after title generation */}
+            <div className="flex items-center justify-between mt-3 ml-4 pl-4 border-l-2 border-violet-200 dark:border-violet-800">
+              <div>
+                <h3 className="font-medium text-sm text-zinc-900 dark:text-zinc-50">
+                  {t('devAutoCreateAfterTitle')}
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {t('devAutoCreateAfterTitleDescription')}
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  onUpdateSettings({
+                    autoCreateAfterTitleGeneration:
+                      !settings?.autoCreateAfterTitleGeneration,
+                  })
+                }
+                disabled={isSaving}
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  settings?.autoCreateAfterTitleGeneration
+                    ? 'bg-violet-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
+                }`}
+                role="switch"
+                aria-checked={
+                  settings?.autoCreateAfterTitleGeneration ?? false
+                }
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    settings?.autoCreateAfterTitleGeneration
+                      ? 'translate-x-5'
+                      : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Auto fetch suggestions */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              {t('devAutoFetchSuggestions')}
+            </h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+              {t('devAutoFetchSuggestionsDescription')}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              onUpdateSettings({
+                autoFetchTaskSuggestions: !settings?.autoFetchTaskSuggestions,
+              })
+            }
+            disabled={isSaving}
+            className={toggleClass(settings?.autoFetchTaskSuggestions)}
+            role="switch"
+            aria-checked={settings?.autoFetchTaskSuggestions ?? true}
+          >
+            <span className={thumbClass(settings?.autoFetchTaskSuggestions)} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

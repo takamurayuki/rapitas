@@ -1,157 +1,45 @@
+/**
+ * pomodoroStore
+ *
+ * Zustand store for the Pomodoro timer feature.
+ * Manages timer state, daily statistics, and orchestrates audio/sync/broadcast side-effects.
+ * Persisted to localStorage so the timer survives page refreshes.
+ */
+
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { API_BASE_URL } from '@/utils/api';
+import { getAudioContext, closeAudioContext } from './pomodoroAudio';
+import { syncPomodoroToBackend } from './pomodoroSync';
+import { handleTick } from './pomodoroTick';
+import {
+  broadcastState,
+  getBroadcastChannel,
+  closeBroadcastChannel,
+} from './pomodoroBroadcast';
+import {
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
+  DEFAULT_SETTINGS,
+} from './pomodoroTypes';
+import type { PomodoroState, PomodoroSettings } from './pomodoroTypes'; // HACK(agent): PomodoroSettings kept for updateSettings action signature
+import { formatTime, getRemainingTime } from './pomodoroUtils';
 
-export type PomodoroStatus = 'idle' | 'work' | 'shortBreak' | 'longBreak';
+// --- Re-exports for backward compatibility ---
+export type { PomodoroStatus, PomodoroSettings, PomodoroState } from './pomodoroTypes';
+export {
+  DEFAULT_POMODORO_DURATION,
+  DEFAULT_SHORT_BREAK,
+  DEFAULT_LONG_BREAK,
+  DEFAULT_SETTINGS,
+} from './pomodoroTypes';
+export { formatTime, getRemainingTime } from './pomodoroUtils';
 
-const DEFAULT_POMODORO_DURATION = 25 * 60;
-const DEFAULT_SHORT_BREAK = 5 * 60;
-const DEFAULT_LONG_BREAK = 15 * 60;
-
-export interface PomodoroSettings {
-  pomodoroDuration: number; // seconds
-  shortBreakDuration: number; // seconds
-  longBreakDuration: number; // seconds
-  soundEnabled: boolean;
-  soundVolume: number; // 0-1
-}
-
-const DEFAULT_SETTINGS: PomodoroSettings = {
-  pomodoroDuration: DEFAULT_POMODORO_DURATION,
-  shortBreakDuration: DEFAULT_SHORT_BREAK,
-  longBreakDuration: DEFAULT_LONG_BREAK,
-  soundEnabled: true,
-  soundVolume: 0.5,
-};
-
-let broadcastChannel: BroadcastChannel | null = null;
-
-const getBroadcastChannel = () => {
-  if (typeof window === 'undefined') return null;
-  if (!broadcastChannel) {
-    broadcastChannel = new BroadcastChannel('pomodoro-sync');
-  }
-  return broadcastChannel;
-};
-
-const broadcastState = (state: Partial<PomodoroState>) => {
-  const channel = getBroadcastChannel();
-  if (channel) {
-    channel.postMessage({ type: 'STATE_UPDATE', state });
-  }
-};
-
-export interface PomodoroState {
-  taskId: number | null;
-  taskTitle: string | null;
-
-  isTimerRunning: boolean;
-  isPaused: boolean;
-  isBreakTime: boolean;
-
-  pomodoroCount: number;
-  pomodoroSeconds: number;
-
-  workSeconds: number;
-  accumulatedBreakSeconds: number;
-  timerStartTime: number | null; // Unix timestamp
-
-  showBreakDialog: boolean;
-  showBreakEndDialog: boolean;
-
-  settings: PomodoroSettings;
-
-  todayCompletedPomodoros: number;
-  todayTotalWorkSeconds: number;
-  lastStatDate: string | null; // YYYY-MM-DD
-
-  _hasHydrated: boolean;
-
-  startTimer: (taskId: number, taskTitle: string) => void;
-  pauseTimer: () => void;
-  resumeTimer: () => void;
-  stopTimer: () => void;
-  takeBreak: () => void;
-  skipBreak: () => void;
-  endBreak: () => void;
-  tick: () => void;
-  updateSettings: (settings: Partial<PomodoroSettings>) => void;
-  _initializeTimer: () => void;
-  _setHasHydrated: (value: boolean) => void;
-  _checkAndResetDailyStats: () => void;
-}
-
-let audioContext: AudioContext | null = null;
-
-const getTodayDateString = () => {
-  return new Date().toISOString().split('T')[0];
-};
-
-const playNotificationSound = (
-  type: 'work' | 'break',
-  volume: number = 0.5,
-) => {
-  if (typeof window === 'undefined') return;
-
-  if (!audioContext) {
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
-    audioContext = new AudioContextClass();
-  }
-
-  const context = audioContext;
-  if (!context) return;
-
-  // NOTE: Browser autoplay policy suspends AudioContext until user interaction triggers resume.
-  if (context.state === 'suspended') {
-    context.resume();
-  }
-
-  const adjustedVolume = Math.max(0.01, Math.min(1, volume));
-
-  if (type === 'work') {
-    const playBeep = (delay: number) => {
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      osc.connect(gain);
-      gain.connect(context.destination);
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(adjustedVolume, context.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(
-        0.01,
-        context.currentTime + delay + 0.15,
-      );
-      osc.start(context.currentTime + delay);
-      osc.stop(context.currentTime + delay + 0.15);
-    };
-    playBeep(0);
-    playBeep(0.2);
-    playBeep(0.4);
-  } else {
-    const playBeep = (delay: number, frequency: number) => {
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      osc.connect(gain);
-      gain.connect(context.destination);
-      osc.frequency.value = frequency;
-      gain.gain.setValueAtTime(adjustedVolume, context.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(
-        0.01,
-        context.currentTime + delay + 0.2,
-      );
-      osc.start(context.currentTime + delay);
-      osc.stop(context.currentTime + delay + 0.2);
-    };
-    playBeep(0, 660);
-    playBeep(0.25, 523);
-  }
-};
+// --- Timer interval singleton ---
 
 let timerIntervalId: ReturnType<typeof setInterval> | null = null;
 
-const startTimerInterval = () => {
+const startTimerInterval = (): void => {
   if (typeof window === 'undefined') return;
   if (timerIntervalId) return;
 
@@ -160,12 +48,19 @@ const startTimerInterval = () => {
   }, 1000);
 };
 
-const stopTimerInterval = () => {
+const stopTimerInterval = (): void => {
   if (timerIntervalId) {
     clearInterval(timerIntervalId);
     timerIntervalId = null;
   }
 };
+
+// --- Utility helpers ---
+
+const getTodayDateString = (): string =>
+  new Date().toISOString().split('T')[0];
+
+// --- Store ---
 
 export const usePomodoroStore = create<PomodoroState>()(
   persist(
@@ -206,19 +101,12 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       updateSettings: (newSettings: Partial<PomodoroSettings>) => {
         const state = get();
-        set({
-          settings: { ...state.settings, ...newSettings },
-        });
+        set({ settings: { ...state.settings, ...newSettings } });
       },
 
       startTimer: (taskId: number, taskTitle: string) => {
-        if (typeof window !== 'undefined' && !audioContext) {
-          const AudioContextClass =
-            window.AudioContext ||
-            (window as unknown as { webkitAudioContext: typeof AudioContext })
-              .webkitAudioContext;
-          audioContext = new AudioContextClass();
-        }
+        // Eagerly warm up AudioContext to satisfy browser autoplay policy on first user gesture.
+        getAudioContext();
 
         const newState = {
           taskId,
@@ -239,7 +127,7 @@ export const usePomodoroStore = create<PomodoroState>()(
         broadcastState(newState);
         startTimerInterval();
 
-        const settings = get().settings;
+        const { settings } = get();
         syncPomodoroToBackend.start(taskId, settings.pomodoroDuration, 'work');
       },
 
@@ -255,7 +143,6 @@ export const usePomodoroStore = create<PomodoroState>()(
 
       stopTimer: () => {
         stopTimerInterval();
-
         syncPomodoroToBackend.cancel();
 
         const newState = {
@@ -307,101 +194,17 @@ export const usePomodoroStore = create<PomodoroState>()(
       endBreak: () => {
         const state = get();
         const breakDuration =
-          state.pomodoroCount % 4 === 0
-            ? DEFAULT_LONG_BREAK
-            : DEFAULT_SHORT_BREAK;
+          state.pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
         set({
           isBreakTime: false,
           pomodoroSeconds: 0,
-          accumulatedBreakSeconds:
-            state.accumulatedBreakSeconds + breakDuration,
+          accumulatedBreakSeconds: state.accumulatedBreakSeconds + breakDuration,
           showBreakEndDialog: false,
         });
       },
 
       tick: () => {
-        const state = get();
-
-        if (!state.isTimerRunning || state.isPaused) return;
-        if (state.showBreakDialog || state.showBreakEndDialog) return;
-
-        state._checkAndResetDailyStats();
-
-        const { settings } = state;
-        const pomodoroDuration = settings.pomodoroDuration;
-        const shortBreakDuration = settings.shortBreakDuration;
-        const longBreakDuration = settings.longBreakDuration;
-
-        if (!state.isBreakTime) {
-          const newPomodoroSeconds = state.pomodoroSeconds + 1;
-          const newWorkSeconds = state.workSeconds + 1;
-          const newTodayWorkSeconds = state.todayTotalWorkSeconds + 1;
-
-          if (newPomodoroSeconds >= pomodoroDuration) {
-            if (settings.soundEnabled) {
-              playNotificationSound('work', settings.soundVolume);
-            }
-
-            if (
-              typeof window !== 'undefined' &&
-              'Notification' in window &&
-              Notification.permission === 'granted'
-            ) {
-              new Notification('ポモドーロ完了！', {
-                body: `${state.taskTitle || 'タスク'} — 休憩を取りましょう`,
-                icon: '/favicon.ico',
-              });
-            }
-
-            syncPomodoroToBackend.complete(state.pomodoroCount + 1);
-
-            set({
-              pomodoroSeconds: pomodoroDuration,
-              workSeconds: newWorkSeconds,
-              todayTotalWorkSeconds: newTodayWorkSeconds,
-              todayCompletedPomodoros: state.todayCompletedPomodoros + 1,
-              showBreakDialog: true,
-            });
-          } else {
-            set({
-              pomodoroSeconds: newPomodoroSeconds,
-              workSeconds: newWorkSeconds,
-              todayTotalWorkSeconds: newTodayWorkSeconds,
-            });
-          }
-        } else {
-          const breakDuration =
-            state.pomodoroCount % 4 === 0
-              ? longBreakDuration
-              : shortBreakDuration;
-          const newPomodoroSeconds = state.pomodoroSeconds + 1;
-
-          if (newPomodoroSeconds >= breakDuration) {
-            if (settings.soundEnabled) {
-              playNotificationSound('break', settings.soundVolume);
-            }
-
-            if (
-              typeof window !== 'undefined' &&
-              'Notification' in window &&
-              Notification.permission === 'granted'
-            ) {
-              new Notification('休憩終了！', {
-                body: '作業を再開しましょう',
-                icon: '/favicon.ico',
-              });
-            }
-
-            set({
-              pomodoroSeconds: breakDuration,
-              showBreakEndDialog: true,
-            });
-          } else {
-            set({
-              pomodoroSeconds: newPomodoroSeconds,
-            });
-          }
-        }
+        handleTick(set, get);
       },
 
       _initializeTimer: () => {
@@ -443,86 +246,9 @@ export const usePomodoroStore = create<PomodoroState>()(
   ),
 );
 
-export function formatTime(seconds: number): string {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs
-      .toString()
-      .padStart(2, '0')}`;
-  }
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+// NOTE: formatTime and getRemainingTime are re-exported from pomodoroUtils.ts above.
 
-export function getRemainingTime(state: {
-  isBreakTime: boolean;
-  pomodoroCount: number;
-  pomodoroSeconds: number;
-  settings?: PomodoroSettings;
-}): number {
-  const settings = state.settings || DEFAULT_SETTINGS;
-  if (state.isBreakTime) {
-    const breakDuration =
-      state.pomodoroCount % 4 === 0
-        ? settings.longBreakDuration
-        : settings.shortBreakDuration;
-    return breakDuration - state.pomodoroSeconds;
-  }
-  return settings.pomodoroDuration - state.pomodoroSeconds;
-}
-
-export {
-  DEFAULT_POMODORO_DURATION,
-  DEFAULT_SHORT_BREAK,
-  DEFAULT_LONG_BREAK,
-  DEFAULT_SETTINGS,
-};
-
-const syncPomodoroToBackend = {
-  start: (
-    taskId: number | null,
-    duration: number,
-    type: 'work' | 'short_break' | 'long_break' = 'work',
-  ) => {
-    fetch(`${API_BASE_URL}/pomodoro/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId, duration, type }),
-    }).catch(() => {});
-  },
-  complete: (completedPomodoros: number) => {
-    fetch(`${API_BASE_URL}/pomodoro/active`)
-      .then((res) => res.json())
-      .then((data: { session?: { id: number } }) => {
-        if (data.session?.id) {
-          return fetch(
-            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`,
-            {
-              method: 'POST',
-            },
-          );
-        }
-      })
-      .catch(() => {});
-    void completedPomodoros;
-  },
-  cancel: () => {
-    fetch(`${API_BASE_URL}/pomodoro/active`)
-      .then((res) => res.json())
-      .then((data: { session?: { id: number } }) => {
-        if (data.session?.id) {
-          return fetch(
-            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`,
-            {
-              method: 'POST',
-            },
-          );
-        }
-      })
-      .catch(() => {});
-  },
-};
+// --- Cross-tab sync setup ---
 
 if (typeof window !== 'undefined') {
   const channel = getBroadcastChannel();
@@ -548,13 +274,7 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('beforeunload', () => {
     stopTimerInterval();
-    if (broadcastChannel) {
-      broadcastChannel.close();
-      broadcastChannel = null;
-    }
-    if (audioContext) {
-      audioContext.close();
-      audioContext = null;
-    }
+    closeBroadcastChannel();
+    closeAudioContext();
   });
 }

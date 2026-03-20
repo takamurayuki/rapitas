@@ -2,25 +2,24 @@
  * Claude Code Provider
  *
  * Claude Code agent provider compatible with the abstraction layer.
+ * Prompt building lives in cli-utils.ts; process spawning and stream parsing in claude-code-stream.ts.
+ * The IAgentProvider class lives in claude-code-provider-class.ts.
  */
 
-import { spawn, execSync } from 'child_process';
-import { existsSync } from 'fs';
+import { spawn } from 'child_process';
 import { getProjectRoot } from '../../../config';
 import type {
   AgentCapabilities,
-  AgentProviderConfig,
   ClaudeCodeProviderConfig,
-  AgentHealthStatus,
   AgentExecutionContext,
   AgentTaskDefinition,
   AgentExecutionResult,
   ContinuationContext,
 } from '../abstraction/types';
-import type { IAgentProvider, IAgent } from '../abstraction/interfaces';
 import { AbstractAgent } from '../abstraction/abstract-agent';
-import { createAgentEventEmitter } from '../abstraction/event-emitter';
 import { generateAgentId } from '../abstraction';
+import { resolveCliPath, buildPrompt } from './cli-utils';
+import { runClaudeCode, type StreamState } from './claude-code-stream';
 
 /**
  * Claude Code provider configuration
@@ -35,15 +34,41 @@ export interface ClaudeCodeConfig extends ClaudeCodeProviderConfig {
 }
 
 /**
+ * Shared capabilities object returned by both the agent and the provider.
+ *
+ * NOTE: Exported so ClaudeCodeProvider (in the class file) can re-use without duplication.
+ */
+export const CLAUDE_CODE_CAPABILITIES: AgentCapabilities = {
+  codeGeneration: true,
+  codeReview: true,
+  codeExecution: true,
+  fileRead: true,
+  fileWrite: true,
+  fileEdit: true,
+  terminalAccess: true,
+  gitOperations: true,
+  webSearch: true,
+  webFetch: true,
+  taskAnalysis: true,
+  taskPlanning: true,
+  parallelExecution: false,
+  questionAsking: true,
+  conversationMemory: true,
+  sessionContinuation: true,
+};
+
+/**
  * Claude Code Agent (v2 - abstraction layer compatible)
  */
 export class ClaudeCodeAgentV2 extends AbstractAgent {
   private config: ClaudeCodeConfig;
   private process: import('child_process').ChildProcess | null = null;
-  private outputBuffer = '';
-  private errorBuffer = '';
-  private lineBuffer = '';
-  private claudeSessionId: string | null = null;
+  private streamState: StreamState = {
+    outputBuffer: '',
+    errorBuffer: '',
+    lineBuffer: '',
+    claudeSessionId: null,
+  };
 
   constructor(config: ClaudeCodeConfig) {
     super(
@@ -60,26 +85,14 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
   }
 
   get capabilities(): AgentCapabilities {
-    return {
-      codeGeneration: true,
-      codeReview: true,
-      codeExecution: true,
-      fileRead: true,
-      fileWrite: true,
-      fileEdit: true,
-      terminalAccess: true,
-      gitOperations: true,
-      webSearch: true,
-      webFetch: true,
-      taskAnalysis: true,
-      taskPlanning: true,
-      parallelExecution: false,
-      questionAsking: true,
-      conversationMemory: true,
-      sessionContinuation: true,
-    };
+    return CLAUDE_CODE_CAPABILITIES;
   }
 
+  /**
+   * Checks if the Claude Code CLI is installed and reachable.
+   *
+   * @returns true if CLI exits with code 0 / CLIがコード0で終了する場合true
+   */
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const isWindows = process.platform === 'win32';
@@ -108,6 +121,11 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     });
   }
 
+  /**
+   * Validates agent configuration, checking CLI availability and working directory.
+   *
+   * @returns Validation result with error list / エラーリスト付きの検証結果
+   */
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
@@ -135,24 +153,34 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     task: AgentTaskDefinition,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    this.outputBuffer = '';
-    this.errorBuffer = '';
-    this.lineBuffer = '';
-    this.claudeSessionId = null;
+    this.streamState = { outputBuffer: '', errorBuffer: '', lineBuffer: '', claudeSessionId: null };
 
-    const prompt = this.buildPrompt(task);
+    const prompt = buildPrompt(task);
     const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
 
-    return this.runClaudeCode(prompt, workDir, context);
+    const result = await runClaudeCode(
+      prompt,
+      workDir,
+      context,
+      this.config,
+      this.streamState,
+      (output, isError) => this.emitOutput(output, isError, true),
+    );
+
+    // NOTE: Propagate claudeSessionId captured during streaming back to the agent result
+    if (this.streamState.claudeSessionId) {
+      (result as AgentExecutionResult & { sessionId?: string }).sessionId =
+        this.streamState.claudeSessionId;
+    }
+
+    return result;
   }
 
   protected async doContinue(
     continuation: ContinuationContext,
     context: AgentExecutionContext,
   ): Promise<AgentExecutionResult> {
-    this.outputBuffer = '';
-    this.errorBuffer = '';
-    this.lineBuffer = '';
+    this.streamState = { outputBuffer: '', errorBuffer: '', lineBuffer: '', claudeSessionId: null };
 
     const prompt = continuation.userResponse || '';
     const workDir = context.workingDirectory || this.config.workingDirectory || getProjectRoot();
@@ -163,7 +191,14 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
     this.config.resumeSessionId = continuation.sessionId;
 
     try {
-      return await this.runClaudeCode(prompt, workDir, context);
+      return await runClaudeCode(
+        prompt,
+        workDir,
+        context,
+        this.config,
+        this.streamState,
+        (output, isError) => this.emitOutput(output, isError, true),
+      );
     } finally {
       this.config.continueConversation = originalContinue;
     }
@@ -183,7 +218,7 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
         } catch {
           try {
             this.process.kill();
-          } catch (killErr) {
+          } catch {
             // Final fallback kill failed - process may already be terminated
           }
         }
@@ -194,515 +229,12 @@ export class ClaudeCodeAgentV2 extends AbstractAgent {
       this.process = null;
     }
   }
-
-  private buildPrompt(task: AgentTaskDefinition): string {
-    if (task.optimizedPrompt) {
-      return task.optimizedPrompt;
-    }
-
-    if (task.analysis) {
-      return this.buildStructuredPrompt(task);
-    }
-
-    return task.prompt || task.description || task.title;
-  }
-
-  private buildStructuredPrompt(task: AgentTaskDefinition): string {
-    const analysis = task.analysis!;
-    const sections: string[] = [];
-
-    sections.push('# タスク実装指示');
-    sections.push('');
-    sections.push('## 概要');
-    sections.push(`**タスク名:** ${task.title}`);
-    sections.push(`**分析サマリー:** ${analysis.summary}`);
-    sections.push(`**複雑度:** ${analysis.complexity}`);
-    if (analysis.estimatedDuration) {
-      sections.push(`**推定時間:** ${analysis.estimatedDuration}分`);
-    }
-    sections.push('');
-
-    if (task.description) {
-      sections.push('## タスク詳細');
-      sections.push(task.description);
-      sections.push('');
-    }
-
-    if (analysis.subtasks && analysis.subtasks.length > 0) {
-      sections.push('## 実装手順');
-      for (const subtask of analysis.subtasks) {
-        sections.push(`### ${subtask.order}. ${subtask.title}`);
-        sections.push(`- **説明:** ${subtask.description}`);
-        if (subtask.estimatedDuration) {
-          sections.push(`- **推定時間:** ${subtask.estimatedDuration}分`);
-        }
-        sections.push(`- **優先度:** ${subtask.priority}`);
-        sections.push('');
-      }
-    }
-
-    if (analysis.tips && analysis.tips.length > 0) {
-      sections.push('## 実装のヒント');
-      for (const tip of analysis.tips) {
-        sections.push(`- ${tip}`);
-      }
-      sections.push('');
-    }
-
-    return sections.join('\n');
-  }
-
-  private async runClaudeCode(
-    prompt: string,
-    workDir: string,
-    context: AgentExecutionContext,
-  ): Promise<AgentExecutionResult> {
-    const startTime = Date.now();
-
-    return new Promise((resolve) => {
-      const timeout = context.timeout || this.config.timeout || 900000;
-      const isWindows = process.platform === 'win32';
-      const baseClaudePath =
-        this.config.cliPath ||
-        process.env.CLAUDE_CODE_PATH ||
-        (isWindows ? 'claude.cmd' : 'claude');
-      const claudePath = resolveCliPath(baseClaudePath);
-
-      const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
-
-      if (this.config.resumeSessionId) {
-        // --resume resumes a specific session by ID
-        args.push('--resume', this.config.resumeSessionId);
-      } else if (this.config.continueConversation) {
-        // --continue resumes the most recent conversation when no session ID is available
-        args.push('--continue');
-      }
-
-      if (this.config.dangerouslySkipPermissions || context.dangerouslySkipPermissions) {
-        args.push('--dangerously-skip-permissions');
-      }
-
-      if (this.config.model) {
-        args.push('--model', this.config.model);
-      }
-
-      if (this.config.maxTokens) {
-        args.push('--max-tokens', String(this.config.maxTokens));
-      }
-
-      // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
-      // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-      args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
-
-      let finalCommand: string;
-      let finalArgs: string[];
-
-      if (isWindows) {
-        const argsString = args.join(' ');
-        const quotedPath = claudePath.includes(' ') ? `"${claudePath}"` : claudePath;
-        finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
-        finalArgs = [];
-      } else {
-        finalCommand = claudePath;
-        finalArgs = args;
-      }
-
-      this.log('info', `Starting Claude Code execution`, { workDir, promptLength: prompt.length });
-
-      try {
-        this.process = spawn(finalCommand, finalArgs, {
-          cwd: workDir,
-          shell: true,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          env: {
-            ...process.env,
-            FORCE_COLOR: '0',
-            NO_COLOR: '1',
-            CI: '1',
-            TERM: 'dumb',
-          },
-        });
-
-        if (this.process.stdout) {
-          this.process.stdout.setEncoding('utf8');
-        }
-        if (this.process.stderr) {
-          this.process.stderr.setEncoding('utf8');
-        }
-
-        this.writePromptToStdin(prompt);
-
-        let lastOutputTime = Date.now();
-        let hasDetectedQuestion = false;
-        let detectedQuestionText = '';
-
-        const timeoutCheck = setInterval(() => {
-          if (Date.now() - lastOutputTime >= timeout) {
-            clearInterval(timeoutCheck);
-            if (this.process && !this.process.killed) {
-              this.process.kill('SIGTERM');
-            }
-            resolve({
-              success: false,
-              state: 'timeout',
-              output: this.outputBuffer,
-              errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
-              metrics: {
-                startTime: new Date(startTime),
-                endTime: new Date(),
-                durationMs: Date.now() - startTime,
-              },
-            });
-          }
-        }, 10000);
-
-        this.process.stdout?.on('data', async (data: Buffer) => {
-          const chunk = data.toString();
-          this.lineBuffer += chunk;
-          lastOutputTime = Date.now();
-
-          const lines = this.lineBuffer.split('\n');
-          this.lineBuffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-              const json = JSON.parse(line);
-              const result = this.processStreamEvent(json);
-
-              if (result.output) {
-                this.outputBuffer += result.output;
-                await this.emitOutput(result.output, false, true);
-              }
-
-              if (result.sessionId) {
-                this.claudeSessionId = result.sessionId;
-              }
-
-              if (result.isQuestion) {
-                hasDetectedQuestion = true;
-                detectedQuestionText = result.questionText || '';
-
-                // Stop process on question detection to hand control back to user
-                if (this.process && !this.process.killed) {
-                  this.process.kill('SIGTERM');
-                }
-              }
-            } catch {
-              // Filter out non-JSON lines (e.g. Windows chcp output)
-              const trimmedLine = line.trim();
-              if (
-                !trimmedLine ||
-                /^Active code page:/i.test(trimmedLine) ||
-                /^現在のコード ページ:/i.test(trimmedLine) ||
-                /^chcp\s/i.test(trimmedLine)
-              ) {
-                continue;
-              }
-              this.outputBuffer += line + '\n';
-              await this.emitOutput(line + '\n', false, true);
-            }
-          }
-        });
-
-        this.process.stderr?.on('data', async (data: Buffer) => {
-          const output = data.toString();
-          this.errorBuffer += output;
-          lastOutputTime = Date.now();
-          await this.emitOutput(output, true, true);
-        });
-
-        this.process.on('close', (code: number | null) => {
-          clearInterval(timeoutCheck);
-          const executionTimeMs = Date.now() - startTime;
-
-          if (this.lineBuffer.trim()) {
-            this.outputBuffer += this.lineBuffer + '\n';
-          }
-
-          if (hasDetectedQuestion) {
-            resolve({
-              success: true,
-              state: 'waiting_for_input',
-              output: this.outputBuffer,
-              pendingQuestion: {
-                questionId: `q-${Date.now()}`,
-                text: detectedQuestionText,
-                category: 'clarification',
-              },
-              sessionId: this.claudeSessionId || undefined,
-              metrics: {
-                startTime: new Date(startTime),
-                endTime: new Date(),
-                durationMs: executionTimeMs,
-              },
-            });
-            return;
-          }
-
-          resolve({
-            success: code === 0,
-            state: code === 0 ? 'completed' : 'failed',
-            output: this.outputBuffer,
-            errorMessage: code !== 0 ? `Process exited with code ${code}` : undefined,
-            sessionId: this.claudeSessionId || undefined,
-            metrics: {
-              startTime: new Date(startTime),
-              endTime: new Date(),
-              durationMs: executionTimeMs,
-            },
-          });
-        });
-
-        this.process.on('error', (error: Error) => {
-          clearInterval(timeoutCheck);
-          resolve({
-            success: false,
-            state: 'failed',
-            output: this.outputBuffer,
-            errorMessage: error.message,
-            metrics: {
-              startTime: new Date(startTime),
-              endTime: new Date(),
-              durationMs: Date.now() - startTime,
-            },
-          });
-        });
-      } catch (error) {
-        resolve({
-          success: false,
-          state: 'failed',
-          output: '',
-          errorMessage: error instanceof Error ? error.message : String(error),
-          metrics: {
-            startTime: new Date(startTime),
-            endTime: new Date(),
-            durationMs: Date.now() - startTime,
-          },
-        });
-      }
-    });
-  }
-
-  private async writePromptToStdin(prompt: string): Promise<void> {
-    if (!this.process?.stdin) return;
-
-    const stdin = this.process.stdin;
-    const CHUNK_SIZE = 16384;
-    const promptBuffer = Buffer.from(prompt, 'utf8');
-
-    stdin.on('error', (err) => {
-      this.log('error', 'stdin error', { error: err });
-    });
-
-    for (let i = 0; i < promptBuffer.length; i += CHUNK_SIZE) {
-      const chunk = promptBuffer.subarray(i, Math.min(i + CHUNK_SIZE, promptBuffer.length));
-      const canContinue = stdin.write(chunk);
-
-      if (!canContinue) {
-        await new Promise<void>((resolve) => {
-          stdin.once('drain', resolve);
-        });
-      }
-    }
-
-    stdin.end();
-  }
-
-  private processStreamEvent(json: Record<string, unknown>): {
-    output: string;
-    sessionId?: string;
-    isQuestion?: boolean;
-    questionText?: string;
-  } {
-    let output = '';
-    let sessionId: string | undefined;
-    let isQuestion = false;
-    let questionText = '';
-
-    switch (json.type) {
-      case 'assistant':
-        if (json.message && typeof json.message === 'object') {
-          const message = json.message as { content?: unknown[] };
-          if (Array.isArray(message.content)) {
-            for (const block of message.content) {
-              if (typeof block === 'object' && block !== null) {
-                const b = block as { type?: string; text?: string; name?: string; input?: unknown };
-                if (b.type === 'text' && b.text) {
-                  output += b.text;
-                } else if (b.type === 'tool_use' && b.name === 'AskUserQuestion') {
-                  isQuestion = true;
-                  const input = b.input as { questions?: Array<{ question?: string }> } | undefined;
-                  if (input?.questions?.[0]?.question) {
-                    questionText = input.questions[0].question;
-                  }
-                  output += `\n[質問] ${questionText}\n`;
-                } else if (b.type === 'tool_use') {
-                  output += `\n[Tool: ${b.name}]\n`;
-                }
-              }
-            }
-          }
-        }
-        break;
-
-      case 'system':
-        if (json.subtype === 'init' && json.session_id) {
-          sessionId = json.session_id as string;
-        }
-        break;
-
-      case 'result':
-        if (json.result && typeof json.result === 'string') {
-          output += `\n[Result: completed]\n${json.result}\n`;
-        }
-        break;
-    }
-
-    return { output, sessionId, isQuestion, questionText };
-  }
 }
 
-/**
- * Resolves the absolute path of a CLI command on Windows.
- * Falls back to the original path if PATH resolution fails.
- */
-function resolveCliPath(cliName: string): string {
-  if (process.platform !== 'win32') return cliName;
-  try {
-    const resolved = execSync(`where ${cliName}`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      windowsHide: true,
-    })
-      .trim()
-      .split(/\r?\n/)[0];
-    if (resolved && existsSync(resolved)) {
-      return resolved;
-    }
-  } catch {
-    // Fallback to original path
-  }
-  return cliName;
-}
+// Re-export provider class for backward compatibility
+export { ClaudeCodeProvider } from './claude-code-provider-class';
 
-/**
- * Claude Code Provider
- */
-export class ClaudeCodeProvider implements IAgentProvider {
-  readonly providerId = 'claude-code' as const;
-  readonly providerName = 'Claude Code';
-  readonly version = '2.0.0';
-
-  private defaultConfig: ClaudeCodeConfig;
-
-  constructor(config?: Partial<ClaudeCodeConfig>) {
-    this.defaultConfig = {
-      providerId: 'claude-code',
-      enabled: true,
-      ...config,
-    };
-  }
-
-  getCapabilities(): AgentCapabilities {
-    return {
-      codeGeneration: true,
-      codeReview: true,
-      codeExecution: true,
-      fileRead: true,
-      fileWrite: true,
-      fileEdit: true,
-      terminalAccess: true,
-      gitOperations: true,
-      webSearch: true,
-      webFetch: true,
-      taskAnalysis: true,
-      taskPlanning: true,
-      parallelExecution: false,
-      questionAsking: true,
-      conversationMemory: true,
-      sessionContinuation: true,
-    };
-  }
-
-  async isAvailable(): Promise<boolean> {
-    return new Promise((resolve) => {
-      const isWindows = process.platform === 'win32';
-      const baseClaudePath =
-        this.defaultConfig.cliPath ||
-        process.env.CLAUDE_CODE_PATH ||
-        (isWindows ? 'claude.cmd' : 'claude');
-      const claudePath = resolveCliPath(baseClaudePath);
-
-      const proc = spawn(claudePath, ['--version'], { shell: true });
-
-      const timeout = setTimeout(() => {
-        proc.kill();
-        resolve(false);
-      }, 10000);
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout);
-        resolve(code === 0);
-      });
-
-      proc.on('error', () => {
-        clearTimeout(timeout);
-        resolve(false);
-      });
-    });
-  }
-
-  async validateConfig(config: AgentProviderConfig): Promise<{ valid: boolean; errors: string[] }> {
-    const errors: string[] = [];
-
-    if (config.providerId !== 'claude-code') {
-      errors.push(`Invalid provider ID: ${config.providerId}`);
-    }
-
-    const available = await this.isAvailable();
-    if (!available) {
-      errors.push('Claude Code CLI is not installed or not available');
-    }
-
-    return { valid: errors.length === 0, errors };
-  }
-
-  async healthCheck(): Promise<AgentHealthStatus> {
-    const startTime = Date.now();
-
-    try {
-      const available = await this.isAvailable();
-      const latency = Date.now() - startTime;
-
-      return {
-        healthy: available,
-        available,
-        latency,
-        lastCheck: new Date(),
-      };
-    } catch (error) {
-      return {
-        healthy: false,
-        available: false,
-        errors: [error instanceof Error ? error.message : String(error)],
-        lastCheck: new Date(),
-      };
-    }
-  }
-
-  createAgent(config: AgentProviderConfig): IAgent {
-    const mergedConfig: ClaudeCodeConfig = {
-      ...this.defaultConfig,
-      ...config,
-    } as ClaudeCodeConfig;
-
-    return new ClaudeCodeAgentV2(mergedConfig);
-  }
-}
-
-/**
- * Default Claude Code provider instance
- */
-export const claudeCodeProvider = new ClaudeCodeProvider();
+// NOTE: claudeCodeProvider is instantiated here so all consumers that import from this
+// module get the same singleton without importing from claude-code-provider-class directly.
+import { ClaudeCodeProvider as _Provider } from './claude-code-provider-class';
+export const claudeCodeProvider = new _Provider();
