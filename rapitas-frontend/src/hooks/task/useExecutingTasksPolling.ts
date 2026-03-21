@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useExecutingTasksPolling');

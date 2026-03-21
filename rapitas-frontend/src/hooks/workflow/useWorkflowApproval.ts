@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { API_BASE_URL } from '@/utils/api';
 
 export function useWorkflowApproval(

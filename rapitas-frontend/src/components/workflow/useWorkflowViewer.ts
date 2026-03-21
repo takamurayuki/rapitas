@@ -14,7 +14,7 @@ import type {
   WorkflowRoleConfig,
 } from '@/types';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 

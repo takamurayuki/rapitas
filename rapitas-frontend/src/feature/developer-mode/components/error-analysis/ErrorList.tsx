@@ -27,7 +27,7 @@ import {
   ErrorAnalysis,
   ErrorCategory,
   ErrorSeverity,
-} from '../../services/errorAnalysisService';
+} from '../../services/error-analysis-service';
 
 const severityConfig = {
   [ErrorSeverity.CRITICAL]: {

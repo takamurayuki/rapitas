@@ -10,7 +10,7 @@ import { useRef, useState } from 'react';
 import { FileText, Plus, PanelLeftOpen } from 'lucide-react';
 import NoteEditor from './NoteEditor';
 import NoteSidebar from './NoteSidebar';
-import type { Note } from '@/stores/noteStore';
+import type { Note } from '@/stores/note-store';
 
 interface NoteTabContentProps {
   /** The note currently open for editing, or undefined if none selected / 現在編集中のノート */

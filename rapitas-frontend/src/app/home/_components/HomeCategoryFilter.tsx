@@ -7,7 +7,7 @@
 'use client';
 import type { Category, Theme, UserSettings } from '@/types';
 import { Star, FolderKanban } from 'lucide-react';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 
 interface HomeCategoryFilterProps {
   categories: Category[];

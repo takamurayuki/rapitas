@@ -1,5 +1,5 @@
 /**
- * ai-analysis-panel/use-api-key.ts
+ * ai-analysis-panel/useApiKey.ts
  *
  * Hook encapsulating Claude API key fetch, save, and delete logic.
  * Not responsible for rendering — returns state and handlers only.

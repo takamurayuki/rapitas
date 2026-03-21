@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import type { Habit } from '@/types';
 import Link from 'next/link';
 import { Plus, Edit2, Trash2, Check, Target, Flame, Clock } from 'lucide-react';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { createLogger } from '@/lib/logger';

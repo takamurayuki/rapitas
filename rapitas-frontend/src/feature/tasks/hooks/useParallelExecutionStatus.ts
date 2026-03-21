@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import type { ParallelExecutionStatus } from '../components/SubtaskExecutionStatus';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import type {
   ParallelSessionState,

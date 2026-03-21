@@ -12,7 +12,7 @@
     "dev:frontend": "cd rapitas-frontend && cross-env pnpm run dev",
     "dev:tauri": "cd rapitas-desktop && node scripts/dev.js",
     "dev:tauri:watch": "cd rapitas-desktop && node scripts/dev.js --watch",
-    "tauri": "cd rapitas-desktop && pnpm run tauri dev --watch",
+    "tauri": "cd rapitas-desktop && pnpm run tauri dev",
     "tauri:build": "cd rapitas-desktop && pnpm run tauri build",
     "check": "node scripts/preflight-check.cjs",
     "check:commit": "node scripts/pre-commit-check.cjs",

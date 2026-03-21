@@ -12,7 +12,7 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ExecutionResult } from '../../hooks/useDeveloperMode';
 import { API_BASE_URL } from '@/utils/api';
-import type { PrState } from './agentExecutionTypes';
+import type { PrState } from './agent-execution-types';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useAgentExecutionHandlers');

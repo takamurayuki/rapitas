@@ -17,10 +17,10 @@ import { useAIChat } from '../note/useAIChat';
 import {
   fetchConfiguredProviders,
   fetchAvailableModels,
-} from '../note/aiService';
+} from '../note/ai-service';
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
-import { useUIModeStore } from '@/stores/uiModeStore';
+import { useUIModeStore } from '@/stores/ui-mode-store';
 
 const PROVIDER_LABELS: Record<ApiProvider, string> = {
   claude: 'Claude',

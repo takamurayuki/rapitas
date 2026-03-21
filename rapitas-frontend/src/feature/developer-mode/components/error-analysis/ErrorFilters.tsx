@@ -11,7 +11,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import Button from '@/components/ui/button/Button';
 import { Search, RefreshCw, Download } from 'lucide-react';
-import { ErrorCategory, ErrorSeverity } from '../../services/errorAnalysisService';
+import { ErrorCategory, ErrorSeverity } from '../../services/error-analysis-service';
 
 type ErrorFiltersProps = {
   searchQuery: string;

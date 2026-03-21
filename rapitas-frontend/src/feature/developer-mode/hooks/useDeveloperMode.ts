@@ -11,7 +11,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import { useDeveloperModeConfig } from './useDeveloperModeConfig';
 import { useAgentExecutionActions } from './useAgentExecutionActions';

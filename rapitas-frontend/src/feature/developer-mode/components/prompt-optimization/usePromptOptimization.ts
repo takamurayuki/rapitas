@@ -9,7 +9,7 @@
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import type { OptimizedPromptResult } from './promptOptimizationTypes';
+import type { OptimizedPromptResult } from './prompt-optimization-types';
 
 /**
  * Manages all state and async operations for prompt optimization.

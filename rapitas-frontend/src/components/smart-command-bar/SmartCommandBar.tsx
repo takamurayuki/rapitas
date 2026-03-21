@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
-import { useShortcutStore } from '@/stores/shortcutStore';
+import { useShortcutStore } from '@/stores/shortcut-store';
 
 type Intent = 'create_task' | 'start_learning' | 'navigate' | 'search';
 

@@ -13,7 +13,7 @@ vi.mock('@/utils/api', () => ({
   fetchWithRetry: vi.fn(),
 }));
 
-import { useTaskCacheStore } from '../taskCacheStore';
+import { useTaskCacheStore } from '../task-cache-store';
 import { fetchWithRetry } from '@/utils/api';
 
 describe('taskCacheStore', () => {

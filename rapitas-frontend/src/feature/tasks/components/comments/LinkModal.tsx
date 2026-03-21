@@ -11,9 +11,9 @@ import { useState, useEffect, memo } from 'react';
 import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';
 import type { CommentSearchResult } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import type { NoteData } from './commentTypes';
-import { LABEL_COLORS } from './commentTypes';
-import { timeAgo } from './commentTypes';
+import type { NoteData } from './comment-types';
+import { LABEL_COLORS } from './comment-types';
+import { timeAgo } from './comment-types';
 
 type LinkModalProps = {
   source: NoteData;

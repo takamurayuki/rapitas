@@ -1,5 +1,5 @@
 /**
- * ai-analysis-panel/use-prompts-management.ts
+ * ai-analysis-panel/usePromptsManagement.ts
  *
  * Hook encapsulating saved-prompt list fetching, batch generation, editing, and deletion.
  * Not responsible for single-task prompt generation — see use-prompt-optimization.ts.

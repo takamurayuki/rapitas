@@ -3,7 +3,7 @@ import type { ErrorInfo } from 'react';
 import {
   errorAnalysisService,
   type ErrorAnalysis,
-} from '../services/errorAnalysisService';
+} from '../services/error-analysis-service';
 import { type Task, type AgentSession } from '@/types';
 
 interface UseErrorCaptureOptions {

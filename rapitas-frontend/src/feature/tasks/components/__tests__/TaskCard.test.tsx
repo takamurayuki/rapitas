@@ -8,7 +8,7 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
-vi.mock('@/stores/executionStateStore', () => ({
+vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
     selector: (state: {
       getExecutingTaskStatus: (id: number) => null;
@@ -185,7 +185,7 @@ vi.mock('lucide-react', () => {
   };
 });
 
-vi.mock('@/components/category/IconData', () => ({
+vi.mock('@/components/category/icon-data', () => ({
   getIconComponent: () => () => <div data-testid="category-icon" />,
 }));
 

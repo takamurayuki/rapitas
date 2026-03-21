@@ -7,7 +7,7 @@ import {
 } from '@/feature/tasks/config/StatusConfig';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { Tag } from 'lucide-react';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 
 interface TaskDetailProps {
   task: Task;

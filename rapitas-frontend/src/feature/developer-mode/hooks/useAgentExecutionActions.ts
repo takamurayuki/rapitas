@@ -11,10 +11,10 @@
 
 import { useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
-import { safeJsonParse } from './safeJsonParse';
+import { safeJsonParse } from './safe-json-parse';
 
 const logger = createLogger('useAgentExecutionActions');
 
@@ -62,8 +62,14 @@ export function useAgentExecutionActions(
   agentConfigId: number | null,
   setters: AgentExecutionSetters,
 ): UseAgentExecutionActionsReturn {
-  const { setExecutingTask, removeExecutingTask, setTaskLoading, setTaskLoaded } = useExecutionStateStore();
-  const { setIsExecuting, setExecutionStatus, setExecutionResult, setError } = setters;
+  const {
+    setExecutingTask,
+    removeExecutingTask,
+    setTaskLoading,
+    setTaskLoaded,
+  } = useExecutionStateStore();
+  const { setIsExecuting, setExecutionStatus, setExecutionResult, setError } =
+    setters;
 
   // Ref-based mutex: prevents double execution immediately, bypassing async React state updates
   const isExecutingRef = useRef(false);
@@ -75,7 +81,9 @@ export function useAgentExecutionActions(
    * @param res - Fetch Response object / <fetchのResponseオブジェクト>
    * @returns Parsed data record / <パースしたデータオブジェクト>
    */
-  const parseResponse = async (res: Response): Promise<Record<string, unknown>> => {
+  const parseResponse = async (
+    res: Response,
+  ): Promise<Record<string, unknown>> => {
     let responseText: string | null = null;
     try {
       responseText = await res.text();
@@ -88,11 +96,16 @@ export function useAgentExecutionActions(
       logger.warn('JSON parse failed:', parseResult.error);
 
       if (!responseText || responseText.trim() === '') {
-        throw new Error('サーバーからの応答がありません。しばらくしてから再度お試しください。');
+        throw new Error(
+          'サーバーからの応答がありません。しばらくしてから再度お試しください。',
+        );
       }
 
       if (parseResult.error?.includes('Database query error')) {
-        return { error: 'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。' };
+        return {
+          error:
+            'データベースクエリエラーが発生しました。しばらくしてから再度お試しください。',
+        };
       }
 
       if (
@@ -105,7 +118,9 @@ export function useAgentExecutionActions(
       return { error: 'サーバーの応答形式が正しくありません。' };
     } catch (textErr) {
       logger.warn('Failed to read response:', textErr);
-      return { error: 'サーバーとの通信中にエラーが発生しました。再度お試しください。' };
+      return {
+        error: 'サーバーとの通信中にエラーが発生しました。再度お試しください。',
+      };
     }
   };
 
@@ -149,19 +164,25 @@ export function useAgentExecutionActions(
       try {
         if (options?.sessionId && options?.instruction) {
           // Continuation execution path
-          const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/continue-execution`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instruction: options.instruction,
-              sessionId: options.sessionId,
-              agentConfigId: options.agentConfigId ?? agentConfigId ?? undefined,
-            }),
-          });
+          const res = await fetch(
+            `${API_BASE_URL}/tasks/${taskId}/continue-execution`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instruction: options.instruction,
+                sessionId: options.sessionId,
+                agentConfigId:
+                  options.agentConfigId ?? agentConfigId ?? undefined,
+              }),
+            },
+          );
 
           if (res.status === 404) {
             logger.error('Endpoint not found:', res.url);
-            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+            throw new Error(
+              '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
+            );
           }
 
           const data = await parseResponse(res);
@@ -173,7 +194,11 @@ export function useAgentExecutionActions(
               message: (data.message as string) || '継続実行を開始しました',
             });
             setExecutionStatus('running');
-            setExecutingTask({ taskId, sessionId: data.sessionId as number, status: 'running' });
+            setExecutingTask({
+              taskId,
+              sessionId: data.sessionId as number,
+              status: 'running',
+            });
             return data;
           } else {
             throw new Error((data.error as string) || '継続実行に失敗しました');
@@ -192,14 +217,21 @@ export function useAgentExecutionActions(
 
           if (res.status === 404) {
             logger.error('Endpoint not found:', res.url);
-            throw new Error('実行エンドポイントが見つかりません。サーバーの設定を確認してください。');
+            throw new Error(
+              '実行エンドポイントが見つかりません。サーバーの設定を確認してください。',
+            );
           }
 
           // Prevent double execution (409 Conflict)
           if (res.status === 409) {
-            const conflictData = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+            const conflictData = (await res.json().catch(() => ({}))) as Record<
+              string,
+              unknown
+            >;
             logger.warn('Duplicate execution rejected:', conflictData);
-            throw new Error((conflictData.error as string) || 'このタスクは既に実行中です。');
+            throw new Error(
+              (conflictData.error as string) || 'このタスクは既に実行中です。',
+            );
           }
 
           const data = await parseResponse(res);
@@ -208,17 +240,25 @@ export function useAgentExecutionActions(
             setExecutionResult({
               success: true,
               sessionId: data.sessionId as number,
-              message: (data.message as string) || 'エージェント実行を開始しました',
+              message:
+                (data.message as string) || 'エージェント実行を開始しました',
             });
             setExecutionStatus('running');
-            setExecutingTask({ taskId, sessionId: data.sessionId as number, status: 'running' });
+            setExecutingTask({
+              taskId,
+              sessionId: data.sessionId as number,
+              status: 'running',
+            });
             return data;
           } else {
-            throw new Error((data.error as string) || 'エージェントの実行に失敗しました');
+            throw new Error(
+              (data.error as string) || 'エージェントの実行に失敗しました',
+            );
           }
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
+        const errorMessage =
+          err instanceof Error ? err.message : 'エラーが発生しました';
         setError(errorMessage);
         setExecutionStatus('failed');
         setExecutionResult({ success: false, error: errorMessage });
@@ -229,7 +269,16 @@ export function useAgentExecutionActions(
         setIsExecuting(false);
       }
     },
-    [taskId, agentConfigId, setIsExecuting, setExecutionStatus, setExecutionResult, setError, setExecutingTask, removeExecutingTask],
+    [
+      taskId,
+      agentConfigId,
+      setIsExecuting,
+      setExecutionStatus,
+      setExecutionResult,
+      setError,
+      setExecutingTask,
+      removeExecutingTask,
+    ],
   );
 
   /**
@@ -239,9 +288,12 @@ export function useAgentExecutionActions(
    */
   const stopExecution = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
+        {
+          method: 'POST',
+        },
+      );
       if (res.ok) {
         setIsExecuting(false);
         setExecutionStatus('idle');
@@ -271,9 +323,12 @@ export function useAgentExecutionActions(
     setTaskLoading(taskId);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/reset-execution-state`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/tasks/${taskId}/reset-execution-state`,
+        {
+          method: 'POST',
+        },
+      );
       if (res.ok) {
         logger.debug('Execution state reset successfully');
       } else {
@@ -291,7 +346,16 @@ export function useAgentExecutionActions(
       setExecutionResult(null);
       setTaskLoaded(taskId);
     }, 300);
-  }, [taskId, setIsExecuting, setExecutionStatus, setExecutionResult, setError, removeExecutingTask, setTaskLoading, setTaskLoaded]);
+  }, [
+    taskId,
+    setIsExecuting,
+    setExecutionStatus,
+    setExecutionResult,
+    setError,
+    removeExecutingTask,
+    setTaskLoading,
+    setTaskLoaded,
+  ]);
 
   /** Cancel execution immediately without waiting for the server. */
   const setExecutionCancelled = useCallback((): void => {
@@ -300,5 +364,10 @@ export function useAgentExecutionActions(
     removeExecutingTask(taskId);
   }, [taskId, setIsExecuting, setExecutionStatus, removeExecutingTask]);
 
-  return { executeAgent, stopExecution, resetExecutionState, setExecutionCancelled };
+  return {
+    executeAgent,
+    stopExecution,
+    resetExecutionState,
+    setExecutionCancelled,
+  };
 }

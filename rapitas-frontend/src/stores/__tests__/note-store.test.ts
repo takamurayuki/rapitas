@@ -1,4 +1,4 @@
-import { useNoteStore } from '../noteStore';
+import { useNoteStore } from '../note-store';
 
 describe('noteStore', () => {
   beforeEach(() => {

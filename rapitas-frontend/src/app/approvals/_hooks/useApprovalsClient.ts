@@ -10,7 +10,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApprovals } from '@/feature/developer-mode/hooks/useApprovals';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';

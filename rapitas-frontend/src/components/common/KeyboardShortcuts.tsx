@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Keyboard } from 'lucide-react';
-import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
-import { useNoteStore } from '@/stores/noteStore';
+import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
+import { useNoteStore } from '@/stores/note-store';
 
 const getIsMac = () => {
   if (typeof window === 'undefined') return false;

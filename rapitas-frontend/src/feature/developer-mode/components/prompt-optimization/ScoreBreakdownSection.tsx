@@ -8,7 +8,7 @@
 'use client';
 
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
-import type { ScoreBreakdown } from './promptOptimizationTypes';
+import type { ScoreBreakdown } from './prompt-optimization-types';
 
 type ScoreBarProps = {
   label: string;

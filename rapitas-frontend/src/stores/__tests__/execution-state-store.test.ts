@@ -1,4 +1,4 @@
-import { useExecutionStateStore } from '../executionStateStore';
+import { useExecutionStateStore } from '../execution-state-store';
 
 describe('executionStateStore', () => {
   beforeEach(() => {

@@ -9,7 +9,7 @@
 import { Plus, type LucideIcon } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
-import { ICON_DATA, ICON_NAMES } from './IconData';
+import { ICON_DATA, ICON_NAMES } from './icon-data';
 import { useTranslations } from 'next-intl';
 import { useCategoryManager } from './useCategoryManager';
 import { CategoryItemForm } from './CategoryItemForm';

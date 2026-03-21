@@ -16,7 +16,7 @@ import {
 } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
-import { useCategories } from './hooks/use-categories';
+import { useCategories } from './hooks/useCategories';
 import { CategoryForm } from './components/category-form';
 import { CategoryItem } from './components/category-item';
 

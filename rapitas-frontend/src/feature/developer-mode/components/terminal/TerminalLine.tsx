@@ -16,7 +16,7 @@ import {
   Terminal,
   HelpCircle,
 } from 'lucide-react';
-import { type LogLine, lineColor } from './terminalUtils';
+import { type LogLine, lineColor } from './terminal-utils';
 
 interface TerminalLineProps {
   line: LogLine;

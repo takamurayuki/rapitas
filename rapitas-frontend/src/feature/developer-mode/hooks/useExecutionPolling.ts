@@ -13,11 +13,11 @@ import { createLogger } from '@/lib/logger';
 import {
   type ExecutionStreamState,
   trimLogs,
-} from './executionStreamTypes';
+} from './execution-stream-types';
 import {
   type PollRefs,
   executePoll,
-} from './executionPollHandlers';
+} from './execution-poll-handlers';
 
 const logger = createLogger('ExecutionStream');
 

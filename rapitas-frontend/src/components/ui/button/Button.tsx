@@ -8,7 +8,7 @@ import {
   buttonSizeStyles,
   buttonIconSizeStyles,
   disabledStyles,
-} from './buttonStyles';
+} from './button-styles';
 
 export type { ButtonVariant, ButtonSize };
 

@@ -9,7 +9,7 @@
 
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
-import { getPRStatusIcon, getReviewIcon } from './prUtils';
+import { getPRStatusIcon, getReviewIcon } from './PrUtils';
 
 interface PRSidebarProps {
   pr: GitHubPullRequest;

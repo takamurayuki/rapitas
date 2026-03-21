@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { Theme, UserSettings, Category } from '@/types';
-import { useAppModeStore } from '@/stores/appModeStore';
+import { useAppModeStore } from '@/stores/app-mode-store';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 

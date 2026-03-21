@@ -11,9 +11,9 @@ export { AnalysisTab } from './AnalysisTab';
 export { PromptOptimizationTab } from './PromptOptimizationTab';
 export { PromptsManagementTab } from './PromptsManagementTab';
 export { SettingsTab } from './SettingsTab';
-export { useApiKey } from './use-api-key';
-export { usePromptOptimization } from './use-prompt-optimization';
-export { usePromptsManagement } from './use-prompts-management';
+export { useApiKey } from './useApiKey';
+export { usePromptOptimization } from './usePromptOptimization';
+export { usePromptsManagement } from './usePromptsManagement';
 export type {
   TabType,
   OptimizedPromptResult,

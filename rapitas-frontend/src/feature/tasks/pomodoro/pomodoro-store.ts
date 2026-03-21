@@ -8,32 +8,34 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getAudioContext, closeAudioContext } from './pomodoroAudio';
-import { syncPomodoroToBackend } from './pomodoroSync';
-import { handleTick } from './pomodoroTick';
+import { getAudioContext, closeAudioContext } from './pomodoro-audio';
+import { syncPomodoroToBackend } from './pomodoro-sync';
+import { handleTick } from './pomodoro-tick';
 import {
   broadcastState,
   getBroadcastChannel,
   closeBroadcastChannel,
-} from './pomodoroBroadcast';
+} from './pomodoro-broadcast';
 import {
-  DEFAULT_POMODORO_DURATION,
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
   DEFAULT_SETTINGS,
-} from './pomodoroTypes';
-import type { PomodoroState, PomodoroSettings } from './pomodoroTypes'; // HACK(agent): PomodoroSettings kept for updateSettings action signature
-import { formatTime, getRemainingTime } from './pomodoroUtils';
+} from './pomodoro-types';
+import type { PomodoroState, PomodoroSettings } from './pomodoro-types'; // HACK(agent): PomodoroSettings kept for updateSettings action signature
 
 // --- Re-exports for backward compatibility ---
-export type { PomodoroStatus, PomodoroSettings, PomodoroState } from './pomodoroTypes';
+export type {
+  PomodoroStatus,
+  PomodoroSettings,
+  PomodoroState,
+} from './pomodoro-types';
 export {
   DEFAULT_POMODORO_DURATION,
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
   DEFAULT_SETTINGS,
-} from './pomodoroTypes';
-export { formatTime, getRemainingTime } from './pomodoroUtils';
+} from './pomodoro-types';
+export { formatTime, getRemainingTime } from './pomodoro-utils';
 
 // --- Timer interval singleton ---
 
@@ -57,8 +59,7 @@ const stopTimerInterval = (): void => {
 
 // --- Utility helpers ---
 
-const getTodayDateString = (): string =>
-  new Date().toISOString().split('T')[0];
+const getTodayDateString = (): string => new Date().toISOString().split('T')[0];
 
 // --- Store ---
 
@@ -194,11 +195,14 @@ export const usePomodoroStore = create<PomodoroState>()(
       endBreak: () => {
         const state = get();
         const breakDuration =
-          state.pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
+          state.pomodoroCount % 4 === 0
+            ? DEFAULT_LONG_BREAK
+            : DEFAULT_SHORT_BREAK;
         set({
           isBreakTime: false,
           pomodoroSeconds: 0,
-          accumulatedBreakSeconds: state.accumulatedBreakSeconds + breakDuration,
+          accumulatedBreakSeconds:
+            state.accumulatedBreakSeconds + breakDuration,
           showBreakEndDialog: false,
         });
       },

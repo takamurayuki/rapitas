@@ -10,7 +10,7 @@ import {
   DEFAULT_SHORT_BREAK,
   DEFAULT_LONG_BREAK,
   PomodoroState,
-} from './pomodoroStore';
+} from './pomodoro-store';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 

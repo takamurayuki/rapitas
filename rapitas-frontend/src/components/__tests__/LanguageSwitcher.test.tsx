@@ -3,7 +3,7 @@ import LanguageSwitcher from '../LanguageSwitcher';
 
 const mockSetLocale = vi.fn();
 
-vi.mock('@/stores/localeStore', () => ({
+vi.mock('@/stores/locale-store', () => ({
   useLocaleStore: () => ({
     locale: 'ja',
     setLocale: mockSetLocale,
@@ -40,7 +40,7 @@ describe('LanguageSwitcher', () => {
 
 describe('LanguageSwitcher (English locale)', () => {
   it('displays "JA" and correct aria-label when locale is en', async () => {
-    vi.doMock('@/stores/localeStore', () => ({
+    vi.doMock('@/stores/locale-store', () => ({
       useLocaleStore: () => ({
         locale: 'en',
         setLocale: mockSetLocale,
@@ -62,7 +62,7 @@ describe('LanguageSwitcher (English locale)', () => {
 
   it('toggles to Japanese when clicked in English mode', async () => {
     const mockSetLocaleFn = vi.fn();
-    vi.doMock('@/stores/localeStore', () => ({
+    vi.doMock('@/stores/locale-store', () => ({
       useLocaleStore: () => ({
         locale: 'en',
         setLocale: mockSetLocaleFn,

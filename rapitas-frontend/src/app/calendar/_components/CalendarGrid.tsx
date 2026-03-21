@@ -17,7 +17,7 @@ import {
   getEventsForDateStr,
   getMultiDayBars,
   type CalendarEvent,
-} from '../_utils/calendarHelpers';
+} from '../_utils/calendar-helpers';
 
 const MAX_VISIBLE_EVENTS = 3;
 

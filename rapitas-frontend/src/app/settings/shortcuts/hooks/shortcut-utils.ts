@@ -5,7 +5,7 @@
  * Not responsible for state management or React rendering.
  */
 
-import type { ShortcutBinding } from '@/stores/shortcutStore';
+import type { ShortcutBinding } from '@/stores/shortcut-store';
 
 /** Modifier keys supported for global shortcuts. */
 export type ModifierKey = 'Ctrl' | 'Alt' | 'Shift';

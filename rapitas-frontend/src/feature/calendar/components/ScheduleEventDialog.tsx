@@ -12,7 +12,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Clock, ChevronDown, CalendarDays } from 'lucide-react';
 import type { ScheduleEventInput } from '@/types';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
 import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';

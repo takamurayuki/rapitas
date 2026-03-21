@@ -11,9 +11,9 @@
 import { Edit2, Trash2, Star, SwatchBook, GripVertical } from 'lucide-react';
 import { type DraggableProvided } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { renderIcon, MODE_OPTIONS } from './category-form';
-import type { CategoryWithThemes } from '../hooks/use-categories';
+import type { CategoryWithThemes } from '../hooks/useCategories';
 
 /** Props for CategoryItem. */
 interface CategoryItemProps {

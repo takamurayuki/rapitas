@@ -21,7 +21,7 @@ import { WorkflowLearningPanel } from '@/feature/intelligence/components/Workflo
 import { ProgressSummaryWidget } from '@/components/widgets/ProgressSummaryWidget';
 import { CostOptimizationWidget } from '@/components/widgets/CostOptimizationWidget';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('DashboardPage');

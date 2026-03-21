@@ -12,8 +12,8 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Bot, ChevronDown, ChevronUp, RotateCcw, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
-import { useResumableExecutions } from '../resumable-executions/use-resumable-executions';
+import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useResumableExecutions } from '../resumable-executions/useResumableExecutions';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import { QuickActions } from '../resumable-executions/QuickActions';
 

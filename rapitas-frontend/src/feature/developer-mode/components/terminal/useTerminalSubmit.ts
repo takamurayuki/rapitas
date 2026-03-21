@@ -9,8 +9,8 @@
  */
 
 import { useCallback, useRef } from 'react';
-import type { LogLine } from './terminalUtils';
-import { appendCapped } from './terminalUtils';
+import type { LogLine } from './terminal-utils';
+import { appendCapped } from './terminal-utils';
 
 type PollingAPI = {
   clearQuestion: () => void;

@@ -21,7 +21,7 @@ import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 const API_BASE = API_BASE_URL;
 

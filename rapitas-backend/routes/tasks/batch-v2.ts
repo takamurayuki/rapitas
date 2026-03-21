@@ -1,7 +1,7 @@
 import { Elysia, t, type Context } from 'elysia';
 import { prisma } from '../../config';
 import { cacheService, CacheKeys } from '../../services/core/cache-service';
-import { PrismaOptimizer, QueryOptimizers } from '../../utils/prisma-optimization';
+import { PrismaOptimizer, QueryOptimizers } from '../../utils/database/prisma-optimization';
 import { performanceMonitoring } from '../../middleware/performance';
 
 interface BatchResult {

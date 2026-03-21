@@ -29,7 +29,7 @@ import NotificationBell from '@/components/notifications/NotificationBell';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
-import type { UseHeaderReturn } from './use-header';
+import type { UseHeaderReturn } from './useHeader';
 
 type HeaderToolbarProps = Pick<
   UseHeaderReturn,

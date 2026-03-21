@@ -66,6 +66,7 @@ Automatically handles on each start:
 | Hook files            | camelCase        | `useAgentExecution.ts`   |
 | Utility/service files | kebab-case       | `branch-name-generator.ts` |
 | Type definition files | kebab-case       | `agent-execution-types.ts` |
+| Test files            | (source file name) + `.test` | `TaskCard.test.tsx`, `useAgentExecution.test.ts`, `branch-name-generator.test.ts` |
 
 ### Commit message format
 

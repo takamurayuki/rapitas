@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { useNoteStore } from '@/stores/noteStore';
+import { useNoteStore } from '@/stores/note-store';
 
 // NOTE: Dynamic import to improve initial render performance
 const NoteModal = dynamic(() => import('./NoteModal'), {

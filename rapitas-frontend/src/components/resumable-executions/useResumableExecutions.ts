@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/common/useBackendHealth';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import type { ResumableExecution } from './types';
 
@@ -136,9 +136,11 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
       setConnectionError(null);
       fetchResumableExecutions();
       // NOTE: Also refresh filter data (categories/themes) which may have errored during restart
-      import('@/stores/filterDataStore').then(({ useFilterDataStore }) => {
-        useFilterDataStore.getState().refreshData(true);
-      }).catch(() => {});
+      import('@/stores/filter-data-store')
+        .then(({ useFilterDataStore }) => {
+          useFilterDataStore.getState().refreshData(true);
+        })
+        .catch(() => {});
     },
     onDisconnectAction: () => {
       logger.info('Backend disconnected');

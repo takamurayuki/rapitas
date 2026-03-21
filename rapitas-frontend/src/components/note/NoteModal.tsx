@@ -7,7 +7,7 @@
  */
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useNoteStore, type ModalTab } from '@/stores/noteStore';
+import { useNoteStore, type ModalTab } from '@/stores/note-store';
 import DragOverlay from './drag-overlay';
 import NoteModalHeader from './note-modal-header';
 import NoteTabContent from './note-tab-content';

@@ -11,7 +11,7 @@
 import { Terminal, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
-import { useCLITools } from './use-cli-tools';
+import { useCLITools } from './useCliTools';
 import { ToolSummaryCards } from './ToolSummaryCards';
 import { ToolCard } from './ToolCard';
 import { AuthModal } from './AuthModal';

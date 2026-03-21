@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import PomodoroTimer from '@/feature/tasks/components/PomodoroTimer';
-import { usePomodoroStore, formatTime } from './pomodoroStore';
+import { usePomodoroStore, formatTime } from './pomodoro-store';
 import { TimeEntry } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';

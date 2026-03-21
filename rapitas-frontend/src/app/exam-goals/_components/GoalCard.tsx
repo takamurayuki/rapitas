@@ -10,9 +10,9 @@
 import { Edit2, Trash2, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ExamGoal } from '@/types';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 interface UpcomingGoalCardProps {

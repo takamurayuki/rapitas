@@ -11,11 +11,11 @@ import {
   Calendar,
   FileText,
 } from 'lucide-react';
-import { useNoteStore } from '@/stores/noteStore';
+import { useNoteStore } from '@/stores/note-store';
 import { useDarkMode } from '@/hooks/ui/useDarkMode';
-import { useUIModeStore } from '@/stores/uiModeStore';
+import { useUIModeStore } from '@/stores/ui-mode-store';
 import DeleteNoteModal from './DeleteNoteModal';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 export default function NoteHoverSidebar() {

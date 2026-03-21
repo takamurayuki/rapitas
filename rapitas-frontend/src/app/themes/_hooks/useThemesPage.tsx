@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import { searchIcons, getIconComponent, ICON_DATA } from '@/components/category/IconData';
+import { searchIcons, getIconComponent, ICON_DATA } from '@/components/category/icon-data';
 import { SwatchBook } from 'lucide-react';
 import type { Theme, Category } from '@/types';
 import { API_BASE_URL } from '@/utils/api';

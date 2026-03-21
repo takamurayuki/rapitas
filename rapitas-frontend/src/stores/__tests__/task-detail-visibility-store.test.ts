@@ -1,4 +1,4 @@
-import { useTaskDetailVisibilityStore } from '../taskDetailVisibilityStore';
+import { useTaskDetailVisibilityStore } from '../task-detail-visibility-store';
 
 describe('taskDetailVisibilityStore', () => {
   beforeEach(() => {

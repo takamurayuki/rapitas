@@ -14,7 +14,7 @@ import {
   Minimize2,
   X,
 } from 'lucide-react';
-import type { ModalTab } from '@/stores/noteStore';
+import type { ModalTab } from '@/stores/note-store';
 
 interface NoteModalHeaderProps {
   activeTab: ModalTab;

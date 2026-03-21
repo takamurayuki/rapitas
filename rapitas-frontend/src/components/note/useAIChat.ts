@@ -7,7 +7,7 @@ import type {
   AIChatAction,
   ApiProvider,
 } from '@/types';
-import { sendMessageToAI, sendMessageToAIStream } from './aiService';
+import { sendMessageToAI, sendMessageToAIStream } from './ai-service';
 
 const initialState: AIChatState = {
   messages: [],

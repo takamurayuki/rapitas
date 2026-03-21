@@ -68,14 +68,14 @@ export async function handleApprovePlan({
 
     if (parsedBody.approved) {
       try {
-        const { AIOrchestra } = await import('../../services/workflow/ai-orchestra');
+        const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
         AIOrchestra.getInstance()
           .handlePlanApproved(taskId)
           .catch((err) => {
             log.warn({ err }, `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`);
           });
 
-        const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+        const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
         WorkflowOrchestrator.getInstance()
           .advanceWorkflow(taskId, language)
           .then((result) => {
@@ -174,7 +174,7 @@ export async function handleAdvanceWorkflow({
     const parsedBody = body as { language?: 'ja' | 'en' } | undefined;
     const language = parsedBody?.language || 'ja';
 
-    const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+    const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
     const orchestrator = WorkflowOrchestrator.getInstance();
     const resultPromise = orchestrator.advanceWorkflow(taskId, language);
 

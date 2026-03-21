@@ -10,10 +10,10 @@
 
 import { Search, X, Save, FolderKanban, Code, BookOpen, Layers } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { IconGrid } from '@/components/category/IconGrid';
 import type { CategoryMode } from '@/types';
-import type { FormData } from '../hooks/use-categories';
+import type { FormData } from '../hooks/useCategories';
 
 /** Mode option descriptor with display metadata. */
 export const MODE_OPTIONS: {

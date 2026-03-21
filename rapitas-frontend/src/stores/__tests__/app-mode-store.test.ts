@@ -1,4 +1,4 @@
-import { useAppModeStore } from '../appModeStore';
+import { useAppModeStore } from '../app-mode-store';
 
 describe('appModeStore', () => {
   beforeEach(() => {

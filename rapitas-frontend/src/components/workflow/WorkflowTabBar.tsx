@@ -9,7 +9,7 @@
 
 import { Clock } from 'lucide-react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
-import type { WorkflowTab } from './workflowViewerUtils';
+import type { WorkflowTab } from './workflow-viewer-utils';
 
 interface WorkflowTabBarProps {
   /** Tabs to display (filtered by the current workflow mode) */

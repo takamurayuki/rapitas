@@ -9,7 +9,7 @@
 import { useCallback } from 'react';
 import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { apiFetch } from '@/lib/api-client';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';

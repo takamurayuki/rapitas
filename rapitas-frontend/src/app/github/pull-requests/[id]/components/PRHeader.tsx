@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
-import { getPRStatusIcon } from './prUtils';
+import { getPRStatusIcon } from './PrUtils';
 
 interface PRHeaderProps {
   pr: GitHubPullRequest;

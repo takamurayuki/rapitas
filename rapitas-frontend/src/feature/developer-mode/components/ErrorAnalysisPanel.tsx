@@ -17,7 +17,7 @@ import {
   ErrorCategory,
   ErrorSeverity,
   ErrorSummary,
-} from '../services/errorAnalysisService';
+} from '../services/error-analysis-service';
 import { Task, AgentSession } from '@/types';
 import { ErrorSummaryCards } from './error-analysis/ErrorSummaryCards';
 import { ErrorTrendsChart } from './error-analysis/ErrorTrendsChart';

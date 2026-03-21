@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { ErrorSummary } from '../../services/errorAnalysisService';
+import { ErrorSummary } from '../../services/error-analysis-service';
 
 type ErrorTrendsChartProps = {
   /** Trend data from errorAnalysisService.getErrorSummary(). */

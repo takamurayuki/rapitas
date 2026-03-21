@@ -16,7 +16,7 @@ import {
   GitMerge,
   ExternalLink,
 } from 'lucide-react';
-import type { PrState } from './agentExecutionTypes';
+import type { PrState } from './agent-execution-types';
 
 type Props = {
   /** Current PR workflow state. */

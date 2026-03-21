@@ -19,8 +19,8 @@ import {
   Lightbulb,
   CheckCircle2,
 } from 'lucide-react';
-import type { OptimizedPromptResult } from './promptOptimizationTypes';
-import { getQualityColor } from './promptOptimizationTypes';
+import type { OptimizedPromptResult } from './prompt-optimization-types';
+import { getQualityColor } from './prompt-optimization-types';
 import { ScoreBreakdownSection } from './ScoreBreakdownSection';
 
 type Props = {

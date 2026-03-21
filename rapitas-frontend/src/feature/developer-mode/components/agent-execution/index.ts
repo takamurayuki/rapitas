@@ -16,11 +16,11 @@ export { ExecutionIdlePanel } from './ExecutionIdlePanel';
 export { PrMergeSection } from './PrMergeSection';
 
 export { useAgentExecution } from './useAgentExecution';
-export { formatTokenCount, formatCountdown, parseQuestionOptions } from './agentExecutionUtils';
+export { formatTokenCount, formatCountdown, parseQuestionOptions } from './agent-execution-utils';
 
 export type {
   PrState,
   QuestionType,
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
-} from './agentExecutionTypes';
+} from './agent-execution-types';

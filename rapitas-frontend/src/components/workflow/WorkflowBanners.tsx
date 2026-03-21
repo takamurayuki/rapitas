@@ -16,7 +16,7 @@ import {
   Play,
 } from 'lucide-react';
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
-import { getStatusToNextRole } from './workflowViewerUtils';
+import { getStatusToNextRole } from './workflow-viewer-utils';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 import type { WorkflowFileType } from '@/types';
 

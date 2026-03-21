@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAIChat } from './useAIChat';
-import { fetchConfiguredProviders, fetchAvailableModels } from './aiService';
+import { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';
 import ChatMessage from './chat-message';
 import type { ApiProvider } from '@/types';
 

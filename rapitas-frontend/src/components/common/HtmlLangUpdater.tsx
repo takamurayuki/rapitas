@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 
 export default function HtmlLangUpdater() {
   const locale = useLocaleStore((s) => s.locale);

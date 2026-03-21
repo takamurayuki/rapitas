@@ -1,6 +1,6 @@
 'use client';
 /**
- * header/use-header.ts
+ * header/useHeader.ts
  *
  * Custom hook that owns all state and side-effects for the Header component.
  * Separates business logic from presentation so each sub-component stays thin.
@@ -11,14 +11,14 @@ import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useDarkMode } from '@/hooks/ui/useDarkMode';
 import { isTauri } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
-import { useShortcutStore, type ShortcutId } from '@/stores/shortcutStore';
-import { useAppModeStore } from '@/stores/appModeStore';
-import { useNoteStore } from '@/stores/noteStore';
+import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
+import { useAppModeStore } from '@/stores/app-mode-store';
+import { useNoteStore } from '@/stores/note-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
-import { useClickOutside } from './use-click-outside';
-import type { AppMode } from '@/stores/appModeStore';
+import { useClickOutside } from './useClickOutside';
+import type { AppMode } from '@/stores/app-mode-store';
 
 /** All state and callbacks surfaced to Header sub-components. */
 export type UseHeaderReturn = {

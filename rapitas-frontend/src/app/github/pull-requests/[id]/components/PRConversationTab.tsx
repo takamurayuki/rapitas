@@ -10,7 +10,7 @@
 import { MessageSquare, CheckCircle2, AlertCircle, Send, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
-import { getReviewIcon } from './prUtils';
+import { getReviewIcon } from './PrUtils';
 
 interface PRConversationTabProps {
   pr: GitHubPullRequest;

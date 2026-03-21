@@ -9,8 +9,8 @@
 
 import { useMemo, useRef, useState, useCallback } from 'react';
 import type { Comment } from '@/types';
-import { timeAgo } from './commentTypes';
-import type { NoteData, CommentLink } from './commentTypes';
+import { timeAgo } from './comment-types';
+import type { NoteData, CommentLink } from './comment-types';
 
 /**
  * Manages edit, reply, link, and scroll state for a comment thread.

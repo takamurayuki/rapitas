@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useWizard } from './_hooks/use-wizard';
+import { useWizard } from './_hooks/useWizard';
 import { IntroPhase } from './_components/intro-phase';
 import { GenrePhase } from './_components/genre-phase';
 import { SubPhase } from './_components/sub-phase';

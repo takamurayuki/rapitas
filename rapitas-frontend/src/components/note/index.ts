@@ -15,4 +15,4 @@ export { default as DragOverlay } from './drag-overlay';
 export { default as NoteModalHeader } from './note-modal-header';
 export { default as NoteTabContent } from './note-tab-content';
 export { useAIChat } from './useAIChat';
-export { fetchConfiguredProviders, fetchAvailableModels } from './aiService';
+export { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';

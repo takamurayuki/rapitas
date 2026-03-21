@@ -9,7 +9,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Priority, Theme } from '@/types';
 import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
 import { HomeExpandedFilters } from './HomeExpandedFilters';
 

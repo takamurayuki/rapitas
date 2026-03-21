@@ -1,7 +1,7 @@
 'use client';
 
 import { NextIntlClientProvider } from 'next-intl';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import HtmlLangUpdater from '@/components/common/HtmlLangUpdater';
 import ja from '../../../messages/ja.json';
 import en from '../../../messages/en.json';

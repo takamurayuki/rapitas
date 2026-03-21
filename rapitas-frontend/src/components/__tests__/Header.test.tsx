@@ -54,12 +54,12 @@ vi.mock('@/stores/shortcutStore', () => ({
     selector({ shortcuts: [] }),
 }));
 
-vi.mock('@/stores/appModeStore', () => ({
+vi.mock('@/stores/app-mode-store', () => ({
   useAppModeStore: (selector: (state: { mode: string }) => unknown) =>
     selector({ mode: 'normal' }),
 }));
 
-vi.mock('@/stores/noteStore', () => ({
+vi.mock('@/stores/note-store', () => ({
   useNoteStore: () => ({
     modalState: { isOpen: false, activeTab: 'note' },
     openModal: vi.fn(),

@@ -9,7 +9,7 @@
 
 import { Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import type { AgentVersion } from './types';
 

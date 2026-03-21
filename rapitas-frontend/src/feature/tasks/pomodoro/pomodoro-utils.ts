@@ -5,8 +5,8 @@
  * No side effects — safe to import in any environment including SSR.
  */
 
-import { DEFAULT_SETTINGS } from './pomodoroTypes';
-import type { PomodoroSettings } from './pomodoroTypes';
+import { DEFAULT_SETTINGS } from './pomodoro-types';
+import type { PomodoroSettings } from './pomodoro-types';
 
 /**
  * Formats a duration in seconds as MM:SS or H:MM:SS.

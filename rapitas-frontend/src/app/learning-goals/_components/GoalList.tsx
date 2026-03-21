@@ -9,7 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { ChevronRight, CheckCircle2, Target } from 'lucide-react';
 import type { LearningGoal } from '@/types';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 type Props = {

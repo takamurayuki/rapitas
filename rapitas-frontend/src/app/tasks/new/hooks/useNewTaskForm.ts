@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, Theme, WorkflowMode } from '@/types';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import { useTaskFormData } from './useTaskFormData';
 import { useTaskFormActions } from './useTaskFormActions';

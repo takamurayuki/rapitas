@@ -21,9 +21,9 @@ import {
 } from 'lucide-react';
 import type { ScheduleEvent } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
-import type { CalendarEvent } from '../_utils/calendarHelpers';
+import type { CalendarEvent } from '../_utils/calendar-helpers';
 
 type Props = {
   selectedDate: string | null;

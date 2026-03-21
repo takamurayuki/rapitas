@@ -22,8 +22,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import type { NoteData } from './commentTypes';
-import { LABEL_COLORS, DEFAULT_LINK_STYLE } from './commentTypes';
+import type { NoteData } from './comment-types';
+import { LABEL_COLORS, DEFAULT_LINK_STYLE } from './comment-types';
 
 type NoteProps = {
   note: NoteData;

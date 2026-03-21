@@ -19,8 +19,8 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { PrState } from './agentExecutionTypes';
-import { formatTokenCount } from './agentExecutionUtils';
+import type { PrState } from './agent-execution-types';
+import { formatTokenCount } from './agent-execution-utils';
 import { PrMergeSection } from './PrMergeSection';
 
 /** Map of workflow session modes to human-readable phase info. */

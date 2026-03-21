@@ -7,7 +7,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import { searchIcons } from './IconData';
+import { searchIcons } from './icon-data';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { useDebounce } from '@/hooks/common/useDebounce';

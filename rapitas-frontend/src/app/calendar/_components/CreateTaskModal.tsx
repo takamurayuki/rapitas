@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 type Props = {

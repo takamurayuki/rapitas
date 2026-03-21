@@ -10,7 +10,7 @@
 import { Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { WorkflowTab } from './workflowViewerUtils';
+import type { WorkflowTab } from './workflow-viewer-utils';
 
 interface WorkflowFile {
   exists: boolean;

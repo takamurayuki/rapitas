@@ -12,7 +12,7 @@ import {
   type ExecutionStreamState,
   type QuestionTimeoutInfo,
   trimLogs,
-} from './executionStreamTypes';
+} from './execution-stream-types';
 import { API_BASE_URL } from '@/utils/api';
 
 const logger = createLogger('ExecutionStream');

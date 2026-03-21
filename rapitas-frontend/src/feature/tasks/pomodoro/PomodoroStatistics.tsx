@@ -6,7 +6,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('PomodoroStatistics');
-import { formatTime } from './pomodoroStore';
+import { formatTime } from './pomodoro-store';
 
 type DailyStat = { date: string; count: number; minutes: number };
 type TaskStat = {

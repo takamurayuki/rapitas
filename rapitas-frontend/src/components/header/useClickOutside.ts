@@ -1,6 +1,6 @@
 'use client';
 /**
- * header/use-click-outside.ts
+ * header/useClickOutside.ts
  *
  * Reusable hook that calls a callback when a mousedown event occurs
  * outside the element referenced by the given ref.

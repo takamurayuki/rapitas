@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 /**

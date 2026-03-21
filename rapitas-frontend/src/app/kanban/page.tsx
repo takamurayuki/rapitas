@@ -13,7 +13,7 @@ import { DragDropContext } from '@hello-pangea/dnd';
 import TaskSlidePanel from '@/feature/tasks/components/TaskSlidePanel';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import { useKanbanFilters } from './useKanbanFilters';
 import { useKanbanBoard } from './useKanbanBoard';

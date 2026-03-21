@@ -7,7 +7,7 @@
  */
 'use client';
 import { Save, Pin, Layers, Loader2 } from 'lucide-react';
-import { type Note } from '@/stores/noteStore';
+import { type Note } from '@/stores/note-store';
 import { type FlashcardResult } from './useNoteEditor';
 
 interface NoteEditorHeaderProps {

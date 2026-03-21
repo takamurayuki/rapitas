@@ -14,7 +14,7 @@ import CompactWorkflowSelector, {
   type WorkflowMode,
 } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
-import { getWorkflowTabs } from './workflowViewerUtils';
+import { getWorkflowTabs } from './workflow-viewer-utils';
 import {
   PlanApprovalBanner,
   VerifyDoneBanner,

@@ -10,12 +10,12 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DropResult } from '@hello-pangea/dnd';
-import { useTaskDetailVisibilityStore } from '@/stores/taskDetailVisibilityStore';
+import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutingTasksPolling } from '@/hooks/task/useExecutingTasksPolling';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useKanbanBoard');

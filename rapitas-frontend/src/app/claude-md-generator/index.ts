@@ -10,8 +10,8 @@ export type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from './_ty
 export { GENRES, SUB_GENRES, ELEMENTS, PLATFORMS, SCALES, PRIORITIES } from './_utils/constants';
 export { GLOBAL_CSS } from './_utils/styles';
 export { resolveLabels, proposeApps, generateClaudeMd, fetchSuggestions } from './_utils/api';
-export { useWizard } from './_hooks/use-wizard';
-export type { WizardPhase, SetupPhase } from './_hooks/use-wizard';
+export { useWizard } from './_hooks/useWizard';
+export type { WizardPhase, SetupPhase } from './_hooks/useWizard';
 export { CheckIcon, DotIcon } from './_components/icons';
 export { ScoreRing } from './_components/score-ring';
 export { PageWrap } from './_components/page-wrap';

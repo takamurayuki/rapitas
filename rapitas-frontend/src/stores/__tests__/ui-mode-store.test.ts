@@ -1,4 +1,4 @@
-import { useUIModeStore } from '../uiModeStore';
+import { useUIModeStore } from '../ui-mode-store';
 
 describe('uiModeStore', () => {
   beforeEach(() => {

@@ -6,7 +6,7 @@
  * NoteEditorHeader, EditorToolbar, and NoteEditorFooter.
  */
 'use client';
-import { type Note } from '@/stores/noteStore';
+import { type Note } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';
 import NoteEditorFooter from './editor/NoteEditorFooter';

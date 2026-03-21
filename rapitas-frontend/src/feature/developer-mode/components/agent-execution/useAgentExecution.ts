@@ -14,26 +14,26 @@ import {
   useExecutionStream,
 } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
-import { parseQuestionOptions } from './agentExecutionUtils';
+import { parseQuestionOptions } from './agent-execution-utils';
 import type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
   QuestionType,
   PrState,
-} from './agentExecutionTypes';
+} from './agent-execution-types';
 
 // Re-export utilities and types consumed by external callers
 export {
   formatTokenCount,
   formatCountdown,
   parseQuestionOptions,
-} from './agentExecutionUtils';
+} from './agent-execution-utils';
 export type {
   PrState,
   QuestionType,
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
-} from './agentExecutionTypes';
+} from './agent-execution-types';
 
 /**
  * Core hook for AgentExecutionPanel state and side effects.

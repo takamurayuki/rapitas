@@ -9,7 +9,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import type { ScheduleEventInput } from '@/types';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import { PaidLeaveHeader } from './paid-leave/PaidLeaveHeader';
 import { PaidLeaveDurationPicker } from './paid-leave/PaidLeaveDurationPicker';

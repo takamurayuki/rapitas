@@ -7,7 +7,7 @@
 'use client';
 import { SwatchBook } from 'lucide-react';
 import type { Theme } from '@/types';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 
 interface ThemeSelectorProps {
   /** Themes already filtered for the current app mode. */

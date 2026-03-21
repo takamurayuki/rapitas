@@ -6,9 +6,9 @@
  * Takes a Zustand set/get pair and executes one timer second.
  */
 
-import { playNotificationSound } from './pomodoroAudio';
-import { syncPomodoroToBackend } from './pomodoroSync';
-import type { PomodoroState } from './pomodoroTypes';
+import { playNotificationSound } from './pomodoro-audio';
+import { syncPomodoroToBackend } from './pomodoro-sync';
+import type { PomodoroState } from './pomodoro-types';
 
 type SetFn = (partial: Partial<PomodoroState>) => void;
 type GetFn = () => PomodoroState;

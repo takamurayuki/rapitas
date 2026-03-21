@@ -8,7 +8,7 @@
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
-import { useFilterDataStore } from '@/stores/filterDataStore';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import { createLogger } from '@/lib/logger';
 import type { Theme } from '@/types';
 import type { DropResult } from '@hello-pangea/dnd';

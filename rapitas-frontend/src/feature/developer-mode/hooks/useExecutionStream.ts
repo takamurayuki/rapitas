@@ -14,7 +14,7 @@ export type {
   QuestionType,
   QuestionTimeoutInfo,
   ExecutionStreamState,
-} from './executionStreamTypes';
+} from './execution-stream-types';
 
 export { useExecutionStream } from './useExecutionStreamSSE';
 export { useExecutionPolling } from './useExecutionPolling';

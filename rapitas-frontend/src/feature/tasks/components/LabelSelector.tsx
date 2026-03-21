@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { Label } from '@/types';
-import { getIconComponent, ICON_DATA } from '@/components/category/IconData';
+import { getIconComponent, ICON_DATA } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 

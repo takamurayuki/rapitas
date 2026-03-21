@@ -18,7 +18,7 @@ import {
 import type { Category } from '@/types';
 import type { GoalFormData } from '../_hooks/useLearningGoals';
 import { INITIAL_FORM_DATA } from '../_hooks/useLearningGoals';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 type WizardStep = 'goal' | 'level' | 'schedule' | 'confirm';

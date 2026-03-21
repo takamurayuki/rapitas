@@ -8,8 +8,8 @@
 'use client';
 
 import { Loader2, MessageSquare, HelpCircle, Send } from 'lucide-react';
-import type { PromptClarificationQuestion } from './promptOptimizationTypes';
-import { getCategoryLabel, getCategoryColor } from './promptOptimizationTypes';
+import type { PromptClarificationQuestion } from './prompt-optimization-types';
+import { getCategoryLabel, getCategoryColor } from './prompt-optimization-types';
 
 type Props = {
   questions: PromptClarificationQuestion[];

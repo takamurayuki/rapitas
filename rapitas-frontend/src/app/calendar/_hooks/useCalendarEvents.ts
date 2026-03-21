@@ -12,10 +12,10 @@ import { useTranslations } from 'next-intl';
 import type { ExamGoal, ScheduleEvent, ScheduleEventInput, PaidLeaveBalance } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useTaskAutoSync } from '@/hooks/task/useTaskAutoSync';
 import { createLogger } from '@/lib/logger';
-import type { CalendarEvent } from '../_utils/calendarHelpers';
+import type { CalendarEvent } from '../_utils/calendar-helpers';
 
 const logger = createLogger('useCalendarEvents');
 const API_BASE = API_BASE_URL;

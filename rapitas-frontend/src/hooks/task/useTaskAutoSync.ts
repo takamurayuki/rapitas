@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useTaskCacheStore } from '@/stores/taskCacheStore';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useTaskAutoSync');

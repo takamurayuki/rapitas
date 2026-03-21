@@ -7,7 +7,7 @@
 'use client';
 import { Search, Save, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { getIconComponent, ICON_DATA } from './IconData';
+import { getIconComponent, ICON_DATA } from './icon-data';
 import { IconGrid } from './IconGrid';
 import type { CategoryManagerConfig } from './CategoryManager';
 import type { CategoryFormData } from './useCategoryManager';

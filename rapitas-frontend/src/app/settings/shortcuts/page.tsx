@@ -11,7 +11,7 @@
 import { Keyboard, Info } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { useShortcutSettings } from './hooks/use-shortcut-settings';
+import { useShortcutSettings } from './hooks/useShortcutSettings';
 import { GlobalShortcutSection } from './components/global-shortcut-section';
 import { InAppShortcutsSection } from './components/in-app-shortcuts-section';
 

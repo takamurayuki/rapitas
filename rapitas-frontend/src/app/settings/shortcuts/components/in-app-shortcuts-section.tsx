@@ -21,8 +21,8 @@ import {
   formatBindingKey,
   type ShortcutId,
   type ShortcutBinding,
-} from '@/stores/shortcutStore';
-import { formatShortcutDisplay } from '../hooks/use-shortcut-settings';
+} from '@/stores/shortcut-store';
+import { formatShortcutDisplay } from '../hooks/useShortcutSettings';
 
 /** A single shortcut entry as stored in the Zustand store. */
 type ShortcutEntry = ShortcutBinding & { id: ShortcutId; label: string };

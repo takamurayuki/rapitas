@@ -15,7 +15,7 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('ReportsPage');

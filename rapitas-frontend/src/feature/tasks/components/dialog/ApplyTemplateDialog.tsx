@@ -13,7 +13,7 @@ import {
   SwatchBook,
 } from 'lucide-react';
 import type { TaskTemplate, Theme } from '@/types';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { API_BASE_URL } from '@/utils/api';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';
 

@@ -10,7 +10,7 @@
 
 import React from 'react';
 import type { AppProposal, GenerateResult } from '../_types/types';
-import type { SetupPhase } from '../_hooks/use-wizard';
+import type { SetupPhase } from '../_hooks/useWizard';
 import { GLOBAL_CSS } from '../_utils/styles';
 import { ScoreRing } from './score-ring';
 

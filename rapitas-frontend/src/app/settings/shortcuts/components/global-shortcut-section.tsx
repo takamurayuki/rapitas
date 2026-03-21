@@ -17,7 +17,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { MODIFIER_KEYS, AVAILABLE_KEYS, type ModifierKey } from '../hooks/use-shortcut-settings';
+import { MODIFIER_KEYS, AVAILABLE_KEYS, type ModifierKey } from '../hooks/useShortcutSettings';
 
 /** Props for GlobalShortcutSection. */
 interface GlobalShortcutSectionProps {

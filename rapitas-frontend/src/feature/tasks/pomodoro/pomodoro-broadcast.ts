@@ -5,7 +5,7 @@
  * Provides a lazy-initialised channel singleton and a helper to post state updates.
  */
 
-import type { PomodoroState } from './pomodoroTypes';
+import type { PomodoroState } from './pomodoro-types';
 
 // NOTE: Module-level singleton so all callers share the same channel instance.
 let broadcastChannel: BroadcastChannel | null = null;

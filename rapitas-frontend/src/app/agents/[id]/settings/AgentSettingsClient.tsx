@@ -14,7 +14,7 @@ import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useAgentSettings } from './useAgentSettings';
-import { PROVIDER_CONFIGS } from './providerConfigs';
+import { PROVIDER_CONFIGS } from './ProviderConfigs';
 import {
   BasicSettingsSection,
   ApiKeySection,

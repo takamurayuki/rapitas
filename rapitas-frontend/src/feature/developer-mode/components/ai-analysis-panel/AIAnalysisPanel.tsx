@@ -26,9 +26,9 @@ import { AnalysisTab } from './AnalysisTab';
 import { PromptOptimizationTab } from './PromptOptimizationTab';
 import { PromptsManagementTab } from './PromptsManagementTab';
 import { SettingsTab } from './SettingsTab';
-import { useApiKey } from './use-api-key';
-import { usePromptOptimization } from './use-prompt-optimization';
-import { usePromptsManagement } from './use-prompts-management';
+import { useApiKey } from './useApiKey';
+import { usePromptOptimization } from './usePromptOptimization';
+import { usePromptsManagement } from './usePromptsManagement';
 import type { TabType } from './types';
 
 type Props = {

@@ -12,7 +12,7 @@ vi.mock('@/lib/api-client', () => ({
   clearApiCache: vi.fn(),
 }));
 
-import { useFilterDataStore } from '../filterDataStore';
+import { useFilterDataStore } from '../filter-data-store';
 import { apiFetch, clearApiCache } from '@/lib/api-client';
 
 describe('filterDataStore', () => {

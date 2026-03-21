@@ -1,7 +1,7 @@
 'use client';
 
 import { Globe } from 'lucide-react';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import type { Locale } from '@/i18n/config';
 
 export default function LanguageSwitcher() {

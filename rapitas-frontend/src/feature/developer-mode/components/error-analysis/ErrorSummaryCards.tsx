@@ -10,7 +10,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { AlertCircle, XCircle, TrendingUp, CheckCircle } from 'lucide-react';
-import { ErrorSeverity, ErrorSummary } from '../../services/errorAnalysisService';
+import { ErrorSeverity, ErrorSummary } from '../../services/error-analysis-service';
 
 type ErrorSummaryCardsProps = {
   /** Aggregated error statistics from errorAnalysisService. */

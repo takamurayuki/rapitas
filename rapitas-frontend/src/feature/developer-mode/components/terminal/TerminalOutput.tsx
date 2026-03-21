@@ -10,7 +10,7 @@
 import { memo, type RefObject } from 'react';
 import { Terminal } from 'lucide-react';
 import { TerminalLine } from './TerminalLine';
-import type { LogLine } from './terminalUtils';
+import type { LogLine } from './terminal-utils';
 
 interface TerminalOutputProps {
   /** Forwarded ref used by the parent for auto-scroll. */

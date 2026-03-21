@@ -9,8 +9,8 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
-import { type Note, useNoteStore } from '@/stores/noteStore';
-import { useLocaleStore } from '@/stores/localeStore';
+import { type Note, useNoteStore } from '@/stores/note-store';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 import { highlightStyles } from './constants';

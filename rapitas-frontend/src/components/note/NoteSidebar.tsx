@@ -1,9 +1,9 @@
 'use client';
 import { FileText, Pin, Trash2, Calendar } from 'lucide-react';
-import { useNoteStore } from '@/stores/noteStore';
+import { useNoteStore } from '@/stores/note-store';
 import { useState, useEffect } from 'react';
 import DeleteNoteModal from './DeleteNoteModal';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 export default function NoteSidebar() {

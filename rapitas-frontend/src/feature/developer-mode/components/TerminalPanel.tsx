@@ -22,7 +22,7 @@ import {
   type LogLine,
   classifyLine,
   appendCapped,
-} from './terminal/terminalUtils';
+} from './terminal/terminal-utils';
 
 type Props = {
   taskId: number;

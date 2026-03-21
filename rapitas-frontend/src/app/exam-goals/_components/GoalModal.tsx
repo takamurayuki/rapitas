@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ICON_DATA, searchIcons } from '@/components/category/IconData';
+import { ICON_DATA, searchIcons } from '@/components/category/icon-data';
 import { PRESET_COLORS } from './constants';
 import { renderGoalIcon } from './GoalCard';
 import type { ExamGoalFormData } from './constants';

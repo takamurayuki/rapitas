@@ -1,4 +1,4 @@
-import TodayTaskProgressBarExample from '@/components/TodayTaskProgressBar.example';
+import TodayTaskProgressBarExample from '@/components/widgets/TodayTaskProgressBar.example';
 
 export default function TodayProgressDemoPage() {
   return <TodayTaskProgressBarExample />;

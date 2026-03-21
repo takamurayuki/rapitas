@@ -9,7 +9,7 @@
 'use client';
 
 import { AlertTriangle, Brain } from 'lucide-react';
-import { useMemoryData } from './use-memory-data';
+import { useMemoryData } from './useMemoryData';
 import { MemoryStrengthCard } from './components/MemoryStrengthCard';
 import { OverviewCards } from './components/OverviewCards';
 import { GrowthTrendChart } from './components/GrowthTrendChart';

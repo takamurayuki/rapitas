@@ -17,7 +17,7 @@ import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getTaskDetailPath } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 const logger = createLogger('IssuesClient');

@@ -1,5 +1,5 @@
 /**
- * ai-analysis-panel/use-prompt-optimization.ts
+ * ai-analysis-panel/usePromptOptimization.ts
  *
  * Hook encapsulating single-task prompt generation and clarification state.
  * Not responsible for saved-prompts list management — see use-prompts-management.ts.

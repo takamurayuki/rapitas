@@ -10,7 +10,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
-import type { AgentExecutionWithExtras } from '../../../../types/agent-execution-types';
+import type { AgentExecutionWithExtras } from '../../../types/agent-execution-types';
 
 const log = createLogger('routes:agent-execution:status');
 const agentWorkerManager = AgentWorkerManager.getInstance();

@@ -13,7 +13,7 @@ import { OPEN_SHORTCUTS_EVENT } from '@/components/common/KeyboardShortcuts';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
 import { NavItemRenderer } from './nav-item';
-import type { ShortcutId } from '@/stores/shortcutStore';
+import type { ShortcutId } from '@/stores/shortcut-store';
 
 type SideNavProps = {
   /** Ref attached to the nav element for click-outside detection. */

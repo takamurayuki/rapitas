@@ -2,7 +2,7 @@ import {
   useShortcutStore,
   DEFAULT_SHORTCUTS,
   formatBindingKey,
-} from '../shortcutStore';
+} from '../shortcut-store';
 
 describe('shortcutStore', () => {
   beforeEach(() => {

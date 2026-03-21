@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { TrendingUp, Calendar, Target, Zap, Award } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 import type { Theme } from '@/types';
 import { createLogger } from '@/lib/logger';

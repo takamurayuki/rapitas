@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useTranslations } from 'next-intl';
 import { useErrorCapture } from '@/feature/developer-mode/hooks/useErrorCapture';
-import { type ErrorAnalysis } from '@/feature/developer-mode/services/errorAnalysisService';
+import { type ErrorAnalysis } from '@/feature/developer-mode/services/error-analysis-service';
 import Link from 'next/link';
 import { createLogger } from '@/lib/logger';
 

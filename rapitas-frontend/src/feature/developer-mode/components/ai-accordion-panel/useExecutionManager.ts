@@ -13,7 +13,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
   useExecutionPolling,
   useExecutionStream,

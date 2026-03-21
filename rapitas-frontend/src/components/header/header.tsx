@@ -43,13 +43,13 @@ import {
   BookMarked,
   Keyboard,
 } from 'lucide-react';
-import { useHeader } from './use-header';
+import { useHeader } from './useHeader';
 import { type NavItem } from './types';
 import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
 import { RestartDialogs } from './restart-dialogs';
-import type { AppMode } from '@/stores/appModeStore';
+import type { AppMode } from '@/stores/app-mode-store';
 
 /**
  * Filters nav items to only include those visible in the given app mode.

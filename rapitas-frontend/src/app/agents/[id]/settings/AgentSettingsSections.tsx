@@ -21,8 +21,8 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { AgentConfig, ModelOption } from './agentSettingsTypes';
-import type { ProviderConfig } from './providerConfigs';
+import type { AgentConfig, ModelOption } from './agent-settings-types';
+import type { ProviderConfig } from './ProviderConfigs';
 
 // Re-export so callers only need one import location
 export { ApiKeySection } from './ApiKeySection';

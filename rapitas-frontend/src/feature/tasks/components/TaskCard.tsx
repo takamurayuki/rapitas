@@ -16,11 +16,11 @@ import {
 } from '@/feature/tasks/config/StatusConfig';
 import { ExternalLink, Tag, Repeat } from 'lucide-react';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
-import { getIconComponent } from '@/components/category/IconData';
+import { getIconComponent } from '@/components/category/icon-data';
 import { CardLightSweep } from './TaskCompletionAnimation';
 import { ModernCheckbox } from '@/components/ui/ModernCheckbox';
 import { useTranslations } from 'next-intl';
-import { useLocaleStore as _useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';

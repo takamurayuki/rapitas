@@ -9,7 +9,7 @@ import {
   DEFAULT_LONG_BREAK,
   PomodoroState,
   PomodoroStatus,
-} from './pomodoroStore';
+} from './pomodoro-store';
 
 export type { PomodoroStatus };
 

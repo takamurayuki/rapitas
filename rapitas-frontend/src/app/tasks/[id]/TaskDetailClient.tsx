@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePomodoro } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
-import { useExecutionStateStore } from '@/stores/executionStateStore';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { createLogger } from '@/lib/logger';

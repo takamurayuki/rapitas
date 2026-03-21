@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
 import type { Notification } from '@/types';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 const typeIcons: Record<string, string> = {

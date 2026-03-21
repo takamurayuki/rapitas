@@ -8,7 +8,7 @@
 import { Edit2, Trash2, GripVertical, Star } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
-import { getIconComponent, ICON_DATA } from './IconData';
+import { getIconComponent, ICON_DATA } from './icon-data';
 import { CategoryItemForm } from './CategoryItemForm';
 import type { CategoryItem, CategoryManagerConfig } from './CategoryManager';
 import type { CategoryFormData } from './useCategoryManager';

@@ -3,7 +3,7 @@ vi.mock('@/i18n/config', () => ({
   defaultLocale: 'ja',
 }));
 
-import { useLocaleStore } from '../localeStore';
+import { useLocaleStore } from '../locale-store';
 
 describe('localeStore', () => {
   beforeEach(() => {

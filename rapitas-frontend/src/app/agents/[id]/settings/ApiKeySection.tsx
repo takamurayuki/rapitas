@@ -17,8 +17,8 @@ import {
   Info,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { AgentConfig } from './agentSettingsTypes';
-import type { ProviderConfig } from './providerConfigs';
+import type { AgentConfig } from './agent-settings-types';
+import type { ProviderConfig } from './ProviderConfigs';
 
 type Props = {
   agent: AgentConfig;

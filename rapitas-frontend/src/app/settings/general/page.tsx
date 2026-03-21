@@ -2,8 +2,8 @@
 
 import { useTranslations } from 'next-intl';
 import { Settings, Code, GraduationCap, Layers, Globe } from 'lucide-react';
-import { useAppModeStore, type AppMode } from '@/stores/appModeStore';
-import { useLocaleStore } from '@/stores/localeStore';
+import { useAppModeStore, type AppMode } from '@/stores/app-mode-store';
+import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
 
 const MODE_OPTIONS: {

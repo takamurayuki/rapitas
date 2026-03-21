@@ -14,7 +14,7 @@ import { createLogger } from '@/lib/logger';
 import {
   type ExecutionStreamState,
   trimLogs,
-} from './executionStreamTypes';
+} from './execution-stream-types';
 
 const logger = createLogger('ExecutionStream');
 

@@ -14,7 +14,7 @@ import {
   useShortcutStore,
   type ShortcutId,
   type ShortcutBinding,
-} from '@/stores/shortcutStore';
+} from '@/stores/shortcut-store';
 import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
 import {

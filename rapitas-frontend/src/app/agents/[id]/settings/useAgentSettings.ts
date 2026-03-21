@@ -13,8 +13,8 @@ import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 import { validateUrl, validateApiKey, type ValidationResult } from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
-import type { AgentConfig, ModelOption } from './agentSettingsTypes';
-import { saveAgentSettings, deleteAgentApiKey, deleteAgent } from './agentSettingsApi';
+import type { AgentConfig, ModelOption } from './agent-settings-types';
+import { saveAgentSettings, deleteAgentApiKey, deleteAgent } from './agent-settings-api';
 
 export type { AgentConfig, ModelOption };
 
