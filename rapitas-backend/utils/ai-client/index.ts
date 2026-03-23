@@ -48,6 +48,8 @@ import { callOllamaStream } from './ollama-provider';
 import { getOllamaUrl } from './credentials';
 import { ensureLocalLLM } from '../../services/local-llm';
 import { createLogger } from '../../config';
+import { buildRAGContext } from '../../services/memory/rag/context-builder';
+import { generateCacheKey, getCachedResponse, setCachedResponse } from '../../services/local-llm/response-cache';
 
 const log = createLogger('ai-client');
 
@@ -119,11 +121,48 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
       const ollamaUrl = await getOllamaUrl();
       const localLLM = await ensureLocalLLM(ollamaUrl, options.model);
       const maxTokens = options.maxTokens || 2048;
+
+      // NOTE: RAG context injection — augments the small local model with relevant knowledge.
+      let systemPrompt = options.systemPrompt;
+      if (options.enableRAG) {
+        try {
+          const lastUserMsg = [...options.messages].reverse().find((m) => m.role === 'user');
+          const query = lastUserMsg?.content.slice(0, 500) || '';
+          if (query.length > 0) {
+            const ragContext = await buildRAGContext(query, {
+              limit: 3,
+              minSimilarity: 0.5,
+              themeId: options.ragThemeId,
+            });
+            if (ragContext.contextText.length > 0) {
+              systemPrompt = ragContext.contextText + '\n\n---\n\n' + (systemPrompt || '');
+              log.debug({ ragEntries: ragContext.entries.length }, 'RAG context injected for local LLM');
+            }
+          }
+        } catch (ragError) {
+          // NOTE: RAG failure should not block the LLM call — degrade gracefully.
+          log.warn({ err: ragError }, 'RAG injection failed, proceeding without context');
+        }
+      }
+
+      // NOTE: Response cache — skip LLM call entirely on cache hit.
+      if (!options.skipCache) {
+        const cacheKey = generateCacheKey('ollama', localLLM.model, systemPrompt, options.messages);
+        const cached = getCachedResponse(cacheKey);
+        if (cached) {
+          return cached;
+        }
+
+        const response = await callOllama(localLLM.url, localLLM.model, options.messages, systemPrompt, maxTokens);
+        setCachedResponse(cacheKey, response.content, response.tokensUsed, 'ollama', localLLM.model);
+        return response;
+      }
+
       return await callOllama(
         localLLM.url,
         localLLM.model,
         options.messages,
-        options.systemPrompt,
+        systemPrompt,
         maxTokens,
       );
     } catch (error) {

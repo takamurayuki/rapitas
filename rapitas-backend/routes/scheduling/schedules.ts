@@ -10,6 +10,8 @@ import {
   RECURRENCE_PRESETS,
 } from '../../services/scheduling/recurrence-service';
 import { createLogger } from '../../config/logger';
+import { realtimeService } from '../../services/communication/realtime-service';
+import { syncCalendarToTask } from '../../services/scheduling/task-calendar-sync';
 
 const log = createLogger('routes:schedules');
 
@@ -143,7 +145,7 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     if (!data.title?.trim()) throw new ValidationError('Title is required');
     if (!data.startAt) throw new ValidationError('Start date/time is required');
 
-    return await prisma.scheduleEvent.create({
+    const event = await prisma.scheduleEvent.create({
       data: {
         title: data.title.trim(),
         description: data.description?.trim() || null,
@@ -159,6 +161,13 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
         recurrenceEnd: data.recurrenceEnd ? new Date(data.recurrenceEnd) : null,
       },
     });
+
+    // NOTE: Broadcast schedule creation for real-time calendar sync.
+    realtimeService.broadcastAll('schedule_created', {
+      eventId: event.id, title: event.title, startAt: event.startAt, timestamp: new Date().toISOString(),
+    });
+
+    return event;
   })
 
   // Update schedule event
@@ -197,10 +206,23 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
       data.reminderSentAt = data_input.reminderSentAt ? new Date(data_input.reminderSentAt) : null;
     if (data_input.taskId !== undefined) data.taskId = data_input.taskId;
 
-    return await prisma.scheduleEvent.update({
+    const updated = await prisma.scheduleEvent.update({
       where: { id },
       data,
     });
+
+    realtimeService.broadcastAll('schedule_updated', {
+      eventId: id, title: updated.title, startAt: updated.startAt, timestamp: new Date().toISOString(),
+    });
+
+    // NOTE: Bidirectional sync — calendar date changes propagate back to linked task.
+    if (data_input.startAt && updated.taskId) {
+      syncCalendarToTask(id, new Date(data_input.startAt)).catch((err) => {
+        log.warn({ err, eventId: id }, 'Calendar-to-task sync failed');
+      });
+    }
+
+    return updated;
   })
 
   // Delete schedule event
@@ -213,6 +235,11 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     if (!existing) throw new NotFoundError('Schedule event not found');
 
     await prisma.scheduleEvent.delete({ where: { id } });
+
+    realtimeService.broadcastAll('schedule_deleted', {
+      eventId: id, timestamp: new Date().toISOString(),
+    });
+
     return { success: true, id };
   })
 

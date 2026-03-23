@@ -12,6 +12,8 @@ import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import { notifyTaskCompleted } from '../communication/notification-service';
 import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
+import { realtimeService } from '../communication/realtime-service';
+import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -61,11 +63,22 @@ export interface CreateTaskInput {
 export async function createTask(prisma: PrismaInstance, input: CreateTaskInput) {
   const { parentId, title, labelIds, ...rest } = input;
 
-  if (parentId) {
-    return createSubtask(prisma, parentId, title, labelIds, rest);
+  const task = parentId
+    ? await createSubtask(prisma, parentId, title, labelIds, rest)
+    : await createParentTask(prisma, title, labelIds, rest);
+
+  // NOTE: Broadcast task creation via SSE for real-time list updates.
+  if (task) {
+    realtimeService.sendTaskUpdate(task.id, 'task_created', {
+      taskId: task.id,
+      title: task.title,
+      status: task.status,
+      parentId: task.parentId,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  return createParentTask(prisma, title, labelIds, rest);
+  return task;
 }
 
 /** Input shape for task updates. */
@@ -171,6 +184,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         onGeneratedTaskCompleted(prisma, updatedTask).catch((err) => {
           logger.warn({ err, taskId }, 'Failed to generate next recurring task');
         });
+        // NOTE: Auto-extract knowledge from completed tasks — connects Task → KnowledgeEntry.
+        import('../memory/task-knowledge-extractor')
+          .then(({ extractKnowledgeFromTask }) => {
+            extractKnowledgeFromTask(taskId).catch((err) => {
+              logger.warn({ err, taskId }, 'Failed to extract knowledge from completed task');
+            });
+          })
+          .catch(() => {});
       }
     }
 
@@ -202,6 +223,35 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
             themeId: fields.themeId !== undefined,
           },
         },
+      });
+    }
+  }
+
+  // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.
+  if (updatedTask) {
+    const eventType = fields.status === 'done'
+      ? 'task_completed'
+      : fields.status
+        ? 'task_status_changed'
+        : 'task_updated';
+
+    realtimeService.sendTaskUpdate(taskId, eventType, {
+      taskId,
+      status: updatedTask.status,
+      title: updatedTask.title,
+      priority: updatedTask.priority,
+      themeId: updatedTask.themeId,
+      timestamp: new Date().toISOString(),
+    });
+
+    // NOTE: Bidirectional sync — task dueDate changes propagate to calendar events.
+    if (fields.dueDate !== undefined) {
+      syncTaskToCalendar(
+        taskId,
+        updatedTask.dueDate,
+        updatedTask.title,
+      ).catch((err) => {
+        logger.warn({ err, taskId }, 'Task-to-calendar sync failed');
       });
     }
   }

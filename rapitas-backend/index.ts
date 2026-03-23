@@ -86,6 +86,7 @@ import {
   projectHealthRoutes,
   intentRoutes,
   gitCleanupRoutes,
+  learningDashboardRouter,
 } from './routes';
 
 // Import shared database client
@@ -209,6 +210,7 @@ app.use(schedulesRoutes);
 app.use(dailyScheduleRoutes);
 app.use(screenshotsRoutes);
 app.use(learningGoalsRoutes);
+app.use(learningDashboardRouter);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
 app.use(urlMetadataRoutes);

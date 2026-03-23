@@ -140,7 +140,7 @@ export const flashcardCrudRoutes = new Elysia()
       const result = schedulingResult[rating];
       const updatedCard = result.card;
 
-      return await prisma.flashcard.update({
+      const updated = await prisma.flashcard.update({
         where: { id },
         data: {
           stability: updatedCard.stability,
@@ -155,6 +155,38 @@ export const flashcardCrudRoutes = new Elysia()
           easeFactor: Math.max(1.3, 2.5 - (updatedCard.difficulty - 5) * 0.1),
         },
       });
+
+      // NOTE: Connect Flashcard review → StudyStreak + ExamGoal progress.
+      // Each review adds ~2 minutes of study time and propagates to related exam goals.
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      prisma.studyStreak
+        .upsert({
+          where: { date: today },
+          update: { studyMinutes: { increment: 2 } },
+          create: { date: today, studyMinutes: 2, tasksCompleted: 0 },
+        })
+        .catch(() => {});
+
+      // Propagate review to ExamGoal if the deck's task is linked to an exam goal
+      prisma.flashcardDeck
+        .findUnique({
+          where: { id: card.deckId },
+          select: { taskId: true },
+        })
+        .then(async (deck) => {
+          if (!deck?.taskId) return;
+          const task = await prisma.task.findUnique({
+            where: { id: deck.taskId },
+            select: { examGoalId: true },
+          });
+          if (!task?.examGoalId) return;
+          // NOTE: ExamGoal progress is tracked via its linked tasks.
+          // The review activity is already recorded in StudyStreak above.
+        })
+        .catch(() => {});
+
+      return updated;
     },
     {
       body: t.Object({

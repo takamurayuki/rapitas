@@ -15,6 +15,12 @@ export type AIRequestOptions = {
   messages: AIMessage[];
   systemPrompt?: string;
   maxTokens?: number;
+  /** Enable RAG context injection for local LLM calls. Defaults to false. */
+  enableRAG?: boolean;
+  /** Theme ID to scope RAG search results. */
+  ragThemeId?: number;
+  /** Skip response cache lookup for this request. */
+  skipCache?: boolean;
 };
 
 export type AIResponse = {

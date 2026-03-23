@@ -280,6 +280,24 @@ export async function executeTask(
       memoryTaskQueue.enqueue('distill', { executionId: execution.id }, 1).catch((err) => {
         logger.debug({ err }, '[TaskExecutor] Distillation enqueue failed');
       });
+
+      // NOTE: Auto-complete task when agent execution succeeds — connects AgentExecution → Task.status.
+      if (options.taskId && !result.waitingForInput) {
+        ctx.prisma.task
+          .update({
+            where: { id: options.taskId },
+            data: { status: 'done', completedAt: new Date() },
+          })
+          .then(() => {
+            logger.info(
+              { taskId: options.taskId, executionId: execution.id },
+              '[TaskExecutor] Task auto-completed on successful agent execution',
+            );
+          })
+          .catch((err) => {
+            logger.warn({ err, taskId: options.taskId }, '[TaskExecutor] Failed to auto-complete task');
+          });
+      }
     }
 
     return result;

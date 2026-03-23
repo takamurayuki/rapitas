@@ -11,7 +11,15 @@ import {
   getDownloadProgress,
   isModelDownloaded,
   deleteModel,
+  getCacheStats,
+  purgeExpiredEntries,
+  getTeachingStats,
 } from '../../services/local-llm';
+import {
+  delegateToLocalLLM,
+  getAvailableDelegationTasks,
+  type DelegationTaskType,
+} from '../../services/local-llm/mcp-delegation-tool';
 
 const log = createLogger('routes:local-llm');
 
@@ -105,4 +113,66 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
         url: t.Optional(t.String()),
       }),
     },
-  );
+  )
+
+  // --- MCP Delegation Endpoints ---
+
+  // List available delegation task types
+  .get('/delegate/tasks', () => {
+    return getAvailableDelegationTasks();
+  })
+
+  // Delegate a sub-task to local LLM
+  .post(
+    '/delegate',
+    async ({ body, set }) => {
+      try {
+        const result = await delegateToLocalLLM({
+          taskType: body.taskType as DelegationTaskType,
+          input: body.input,
+          evaluate: body.evaluate ?? false,
+          themeId: body.themeId,
+        });
+        return result;
+      } catch (error) {
+        log.error({ err: error }, 'Delegation failed');
+        set.status = 500;
+        return { error: error instanceof Error ? error.message : 'Delegation failed' };
+      }
+    },
+    {
+      body: t.Object({
+        taskType: t.String(),
+        input: t.String(),
+        evaluate: t.Optional(t.Boolean()),
+        themeId: t.Optional(t.Number()),
+      }),
+    },
+  )
+
+  // --- Cache & Teaching Stats ---
+
+  // Get response cache statistics
+  .get('/cache/stats', () => {
+    try {
+      return getCacheStats();
+    } catch {
+      return { totalEntries: 0, totalHits: 0, totalMisses: 0, hitRate: 0, oldestEntry: null, cacheSize: 0 };
+    }
+  })
+
+  // Purge expired cache entries
+  .post('/cache/purge', () => {
+    const purged = purgeExpiredEntries();
+    return { purged };
+  })
+
+  // Get teaching material statistics
+  .get('/teaching/stats', async () => {
+    try {
+      return await getTeachingStats();
+    } catch (error) {
+      log.error({ err: error }, 'Failed to get teaching stats');
+      return [];
+    }
+  });

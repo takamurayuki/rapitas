@@ -10,6 +10,8 @@ import { createLogger } from '../../config/logger';
 import { writeWorkflowFile } from './workflow-file-utils';
 import { callAnthropicAPI, callOpenAIAPI, decryptApiKey } from './workflow-api-callers';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import { assessComplexity } from '../local-llm/complexity-assessor';
+import { sendAIMessage } from '../../utils/ai-client';
 
 const log = createLogger('workflow-api-executor');
 
@@ -74,14 +76,42 @@ export async function executeAPIAgent(
     let output = '';
     const startTime = Date.now();
 
-    if (agentConfig.agentType === 'anthropic-api') {
-      output = await callAnthropicAPI(apiKey, agentConfig.modelId || 'claude-sonnet-4-20250514', enhancedSystemPrompt, context);
-    } else if (agentConfig.agentType === 'openai') {
-      output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context);
-    } else if (agentConfig.agentType === 'azure-openai') {
-      output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context, agentConfig.endpoint || undefined);
-    } else {
-      throw new Error(`未対応のAPIエージェントタイプ: ${agentConfig.agentType}`);
+    // NOTE: Complexity-based local LLM routing — low-complexity researcher/verifier phases
+    // use Ollama with RAG to reduce API costs while maintaining quality.
+    const complexity = assessComplexity(task, transition.role, context.length);
+
+    if (complexity.canUseLocalLLM) {
+      log.info(
+        { role: transition.role, score: complexity.score, reasons: complexity.reasons },
+        '[WorkflowAPIExecutor] Delegating to local LLM (low complexity)',
+      );
+      try {
+        const localResponse = await sendAIMessage({
+          provider: 'ollama',
+          messages: [{ role: 'user', content: context }],
+          systemPrompt: enhancedSystemPrompt,
+          maxTokens: 4096,
+          enableRAG: true,
+          skipCache: false,
+        });
+        output = localResponse.content;
+      } catch (localError) {
+        // NOTE: Fall through to paid API if local LLM fails.
+        log.warn({ err: localError }, '[WorkflowAPIExecutor] Local LLM failed, falling back to paid API');
+        output = '';
+      }
+    }
+
+    if (!output) {
+      if (agentConfig.agentType === 'anthropic-api') {
+        output = await callAnthropicAPI(apiKey, agentConfig.modelId || 'claude-sonnet-4-20250514', enhancedSystemPrompt, context);
+      } else if (agentConfig.agentType === 'openai') {
+        output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context);
+      } else if (agentConfig.agentType === 'azure-openai') {
+        output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context, agentConfig.endpoint || undefined);
+      } else {
+        throw new Error(`未対応のAPIエージェントタイプ: ${agentConfig.agentType}`);
+      }
     }
 
     const executionTimeMs = Date.now() - startTime;

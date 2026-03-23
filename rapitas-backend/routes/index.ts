@@ -50,6 +50,7 @@ export { studyStreaksRoutes } from './learning/study-streaks';
 export { learningGoalsRoutes } from './learning/learning-goals';
 export { flashcardsRoutes } from './learning/flashcards';
 export { resourcesRoutes } from './learning/resources';
+export { learningDashboardRouter } from './learning/learning-dashboard';
 
 // System
 export { settingsRoutes } from './system/settings';
