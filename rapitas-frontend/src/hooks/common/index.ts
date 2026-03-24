@@ -11,3 +11,6 @@ export { useSSE } from './useSse';
 export type { SSEEventType, SSEEvent, SSEProgressData, SSERetryData, SSERollbackData, SSEErrorData, UseSSEOptions, UseSSEReturn } from './useSse';
 export { useBackendHealth } from './useBackendHealth';
 export { useBrowserNotifications } from './useBrowserNotifications';
+export { useOfflineQueue } from './useOfflineQueue';
+export { useSpeechRecognition } from './useSpeechRecognition';
+export { useTauriVoice } from './useTauriVoice';

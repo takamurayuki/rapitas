@@ -87,6 +87,7 @@ import {
   intentRoutes,
   gitCleanupRoutes,
   learningDashboardRouter,
+  transcribeRouter,
 } from './routes';
 
 // Import shared database client
@@ -230,6 +231,7 @@ app.use(memorySystemRoutes);
 app.use(intelligentSuggestionsRoutes);
 app.use(smartActionRoutes);
 app.use(localLLMRouter);
+app.use(transcribeRouter);
 app.use(experimentsRoutes);
 app.use(knowledgeGraphRoutes);
 app.use(learningRoutes);

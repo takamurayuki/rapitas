@@ -58,7 +58,7 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({
         )}
         {isSuccess ? '完了しました' : '実行に失敗しました'}
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
         {totalFiles > 0 && (
           <div className="flex items-center gap-2 text-zinc-300">
             <FileEdit className="w-3.5 h-3.5 text-zinc-500" />

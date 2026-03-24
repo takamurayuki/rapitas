@@ -197,8 +197,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onMouseUp={handleScrollEnd}
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
-        className={`bg-zinc-900 overflow-auto execution-log-container ${
-          viewMode === 'detailed' ? 'font-mono text-sm' : 'text-sm'
+        className={`bg-zinc-900 overflow-auto execution-log-container break-words ${
+          viewMode === 'detailed' ? 'font-mono text-xs sm:text-sm' : 'text-xs sm:text-sm'
         } ${isFullscreen ? 'flex-1' : ''} ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
       >

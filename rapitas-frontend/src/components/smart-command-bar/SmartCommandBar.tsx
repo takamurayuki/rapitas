@@ -12,10 +12,14 @@ import {
   Zap,
   MessageSquare,
   FileText,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useTranslations } from 'next-intl';
 import { useShortcutStore } from '@/stores/shortcut-store';
+import { useSpeechRecognition } from '@/hooks/common/useSpeechRecognition';
+import AudioWaveform from './AudioWaveform';
 
 type Intent = 'create_task' | 'start_learning' | 'navigate' | 'search';
 
@@ -43,6 +47,13 @@ export default function SmartCommandBar() {
   const commandBarShortcut = Array.isArray(shortcuts)
     ? shortcuts.find((s) => s.id === 'commandBar')
     : undefined;
+
+  // Voice input integration
+  const handleVoiceResult = useCallback((text: string) => {
+    setInput((prev) => prev + text);
+  }, []);
+  const { isListening, isTranscribing, interimTranscript, error: voiceError, isSupported: voiceSupported, startListening, stopListening, submitCorrection, activeStream } =
+    useSpeechRecognition('ja-JP', handleVoiceResult);
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => {
@@ -128,6 +139,8 @@ export default function SmartCommandBar() {
 
   const handleSubmit = async () => {
     if (!input.trim() || isProcessing) return;
+    // NOTE: Submit correction to learn from user edits to transcribed text.
+    submitCorrection(input.trim());
     setIsProcessing(true);
 
     try {
@@ -234,6 +247,38 @@ export default function SmartCommandBar() {
             className="flex-1 bg-transparent text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 border-none outline-none"
             disabled={isProcessing}
           />
+          {/* Voice input button */}
+          {voiceSupported && (
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={isTranscribing}
+              className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                isTranscribing
+                  ? 'bg-amber-500 text-white animate-pulse'
+                  : isListening
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
+              }`}
+              aria-label={isTranscribing ? 'Transcribing...' : isListening ? 'Stop voice input' : 'Start voice input'}
+              type="button"
+            >
+              {isTranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
+          {/* Live audio waveform when recording */}
+          {isListening && activeStream && (
+            <AudioWaveform stream={activeStream} width={120} height={28} />
+          )}
+          {interimTranscript && !activeStream && (
+            <span className="text-xs text-zinc-400 italic truncate max-w-32">
+              {interimTranscript}
+            </span>
+          )}
+          {voiceError && !isListening && (
+            <span className="text-xs text-amber-500 truncate max-w-48">
+              {voiceError}
+            </span>
+          )}
           {isProcessing ? (
             <Loader2 className="w-5 h-5 text-purple-500 animate-spin shrink-0" />
           ) : (

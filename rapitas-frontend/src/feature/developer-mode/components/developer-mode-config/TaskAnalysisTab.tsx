@@ -191,7 +191,7 @@ export function TaskAnalysisTab({
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           分析深度
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {(
             [
               { value: 'quick' as const, label: 'クイック', desc: '素早い概要分析' },
@@ -227,7 +227,7 @@ export function TaskAnalysisTab({
         <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
           優先度戦略
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {PRIORITY_OPTIONS.map((option) => (
             <button
               key={option.value}

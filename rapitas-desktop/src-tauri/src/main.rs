@@ -15,6 +15,8 @@ mod browser_launcher;
 #[cfg(target_os = "windows")]
 mod split_screen_manager;
 
+mod voice_recognition;
+
 #[cfg(not(debug_assertions))]
 mod release {
     use std::sync::Mutex;
@@ -373,6 +375,38 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
     Ok(())
 }
 
+// --- Voice Recognition Commands ---
+
+/// Check if the Whisper model is downloaded.
+#[tauri::command]
+fn voice_model_status() -> serde_json::Value {
+    serde_json::json!({
+        "downloaded": voice_recognition::is_model_downloaded(),
+        "recording": voice_recognition::is_recording(),
+    })
+}
+
+/// Start audio recording, then transcribe when stopped.
+#[tauri::command]
+async fn voice_start_recording() -> Result<String, String> {
+    voice_recognition::start_recording()?;
+
+    // Run audio capture in a blocking thread (cpal requires it)
+    let wav_path = tokio::task::spawn_blocking(|| voice_recognition::capture_audio())
+        .await
+        .map_err(|e| format!("Recording task failed: {e}"))??;
+
+    // Transcribe the captured WAV using whisper.cpp subprocess
+    let result = voice_recognition::transcribe(&wav_path, "ja")?;
+    Ok(result.text)
+}
+
+/// Stop the current recording session.
+#[tauri::command]
+fn voice_stop_recording() {
+    voice_recognition::stop_recording();
+}
+
 /// Show and focus the main window.
 ///
 /// On Windows, the hide -> show -> unminimize -> set_focus sequence is required
@@ -468,7 +502,10 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
-                get_window_decorations
+                get_window_decorations,
+                voice_model_status,
+                voice_start_recording,
+                voice_stop_recording
             ])
             .setup(|app| {
                 release::setup_sidecar(app);
@@ -497,7 +534,10 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
-                get_window_decorations
+                get_window_decorations,
+                voice_model_status,
+                voice_start_recording,
+                voice_stop_recording
             ])
             .setup(|app| {
                 setup_tray(app)?;

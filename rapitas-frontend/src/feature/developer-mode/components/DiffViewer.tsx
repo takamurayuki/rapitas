@@ -116,8 +116,8 @@ export function DiffViewer({
   return (
     <div className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800/50 border-b border-zinc-200 dark:border-zinc-700">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800/50 border-b border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-2 sm:gap-4">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             {files.length} ファイル
           </span>

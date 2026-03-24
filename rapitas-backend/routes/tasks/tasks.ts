@@ -17,6 +17,7 @@ import {
 } from '../../services/task/task-service';
 import { parseNaturalLanguageTask } from '../../services/ai/natural-language-parser';
 import { getKnowledgeBasedSuggestions } from '../../services/task/task-knowledge-suggestions';
+import { getUnifiedSuggestions } from '../../services/task/task-unified-suggestions';
 import {
   analyzeTask,
   generateExecutionInstructions,
@@ -162,6 +163,27 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         projectId: t.Optional(t.String()),
         status: t.Optional(t.String()),
         searchDescription: t.Optional(t.String()),
+      }),
+    },
+  )
+
+  // Unified suggestions: aggregates frequency + knowledge sources with deduplication
+  .get(
+    '/suggestions/unified',
+    async (context) => {
+      const { query } = context;
+      const { themeId, limit } = query;
+
+      if (!themeId) return { suggestions: [] };
+
+      const resultLimit = limit ? parseInt(limit) : 8;
+      const suggestions = await getUnifiedSuggestions(prisma, parseInt(themeId), resultLimit);
+      return { suggestions };
+    },
+    {
+      query: t.Object({
+        themeId: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
       }),
     },
   )
