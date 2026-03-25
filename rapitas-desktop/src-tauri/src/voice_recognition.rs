@@ -266,3 +266,38 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
 
     output
 }
+
+/// Transcribe raw PCM samples (16kHz mono) by writing to a temp WAV file
+/// and calling whisper.cpp. Used by the wake word detector.
+///
+/// # Arguments
+/// * `samples` - PCM f32 samples at 16kHz mono
+/// * `language` - Language hint (e.g. "ja")
+pub fn transcribe_pcm(samples: &[f32], language: &str) -> Result<TranscriptionResult, String> {
+    let wav_path = rapitas_dir().join("data").join(format!("wake-{}.wav", std::process::id()));
+
+    if let Some(parent) = wav_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: 16000,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+
+    let mut writer = WavWriter::create(&wav_path, spec)
+        .map_err(|e| format!("WAV write error: {e}"))?;
+
+    for &sample in samples {
+        let s16 = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+        writer.write_sample(s16).ok();
+    }
+    writer.finalize().map_err(|e| format!("WAV finalize error: {e}"))?;
+
+    let result = transcribe(&wav_path, language);
+
+    // transcribe() already cleans up the file
+    result
+}

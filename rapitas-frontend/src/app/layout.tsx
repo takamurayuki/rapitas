@@ -15,6 +15,7 @@ import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
 import IntlProvider from '@/components/providers/IntlProvider';
+import { VoiceInputProvider } from '@/components/voice';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -102,6 +103,7 @@ export default function RootLayout({
           <AuthProvider>
             <PomodoroProvider>
               <ToastProvider>
+                <VoiceInputProvider>
                 <ExternalLinksProvider>
                   <Suspense fallback={<div className="h-16" />}>
                     <Suspense fallback={<div className="h-16" />}>
@@ -125,6 +127,7 @@ export default function RootLayout({
                     </Suspense>
                   </Suspense>
                 </ExternalLinksProvider>
+                </VoiceInputProvider>
               </ToastProvider>
             </PomodoroProvider>
           </AuthProvider>

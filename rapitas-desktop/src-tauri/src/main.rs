@@ -16,6 +16,7 @@ mod browser_launcher;
 mod split_screen_manager;
 
 mod voice_recognition;
+mod wake_word;
 
 #[cfg(not(debug_assertions))]
 mod release {
@@ -407,6 +408,25 @@ fn voice_stop_recording() {
     voice_recognition::stop_recording();
 }
 
+/// Start wake word detection in the background.
+/// Monitors the microphone for "ラピタス" and brings the window to the foreground.
+#[tauri::command]
+fn wake_word_start(app: tauri::AppHandle) {
+    wake_word::start(app);
+}
+
+/// Stop wake word detection.
+#[tauri::command]
+fn wake_word_stop() {
+    wake_word::stop();
+}
+
+/// Check if wake word detection is active.
+#[tauri::command]
+fn wake_word_status() -> bool {
+    wake_word::is_active()
+}
+
 /// Show and focus the main window.
 ///
 /// On Windows, the hide -> show -> unminimize -> set_focus sequence is required
@@ -505,7 +525,10 @@ fn main() {
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
-                voice_stop_recording
+                voice_stop_recording,
+                wake_word_start,
+                wake_word_stop,
+                wake_word_status
             ])
             .setup(|app| {
                 release::setup_sidecar(app);
@@ -537,7 +560,10 @@ fn main() {
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
-                voice_stop_recording
+                voice_stop_recording,
+                wake_word_start,
+                wake_word_stop,
+                wake_word_status
             ])
             .setup(|app| {
                 setup_tray(app)?;
