@@ -17,6 +17,8 @@ import {
   Flag,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useRef } from 'react';
+import InlineMicButton from '@/components/voice/InlineMicButton';
 
 interface TaskEditFormProps {
   editTitle: string;
@@ -86,6 +88,7 @@ export default function TaskEditForm({
 }: TaskEditFormProps) {
   const t = useTranslations('task');
   const tc = useTranslations('common');
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
       {/* Title Input with Status */}
@@ -119,11 +122,23 @@ export default function TaskEditForm({
 
       {/* Description */}
       <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
-        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 mb-3">
-          <FileText className="w-4 h-4" />
-          <span className="text-sm font-medium">{t('description')}</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+            <FileText className="w-4 h-4" />
+            <span className="text-sm font-medium">{t('description')}</span>
+          </div>
+          <InlineMicButton
+            inputRef={descriptionTextareaRef}
+            onText={(text) => {
+              const current = editDescription;
+              const newText = current ? current + '\n' + text : text;
+              setEditDescription(newText);
+            }}
+            className="shrink-0"
+          />
         </div>
         <textarea
+          ref={descriptionTextareaRef}
           className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-violet-500/20 transition-all font-mono min-h-[200px]"
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}

@@ -59,8 +59,10 @@ export function buildFullInstruction(params: {
   instruction?: string;
   optimizedPrompt?: string;
   attachments?: AttachmentDescriptor[];
+  /** Target working directory for implementation / 実装先の作業ディレクトリ */
+  workingDirectory?: string;
 }): string {
-  const { taskTitle, taskDescription, instruction, optimizedPrompt, attachments } = params;
+  const { taskTitle, taskDescription, instruction, optimizedPrompt, attachments, workingDirectory } = params;
 
   let fullInstruction: string;
   if (optimizedPrompt) {
@@ -71,6 +73,16 @@ export function buildFullInstruction(params: {
     fullInstruction = instruction
       ? `${taskDescription || taskTitle}\n\nAdditional instructions:\n${instruction}`
       : taskDescription || taskTitle;
+  }
+
+  // NOTE: Explicitly tell the agent where to work so it doesn't default to rapitas project.
+  if (workingDirectory) {
+    fullInstruction += `\n\n## 作業ディレクトリ (Working Directory)\n`;
+    fullInstruction += `このタスクは以下のディレクトリで実行してください:\n`;
+    fullInstruction += `**${workingDirectory}**\n\n`;
+    fullInstruction += `重要: あなたのカレントディレクトリはこのディレクトリに設定されています。`;
+    fullInstruction += `rapitasプロジェクト(C:\\Projects\\rapitas)のファイルを変更しないでください。`;
+    fullInstruction += `すべてのファイル操作は上記ディレクトリ内で行ってください。\n`;
   }
 
   if (attachments && attachments.length > 0) {

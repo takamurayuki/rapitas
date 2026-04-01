@@ -53,6 +53,18 @@ export async function executeCLIAgent(
 ): Promise<WorkflowAdvanceResult> {
   const orchestrator = AgentOrchestrator.getInstance(prisma);
 
+  // NOTE: Resolve workingDirectory from theme — implementation runs in the target project,
+  // not in the rapitas project itself. Workflow files (plan.md, verify.md) are saved
+  // separately via the workflow API regardless of cwd.
+  const taskWithTheme = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { themeId: true, theme: { select: { workingDirectory: true } } },
+  });
+  const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
+  // Use theme workingDirectory for implementer role, process.cwd() for research/plan/verify
+  const isImplementationRole = transition.role === 'implementer';
+  const effectiveWorkDir = isImplementationRole && themeWorkDir ? themeWorkDir : process.cwd();
+
   const devConfig = await getOrCreateDevConfig(taskId);
   const session = await prisma.agentSession.create({
     data: { configId: devConfig.id, mode: `workflow-${transition.role}`, status: 'active' },
@@ -109,8 +121,8 @@ export async function executeCLIAgent(
   }
 
   const result = await orchestrator.executeTask(
-    { id: taskId, title: `[${transition.role}] ${task.title}`, description: fullPrompt, workingDirectory: process.cwd() },
-    { taskId, sessionId: session.id, agentConfigId: agentConfig.id, workingDirectory: process.cwd() },
+    { id: taskId, title: `[${transition.role}] ${task.title}`, description: fullPrompt, workingDirectory: effectiveWorkDir },
+    { taskId, sessionId: session.id, agentConfigId: agentConfig.id, workingDirectory: effectiveWorkDir },
   );
 
   const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });

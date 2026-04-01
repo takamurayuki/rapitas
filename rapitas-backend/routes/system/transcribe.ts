@@ -18,6 +18,8 @@ import {
   deleteCorrection,
   getCorrectionStats,
 } from '../../services/transcription';
+import { transcribeFast, isDaemonReady, ensureDaemon } from '../../services/transcription/whisper-daemon-service';
+import { parseVoiceCommand, type VoiceCommand } from '../../services/transcription/voice-command-parser';
 
 const log = createLogger('routes:transcribe');
 
@@ -46,21 +48,37 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
       let rawText = '';
       let source = 'local';
       let localError = '';
+      const startTime = Date.now();
 
-      // Primary: Local Whisper (no API key required)
-      try {
-        const audioBuffer = Buffer.from(await audio.arrayBuffer());
-        const localResult = await transcribeLocal(audioBuffer, language);
-
-        if (localResult.text.trim()) {
-          rawText = localResult.text;
-        } else if (localResult.error) {
-          localError = localResult.error;
-          log.warn({ error: localResult.error }, 'Local Whisper returned error');
+      // Primary: Daemon (persistent process, fast after first load)
+      if (isDaemonReady()) {
+        try {
+          const audioBuffer = Buffer.from(await audio.arrayBuffer());
+          rawText = await transcribeFast(audioBuffer, language);
+          source = 'daemon';
+          log.info({ ms: Date.now() - startTime }, 'Daemon transcription completed');
+        } catch (err) {
+          localError = err instanceof Error ? err.message : String(err);
+          log.warn({ err }, 'Daemon transcription failed, trying subprocess');
         }
-      } catch (err) {
-        localError = err instanceof Error ? err.message : String(err);
-        log.warn({ err }, 'Local Whisper failed');
+      }
+
+      // Secondary: Subprocess (cold start, slower but works without daemon)
+      if (!rawText) {
+        try {
+          const audioBuffer = Buffer.from(await audio.arrayBuffer());
+          const localResult = await transcribeLocal(audioBuffer, language);
+
+          if (localResult.text.trim()) {
+            rawText = localResult.text;
+          } else if (localResult.error) {
+            localError = localResult.error;
+            log.warn({ error: localResult.error }, 'Local Whisper returned error');
+          }
+        } catch (err) {
+          localError = err instanceof Error ? err.message : String(err);
+          log.warn({ err }, 'Local Whisper failed');
+        }
       }
 
       // Fallback: OpenAI Whisper API
@@ -103,8 +121,12 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
       const correctedText = applyCorrections(rawText);
       const wasAutoCorrected = correctedText !== rawText;
 
+      // Parse voice command from transcribed text
+      const command = parseVoiceCommand(correctedText);
+      const totalMs = Date.now() - startTime;
+
       log.info(
-        { textLength: correctedText.length, source, autoCorrected: wasAutoCorrected },
+        { textLength: correctedText.length, source, autoCorrected: wasAutoCorrected, commandType: command.type, totalMs },
         'Transcription completed',
       );
 
@@ -113,12 +135,30 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
         rawText: wasAutoCorrected ? rawText : undefined,
         source,
         autoCorrected: wasAutoCorrected,
+        command,
+        processingMs: totalMs,
       };
     } catch (error) {
       log.error({ err: error }, 'Transcription route error');
       set.status = 500;
       return { error: '文字起こし処理でエラーが発生しました' };
     }
+  })
+
+  /** Pre-warm the Whisper daemon (start loading model in background). */
+  .post('/warm', async ({ set }) => {
+    try {
+      ensureDaemon().catch(() => {}); // Fire-and-forget
+      return { success: true, message: 'Daemon warming up. First transcription will be fast once ready.' };
+    } catch (error) {
+      set.status = 500;
+      return { error: 'Failed to start daemon' };
+    }
+  })
+
+  /** Get daemon status. */
+  .get('/status', () => {
+    return { daemonReady: isDaemonReady() };
   })
 
   /** Record a user correction for learning. */

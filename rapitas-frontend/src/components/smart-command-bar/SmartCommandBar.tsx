@@ -66,6 +66,9 @@ export default function SmartCommandBar() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Guard against undefined e.key (dead keys, IME composition, etc.)
+      if (!e.key) return;
+
       // Check against the stored shortcut binding
       const binding = commandBarShortcut;
       if (binding && binding.key) {

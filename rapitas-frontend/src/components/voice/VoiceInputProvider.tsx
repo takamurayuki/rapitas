@@ -59,6 +59,12 @@ export default function VoiceInputProvider({ children }: { children: React.React
     setTarget(undefined);
   }, []);
 
+  // NOTE: Pre-warm Whisper daemon on app load so first voice input is fast.
+  useEffect(() => {
+    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+    fetch(`${BACKEND}/transcribe/warm`, { method: 'POST' }).catch(() => {});
+  }, []);
+
   const handleSetWakeWord = useCallback((enabled: boolean) => {
     setWakeWordEnabled(enabled);
     localStorage.setItem('rapitas-wake-word-enabled', String(enabled));

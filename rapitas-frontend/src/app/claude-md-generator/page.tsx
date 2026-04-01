@@ -121,11 +121,7 @@ export default function ClaudeMdGeneratorPage() {
         onCopy={w.handleCopy}
         onRestart={w.handleRestart}
         onCreateTheme={w.handleCreateTheme}
-        onResetSetup={() => {
-          w.setSetupPhase('idle');
-          w.setSetupError(null);
-          w.setCreatedThemePath(null);
-        }}
+        onResetSetup={w.handleResetSetup}
       />
     );
 

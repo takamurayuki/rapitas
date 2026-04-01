@@ -261,13 +261,21 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
       };
 
       try {
-        // Sanitize app name to create folder name (kebab-case, ASCII-safe)
-        const sanitizedAppName = appName
+        // NOTE: Sanitize app name to create folder name — supports ASCII, Japanese, and mixed names.
+        // First try ASCII-only kebab-case; if that yields empty, keep Unicode characters.
+        const asciiName = appName
           .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '') // Remove non-alphanumeric chars except spaces and hyphens
-          .replace(/\s+/g, '-') // Replace spaces with hyphens
-          .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-          .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '');
+
+        const sanitizedAppName = asciiName || appName
+          .trim()
+          .replace(/[\s　]+/g, '-')
+          .replace(/[\\/:*?"<>|]/g, '')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '');
 
         if (!sanitizedAppName) {
           throw new ValidationError('アプリ名から有効なフォルダ名を生成できませんでした');
@@ -305,7 +313,7 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
         const claudeFilePath = path.join(claudeDir, 'CLAUDE.md');
         fs.writeFileSync(claudeFilePath, claudeMd, 'utf8');
 
-        // Make initial commit
+        // Make initial commit and create develop branch
         try {
           execSync('git add .', { cwd: projectPath, stdio: 'pipe' });
           execSync('git commit -m "chore: initialize project with CLAUDE.md"', {
@@ -313,7 +321,19 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
             stdio: 'pipe',
           });
         } catch (error) {
-          throw new ValidationError('初期コミットの作成に失敗しました');
+          // NOTE: git commit fails when user.name/user.email is not configured globally
+          const msg = error instanceof Error ? error.message : String(error);
+          throw new ValidationError(
+            `初期コミットの作成に失敗しました。gitのuser.name/user.emailが設定されているか確認してください: ${msg}`,
+          );
+        }
+
+        // NOTE: Create develop branch following Git-flow convention — theme.defaultBranch is 'develop'
+        try {
+          execSync('git branch develop', { cwd: projectPath, stdio: 'pipe' });
+          execSync('git checkout develop', { cwd: projectPath, stdio: 'pipe' });
+        } catch (error) {
+          // NOTE: Non-fatal — develop branch creation can fail if default branch is already 'develop'
         }
 
         // Find or create Development category
@@ -352,23 +372,21 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           message: 'テーマとプロジェクトディレクトリが正常に作成されました',
         };
       } catch (error) {
-        // Clean up if something went wrong
-        const projectPath = basePath
-          ? path.join(
-              basePath,
-              appName
-                .toLowerCase()
-                .replace(/[^a-z0-9\s-]/g, '')
-                .replace(/\s+/g, '-'),
-            )
-          : path.join(
-              require('os').homedir(),
-              'Projects',
-              appName
-                .toLowerCase()
-                .replace(/[^a-z0-9\s-]/g, '')
-                .replace(/\s+/g, '-'),
-            );
+        // NOTE: Reconstruct projectPath using same sanitization logic for cleanup
+        const asciiClean = appName
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const folderName = asciiClean || appName
+          .trim()
+          .replace(/[\s　]+/g, '-')
+          .replace(/[\\/:*?"<>|]/g, '')
+          .replace(/-+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const cleanupBase = basePath || path.join(require('os').homedir(), 'Projects');
+        const projectPath = path.join(cleanupBase, folderName);
 
         if (fs.existsSync(projectPath)) {
           try {
