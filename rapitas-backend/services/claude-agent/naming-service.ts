@@ -5,6 +5,9 @@ import {
   isValidBranchName,
   generateFallbackBranchName,
 } from '../../utils/common/branch-name-generator';
+import { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
+
+export { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
 
 /**
  * タスク情報から意味のあるブランチ名を生成する
@@ -62,6 +65,11 @@ Examples:
 
 /**
  * タスクの説明から簡潔なタイトルを自動生成する
+ *
+ * @param description - タスクの説明文 / task description text
+ * @param provider - 使用するAIプロバイダー / AI provider to use
+ * @param model - 使用するモデル名 / model name (optional)
+ * @returns 生成されたタイトル / generated title
  */
 export async function generateTaskTitle(
   description: string,
@@ -69,61 +77,53 @@ export async function generateTaskTitle(
   model?: string,
 ): Promise<{ title: string }> {
   const systemPrompt = `あなたはタスク管理のアシスタントです。
-タスクの説明文から、簡潔で分かりやすいタスクタイトルを生成してください。
+タスクの説明文から、簡潔で分かりやすいタスクタイトルを1つだけ生成してください。
 
-タイトルのルール:
-1. 日本語で記述する
-2. 必ず40文字以内に収めること（これは厳守）
-3. 体言止めでタイトルっぽく作成する（「。」「が」は絶対に使用禁止）
-4. 余計な装飾や説明は不要
-5. 説明が長くても要点だけを抽出して短くまとめる
-6. 一文のみで出力する
+## ルール
+1. 日本語で記述する（英語の技術用語はそのまま可: API、UI、DB等）
+2. 必ず40文字以内に収める
+3. 体言止め（名詞で終わる形）にする
+4. 「〜の実装」「〜の修正」「〜の追加」「〜の改善」「〜の最適化」のような形式が望ましい
+5. タイトルのみを出力する。説明、句読点、引用符、番号は一切不要
+6. ハイフン(-)は使用禁止。読点(、)や句点(。)も使用禁止
 
-出力形式: タイトルのみを出力してください。句読点は使わないでください。
+## 入力が短い場合
+- 1〜3単語の入力でも、意味が通るタイトルに整形する
+- 例: 「ログイン バグ」→「ログイン機能のバグ修正」
+- 例: 「ダークモード」→「ダークモード対応」
 
-良い例:
-- 「ユーザー認証機能の実装」
-- 「データベース接続エラーの修正」
-- 「API レスポンス速度の最適化」
-- 「管理画面デザインの改善」
+## 良い例
+- ユーザー認証機能の実装
+- データベース接続エラーの修正
+- APIレスポンス速度の最適化
+- 管理画面デザインの改善
+- タスク一覧の並び替え機能追加
+- メール通知テンプレートの更新
 
-悪い例:
-- 「ユーザー認証機能を実装する。」（句点使用）
-- 「データベースが接続できない」（「が」使用）
-- 「API のレスポンス速度を最適化します」（動詞の丁寧語）`;
+## 悪い例（これらは絶対に出力しないこと）
+- 「ユーザー認証機能の実装」（引用符付き）
+- ユーザー認証機能を実装する。（句点・動詞終わり）
+- 1. ユーザー認証（番号付き）
+- タイトル: ユーザー認証（プレフィックス付き）
+- user-auth-implementation（英語ハイフン区切り）
+- ユーザー認証 - 実装（ハイフン区切り）`;
 
   const messages: AIMessage[] = [
     {
       role: 'user',
-      content: `以下のタスク説明から、簡潔なタイトルを生成してください:\n\n${description}`,
+      content: `以下のタスク説明から、簡潔なタイトルを1つだけ生成してください:\n\n${description}`,
     },
   ];
 
+  // NOTE: provider引数をsendAIMessageに渡す。未指定時はollamaにフォールバック。
   const response = await sendAIMessage({
-    provider: 'ollama',
+    provider: provider ?? 'ollama',
     messages,
     systemPrompt,
-    maxTokens: 50,
+    maxTokens: 80,
   });
 
-  let title = response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, '');
-
-  // 「。」除去ロジック
-  title = title.replace(/。+$/, '');
-
-  // 複数文の場合は最初のもののみ返却
-  if (title.includes('。')) {
-    title = title.split('。')[0];
-  }
-
-  // 「が」が含まれている場合は除去または修正を試行
-  if (title.includes('が')) {
-    // 簡単な「が」除去パターン
-    title = title.replace(/が[あ-ん]+/g, '');
-  }
-
-  if (title.length > 40) {
-    title = title.slice(0, 40);
-  }
+  const title = cleanGeneratedTitle(response.content);
   return { title };
 }
+
