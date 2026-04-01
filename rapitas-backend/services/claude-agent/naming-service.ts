@@ -5,6 +5,9 @@ import {
   isValidBranchName,
   generateFallbackBranchName,
 } from '../../utils/common/branch-name-generator';
+import { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
+
+export { cleanGeneratedTitle } from '../../utils/common/title-cleaner';
 
 /**
  * タスク情報から意味のあるブランチ名を生成する
@@ -62,6 +65,11 @@ Examples:
 
 /**
  * タスクの説明から簡潔なタイトルを自動生成する
+ *
+ * @param description - タスクの説明文 / task description text
+ * @param provider - 使用するAIプロバイダー / AI provider to use
+ * @param model - 使用するモデル名 / model name (optional)
+ * @returns 生成されたタイトル / generated title
  */
 export async function generateTaskTitle(
   description: string,
@@ -104,10 +112,11 @@ export async function generateTaskTitle(
   const messages: AIMessage[] = [
     {
       role: 'user',
-      content: `以下のタスク説明から、簡潔なタイトルを生成してください:\n\n${description}`,
+      content: `以下のタスク説明から、簡潔なタイトルを1つだけ生成してください:\n\n${description}`,
     },
   ];
 
+  // NOTE: provider引数をsendAIMessageに渡す。未指定時はollamaにフォールバック。
   const response = await sendAIMessage({
     provider: provider || 'ollama',
     messages,
@@ -162,3 +171,4 @@ export async function generateTaskTitle(
 
   return { title };
 }
+
