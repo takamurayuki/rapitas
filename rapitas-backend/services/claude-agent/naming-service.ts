@@ -78,19 +78,28 @@ export async function generateTaskTitle(
 4. 余計な装飾や説明は不要
 5. 説明が長くても要点だけを抽出して短くまとめる
 6. 一文のみで出力する
+7. ハイフン（-）や記号（・）、英語と日本語の混在は避ける
+8. 「タイトル:」「件名:」などのプレフィックスは付けない
+9. 短い入力（5文字以下）でも意味のあるタイトルを生成する
 
-出力形式: タイトルのみを出力してください。句読点は使わないでください。
+出力形式: タイトルのみを出力してください。句読点、記号、プレフィックスは使わないでください。
 
 良い例:
 - 「ユーザー認証機能の実装」
 - 「データベース接続エラーの修正」
 - 「API レスポンス速度の最適化」
 - 「管理画面デザインの改善」
+- 「ログイン画面の表示改善」
+- 「画像アップロード機能追加」
 
 悪い例:
+- 「- ユーザー認証機能の実装」（ハイフン使用）
 - 「ユーザー認証機能を実装する。」（句点使用）
 - 「データベースが接続できない」（「が」使用）
-- 「API のレスポンス速度を最適化します」（動詞の丁寧語）`;
+- 「API のレスポンス速度を最適化します」（動詞の丁寧語）
+- 「タイトル: ログイン機能追加」（プレフィックス使用）
+- 「Login機能の追加」（英語混在）
+- 「画面・修正」（記号使用）`;
 
   const messages: AIMessage[] = [
     {
@@ -100,13 +109,29 @@ export async function generateTaskTitle(
   ];
 
   const response = await sendAIMessage({
-    provider: 'ollama',
+    provider: provider || 'ollama',
     messages,
     systemPrompt,
     maxTokens: 50,
+    model,
   });
 
-  let title = response.content.trim().replace(/^["'「」『』]|["'「」『』]$/g, '');
+  let title = response.content.trim();
+
+  // LLMが生成しがちなプレフィックスを除去
+  title = title.replace(/^(タイトル|件名|題名|テーマ)\s*[:：]\s*/g, '');
+  title = title.replace(/^(Title|Subject)\s*[:：]\s*/gi, '');
+
+  // 引用符・括弧の除去
+  title = title.replace(/^["']+/g, '').replace(/["']+$/g, '');
+  title = title.replace('「', '').replace('」', '');
+  title = title.replace('『', '').replace('』', '');
+  title = title.replace(/^[()（）]+/g, '').replace(/[()（）]+$/g, '');
+  title = title.replace(/^[【】\[\]]+/g, '').replace(/[【】\[\]]+$/g, '');
+
+  // ハイフンや不要な記号の除去（文頭のハイフンや箇条書きマーカー）
+  title = title.replace(/^[-−・*+]\s*/g, '');
+  title = title.replace(/\s*[-−・]\s*/g, ' '); // 中間のハイフンをスペースに置換
 
   // 「。」除去ロジック
   title = title.replace(/。+$/, '');
@@ -116,14 +141,24 @@ export async function generateTaskTitle(
     title = title.split('。')[0];
   }
 
-  // 「が」が含まれている場合は除去または修正を試行
+  // 「が」が含まれている場合の安全な処理（破壊的な除去を避ける）
   if (title.includes('が')) {
-    // 簡単な「が」除去パターン
-    title = title.replace(/が[あ-ん]+/g, '');
+    // より安全な「が」の処理：文法的におかしくなりそうな場合のみ修正
+    title = title.replace(/(.+)が(.+)ない(問題|エラー|バグ)/g, '$1の$2修正');
+    title = title.replace(/(.+)が(.+)できない/g, '$1の$2機能');
+    // その他の「が」は残す（意味を壊さないため）
   }
 
+  // 余分な空白を除去し、文字数制限を適用
+  title = title.replace(/\s+/g, ' ').trim();
   if (title.length > 40) {
     title = title.slice(0, 40);
   }
+
+  // 空文字列の場合のフォールバック
+  if (!title) {
+    title = 'タスクタイトル';
+  }
+
   return { title };
 }

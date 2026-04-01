@@ -255,6 +255,19 @@ export function useWizard() {
     setProposals([]);
     setPickedProp(null);
     setResult(null);
+    // Reset setup state as well
+    setSetupPhase('idle');
+    setCreatedThemePath(null);
+    setSetupError(null);
+  };
+
+  /**
+   * Resets setup state to idle for retry functionality.
+   */
+  const handleResetSetup = () => {
+    setSetupPhase('idle');
+    setSetupError(null);
+    setCreatedThemePath(null);
   };
 
   const toggleSub = (id: string) =>
@@ -311,6 +324,7 @@ export function useWizard() {
     handleCreateTheme,
     handleCopy,
     handleRestart,
+    handleResetSetup,
     toggleSub,
     toggleElement,
     runProposeApps,

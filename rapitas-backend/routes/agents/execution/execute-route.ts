@@ -188,6 +188,7 @@ export const executeRoute = new Elysia().post(
       instruction,
       optimizedPrompt,
       attachments,
+      workingDirectory: worktreePath,
     });
 
     const analysisInfo =

@@ -14,7 +14,10 @@ import {
   useExecutionStream,
 } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
-import { parseQuestionOptions } from './agent-execution-utils';
+import {
+  parseQuestionOptions,
+  type ParsedQuestion,
+} from './agent-execution-utils';
 import type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
@@ -99,6 +102,7 @@ export function useAgentExecution(
     question: pollingQuestion,
     questionType: pollingQuestionType,
     questionTimeout: pollingQuestionTimeout,
+    questionDetails: pollingQuestionDetails,
     sessionMode: pollingSessionMode,
     tokensUsed: pollingTokensUsed,
     startPolling,
@@ -151,7 +155,24 @@ export function useAgentExecution(
     isTerminalStatus,
   ]);
 
-  const questionParsed = question ? parseQuestionOptions(question) : null;
+  // NOTE: Prefer structured questionDetails from AskUserQuestion tool calls over text parsing
+  const questionParsed = useMemo((): ParsedQuestion | null => {
+    if (!question) return null;
+
+    // Use structured questionDetails when available (from AskUserQuestion tool calls)
+    if (
+      pollingQuestionDetails?.options &&
+      pollingQuestionDetails.options.length > 0
+    ) {
+      return {
+        text: question,
+        options: pollingQuestionDetails.options.map((opt) => opt.label),
+      };
+    }
+
+    // Fallback to text-based parsing for legacy support
+    return parseQuestionOptions(question);
+  }, [question, pollingQuestionDetails]);
   const hasOptions = !!(questionParsed && questionParsed.options.length >= 2);
   const isConfirmedQuestion = questionType === 'tool_call';
 

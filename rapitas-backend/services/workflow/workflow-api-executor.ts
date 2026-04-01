@@ -70,8 +70,20 @@ export async function executeAPIAgent(
       apiKey = await decryptApiKey(agentConfig.apiKeyEncrypted);
     }
 
+    // NOTE: Include theme workingDirectory in context so the API agent
+    // generates code paths relative to the target project, not rapitas.
+    const taskWithTheme = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { themeId: true, theme: { select: { workingDirectory: true, name: true } } },
+    });
+    const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
+
     const languageInstructions = { ja: 'すべての出力を日本語で記述してください。', en: 'Write all output in English.' };
-    const enhancedSystemPrompt = systemPrompt + '\n\n' + languageInstructions[language];
+    let enhancedSystemPrompt = systemPrompt + '\n\n' + languageInstructions[language];
+
+    if (themeWorkDir && transition.role === 'implementer') {
+      enhancedSystemPrompt += `\n\n## 作業ディレクトリ\nこのタスクの実装は以下のディレクトリで行ってください: ${themeWorkDir}\nrapitasプロジェクト内にファイルを作成しないでください。`;
+    }
 
     let output = '';
     const startTime = Date.now();
