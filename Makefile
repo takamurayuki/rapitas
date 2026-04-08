@@ -12,6 +12,7 @@
         build-web build-tauri \
         db-push db-generate db-studio db-migrate db-reset \
         version-check version-sync env-check \
+        check-files check-todos \
         clean clean-deep clean-dry
 
 ## help: Show this message
@@ -129,6 +130,14 @@ version-sync:
 ## env-check: Validate rapitas-backend/.env against .env.example
 env-check:
 	npm run env:check
+
+## check-files: Report files over 300 / 500 line limits
+check-files:
+	npm run check:files:warn
+
+## check-todos: Aggregate TODO/FIXME/HACK/NOTE markers
+check-todos:
+	npm run check:todos
 
 # ─── Cleanup ───────────────────────────────────────────────────────────────
 

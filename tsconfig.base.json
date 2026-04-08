@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": [
+    "Shared TypeScript baseline for all subprojects.",
+    "",
+    "This file is the SOURCE OF TRUTH for strictness flags. Subproject",
+    "tsconfig.json files are NOT yet wired to extend this — see ADR-0004",
+    "for the rollout plan and the strictness ratchet schedule.",
+    "",
+    "When a subproject is ready to migrate, replace its compilerOptions",
+    "with `\"extends\": \"../tsconfig.base.json\"` plus the env-specific",
+    "fields it cannot share (lib, jsx, moduleResolution, paths, plugins).",
+    "",
+    "Last reviewed: 2026-04-08"
+  ],
+  "compilerOptions": {
+    // ─── Output ──────────────────────────────────────────────────────────
+    "noEmit": true,
+    "incremental": true,
+    "skipLibCheck": true,
+
+    // ─── Module interop ──────────────────────────────────────────────────
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // ─── Strictness baseline (CURRENTLY ACTIVE in both subprojects) ──────
+    "strict": true,
+
+    // ─── Strictness ratchet (TARGET — rollout per ADR-0004) ──────────────
+    // Uncomment one line per subproject as the ratchet advances.
+    // "noImplicitOverride": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "exactOptionalPropertyTypes": true,
+    // "noUncheckedIndexedAccess": true,
+    // "noImplicitReturns": true,
+
+    // ─── Misc ────────────────────────────────────────────────────────────
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": false
+  }
+}

@@ -30,6 +30,8 @@
     "env:check": "node scripts/verify-env.cjs",
     "check:files": "node scripts/check-large-files.cjs",
     "check:files:warn": "node scripts/check-large-files.cjs --warn-only",
+    "check:todos": "node scripts/check-todos.cjs",
+    "check:todos:ci": "node scripts/check-todos.cjs --max-hack 14 --max-fixme 1",
     "clean": "node scripts/clean.cjs",
     "clean:deep": "node scripts/clean.cjs --deep",
     "clean:dry": "node scripts/clean.cjs --dry-run",

@@ -1,0 +1,33 @@
+name: TODO/HACK Ceiling
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-backend/**'
+      - 'rapitas-frontend/src/**'
+      - 'rapitas-desktop/src-tauri/src/**'
+      - 'scripts/check-todos.cjs'
+      - '.github/workflows/todos-check.yml'
+  workflow_dispatch:
+
+jobs:
+  todos:
+    name: Enforce HACK/FIXME ceilings (ADR-0004)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Baseline measured 2026-04-08 in ADR-0004.
+      # Lower these numbers as the ratchet advances; never raise them.
+      - name: Check TODO/HACK ceiling
+        run: node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
