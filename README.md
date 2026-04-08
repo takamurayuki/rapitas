@@ -540,6 +540,13 @@ git commit -m "your message" --no-verify
 
 **詳細ガイド:** [docs/pre-commit-guide.md](docs/pre-commit-guide.md)
 
+## 📚 ドキュメント
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — システム全体図、サブシステム境界、データモデルの俯瞰
+- [docs/adr/](docs/adr/) — 主要な設計判断 (ADR)
+- [docs/pre-commit-guide.md](docs/pre-commit-guide.md) — pre-commit フックの詳細
+- [CLAUDE.md](CLAUDE.md) — AI エージェント向けの作業ルール
+
 ## 📄 ライセンス
 
-Private
+[MIT](LICENSE)
