@@ -11,7 +11,7 @@
         check test test-backend test-frontend lint lint-fix format \
         build-web build-tauri \
         db-push db-generate db-studio db-migrate db-reset \
-        version-check version-sync \
+        version-check version-sync env-check \
         clean clean-deep clean-dry
 
 ## help: Show this message
@@ -125,6 +125,10 @@ version-check:
 ## version-sync: Sync all manifests to root package.json version
 version-sync:
 	npm run version:sync
+
+## env-check: Validate rapitas-backend/.env against .env.example
+env-check:
+	npm run env:check
 
 # ─── Cleanup ───────────────────────────────────────────────────────────────
 

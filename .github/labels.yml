@@ -1,0 +1,112 @@
+# Canonical issue/PR labels for rapitas.
+# Synced to GitHub by .github/workflows/labels-sync.yml.
+# Edit here, not in the GitHub UI — manual changes will be overwritten.
+
+# ─── Type ──────────────────────────────────────────────────────────────────
+- name: bug
+  color: d73a4a
+  description: Something is not working
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+- name: refactor
+  color: c5def5
+  description: Code change that neither fixes a bug nor adds a feature
+- name: docs
+  color: 0075ca
+  description: Documentation only changes
+- name: test
+  color: bfd4f2
+  description: Adding or updating tests
+- name: chore
+  color: cfd3d7
+  description: Maintenance, tooling, build
+- name: performance
+  color: fbca04
+  description: Performance improvement
+- name: security
+  color: b60205
+  description: Security-related issue or fix
+
+# ─── Area ──────────────────────────────────────────────────────────────────
+- name: 'area: frontend'
+  color: 1d76db
+  description: rapitas-frontend (Next.js)
+- name: 'area: backend'
+  color: 0e8a16
+  description: rapitas-backend (Elysia / Bun)
+- name: 'area: desktop'
+  color: 5319e7
+  description: rapitas-desktop (Tauri)
+- name: 'area: database'
+  color: 006b75
+  description: Prisma / PostgreSQL
+- name: 'area: ai'
+  color: 8b4fbb
+  description: AI agents, prompts, providers
+- name: 'area: ci'
+  color: 333333
+  description: CI/CD workflows
+- name: 'area: docs'
+  color: 0075ca
+  description: Documentation
+
+# ─── Status / lifecycle ────────────────────────────────────────────────────
+- name: triage
+  color: ededed
+  description: Needs initial review
+- name: 'good first issue'
+  color: 7057ff
+  description: Good for newcomers
+- name: 'help wanted'
+  color: 008672
+  description: Extra attention is needed
+- name: blocked
+  color: e11d21
+  description: Blocked by another issue or external factor
+- name: wontfix
+  color: ffffff
+  description: Will not be worked on
+- name: duplicate
+  color: cfd3d7
+  description: Duplicate of another issue
+- name: invalid
+  color: e4e669
+  description: Not a valid issue
+- name: stale
+  color: cccccc
+  description: Inactive for 90+ days
+
+# ─── Priority ──────────────────────────────────────────────────────────────
+- name: 'priority: high'
+  color: b60205
+  description: Should be addressed soon
+- name: 'priority: medium'
+  color: fbca04
+  description: Normal priority
+- name: 'priority: low'
+  color: 0e8a16
+  description: Nice to have
+
+# ─── Dependencies (used by Dependabot) ─────────────────────────────────────
+- name: dependencies
+  color: 0366d6
+  description: Pull requests that update a dependency file
+- name: root
+  color: ededed
+  description: Affects the root workspace
+- name: frontend
+  color: 1d76db
+  description: Affects rapitas-frontend
+- name: backend
+  color: 0e8a16
+  description: Affects rapitas-backend
+- name: desktop
+  color: 5319e7
+  description: Affects rapitas-desktop
+- name: rust
+  color: dea584
+  description: Affects Rust / Cargo dependencies
+- name: ci
+  color: 333333
+  description: Affects CI/CD

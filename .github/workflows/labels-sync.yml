@@ -1,0 +1,35 @@
+name: Sync Labels
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - '.github/labels.yml'
+      - '.github/workflows/labels-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: Sync labels from .github/labels.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync labels
+        uses: crazy-max/ghaction-github-labeler@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          yaml-file: .github/labels.yml
+          # Dry-run on PRs and feature branches; only mutate from main branches.
+          dry-run: ${{ github.ref != 'refs/heads/develop' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+          # Do not delete labels that exist on the repo but not in the YAML.
+          # Flip to false once .github/labels.yml is the sole source of truth.
+          skip-delete: true
