@@ -1,0 +1,29 @@
+name: Actionlint
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yml'
+
+jobs:
+  actionlint:
+    name: Lint GitHub Actions workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          matcher: true
+          fail-on-error: true

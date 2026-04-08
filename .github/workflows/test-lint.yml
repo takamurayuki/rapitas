@@ -116,7 +116,9 @@ jobs:
             const branches = total.branches.pct;
             const functions = total.functions.pct;
             console.log('Coverage: lines=' + lines + '% branches=' + branches + '% functions=' + functions + '%');
-            if (lines < 10) { console.error('Line coverage ' + lines + '% is below threshold 10%'); process.exit(1); }
+            // TODO: raise stepwise — 15 → 30 → 50 → 80 (CLAUDE.md target).
+            const THRESHOLD = 15;
+            if (lines < THRESHOLD) { console.error('Line coverage ' + lines + '% is below threshold ' + THRESHOLD + '%'); process.exit(1); }
           "
 
   lint:

@@ -1,0 +1,27 @@
+# CODEOWNERS for rapitas
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Order matters: the LAST matching pattern wins.
+
+# Default owner for everything
+*                                       @takamurayuki
+
+# CI / governance
+/.github/                               @takamurayuki
+/.github/workflows/                     @takamurayuki
+
+# Backend
+/rapitas-backend/                       @takamurayuki
+/rapitas-backend/prisma/                @takamurayuki
+/rapitas-backend/services/agents/       @takamurayuki
+
+# Frontend
+/rapitas-frontend/                      @takamurayuki
+
+# Desktop (Tauri)
+/rapitas-desktop/                       @takamurayuki
+/rapitas-desktop/src-tauri/             @takamurayuki
+
+# Project conventions
+/.claude/                               @takamurayuki
+/CLAUDE.md                              @takamurayuki
