@@ -12,7 +12,7 @@
         build-web build-tauri \
         db-push db-generate db-studio db-migrate db-reset \
         version-check version-sync \
-        clean
+        clean clean-deep clean-dry
 
 ## help: Show this message
 help:
@@ -130,9 +130,12 @@ version-sync:
 
 ## clean: Remove build artifacts and caches (DESTRUCTIVE)
 clean:
-	@echo "Removing build artifacts..."
-	rm -rf rapitas-frontend/.next rapitas-frontend/.next-tauri rapitas-frontend/out
-	rm -rf rapitas-frontend/coverage
-	rm -rf rapitas-desktop/src-tauri/target
-	rm -rf rapitas-desktop/src-tauri/binaries
-	@echo "Done."
+	node scripts/clean.cjs
+
+## clean-deep: Also remove node_modules (DESTRUCTIVE)
+clean-deep:
+	node scripts/clean.cjs --deep
+
+## clean-dry: Show what `make clean` would remove
+clean-dry:
+	node scripts/clean.cjs --dry-run

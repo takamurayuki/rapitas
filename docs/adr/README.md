@@ -57,3 +57,4 @@ What did we decide? Be specific.
 | # | Title | Status |
 |---|---|---|
 | [0001](./0001-three-runtimes-coexistence.md) | Three runtimes (npm + pnpm + bun) coexistence | accepted |
+| [0002](./0002-coverage-gate-staging.md) | Stepwise coverage gate instead of a single 80% target | accepted |
