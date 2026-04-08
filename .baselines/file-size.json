@@ -1,0 +1,26 @@
+{
+  "generated": "2026-04-08T13:43:16.119Z",
+  "hard_limit": 500,
+  "soft_limit": 300,
+  "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
+  "files": {
+    "rapitas-backend/services/agents/claude-code/agent-core.ts": {
+      "lineCount": 1012
+    },
+    "rapitas-frontend/src/feature/developer-mode/components/ai-accordion-panel/useExecutionManager.ts": {
+      "lineCount": 609
+    },
+    "rapitas-desktop/src-tauri/src/main.rs": {
+      "lineCount": 584
+    },
+    "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
+      "lineCount": 581
+    },
+    "rapitas-frontend/src/components/voice/VoiceInputBar.tsx": {
+      "lineCount": 509
+    },
+    "rapitas-frontend/src/components/note/editor/useNoteEditor.ts": {
+      "lineCount": 506
+    }
+  }
+}

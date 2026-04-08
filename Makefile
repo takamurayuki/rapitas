@@ -13,6 +13,7 @@
         db-push db-generate db-studio db-migrate db-reset \
         version-check version-sync env-check \
         check-files check-todos \
+        snapshot snapshot-write snapshot-diff \
         clean clean-deep clean-dry
 
 ## help: Show this message
@@ -138,6 +139,18 @@ check-files:
 ## check-todos: Aggregate TODO/FIXME/HACK/NOTE markers
 check-todos:
 	npm run check:todos
+
+## snapshot: Print current bottleneck snapshot
+snapshot:
+	npm run snapshot
+
+## snapshot-write: Write bottleneck snapshot to .baselines/
+snapshot-write:
+	npm run snapshot:write
+
+## snapshot-diff: Diff current state against last snapshot
+snapshot-diff:
+	npm run snapshot:diff
 
 # ─── Cleanup ───────────────────────────────────────────────────────────────
 

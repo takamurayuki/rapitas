@@ -16,11 +16,8 @@ on:
 
 jobs:
   file-size:
-    name: Enforce per-file line limits
+    name: Enforce per-file line limits (with ratchet baseline)
     runs-on: ubuntu-latest
-    # Report-only until the existing 6 hard-limit violations are split.
-    # Flip continue-on-error off in a follow-up PR after they are addressed.
-    continue-on-error: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,9 +27,9 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run file-size check (warn-only baseline)
-        run: node scripts/check-large-files.cjs --warn-only
-
-      - name: Run file-size check (strict, advisory)
+      # Hard fail if any NEW file exceeds 500 lines, OR if any file already in
+      # .baselines/file-size.json grew beyond its snapshot. Existing baseline
+      # files are exempt at their current size — split them to remove the
+      # entry.
+      - name: Run file-size check (ratchet)
         run: node scripts/check-large-files.cjs
-        continue-on-error: true
