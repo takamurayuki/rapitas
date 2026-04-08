@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 質問・議論 / Questions & Discussions
+    url: https://github.com/takamurayuki/rapitas/discussions
+    about: バグ報告・機能要望以外の質問はこちら

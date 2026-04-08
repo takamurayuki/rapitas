@@ -1,0 +1,110 @@
+# Dependabot configuration for rapitas
+# Docs: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # Root workspace (npm)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "root"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # Backend (bun.lock is supported by npm ecosystem)
+  - package-ecosystem: "npm"
+    directory: "/rapitas-backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "chore(backend)"
+    groups:
+      prisma:
+        patterns:
+          - "@prisma/*"
+          - "prisma"
+      types:
+        patterns:
+          - "@types/*"
+
+  # Frontend (pnpm)
+  - package-ecosystem: "npm"
+    directory: "/rapitas-frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "chore(frontend)"
+    groups:
+      next:
+        patterns:
+          - "next"
+          - "@next/*"
+          - "eslint-config-next"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+
+  # Desktop (Tauri / pnpm)
+  - package-ecosystem: "npm"
+    directory: "/rapitas-desktop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "desktop"
+    commit-message:
+      prefix: "chore(desktop)"
+    groups:
+      tauri:
+        patterns:
+          - "@tauri-apps/*"
+
+  # Tauri (Rust)
+  - package-ecosystem: "cargo"
+    directory: "/rapitas-desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "chore(tauri)"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"

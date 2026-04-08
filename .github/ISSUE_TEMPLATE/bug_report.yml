@@ -1,0 +1,89 @@
+name: バグ報告 / Bug Report
+description: 不具合を報告する
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        バグ報告ありがとうございます。再現性を高めるため、できるだけ詳しく記入してください。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要 / Summary
+      description: 何が起きたかを 1-3 行で
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 再現手順 / Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動作 / Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作 / Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影響範囲 / Affected area
+      multiple: true
+      options:
+        - frontend (Next.js)
+        - backend (Elysia/Bun)
+        - desktop (Tauri)
+        - database (Prisma)
+        - CI/CD
+        - その他 / other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: バージョン / Version
+      placeholder: "例: v1.2.3 もしくは commit hash"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境 / Environment
+      placeholder: |
+        - OS: Windows 11 / macOS 14 / Ubuntu 22.04
+        - Node: 20.x
+        - Bun: 1.1.42
+        - Browser (frontend): ...
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ / Logs
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 確認事項
+      options:
+        - label: 既存の Issue で同じバグが報告されていないことを確認した
+          required: true
+        - label: secret / 個人情報を含めていない
+          required: true
