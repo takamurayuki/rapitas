@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.next-tauri/
+out/
+target/
+coverage/
+binaries/
+.worktrees/
+rapitas-backend/data/
+rapitas-backend/uploads/
+rapitas-backend/logs/
+rapitas-backend/tasks/
+analysis-report.md
+project-improve.md
+project-guide.md
+**/CHANGELOG.md

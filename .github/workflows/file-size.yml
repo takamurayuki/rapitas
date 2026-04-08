@@ -1,0 +1,38 @@
+name: File Size Check
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-backend/**/*.ts'
+      - 'rapitas-frontend/src/**/*.{ts,tsx}'
+      - 'rapitas-desktop/src-tauri/src/**/*.rs'
+      - 'scripts/check-large-files.cjs'
+      - '.github/workflows/file-size.yml'
+  workflow_dispatch:
+
+jobs:
+  file-size:
+    name: Enforce per-file line limits
+    runs-on: ubuntu-latest
+    # Report-only until the existing 6 hard-limit violations are split.
+    # Flip continue-on-error off in a follow-up PR after they are addressed.
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run file-size check (warn-only baseline)
+        run: node scripts/check-large-files.cjs --warn-only
+
+      - name: Run file-size check (strict, advisory)
+        run: node scripts/check-large-files.cjs
+        continue-on-error: true

@@ -28,6 +28,8 @@
     "version:sync": "node scripts/sync-version.cjs",
     "version:check": "node scripts/sync-version.cjs --check",
     "env:check": "node scripts/verify-env.cjs",
+    "check:files": "node scripts/check-large-files.cjs",
+    "check:files:warn": "node scripts/check-large-files.cjs --warn-only",
     "clean": "node scripts/clean.cjs",
     "clean:deep": "node scripts/clean.cjs --deep",
     "clean:dry": "node scripts/clean.cjs --dry-run",
