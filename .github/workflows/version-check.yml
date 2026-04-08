@@ -1,0 +1,41 @@
+name: Version Sync Check
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'package.json'
+      - 'rapitas-desktop/package.json'
+      - 'rapitas-desktop/src-tauri/tauri.conf.json'
+      - 'rapitas-desktop/src-tauri/tauri.ci.conf.json'
+      - 'rapitas-desktop/src-tauri/Cargo.toml'
+      - 'scripts/sync-version.cjs'
+      - '.github/workflows/version-check.yml'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'rapitas-desktop/package.json'
+      - 'rapitas-desktop/src-tauri/tauri.conf.json'
+      - 'rapitas-desktop/src-tauri/tauri.ci.conf.json'
+      - 'rapitas-desktop/src-tauri/Cargo.toml'
+      - 'scripts/sync-version.cjs'
+      - '.github/workflows/version-check.yml'
+
+jobs:
+  version-check:
+    name: Verify version is in sync across manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run version sync check
+        run: node scripts/sync-version.cjs --check

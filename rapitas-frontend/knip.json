@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,loading,error,not-found,template,default,route}.{ts,tsx}",
+    "src/app/**/route.{ts,tsx}",
+    "src/middleware.ts",
+    "next.config.ts",
+    "vitest.config.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/**/*.test.{ts,tsx}",
+    "src/**/__tests__/**",
+    "src/**/*.stories.{ts,tsx}"
+  ],
+  "ignoreDependencies": [
+    "@types/*",
+    "eslint-config-next"
+  ],
+  "next": {
+    "entry": [
+      "src/app/**/{page,layout,loading,error,not-found,template,default,route}.{ts,tsx}",
+      "src/middleware.ts",
+      "next.config.ts"
+    ]
+  }
+}

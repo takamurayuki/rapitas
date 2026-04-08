@@ -25,6 +25,8 @@
     "prisma:push": "cd rapitas-backend && npx prisma db push",
     "prisma:generate": "cd rapitas-backend && npx prisma generate",
     "prisma:studio": "cd rapitas-backend && npx prisma studio",
+    "version:sync": "node scripts/sync-version.cjs",
+    "version:check": "node scripts/sync-version.cjs --check",
     "prepare": "husky"
   },
   "devDependencies": {

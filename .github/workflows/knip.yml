@@ -1,0 +1,43 @@
+name: Knip (Unused Code Detection)
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-frontend/**'
+      - '.github/workflows/knip.yml'
+  workflow_dispatch:
+
+jobs:
+  knip-frontend:
+    name: Knip (frontend)
+    runs-on: ubuntu-latest
+    # Report-only for now: do not fail the build until baseline is clean.
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+
+      - name: Install frontend dependencies
+        working-directory: rapitas-frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Run knip
+        working-directory: rapitas-frontend
+        run: pnpm dlx knip@5 --reporter markdown --no-exit-code
+
+      - name: Run knip (strict, advisory)
+        working-directory: rapitas-frontend
+        run: pnpm dlx knip@5
+        continue-on-error: true

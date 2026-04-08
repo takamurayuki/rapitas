@@ -1,0 +1,47 @@
+name: Bundle Size
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+    paths:
+      - 'rapitas-frontend/**'
+      - 'scripts/check-bundle-size.cjs'
+      - '.github/workflows/bundle-size.yml'
+  workflow_dispatch:
+
+jobs:
+  bundle-size:
+    name: Check frontend bundle size
+    runs-on: ubuntu-latest
+    # Report-only for now: do not fail the build until budgets are tuned.
+    continue-on-error: true
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_TURBO: '0'
+      MAX_CHUNK_KB: '500'
+      MAX_TOTAL_KB: '8000'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@latest
+
+      - name: Install frontend dependencies
+        working-directory: rapitas-frontend
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build frontend
+        working-directory: rapitas-frontend
+        run: pnpm run build
+
+      - name: Check bundle size
+        run: node scripts/check-bundle-size.cjs rapitas-frontend/.next
