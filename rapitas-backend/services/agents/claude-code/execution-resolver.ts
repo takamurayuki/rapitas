@@ -1,0 +1,282 @@
+/**
+ * execution-resolver
+ *
+ * Builds the post-parse resolution callback that decides whether a Claude
+ * Code execution succeeded, failed, was interrupted, or is waiting for
+ * input. Extracted from agent-core.ts to keep that file under the
+ * 500-line per-file limit.
+ *
+ * The resolver is data-driven: it receives the agent's mutable state
+ * via a `ResolverContext` and the bound `resolve()` callback from the
+ * outer Promise. All status mutations go through `ctx.status = ...`.
+ */
+import { tolegacyQuestionType } from '../question-detection';
+import type { QuestionWaitingState } from '../question-detection';
+import type {
+  AgentArtifact,
+  AgentExecutionResult,
+  GitCommitInfo,
+} from '../base-agent';
+import { checkGitDiff } from './git-diff-checker';
+import { createLogger } from '../../../config/logger';
+
+const logger = createLogger('claude-code-agent');
+
+/** Read/write state the resolver needs from the host agent. */
+export interface ResolverContext {
+  readonly logPrefix: string;
+  readonly resumeSessionId: string | undefined;
+  readonly continueConversation: boolean | undefined;
+
+  // Buffers and accumulated state
+  outputBuffer: string;
+  errorBuffer: string;
+  lineBuffer: string;
+  detectedQuestion: QuestionWaitingState;
+  claudeSessionId: string | null;
+  hasFileModifyingToolCalls: boolean;
+  idleTimeoutForceKilled: boolean;
+
+  // Mutated by the resolver
+  status: string;
+
+  // BaseAgent emit proxy
+  emitOutputInternal(output: string, isError?: boolean): void;
+}
+
+/**
+ * Build the resolution callback used after the Worker finishes parsing.
+ * Determines success/failure based on question detection, exit code, and git diff.
+ *
+ * @param ctx - Mutable agent state + emitter callback. / 状態とコールバック
+ * @param code - Process exit code / プロセス終了コード
+ * @param workDir - Working directory for git diff check / git diffチェック用の作業ディレクトリ
+ * @param startTime - Execution start timestamp / 実行開始タイムスタンプ
+ * @param resolve - Promise resolver from execute() / execute()のPromiseリゾルバー
+ * @param getArtifacts - Lazy getter for the parsed artifacts / アーティファクト取得
+ * @param getCommits - Lazy getter for the parsed commits / コミット取得
+ * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
+ */
+export function buildResolveAfterParse(
+  ctx: ResolverContext,
+  code: number | null,
+  workDir: string,
+  startTime: number,
+  resolve: (result: AgentExecutionResult) => void,
+  getArtifacts: () => AgentArtifact[],
+  getCommits: () => GitCommitInfo[],
+): () => void {
+  return () => {
+    const artifacts = getArtifacts();
+    const commits = getCommits();
+    const executionTimeMs = Date.now() - startTime;
+
+    logger.info(`${ctx.logPrefix} Running question detection...`);
+    logger.info(
+      { detectedQuestion: ctx.detectedQuestion },
+      `${ctx.logPrefix} detectedQuestion from stream`,
+    );
+
+    const hasQuestion = ctx.detectedQuestion.hasQuestion;
+    const question = ctx.detectedQuestion.question;
+    const questionKey = ctx.detectedQuestion.questionKey;
+    const questionDetails = ctx.detectedQuestion.questionDetails;
+    const questionType = tolegacyQuestionType(ctx.detectedQuestion.questionType);
+
+    logger.info(
+      `${ctx.logPrefix} Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
+    );
+
+    // NOTE: When a question is detected, enter waiting_for_input regardless of exit code.
+    // Claude Code may exit with non-zero even after outputting a question.
+    if (hasQuestion) {
+      ctx.status = 'waiting_for_input';
+      logger.info(
+        `${ctx.logPrefix} Setting status to waiting_for_input (exitCode: ${code})`,
+      );
+      logger.info(
+        `${ctx.logPrefix} Question detected (${questionType}): ${question.substring(0, 200)}`,
+      );
+      logger.info({ questionKey }, `${ctx.logPrefix} Question key`);
+      logger.info(`${ctx.logPrefix} Session ID for resume: ${ctx.claudeSessionId}`);
+      ctx.emitOutputInternal(`\n${ctx.logPrefix} Waiting for answer...\n`);
+      resolve({
+        success: true, // Technically successful but not complete
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: true,
+        question,
+        questionType,
+        questionDetails,
+        questionKey,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+      });
+      return;
+    }
+
+    // Build a detailed error message on failure
+    let errorMessage: string | undefined;
+    if (code !== 0) {
+      const errorParts: string[] = [];
+      errorParts.push(`Process exited with code ${code}`);
+
+      if (ctx.resumeSessionId) {
+        errorParts.push(
+          `\n\n【Session Resume Mode】session expired or not found\nSession ID: ${ctx.resumeSessionId}`,
+        );
+        errorParts.push(`\n* Session may be expired or invalid`);
+      } else if (ctx.continueConversation) {
+        errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
+      }
+
+      if (ctx.errorBuffer.trim()) {
+        errorParts.push(`\n\n【Standard Error Output】\n${ctx.errorBuffer.trim()}`);
+      }
+
+      if (ctx.outputBuffer.trim()) {
+        errorParts.push(`\n${ctx.outputBuffer.trim().slice(-1000)}`);
+      }
+
+      if (ctx.lineBuffer.trim()) {
+        errorParts.push(`\n\n【Unprocessed Buffer】\n${ctx.lineBuffer.trim().slice(-500)}`);
+      }
+
+      // NOTE: Very short execution time suggests a failed session resume
+      if (executionTimeMs < 10000) {
+        errorParts.push(
+          `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short. session expired or not found - session resume may have failed.`,
+        );
+      }
+
+      errorMessage = errorParts.join('');
+      logger.info(
+        `${ctx.logPrefix} Detailed error message constructed (${errorMessage.length} chars)`,
+      );
+    }
+
+    // Return as failure on error exit, unless the process was force-killed due to idle hang
+    if (code !== 0 && !ctx.idleTimeoutForceKilled) {
+      logger.info(
+        `${ctx.logPrefix} No question detected, setting status to failed (exitCode: ${code})`,
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage,
+      });
+      return;
+    }
+
+    if (ctx.idleTimeoutForceKilled) {
+      logger.info(
+        `${ctx.logPrefix} Process was force-killed due to idle hang (exitCode: ${code}). Proceeding to git diff check for completion determination.`,
+      );
+    }
+
+    // NOTE: On success (code === 0) or idle-hang kill, verify actual changes via git diff.
+    // File-modifying tools (Write/Edit) may have been called in plan mode (EnterPlanMode)
+    // or via sub-agents (Task) without actually modifying files.
+    logger.info(
+      `${ctx.logPrefix} Process exited successfully, verifying actual code changes...`,
+    );
+    logger.info(
+      `${ctx.logPrefix} hasFileModifyingToolCalls: ${ctx.hasFileModifyingToolCalls}`,
+    );
+
+    checkGitDiff(workDir, ctx.logPrefix)
+      .then((hasChanges) => {
+        if (hasChanges) {
+          logger.info(
+            `${ctx.logPrefix} Git diff confirmed changes, setting status to completed`,
+          );
+          ctx.status = 'completed';
+          resolve({
+            success: true,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+          });
+        } else if (ctx.hasFileModifyingToolCalls) {
+          // NOTE: File-modifying tools were used but not reflected in git diff
+          // (rare case, e.g. agent committed & reset). Trust tool usage as completed.
+          logger.info(
+            `${ctx.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
+          );
+          ctx.status = 'completed';
+          resolve({
+            success: true,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+          });
+        } else {
+          // Only planning was done — no implementation
+          logger.info(
+            `${ctx.logPrefix} No git changes and no file-modifying tools used - agent likely only planned without implementing`,
+          );
+          ctx.status = 'failed';
+          resolve({
+            success: false,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+            errorMessage:
+              'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
+          });
+        }
+      })
+      .catch((err) => {
+        logger.warn({ err }, `${ctx.logPrefix} Git diff check failed`);
+        if (ctx.hasFileModifyingToolCalls) {
+          // File-modifying tools were used — likely implemented
+          logger.info(
+            `${ctx.logPrefix} Git diff failed but file-modifying tools were used, setting status to completed`,
+          );
+          ctx.status = 'completed';
+          resolve({
+            success: true,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+          });
+        } else {
+          // No file-modifying tools used — treat as failure
+          logger.info(
+            `${ctx.logPrefix} Git diff failed and no file-modifying tools used, setting status to failed`,
+          );
+          ctx.status = 'failed';
+          resolve({
+            success: false,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+            errorMessage:
+              'Could not verify agent execution results. Code changes cannot be confirmed.',
+          });
+        }
+      });
+  };
+}

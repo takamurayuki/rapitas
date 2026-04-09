@@ -6,7 +6,7 @@
  * to sub-modules in this directory.
  */
 
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -18,11 +18,7 @@ import type {
   AgentArtifact,
   GitCommitInfo,
 } from '../base-agent';
-import {
-  createInitialWaitingState,
-  updateWaitingStateFromDetection,
-  tolegacyQuestionType,
-} from '../question-detection';
+import { createInitialWaitingState } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
@@ -30,8 +26,9 @@ import { getProjectRoot } from '../../../config';
 import { registerProcess, unregisterProcess } from '../agent-process-tracker';
 import { getClaudePath, buildSpawnCommand, checkClaudeAvailable } from './cli-utils';
 import { buildStructuredPrompt } from './prompt-builder';
-import { checkGitDiff } from './git-diff-checker';
 import { startIdleMonitor } from './idle-monitor';
+import { handleWorkerMessage } from './worker-message-handler';
+import { buildResolveAfterParse } from './execution-resolver';
 
 const logger = createLogger('claude-code-agent');
 
@@ -46,28 +43,40 @@ export type ClaudeCodeAgentConfig = {
 };
 
 export class ClaudeCodeAgent extends BaseAgent {
-  private process: ChildProcess | null = null;
-  private config: ClaudeCodeAgentConfig;
-  private outputBuffer: string = '';
-  private errorBuffer: string = '';
-  private lineBuffer: string = ''; // Buffer for parsing stream-json format
-  /** Question waiting state (key-based detection system) */
-  private detectedQuestion: QuestionWaitingState = createInitialWaitingState();
-  private activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
-  /** Claude Code session ID (for resuming conversations via --resume) */
-  private claudeSessionId: string | null = null;
-  /** Whether file-modifying tools (Write, Edit, NotebookEdit, Bash) were used successfully */
-  private hasFileModifyingToolCalls: boolean = false;
-  /** Flag indicating forced termination due to idle hang */
-  private idleTimeoutForceKilled: boolean = false;
-  /** Worker thread for output parsing */
-  private parserWorker: Worker | null = null;
-  /** Artifacts parsed by the Worker */
-  private workerArtifacts: AgentArtifact[] = [];
-  /** Commits parsed by the Worker */
-  private workerCommits: GitCommitInfo[] = [];
-  /** Callback invoked when parse-complete finishes */
-  private onParseComplete: (() => void) | null = null;
+  // NOTE: The fields below are marked `/** @internal */` and exposed as
+  // public so the helpers in worker-message-handler.ts and
+  // execution-resolver.ts can mutate them. They are NOT part of the
+  // public API of ClaudeCodeAgent — do not access them from outside the
+  // claude-code/ directory.
+
+  /** @internal */
+  public process: ChildProcess | null = null;
+  /** @internal */
+  public config: ClaudeCodeAgentConfig;
+  /** @internal */
+  public outputBuffer: string = '';
+  /** @internal */
+  public errorBuffer: string = '';
+  /** @internal Buffer for parsing stream-json format */
+  public lineBuffer: string = '';
+  /** @internal Question waiting state (key-based detection system) */
+  public detectedQuestion: QuestionWaitingState = createInitialWaitingState();
+  /** @internal */
+  public activeTools: Map<string, { name: string; startTime: number; info: string }> = new Map();
+  /** @internal Claude Code session ID (for resuming conversations via --resume) */
+  public claudeSessionId: string | null = null;
+  /** @internal Whether file-modifying tools (Write, Edit, NotebookEdit, Bash) were used successfully */
+  public hasFileModifyingToolCalls: boolean = false;
+  /** @internal Flag indicating forced termination due to idle hang */
+  public idleTimeoutForceKilled: boolean = false;
+  /** @internal Worker thread for output parsing */
+  public parserWorker: Worker | null = null;
+  /** @internal Artifacts parsed by the Worker */
+  public workerArtifacts: AgentArtifact[] = [];
+  /** @internal Commits parsed by the Worker */
+  public workerCommits: GitCommitInfo[] = [];
+  /** @internal Callback invoked when parse-complete finishes */
+  public onParseComplete: (() => void) | null = null;
 
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, 'claude-code');
@@ -75,6 +84,16 @@ export class ClaudeCodeAgent extends BaseAgent {
       timeout: 900000, // 15 minutes default
       ...config,
     };
+  }
+
+  /** @internal Top-level alias of `config.resumeSessionId` for helper context. */
+  public get resumeSessionId(): string | undefined {
+    return this.config.resumeSessionId;
+  }
+
+  /** @internal Top-level alias of `config.continueConversation` for helper context. */
+  public get continueConversation(): boolean | undefined {
+    return this.config.continueConversation;
   }
 
   getCapabilities(): AgentCapability {
@@ -90,167 +109,38 @@ export class ClaudeCodeAgent extends BaseAgent {
   }
 
   /**
-   * Handles all messages received from the output-parser Worker thread.
-   * Updates agent state (buffers, question detection, session ID) and emits output.
+   * Handle all messages received from the output-parser Worker thread.
+   * Delegates to the free function in worker-message-handler.ts for the
+   * actual switch logic — this is a 1-line wrapper that adapts the agent
+   * to the helper's `WorkerMessageContext` shape.
    *
    * @param msg - Typed message from the Worker / Workerからの型付きメッセージ
    */
   private handleWorkerMessage(msg: WorkerOutputMessage): void {
-    switch (msg.type) {
-      case 'system-event':
-        if (msg.sessionId) {
-          this.claudeSessionId = msg.sessionId;
-          logger.info(`${this.logPrefix} Session ID captured: ${this.claudeSessionId}`);
-          // In resume mode, verify session ID matches the requested one
-          if (this.config.resumeSessionId && this.config.resumeSessionId !== msg.sessionId) {
-            logger.warn(
-              `${this.logPrefix} WARNING: Requested session ${this.config.resumeSessionId} but got ${msg.sessionId}`,
-            );
-            const mismatchWarning = `\n[Warning] Failed to resume specified session (${this.config.resumeSessionId.substring(0, 8)}...). Continuing with new session (${msg.sessionId.substring(0, 8)}...). Previous context may have been lost.\n`;
-            this.outputBuffer += mismatchWarning;
-            this.emitOutput(mismatchWarning);
-          }
-        }
-        if (msg.subtype === 'error') {
-          logger.error(`${this.logPrefix} System error event: ${msg.errorMessage}`);
-        }
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-        break;
+    handleWorkerMessage(this as unknown as Parameters<typeof handleWorkerMessage>[0], msg);
+  }
 
-      case 'assistant-message':
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-        // Track active tools on the main thread for reference at close time
-        for (const tool of msg.toolUses) {
-          this.activeTools.set(tool.id, {
-            name: tool.name,
-            startTime: Date.now(),
-            info: tool.info,
-          });
-        }
-        break;
+  /** @internal Proxy for BaseAgent's protected emitOutput, used by helpers. */
+  public emitOutputInternal(output: string, isError: boolean = false): void {
+    this.emitOutput(output, isError);
+  }
 
-      case 'user-message':
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-        // Reflect tool completion
-        for (const result of msg.toolResults) {
-          if (result.toolUseId) {
-            this.activeTools.delete(result.toolUseId);
-          }
-        }
-        break;
+  /** @internal Proxy for BaseAgent's protected emitQuestionDetected, used by helpers. */
+  public emitQuestionDetectedInternal(
+    info: Parameters<ClaudeCodeAgent['emitQuestionDetected']>[0],
+  ): void {
+    this.emitQuestionDetected(info);
+  }
 
-      case 'result-event':
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-        break;
-
-      case 'question-detected': {
-        const detectionResult = msg.detectionResult;
-        logger.info(`${this.logPrefix} AskUserQuestion tool detected via Worker!`);
-
-        // Update question waiting state
-        this.detectedQuestion = updateWaitingStateFromDetection(detectionResult);
-
-        logger.info(
-          { questionKey: this.detectedQuestion.questionKey },
-          `${this.logPrefix} Question key generated`,
-        );
-
-        // Emit question detection immediately to trigger DB update
-        this.status = 'waiting_for_input';
-        this.emitQuestionDetected({
-          question: detectionResult.questionText,
-          questionType: tolegacyQuestionType(this.detectedQuestion.questionType),
-          questionDetails: this.detectedQuestion.questionDetails,
-          questionKey: this.detectedQuestion.questionKey,
-          claudeSessionId: this.claudeSessionId || undefined,
-        });
-
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-
-        // Stop the process; will resume via --resume after user answers
-        logger.info(`${this.logPrefix} Stopping process to wait for user response`);
-        setTimeout(() => {
-          if (this.process && !this.process.killed) {
-            logger.info(`${this.logPrefix} Stopping process after stabilization delay (5s)`);
-            this.killProcessForQuestion();
-          }
-        }, 5000);
-        break;
-      }
-
-      case 'tool-tracking':
-        if (msg.hasFileModifyingToolCalls) {
-          this.hasFileModifyingToolCalls = true;
-          logger.info(`${this.logPrefix} File-modifying tool detected via Worker`);
-        }
-        break;
-
-      case 'raw-output':
-        if (msg.displayOutput) {
-          this.outputBuffer += msg.displayOutput;
-          this.emitOutput(msg.displayOutput);
-        }
-        break;
-
-      case 'artifacts-parsed':
-        this.workerArtifacts = msg.data.artifacts;
-        logger.info(
-          `${this.logPrefix} Artifacts parsed by Worker: ${this.workerArtifacts.length} items`,
-        );
-        break;
-
-      case 'commits-parsed':
-        this.workerCommits = msg.data.commits;
-        logger.info(
-          `${this.logPrefix} Commits parsed by Worker: ${this.workerCommits.length} items`,
-        );
-        break;
-
-      case 'parse-complete':
-        logger.info(`${this.logPrefix} Worker parse-complete received`);
-        if (this.onParseComplete) {
-          this.onParseComplete();
-          this.onParseComplete = null;
-        }
-        // Terminate the Worker
-        try {
-          this.parserWorker?.postMessage({ type: 'terminate' } satisfies WorkerInputMessage);
-        } catch {
-          // Worker already terminated
-        }
-        this.parserWorker = null;
-        break;
-
-      case 'error':
-        logger.error({ stack: msg.stack }, `${this.logPrefix} Worker error: ${msg.message}`);
-        break;
-    }
+  /** @internal Proxy for the private killProcessForQuestion, used by helpers. */
+  public killProcessForQuestionInternal(): void {
+    this.killProcessForQuestion();
   }
 
   /**
-   * Builds the resolution callback used after the Worker finishes parsing.
-   * Determines success/failure based on question detection, exit code, and git diff.
-   *
-   * @param code - Process exit code / プロセス終了コード
-   * @param workDir - Working directory for git diff check / git diffチェック用の作業ディレクトリ
-   * @param startTime - Execution start timestamp / 実行開始タイムスタンプ
-   * @param resolve - Promise resolver from execute() / execute()のPromiseリゾルバー
-   * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
+   * Build the resolution callback used after the Worker finishes parsing.
+   * Thin wrapper that constructs a `ResolverContext` view of `this` and
+   * delegates to the free function in execution-resolver.ts.
    */
   private buildResolveAfterParse(
     code: number | null,
@@ -258,219 +148,15 @@ export class ClaudeCodeAgent extends BaseAgent {
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
   ): () => void {
-    return () => {
-      const artifacts = this.workerArtifacts;
-      const commits = this.workerCommits;
-      const executionTimeMs = Date.now() - startTime;
-
-      logger.info(`${this.logPrefix} Running question detection...`);
-      logger.info(
-        { detectedQuestion: this.detectedQuestion },
-        `${this.logPrefix} detectedQuestion from stream`,
-      );
-
-      const hasQuestion = this.detectedQuestion.hasQuestion;
-      const question = this.detectedQuestion.question;
-      const questionKey = this.detectedQuestion.questionKey;
-      const questionDetails = this.detectedQuestion.questionDetails;
-      const questionType = tolegacyQuestionType(this.detectedQuestion.questionType);
-
-      logger.info(
-        `${this.logPrefix} Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
-      );
-
-      // NOTE: When a question is detected, enter waiting_for_input regardless of exit code.
-      // Claude Code may exit with non-zero even after outputting a question.
-      if (hasQuestion) {
-        this.status = 'waiting_for_input';
-        logger.info(
-          `${this.logPrefix} Setting status to waiting_for_input (exitCode: ${code})`,
-        );
-        logger.info(
-          `${this.logPrefix} Question detected (${questionType}): ${question.substring(0, 200)}`,
-        );
-        logger.info({ questionKey }, `${this.logPrefix} Question key`);
-        logger.info(`${this.logPrefix} Session ID for resume: ${this.claudeSessionId}`);
-        this.emitOutput(`\n${this.logPrefix} Waiting for answer...\n`);
-        resolve({
-          success: true, // Technically successful but not complete
-          output: this.outputBuffer,
-          artifacts,
-          commits,
-          executionTimeMs,
-          waitingForInput: true,
-          question,
-          questionType,
-          questionDetails,
-          questionKey,
-          claudeSessionId: this.claudeSessionId || undefined,
-        });
-        return;
-      }
-
-      // Build a detailed error message on failure
-      let errorMessage: string | undefined;
-      if (code !== 0) {
-        const errorParts: string[] = [];
-        errorParts.push(`Process exited with code ${code}`);
-
-        if (this.config.resumeSessionId) {
-          errorParts.push(
-            `\n\n【Session Resume Mode】session expired or not found\nSession ID: ${this.config.resumeSessionId}`,
-          );
-          errorParts.push(`\n* Session may be expired or invalid`);
-        } else if (this.config.continueConversation) {
-          errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
-        }
-
-        if (this.errorBuffer.trim()) {
-          errorParts.push(`\n\n【Standard Error Output】\n${this.errorBuffer.trim()}`);
-        }
-
-        if (this.outputBuffer.trim()) {
-          errorParts.push(`\n${this.outputBuffer.trim().slice(-1000)}`);
-        }
-
-        if (this.lineBuffer.trim()) {
-          errorParts.push(`\n\n【Unprocessed Buffer】\n${this.lineBuffer.trim().slice(-500)}`);
-        }
-
-        // NOTE: Very short execution time suggests a failed session resume
-        if (executionTimeMs < 10000) {
-          errorParts.push(
-            `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short. session expired or not found - session resume may have failed.`,
-          );
-        }
-
-        errorMessage = errorParts.join('');
-        logger.info(
-          `${this.logPrefix} Detailed error message constructed (${errorMessage.length} chars)`,
-        );
-      }
-
-      // Return as failure on error exit, unless the process was force-killed due to idle hang
-      if (code !== 0 && !this.idleTimeoutForceKilled) {
-        logger.info(
-          `${this.logPrefix} No question detected, setting status to failed (exitCode: ${code})`,
-        );
-        this.status = 'failed';
-        resolve({
-          success: false,
-          output: this.outputBuffer,
-          artifacts,
-          commits,
-          executionTimeMs,
-          waitingForInput: false,
-          claudeSessionId: this.claudeSessionId || undefined,
-          errorMessage,
-        });
-        return;
-      }
-
-      if (this.idleTimeoutForceKilled) {
-        logger.info(
-          `${this.logPrefix} Process was force-killed due to idle hang (exitCode: ${code}). Proceeding to git diff check for completion determination.`,
-        );
-      }
-
-      // NOTE: On success (code === 0) or idle-hang kill, verify actual changes via git diff.
-      // File-modifying tools (Write/Edit) may have been called in plan mode (EnterPlanMode)
-      // or via sub-agents (Task) without actually modifying files.
-      logger.info(
-        `${this.logPrefix} Process exited successfully, verifying actual code changes...`,
-      );
-      logger.info(
-        `${this.logPrefix} hasFileModifyingToolCalls: ${this.hasFileModifyingToolCalls}`,
-      );
-
-      checkGitDiff(workDir, this.logPrefix)
-        .then((hasChanges) => {
-          if (hasChanges) {
-            logger.info(
-              `${this.logPrefix} Git diff confirmed changes, setting status to completed`,
-            );
-            this.status = 'completed';
-            resolve({
-              success: true,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs,
-              waitingForInput: false,
-              claudeSessionId: this.claudeSessionId || undefined,
-            });
-          } else if (this.hasFileModifyingToolCalls) {
-            // NOTE: File-modifying tools were used but not reflected in git diff
-            // (rare case, e.g. agent committed & reset). Trust tool usage as completed.
-            logger.info(
-              `${this.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
-            );
-            this.status = 'completed';
-            resolve({
-              success: true,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs,
-              waitingForInput: false,
-              claudeSessionId: this.claudeSessionId || undefined,
-            });
-          } else {
-            // Only planning was done — no implementation
-            logger.info(
-              `${this.logPrefix} No git changes and no file-modifying tools used - agent likely only planned without implementing`,
-            );
-            this.status = 'failed';
-            resolve({
-              success: false,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs,
-              waitingForInput: false,
-              claudeSessionId: this.claudeSessionId || undefined,
-              errorMessage:
-                'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
-            });
-          }
-        })
-        .catch((err) => {
-          logger.warn({ err }, `${this.logPrefix} Git diff check failed`);
-          if (this.hasFileModifyingToolCalls) {
-            // File-modifying tools were used — likely implemented
-            logger.info(
-              `${this.logPrefix} Git diff failed but file-modifying tools were used, setting status to completed`,
-            );
-            this.status = 'completed';
-            resolve({
-              success: true,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs,
-              waitingForInput: false,
-              claudeSessionId: this.claudeSessionId || undefined,
-            });
-          } else {
-            // No file-modifying tools used — treat as failure
-            logger.info(
-              `${this.logPrefix} Git diff failed and no file-modifying tools used, setting status to failed`,
-            );
-            this.status = 'failed';
-            resolve({
-              success: false,
-              output: this.outputBuffer,
-              artifacts,
-              commits,
-              executionTimeMs,
-              waitingForInput: false,
-              claudeSessionId: this.claudeSessionId || undefined,
-              errorMessage:
-                'Could not verify agent execution results. Code changes cannot be confirmed.',
-            });
-          }
-        });
-    };
+    return buildResolveAfterParse(
+      this as unknown as Parameters<typeof buildResolveAfterParse>[0],
+      code,
+      workDir,
+      startTime,
+      resolve,
+      () => this.workerArtifacts,
+      () => this.workerCommits,
+    );
   }
 
   async execute(task: AgentTask, options?: Record<string, unknown>): Promise<AgentExecutionResult> {

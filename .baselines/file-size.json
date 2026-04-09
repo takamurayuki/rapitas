@@ -5,7 +5,7 @@
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
   "files": {
     "rapitas-backend/services/agents/claude-code/agent-core.ts": {
-      "lineCount": 1012
+      "lineCount": 698
     }
   }
 }
