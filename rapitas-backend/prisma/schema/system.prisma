@@ -1,0 +1,95 @@
+// ============================================================================
+// system.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the system sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model Notification {
+  id                Int       @id @default(autoincrement())
+  type              String
+  title             String
+  message           String
+  link              String?
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  metadata          String?   // JSON stored as string
+  createdAt         DateTime  @default(now())
+}
+
+model UserSettings {
+  id                          Int       @id @default(autoincrement())
+  developerModeDefault        Boolean   @default(false)
+  aiTaskAnalysisDefault       Boolean   @default(false)
+  autoResumeInterruptedTasks  Boolean   @default(false)
+  autoExecuteAfterCreate      Boolean   @default(false)
+  autoGenerateTitle           Boolean   @default(false)
+  autoGenerateTitleDelay      Int       @default(3)       // Wait time in seconds before auto-generating title
+  autoCreateAfterTitleGeneration Boolean @default(false) // Auto-create after title generation
+  autoFetchTaskSuggestions    Boolean   @default(true)  // Auto-fetch AI suggestions when theme is selected
+  defaultCategoryId           Int?      // Default selected category
+  activeMode                  String    @default("both") // "development", "learning", "both"
+  claudeApiKeyEncrypted       String?
+  chatgptApiKeyEncrypted      String?
+  geminiApiKeyEncrypted       String?
+  claudeDefaultModel          String?
+  chatgptDefaultModel         String?
+  geminiDefaultModel          String?
+  ollamaUrl                   String?   @default("http://localhost:11434")
+  ollamaDefaultModel          String?   @default("gemma3:4b")
+  titleGenerationProvider     String?   @default("ollama") // Title generation provider (ollama=local free AI)
+  defaultAiProvider           String?   @default("claude")
+  autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
+  autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
+  autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
+  slackWebhookUrl             String?   // Slack Incoming Webhook URL for notifications
+  discordWebhookUrl           String?   // Discord Webhook URL for notifications
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+}
+
+// User authentication system
+model User {
+  id                Int       @id @default(autoincrement())
+  username          String    @unique
+  email             String?   @unique
+  passwordHash      String?   // bcrypt hashed password (null for Google OAuth)
+  displayName       String?
+  role              String    @default("user") // admin, user
+  isActive          Boolean   @default(true)
+  emailVerified     Boolean   @default(false)
+  lastLoginAt       DateTime?
+  passwordResetToken String?
+  passwordResetExpiresAt DateTime?
+  // Google OAuth related fields
+  provider          String    @default("local") // "local" or "google"
+  providerId        String?   // Google User ID
+  googleId          String?   @unique // Google-specific user ID
+  avatar            String?   // Profile image URL
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  sessions          UserSession[]
+
+  @@index([username])
+  @@index([email])
+  @@index([googleId])
+}
+
+// User session management (JWT Token management)
+model UserSession {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionToken    String    @unique // JWT token or session identifier
+  refreshToken    String?   @unique // Refresh token
+  expiresAt       DateTime  // Session expiration
+  lastAccessedAt  DateTime  @default(now())
+  ipAddress       String?
+  userAgent       String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([sessionToken])
+  @@index([expiresAt])
+}

@@ -113,8 +113,10 @@ via plain HTTP/WebSocket on `localhost:3001`.
 
 ## 3. Data model
 
-`rapitas-backend/prisma/schema.prisma` defines **71 models** in a single 1426-line
-file. They cluster into the following sub-domains:
+`rapitas-backend/prisma/schema/` is a `prismaSchemaFolder` layout (see
+[ADR-0006](adr/0006-prisma-schema-folder-split.md)) containing **72 models +
+1 enum** across 11 per-domain files plus `_generators.prisma`. Prisma merges
+them at generate time. They cluster as follows:
 
 | Sub-domain | Representative models | Notes |
 |---|---|---|
@@ -127,8 +129,22 @@ file. They cluster into the following sub-domains:
 | **Self-improvement** | `Experiment`, `Hypothesis`, `CriticReview`, `LearningPattern`, `WorkflowLearningRecord`, `PromptEvolution` | Research/experimental |
 | **System** | `User`, `UserSession`, `UserSettings`, `Notification`, `ApprovalRequest` | Identity, settings, approvals |
 
-> **Recommended refactor:** Split `schema.prisma` per sub-domain using
-> Prisma 5+'s `prismaSchemaFolder` preview feature. See `project-improve.md`.
+> Layout:
+> ```
+> rapitas-backend/prisma/schema/
+> ├── _generators.prisma   # generator + datasource
+> ├── core.prisma          # 11 models (Category, Theme, Project, Milestone, Task, …)
+> ├── time.prisma          # 4 models (TimeEntry, PomodoroSession, …)
+> ├── learning.prisma      # 8 models (ExamGoal, Habit, Flashcard, …)
+> ├── behavior.prisma      # 5 models (UserBehavior, TaskPattern, …)
+> ├── agents.prisma        # 10 models (AgentSession, AgentExecution, …)
+> ├── workflow.prisma      # 4 models (OrchestraSession, WorkflowQueueItem, …)
+> ├── memory.prisma        # 10 models (KnowledgeEntry, KnowledgeGraph*, …)
+> ├── experiments.prisma   # 7 models (Experiment, Hypothesis, …)
+> ├── github.prisma        # 7 models (GitHubIntegration, GitHubPullRequest, …)
+> ├── system.prisma        # 4 models (User, UserSession, …)
+> └── schedule.prisma      # 2 models + 1 enum (ScheduleEvent, PaidLeaveBalance)
+> ```
 
 ---
 

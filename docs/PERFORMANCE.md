@@ -29,20 +29,14 @@ take it.
 
 ## 2. Known bottlenecks
 
-### 2.1 Prisma `schema.prisma` size (1426 lines, 71 models)
+### 2.1 ~~Prisma `schema.prisma` monolith~~ (resolved 2026-04-09)
 
-**Symptom:** `prisma generate` takes 5-10s on first run; the editor's
-TypeScript server occasionally lags on autocomplete inside Prisma model
-references.
-
-**Why:** A single 1426-line schema is parsed, type-generated, and reloaded
-on every change.
-
-**Mitigation:**
-- Split into a `prismaSchemaFolder` (Prisma 5+ preview) — see
-  [ADR 0003](adr/0003-prisma-migration-strategy.md) "Neutral" section.
-- For dev iteration, use the running Prisma Studio rather than re-running
-  `prisma generate` repeatedly.
+Resolved per [ADR-0006](adr/0006-prisma-schema-folder-split.md): the
+1426-line `schema.prisma` (72 models, 1 enum) was split into 11 per-domain
+files under `rapitas-backend/prisma/schema/` using Prisma's
+`prismaSchemaFolder` preview feature. Largest resulting file is
+`core.prisma` at 226 lines. Editor latency and `prisma generate` runtime
+should improve correspondingly — measure and update §1 once observed.
 
 ### 2.2 Frontend `useExecutionManager.ts` (609 lines)
 

@@ -1,6 +1,6 @@
 # 0006. Split `schema.prisma` into a `prismaSchemaFolder`
 
-- Status: accepted
+- Status: accepted — **implemented 2026-04-09**
 - Date: 2026-04-08
 - Deciders: @takamurayuki
 
@@ -186,10 +186,13 @@ worse than the cost of one carefully reviewed PR.
 
 ## Follow-ups
 
-- [ ] Schedule the split PR (target: next week with no other schema work)
-- [ ] Confirm with @takamurayuki that no in-flight branches are mid-edit
-      on `schema.prisma` (to avoid merge conflicts)
-- [ ] After landing: update `docs/PERFORMANCE.md` §2.1 with the measured
-      `prisma generate` improvement
-- [ ] After landing: update `docs/ARCHITECTURE.md` §3 with the new layout
-- [ ] After landing: update CLAUDE.md §1 wording
+- [x] Split executed via `scripts/split-prisma-schema.cjs` (2026-04-09)
+- [x] Update `docs/ARCHITECTURE.md` §3 with the new layout (2026-04-09)
+- [x] Update `docs/PERFORMANCE.md` §2.1 — mark monolith resolved (2026-04-09)
+- [x] Update CLAUDE.md §1 wording — point at `prisma/schema/` folder (2026-04-09)
+- [ ] User: restart dev server, verify `prisma generate` succeeds against
+      the new layout, run `bun test` in rapitas-backend
+- [ ] User: re-measure `prisma generate` runtime and editor autocomplete
+      latency, update `docs/PERFORMANCE.md` §1 targets table
+- [ ] After two weeks of stable operation, delete
+      `scripts/split-prisma-schema.cjs` (one-shot tool, no further use)

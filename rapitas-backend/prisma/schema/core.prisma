@@ -1,0 +1,225 @@
+// ============================================================================
+// core.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the core sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  color       String   @default("#6366F1")
+  icon        String?
+  isDefault   Boolean  @default(false)
+  mode        String   @default("both") // "development", "learning", "both"
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  themes      Theme[]
+}
+
+model Theme {
+  id               Int            @id @default(autoincrement())
+  name             String
+  description      String?
+  color            String         @default("#8B5CF6")
+  icon             String?
+  isDefault        Boolean        @default(false)
+  isDevelopment    Boolean        @default(false)
+  repositoryUrl    String?
+  workingDirectory String?
+  defaultBranch    String?        @default("develop")
+  sortOrder        Int            @default(0)
+  categoryId       Int?
+  category         Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tasks            Task[]
+  templates        TaskTemplate[]
+  userBehaviors    UserBehavior[]
+  taskPatterns     TaskPattern[]
+  behaviorSummaries UserBehaviorSummary[]
+}
+
+model Project {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#3B82F6")
+  icon        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       Task[]
+  milestones  Milestone[]
+}
+
+model Milestone {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  dueDate     DateTime?
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id                    Int           @id @default(autoincrement())
+  title                 String
+  description           String?
+  status                String        @default("todo")
+  priority              String        @default("medium")
+  labels                String        @default("[]") // JSON array stored as string
+  estimatedHours        Float?
+  actualHours           Float?
+  dueDate               DateTime?
+  subject               String?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  parentId              Int?
+  parent                Task?         @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks              Task[]        @relation("TaskSubtasks")
+  themeId               Int?
+  theme                 Theme?        @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  projectId             Int?
+  project               Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestoneId           Int?
+  milestone             Milestone?    @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  examGoalId            Int?
+  examGoal              ExamGoal?     @relation(fields: [examGoalId], references: [id], onDelete: SetNull)
+  timeEntries           TimeEntry[]
+  pomodoroSessions      PomodoroSession[]
+  comments              Comment[]
+  activityLogs          ActivityLog[]
+  taskLabels            TaskLabel[]
+  resources             Resource[]
+  isDeveloperMode       Boolean       @default(false)
+  isAiTaskAnalysis      Boolean       @default(false)
+  agentGenerated        Boolean       @default(false)
+  agentExecutable       Boolean       @default(false)
+  executionInstructions String?
+  developerModeConfig   DeveloperModeConfig?
+  taskAnalysisConfig    TaskAnalysisConfig?
+  agentExecutionConfig  AgentExecutionConfig?
+  prompts               TaskPrompt[]
+  githubIssueId         Int?
+  githubPrId            Int?
+  autoExecutable        Boolean       @default(false)
+  requireApproval       String        @default("always")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  userBehaviors         UserBehavior[]
+  workingDirectory      String?
+  workflowStatus        String?
+  // Workflow flexibility system fields
+  workflowMode          String?   @default("comprehensive") // "lightweight", "standard", "comprehensive"
+  complexityScore       Float?    // Auto-determined complexity score (0-100)
+  workflowModeOverride  Boolean   @default(false) // Whether mode was manually changed
+  autoApprovePlan       Boolean   @default(false) // Whether to auto-approve plan.md at task level
+  workflowLearningRecords WorkflowLearningRecord[]
+
+  // Recurring task fields
+  isRecurring           Boolean   @default(false) // Whether this is a recurring master task
+  recurrenceRule        String?   // RRULE format: "FREQ=DAILY;INTERVAL=1"
+  recurrenceEndAt       DateTime? // When recurrence ends (null = indefinite)
+  recurrenceTime        String?   // Time of day to execute (HH:MM format, default: "00:00")
+  recurrenceCount       Int       @default(0) // Number of times this task has been generated
+  lastGeneratedAt       DateTime? // Last time a task instance was generated
+  inheritWorkflowFiles  Boolean   @default(true) // Whether to inherit workflow files from previous execution
+  sourceTaskId          Int?      // For generated tasks: ID of the master task
+  sourceTask            Task?     @relation("RecurringSource", fields: [sourceTaskId], references: [id], onDelete: SetNull)
+  generatedTasks        Task[]    @relation("RecurringSource")
+  nextOccurrence        DateTime? // Next scheduled generation date
+
+  @@index([status])
+  @@index([themeId])
+  @@index([status, themeId])
+  @@index([parentId])
+  @@index([dueDate])
+  @@index([isRecurring, nextOccurrence])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  taskId    Int
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  content   String
+  parentId  Int?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  // Many-to-many links between comments
+  linksFrom CommentLink[] @relation("CommentLinkFrom")
+  linksTo   CommentLink[] @relation("CommentLinkTo")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Many-to-many relation table for linking comments
+model CommentLink {
+  id            Int      @id @default(autoincrement())
+  fromCommentId Int
+  toCommentId   Int
+  fromComment   Comment  @relation("CommentLinkFrom", fields: [fromCommentId], references: [id], onDelete: Cascade)
+  toComment     Comment  @relation("CommentLinkTo", fields: [toCommentId], references: [id], onDelete: Cascade)
+  label         String?  // Optional label for the link (e.g., "related", "reference", "supplement")
+  createdAt     DateTime @default(now())
+
+  @@unique([fromCommentId, toCommentId])
+  @@index([fromCommentId])
+  @@index([toCommentId])
+}
+
+model Label {
+  id          Int         @id @default(autoincrement())
+  name        String
+  description String?
+  color       String      @default("#6366F1")
+  icon        String?
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tasks       TaskLabel[]
+}
+
+model TaskLabel {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  labelId   Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label     Label    @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, labelId])
+}
+
+model TaskTemplate {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  category      String
+  templateData  String   // JSON stored as string
+  isPublic      Boolean  @default(false)
+  useCount      Int      @default(0)
+  themeId       Int?
+  theme         Theme?   @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TaskPrompt {
+  id                  Int       @id @default(autoincrement())
+  taskId              Int
+  task                Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name                String?
+  originalDescription String?
+  optimizedPrompt     String
+  structuredSections  String?   // JSON stored as string
+  qualityScore        Int?
+  isActive            Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([taskId])
+}

@@ -20,7 +20,7 @@ When rules conflict, follow this order:
 
 - **Never run `prisma generate` or `prisma db push` manually.**
   dev.js runs these automatically on startup. Running them manually requires a server restart, which severs the agent's own connection.
-  If `schema.prisma` is modified, stop and instruct the user to restart the server.
+  If any file under `rapitas-backend/prisma/schema/` (the `prismaSchemaFolder` layout — see ADR-0006) is modified, stop and instruct the user to restart the server.
 
 - **Never write workflow files directly** (mkdir, Write tool, etc.).
   Always use the workflow API. (See Section 4.)

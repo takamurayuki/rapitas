@@ -1,0 +1,160 @@
+// ============================================================================
+// experiments.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the experiments sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// Experiment log - record all task executions as experiments
+model Experiment {
+  id            Int       @id @default(autoincrement())
+  taskId        Int?
+  title         String
+  status        String    @default("created") // created, researching, hypothesizing, planning, executing, evaluating, learning, completed, failed
+  research      String    @default("{}") // JSON: collected information
+  hypothesis    String?   // JSON: generated hypothesis
+  plan          String?   // JSON: execution plan
+  execution     String?   // JSON: execution details
+  result        String?   // JSON: execution result
+  evaluation    String?   // JSON: evaluation metrics
+  learning      String?   // JSON: extracted learnings
+  criticReviewId Int?
+  confidence    Float     @default(0)
+  duration      Int?      // milliseconds
+  metadata      String    @default("{}") // JSON: additional context
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  hypotheses    Hypothesis[]
+  criticReviews CriticReview[]
+  episodes      EpisodeMemory[]
+  promptEvolutions PromptEvolution[]
+
+  @@index([taskId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Hypothesis management - track solution hypotheses
+model Hypothesis {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  content       String    // Hypothesis content
+  reasoning     String?   // Hypothesis rationale
+  status        String    @default("proposed") // proposed, testing, validated, invalidated, revised
+  confidence    Float     @default(0.5) // 0-1.0
+  priority      Int       @default(50) // 0-100
+  testResult    String?   // JSON: test outcome
+  parentId      Int?      // Source of hypothesis revision
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([experimentId])
+  @@index([status])
+}
+
+// Critic review - results from independent evaluation agent
+model CriticReview {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  phase         String    // hypothesis, plan, execution
+  accuracy      Float     @default(0) // 0-1.0
+  logic         Float     @default(0) // 0-1.0
+  coverage      Float     @default(0) // 0-1.0
+  overallScore  Float     @default(0) // 0-1.0
+  feedback      String    // Review comments
+  suggestions   String    @default("[]") // JSON: improvement suggestions
+  issues        String    @default("[]") // JSON: detected issues
+  createdAt     DateTime  @default(now())
+
+  @@index([experimentId])
+  @@index([phase])
+}
+
+// Learning patterns - record success/failure patterns
+model LearningPattern {
+  id            Int       @id @default(autoincrement())
+  patternType   String    // success_strategy, failure_pattern, optimization, anti_pattern
+  category      String    // bug_fix, feature_implementation, refactoring, debugging, testing
+  description   String
+  conditions    String    @default("[]") // JSON: when this pattern applies
+  actions       String    @default("[]") // JSON: recommended actions
+  confidence    Float     @default(0.5) // 0-1.0
+  occurrences   Int       @default(1) // how many times observed
+  lastObserved  DateTime  @default(now())
+  metadata      String    @default("{}") // JSON
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([patternType])
+  @@index([category])
+  @@index([confidence])
+}
+
+// Workflow learning records - actual workflow execution data from completed tasks
+model WorkflowLearningRecord {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  workflowMode          String    // Actually used mode: lightweight, standard, comprehensive
+  predictedComplexity   Float?    // Predicted complexity score
+  actualDurationMinutes Int?      // Actual execution time (minutes)
+  estimatedDuration     Int?      // Estimated execution time (minutes)
+  skippedPhases         String    @default("[]") // JSON: Skipped phases ["research", "plan"]
+  phaseTimings          String    @default("{}") // JSON: Duration of each phase {"research": 5, "plan": 10, ...}
+  outcome               String    @default("completed") // completed, failed, cancelled
+  wasOverridden         Boolean   @default(false) // Whether mode was manually changed
+  overriddenFrom        String?   // Mode before change
+  categoryId            Int?
+  themeId               Int?
+  labels                String    @default("[]") // JSON: Task label name array
+  titleKeywords         String    @default("[]") // JSON: Keywords extracted from title
+  complexityFactors     String    @default("{}") // JSON: Complexity analysis element scores
+  success               Boolean   @default(true) // Whether workflow succeeded
+  createdAt             DateTime  @default(now())
+
+  @@index([workflowMode])
+  @@index([themeId])
+  @@index([categoryId])
+  @@index([outcome])
+  @@index([createdAt])
+}
+
+// Workflow optimization rules - patterns extracted from learning data
+model WorkflowOptimizationRule {
+  id                Int       @id @default(autoincrement())
+  ruleType          String    // skip_phase, downgrade_mode, upgrade_mode, adjust_time
+  condition         String    // JSON: Rule application condition
+  recommendation    String    // JSON: Recommended action
+  confidence        Float     @default(0.5) // 0-1.0
+  sampleSize        Int       @default(0) // Number of samples used for rule generation
+  successRate       Float     @default(0) // Success rate of tasks matching this rule
+  description       String    // Human-readable description
+  isActive          Boolean   @default(true)
+  lastEvaluated     DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([ruleType])
+  @@index([confidence])
+  @@index([isActive])
+}
+
+// Prompt evolution records - history of prompt improvements
+model PromptEvolution {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int?
+  experiment    Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+  category      String    // research, hypothesis, planning, execution, evaluation
+  beforePrompt  String
+  afterPrompt   String
+  improvement   String?   // what was improved
+  performanceDelta Float  @default(0) // -1.0 to 1.0
+  createdAt     DateTime  @default(now())
+
+  @@index([category])
+  @@index([performanceDelta])
+}
