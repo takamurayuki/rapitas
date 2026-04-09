@@ -270,12 +270,21 @@ npm run dev  # または cd ../rapitas-desktop && node scripts/dev.js
 - **デスクトップアプリ**: Tauri製ネイティブアプリ（Windows・Mac・Linux）
 - **リアルタイム同期**: WebSocket によるマルチデバイス同期
 
+### 🔄 繰り返しタスク (実装済み)
+
+- **RRULE 形式のスケジュール**: `FREQ=DAILY/WEEKLY/MONTHLY` + 曜日指定 + 終了日
+- **時刻指定生成**: `recurrenceTime` で HH:MM 指定 (デフォルト 00:00)
+- **ワークフローファイル継承**: 前回実行の research.md/plan.md を引き継ぎ可能
+- **毎時バックグラウンド生成**: `behavior-scheduler` が毎時 0 分に `processAllPendingRecurrences` を実行
+- UI: タスク詳細の `RecurrenceSelector` から設定
+
 ### 📋 今後の計画
 
-- **繰り返しタスク**: スケジュール自動生成
 - **タスク依存関係**: ガントチャート・クリティカルパス
+- **AI 週次レビュー**: ActivityLog/TimeEntry/PomodoroSession を Claude に集約して月曜朝に自動生成
+- **オフラインファースト同期の完成**: 既存 `offline-queue` を全 mutation に統合
 - **チーム機能**: 共有プロジェクト・権限管理
-- **外部統合**: GitHub・Slack・Google Calendar連携
+- **外部統合**: Slack・Google Calendar 連携
 
 ## 🗄️ データベース
 
