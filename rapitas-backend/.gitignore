@@ -38,7 +38,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 /generated/prisma
 
-tasks
+# Workflow files written by AI agents (research.md / plan.md / verify.md per task).
+# NOTE: Use a leading slash + trailing slash to anchor this to the backend root —
+# without it, git would also match `routes/tasks/` and silently ignore real source
+# files like recurring-tasks.ts, task-dependency-graph.ts, etc.
+/tasks/
 
 # Agent PID tracking files
 .agent-pids/
