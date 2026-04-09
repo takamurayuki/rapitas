@@ -18,106 +18,17 @@ import {
   useExecutionPolling,
   useExecutionStream,
 } from '../../hooks/useExecutionStream';
-import type {
-  ExecutionResult,
-  ExecutionStatus,
-} from '../../hooks/useDeveloperMode';
-import type { Resource } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
-import type { AccordionSection } from './types';
+import type {
+  UseExecutionManagerOptions,
+  UseExecutionManagerResult,
+} from './useExecutionManager.types';
+import {
+  deriveExecutionStatusFlags,
+  deriveLogViewerStatus,
+} from './execution-status-flags';
 
 const logger = createLogger('useExecutionManager');
-
-type UseExecutionManagerOptions = {
-  taskId: number;
-  taskTitle: string;
-  taskDescription?: string | null;
-  isExecuting: boolean;
-  executionStatus: ExecutionStatus;
-  executionResult: ExecutionResult | null;
-  executionError: string | null;
-  optimizedPrompt?: string | null;
-  agentConfigId?: number | null;
-  resources?: Resource[];
-  useTaskAnalysis?: boolean;
-  subtasks?: { id: number; title: string }[];
-  isParallelExecutionRunning?: boolean;
-  onExecute: (options?: {
-    instruction?: string;
-    branchName?: string;
-    useTaskAnalysis?: boolean;
-    optimizedPrompt?: string;
-    agentConfigId?: number;
-    sessionId?: number;
-    attachments?: Array<{
-      id: number;
-      title: string;
-      type: string;
-      fileName?: string;
-      filePath?: string;
-      mimeType?: string;
-      description?: string;
-    }>;
-  }) => Promise<{ sessionId?: number; message?: string } | null>;
-  onReset: () => void;
-  onRestoreExecutionState?: () => Promise<{
-    sessionId: number;
-    executionId?: number;
-    output?: string;
-    status: string;
-    waitingForInput?: boolean;
-    question?: string;
-  } | null>;
-  onStopExecution?: () => void;
-  onExecutionComplete?: () => void;
-  onStartParallelExecution?: (config?: {
-    maxConcurrentAgents?: number;
-  }) => Promise<string | null>;
-  setExpandedSection: (section: AccordionSection | null) => void;
-};
-
-type UseExecutionManagerResult = {
-  // Log sources
-  logs: string[];
-  showLogs: boolean;
-  setShowLogs: (v: boolean) => void;
-  clearLogs: () => void;
-  // Form fields
-  instruction: string;
-  setInstruction: (v: string) => void;
-  branchName: string;
-  setBranchName: (v: string) => void;
-  isGeneratingBranchName: boolean;
-  userResponse: string;
-  setUserResponse: (v: string) => void;
-  isSendingResponse: boolean;
-  continueInstruction: string;
-  setContinueInstruction: (v: string) => void;
-  // Session / restore
-  sessionId: number | null;
-  isRestoring: boolean;
-  // Execution status flags
-  isRunning: boolean;
-  isCompleted: boolean;
-  isCancelled: boolean;
-  isFailed: boolean | string | null | undefined;
-  isInterrupted: boolean | string | null | undefined;
-  isWaitingForInput: boolean | null | undefined;
-  logViewerStatus: ExecutionLogStatus;
-  hasQuestion: boolean;
-  question: string;
-  questionType: string;
-  pollingSessionMode: string | null | undefined;
-  isSseConnected: boolean;
-  // Handlers
-  handleExecute: () => Promise<void>;
-  handleGenerateBranchName: () => Promise<void>;
-  handleSendResponse: () => Promise<void>;
-  handleStopExecution: () => Promise<void>;
-  handleReset: () => void;
-  handleRerunExecution: () => Promise<void>;
-  handleContinueExecution: () => Promise<void>;
-};
 
 /**
  * Full execution lifecycle manager for the AI accordion panel.
@@ -306,29 +217,9 @@ export function useExecutionManager({
   // Derived status flags
   const hasSubtasks = subtasks && subtasks.length > 0;
 
-  const isTerminalStatus =
-    pollingStatus === 'completed' ||
-    pollingStatus === 'failed' ||
-    pollingStatus === 'cancelled' ||
-    sseStatus === 'completed' ||
-    sseStatus === 'failed' ||
-    sseStatus === 'cancelled';
-
-  // NOTE: Only uses explicit DB status (waitingForInput). Legacy pattern-matching removed.
-  const isWaitingForInput =
-    !isTerminalStatus &&
-    (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
-
-  const finalStatus =
-    sseStatus !== 'idle'
-      ? sseStatus
-      : pollingStatus !== 'idle'
-        ? pollingStatus
-        : 'idle';
-
-  // NOTE: isRestoredTerminal is only true for the initial mount when restoring
-  // a previously completed execution. Once a new execution starts, the flag is
-  // permanently disabled for the rest of the component lifecycle.
+  // NOTE: hasExecutedRef latches on the first time isExecuting is true and
+  // never resets, so the "restored terminal" path only fires for the very
+  // first render after mount. Mid-render ref mutation is intentional.
   const hasExecutedRef = useRef(false);
   if (isExecuting) hasExecutedRef.current = true;
   const isRestoredTerminal =
@@ -336,48 +227,39 @@ export function useExecutionManager({
     executionResult?.success !== undefined &&
     !isExecuting;
 
-  // NOTE: For restored terminal executions, derive status from executionResult immediately
-  // rather than waiting for polling, to avoid the blank/idle flash.
-  const isCompleted =
-    (finalStatus === 'completed' && !isWaitingForInput) ||
-    (isRestoredTerminal && executionResult?.success === true);
-  const isCancelled = finalStatus === 'cancelled';
-  const isFailed =
-    (!isCompleted &&
-      (finalStatus === 'failed' ||
-        executionError ||
-        pollingError ||
-        sseError)) ||
-    (isRestoredTerminal && executionResult?.success === false);
-  const isInterrupted =
-    !isCompleted &&
-    !isFailed &&
-    !isCancelled &&
-    executionResult?.output &&
-    logs.length > 0 &&
-    !isExecuting &&
-    !isPollingRunning &&
-    !isSseRunning &&
-    finalStatus === 'idle';
-  const isRunning =
-    !isTerminalStatus &&
-    !isInterrupted &&
-    !isRestoredTerminal &&
-    (isExecuting ||
-      isPollingRunning ||
-      isSseRunning ||
-      pollingStatus === 'running' ||
-      sseStatus === 'running' ||
-      isWaitingForInput ||
-      isParallelExecutionRunning);
+  const {
+    isWaitingForInput,
+    isCompleted,
+    isCancelled,
+    isFailed,
+    isInterrupted,
+    isRunning,
+  } = deriveExecutionStatusFlags({
+    pollingStatus,
+    sseStatus,
+    pollingWaitingForInput,
+    pollingError,
+    sseError,
+    executionError,
+    executionResult,
+    isExecuting,
+    isPollingRunning,
+    isSseRunning,
+    isParallelExecutionRunning,
+    isRestoredTerminal,
+    logsLength: logs.length,
+  });
 
-  const logViewerStatus: ExecutionLogStatus = useMemo(() => {
-    if (isRunning) return 'running';
-    if (isCancelled) return 'cancelled';
-    if (isCompleted) return 'completed';
-    if (isFailed) return 'failed';
-    return 'idle';
-  }, [isRunning, isCancelled, isCompleted, isFailed]);
+  const logViewerStatus: ExecutionLogStatus = useMemo(
+    () =>
+      deriveLogViewerStatus({
+        isRunning,
+        isCancelled,
+        isCompleted,
+        isFailed,
+      }),
+    [isRunning, isCancelled, isCompleted, isFailed],
+  );
 
   // Question detection — only from API status, not pattern matching
   const { hasQuestion, question, questionType } = useMemo(() => {

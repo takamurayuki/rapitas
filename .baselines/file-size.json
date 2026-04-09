@@ -6,9 +6,6 @@
   "files": {
     "rapitas-backend/services/agents/claude-code/agent-core.ts": {
       "lineCount": 1012
-    },
-    "rapitas-frontend/src/feature/developer-mode/components/ai-accordion-panel/useExecutionManager.ts": {
-      "lineCount": 609
     }
   }
 }
