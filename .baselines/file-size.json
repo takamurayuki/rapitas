@@ -12,9 +12,6 @@
     },
     "rapitas-desktop/src-tauri/src/main.rs": {
       "lineCount": 584
-    },
-    "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
-      "lineCount": 581
     }
   }
 }
