@@ -92,16 +92,13 @@ will produce wide JOINs and large response payloads.
 - For derived fields (e.g. `taskCount` per category), maintain a
   denormalized counter or use a materialized view
 
-### 2.6 Two realtime transports (`ws` + Socket.IO)
+### 2.6 ~~Two realtime transports~~ (resolved 2026-04-09)
 
-**Symptom:** Twice the connection overhead per client; two reconnection
-strategies to maintain.
-
-**Why:** Historical — backend internals adopted `ws` first; frontend
-chose Socket.IO for its richer client API.
-
-**Mitigation (planned):** Pick one and migrate — see
-[ARCHITECTURE.md §4 "Realtime"](ARCHITECTURE.md#4-runtime-considerations).
+Resolved per [ADR-0005](adr/0005-realtime-transport.md): the supposed
+"second transport" (Socket.IO Client) was dead code in
+`rapitas-frontend/lib/api-client-optimized.ts` with no consumers. The file
+and the dependency have been removed; the backend's native `ws` is the
+single realtime transport.
 
 ---
 

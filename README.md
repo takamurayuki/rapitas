@@ -359,7 +359,7 @@ bun run db:studio
   - remark-gfm 4.0.1（GitHub Flavored Markdown）
   - react-syntax-highlighter 16.1.0
 - **可視化**: Recharts 3.7.0（統計グラフ）
-- **リアルタイム**: Socket.IO Client 4.8.3
+- **リアルタイム**: ネイティブ WebSocket（バックエンドの `ws` と直接通信）
 
 ### 💻 デスクトップアプリ
 

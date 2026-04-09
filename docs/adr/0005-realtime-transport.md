@@ -1,6 +1,6 @@
 # 0005. Realtime transport: keep `ws`, remove dead Socket.IO
 
-- Status: accepted
+- Status: accepted — **implemented 2026-04-09**
 - Date: 2026-04-08
 - Deciders: @takamurayuki
 
@@ -108,11 +108,16 @@ re-introducing the dependency.
 
 ## Follow-ups
 
-- [ ] PR 1: Remove `socket.io-client` from `package.json` and lockfiles
-- [ ] PR 1: Delete `rapitas-frontend/lib/api-client-optimized.ts`
-- [ ] PR 1: Update `docs/ARCHITECTURE.md` §4 — drop the "two transports" line
-- [ ] PR 1: Update `README.md` — remove the Socket.IO Client mention from
-      the tech-stack section
-- [ ] PR 2 (optional): Add a Knip rule that flags any new
-      `socket.io*` import
+- [x] Remove `socket.io-client` from `rapitas-frontend/package.json` (2026-04-09)
+- [x] Delete `rapitas-frontend/lib/api-client-optimized.ts` (2026-04-09)
+- [x] Delete the now-empty `rapitas-frontend/lib/` directory (2026-04-09)
+- [x] Update `docs/ARCHITECTURE.md` §4 — drop the "two transports" line (2026-04-09)
+- [x] Update `README.md` — remove Socket.IO Client mention (2026-04-09)
+- [x] Update `docs/PERFORMANCE.md` §2.6 — mark as resolved (2026-04-09)
+- [ ] Lockfile cleanup: `pnpm-lock.yaml` and `bun.lock` still contain
+      orphaned `socket.io-client@4.8.3`, `socket.io-parser`, and
+      `@socket.io/component-emitter` entries. The next `pnpm install`
+      (CI uses `--no-frozen-lockfile`) will purge them automatically;
+      no hand-edit needed.
+- [ ] (Optional) Add a Knip rule that flags any new `socket.io*` import
 - [ ] If a future feature legitimately needs Socket.IO, supersede this ADR

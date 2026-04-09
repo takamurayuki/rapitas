@@ -151,11 +151,11 @@ that AI agents — including Claude Code itself — call to write
 the agent would lose its own connection.
 
 ### Realtime
-Two realtime channels coexist:
-- **Native `ws`** for backend internals (agent execution events)
-- **Socket.IO Client** on the frontend for app-level updates
-
-These should be unified in a future refactor.
+A single transport: **native `ws`** end-to-end. The backend exposes a
+WebSocket endpoint via Elysia's plugin
+(`rapitas-backend/services/communication/websocket-service.ts`); the
+frontend opens a plain `WebSocket` against it. There is **no** Socket.IO
+layer — see [ADR-0005](adr/0005-realtime-transport.md) for the history.
 
 ---
 

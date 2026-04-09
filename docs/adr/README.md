@@ -60,5 +60,5 @@ What did we decide? Be specific.
 | [0002](./0002-coverage-gate-staging.md) | Stepwise coverage gate instead of a single 80% target | accepted |
 | [0003](./0003-prisma-migration-strategy.md) | Move from `prisma db push` to `prisma migrate` before public release | accepted |
 | [0004](./0004-typescript-strictness-ratchet.md) | TypeScript strictness ratchet | accepted |
-| [0005](./0005-realtime-transport.md) | Realtime transport: keep `ws`, remove dead Socket.IO | accepted |
+| [0005](./0005-realtime-transport.md) | Realtime transport: keep `ws`, remove dead Socket.IO | accepted (implemented 2026-04-09) |
 | [0006](./0006-prisma-schema-folder-split.md) | Split `schema.prisma` into a `prismaSchemaFolder` | accepted |
