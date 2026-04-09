@@ -233,14 +233,14 @@ export function runClaudeExecution(
         agent.lineBuffer = '';
       },
       onTimeout: (result) => {
-        agent.status = 'failed';
+        agent.setStatusInternal('failed');
         resolve(result);
       },
       getLineBuffer: () => agent.lineBuffer,
       getOutputBufferLength: () => agent.outputBuffer.length,
       getOutputBuffer: () => agent.outputBuffer,
       getErrorBuffer: () => agent.errorBuffer,
-      getStatus: () => agent.status,
+      getStatus: () => agent.getStatus(),
       getProcess: () => agent.process,
       setIdleTimeoutForceKilled: (v) => {
         agent.idleTimeoutForceKilled = v;
@@ -330,7 +330,7 @@ export function runClaudeExecution(
         `${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`,
       );
 
-      if (agent.status === 'cancelled') {
+      if (agent.getStatus() === 'cancelled') {
         resolve({
           success: false,
           output: agent.outputBuffer,
@@ -341,7 +341,7 @@ export function runClaudeExecution(
       }
 
       // Skip if already resolved by timeout
-      if (agent.status === 'failed') return;
+      if (agent.getStatus() === 'failed') return;
 
       const resolveAfterParse = buildResolveAfterParse(code, workDir, startTime, resolve);
 
@@ -374,7 +374,7 @@ export function runClaudeExecution(
       monitor.cleanup();
       cleanupPromptFile();
       if (agent.process?.pid) unregisterProcess(agent.process.pid);
-      agent.status = 'failed';
+      agent.setStatusInternal('failed');
       logger.error({ err: error }, `${agent.logPrefix} Process error`);
       agent.emitOutputInternal(`${agent.logPrefix} Error: ${error.message}\n`, true);
 
@@ -397,7 +397,7 @@ export function runClaudeExecution(
   } catch (error) {
     // NOTE: This catch block handles errors before spawn, so monitor is not yet started
     cleanupPromptFile();
-    agent.status = 'failed';
+    agent.setStatusInternal('failed');
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ err: error }, `${agent.logPrefix} Spawn error`);
     resolve({

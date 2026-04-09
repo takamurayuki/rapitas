@@ -13,6 +13,7 @@ import type {
   AgentTask,
   AgentExecutionResult,
   AgentArtifact,
+  AgentStatus,
   GitCommitInfo,
 } from '../base-agent';
 import { createInitialWaitingState } from '../question-detection';
@@ -135,6 +136,11 @@ export class ClaudeCodeAgent extends BaseAgent {
   /** @internal Proxy for the private killProcessForQuestion, used by helpers. */
   public killProcessForQuestionInternal(): void {
     this.killProcessForQuestion();
+  }
+
+  /** @internal Public setter for the protected `status` field, used by helpers. */
+  public setStatusInternal(status: AgentStatus): void {
+    this.status = status;
   }
 
   /**
