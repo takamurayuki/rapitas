@@ -16,6 +16,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, Plus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
+import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -452,58 +453,3 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
   );
 }
 
-// --- Audio helpers (shared with useSpeechRecognition) ---
-
-function encodeWav(samples: Float32Array, sampleRate: number): Blob {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const bytesPerSample = bitsPerSample / 8;
-  const dataLength = samples.length * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + dataLength);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataLength, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);
-  view.setUint16(32, numChannels * bytesPerSample, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataLength, true);
-
-  let offset = 44;
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    offset += 2;
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-function resamplePcm(samples: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return samples;
-  const ratio = fromRate / toRate;
-  const outputLen = Math.floor(samples.length / ratio);
-  const output = new Float32Array(outputLen);
-  for (let i = 0; i < outputLen; i++) {
-    const srcIdx = i * ratio;
-    const idx = Math.floor(srcIdx);
-    const frac = srcIdx - idx;
-    if (idx + 1 < samples.length) {
-      output[i] = samples[idx] * (1 - frac) + samples[idx + 1] * frac;
-    } else if (idx < samples.length) {
-      output[i] = samples[idx];
-    }
-  }
-  return output;
-}

@@ -15,9 +15,6 @@
     },
     "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
       "lineCount": 581
-    },
-    "rapitas-frontend/src/components/voice/VoiceInputBar.tsx": {
-      "lineCount": 509
     }
   }
 }
