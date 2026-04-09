@@ -171,8 +171,11 @@ worse than the cost of one carefully reviewed PR.
   benchmarks for the folder feature).
 
 ### Negative
-- `prismaSchemaFolder` is still a **preview feature** as of Prisma 6.x. We
-  accept the risk; if it's removed, we re-merge the files (mechanical).
+- ~~`prismaSchemaFolder` is still a **preview feature** as of Prisma 6.x.~~
+  **Update 2026-04-10**: the feature graduated to GA in Prisma 6.x. The
+  `previewFeatures = ["prismaSchemaFolder"]` line was removed from
+  `_generators.prisma` because keeping it triggers a deprecation warning
+  on every CLI invocation.
 - The PR will be large (one file in, ~10 files out). It must be reviewed
   carefully.
 - AI agents that grep for `schema.prisma` (including Claude Code, per
