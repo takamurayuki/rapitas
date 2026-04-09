@@ -35,6 +35,7 @@ import {
   type FlashcardResult,
 } from './useFlashcardGenerator';
 import { useEditorInsertion } from './useEditorInsertion';
+import { useNotePopups } from './useNotePopups';
 
 export type { FlashcardResult };
 
@@ -136,14 +137,19 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const [draftTitle, setDraftTitle] = useState(note.title);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Popup visibility state
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showBorderPicker, setShowBorderPicker] = useState(false);
-  const [showLinkInput, setShowLinkInput] = useState(false);
-  const [showCodeInput, setShowCodeInput] = useState(false);
-  const [showFontSizePicker, setShowFontSizePicker] = useState(false);
-  const [showFontPicker, setShowFontPicker] = useState(false);
-  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  // Popup visibility state + close-all/close-others helpers + outside-click effect
+  const popups = useNotePopups();
+  const {
+    showTextColorPicker,
+    setShowColorPicker,
+    setShowBorderPicker,
+    setShowLinkInput,
+    setShowCodeInput,
+    setShowFontSizePicker,
+    setShowFontPicker,
+    setShowTextColorPicker,
+    closeOtherPopups,
+  } = popups;
 
   // Insertion field state
   const [linkUrl, setLinkUrl] = useState('');
@@ -159,74 +165,6 @@ export function useNoteEditor(note: Note): NoteEditorState {
   const handleContentChange = useCallback(() => {
     setIsDirty(true);
   }, []);
-
-  const closeAllPopups = useCallback(() => {
-    setShowColorPicker(false);
-    setShowBorderPicker(false);
-    setShowLinkInput(false);
-    setShowCodeInput(false);
-    setShowFontSizePicker(false);
-    setShowFontPicker(false);
-    setShowTextColorPicker(false);
-  }, []);
-
-  // NOTE: "except" param lets the caller open one popup without closing it immediately.
-  const closeOtherPopups = useCallback(
-    (except: 'link' | 'code') => {
-      setShowColorPicker(false);
-      setShowBorderPicker(false);
-      setShowFontSizePicker(false);
-      setShowFontPicker(false);
-      setShowTextColorPicker(false);
-      if (except !== 'link') setShowLinkInput(false);
-      if (except !== 'code') setShowCodeInput(false);
-    },
-    [],
-  );
-
-  // Close popups on outside click or Escape
-  useEffect(() => {
-    const anyOpen =
-      showColorPicker ||
-      showBorderPicker ||
-      showLinkInput ||
-      showCodeInput ||
-      showFontSizePicker ||
-      showFontPicker ||
-      showTextColorPicker;
-
-    if (!anyOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const isInsidePopup = target.closest('.absolute.top-full') !== null;
-      const isButton =
-        target.closest(
-          'button[title="ハイライト"], button[title="縦線"], button[title="リンク挿入"], button[title="コードブロック挿入"], button[title="文字サイズ"], button[title="フォント"], button[title="文字色"]',
-        ) !== null;
-      if (!isInsidePopup && !isButton) closeAllPopups();
-    };
-
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeAllPopups();
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscKey);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscKey);
-    };
-  }, [
-    showColorPicker,
-    showBorderPicker,
-    showLinkInput,
-    showCodeInput,
-    showFontSizePicker,
-    showFontPicker,
-    showTextColorPicker,
-    closeAllPopups,
-  ]);
 
   // Reset editor content when note changes
   useEffect(() => {
@@ -458,12 +396,12 @@ export function useNoteEditor(note: Note): NoteEditorState {
     handleTitleChange,
     handleTitlePaste,
     handleSave,
-    showColorPicker,
-    showBorderPicker,
-    showLinkInput,
-    showCodeInput,
-    showFontSizePicker,
-    showFontPicker,
+    showColorPicker: popups.showColorPicker,
+    showBorderPicker: popups.showBorderPicker,
+    showLinkInput: popups.showLinkInput,
+    showCodeInput: popups.showCodeInput,
+    showFontSizePicker: popups.showFontSizePicker,
+    showFontPicker: popups.showFontPicker,
     showTextColorPicker,
     setShowColorPicker,
     setShowBorderPicker,
@@ -472,7 +410,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     setShowFontSizePicker,
     setShowFontPicker,
     setShowTextColorPicker,
-    closeAllPopups,
+    closeAllPopups: popups.closeAllPopups,
     linkUrl,
     isLinkLoading,
     setLinkUrl,

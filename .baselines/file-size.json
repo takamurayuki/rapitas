@@ -18,9 +18,6 @@
     },
     "rapitas-frontend/src/components/voice/VoiceInputBar.tsx": {
       "lineCount": 509
-    },
-    "rapitas-frontend/src/components/note/editor/useNoteEditor.ts": {
-      "lineCount": 506
     }
   }
 }
