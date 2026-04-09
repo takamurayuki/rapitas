@@ -70,6 +70,7 @@ import {
   knowledgeRoutes,
   memorySystemRoutes,
   intelligentSuggestionsRoutes,
+  weeklyReviewRoutes,
   smartActionRoutes,
   experimentsRoutes,
   knowledgeGraphRoutes,
@@ -229,6 +230,7 @@ app.use(searchRoutes);
 app.use(knowledgeRoutes);
 app.use(memorySystemRoutes);
 app.use(intelligentSuggestionsRoutes);
+app.use(weeklyReviewRoutes);
 app.use(smartActionRoutes);
 app.use(localLLMRouter);
 app.use(transcribeRouter);

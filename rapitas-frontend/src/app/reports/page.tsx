@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
+import { WeeklyReviewCard } from '@/components/widgets/WeeklyReviewCard';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -225,6 +226,10 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <WeeklyReviewCard />
       </div>
 
       <BurnupChart className="mb-6" />

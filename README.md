@@ -286,9 +286,18 @@ npm run dev  # または cd ../rapitas-desktop && node scripts/dev.js
 - **ガントチャートビュー** (`/gantt`): タスクを時系列で表示、依存矢印付き、テーマ絞り込み
 - **クリティカルパス**: バックエンドが `topologicalSort` + `calculateCriticalPath` を返す
 
+### 🤖 AI 週次レビュー (実装済み)
+
+- **自動生成**: 毎週月曜 9:00 に `behavior-scheduler` がトリガし、先週の活動を集約
+- **集約データ**: 完了タスク + ポモドーロ + TimeEntry + テーマ別 + 日別分布
+- **AI モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`、コストと速度のバランス重視)
+- **冪等性**: 同じ週は二重生成されず、既存レビューを返す
+- **手動再生成**: `/reports` ページの「再生成」ボタンから即座に呼び出し可能
+- **空週フォールバック**: 完了タスクゼロの週は Claude を呼ばずに固定文を保存
+- UI: `/reports` ページに `WeeklyReviewCard`
+
 ### 📋 今後の計画
 
-- **AI 週次レビュー**: ActivityLog/TimeEntry/PomodoroSession を Claude に集約して月曜朝に自動生成
 - **オフラインファースト同期の完成**: 既存 `offline-queue` を全 mutation に統合
 - **チーム機能**: 共有プロジェクト・権限管理
 - **外部統合**: Slack・Google Calendar 連携

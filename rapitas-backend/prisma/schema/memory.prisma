@@ -142,6 +142,23 @@ model MemoryJournalEntry {
   @@index([createdAt])
 }
 
+// AI-generated weekly review (Tier S #3)
+// Stores Claude-generated weekly summaries built from completed tasks,
+// TimeEntry, PomodoroSession, and ActivityLog. One row per ISO week.
+model WeeklyReview {
+  id          Int      @id @default(autoincrement())
+  weekStart   DateTime // Monday 00:00 of the reviewed week
+  weekEnd     DateTime // Sunday 23:59:59 of the reviewed week
+  summary     String   // AI-generated narrative (Markdown allowed)
+  stats       String   @default("{}") // JSON snapshot of the aggregated stats
+  modelUsed   String   @default("claude-haiku-4-5-20251001") // AI model used
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([weekStart])
+  @@index([generatedAt])
+}
+
 // Knowledge graph nodes
 model KnowledgeGraphNode {
   id            Int       @id @default(autoincrement())

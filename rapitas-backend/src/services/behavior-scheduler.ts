@@ -6,6 +6,7 @@ import { generateOptimizationRules } from '../../services/workflow/workflow-lear
 import { processAllPendingRecurrences } from '../../services/scheduling/recurring-task-service';
 import { runScheduledTechDebtScan } from '../../services/misc/tech-debt-liquidator';
 import { runProjectHealthScan } from '../../services/analytics/project-health-monitor';
+import { generateWeeklyReview } from '../../services/ai/weekly-review-service';
 import { prisma } from '../../config/database';
 
 const log = createLogger('behavior-scheduler');
@@ -124,6 +125,17 @@ export class BehaviorScheduler {
       }
     }, 60 * 1000);
 
+    // AI weekly review generation at 9 AM on Mondays
+    const weeklyReviewInterval = setInterval(async () => {
+      const now = new Date();
+      if (now.getDay() === 1 && now.getHours() === 9 && now.getMinutes() === 0) {
+        log.info('[BehaviorScheduler] Triggering AI weekly review generation');
+        await generateWeeklyReview(prisma).catch((err: Error) => {
+          log.error({ err }, '[BehaviorScheduler] Weekly review generation failed');
+        });
+      }
+    }, 60 * 1000);
+
     this.intervalIds.push(
       dailyInterval,
       weeklyInterval,
@@ -135,6 +147,7 @@ export class BehaviorScheduler {
       recurringTaskInterval,
       techDebtInterval,
       healthMonitorInterval,
+      weeklyReviewInterval,
     );
 
     // Initial execution (at server startup)
