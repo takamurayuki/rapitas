@@ -22,6 +22,24 @@ let isReady = false;
 let pendingRequests = new Map<string, { resolve: (text: string) => void; reject: (err: Error) => void }>();
 let requestCounter = 0;
 let stdoutBuffer = '';
+let stderrBuffer = ''; // line-buffer the daemon's stderr so partial chunks don't split messages
+let suppressedStderrLines = 0;
+
+/**
+ * Decide whether a single line of daemon stderr is interesting enough to log.
+ *
+ * @xenova/transformers (the Whisper model loader) writes a lot of init noise
+ * to stderr at startup — ONNX runtime warnings, download progress, layer
+ * info, etc. — none of which is useful in normal operation. We only want to
+ * see lines that come from the daemon itself (`[whisper-daemon] ...`) or that
+ * look like genuine errors.
+ */
+function shouldLogStderrLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.startsWith('[whisper-daemon]')) return true;
+  return /\b(error|fail|fatal|exception|traceback)\b/i.test(trimmed);
+}
 
 /**
  * Start the Whisper daemon if not already running.
@@ -50,8 +68,27 @@ export function ensureDaemon(): Promise<void> {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    daemon.stderr?.on('data', (data) => {
-      log.debug({ msg: data.toString().trim() }, 'Whisper daemon stderr');
+    daemon.stderr?.on('data', (data: Buffer) => {
+      // NOTE: Line-buffer the chunk so a single transformers log entry that
+      // arrives split across two `data` events doesn't get logged twice.
+      stderrBuffer += data.toString();
+      const lines = stderrBuffer.split('\n');
+      stderrBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (shouldLogStderrLine(line)) {
+          // Daemon-emitted lines and genuine errors get a real log entry.
+          const isError = /\b(error|fail|fatal|exception|traceback)\b/i.test(line);
+          if (isError) {
+            log.warn({ msg: line.trim() }, 'Whisper daemon stderr');
+          } else {
+            log.info({ msg: line.trim() }, 'Whisper daemon stderr');
+          }
+        } else {
+          // transformers init noise — count it but don't spam the log.
+          suppressedStderrLines++;
+        }
+      }
     });
 
     daemon.stdout?.on('data', (data) => {
@@ -68,7 +105,14 @@ export function ensureDaemon(): Promise<void> {
 
           if (msg.id === '__ready__') {
             isReady = true;
-            log.info('Whisper daemon ready (model loaded)');
+            if (suppressedStderrLines > 0) {
+              log.info(
+                { suppressedStderrLines },
+                `Whisper daemon ready (model loaded; ${suppressedStderrLines} init stderr lines suppressed)`,
+              );
+            } else {
+              log.info('Whisper daemon ready (model loaded)');
+            }
             resolve();
             continue;
           }
