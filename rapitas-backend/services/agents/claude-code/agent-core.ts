@@ -6,10 +6,7 @@
  * to sub-modules in this directory.
  */
 
-import { spawn, ChildProcess } from 'child_process';
-import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import type { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
 import type {
   AgentCapability,
@@ -20,15 +17,13 @@ import type {
 } from '../base-agent';
 import { createInitialWaitingState } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
-import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
+import type { WorkerOutputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
-import { registerProcess, unregisterProcess } from '../agent-process-tracker';
-import { getClaudePath, buildSpawnCommand, checkClaudeAvailable } from './cli-utils';
-import { buildStructuredPrompt } from './prompt-builder';
-import { startIdleMonitor } from './idle-monitor';
+import { checkClaudeAvailable } from './cli-utils';
 import { handleWorkerMessage } from './worker-message-handler';
 import { buildResolveAfterParse } from './execution-resolver';
+import { runClaudeExecution } from './claude-execution-runner';
 
 const logger = createLogger('claude-code-agent');
 
@@ -118,6 +113,11 @@ export class ClaudeCodeAgent extends BaseAgent {
    */
   private handleWorkerMessage(msg: WorkerOutputMessage): void {
     handleWorkerMessage(this as unknown as Parameters<typeof handleWorkerMessage>[0], msg);
+  }
+
+  /** @internal Public alias for handleWorkerMessage so the execution runner can wire onmessage. */
+  public handleWorkerMessageInternal(msg: WorkerOutputMessage): void {
+    this.handleWorkerMessage(msg);
   }
 
   /** @internal Proxy for BaseAgent's protected emitOutput, used by helpers. */
@@ -214,354 +214,15 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      // In --resume or --continue mode, use the prompt (user response) as-is
-      // Adding extra text would break the session resumption context
-      const isResumeMode = !!(this.config.resumeSessionId || this.config.continueConversation);
-      const prompt = isResumeMode
-        ? task.description || task.title
-        : buildStructuredPrompt(task, workDir, this.logPrefix);
-
-      if (task.analysisInfo) {
-        logger.info(`${this.logPrefix} Using structured prompt with AI task analysis`);
-        logger.info(`${this.logPrefix} Analysis complexity: ${task.analysisInfo.complexity}`);
-        logger.info(`${this.logPrefix} Subtasks count: ${task.analysisInfo.subtasks?.length || 0}`);
-      } else {
-        logger.info(`${this.logPrefix} Using simple prompt (no AI task analysis)`);
-      }
-
-      // Save prompt to temp file to bypass Windows command-line character limit
-      const tempDir = join(tmpdir(), 'rapitas-prompts');
-      if (!existsSync(tempDir)) {
-        mkdirSync(tempDir, { recursive: true });
-      }
-      const promptFile = join(tempDir, `prompt-${Date.now()}.txt`);
-      writeFileSync(promptFile, prompt, 'utf-8');
-
-      // Build Claude Code CLI command
-      const args: string[] = [];
-      args.push('--print');
-      args.push('--verbose');
-      args.push('--output-format', 'stream-json');
-
-      if (this.config.resumeSessionId) {
-        args.push('--resume', this.config.resumeSessionId);
-        logger.info(
-          `${this.logPrefix} Resuming specific session with --resume ${this.config.resumeSessionId}`,
-        );
-      } else if (this.config.continueConversation) {
-        args.push('--continue');
-        logger.info(`${this.logPrefix} Continuing most recent conversation with --continue`);
-      }
-
-      if (this.config.dangerouslySkipPermissions) {
-        args.push('--dangerously-skip-permissions');
-        // NOTE: Also set permission-mode to ensure all file edits (including .claude/) are allowed
-        args.push('--permission-mode', 'bypassPermissions');
-      }
-      if (this.config.model) {
-        args.push('--model', this.config.model);
-      }
-      if (this.config.maxTokens) {
-        args.push('--max-tokens', String(this.config.maxTokens));
-      }
-
-      // NOTE: Working directory is set via spawn({ cwd: workDir }) at line 618.
-      // Claude Code CLI inherits the shell's working directory — no --directory flag needed.
-
-      // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
-      // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-      args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
-
-      const claudePath = getClaudePath();
-      const [finalCommand, finalArgs] = buildSpawnCommand(claudePath, args);
-
-      logger.info(`${this.logPrefix} Platform: ${process.platform}`);
-      logger.info(`${this.logPrefix} Claude path: ${claudePath}`);
-      logger.info(`${this.logPrefix} Work directory: ${workDir}`);
-      logger.info(`${this.logPrefix} Prompt length: ${prompt.length} chars / Timeout: ${timeout}ms`);
-      logger.info(`${this.logPrefix} Args: ${args.join(' ')}`);
-
-      this.emitOutput(`${this.logPrefix} Starting execution...\n`);
-      this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
-      this.emitOutput(`${this.logPrefix} Timeout: ${timeout / 1000}s\n`);
-      this.emitOutput(
-        `${this.logPrefix} Prompt: ${prompt.substring(0, 200)}${prompt.length > 200 ? '...' : ''}\n\n`,
+      runClaudeExecution(
+        this,
+        task,
+        workDir,
+        startTime,
+        timeout,
+        resolve,
+        (code, wd, st, res) => this.buildResolveAfterParse(code, wd, st, res),
       );
-
-      const cleanupPromptFile = () => {
-        try {
-          unlinkSync(promptFile);
-        } catch (_) {
-          // Prompt file may already be deleted
-        }
-      };
-
-      try {
-        logger.info(`${this.logPrefix} Final command: ${finalCommand}`);
-
-        const isWindows = process.platform === 'win32';
-        this.process = spawn(finalCommand, finalArgs, {
-          cwd: workDir,
-          shell: true,
-          windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
-          stdio: ['pipe', 'pipe', 'pipe'],
-          env: {
-            ...process.env,
-            FORCE_COLOR: '0',
-            NO_COLOR: '1',
-            CI: '1',
-            TERM: 'dumb',
-            PYTHONUNBUFFERED: '1',
-            NODE_OPTIONS: '--no-warnings',
-            ...(isWindows && {
-              LANG: 'en_US.UTF-8',
-              PYTHONIOENCODING: 'utf-8',
-              PYTHONUTF8: '1',
-              CHCP: '65001', // Enable UTF-8 mode on Windows 10+
-            }),
-          },
-        });
-
-        if (this.process.stdout) {
-          this.process.stdout.setEncoding('utf8');
-        }
-        if (this.process.stderr) {
-          this.process.stderr.setEncoding('utf8');
-        }
-
-        logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
-        this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);
-
-        if (this.process.pid) {
-          registerProcess({
-            pid: this.process.pid,
-            role: 'cli-agent',
-            taskId: task.id,
-            startedAt: new Date().toISOString(),
-            parentPid: process.pid,
-          });
-        }
-
-        // Write prompt to stdin asynchronously in chunks to avoid buffering issues
-        const writePromptToStdin = async () => {
-          if (!this.process?.stdin) {
-            logger.info(`${this.logPrefix} stdin is not available`);
-            return;
-          }
-          const stdin = this.process.stdin;
-          const CHUNK_SIZE = 16384; // 16KB chunks
-
-          stdin.on('error', (err) => {
-            logger.error({ err }, `${this.logPrefix} stdin error`);
-          });
-
-          // Convert prompt to UTF-8 Buffer to prevent encoding issues
-          const promptBuffer = Buffer.from(prompt, 'utf8');
-          logger.info(`${this.logPrefix} Prompt buffer size: ${promptBuffer.length} bytes`);
-
-          for (let i = 0; i < promptBuffer.length; i += CHUNK_SIZE) {
-            const chunk = promptBuffer.subarray(i, Math.min(i + CHUNK_SIZE, promptBuffer.length));
-            const canContinue = stdin.write(chunk);
-            if (!canContinue) {
-              await new Promise<void>((r) => stdin.once('drain', r));
-            }
-          }
-
-          stdin.end();
-          logger.info(
-            `${this.logPrefix} Prompt written to stdin (${promptBuffer.length} bytes) in chunks`,
-          );
-        };
-
-        writePromptToStdin().catch((err) => {
-          logger.error({ err }, `${this.logPrefix} Failed to write prompt to stdin`);
-        });
-
-        this.lineBuffer = '';
-
-        // Start idle and timeout monitors
-        const monitor = startIdleMonitor(this.logPrefix, timeout, startTime, {
-          onFlushLineBuffer: (content) => {
-            this.outputBuffer += content;
-            this.emitOutput(content);
-            this.lineBuffer = '';
-          },
-          onTimeout: (result) => {
-            this.status = 'failed';
-            resolve(result);
-          },
-          getLineBuffer: () => this.lineBuffer,
-          getOutputBufferLength: () => this.outputBuffer.length,
-          getOutputBuffer: () => this.outputBuffer,
-          getErrorBuffer: () => this.errorBuffer,
-          getStatus: () => this.status,
-          getProcess: () => this.process,
-          setIdleTimeoutForceKilled: (v) => { this.idleTimeoutForceKilled = v; },
-        });
-
-        // Spawn a Worker for output parsing
-        this.parserWorker = new Worker(
-          new URL('../../../workers/output-parser-worker.ts', import.meta.url).href,
-        );
-        this.parserWorker.postMessage({
-          type: 'configure',
-          config: {
-            timeoutSeconds: this.config.timeout
-              ? Math.floor(this.config.timeout / 1000)
-              : undefined,
-            logPrefix: this.logPrefix,
-          },
-        } satisfies WorkerInputMessage);
-
-        this.parserWorker.onmessage = (event: MessageEvent<WorkerOutputMessage>) => {
-          this.handleWorkerMessage(event.data);
-        };
-
-        this.parserWorker.onerror = (error: ErrorEvent) => {
-          logger.error({ errorMessage: error.message }, `${this.logPrefix} Worker uncaught error`);
-        };
-
-        this.process.stdout?.on('data', (data: Buffer) => {
-          const chunk = data.toString();
-          monitor.recordOutput();
-          monitor.markReceivedOutput();
-
-          const elapsedMs = Date.now() - startTime;
-          logger.info(
-            `${this.logPrefix} First stdout received after ${elapsedMs}ms (${chunk.length} chars)`,
-          );
-
-          // Delegate chunk to Worker (parsing runs on the Worker thread)
-          try {
-            this.parserWorker?.postMessage({
-              type: 'parse-chunk',
-              data: chunk,
-            } satisfies WorkerInputMessage);
-          } catch (workerErr) {
-            // Ignore if Worker is already terminated (InvalidStateError)
-            logger.warn(
-              { errorDetail: workerErr instanceof Error ? workerErr.message : workerErr },
-              `${this.logPrefix} Worker postMessage failed`,
-            );
-            this.parserWorker = null;
-          }
-        });
-
-        this.process.stderr?.on('data', (data: Buffer) => {
-          const output = data.toString();
-          this.errorBuffer += output;
-          monitor.recordOutput(); // Treat stderr as output to reset the timeout
-          logger.info(
-            `${this.logPrefix} stderr (${output.length} chars): ${output.substring(0, 200)}`,
-          );
-          this.emitOutput(output, true);
-        });
-
-        this.process.on('close', (code: number | null) => {
-          monitor.cleanup();
-          cleanupPromptFile();
-          if (this.process?.pid) {
-            unregisterProcess(this.process.pid);
-          }
-          const executionTimeMs = Date.now() - startTime;
-
-          if (this.lineBuffer.trim()) {
-            logger.info(
-              `${this.logPrefix} Processing remaining lineBuffer: ${this.lineBuffer.substring(0, 200)}`,
-            );
-            this.outputBuffer += this.lineBuffer + '\n';
-            this.emitOutput(this.lineBuffer + '\n');
-          }
-
-          logger.info(
-            `${this.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
-          );
-          logger.info(`${this.logPrefix} Final output length: ${this.outputBuffer.length}`);
-          logger.info(
-            `${this.logPrefix} Last 500 chars of output: ${this.outputBuffer.slice(-500)}`,
-          );
-
-          if (this.status === 'cancelled') {
-            resolve({
-              success: false,
-              output: this.outputBuffer,
-              errorMessage: 'Execution cancelled',
-              executionTimeMs,
-            });
-            return;
-          }
-
-          // Skip if already resolved by timeout
-          if (this.status === 'failed') {
-            return;
-          }
-
-          const resolveAfterParse = this.buildResolveAfterParse(code, workDir, startTime, resolve);
-
-          // If a Worker exists, send parse-complete and wait for results;
-          // otherwise fall back to direct execution
-          if (this.parserWorker) {
-            this.workerArtifacts = [];
-            this.workerCommits = [];
-            this.onParseComplete = resolveAfterParse;
-
-            try {
-              this.parserWorker.postMessage({
-                type: 'parse-complete',
-                outputBuffer: this.outputBuffer,
-              } satisfies WorkerInputMessage);
-            } catch (workerErr) {
-              logger.warn(
-                { errorDetail: workerErr instanceof Error ? workerErr.message : workerErr },
-                `${this.logPrefix} Worker postMessage failed on parse-complete, falling back`,
-              );
-              this.onParseComplete = null;
-              resolveAfterParse();
-            }
-          } else {
-            resolveAfterParse();
-          }
-        });
-
-        this.process.on('error', (error: Error) => {
-          monitor.cleanup();
-          cleanupPromptFile();
-          if (this.process?.pid) {
-            unregisterProcess(this.process.pid);
-          }
-          this.status = 'failed';
-          logger.error({ err: error }, `${this.logPrefix} Process error`);
-          this.emitOutput(`${this.logPrefix} Error: ${error.message}\n`, true);
-
-          const errorParts: string[] = [];
-          errorParts.push(`Process startup error: ${error.message}`);
-          if (this.errorBuffer.trim()) {
-            errorParts.push(`\n\n【Standard Error Output】\n${this.errorBuffer.trim()}`);
-          }
-          if (this.outputBuffer.trim()) {
-            errorParts.push(`\n\n【Standard Output】\n${this.outputBuffer.trim().slice(-500)}`);
-          }
-
-          resolve({
-            success: false,
-            output: this.outputBuffer,
-            errorMessage: errorParts.join(''),
-            executionTimeMs: Date.now() - startTime,
-          });
-        });
-      } catch (error) {
-        // NOTE: This catch block handles errors before spawn, so monitor is not yet started
-        cleanupPromptFile();
-        this.status = 'failed';
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error({ err: error }, `${this.logPrefix} Spawn error`);
-        resolve({
-          success: false,
-          output: '',
-          errorMessage,
-          executionTimeMs: Date.now() - startTime,
-        });
-      }
     });
   }
 

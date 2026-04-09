@@ -2,10 +2,6 @@
   "generated": "2026-04-08T13:43:16.119Z",
   "hard_limit": 500,
   "soft_limit": 300,
-  "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
-  "files": {
-    "rapitas-backend/services/agents/claude-code/agent-core.ts": {
-      "lineCount": 698
-    }
-  }
+  "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file. As of 2026-04-09 the baseline is empty: the ratchet is at the canonical 500-line hard limit for all files.",
+  "files": {}
 }

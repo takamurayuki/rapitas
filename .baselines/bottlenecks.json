@@ -1,30 +1,30 @@
 {
-  "generated": "2026-04-09T12:26:36.353Z",
+  "generated": "2026-04-09T12:56:23.989Z",
   "file_size": {
     "hard_limit": 500,
     "soft_limit": 300,
-    "hard_count": 5,
-    "soft_count": 134,
+    "hard_count": 0,
+    "soft_count": 140,
     "top5_largest": [
       {
-        "file": "rapitas-backend/services/agents/claude-code/agent-core.ts",
-        "lines": 1012
+        "file": "rapitas-backend/services/workflow/ai-orchestra.ts",
+        "lines": 494
+      },
+      {
+        "file": "rapitas-backend/services/parallel-execution/parallel-scheduler.ts",
+        "lines": 493
+      },
+      {
+        "file": "rapitas-backend/services/agents/agent-knowledge-sharing.ts",
+        "lines": 492
       },
       {
         "file": "rapitas-frontend/src/feature/developer-mode/components/ai-accordion-panel/useExecutionManager.ts",
-        "lines": 609
+        "lines": 491
       },
       {
-        "file": "rapitas-desktop/src-tauri/src/main.rs",
-        "lines": 584
-      },
-      {
-        "file": "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts",
-        "lines": 581
-      },
-      {
-        "file": "rapitas-frontend/src/components/voice/VoiceInputBar.tsx",
-        "lines": 509
+        "file": "rapitas-backend/services/agents/abstraction/interfaces.ts",
+        "lines": 490
       }
     ]
   },
