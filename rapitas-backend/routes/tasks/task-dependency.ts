@@ -1,6 +1,9 @@
 /**
  * Task Dependency Analysis API Routes
  * Provides task dependency analysis and visualization
+ *
+ * NOTE: This file handles AUTOMATIC file-path-based dependency analysis.
+ * For USER-DECLARED task blocking relationships, see routes/tasks/task-dependency-graph.ts.
  */
 import { Elysia, t } from "elysia";
 import { prisma } from "../../config/database";

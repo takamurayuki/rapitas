@@ -22,6 +22,7 @@ import TaskWorkflowSection from './TaskWorkflowSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { DependencyPicker } from '@/feature/tasks/components/dependency';
 
 const API_BASE = API_BASE_URL;
 
@@ -206,6 +207,10 @@ export default function TaskDetailViewBody({
             {...aiSectionProps}
           />
         ))}
+
+      <div className="mb-6">
+        <DependencyPicker taskId={taskId} />
+      </div>
 
       {task.theme?.isDevelopment === true && (
         <TaskWorkflowSection

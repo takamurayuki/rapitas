@@ -24,6 +24,7 @@ import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
+import { DependencyBadge } from './dependency';
 
 interface TaskCardProps {
   task: Task;
@@ -220,6 +221,9 @@ const TaskCard = memo(function TaskCard({
                   <span>{tc.executionClasses.label}</span>
                 </div>
               )}
+
+              {/* Dependency Badge */}
+              <DependencyBadge taskId={task.id} compact />
             </div>
           </div>
 

@@ -42,6 +42,7 @@ import {
   Activity,
   BookMarked,
   Keyboard,
+  GanttChart,
 } from 'lucide-react';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -84,6 +85,7 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
+        { href: '/gantt', label: 'ガントチャート', icon: GanttChart },
         {
           href: '#',
           label: t('category'),

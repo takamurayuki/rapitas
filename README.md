@@ -278,9 +278,16 @@ npm run dev  # または cd ../rapitas-desktop && node scripts/dev.js
 - **毎時バックグラウンド生成**: `behavior-scheduler` が毎時 0 分に `processAllPendingRecurrences` を実行
 - UI: タスク詳細の `RecurrenceSelector` から設定
 
+### 🔗 タスク依存関係 + ガントチャート (実装済み)
+
+- **宣言的依存関係**: タスク詳細から「このタスクは X が完了するまで開始できない」を追加
+- **4 タイプ + lag**: FS / SS / FF / SF + 任意の遅延日数
+- **循環検知**: 既存 `detectCycles` グラフアルゴリズムで保証
+- **ガントチャートビュー** (`/gantt`): タスクを時系列で表示、依存矢印付き、テーマ絞り込み
+- **クリティカルパス**: バックエンドが `topologicalSort` + `calculateCriticalPath` を返す
+
 ### 📋 今後の計画
 
-- **タスク依存関係**: ガントチャート・クリティカルパス
 - **AI 週次レビュー**: ActivityLog/TimeEntry/PomodoroSession を Claude に集約して月曜朝に自動生成
 - **オフラインファースト同期の完成**: 既存 `offline-queue` を全 mutation に統合
 - **チーム機能**: 共有プロジェクト・権限管理

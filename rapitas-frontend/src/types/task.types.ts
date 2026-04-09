@@ -191,3 +191,79 @@ export type WeeklyReport = {
     count: number;
   }[];
 };
+
+// Task Dependency Types
+export type TaskDependencyInfo = {
+  id: number;
+  fromTaskId: number;
+  toTaskId: number;
+  type: string;
+  lagDays: number;
+  createdAt: string;
+  fromTask: {
+    id: number;
+    title: string;
+    status: string;
+  };
+  toTask: {
+    id: number;
+    title: string;
+    status: string;
+  };
+};
+
+export type TaskDependencies = {
+  blocking: TaskDependencyInfo[];      // このタスクがブロックしているタスク群
+  blockedBy: TaskDependencyInfo[];     // このタスクをブロックしているタスク群
+};
+
+// Gantt Chart Types
+export type GanttTask = {
+  id: number;
+  title: string;
+  status: string;
+  dueDate?: string | null;
+  estimatedHours?: number | null;
+  theme?: {
+    id: number;
+    name: string;
+    color: string;
+    category?: {
+      id: number;
+      name: string;
+    } | null;
+  } | null;
+};
+
+export type GanttDependency = {
+  from: number;
+  to: number;
+};
+
+export type GanttBarData = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  taskId: number;
+  title: string;
+  status: string;
+};
+
+export type GanttData = {
+  tasks: GanttTask[];
+  dependencies: GanttDependency[];
+  criticalPath: number[];
+  metadata: {
+    totalTasks: number;
+    dateRange: {
+      from: string | null;
+      to: string | null;
+    };
+    filters: {
+      themeId: number | null;
+      categoryId: number | null;
+    };
+  };
+};
