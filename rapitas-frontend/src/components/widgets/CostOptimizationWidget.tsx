@@ -125,7 +125,7 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'コスト']}
+                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as never}
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (

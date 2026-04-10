@@ -17,7 +17,7 @@ import { createTableNode } from './table';
  * Refs required for DOM insertion operations.
  */
 export interface InsertionRefs {
-  contentRef: React.RefObject<HTMLDivElement>;
+  contentRef: React.RefObject<HTMLDivElement | null>;
   savedSelectionRef: React.MutableRefObject<Range | null>;
 }
 

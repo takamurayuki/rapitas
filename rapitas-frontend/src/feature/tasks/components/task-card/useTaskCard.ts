@@ -45,8 +45,8 @@ export interface WaitingAmberConfig {
  * All values and handlers returned by useTaskCard.
  */
 export interface TaskCardHook {
-  cardRef: React.RefObject<HTMLDivElement>;
-  contextMenuRef: React.RefObject<HTMLDivElement>;
+  cardRef: React.RefObject<HTMLDivElement | null>;
+  contextMenuRef: React.RefObject<HTMLDivElement | null>;
   showContextMenu: boolean;
   contextMenuPosition: { x: number; y: number };
   setContextMenuPosition: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
@@ -58,7 +58,7 @@ export interface TaskCardHook {
   currentStatus: (typeof statusConfig)[keyof typeof statusConfig];
   completionRate: number | null;
   getProgressBarColor: (rate: number) => string;
-  executionStatus: ReturnType<ReturnType<typeof useExecutionStateStore>['getExecutingTaskStatus']>;
+  executionStatus: { status: string; sessionId?: number } | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;

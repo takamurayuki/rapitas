@@ -103,4 +103,5 @@ export type UseAgentExecutionReturn = AgentExecutionHandlers & {
   hasOptions: boolean;
   isConfirmedQuestion: boolean;
   hasSubtaskTabs: boolean;
+  isRestoring: boolean;
 };

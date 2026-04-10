@@ -266,7 +266,7 @@ export default function OrchestraPage() {
           onCancel={closeAddDialog}
           onEnqueueSelected={handleEnqueueSelected}
           onStartOrchestra={startOrchestra}
-          t={t}
+          t={t as (key: string, values?: Record<string, unknown>) => string}
         />
       )}
     </div>

@@ -60,7 +60,7 @@ export type UseHeaderReturn = {
   toggleTheme: () => void;
   getShortcutLabel: (id: ShortcutId) => string | undefined;
   appMode: AppMode;
-  modalState: ReturnType<typeof useNoteStore>['modalState'];
+  modalState: { isOpen: boolean; activeTab: string };
   openModal: () => void;
   closeModal: () => void;
   t: ReturnType<typeof useTranslations>;

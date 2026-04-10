@@ -199,7 +199,7 @@ export default function KanbanPage() {
                   dateLocale={dateLocale}
                   onOpenTask={openTaskPanel}
                   onOpenTaskInPage={openTaskInPage}
-                  t={t}
+                  t={t as (key: string, values?: Record<string, unknown>) => string}
                 />
               ))}
             </div>
