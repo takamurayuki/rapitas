@@ -39,7 +39,10 @@ const mockPrisma = {
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
-mock.module("../../../config/database", () => ({ prisma: mockPrisma }));
+mock.module("../../../config/database", () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
 mock.module("../../../services/achievement-checker", () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
@@ -69,6 +72,13 @@ mock.module("../../../config/logger", () => ({
     warn: () => {},
     debug: () => {},
   }),
+  logger: {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    child: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+  },
 }));
 
 const { tasksRoutes } = await import("../../../routes/tasks/tasks");
