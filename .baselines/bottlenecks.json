@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-10T12:47:12.555Z",
+  "generated": "2026-04-10T14:27:46.939Z",
   "file_size": {
     "hard_limit": 500,
     "soft_limit": 300,
@@ -32,8 +32,8 @@
     "todo": 10,
     "fixme": 1,
     "hack": 14,
-    "note": 436,
-    "total": 461
+    "note": 437,
+    "total": 462
   },
   "notes": {
     "bundle_size": "Run `node scripts/check-bundle-size.cjs` after `pnpm build` to populate.",
