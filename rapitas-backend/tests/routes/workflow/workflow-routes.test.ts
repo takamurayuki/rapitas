@@ -87,7 +87,7 @@ mock.module('fs/promises', () => ({
   ),
 }));
 
-const { workflowRoutes } = await import('../../../routes/workflow/workflow');
+const { workflowRoutes } = await import('../../../routes/workflow/core/workflow');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {

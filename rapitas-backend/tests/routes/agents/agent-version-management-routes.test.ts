@@ -32,7 +32,7 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { agentVersionManagementRoutes } =
-  await import('../../../routes/agents/agent-version-management');
+  await import('../../../routes/agents/agent-version/version-routes');
 
 describe('Agent Version Management Routes', () => {
   let app: Elysia;

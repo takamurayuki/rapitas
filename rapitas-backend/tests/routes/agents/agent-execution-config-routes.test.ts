@@ -32,7 +32,7 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { agentExecutionConfigRoutes } =
-  await import('../../../routes/agents/agent-execution-config');
+  await import('../../../routes/agents/config/agent-execution-config');
 
 describe('Agent Execution Config Routes', () => {
   let app: Elysia;

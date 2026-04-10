@@ -31,7 +31,7 @@ mock.module('fs/promises', () => ({
   },
 }));
 
-const { cliToolsManagementRoutes } = await import('../../../routes/agents/cli-tools-management');
+const { cliToolsManagementRoutes } = await import('../../../routes/agents/cli-tools/routes');
 
 function createApp() {
   return new Elysia().use(cliToolsManagementRoutes);

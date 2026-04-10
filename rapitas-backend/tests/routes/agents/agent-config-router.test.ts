@@ -40,7 +40,7 @@ mock.module('../../../utils/agent-audit-log', () => ({
   logAgentConfigChange: mock(() => Promise.resolve()),
 }));
 
-const { agentConfigRouter } = await import('../../../routes/agents/agent-config-router');
+const { agentConfigRouter } = await import('../../../routes/agents/config/agent-config-router');
 
 describe('Agent Config Router', () => {
   let app: Elysia;
