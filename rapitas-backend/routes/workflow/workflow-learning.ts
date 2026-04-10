@@ -10,7 +10,7 @@ import {
   generateOptimizationRules,
   getWorkflowRecommendation,
   getLearningStats,
-} from '../../services/workflow/workflow-learning-optimizer';
+} from '../../services/workflow/learning/workflow-learning-optimizer';
 
 const log = createLogger('routes:workflow-learning');
 

@@ -5,7 +5,7 @@
  * learning record history when no optimisation rules have matched.
  * All logic is read-only against the database.
  */
-import { prisma } from '../../config';
+import { prisma } from '../../../config';
 
 /**
  * Estimate the expected duration (in minutes) for a task using historical data.

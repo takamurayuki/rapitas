@@ -6,7 +6,7 @@
  * rule upsert, and stale-rule deactivation. No external side effects except
  * the database writes inside `upsertRule` and `deactivateStaleRules`.
  */
-import { prisma } from '../../config';
+import { prisma } from '../../../config';
 
 // ───────────────────────────────────────────────
 // Types (shared across learning sub-modules)

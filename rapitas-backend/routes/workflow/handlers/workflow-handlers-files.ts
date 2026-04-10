@@ -12,7 +12,7 @@ import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { sanitizeMarkdownContent } from '../../../utils/common/mojibake-detector';
 import { createLogger } from '../../../config/logger';
-import { recordWorkflowCompletion } from '../../../services/workflow/workflow-learning-optimizer';
+import { recordWorkflowCompletion } from '../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
 import {
   VALID_FILE_TYPES,

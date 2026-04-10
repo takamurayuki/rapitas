@@ -6,7 +6,7 @@
  * mode-downgrade patterns, phase-skip patterns, per-theme optimal mode
  * detection, and complexity-threshold adjustment.
  */
-import { createLogger } from '../../config/logger';
+import { createLogger } from '../../../config/logger';
 import {
   upsertRule,
   deactivateStaleRules,

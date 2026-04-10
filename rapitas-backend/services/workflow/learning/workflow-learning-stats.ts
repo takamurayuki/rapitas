@@ -5,9 +5,9 @@
  * completion) and `getLearningStats` (aggregates recent records for display).
  * Both functions are read/write against the database only; no agent execution.
  */
-import { prisma } from '../../config';
-import { createLogger } from '../../config/logger';
-import { analyzeTaskComplexity, type TaskComplexityInput } from './complexity-analyzer';
+import { prisma } from '../../../config';
+import { createLogger } from '../../../config/logger';
+import { analyzeTaskComplexity, type TaskComplexityInput } from '../complexity-analyzer';
 import {
   calculatePhaseTimings,
   extractKeywords,

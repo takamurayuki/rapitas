@@ -6,9 +6,9 @@
  * Delegates record keeping to workflow-learning-stats, rule detection to
  * workflow-learning-rules, and estimation to workflow-learning-estimator.
  */
-import { prisma } from '../../config';
-import { createLogger } from '../../config/logger';
-import { analyzeTaskComplexity, type TaskComplexityInput } from './complexity-analyzer';
+import { prisma } from '../../../config';
+import { createLogger } from '../../../config/logger';
+import { analyzeTaskComplexity, type TaskComplexityInput } from '../complexity-analyzer';
 import { matchesCondition, type RuleGenerationResult } from './workflow-learning-helpers';
 import { estimateDurationFromHistory, getDirectInsight } from './workflow-learning-estimator';
 import { runRuleDetection } from './workflow-learning-rules';
