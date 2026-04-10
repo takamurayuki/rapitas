@@ -11,9 +11,6 @@ export {
   DockerLogParser,
   PostgreSQLLogParser,
 } from '../log-parsers/system-log-parsers';
-export {
-  CustomFieldMapping,
-  CustomFormatParser,
-  PythonLogParser,
-  LogParserFactory,
-} from '../log-parsers/custom-log-parsers';
+export type { CustomFieldMapping } from '../log-parsers/custom-log-parsers';
+// NOTE: PythonLogParser and LogParserFactory are classes (values), not pure types.
+export { PythonLogParser, LogParserFactory } from '../log-parsers/custom-log-parsers';
