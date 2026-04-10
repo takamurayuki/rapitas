@@ -24,28 +24,24 @@ export type { WorkflowFileType } from './workflow-helpers';
 export { performAutoCommitAndPR } from '../workflow-auto-commit';
 export type { AutoCommitPRResult } from '../workflow-auto-commit';
 
+// NOTE: Each handler is wrapped in an arrow function so Elysia can infer
+// the full context type. Passing the handler directly causes TS2345 because
+// the handler's explicit parameter annotations are narrower than the
+// InlineHandlerNonMacro type Elysia expects.
 export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
-  // Get workflow files list
-  .get('/tasks/:taskId/files', handleGetFiles)
+  .get('/tasks/:taskId/files', (ctx) => handleGetFiles(ctx as Parameters<typeof handleGetFiles>[0]))
 
-  // Save workflow file
-  .put('/tasks/:taskId/files/:fileType', handleSaveFile)
+  .put('/tasks/:taskId/files/:fileType', (ctx) => handleSaveFile(ctx as Parameters<typeof handleSaveFile>[0]))
 
-  // Plan approval
-  .post('/tasks/:taskId/approve-plan', handleApprovePlan)
+  .post('/tasks/:taskId/approve-plan', (ctx) => handleApprovePlan(ctx as Parameters<typeof handleApprovePlan>[0]))
 
-  // Update workflow status
-  .put('/tasks/:taskId/status', handleUpdateStatus)
+  .put('/tasks/:taskId/status', (ctx) => handleUpdateStatus(ctx as Parameters<typeof handleUpdateStatus>[0]))
 
-  // Advance to the next workflow phase
-  .post('/workflow/tasks/:taskId/advance', handleAdvanceWorkflow)
+  .post('/workflow/tasks/:taskId/advance', (ctx) => handleAdvanceWorkflow(ctx as Parameters<typeof handleAdvanceWorkflow>[0]))
 
-  // Manual workflow mode setting
-  .post('/tasks/:taskId/set-mode', handleSetMode)
+  .post('/tasks/:taskId/set-mode', (ctx) => handleSetMode(ctx as Parameters<typeof handleSetMode>[0]))
 
-  // Automatic task complexity analysis
-  .get('/tasks/:taskId/analyze-complexity', handleAnalyzeComplexity)
+  .get('/tasks/:taskId/analyze-complexity', (ctx) => handleAnalyzeComplexity(ctx as Parameters<typeof handleAnalyzeComplexity>[0]))
 
-  // Get available workflow modes
-  .get('/modes', handleGetModes);
+  .get('/modes', (ctx) => handleGetModes(ctx as Parameters<typeof handleGetModes>[0]));

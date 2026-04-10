@@ -43,9 +43,10 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
 
   .post('/patterns', async ({ body }) => {
     return createPattern({
-      ...body,
       patternType: body.patternType as LearningPatternType,
-      category: body.category as LearningCategory
+      category: body.category as LearningCategory,
+      description: body.description,
+      confidence: body.confidence,
     });
   }, {
     body: t.Object({
@@ -88,7 +89,13 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
   })
 
   .post('/prompt-evolution', async ({ body }) => {
-    return recordPromptEvolution(body);
+    return recordPromptEvolution({
+      category: body.category,
+      beforePrompt: body.prompt,
+      afterPrompt: body.results,
+      improvement: body.improvements?.join('; '),
+      performanceDelta: body.performanceScore,
+    });
   }, {
     body: t.Object({
       category: t.String(),

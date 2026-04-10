@@ -20,6 +20,12 @@ import {
   HypothesisTestResult,
   ExperimentEvaluation,
 } from '../../services/self-learning';
+import type {
+  CriticPhase,
+  EpisodePhase,
+  EpisodeOutcome,
+  EmotionalTag,
+} from '../../services/self-learning/types';
 import {
   createHypothesis,
   updateHypothesisStatus,
@@ -145,7 +151,7 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
   })
 
   .put('/:id/hypotheses/:hId/status', async ({ params, body }) => {
-    return updateHypothesisStatus(parseInt(params.hId), body.status as HypothesisStatus, body.testResult);
+    return updateHypothesisStatus(parseInt(params.hId), body.status as HypothesisStatus, body.testResult as unknown as HypothesisTestResult | undefined);
   }, {
     body: t.Object({
       status: t.String(),
@@ -197,9 +203,9 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
       experimentId: parseInt(params.id),
       phase: body.phase as EpisodePhase,
       content: body.content,
-      context: body.context,
-      outcome: body.outcome,
-      emotionalTag: body.emotionalTag,
+      context: body.context as Record<string, unknown> | undefined,
+      outcome: body.outcome as EpisodeOutcome | undefined,
+      emotionalTag: body.emotionalTag as EmotionalTag | undefined,
       importance: body.importance,
     });
   }, {
