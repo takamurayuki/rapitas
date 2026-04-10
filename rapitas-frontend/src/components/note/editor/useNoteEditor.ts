@@ -44,12 +44,12 @@ export type { FlashcardResult };
  */
 export interface NoteEditorState {
   // Store
-  updateNote: ReturnType<typeof useNoteStore>['updateNote'];
+  updateNote: (id: string, data: Partial<Note>) => void;
   locale: string;
   dateLocale: string;
 
   // Refs
-  contentRef: React.RefObject<HTMLDivElement>;
+  contentRef: React.RefObject<HTMLDivElement | null>;
 
   // Title state
   draftTitle: string;

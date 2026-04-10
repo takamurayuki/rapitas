@@ -39,12 +39,10 @@ interface WakeWordDetectorProps {
   onWakeWordDetected?: () => void;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
-  }
-}
+// NOTE: Window.SpeechRecognition global augmentation is declared in
+// hooks/common/speech-recognition.types.ts — importing from there
+// avoids the TS2717 "subsequent property declarations" conflict.
+import type { SpeechRecognition } from '@/hooks/common/speech-recognition.types';
 
 export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWordDetectorProps) {
   const { openVoiceInput, isVoiceOpen } = useVoiceInput();

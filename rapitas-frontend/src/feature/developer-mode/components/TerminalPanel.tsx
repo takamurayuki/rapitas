@@ -155,7 +155,7 @@ export const TerminalPanel = memo(function TerminalPanel({
   const submitHandler = useTerminalSubmit({
     taskId,
     selectedAgentId,
-    isWaiting,
+    isWaiting: isWaiting ?? false,
     lineIdCounter,
     onExecute,
     polling,
@@ -259,16 +259,16 @@ export const TerminalPanel = memo(function TerminalPanel({
       <TerminalOutput
         outputRef={outputRef}
         lines={lines}
-        isRunning={isRunning}
-        isWaiting={isWaiting}
+        isRunning={isRunning ?? false}
+        isWaiting={isWaiting ?? false}
       />
 
       <TerminalInput
         inputRef={inputRef}
         value={input}
         submitting={submitting}
-        isRunning={isRunning}
-        isWaiting={isWaiting}
+        isRunning={isRunning ?? false}
+        isWaiting={isWaiting ?? false}
         onChange={setInput}
         onKeyDown={handleKeyDown}
         onSubmit={handleSubmit}
