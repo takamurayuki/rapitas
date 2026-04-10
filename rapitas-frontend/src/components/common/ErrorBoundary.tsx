@@ -28,7 +28,7 @@ class ErrorBoundaryInner extends Component<
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error(
       `[ErrorBoundary${this.props.section ? `:${this.props.section}` : ''}]`,
       error,
@@ -41,7 +41,7 @@ class ErrorBoundaryInner extends Component<
     this.setState({ hasError: false, error: null });
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;

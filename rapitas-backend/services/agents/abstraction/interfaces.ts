@@ -436,7 +436,7 @@ export class AgentError extends Error {
     public readonly type: AgentErrorType,
     public readonly recoverable: boolean = false,
     public readonly retryAfter?: number,
-    public readonly cause?: Error,
+    public override readonly cause?: Error,
     public readonly context?: Record<string, unknown>,
   ) {
     super(message);

@@ -28,10 +28,10 @@
     // ─── Strictness baseline (CURRENTLY ACTIVE in both subprojects) ──────
     "strict": true,
 
-    // ─── Strictness ratchet (TARGET — rollout per ADR-0004) ──────────────
-    // Uncomment one line per subproject as the ratchet advances.
-    // "noImplicitOverride": true,
-    // "noFallthroughCasesInSwitch": true,
+    // ─── Strictness ratchet (rollout per ADR-0004) ────────────────────────
+    // Step 1: enabled 2026-04-10 (both backend + frontend)
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     // "noUnusedLocals": true,
     // "noUnusedParameters": true,
     // "exactOptionalPropertyTypes": true,

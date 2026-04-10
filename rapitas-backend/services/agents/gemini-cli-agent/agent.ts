@@ -249,7 +249,7 @@ export class GeminiCliAgent extends BaseAgent {
     }
   }
 
-  async pause(): Promise<boolean> {
+  override async pause(): Promise<boolean> {
     if (this.process && this.status === 'running') {
       this.process.kill('SIGSTOP');
       this.status = 'paused';
@@ -259,7 +259,7 @@ export class GeminiCliAgent extends BaseAgent {
     return false;
   }
 
-  async resume(): Promise<boolean> {
+  override async resume(): Promise<boolean> {
     if (this.process && this.status === 'paused') {
       this.process.kill('SIGCONT');
       this.status = 'running';
