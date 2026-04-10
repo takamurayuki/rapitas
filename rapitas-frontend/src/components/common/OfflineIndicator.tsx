@@ -14,7 +14,13 @@ import { useOfflineQueue } from '@/hooks/common/useOfflineQueue';
 
 export function OfflineIndicator() {
   // NOTE: useOfflineQueue spreads status fields to the top level (not nested).
-  const { isOnline, pendingCount, isSyncing, sync } = useOfflineQueue();
+  // On SSR / initial hydration, IndexedDB is unavailable, so fields may be
+  // undefined until the first client-side effect runs. Default to safe values.
+  const queue = useOfflineQueue();
+  const isOnline = queue.isOnline ?? true;
+  const pendingCount = queue.pendingCount ?? 0;
+  const isSyncing = queue.isSyncing ?? false;
+  const sync = queue.sync;
 
   // Hide when online and queue is empty
   if (isOnline && pendingCount === 0 && !isSyncing) {
