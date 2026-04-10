@@ -8,7 +8,7 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../config/database';
 import {
   addDependency,
   removeDependency,
@@ -19,8 +19,6 @@ import {
 // NOTE: topologicalSort/calculateCriticalPath expect Map<number,TaskNode> from
 // the parallel-execution system. For the Gantt endpoint we just order by
 // dependency depth — full graph algorithms are overkill for display sorting.
-
-const prisma = new PrismaClient();
 
 export const taskDependencyGraphRoutes = new Elysia({ prefix: '/tasks' })
   // 特定タスクの依存関係を取得

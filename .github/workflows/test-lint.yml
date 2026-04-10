@@ -55,11 +55,17 @@ jobs:
           bunx prisma db push --skip-generate
           bunx prisma generate
 
-      - name: Run backend tests
+      - name: Run backend tests with coverage
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
-        run: bun test
+        run: bun test --coverage
+
+      # ADR-0002 Phase A: print-only backend coverage (no gate yet).
+      # Phase B will add a hard threshold once the baseline is observed.
+      - name: Print backend coverage summary
+        working-directory: rapitas-backend
+        run: echo "Backend coverage printed above. Phase B will gate at observed value."
 
   check-frontend:
     name: Check Frontend

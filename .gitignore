@@ -16,3 +16,7 @@ analysis-result.json
 
 # Memory system vector DB
 rapitas-backend/data/
+# Stray lockfiles (each subproject owns its own; see ADR-0001)
+pnpm-lock.yaml
+rapitas-frontend/bun.lock
+rapitas-desktop/bun.lock

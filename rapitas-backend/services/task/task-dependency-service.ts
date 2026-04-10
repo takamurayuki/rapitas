@@ -5,11 +5,9 @@
  * file-path 自動解析とは独立した機能。
  */
 
-import { PrismaClient } from '@prisma/client';
 // NOTE: The parallel-execution detectCycles expects Map<number,TaskNode> which
 // requires fields we don't have here. Use a lightweight DFS instead.
-
-const prisma = new PrismaClient();
+import { prisma } from '../../config/database';
 
 export interface TaskDependencyInfo {
   id: number;

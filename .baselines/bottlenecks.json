@@ -1,10 +1,10 @@
 {
-  "generated": "2026-04-09T12:56:23.989Z",
+  "generated": "2026-04-10T12:47:12.555Z",
   "file_size": {
     "hard_limit": 500,
     "soft_limit": 300,
     "hard_count": 0,
-    "soft_count": 140,
+    "soft_count": 158,
     "top5_largest": [
       {
         "file": "rapitas-backend/services/workflow/ai-orchestra.ts",
@@ -32,8 +32,8 @@
     "todo": 10,
     "fixme": 1,
     "hack": 14,
-    "note": 427,
-    "total": 452
+    "note": 436,
+    "total": 461
   },
   "notes": {
     "bundle_size": "Run `node scripts/check-bundle-size.cjs` after `pnpm build` to populate.",
