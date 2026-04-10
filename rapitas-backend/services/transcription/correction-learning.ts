@@ -134,7 +134,8 @@ export function applyCorrections(rawText: string): string {
 
     for (const pattern of patterns) {
       if (corrected.includes(pattern.wrong_text)) {
-        corrected = corrected.replaceAll(pattern.wrong_text, pattern.correct_text);
+        // NOTE: split+join instead of replaceAll for ES2020 lib compat (tsconfig target).
+        corrected = corrected.split(pattern.wrong_text).join(pattern.correct_text);
 
         // Update last_used_at
         database.prepare(

@@ -91,7 +91,7 @@ export async function getUnifiedSuggestions(
         priority: s.priority || 'medium',
         source: 'frequency',
         confidence: Math.min(1, 0.5 + (s.frequency || 1) * 0.1),
-        estimatedHours: s.estimatedHours,
+        estimatedHours: s.estimatedHours ?? undefined,
         reason: `過去に${s.frequency || 1}回実行されたパターン`,
       });
     }

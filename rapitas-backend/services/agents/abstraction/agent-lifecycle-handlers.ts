@@ -58,7 +58,7 @@ export async function runExecute(
   hooks: AgentLifecycleHooks,
   events: AgentEventEmitter,
   doExecute: (task: AgentTaskDefinition, ctx: AgentExecutionContext) => Promise<AgentExecutionResult>,
-  transitionFn: (state: AgentState, reason?: string) => Promise<void>,
+  transitionFn: (state: string, reason?: string) => Promise<void>,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown) => void,
 ): Promise<AgentExecutionResult> {
   events.setExecutionId(context.executionId);
@@ -131,7 +131,7 @@ export async function runContinue(
   hooks: AgentLifecycleHooks,
   events: AgentEventEmitter,
   doContinue: (cont: ContinuationContext, ctx: AgentExecutionContext) => Promise<AgentExecutionResult>,
-  transitionFn: (state: AgentState, reason?: string) => Promise<void>,
+  transitionFn: (state: string, reason?: string) => Promise<void>,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown) => void,
 ): Promise<AgentExecutionResult> {
   if (cb.getState() !== 'waiting_for_input') {

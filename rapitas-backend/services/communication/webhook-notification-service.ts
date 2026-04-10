@@ -181,10 +181,13 @@ function getEventEmoji(event: WebhookEventType): string {
   const map: Record<WebhookEventType, string> = {
     task_completed: '✅',
     task_failed: '❌',
+    task_created: '📝',
     pr_created: '🔀',
     pr_merged: '🎉',
     execution_error: '⚠️',
+    agent_execution_completed: '🤖',
     safety_report_ready: '🛡️',
+    knowledge_created: '🧠',
   };
   return map[event] || '📋';
 }
@@ -193,10 +196,13 @@ function getEventLabel(event: WebhookEventType): string {
   const map: Record<WebhookEventType, string> = {
     task_completed: 'タスク完了',
     task_failed: 'タスク失敗',
+    task_created: 'タスク作成',
     pr_created: 'PR作成',
     pr_merged: 'PRマージ',
     execution_error: '実行エラー',
+    agent_execution_completed: 'エージェント実行完了',
     safety_report_ready: 'セーフティレポート',
+    knowledge_created: 'ナレッジ作成',
   };
   return map[event] || event;
 }

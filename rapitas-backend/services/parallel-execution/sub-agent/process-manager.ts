@@ -18,9 +18,8 @@ import { createLogger } from '../../../config/logger';
 import type {
   SubAgentState,
   ParallelExecutionStatus,
-  AgentExecutionResult,
 } from '../types';
-import type { AgentTask } from '../../agents/base-agent';
+import type { AgentTask, AgentExecutionResult } from '../../agents/base-agent';
 import { getLogFilePath } from './log-utils';
 import { buildPrompt } from './prompt-builder';
 import { buildSpawnSpec } from './spawn-config';

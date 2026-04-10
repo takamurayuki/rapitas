@@ -6,7 +6,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { detectCycles } from '../parallel-execution/dependency-analyzer/graph-algorithms';
+// NOTE: The parallel-execution detectCycles expects Map<number,TaskNode> which
+// requires fields we don't have here. Use a lightweight DFS instead.
 
 const prisma = new PrismaClient();
 
@@ -209,17 +210,29 @@ async function checkForCycles(fromTaskId: number, toTaskId: number): Promise<voi
   const edges = allDependencies.map(dep => ({ from: dep.fromTaskId, to: dep.toTaskId }));
   edges.push({ from: fromTaskId, to: toTaskId });
 
-  // 関係するすべてのタスクIDを収集
-  const nodeIds = new Set<number>();
-  edges.forEach(edge => {
-    nodeIds.add(edge.from);
-    nodeIds.add(edge.to);
-  });
-
-  const nodes = Array.from(nodeIds).map(id => ({ id }));
-
-  // 循環検知
-  const hasCycle = detectCycles(nodes, edges);
+  // DFS-based cycle detection on the edge list
+  const adj = new Map<number, number[]>();
+  for (const e of edges) {
+    if (!adj.has(e.from)) adj.set(e.from, []);
+    adj.get(e.from)!.push(e.to);
+  }
+  const visited = new Set<number>();
+  const stack = new Set<number>();
+  function dfs(node: number): boolean {
+    if (stack.has(node)) return true;
+    if (visited.has(node)) return false;
+    visited.add(node);
+    stack.add(node);
+    for (const next of adj.get(node) ?? []) {
+      if (dfs(next)) return true;
+    }
+    stack.delete(node);
+    return false;
+  }
+  let hasCycle = false;
+  for (const node of adj.keys()) {
+    if (dfs(node)) { hasCycle = true; break; }
+  }
   if (hasCycle) {
     throw new Error('この依存関係を追加すると循環依存が発生します');
   }

@@ -110,7 +110,7 @@ export async function handleSaveFile({
     if (!parsedBody?.content && parsedBody?.content !== '') {
       throw new ValidationError('content is required');
     }
-    const fileLanguage = parsedBody?.language || 'ja';
+    const fileLanguage = (parsedBody?.language === 'en' ? 'en' : 'ja') as 'ja' | 'en';
 
     await mkdir(dir, { recursive: true });
 

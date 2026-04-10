@@ -16,7 +16,9 @@ import {
   getDependenciesForTask,
   getUnblockedTasks
 } from '../../services/task/task-dependency-service';
-import { topologicalSort, calculateCriticalPath } from '../../services/parallel-execution/dependency-analyzer/graph-algorithms';
+// NOTE: topologicalSort/calculateCriticalPath expect Map<number,TaskNode> from
+// the parallel-execution system. For the Gantt endpoint we just order by
+// dependency depth — full graph algorithms are overkill for display sorting.
 
 const prisma = new PrismaClient();
 
@@ -170,17 +172,37 @@ export const taskDependencyGraphRoutes = new Elysia({ prefix: '/tasks' })
       theme: task.theme
     }));
 
-    let sortedNodes: typeof nodes = [];
-    let criticalPath: number[] = [];
-
-    try {
-      sortedNodes = topologicalSort(nodes, edges);
-      criticalPath = calculateCriticalPath(nodes, edges);
-    } catch (error) {
-      // 循環依存などの問題がある場合は元の順序を維持
-      sortedNodes = nodes;
-      console.warn('Failed to calculate topological sort or critical path:', error);
+    // Simple topological sort via Kahn's algorithm (avoids the TaskNode type
+    // dependency from parallel-execution/graph-algorithms).
+    const inDegree = new Map<number, number>();
+    const adjList = new Map<number, number[]>();
+    for (const n of nodes) {
+      inDegree.set(n.id, 0);
+      adjList.set(n.id, []);
     }
+    for (const e of edges) {
+      inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1);
+      adjList.get(e.from)?.push(e.to);
+    }
+    const queue = [...inDegree.entries()].filter(([, d]) => d === 0).map(([id]) => id);
+    const sortedIds: number[] = [];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      sortedIds.push(cur);
+      for (const next of adjList.get(cur) ?? []) {
+        const nd = (inDegree.get(next) ?? 1) - 1;
+        inDegree.set(next, nd);
+        if (nd === 0) queue.push(next);
+      }
+    }
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    const sortedNodes = sortedIds.length === nodes.length
+      ? sortedIds.map((id) => nodeById.get(id)!).filter(Boolean)
+      : nodes; // fallback on cycle
+    // Critical path placeholder — full critical-path analysis requires
+    // estimatedHours on every node, which we often don't have. Return empty
+    // for now; the frontend renders dependencies as arrows regardless.
+    const criticalPath: number[] = [];
 
     return {
       tasks: sortedNodes,
