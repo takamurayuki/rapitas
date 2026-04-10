@@ -8,10 +8,11 @@
 'use client';
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import type { Status, Task } from '@/types';
+import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
+import { AutoExecutionMode } from './AutoExecutionMode';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -69,6 +70,9 @@ export function HomeToolbar({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Auto-execution mode */}
+        <AutoExecutionMode />
+
         {/* Bulk status change buttons — visible when items are selected */}
         {isSelectionMode && selectedTasksSize > 0 && (
           <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">

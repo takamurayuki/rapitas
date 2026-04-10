@@ -136,10 +136,11 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 | Flag | Backend | Frontend |
 |---|---|---|
 | `strict` | ✓ | ✓ |
-| `forceConsistentCasingInFileNames` | (default in TS 5+) | (default in TS 5+) |
-| `noImplicitOverride` | — | — |
-| `noFallthroughCasesInSwitch` | — | — |
-| `noUnusedLocals` | — | — |
+| `forceConsistentCasingInFileNames` | ✓ (via base) | ✓ (via base) |
+| `isolatedModules` | ✓ (via base) | ✓ (via base) |
+| `noImplicitOverride` | ✓ (2026-04-10) | ✓ (2026-04-10) |
+| `noFallthroughCasesInSwitch` | ✓ (2026-04-10) | ✓ (2026-04-10) |
+| `noUnusedLocals` | — (302 errors, deferred) | — |
 | `noUnusedParameters` | — | — |
 | `noImplicitReturns` | — | — |
 | `noUncheckedIndexedAccess` | — | — |
@@ -147,9 +148,10 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 
 ## Follow-ups
 
-- [ ] 2026-04-22: Land Step 0 (wire `extends: ../tsconfig.base.json`)
-- [ ] 2026-04-29: Land Step 1 backend
-- [ ] 2026-05-13: Land Step 1 frontend + Step 2 backend
+- [x] 2026-04-10: Land Step 0 (wire `extends: ../tsconfig.base.json`) — 12 days early
+- [x] 2026-04-10: Land Step 1 both (noImplicitOverride + noFallthroughCasesInSwitch) — 19 days early
+- [ ] Step 2 (noUnusedLocals + noUnusedParameters): dry-run showed 302 errors.
+      Needs a dedicated session with find-and-remove tooling. Target: 2026-05-13.
 - [ ] 2026-05-27: Land Step 2 frontend + Step 3 backend
 - [ ] 2026-06-10: Land Step 3 frontend + Step 4 backend
 - [ ] 2026-06-24: Land Step 4 frontend + Step 5 backend

@@ -45,7 +45,7 @@ mock.module('fs/promises', () => ({
   readFile: mock(() => Promise.resolve('log content here')),
 }));
 
-const { executionLogsRoutes } = await import('../../../routes/agents/execution-logs');
+const { executionLogsRoutes } = await import('../../../routes/agents/monitoring/execution-logs');
 
 function createApp() {
   return new Elysia().use(executionLogsRoutes);

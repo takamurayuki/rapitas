@@ -34,7 +34,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { agentMetricsRouter } = await import('../../../routes/agents/agent-metrics');
+const { agentMetricsRouter } = await import('../../../routes/agents/agent-metrics/router');
 
 describe('Agent Metrics Router', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

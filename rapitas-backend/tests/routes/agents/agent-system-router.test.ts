@@ -60,7 +60,7 @@ mock.module('child_process', () => ({
   })),
 }));
 
-const { agentSystemRouter } = await import('../../../routes/agents/agent-system-router');
+const { agentSystemRouter } = await import('../../../routes/agents/system/agent-system-router');
 
 interface EncryptionStatusResponse {
   isConfigured: boolean;
