@@ -27,6 +27,7 @@ import {
   tasksRoutes,
   taskSuggestionRoutes,
   taskQuickCreateRoutes,
+  taskAutoGenerateRoutes,
   taskStatisticsRoutes,
   tempStatisticsRoutes,
   examGoalsRoutes,
@@ -189,6 +190,7 @@ app.use(taskStatisticsRoutes);
 app.use(tasksRoutes);
 app.use(taskSuggestionRoutes);
 app.use(taskQuickCreateRoutes);
+app.use(taskAutoGenerateRoutes);
 app.use(recurringTaskRoutes);
 app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);

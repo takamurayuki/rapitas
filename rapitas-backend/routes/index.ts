@@ -22,6 +22,7 @@ export { batchRoutes } from './tasks/batch';
 export { recurringTaskRoutes } from './tasks/recurring-tasks';
 export { taskSuggestionRoutes } from './tasks/task-suggestions';
 export { taskQuickCreateRoutes } from './tasks/task-quick-create';
+export { taskAutoGenerateRoutes } from './tasks/task-auto-generate';
 
 // Agents
 export { approvalsRoutes } from './agents/integrations/approvals';
