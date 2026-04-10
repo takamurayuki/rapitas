@@ -3,9 +3,6 @@
   "hard_limit": 500,
   "soft_limit": 300,
   "_comment": "Files at or above the hard limit at snapshot time. Their listed lineCount becomes a per-file ceiling — they may shrink but not grow. Remove an entry by splitting the file.",
-  "files": {
-    "rapitas-backend/routes/tasks/tasks.ts": {
-      "lineCount": 881
-    }
-  }
+  "files": {}
+
 }

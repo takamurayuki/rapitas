@@ -20,6 +20,8 @@ export { taskDependencyGraphRoutes } from './tasks/task-dependency-graph';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';
 export { recurringTaskRoutes } from './tasks/recurring-tasks';
+export { taskSuggestionRoutes } from './tasks/task-suggestions';
+export { taskQuickCreateRoutes } from './tasks/task-quick-create';
 
 // Agents
 export { approvalsRoutes } from './agents/integrations/approvals';
