@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { DarkModeToggle } from '../DarkModeToggle';
+import { DarkModeToggle } from '../common/DarkModeToggle';
 
 const mockToggleTheme = vi.fn();
 

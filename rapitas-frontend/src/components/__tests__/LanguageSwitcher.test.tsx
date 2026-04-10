@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import LanguageSwitcher from '../LanguageSwitcher';
+import LanguageSwitcher from '../common/LanguageSwitcher';
 
 const mockSetLocale = vi.fn();
 

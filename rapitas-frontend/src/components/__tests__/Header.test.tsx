@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import Header from '../Header';
+import Header from '../common/Header';
 
 // Mock Next.js hooks
 vi.mock('next/navigation', () => ({

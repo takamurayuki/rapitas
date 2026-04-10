@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ErrorBoundary } from '../ErrorBoundary';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 // Mock next-intl
 vi.mock('next-intl', () => ({

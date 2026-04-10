@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import AppIcon from '../app-icon';
+import AppIcon from '../common/app-icon';
 
 describe('AppIcon', () => {
   it('renders an SVG element', () => {
