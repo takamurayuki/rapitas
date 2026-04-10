@@ -16,6 +16,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
+import { OfflineIndicator } from '@/components/common/OfflineIndicator';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -113,6 +114,9 @@ export default function RootLayout({
                     {children}
                     <Suspense fallback={null}>
                       <KeyboardShortcuts />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                      <OfflineIndicator />
                     </Suspense>
                     <Suspense fallback={null}>
                       <ResumableExecutionsBanner />

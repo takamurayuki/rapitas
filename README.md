@@ -296,9 +296,16 @@ npm run dev  # または cd ../rapitas-desktop && node scripts/dev.js
 - **空週フォールバック**: 完了タスクゼロの週は Claude を呼ばずに固定文を保存
 - UI: `/reports` ページに `WeeklyReviewCard`
 
+### 📶 オフラインファースト同期 (実装済み)
+
+- **自動キューイング**: `apiFetch` (全 mutation の中央集約点) が `offlineFetch` を経由。ネットワーク障害時に IndexedDB に自動キュー
+- **自動リプレイ**: ブラウザがオンラインに戻ると自動的にキューをリプレイ
+- **UI インジケーター**: `OfflineIndicator` コンポーネントが画面右下に表示 (オフライン中 / 同期中 / N 件同期待ち)
+- **リトライ**: 最大 5 回、サーバーエラーは次回同期でリトライ、4xx は即廃棄
+- GET リクエストはキュー対象外 (SWR キャッシュで対応)
+
 ### 📋 今後の計画
 
-- **オフラインファースト同期の完成**: 既存 `offline-queue` を全 mutation に統合
 - **チーム機能**: 共有プロジェクト・権限管理
 - **外部統合**: Slack・Google Calendar 連携
 

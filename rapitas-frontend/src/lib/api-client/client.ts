@@ -7,6 +7,7 @@
  */
 
 import { API_BASE_URL } from '@/utils/api';
+import { offlineFetch } from '@/lib/offline-queue';
 import { ApiClientCache } from './cache';
 import { ApiClientBatch } from './batch';
 import type { RequestOptions } from './types';
@@ -182,20 +183,37 @@ export class APIClient {
   /**
    * Low-level fetch with auth credentials and JSON content-type.
    *
+   * Uses `offlineFetch` from lib/offline-queue so that write requests
+   * (POST/PUT/PATCH/DELETE) are automatically queued in IndexedDB when
+   * the network is unavailable and replayed when it comes back.
+   * GET requests pass through to native fetch — they are not queued.
+   *
+   * When a mutation is queued offline, `offlineFetch` returns a synthetic
+   * `202 Accepted` with body `{ queued: true }`. We detect this case and
+   * return it as `T` (the caller will see a partial response, but the
+   * mutation is durably persisted and will replay on reconnection).
+   *
    * @param url - Full URL / 完全なURL
    * @param options - Fetch options / フェッチオプション
    * @returns Parsed JSON response / パース済みJSONレスポンス
    * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
    */
   private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
-    const response = await fetch(url, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
+    const method = (options.method || 'GET').toUpperCase();
+    const description = `${method} ${new URL(url).pathname}`;
+
+    const response = await offlineFetch(
+      url,
+      {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
       },
-    });
+      description,
+    );
 
     if (!response.ok) {
       const error = await response.text().catch(() => 'Unknown error');
