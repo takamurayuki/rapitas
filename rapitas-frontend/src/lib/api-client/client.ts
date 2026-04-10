@@ -199,21 +199,26 @@ export class APIClient {
    * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
    */
   private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
-    const method = (options.method || 'GET').toUpperCase();
-    const description = `${method} ${new URL(url).pathname}`;
-
-    const response = await offlineFetch(
-      url,
-      {
-        ...options,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
+    const fetchInit: RequestInit = {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
       },
-      description,
-    );
+    };
+
+    // NOTE: offlineFetch relies on IndexedDB and navigator.onLine which
+    // only exist in the browser. During SSR (Next.js server components)
+    // fall back to native fetch — offline queuing is a client-only concern.
+    let response: Response;
+    if (typeof window !== 'undefined') {
+      const method = (options.method || 'GET').toUpperCase();
+      const pathname = (() => { try { return new URL(url).pathname; } catch { return url; } })();
+      response = await offlineFetch(url, fetchInit, `${method} ${pathname}`);
+    } else {
+      response = await fetch(url, fetchInit);
+    }
 
     if (!response.ok) {
       const error = await response.text().catch(() => 'Unknown error');
