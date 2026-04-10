@@ -61,7 +61,7 @@ const SKIP_PATH_PARTS = [
   '/binaries',
   '/uploads',
   '/logs',
-  '/tasks',                       // workflow files written by agents
+  '/rapitas-backend/tasks/',       // workflow files written by agents (NOT routes/tasks/)
   '/data',                        // memory vector db
   '/__tests__',
   '/migrations',
