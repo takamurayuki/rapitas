@@ -16,7 +16,13 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
-import { OfflineIndicator } from '@/components/common/OfflineIndicator';
+import dynamic from 'next/dynamic';
+// NOTE: OfflineIndicator uses useOfflineQueue which depends on IndexedDB
+// (browser-only). Loading with ssr:false prevents hydration crashes.
+const OfflineIndicator = dynamic(
+  () => import('@/components/common/OfflineIndicator').then((m) => m.OfflineIndicator),
+  { ssr: false },
+);
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
