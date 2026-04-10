@@ -16,13 +16,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
-import dynamic from 'next/dynamic';
-// NOTE: OfflineIndicator uses useOfflineQueue which depends on IndexedDB
-// (browser-only). Loading with ssr:false prevents hydration crashes.
-const OfflineIndicator = dynamic(
-  () => import('@/components/common/OfflineIndicator').then((m) => m.OfflineIndicator),
-  { ssr: false },
-);
+import OfflineIndicatorLoader from '@/components/common/OfflineIndicatorLoader';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -122,7 +116,7 @@ export default function RootLayout({
                       <KeyboardShortcuts />
                     </Suspense>
                     <Suspense fallback={null}>
-                      <OfflineIndicator />
+                      <OfflineIndicatorLoader />
                     </Suspense>
                     <Suspense fallback={null}>
                       <ResumableExecutionsBanner />
