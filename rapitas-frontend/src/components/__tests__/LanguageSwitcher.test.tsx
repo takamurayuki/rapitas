@@ -48,7 +48,7 @@ describe('LanguageSwitcher (English locale)', () => {
     }));
 
     vi.resetModules();
-    const { default: EnSwitcher } = await import('../LanguageSwitcher');
+    const { default: EnSwitcher } = await import('../common/LanguageSwitcher');
     const { render: renderFresh, screen: screenFresh } =
       await import('@testing-library/react');
 
@@ -70,7 +70,7 @@ describe('LanguageSwitcher (English locale)', () => {
     }));
 
     vi.resetModules();
-    const { default: EnSwitcher } = await import('../LanguageSwitcher');
+    const { default: EnSwitcher } = await import('../common/LanguageSwitcher');
     const {
       render: renderFresh,
       screen: screenFresh,

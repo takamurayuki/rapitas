@@ -47,9 +47,9 @@ export interface SpeechRecognition extends EventTarget {
   onend: () => void;
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
-  }
-}
+// NOTE: The global Window augmentation is intentionally omitted here.
+// WakeWordDetector.tsx uses the SpeechRecognition type via a direct
+// import from this file, and declaring Window.SpeechRecognition in
+// multiple files causes TS2717 (duplicate property with different
+// identity). The runtime access `window.SpeechRecognition` works
+// without a type declaration because the actual browser API provides it.

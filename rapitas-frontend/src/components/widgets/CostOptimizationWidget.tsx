@@ -8,7 +8,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Zap, Lightbulb } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, TooltipFormatter } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { API_BASE_URL } from '@/utils/api';
 
 type ModelBreakdown = {
@@ -125,7 +125,7 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as TooltipFormatter<number, string>}
+                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'コスト']}
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (
