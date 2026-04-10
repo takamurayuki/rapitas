@@ -72,8 +72,6 @@ export function useNewTaskForm() {
       setPriority,
       setEstimatedHours,
       setSelectedLabelIds,
-      // NOTE: setSubtasks not needed here; subtask state is owned by useTaskFormActions.
-      setSubtasks: () => {},
     },
   );
 

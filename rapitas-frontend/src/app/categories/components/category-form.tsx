@@ -172,7 +172,7 @@ export function CategoryForm({
           )}
           <div className="grid grid-cols-8 gap-1 p-2">
             <IconGrid
-              icons={filteredIcons}
+              icons={filteredIcons.map((i) => i.name)}
               selectedIcon={formData.icon}
               onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
               renderIcon={renderIcon}

@@ -58,7 +58,7 @@ export interface TaskCardHook {
   currentStatus: (typeof statusConfig)[keyof typeof statusConfig];
   completionRate: number | null;
   getProgressBarColor: (rate: number) => string;
-  executionStatus: { status: string; sessionId?: number } | null;
+  executionStatus: string | null;
   executionClasses: ExecutionClasses | null;
   isWaitingForInput: boolean;
   waitingAmberConfig: WaitingAmberConfig;

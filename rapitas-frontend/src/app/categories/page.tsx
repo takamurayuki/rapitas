@@ -92,7 +92,7 @@ export default function CategoriesPage() {
               {t('newCategoryCreate')}
             </h2>
             <CategoryForm
-              {...formProps}
+              {...(formProps as unknown as Parameters<typeof CategoryForm>[0])}
               isEdit={false}
               onSubmit={() => handleAdd()}
             />
@@ -147,7 +147,7 @@ export default function CategoriesPage() {
                                   {t('editCategory')}
                                 </h2>
                                 <CategoryForm
-                                  {...formProps}
+                                  {...(formProps as unknown as Parameters<typeof CategoryForm>[0])}
                                   isEdit={true}
                                   itemId={item.id}
                                   onSubmit={(id) => id && handleUpdate(id)}

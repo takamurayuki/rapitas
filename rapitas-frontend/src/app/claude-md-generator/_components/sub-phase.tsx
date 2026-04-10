@@ -62,7 +62,7 @@ export function SubPhase({
   return (
     <PageWrap
       topRef={topRef}
-      title={t('subTitle', { genre: t('genre_' + genre) })}
+      title={(t as (k: string, v?: Record<string, unknown>) => string)('subTitle', { genre: t('genre_' + genre) })}
       sub={t('subSub')}
       step={2}
       total={5}

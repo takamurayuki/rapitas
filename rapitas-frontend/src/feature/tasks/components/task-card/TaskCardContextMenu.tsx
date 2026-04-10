@@ -9,7 +9,7 @@ import { Edit, Copy, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 interface TaskCardContextMenuProps {
-  menuRef: React.RefObject<HTMLDivElement>;
+  menuRef: React.RefObject<HTMLDivElement | null>;
   position: { x: number; y: number };
   onEdit: () => void;
   onDuplicate: () => void;

@@ -95,7 +95,7 @@ export function ResultPhase({
                 whiteSpace: 'pre-line',
               }}
             >
-              {t('resultTitle', { name: pickedProp?.name ?? '' })}
+              {(t as (k: string, v?: Record<string, unknown>) => string)('resultTitle', { name: pickedProp?.name ?? '' })}
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>

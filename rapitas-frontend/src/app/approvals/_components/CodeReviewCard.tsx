@@ -67,7 +67,7 @@ export function CodeReviewCard({
   };
 
   // NOTE: defaultBranch falls back to 'main' when no theme default is configured.
-  const defaultBranch = approval.config?.task?.theme?.defaultBranch || 'main';
+  const defaultBranch = (approval.config?.task?.theme as Record<string, unknown>)?.defaultBranch as string || 'main';
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">

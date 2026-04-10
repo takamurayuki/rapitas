@@ -78,7 +78,7 @@ export default function TaskDetailHeader({
           <TaskPomodoroButton
             taskTitle={task.title}
             isThisTaskTimer={isThisTaskTimer}
-            pomodoroState={pomodoroState}
+            pomodoroState={pomodoroState as Parameters<typeof TaskPomodoroButton>[0]['pomodoroState']}
             onClick={onOpenPomodoro}
           />
         )}

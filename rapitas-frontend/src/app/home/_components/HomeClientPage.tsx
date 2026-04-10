@@ -241,8 +241,8 @@ function HomeClientPage() {
             isScrollNeeded={isScrollNeeded}
             canScrollLeft={canScrollLeft}
             canScrollRight={canScrollRight}
-            statusCounts={statusCounts}
-            themeScrollRef={themeScrollRef}
+            statusCounts={{ ...statusCounts, all: statusCounts.all ?? 0 }}
+            themeScrollRef={themeScrollRef as React.RefObject<HTMLDivElement>}
             onCategoryChange={(catId, newThemeId) => {
               setCategoryFilter(catId);
               setThemeFilter(newThemeId);
