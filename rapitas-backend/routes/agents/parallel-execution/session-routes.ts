@@ -26,7 +26,7 @@ const log = createLogger('routes:parallel-execution:sessions');
  */
 export function buildSessionRoutes(
   getExecutor: typeof getParallelExecutor,
-): Elysia {
+) {
   return new Elysia()
     /**
      * Get the status of a parallel execution session.

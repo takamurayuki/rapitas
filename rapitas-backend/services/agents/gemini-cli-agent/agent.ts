@@ -159,7 +159,7 @@ export class GeminiCliAgent extends BaseAgent {
               detectedQuestionRef.value = state;
               this.status = 'waiting_for_input';
             },
-            onQuestionEmit: (data) => this.emitQuestionDetected(data),
+            onQuestionEmit: (data) => this.emitQuestionDetected(data as Parameters<typeof this.emitQuestionDetected>[0]),
             onKillProcess: () => {
               if (this.process && !this.process.killed) {
                 this.process.kill('SIGTERM');

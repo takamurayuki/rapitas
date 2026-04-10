@@ -258,7 +258,7 @@ export async function handleSaveFile({
 async function _handlePlanAutoApprove(
   taskId: number,
   currentNewStatus: string | undefined,
-  fileLanguage: string,
+  fileLanguage: 'ja' | 'en',
 ): Promise<{ newStatus: string | undefined; autoApproved: boolean }> {
   const userSettings = await prisma.userSettings.findFirst();
   const task = await prisma.task.findUnique({

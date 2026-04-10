@@ -198,13 +198,13 @@ export abstract class AbstractAgent implements IAgent {
   // ============================================================================
 
   /** Transitions the agent state and emits related events. */
-  protected async transitionState(newState: AgentState, reason?: string): Promise<void> {
+  protected async transitionState(newState: string, reason?: string): Promise<void> {
     const previousState = this._state;
-    this._state = newState;
+    this._state = newState as AgentState;
     this.log('debug', `State transition: ${previousState} -> ${newState}`, { reason });
-    await this._events.emitStateChange(previousState, newState, reason);
+    await this._events.emitStateChange(previousState, newState as AgentState, reason);
     if (this._lifecycleHooks.onStateChange && this._currentContext) {
-      await this._lifecycleHooks.onStateChange(this._currentContext, previousState, newState);
+      await this._lifecycleHooks.onStateChange(this._currentContext, previousState, newState as AgentState);
     }
   }
 

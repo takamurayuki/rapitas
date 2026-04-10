@@ -29,7 +29,7 @@ export interface TaskLifecycleContext {
   coordinator: AgentCoordinator;
   conflictDetector: ConflictDetector;
   gitOps: GitOperations;
-  logSequenceNumbers: Map<string, number>;
+  logSequenceNumbers: Map<number, number>;
   prisma: PrismaClientInstance;
   emitEvent: (event: ParallelExecutionEvent) => void;
   executeNextBatch: (

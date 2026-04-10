@@ -159,7 +159,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
       this.config,
       this.runState,
       this.emitOutput.bind(this),
-      this.log.bind(this),
+      this.log.bind(this) as (level: string, message: string, data?: unknown) => void,
     );
   }
 
@@ -191,7 +191,7 @@ export class GeminiCliAgentV2 extends AbstractAgent {
         this.config,
         this.runState,
         this.emitOutput.bind(this),
-        this.log.bind(this),
+        this.log.bind(this) as (level: string, message: string, data?: unknown) => void,
       );
     } finally {
       this.config.checkpointId = originalCheckpoint;
