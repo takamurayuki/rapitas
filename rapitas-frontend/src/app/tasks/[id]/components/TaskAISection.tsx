@@ -277,7 +277,7 @@ export default function TaskAISection({
         isApproving={isApproving}
         onPromptGenerated={onPromptGenerated}
         onSubtasksCreated={handleSubtasksCreated}
-        showAgentPanel={devModeConfig?.isEnabled === true}
+        showAgentPanel={devModeConfig?.isEnabled === true || isExecuting || !!executionResult}
         isExecuting={isExecuting}
         executionStatus={executionStatus as Parameters<typeof AIAccordionPanel>[0]['executionStatus']}
         executionResult={executionResult as Parameters<typeof AIAccordionPanel>[0]['executionResult']}

@@ -12,7 +12,7 @@ import type {
   DependencyTreeMap,
   ParallelExecutionPlan,
   ResourceConstraint,
-} from '../types';
+} from '../types-dir/types';
 
 import { getFileName } from './utils';
 

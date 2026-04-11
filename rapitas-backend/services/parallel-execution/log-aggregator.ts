@@ -5,7 +5,7 @@
  */
 
 import { EventEmitter } from 'events';
-import type { ExecutionLogEntry } from './types';
+import type { ExecutionLogEntry } from './types-dir/types';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('log-aggregator');

@@ -5,6 +5,7 @@
  */
 import { Elysia, t } from 'elysia';
 import { GitOperations } from '../../services/agents/orchestrator/git-operations';
+import { cleanupOrphanedWorktrees } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { createLogger } from '../../config/logger';
 import { getProjectRoot } from '../../config';
 import { promisify } from 'util';
@@ -212,6 +213,46 @@ export const gitCleanupRoutes = new Elysia({ prefix: '/git-cleanup' })
       body: t.Object({
         workingDirectory: t.Optional(t.String()),
         dryRun: t.Optional(t.Boolean()),
+      }),
+    },
+  )
+
+  /**
+   * Clean up orphaned worktrees based on database reconciliation.
+   * This is more intelligent than the basic stale worktree cleanup as it checks
+   * database sessions and removes worktrees for completed/failed/cancelled sessions.
+   */
+  .post(
+    '/worktrees/orphaned',
+    async (context) => {
+      const { body } = context;
+      try {
+        const { workingDirectory } = body as { workingDirectory?: string };
+        const baseDir = workingDirectory || getProjectRoot();
+
+        log.info(`[cleanup-orphaned-worktrees] Starting database-based cleanup for ${baseDir}`);
+
+        const count = await cleanupOrphanedWorktrees(baseDir);
+
+        return {
+          success: true,
+          data: {
+            cleanedCount: count,
+            workingDirectory: baseDir,
+          },
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        log.error({ err: error }, '[cleanup-orphaned-worktrees] Cleanup failed');
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    },
+    {
+      body: t.Object({
+        workingDirectory: t.Optional(t.String()),
       }),
     },
   );

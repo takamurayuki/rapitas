@@ -14,7 +14,7 @@ import type {
   DependencyAnalysisInput,
   DependencyAnalysisResult,
   DependencyTreeMap,
-} from '../types';
+} from '../types-dir/types';
 
 import { extractFilePaths, getFileName, priorityToWeight } from './utils';
 import {

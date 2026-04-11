@@ -14,7 +14,7 @@ import type {
   AgentMessageType,
   ExecutionLogEntry,
   ParallelExecutionConfig,
-} from './types';
+} from './types-dir/types';
 import type { AgentTask, AgentExecutionResult } from '../agents/base-agent';
 import { SubAgent } from './sub-agent/process-manager';
 import { classifyFailure, buildRetryContext } from './sub-agent/retry-helpers';

@@ -18,7 +18,7 @@ import { createLogger } from '../../../config/logger';
 import type {
   SubAgentState,
   ParallelExecutionStatus,
-} from '../types';
+} from '../types-dir/types';
 import type { AgentTask, AgentExecutionResult } from '../../agents/base-agent';
 import { getLogFilePath } from './log-utils';
 import { buildPrompt } from './prompt-builder';

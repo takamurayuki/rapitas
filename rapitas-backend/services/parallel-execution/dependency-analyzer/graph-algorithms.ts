@@ -11,7 +11,7 @@ import type {
   TaskNode,
   DependencyEdge,
   ParallelGroup,
-} from '../types';
+} from '../types-dir/types';
 
 /**
  * Produce a topological ordering of the node IDs.

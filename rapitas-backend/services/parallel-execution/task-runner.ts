@@ -18,9 +18,9 @@ import { ConflictDetector } from './conflict-detector';
 import { GitOperations } from '../agents/orchestrator/git-operations';
 import { ParallelScheduler } from './parallel-scheduler';
 import { dbMutex, withRetry } from './db-utils';
-import type { ParallelExecutionSession, TaskNode } from './types';
+import type { ParallelExecutionSession, TaskNode } from './types-dir/types';
 import type { AgentTask, AgentExecutionResult } from '../agents/base-agent';
-import type { ParallelExecutionEvent } from './executor-types';
+import type { ParallelExecutionEvent } from './types-dir/executor-types';
 import {
   handleTaskCompletion,
   handleTaskFailure,

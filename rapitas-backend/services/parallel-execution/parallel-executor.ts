@@ -26,13 +26,13 @@ import type {
   ParallelExecutionConfig,
   TaskNode,
   ExecutionLogEntry,
-} from './types';
+} from './types-dir/types';
 import { createLogger } from '../../config/logger';
 import {
   DEFAULT_CONFIG,
   type ParallelExecutionEvent,
   type ParallelExecutionEventListener,
-} from './executor-types';
+} from './types-dir/executor-types';
 import { type TaskRunnerContext } from './task-runner';
 import { executeNextBatch, completeSession, type SessionManagerContext } from './session-manager';
 import { setupEventHandlers } from './event-handlers';
@@ -208,9 +208,28 @@ export class ParallelExecutor extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) return;
     logger.info(`[ParallelExecutor] Stopping session ${sessionId}`);
+
+    // Stop all active agents
     for (const [agentId] of session.activeAgents) {
       this.agentController.stopAgent(agentId);
     }
+
+    // Clean up worktrees for active tasks in this session
+    for (const [taskId, worktreePath] of this.taskWorktrees.entries()) {
+      if (session.nodes.has(taskId)) {
+        try {
+          await this.gitOps.removeWorktree(session.workingDirectory, worktreePath);
+          this.taskWorktrees.delete(taskId);
+          logger.info(`[ParallelExecutor] Cleaned up worktree for task ${taskId}: ${worktreePath}`);
+        } catch (error) {
+          logger.warn(
+            { err: error },
+            `[ParallelExecutor] Failed to clean up worktree for task ${taskId}: ${worktreePath}`
+          );
+        }
+      }
+    }
+
     session.status = 'cancelled';
     session.completedAt = new Date();
     this.emitEvent({ type: 'session_failed', sessionId, timestamp: new Date(), data: { reason: 'cancelled' } });

@@ -10,7 +10,7 @@ import type {
   AgentMessageType,
   SubAgentState,
   ParallelExecutionStatus,
-} from './types';
+} from './types-dir/types';
 
 /**
  * Resource lock information

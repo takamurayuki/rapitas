@@ -15,7 +15,7 @@ import type {
   ParallelGroup,
   ResourceConstraint,
   ParallelExecutionConfig,
-} from './types';
+} from './types-dir/types';
 
 /**
  */

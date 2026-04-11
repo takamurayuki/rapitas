@@ -13,9 +13,9 @@ type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 import { SubAgentController } from './sub-agent-controller';
 import { LogAggregator } from './log-aggregator';
 import { AgentCoordinator } from './agent-coordinator';
-import type { ParallelExecutionSession } from './types';
-import type { ParallelExecutionEvent } from './executor-types';
-import { formatCoordinatorPayload } from './executor-types';
+import type { ParallelExecutionSession } from './types-dir/types';
+import type { ParallelExecutionEvent } from './types-dir/executor-types';
+import { formatCoordinatorPayload } from './types-dir/executor-types';
 import { handleTaskCompletion, handleTaskFailure, type TaskRunnerContext } from './task-runner';
 import { createLogger } from '../../config/logger';
 

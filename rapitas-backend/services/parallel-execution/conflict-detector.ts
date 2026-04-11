@@ -9,7 +9,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 import type { AgentCoordinator } from './agent-coordinator';
-import type { FileModification, FileConflict, ConflictDetectorConfig } from './safety-types';
+import type { FileModification, FileConflict, ConflictDetectorConfig } from './types-dir/safety-types';
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger('conflict-detector');

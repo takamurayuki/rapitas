@@ -5,7 +5,7 @@
  */
 
 // Type definitions
-export * from './types';
+export * from './types-dir/types';
 
 // Dependency analysis
 export { DependencyAnalyzer, createDependencyAnalyzer } from './dependency-analyzer';
@@ -25,7 +25,7 @@ export { AgentCoordinator, createAgentCoordinator } from './agent-coordinator';
 // Conflict detection and merge validation
 export { ConflictDetector } from './conflict-detector';
 export { MergeValidator } from './merge-validator';
-export * from './safety-types';
+export * from './types-dir/safety-types';
 
 // Parallel execution orchestrator
 export { ParallelExecutor, createParallelExecutor } from './parallel-executor';

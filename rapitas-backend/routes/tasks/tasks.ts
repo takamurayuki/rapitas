@@ -13,6 +13,8 @@ import {
   cleanupDuplicateSubtasks,
   cleanupAllDuplicateSubtasks,
 } from '../../services/task/task-service';
+import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
+import { getProjectRoot } from '../../config';
 
 
 
@@ -253,6 +255,55 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     const id = parseInt(params.id);
     if (isNaN(id)) {
       throw new ValidationError('無効なIDです');
+    }
+
+    // Clean up any worktrees associated with this task before deletion
+    try {
+      const task = await prisma.task.findUnique({
+        where: { id },
+        select: { workingDirectory: true },
+      });
+
+      if (task) {
+        // Find any agent sessions with worktrees for this task
+        const sessionsWithWorktrees = await prisma.agentSession.findMany({
+          where: {
+            worktreePath: { not: null },
+            config: {
+              taskId: id,
+            },
+          },
+          select: {
+            id: true,
+            worktreePath: true,
+          },
+        });
+
+        const baseDir = task.workingDirectory || getProjectRoot();
+
+        for (const session of sessionsWithWorktrees) {
+          if (session.worktreePath) {
+            try {
+              await removeWorktree(baseDir, session.worktreePath);
+              await prisma.agentSession.update({
+                where: { id: session.id },
+                data: { worktreePath: null },
+              });
+              logger.info(`[tasks] Cleaned up worktree for task ${id}: ${session.worktreePath}`);
+            } catch (worktreeError) {
+              logger.warn(
+                { err: worktreeError },
+                `[tasks] Failed to clean up worktree for task ${id}: ${session.worktreePath}`,
+              );
+            }
+          }
+        }
+      }
+    } catch (cleanupError) {
+      logger.warn(
+        { err: cleanupError },
+        `[tasks] Failed to clean up worktrees for task ${id}, proceeding with deletion`,
+      );
     }
 
     return await prisma.task.delete({

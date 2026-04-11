@@ -12,7 +12,7 @@ import { prisma, getProjectRoot } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { ParallelExecutor } from '../../../services/parallel-execution/parallel-executor';
-import type { TaskPriority } from '../../../services/parallel-execution/types';
+import type { TaskPriority } from '../../../services/parallel-execution/types-dir/types';
 import { handleResumeCompletion } from './agent-resume-handlers';
 
 const log = createLogger('routes:agent-resume');

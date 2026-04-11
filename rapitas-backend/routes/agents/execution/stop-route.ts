@@ -11,6 +11,7 @@ import { createLogger } from '../../../config/logger';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { releaseTaskExecutionLock } from './execution-lock';
+import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
 
 const log = createLogger('routes:agent-execution:stop');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -54,6 +55,12 @@ export const stopRoute = new Elysia().post(
         });
 
         if (runningExecution) {
+          // Get session info for potential worktree cleanup
+          const executionSession = await prisma.agentExecution.findUnique({
+            where: { id: runningExecution.id },
+            include: { session: { select: { id: true, worktreePath: true } } },
+          });
+
           const stopped = await orchestrator
             .stopExecution(runningExecution.id)
             .catch(() => false);
@@ -108,6 +115,23 @@ export const stopRoute = new Elysia().post(
             log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
           } catch (taskErr) {
             log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
+          }
+
+          // Clean up worktree if session has one
+          if (executionSession?.session?.worktreePath && task?.workingDirectory) {
+            try {
+              await removeWorktree(task.workingDirectory, executionSession.session.worktreePath);
+              await prisma.agentSession.update({
+                where: { id: executionSession.session.id },
+                data: { worktreePath: null },
+              });
+              log.info(`[stop-execution] Cleaned up worktree: ${executionSession.session.worktreePath}`);
+            } catch (worktreeError) {
+              log.error(
+                { err: worktreeError },
+                `[stop-execution] Failed to clean up worktree: ${executionSession.session.worktreePath}`,
+              );
+            }
           }
 
           return {
@@ -169,6 +193,23 @@ export const stopRoute = new Elysia().post(
           { err: sessionUpdateError },
           `[stop-execution] Failed to update session ${session.id} status`,
         );
+      }
+
+      // Clean up worktree if session has one
+      if (session.worktreePath && task?.workingDirectory) {
+        try {
+          await removeWorktree(task.workingDirectory, session.worktreePath);
+          await prisma.agentSession.update({
+            where: { id: session.id },
+            data: { worktreePath: null },
+          });
+          log.info(`[stop-execution] Cleaned up worktree: ${session.worktreePath}`);
+        } catch (worktreeError) {
+          log.error(
+            { err: worktreeError },
+            `[stop-execution] Failed to clean up worktree: ${session.worktreePath}`,
+          );
+        }
       }
 
       if (task?.workingDirectory) {

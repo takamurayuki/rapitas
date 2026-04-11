@@ -5,7 +5,7 @@
  * Not responsible for graph construction or scheduling logic.
  */
 
-import type { TaskPriority } from '../types';
+import type { TaskPriority } from '../types-dir/types';
 
 /**
  * Extract file paths referenced in free-form text.

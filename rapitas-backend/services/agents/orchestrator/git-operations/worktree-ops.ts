@@ -15,6 +15,7 @@ import { randomBytes } from 'crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
+import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
 
@@ -294,6 +295,131 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
     }
   } catch (error) {
     logger.error({ err: error }, '[cleanupStaleWorktrees] Failed to clean up stale worktrees');
+  }
+
+  return cleanedCount;
+}
+
+/**
+ * Clean up orphaned worktrees based on database reconciliation and filesystem state.
+ * Removes worktrees for completed/failed/cancelled sessions and updates the database.
+ *
+ * @param baseDir - The main repository root / メインリポジトリのルート
+ * @returns Number of worktrees cleaned up / クリーンアップしたworktreeの数
+ */
+export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number> {
+  let cleanedCount = 0;
+
+  try {
+    // Clean up database-tracked orphaned worktrees
+    const orphanedSessions = await prisma.agentSession.findMany({
+      where: {
+        worktreePath: { not: null },
+        status: { in: ['completed', 'failed', 'cancelled'] },
+      },
+      select: {
+        id: true,
+        worktreePath: true,
+        status: true,
+      },
+    });
+
+    logger.info(
+      `[cleanupOrphanedWorktrees] Found ${orphanedSessions.length} orphaned sessions with worktree paths`
+    );
+
+    for (const session of orphanedSessions) {
+      if (!session.worktreePath) continue;
+
+      try {
+        // Remove the worktree if it exists
+        await removeWorktree(baseDir, session.worktreePath);
+        cleanedCount++;
+
+        // Clear the worktreePath in the database
+        await prisma.agentSession.update({
+          where: { id: session.id },
+          data: { worktreePath: null },
+        });
+
+        logger.info(
+          `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`
+        );
+      } catch (error) {
+        logger.warn(
+          { err: error },
+          `[cleanupOrphanedWorktrees] Failed to clean up session ${session.id} worktree: ${session.worktreePath}`
+        );
+      }
+    }
+
+    // Also check for filesystem orphans (directories that git no longer tracks)
+    const worktreeDir = join(baseDir, WORKTREE_DIR);
+    if (existsSync(worktreeDir)) {
+      try {
+        const { stdout: gitWorktreeList } = await execAsync('git worktree list --porcelain', {
+          cwd: baseDir,
+          encoding: 'utf8',
+        });
+
+        const gitTrackedPaths = new Set<string>();
+        const entries = gitWorktreeList.split('\n\n').filter(Boolean);
+
+        for (const entry of entries) {
+          const pathMatch = entry.match(/^worktree\s+(.+)$/m);
+          if (pathMatch?.[1]) {
+            gitTrackedPaths.add(normalizePath(pathMatch[1]));
+          }
+        }
+
+        // Check filesystem directories against git-tracked worktrees
+        const { readdir } = await import('fs/promises');
+        const dirEntries = await readdir(worktreeDir, { withFileTypes: true });
+
+        for (const dirEntry of dirEntries) {
+          if (!dirEntry.isDirectory()) continue;
+
+          const dirPath = join(worktreeDir, dirEntry.name);
+          const normalizedDirPath = normalizePath(dirPath);
+
+          // If directory exists but is not tracked by git, it's an orphan
+          if (!gitTrackedPaths.has(normalizedDirPath)) {
+            if (isPathSafeForWorktreeOperation(dirPath, baseDir)) {
+              try {
+                await rm(dirPath, { recursive: true, force: true });
+                cleanedCount++;
+                logger.info(
+                  `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`
+                );
+              } catch (fsError) {
+                logger.warn(
+                  { err: fsError },
+                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory: ${dirPath}`
+                );
+              }
+            } else {
+              logger.warn(
+                `[cleanupOrphanedWorktrees] Skipped unsafe path: ${dirPath}`
+              );
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error },
+          '[cleanupOrphanedWorktrees] Failed to check filesystem orphans'
+        );
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.info(`[cleanupOrphanedWorktrees] Cleaned up ${cleanedCount} orphaned worktrees`);
+    }
+  } catch (error) {
+    logger.error(
+      { err: error },
+      '[cleanupOrphanedWorktrees] Failed to clean up orphaned worktrees'
+    );
   }
 
   return cleanedCount;

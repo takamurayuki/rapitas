@@ -17,7 +17,7 @@ import type {
   RegressionRisk,
   SafetyReport,
   FileConflict,
-} from './safety-types';
+} from './types-dir/safety-types';
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger('merge-validator');

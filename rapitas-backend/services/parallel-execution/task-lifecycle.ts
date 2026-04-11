@@ -11,9 +11,9 @@ import { AgentCoordinator } from './agent-coordinator';
 import { ConflictDetector } from './conflict-detector';
 import { GitOperations } from '../agents/orchestrator/git-operations';
 import { dbMutex, withRetry } from './db-utils';
-import type { ParallelExecutionSession, TaskNode } from './types';
+import type { ParallelExecutionSession, TaskNode } from './types-dir/types';
 import type { AgentExecutionResult } from '../agents/base-agent';
-import type { ParallelExecutionEvent } from './executor-types';
+import type { ParallelExecutionEvent } from './types-dir/executor-types';
 import { createLogger } from '../../config/logger';
 import { PrismaClient } from '@prisma/client';
 
