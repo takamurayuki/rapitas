@@ -106,9 +106,7 @@ export class GitOperations {
   }
 
   /** @see getDiff */
-  async getDiff(
-    workingDirectory: string,
-  ): Promise<
+  async getDiff(workingDirectory: string): Promise<
     Array<{
       filename: string;
       status: string;

@@ -261,9 +261,7 @@ export class AgentWorkerManager {
     return git.getFullGitDiff(this.ipc.bind(this), workingDirectory);
   }
 
-  async getDiff(
-    workingDirectory: string,
-  ): Promise<
+  async getDiff(workingDirectory: string): Promise<
     Array<{
       filename: string;
       status: string;
