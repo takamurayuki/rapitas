@@ -356,5 +356,8 @@ function TaskDetailClient({
   );
 }
 
-// Export as auth-required component
-export default requireAuth(TaskDetailClient);
+// NOTE: Turbopack cannot statically analyze `export default HOC(Component)`.
+// Using a named variable assignment avoids the "Expected export to be in
+// eval context 'default'" error.
+const AuthenticatedTaskDetailClient = requireAuth(TaskDetailClient);
+export default AuthenticatedTaskDetailClient;
