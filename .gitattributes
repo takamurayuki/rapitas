@@ -1,0 +1,17 @@
+# Normalize all text files to LF in the repository.
+# On checkout, git will convert to the OS-native line ending (CRLF on Windows).
+# On commit, git will normalize back to LF.
+# This ensures CI (Linux) sees LF files and Prettier doesn't report CRLF diffs.
+* text=auto eol=lf
+
+# Exceptions for files that must remain binary or have specific encodings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.lock binary
