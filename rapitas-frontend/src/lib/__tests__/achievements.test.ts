@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck — Achievement feature is scaffolded but not yet complete. Remove when implementing.
 /**
  * Achievement Logic Tests

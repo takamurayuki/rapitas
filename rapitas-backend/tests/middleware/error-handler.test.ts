@@ -40,7 +40,7 @@ describe('NotFoundError', () => {
   test('デフォルトメッセージでステータス404を設定すること', () => {
     const error = new NotFoundError();
     expect(error.statusCode).toBe(404);
-    expect(error.message).toBe('リソースが見つかりません');
+    expect(error.message).toBe('Resource not found');
     expect(error.name).toBe('NotFoundError');
     expect(error instanceof AppError).toBe(true);
   });
@@ -56,7 +56,7 @@ describe('ValidationError', () => {
   test('デフォルトメッセージでステータス400を設定すること', () => {
     const error = new ValidationError();
     expect(error.statusCode).toBe(400);
-    expect(error.message).toBe('バリデーションエラー');
+    expect(error.message).toBe('Validation error');
     expect(error.name).toBe('ValidationError');
     expect(error instanceof AppError).toBe(true);
   });
