@@ -48,7 +48,13 @@ async function gatherContext() {
         completedAt: { gte: twoWeeksAgo },
         parentId: null,
       },
-      select: { title: true, description: true, status: true, completedAt: true, theme: { select: { name: true } } },
+      select: {
+        title: true,
+        description: true,
+        status: true,
+        completedAt: true,
+        theme: { select: { name: true } },
+      },
       orderBy: { completedAt: 'desc' },
       take: 20,
     }),
@@ -80,17 +86,20 @@ async function gatherContext() {
  * Build the Claude prompt from gathered context.
  */
 function buildPrompt(context: Awaited<ReturnType<typeof gatherContext>>): string {
-  const completedLines = context.recentCompleted
-    .map((t) => `- ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`)
-    .join('\n') || '(なし)';
+  const completedLines =
+    context.recentCompleted
+      .map((t) => `- ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`)
+      .join('\n') || '(なし)';
 
-  const openLines = context.openTasks
-    .map((t) => `- [${t.status}/${t.priority}] ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`)
-    .join('\n') || '(なし)';
+  const openLines =
+    context.openTasks
+      .map(
+        (t) =>
+          `- [${t.status}/${t.priority}] ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`,
+      )
+      .join('\n') || '(なし)';
 
-  const themeLines = context.themes
-    .map((t) => `- ID:${t.id} "${t.name}"`)
-    .join('\n') || '(なし)';
+  const themeLines = context.themes.map((t) => `- ID:${t.id} "${t.name}"`).join('\n') || '(なし)';
 
   return `あなたはプロジェクトマネージャーAIです。以下のプロジェクトの状況を分析して、
 次に取り組むべきタスクを3〜5件提案してください。
@@ -130,11 +139,9 @@ ${themeLines}
  * @param autoExecute - If true, mark created tasks as autoExecutable
  * @returns Created tasks and whether execution was triggered
  */
-export async function autoGenerateTasks(
-  autoExecute: boolean = false,
-): Promise<AutoGenerateResult> {
-  const apiKey = await getApiKeyForProvider('claude').catch(() => null)
-    ?? process.env.ANTHROPIC_API_KEY;
+export async function autoGenerateTasks(autoExecute: boolean = false): Promise<AutoGenerateResult> {
+  const apiKey =
+    (await getApiKeyForProvider('claude').catch(() => null)) ?? process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     throw new Error('Anthropic API key is not configured');
@@ -153,9 +160,7 @@ export async function autoGenerateTasks(
     messages: [{ role: 'user', content: prompt }],
   });
 
-  const text = response.content
-    .map((block) => (block.type === 'text' ? block.text : ''))
-    .join('');
+  const text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
 
   // Parse JSON array from Claude's response
   let suggestions: GeneratedTask[];
@@ -168,13 +173,13 @@ export async function autoGenerateTasks(
     suggestions = JSON.parse(jsonMatch[0]);
   } catch (e) {
     log.error({ response: text }, 'Failed to parse Claude response as JSON');
-    throw new Error(`Failed to parse task suggestions: ${e instanceof Error ? e.message : 'Unknown'}`);
+    throw new Error(
+      `Failed to parse task suggestions: ${e instanceof Error ? e.message : 'Unknown'}`,
+    );
   }
 
   // Validate and filter
-  suggestions = suggestions
-    .filter((s) => s.title && s.description)
-    .slice(0, 5);
+  suggestions = suggestions.filter((s) => s.title && s.description).slice(0, 5);
 
   if (suggestions.length === 0) {
     return { generatedTasks: [], executionTriggered: false, prompt };
@@ -202,10 +207,7 @@ export async function autoGenerateTasks(
       taskId: task.id,
     });
 
-    log.info(
-      { taskId: task.id, title: suggestion.title },
-      'Auto-generated task created',
-    );
+    log.info({ taskId: task.id, title: suggestion.title }, 'Auto-generated task created');
   }
 
   log.info(`Auto-generated ${createdTasks.length} tasks (autoExecute: ${autoExecute})`);

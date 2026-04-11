@@ -15,10 +15,7 @@ import {
   isAnyApiKeyConfigured,
   type AIMessage,
 } from '../../../utils/ai-client';
-import {
-  type GeneratedLearningPlan,
-  buildTaskDescription,
-} from '../learning-goal-helpers';
+import { type GeneratedLearningPlan, buildTaskDescription } from '../learning-goal-helpers';
 
 const log = createLogger('routes:learning-goals:apply');
 

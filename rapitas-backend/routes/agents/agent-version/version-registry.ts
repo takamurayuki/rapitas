@@ -91,10 +91,12 @@ export function getLatestVersionKey(agentType: string, fallback = '1.0.0'): stri
   const versions = AVAILABLE_AGENT_VERSIONS[agentType];
   if (!versions) return fallback;
 
-  return Object.keys(versions).sort(
-    (a, b) =>
-      new Date(versions[b].releaseDate).getTime() - new Date(versions[a].releaseDate).getTime(),
-  )[0] ?? fallback;
+  return (
+    Object.keys(versions).sort(
+      (a, b) =>
+        new Date(versions[b].releaseDate).getTime() - new Date(versions[a].releaseDate).getTime(),
+    )[0] ?? fallback
+  );
 }
 
 /**

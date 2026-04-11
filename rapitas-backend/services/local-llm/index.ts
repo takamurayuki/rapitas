@@ -20,10 +20,7 @@ export {
   type DownloadProgress,
 } from './model-downloader';
 
-export {
-  sendRAGEnhancedMessage,
-  type RAGEnhancedOptions,
-} from './rag-enhanced-caller';
+export { sendRAGEnhancedMessage, type RAGEnhancedOptions } from './rag-enhanced-caller';
 
 export {
   generateTeachingMaterial,

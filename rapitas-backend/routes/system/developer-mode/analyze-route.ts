@@ -16,9 +16,9 @@ const log = createLogger('routes:developer-mode:analyze');
 /**
  * Route handler for AI-driven task analysis and subtask suggestion.
  */
-export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' })
-
-  .post('/analyze/:taskId', async (context) => {
+export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' }).post(
+  '/analyze/:taskId',
+  async (context) => {
     const { params, set } = context;
     const taskId = parseInt(params.taskId);
 
@@ -182,4 +182,5 @@ export const developerModeAnalyzeRoute = new Elysia({ prefix: '/developer-mode' 
         details: error instanceof Error ? error.message : 'Unknown error',
       };
     }
-  });
+  },
+);

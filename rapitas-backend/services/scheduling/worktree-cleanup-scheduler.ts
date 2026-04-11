@@ -33,7 +33,7 @@ export class WorktreeCleanupScheduler {
     const workingDir = baseDir ?? getProjectRoot();
 
     logger.info(
-      `[WorktreeCleanupScheduler] Starting scheduler with ${interval}ms interval for ${workingDir}`
+      `[WorktreeCleanupScheduler] Starting scheduler with ${interval}ms interval for ${workingDir}`,
     );
 
     this.isRunning = true;
@@ -92,16 +92,15 @@ export class WorktreeCleanupScheduler {
 
       if (cleanedCount > 0) {
         logger.info(
-          `[WorktreeCleanupScheduler] Cleanup cycle completed: ${cleanedCount} worktrees cleaned`
+          `[WorktreeCleanupScheduler] Cleanup cycle completed: ${cleanedCount} worktrees cleaned`,
         );
       } else {
-        logger.debug('[WorktreeCleanupScheduler] Cleanup cycle completed: no orphaned worktrees found');
+        logger.debug(
+          '[WorktreeCleanupScheduler] Cleanup cycle completed: no orphaned worktrees found',
+        );
       }
     } catch (error) {
-      logger.error(
-        { err: error },
-        '[WorktreeCleanupScheduler] Cleanup cycle failed'
-      );
+      logger.error({ err: error }, '[WorktreeCleanupScheduler] Cleanup cycle failed');
       // Don't throw - let the scheduler continue running
     }
   }

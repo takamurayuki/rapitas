@@ -94,9 +94,7 @@ export function attachStreamHandlers(
     }
 
     if (idleTime > 10000) {
-      logger.info(
-        `${logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s`,
-      );
+      logger.info(`${logPrefix} Still running... Output idle: ${Math.floor(idleTime / 1000)}s`);
     }
   }, 5000);
 
@@ -239,9 +237,7 @@ export function attachStreamHandlers(
     // Flush any remaining line buffer content
     const remaining = (proc as NodeJS.EventEmitter & { _lineBuffer?: string })._lineBuffer || '';
     if (remaining.trim()) {
-      logger.info(
-        `${logPrefix} Processing remaining lineBuffer: ${remaining.substring(0, 200)}`,
-      );
+      logger.info(`${logPrefix} Processing remaining lineBuffer: ${remaining.substring(0, 200)}`);
       callbacks.onOutputBufferAppend(remaining + '\n');
       callbacks.onOutput(remaining + '\n');
     }

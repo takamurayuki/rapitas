@@ -45,7 +45,11 @@ export const prRoutes = new Elysia()
 
         if (!task) return { success: false, error: 'タスクが見つかりません' };
 
-        const wdResult = validateWorkingDirectory(taskId, task.theme?.workingDirectory, 'create-pr');
+        const wdResult = validateWorkingDirectory(
+          taskId,
+          task.theme?.workingDirectory,
+          'create-pr',
+        );
         if (!wdResult.ok) {
           log.error(`[create-pr] Task ${taskId} rejected: ${wdResult.error}`);
           return { success: false, error: wdResult.error };
@@ -166,7 +170,11 @@ export const prRoutes = new Elysia()
         if (!task.githubPrId)
           return { success: false, error: 'PRが見つかりません。先にPRを作成してください。' };
 
-        const wdResult2 = validateWorkingDirectory(taskId, task.theme?.workingDirectory, 'approve-merge');
+        const wdResult2 = validateWorkingDirectory(
+          taskId,
+          task.theme?.workingDirectory,
+          'approve-merge',
+        );
         if (!wdResult2.ok) {
           log.error(`[approve-merge] Task ${taskId} rejected: ${wdResult2.error}`);
           return { success: false, error: wdResult2.error };

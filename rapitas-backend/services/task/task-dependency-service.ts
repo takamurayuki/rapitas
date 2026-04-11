@@ -29,8 +29,8 @@ export interface TaskDependencyInfo {
 }
 
 export interface TaskDependencies {
-  blocking: TaskDependencyInfo[];      // このタスクがブロックしているタスク群
-  blockedBy: TaskDependencyInfo[];     // このタスクをブロックしているタスク群
+  blocking: TaskDependencyInfo[]; // このタスクがブロックしているタスク群
+  blockedBy: TaskDependencyInfo[]; // このタスクをブロックしているタスク群
 }
 
 /**
@@ -44,7 +44,7 @@ export async function addDependency(
   fromTaskId: number,
   toTaskId: number,
   type: string = 'FS',
-  lagDays: number = 0
+  lagDays: number = 0,
 ): Promise<TaskDependencyInfo> {
   // 自己依存チェック
   if (fromTaskId === toTaskId) {
@@ -54,7 +54,7 @@ export async function addDependency(
   // 両方のタスクが存在するかチェック
   const [fromTask, toTask] = await Promise.all([
     prisma.task.findUnique({ where: { id: fromTaskId } }),
-    prisma.task.findUnique({ where: { id: toTaskId } })
+    prisma.task.findUnique({ where: { id: toTaskId } }),
   ]);
 
   if (!fromTask) {
@@ -69,9 +69,9 @@ export async function addDependency(
     where: {
       fromTaskId_toTaskId: {
         fromTaskId,
-        toTaskId
-      }
-    }
+        toTaskId,
+      },
+    },
   });
 
   if (existingDependency) {
@@ -87,16 +87,16 @@ export async function addDependency(
       fromTaskId,
       toTaskId,
       type,
-      lagDays
+      lagDays,
     },
     include: {
       fromTask: {
-        select: { id: true, title: true, status: true }
+        select: { id: true, title: true, status: true },
       },
       toTask: {
-        select: { id: true, title: true, status: true }
-      }
-    }
+        select: { id: true, title: true, status: true },
+      },
+    },
   });
 
   return dependency;
@@ -110,9 +110,9 @@ export async function removeDependency(fromTaskId: number, toTaskId: number): Pr
     where: {
       fromTaskId_toTaskId: {
         fromTaskId,
-        toTaskId
-      }
-    }
+        toTaskId,
+      },
+    },
   });
 
   if (!dependency) {
@@ -123,9 +123,9 @@ export async function removeDependency(fromTaskId: number, toTaskId: number): Pr
     where: {
       fromTaskId_toTaskId: {
         fromTaskId,
-        toTaskId
-      }
-    }
+        toTaskId,
+      },
+    },
   });
 }
 
@@ -134,7 +134,7 @@ export async function removeDependency(fromTaskId: number, toTaskId: number): Pr
  */
 export async function removeDependencyById(dependencyId: number): Promise<void> {
   const dependency = await prisma.taskDependency.findUnique({
-    where: { id: dependencyId }
+    where: { id: dependencyId },
   });
 
   if (!dependency) {
@@ -142,7 +142,7 @@ export async function removeDependencyById(dependencyId: number): Promise<void> 
   }
 
   await prisma.taskDependency.delete({
-    where: { id: dependencyId }
+    where: { id: dependencyId },
   });
 }
 
@@ -156,30 +156,30 @@ export async function getDependenciesForTask(taskId: number): Promise<TaskDepend
       where: { fromTaskId: taskId },
       include: {
         fromTask: {
-          select: { id: true, title: true, status: true }
+          select: { id: true, title: true, status: true },
         },
         toTask: {
-          select: { id: true, title: true, status: true }
-        }
-      }
+          select: { id: true, title: true, status: true },
+        },
+      },
     }),
     // このタスクをブロックしているタスク群
     prisma.taskDependency.findMany({
       where: { toTaskId: taskId },
       include: {
         fromTask: {
-          select: { id: true, title: true, status: true }
+          select: { id: true, title: true, status: true },
         },
         toTask: {
-          select: { id: true, title: true, status: true }
-        }
-      }
-    })
+          select: { id: true, title: true, status: true },
+        },
+      },
+    }),
   ]);
 
   return {
     blocking,
-    blockedBy
+    blockedBy,
   };
 }
 
@@ -189,10 +189,10 @@ export async function getDependenciesForTask(taskId: number): Promise<TaskDepend
 export async function getUnblockedTasks(completedTaskId: number): Promise<number[]> {
   const dependencies = await prisma.taskDependency.findMany({
     where: { fromTaskId: completedTaskId },
-    select: { toTaskId: true }
+    select: { toTaskId: true },
   });
 
-  return dependencies.map(dep => dep.toTaskId);
+  return dependencies.map((dep) => dep.toTaskId);
 }
 
 /**
@@ -201,11 +201,11 @@ export async function getUnblockedTasks(completedTaskId: number): Promise<number
 async function checkForCycles(fromTaskId: number, toTaskId: number): Promise<void> {
   // 現在の全依存関係を取得
   const allDependencies = await prisma.taskDependency.findMany({
-    select: { fromTaskId: true, toTaskId: true }
+    select: { fromTaskId: true, toTaskId: true },
   });
 
   // 新しい依存関係を追加した状態でチェック
-  const edges = allDependencies.map(dep => ({ from: dep.fromTaskId, to: dep.toTaskId }));
+  const edges = allDependencies.map((dep) => ({ from: dep.fromTaskId, to: dep.toTaskId }));
   edges.push({ from: fromTaskId, to: toTaskId });
 
   // DFS-based cycle detection on the edge list
@@ -229,7 +229,10 @@ async function checkForCycles(fromTaskId: number, toTaskId: number): Promise<voi
   }
   let hasCycle = false;
   for (const node of adj.keys()) {
-    if (dfs(node)) { hasCycle = true; break; }
+    if (dfs(node)) {
+      hasCycle = true;
+      break;
+    }
   }
   if (hasCycle) {
     throw new Error('この依存関係を追加すると循環依存が発生します');

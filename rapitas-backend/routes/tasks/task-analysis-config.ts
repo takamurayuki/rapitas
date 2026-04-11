@@ -2,15 +2,15 @@
  * Task Analysis Config API Routes
  * Save and retrieve task analysis config
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
 
 export const taskAnalysisConfigRoutes = new Elysia({
-  prefix: "/task-analysis-config",
+  prefix: '/task-analysis-config',
 })
-  
-  .get("/:taskId", async (context) => {
-      const { params, set  } = context;
+
+  .get('/:taskId', async (context) => {
+    const { params, set } = context;
     const taskId = parseInt(params.taskId);
 
     const config = await prisma.taskAnalysisConfig.findUnique({
@@ -30,225 +30,166 @@ export const taskAnalysisConfigRoutes = new Elysia({
 
     if (!config) {
       set.status = 404;
-      return { error: "Task analysis config not found" };
+      return { error: 'Task analysis config not found' };
     }
 
     return config;
   })
 
-  
-  .put(
-    "/:taskId",
-    async (context) => {
-      const { params, body: rawBody, set } = context;
-      const body = rawBody as {
-        analysisDepth?: string;
-        maxSubtasks?: number;
-        priorityStrategy?: string;
-        includeEstimates?: boolean;
-        includeDependencies?: boolean;
-        includeTips?: boolean;
-        agentConfigId?: number;
-        modelOverride?: string;
-        maxTokens?: number;
-        temperature?: number;
-        promptStrategy?: string;
-        customPromptTemplate?: string;
-        contextInstructions?: string;
-        autoApproveSubtasks?: boolean;
-        autoOptimizePrompt?: boolean;
-        notifyOnComplete?: boolean;
-      };
-      const taskId = parseInt(params.taskId);
+  .put('/:taskId', async (context) => {
+    const { params, body: rawBody, set } = context;
+    const body = rawBody as {
+      analysisDepth?: string;
+      maxSubtasks?: number;
+      priorityStrategy?: string;
+      includeEstimates?: boolean;
+      includeDependencies?: boolean;
+      includeTips?: boolean;
+      agentConfigId?: number;
+      modelOverride?: string;
+      maxTokens?: number;
+      temperature?: number;
+      promptStrategy?: string;
+      customPromptTemplate?: string;
+      contextInstructions?: string;
+      autoApproveSubtasks?: boolean;
+      autoOptimizePrompt?: boolean;
+      notifyOnComplete?: boolean;
+    };
+    const taskId = parseInt(params.taskId);
 
-      
-      const task = await prisma.task.findUnique({ where: { id: taskId } });
-      if (!task) {
-        set.status = 404;
-        return { error: "Task not found" };
-      }
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    if (!task) {
+      set.status = 404;
+      return { error: 'Task not found' };
+    }
 
-      
-      if (body.analysisDepth && !["quick", "standard", "deep"].includes(body.analysisDepth)) {
-        set.status = 400;
-        return { error: "Invalid analysisDepth. Must be: quick, standard, deep" };
-      }
-      if (body.priorityStrategy && !["aggressive", "balanced", "conservative"].includes(body.priorityStrategy)) {
-        set.status = 400;
-        return { error: "Invalid priorityStrategy. Must be: aggressive, balanced, conservative" };
-      }
-      if (body.promptStrategy && !["auto", "detailed", "concise", "custom"].includes(body.promptStrategy)) {
-        set.status = 400;
-        return { error: "Invalid promptStrategy. Must be: auto, detailed, concise, custom" };
-      }
-      if (body.temperature !== undefined && body.temperature !== null && (body.temperature < 0 || body.temperature > 1)) {
-        set.status = 400;
-        return { error: "Temperature must be between 0.0 and 1.0" };
-      }
-      if (body.maxSubtasks !== undefined && (body.maxSubtasks < 1 || body.maxSubtasks > 50)) {
-        set.status = 400;
-        return { error: "maxSubtasks must be between 1 and 50" };
-      }
+    if (body.analysisDepth && !['quick', 'standard', 'deep'].includes(body.analysisDepth)) {
+      set.status = 400;
+      return { error: 'Invalid analysisDepth. Must be: quick, standard, deep' };
+    }
+    if (
+      body.priorityStrategy &&
+      !['aggressive', 'balanced', 'conservative'].includes(body.priorityStrategy)
+    ) {
+      set.status = 400;
+      return { error: 'Invalid priorityStrategy. Must be: aggressive, balanced, conservative' };
+    }
+    if (
+      body.promptStrategy &&
+      !['auto', 'detailed', 'concise', 'custom'].includes(body.promptStrategy)
+    ) {
+      set.status = 400;
+      return { error: 'Invalid promptStrategy. Must be: auto, detailed, concise, custom' };
+    }
+    if (
+      body.temperature !== undefined &&
+      body.temperature !== null &&
+      (body.temperature < 0 || body.temperature > 1)
+    ) {
+      set.status = 400;
+      return { error: 'Temperature must be between 0.0 and 1.0' };
+    }
+    if (body.maxSubtasks !== undefined && (body.maxSubtasks < 1 || body.maxSubtasks > 50)) {
+      set.status = 400;
+      return { error: 'maxSubtasks must be between 1 and 50' };
+    }
 
-      
-      if (body.agentConfigId) {
-        const agentConfig = await prisma.aIAgentConfig.findUnique({
-          where: { id: body.agentConfigId },
-        });
-        if (!agentConfig) {
-          set.status = 400;
-          return { error: "Agent config not found" };
-        }
+    if (body.agentConfigId) {
+      const agentConfig = await prisma.aIAgentConfig.findUnique({
+        where: { id: body.agentConfigId },
+      });
+      if (!agentConfig) {
+        set.status = 400;
+        return { error: 'Agent config not found' };
       }
+    }
 
-      const config = await prisma.taskAnalysisConfig.upsert({
-        where: { taskId },
-        update: {
-          ...(body.analysisDepth !== undefined && { analysisDepth: body.analysisDepth }),
-          ...(body.maxSubtasks !== undefined && { maxSubtasks: body.maxSubtasks }),
-          ...(body.priorityStrategy !== undefined && { priorityStrategy: body.priorityStrategy }),
-          ...(body.includeEstimates !== undefined && { includeEstimates: body.includeEstimates }),
-          ...(body.includeDependencies !== undefined && { includeDependencies: body.includeDependencies }),
-          ...(body.includeTips !== undefined && { includeTips: body.includeTips }),
-          ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
-          ...(body.modelOverride !== undefined && { modelOverride: body.modelOverride }),
-          ...(body.maxTokens !== undefined && { maxTokens: body.maxTokens }),
-          ...(body.temperature !== undefined && { temperature: body.temperature }),
-          ...(body.promptStrategy !== undefined && { promptStrategy: body.promptStrategy }),
-          ...(body.customPromptTemplate !== undefined && { customPromptTemplate: body.customPromptTemplate }),
-          ...(body.contextInstructions !== undefined && { contextInstructions: body.contextInstructions }),
-          ...(body.autoApproveSubtasks !== undefined && { autoApproveSubtasks: body.autoApproveSubtasks }),
-          ...(body.autoOptimizePrompt !== undefined && { autoOptimizePrompt: body.autoOptimizePrompt }),
-          ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
-        },
-        create: {
-          taskId,
-          analysisDepth: body.analysisDepth ?? "standard",
-          maxSubtasks: body.maxSubtasks ?? 10,
-          priorityStrategy: body.priorityStrategy ?? "balanced",
-          includeEstimates: body.includeEstimates ?? true,
-          includeDependencies: body.includeDependencies ?? true,
-          includeTips: body.includeTips ?? true,
-          agentConfigId: body.agentConfigId ?? null,
-          modelOverride: body.modelOverride ?? null,
-          maxTokens: body.maxTokens ?? null,
-          temperature: body.temperature ?? null,
-          promptStrategy: body.promptStrategy ?? "auto",
-          customPromptTemplate: body.customPromptTemplate ?? null,
-          contextInstructions: body.contextInstructions ?? null,
-          autoApproveSubtasks: body.autoApproveSubtasks ?? false,
-          autoOptimizePrompt: body.autoOptimizePrompt ?? false,
-          notifyOnComplete: body.notifyOnComplete ?? true,
-        },
-        include: {
-          agentConfig: {
-            select: {
-              id: true,
-              agentType: true,
-              name: true,
-              modelId: true,
-              isActive: true,
-            },
+    const config = await prisma.taskAnalysisConfig.upsert({
+      where: { taskId },
+      update: {
+        ...(body.analysisDepth !== undefined && { analysisDepth: body.analysisDepth }),
+        ...(body.maxSubtasks !== undefined && { maxSubtasks: body.maxSubtasks }),
+        ...(body.priorityStrategy !== undefined && { priorityStrategy: body.priorityStrategy }),
+        ...(body.includeEstimates !== undefined && { includeEstimates: body.includeEstimates }),
+        ...(body.includeDependencies !== undefined && {
+          includeDependencies: body.includeDependencies,
+        }),
+        ...(body.includeTips !== undefined && { includeTips: body.includeTips }),
+        ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
+        ...(body.modelOverride !== undefined && { modelOverride: body.modelOverride }),
+        ...(body.maxTokens !== undefined && { maxTokens: body.maxTokens }),
+        ...(body.temperature !== undefined && { temperature: body.temperature }),
+        ...(body.promptStrategy !== undefined && { promptStrategy: body.promptStrategy }),
+        ...(body.customPromptTemplate !== undefined && {
+          customPromptTemplate: body.customPromptTemplate,
+        }),
+        ...(body.contextInstructions !== undefined && {
+          contextInstructions: body.contextInstructions,
+        }),
+        ...(body.autoApproveSubtasks !== undefined && {
+          autoApproveSubtasks: body.autoApproveSubtasks,
+        }),
+        ...(body.autoOptimizePrompt !== undefined && {
+          autoOptimizePrompt: body.autoOptimizePrompt,
+        }),
+        ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
+      },
+      create: {
+        taskId,
+        analysisDepth: body.analysisDepth ?? 'standard',
+        maxSubtasks: body.maxSubtasks ?? 10,
+        priorityStrategy: body.priorityStrategy ?? 'balanced',
+        includeEstimates: body.includeEstimates ?? true,
+        includeDependencies: body.includeDependencies ?? true,
+        includeTips: body.includeTips ?? true,
+        agentConfigId: body.agentConfigId ?? null,
+        modelOverride: body.modelOverride ?? null,
+        maxTokens: body.maxTokens ?? null,
+        temperature: body.temperature ?? null,
+        promptStrategy: body.promptStrategy ?? 'auto',
+        customPromptTemplate: body.customPromptTemplate ?? null,
+        contextInstructions: body.contextInstructions ?? null,
+        autoApproveSubtasks: body.autoApproveSubtasks ?? false,
+        autoOptimizePrompt: body.autoOptimizePrompt ?? false,
+        notifyOnComplete: body.notifyOnComplete ?? true,
+      },
+      include: {
+        agentConfig: {
+          select: {
+            id: true,
+            agentType: true,
+            name: true,
+            modelId: true,
+            isActive: true,
           },
         },
-      });
+      },
+    });
 
-      return config;
-    }
-  )
+    return config;
+  })
 
-  
-  .patch(
-    "/:taskId",
-    async (context) => {
-      const { params, body: rawBody, set } = context;
-      const body = rawBody as {
-        analysisDepth?: string;
-        maxSubtasks?: number;
-        priorityStrategy?: string;
-        includeEstimates?: boolean;
-        includeDependencies?: boolean;
-        includeTips?: boolean;
-        agentConfigId?: number;
-        modelOverride?: string;
-        maxTokens?: number;
-        temperature?: number;
-        promptStrategy?: string;
-        customPromptTemplate?: string;
-        contextInstructions?: string;
-        autoApproveSubtasks?: boolean;
-        autoOptimizePrompt?: boolean;
-        notifyOnComplete?: boolean;
-      };
-      const taskId = parseInt(params.taskId);
-
-      const existing = await prisma.taskAnalysisConfig.findUnique({
-        where: { taskId },
-      });
-
-      if (!existing) {
-        set.status = 404;
-        return { error: "Task analysis config not found. Use PUT to create." };
-      }
-
-      
-      if (body.analysisDepth && !["quick", "standard", "deep"].includes(body.analysisDepth)) {
-        set.status = 400;
-        return { error: "Invalid analysisDepth. Must be: quick, standard, deep" };
-      }
-      if (body.priorityStrategy && !["aggressive", "balanced", "conservative"].includes(body.priorityStrategy)) {
-        set.status = 400;
-        return { error: "Invalid priorityStrategy. Must be: aggressive, balanced, conservative" };
-      }
-      if (body.promptStrategy && !["auto", "detailed", "concise", "custom"].includes(body.promptStrategy)) {
-        set.status = 400;
-        return { error: "Invalid promptStrategy. Must be: auto, detailed, concise, custom" };
-      }
-      if (body.temperature !== undefined && body.temperature !== null && (body.temperature < 0 || body.temperature > 1)) {
-        set.status = 400;
-        return { error: "Temperature must be between 0.0 and 1.0" };
-      }
-
-      const config = await prisma.taskAnalysisConfig.update({
-        where: { taskId },
-        data: {
-          ...(body.analysisDepth !== undefined && { analysisDepth: body.analysisDepth }),
-          ...(body.maxSubtasks !== undefined && { maxSubtasks: body.maxSubtasks }),
-          ...(body.priorityStrategy !== undefined && { priorityStrategy: body.priorityStrategy }),
-          ...(body.includeEstimates !== undefined && { includeEstimates: body.includeEstimates }),
-          ...(body.includeDependencies !== undefined && { includeDependencies: body.includeDependencies }),
-          ...(body.includeTips !== undefined && { includeTips: body.includeTips }),
-          ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
-          ...(body.modelOverride !== undefined && { modelOverride: body.modelOverride }),
-          ...(body.maxTokens !== undefined && { maxTokens: body.maxTokens }),
-          ...(body.temperature !== undefined && { temperature: body.temperature }),
-          ...(body.promptStrategy !== undefined && { promptStrategy: body.promptStrategy }),
-          ...(body.customPromptTemplate !== undefined && { customPromptTemplate: body.customPromptTemplate }),
-          ...(body.contextInstructions !== undefined && { contextInstructions: body.contextInstructions }),
-          ...(body.autoApproveSubtasks !== undefined && { autoApproveSubtasks: body.autoApproveSubtasks }),
-          ...(body.autoOptimizePrompt !== undefined && { autoOptimizePrompt: body.autoOptimizePrompt }),
-          ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
-        },
-        include: {
-          agentConfig: {
-            select: {
-              id: true,
-              agentType: true,
-              name: true,
-              modelId: true,
-              isActive: true,
-            },
-          },
-        },
-      });
-
-      return config;
-    }
-  )
-
-  // Delete task analysis config (reset to defaults)
-  .delete("/:taskId", async (context) => {
-      const { params, set  } = context;
+  .patch('/:taskId', async (context) => {
+    const { params, body: rawBody, set } = context;
+    const body = rawBody as {
+      analysisDepth?: string;
+      maxSubtasks?: number;
+      priorityStrategy?: string;
+      includeEstimates?: boolean;
+      includeDependencies?: boolean;
+      includeTips?: boolean;
+      agentConfigId?: number;
+      modelOverride?: string;
+      maxTokens?: number;
+      temperature?: number;
+      promptStrategy?: string;
+      customPromptTemplate?: string;
+      contextInstructions?: string;
+      autoApproveSubtasks?: boolean;
+      autoOptimizePrompt?: boolean;
+      notifyOnComplete?: boolean;
+    };
     const taskId = parseInt(params.taskId);
 
     const existing = await prisma.taskAnalysisConfig.findUnique({
@@ -257,26 +198,113 @@ export const taskAnalysisConfigRoutes = new Elysia({
 
     if (!existing) {
       set.status = 404;
-      return { error: "Task analysis config not found" };
+      return { error: 'Task analysis config not found. Use PUT to create.' };
+    }
+
+    if (body.analysisDepth && !['quick', 'standard', 'deep'].includes(body.analysisDepth)) {
+      set.status = 400;
+      return { error: 'Invalid analysisDepth. Must be: quick, standard, deep' };
+    }
+    if (
+      body.priorityStrategy &&
+      !['aggressive', 'balanced', 'conservative'].includes(body.priorityStrategy)
+    ) {
+      set.status = 400;
+      return { error: 'Invalid priorityStrategy. Must be: aggressive, balanced, conservative' };
+    }
+    if (
+      body.promptStrategy &&
+      !['auto', 'detailed', 'concise', 'custom'].includes(body.promptStrategy)
+    ) {
+      set.status = 400;
+      return { error: 'Invalid promptStrategy. Must be: auto, detailed, concise, custom' };
+    }
+    if (
+      body.temperature !== undefined &&
+      body.temperature !== null &&
+      (body.temperature < 0 || body.temperature > 1)
+    ) {
+      set.status = 400;
+      return { error: 'Temperature must be between 0.0 and 1.0' };
+    }
+
+    const config = await prisma.taskAnalysisConfig.update({
+      where: { taskId },
+      data: {
+        ...(body.analysisDepth !== undefined && { analysisDepth: body.analysisDepth }),
+        ...(body.maxSubtasks !== undefined && { maxSubtasks: body.maxSubtasks }),
+        ...(body.priorityStrategy !== undefined && { priorityStrategy: body.priorityStrategy }),
+        ...(body.includeEstimates !== undefined && { includeEstimates: body.includeEstimates }),
+        ...(body.includeDependencies !== undefined && {
+          includeDependencies: body.includeDependencies,
+        }),
+        ...(body.includeTips !== undefined && { includeTips: body.includeTips }),
+        ...(body.agentConfigId !== undefined && { agentConfigId: body.agentConfigId }),
+        ...(body.modelOverride !== undefined && { modelOverride: body.modelOverride }),
+        ...(body.maxTokens !== undefined && { maxTokens: body.maxTokens }),
+        ...(body.temperature !== undefined && { temperature: body.temperature }),
+        ...(body.promptStrategy !== undefined && { promptStrategy: body.promptStrategy }),
+        ...(body.customPromptTemplate !== undefined && {
+          customPromptTemplate: body.customPromptTemplate,
+        }),
+        ...(body.contextInstructions !== undefined && {
+          contextInstructions: body.contextInstructions,
+        }),
+        ...(body.autoApproveSubtasks !== undefined && {
+          autoApproveSubtasks: body.autoApproveSubtasks,
+        }),
+        ...(body.autoOptimizePrompt !== undefined && {
+          autoOptimizePrompt: body.autoOptimizePrompt,
+        }),
+        ...(body.notifyOnComplete !== undefined && { notifyOnComplete: body.notifyOnComplete }),
+      },
+      include: {
+        agentConfig: {
+          select: {
+            id: true,
+            agentType: true,
+            name: true,
+            modelId: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return config;
+  })
+
+  // Delete task analysis config (reset to defaults)
+  .delete('/:taskId', async (context) => {
+    const { params, set } = context;
+    const taskId = parseInt(params.taskId);
+
+    const existing = await prisma.taskAnalysisConfig.findUnique({
+      where: { taskId },
+    });
+
+    if (!existing) {
+      set.status = 404;
+      return { error: 'Task analysis config not found' };
     }
 
     await prisma.taskAnalysisConfig.delete({
       where: { taskId },
     });
 
-    return { success: true, message: "Task analysis config deleted" };
+    return { success: true, message: 'Task analysis config deleted' };
   })
 
   // Get default config values
-  .get("/defaults/values", async () => {
+  .get('/defaults/values', async () => {
     return {
-      analysisDepth: "standard",
+      analysisDepth: 'standard',
       maxSubtasks: 10,
-      priorityStrategy: "balanced",
+      priorityStrategy: 'balanced',
       includeEstimates: true,
       includeDependencies: true,
       includeTips: true,
-      promptStrategy: "auto",
+      promptStrategy: 'auto',
       autoApproveSubtasks: false,
       autoOptimizePrompt: false,
       notifyOnComplete: true,

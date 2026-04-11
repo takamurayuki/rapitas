@@ -7,11 +7,7 @@
  * Not responsible for node initialisation, edge creation, or plan generation.
  */
 
-import type {
-  TaskNode,
-  DependencyEdge,
-  ParallelGroup,
-} from '../types-dir/types';
+import type { TaskNode, DependencyEdge, ParallelGroup } from '../types-dir/types';
 
 /**
  * Produce a topological ordering of the node IDs.

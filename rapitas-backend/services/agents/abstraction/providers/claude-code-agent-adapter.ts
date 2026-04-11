@@ -5,24 +5,54 @@
  * Delegates result conversion to adapter-result-converter and task building to adapter-execution.
  */
 
-import type { AgentState, AgentCapabilities, AgentMetadata, AgentExecutionContext, AgentTaskDefinition, AgentExecutionResult, AgentLifecycleHooks, ContinuationContext, ClaudeCodeProviderConfig } from '../types';
+import type {
+  AgentState,
+  AgentCapabilities,
+  AgentMetadata,
+  AgentExecutionContext,
+  AgentTaskDefinition,
+  AgentExecutionResult,
+  AgentLifecycleHooks,
+  ContinuationContext,
+  ClaudeCodeProviderConfig,
+} from '../types';
 import type { IAgent } from '../interfaces';
 import { AgentEventEmitter, createAgentEventEmitter } from '../event-emitter';
 import { AgentError } from '../interfaces';
 import { createDefaultCapabilities, generateAgentId } from '../index';
 import { ClaudeCodeAgent } from '../../claude-code-agent';
-import { convertLegacyResult, createCancelledResult, createErrorResult, wrapError } from './adapter-result-converter';
-import { buildLegacyConfig, buildContinuationConfig, buildLegacyTask, buildContinuationTask, attachQuestionHandler } from './adapter-execution';
+import {
+  convertLegacyResult,
+  createCancelledResult,
+  createErrorResult,
+  wrapError,
+} from './adapter-result-converter';
+import {
+  buildLegacyConfig,
+  buildContinuationConfig,
+  buildLegacyTask,
+  buildContinuationTask,
+  attachQuestionHandler,
+} from './adapter-execution';
 
 /** Default capability flags for ClaudeCodeAgent — all file/terminal/git tools enabled. */
 const CLAUDE_CODE_CAPABILITIES = {
-  codeGeneration: true, codeReview: true, codeExecution: true,
-  fileRead: true, fileWrite: true, fileEdit: true,
-  terminalAccess: true, gitOperations: true,
-  webSearch: true, webFetch: true,
-  taskAnalysis: true, taskPlanning: true,
+  codeGeneration: true,
+  codeReview: true,
+  codeExecution: true,
+  fileRead: true,
+  fileWrite: true,
+  fileEdit: true,
+  terminalAccess: true,
+  gitOperations: true,
+  webSearch: true,
+  webFetch: true,
+  taskAnalysis: true,
+  taskPlanning: true,
   parallelExecution: false,
-  questionAsking: true, conversationMemory: true, sessionContinuation: true,
+  questionAsking: true,
+  conversationMemory: true,
+  sessionContinuation: true,
 } as const;
 
 /**
@@ -60,10 +90,18 @@ export class ClaudeCodeAgentAdapter implements IAgent {
     this._capabilities = createDefaultCapabilities(CLAUDE_CODE_CAPABILITIES);
   }
 
-  get metadata(): AgentMetadata { return { ...this._metadata }; }
-  get state(): AgentState { return this._state; }
-  get capabilities(): AgentCapabilities { return { ...this._capabilities }; }
-  get events(): AgentEventEmitter { return this._events; }
+  get metadata(): AgentMetadata {
+    return { ...this._metadata };
+  }
+  get state(): AgentState {
+    return this._state;
+  }
+  get capabilities(): AgentCapabilities {
+    return { ...this._capabilities };
+  }
+  get events(): AgentEventEmitter {
+    return this._events;
+  }
 
   private async transitionState(newState: AgentState, reason?: string): Promise<void> {
     const previousState = this._state;
@@ -173,7 +211,11 @@ export class ClaudeCodeAgentAdapter implements IAgent {
         this._events.emitOutput(output, isError || false, true);
       });
 
-      return await this._runLegacyAgent(buildContinuationTask(continuation, context), startTime, context);
+      return await this._runLegacyAgent(
+        buildContinuationTask(continuation, context),
+        startTime,
+        context,
+      );
     } catch (error) {
       const agentError = wrapError(error);
       await this.transitionState('failed');

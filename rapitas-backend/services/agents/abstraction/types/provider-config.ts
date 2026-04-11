@@ -13,7 +13,7 @@ export interface AgentProviderConfigBase {
 
   // Authentication
   apiKey?: string;
-  apiKeyEnvVar?: string; 
+  apiKeyEnvVar?: string;
 
   // Endpoint
   endpoint?: string;

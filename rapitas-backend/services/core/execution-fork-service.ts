@@ -153,9 +153,7 @@ export async function forkExecution(input: ForkExecutionInput): Promise<ForkResu
  * @param sourceExecutionId - Original execution ID / 元の実行ID
  * @returns Comparison data / 比較データ
  */
-export async function getForkComparison(
-  sourceExecutionId: number,
-): Promise<ForkComparison | null> {
+export async function getForkComparison(sourceExecutionId: number): Promise<ForkComparison | null> {
   try {
     const sourceExecution = await prisma.agentExecution.findUnique({
       where: { id: sourceExecutionId },

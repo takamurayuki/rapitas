@@ -37,8 +37,12 @@ async function testCliAvailability(
       resolve({ success: false, message: `${label} timeout` });
     }, 10000);
 
-    proc.stdout?.on('data', (data) => { stdout += data.toString(); });
-    proc.stderr?.on('data', (data) => { stderr += data.toString(); });
+    proc.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+    proc.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
 
     proc.on('close', (code) => {
       clearTimeout(timeout);
@@ -235,8 +239,12 @@ export const agentTestRouter = new Elysia()
             resolve({ success: false, error: 'Timeout (10s)' });
           }, 10000);
 
-          proc.stdout?.on('data', (data) => { stdout += data.toString(); });
-          proc.stderr?.on('data', (data) => { stderr += data.toString(); });
+          proc.stdout?.on('data', (data) => {
+            stdout += data.toString();
+          });
+          proc.stderr?.on('data', (data) => {
+            stderr += data.toString();
+          });
 
           proc.on('close', (code) => {
             clearTimeout(timeout);

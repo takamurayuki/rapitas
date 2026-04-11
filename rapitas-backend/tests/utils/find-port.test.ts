@@ -90,7 +90,7 @@ describe('Port Detection Utilities', () => {
       }
 
       await expect(findAvailablePort(startPort, maxTries)).rejects.toThrow(
-        `No available port found after trying ${maxTries} ports starting from ${startPort}`
+        `No available port found after trying ${maxTries} ports starting from ${startPort}`,
       );
     });
 

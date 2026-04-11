@@ -141,15 +141,7 @@ export async function addIssueComment(
   issueNumber: number,
   body: string,
 ): Promise<{ id: number; body: string }> {
-  await runGhCommand([
-    'issue',
-    'comment',
-    String(issueNumber),
-    '--repo',
-    repo,
-    '--body',
-    body,
-  ]);
+  await runGhCommand(['issue', 'comment', String(issueNumber), '--repo', repo, '--body', body]);
 
   return {
     id: 0, // gh issue comment does not return an ID

@@ -75,7 +75,11 @@ export function processStreamEvent(json: GeminiStreamEvent): StreamEventResult {
           if (block.type === 'text' && block.text) {
             output += block.text;
           } else if (block.type === 'tool_use') {
-            if (block.name === 'AskUserQuestion' || block.name === 'ask_user' || block.name === 'ask') {
+            if (
+              block.name === 'AskUserQuestion' ||
+              block.name === 'ask_user' ||
+              block.name === 'ask'
+            ) {
               isQuestion = true;
               const input = block.input as { questions?: Array<{ question?: string }> } | undefined;
               if (input?.questions?.[0]?.question) questionText = input.questions[0].question;

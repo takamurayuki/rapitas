@@ -91,12 +91,16 @@ export function recordCorrection(rawText: string, correctedText: string): void {
 
     try {
       // Upsert: increment hit_count if pattern already exists
-      database.prepare(`
+      database
+        .prepare(
+          `
         INSERT INTO corrections (wrong_text, correct_text, context)
         VALUES (?, ?, ?)
         ON CONFLICT(wrong_text, correct_text)
         DO UPDATE SET hit_count = hit_count + 1, last_used_at = datetime('now')
-      `).run(diff.wrong, diff.correct, diff.context || '');
+      `,
+        )
+        .run(diff.wrong, diff.correct, diff.context || '');
 
       log.debug({ wrong: diff.wrong, correct: diff.correct }, 'Correction recorded');
     } catch (error) {
@@ -120,13 +124,17 @@ export function applyCorrections(rawText: string): string {
   try {
     // Fetch all corrections sorted by length (longest first) to avoid partial replacements,
     // then by hit count to prioritize well-established patterns.
-    const patterns = database.prepare(`
+    const patterns = database
+      .prepare(
+        `
       SELECT wrong_text, correct_text, hit_count
       FROM corrections
       WHERE hit_count >= 2
       ORDER BY LENGTH(wrong_text) DESC, hit_count DESC
       LIMIT 500
-    `).all() as Array<{ wrong_text: string; correct_text: string; hit_count: number }>;
+    `,
+      )
+      .all() as Array<{ wrong_text: string; correct_text: string; hit_count: number }>;
 
     if (patterns.length === 0) return rawText;
 
@@ -138,9 +146,11 @@ export function applyCorrections(rawText: string): string {
         corrected = corrected.split(pattern.wrong_text).join(pattern.correct_text);
 
         // Update last_used_at
-        database.prepare(
-          "UPDATE corrections SET last_used_at = datetime('now') WHERE wrong_text = ? AND correct_text = ?",
-        ).run(pattern.wrong_text, pattern.correct_text);
+        database
+          .prepare(
+            "UPDATE corrections SET last_used_at = datetime('now') WHERE wrong_text = ? AND correct_text = ?",
+          )
+          .run(pattern.wrong_text, pattern.correct_text);
 
         log.debug(
           { wrong: pattern.wrong_text, correct: pattern.correct_text, hits: pattern.hit_count },
@@ -165,13 +175,17 @@ export function applyCorrections(rawText: string): string {
 export function getCorrectionPatterns(limit: number = 100): CorrectionPattern[] {
   try {
     const database = getDb();
-    return database.prepare(`
+    return database
+      .prepare(
+        `
       SELECT id, wrong_text as wrongText, correct_text as correctText,
              hit_count as hitCount, context
       FROM corrections
       ORDER BY hit_count DESC, last_used_at DESC
       LIMIT ?
-    `).all(limit) as CorrectionPattern[];
+    `,
+      )
+      .all(limit) as CorrectionPattern[];
   } catch {
     return [];
   }
@@ -195,11 +209,19 @@ export function deleteCorrection(id: number): boolean {
 /**
  * Get correction statistics.
  */
-export function getCorrectionStats(): { totalPatterns: number; totalHits: number; topPatterns: CorrectionPattern[] } {
+export function getCorrectionStats(): {
+  totalPatterns: number;
+  totalHits: number;
+  topPatterns: CorrectionPattern[];
+} {
   try {
     const database = getDb();
-    const countRow = database.prepare('SELECT COUNT(*) as cnt FROM corrections').get() as { cnt: number };
-    const hitsRow = database.prepare('SELECT COALESCE(SUM(hit_count), 0) as total FROM corrections').get() as { total: number };
+    const countRow = database.prepare('SELECT COUNT(*) as cnt FROM corrections').get() as {
+      cnt: number;
+    };
+    const hitsRow = database
+      .prepare('SELECT COALESCE(SUM(hit_count), 0) as total FROM corrections')
+      .get() as { total: number };
     const topPatterns = getCorrectionPatterns(10);
 
     return {
@@ -285,7 +307,10 @@ function extractDiffs(
         diffs.push({
           wrong: rawWord,
           correct: corrWord,
-          context: rawTokens.slice(Math.max(0, ri - 2), ri).join('').trim(),
+          context: rawTokens
+            .slice(Math.max(0, ri - 2), ri)
+            .join('')
+            .trim(),
         });
       }
       ri++;

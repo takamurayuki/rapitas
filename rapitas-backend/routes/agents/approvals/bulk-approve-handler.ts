@@ -150,7 +150,11 @@ export const bulkApproveRoutes = new Elysia()
           // NOTE: Serializable isolation prevents concurrent duplicate subtask creation
           const createdSubtasks = await prisma.$transaction(
             async (tx) =>
-              createSubtasksInTransaction(tx, approval.config.taskId, proposedChanges?.subtasks || []),
+              createSubtasksInTransaction(
+                tx,
+                approval.config.taskId,
+                proposedChanges?.subtasks || [],
+              ),
             { isolationLevel: 'Serializable' },
           );
 

@@ -78,7 +78,10 @@ export async function executeAPIAgent(
     });
     const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
 
-    const languageInstructions = { ja: 'すべての出力を日本語で記述してください。', en: 'Write all output in English.' };
+    const languageInstructions = {
+      ja: 'すべての出力を日本語で記述してください。',
+      en: 'Write all output in English.',
+    };
     let enhancedSystemPrompt = systemPrompt + '\n\n' + languageInstructions[language];
 
     if (themeWorkDir && transition.role === 'implementer') {
@@ -109,18 +112,37 @@ export async function executeAPIAgent(
         output = localResponse.content;
       } catch (localError) {
         // NOTE: Fall through to paid API if local LLM fails.
-        log.warn({ err: localError }, '[WorkflowAPIExecutor] Local LLM failed, falling back to paid API');
+        log.warn(
+          { err: localError },
+          '[WorkflowAPIExecutor] Local LLM failed, falling back to paid API',
+        );
         output = '';
       }
     }
 
     if (!output) {
       if (agentConfig.agentType === 'anthropic-api') {
-        output = await callAnthropicAPI(apiKey, agentConfig.modelId || 'claude-sonnet-4-20250514', enhancedSystemPrompt, context);
+        output = await callAnthropicAPI(
+          apiKey,
+          agentConfig.modelId || 'claude-sonnet-4-20250514',
+          enhancedSystemPrompt,
+          context,
+        );
       } else if (agentConfig.agentType === 'openai') {
-        output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context);
+        output = await callOpenAIAPI(
+          apiKey,
+          agentConfig.modelId || 'gpt-4o',
+          enhancedSystemPrompt,
+          context,
+        );
       } else if (agentConfig.agentType === 'azure-openai') {
-        output = await callOpenAIAPI(apiKey, agentConfig.modelId || 'gpt-4o', enhancedSystemPrompt, context, agentConfig.endpoint || undefined);
+        output = await callOpenAIAPI(
+          apiKey,
+          agentConfig.modelId || 'gpt-4o',
+          enhancedSystemPrompt,
+          context,
+          agentConfig.endpoint || undefined,
+        );
       } else {
         throw new Error(`未対応のAPIエージェントタイプ: ${agentConfig.agentType}`);
       }
@@ -130,7 +152,10 @@ export async function executeAPIAgent(
 
     if (transition.outputFile && output.trim()) {
       await writeWorkflowFile(workflowDir, transition.outputFile, output);
-      await prisma.task.update({ where: { id: taskId }, data: { workflowStatus: transition.nextStatus } });
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { workflowStatus: transition.nextStatus },
+      });
     }
 
     await prisma.agentExecution.update({
@@ -154,7 +179,9 @@ export async function executeAPIAgent(
       log.info('[WorkflowAPIExecutor] Implementer done, auto-starting verifier...');
       try {
         // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
-        setTimeout(async () => { await advanceWorkflow(taskId, language); }, 1000);
+        setTimeout(async () => {
+          await advanceWorkflow(taskId, language);
+        }, 1000);
       } catch (error) {
         log.error({ err: error }, '[WorkflowAPIExecutor] Failed to auto-advance to verifier');
       }
@@ -163,8 +190,14 @@ export async function executeAPIAgent(
     return finalResult;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await prisma.agentExecution.update({ where: { id: execution.id }, data: { status: 'failed', output: `Error: ${errorMessage}` } });
-    await prisma.agentSession.update({ where: { id: session.id }, data: { status: 'completed', completedAt: new Date() } });
+    await prisma.agentExecution.update({
+      where: { id: execution.id },
+      data: { status: 'failed', output: `Error: ${errorMessage}` },
+    });
+    await prisma.agentSession.update({
+      where: { id: session.id },
+      data: { status: 'completed', completedAt: new Date() },
+    });
     throw error;
   }
 }

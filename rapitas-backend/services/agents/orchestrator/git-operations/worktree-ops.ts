@@ -77,10 +77,10 @@ export async function createWorktree(
       logger.debug(`[createWorktree] Could not check worktree list: ${listError}`);
     }
 
-    const { stdout: existingBranch } = await execAsync(
-      `git branch --list ${effectiveBranchName}`,
-      { cwd: baseDir, encoding: 'utf8' },
-    );
+    const { stdout: existingBranch } = await execAsync(`git branch --list ${effectiveBranchName}`, {
+      cwd: baseDir,
+      encoding: 'utf8',
+    });
 
     if (existingBranch.trim()) {
       logger.info(
@@ -111,10 +111,10 @@ export async function createWorktree(
       logger.info(
         `[createWorktree] Creating worktree at ${worktreePath} with new branch ${effectiveBranchName} from ${parentBranch}`,
       );
-      await execAsync(
-        `git worktree add -b ${effectiveBranchName} ${quotedPath} ${parentBranch}`,
-        { cwd: baseDir, encoding: 'utf8' },
-      );
+      await execAsync(`git worktree add -b ${effectiveBranchName} ${quotedPath} ${parentBranch}`, {
+        cwd: baseDir,
+        encoding: 'utf8',
+      });
     }
 
     logger.info(
@@ -187,7 +187,10 @@ export async function removeWorktree(
     logger.info(`[removeWorktree] Removed worktree: ${worktreePath}`);
   } catch (error) {
     // NOTE: If git worktree remove fails (e.g., already deleted), try filesystem cleanup
-    logger.warn({ err: error }, `[removeWorktree] git worktree remove failed, attempting fs cleanup`);
+    logger.warn(
+      { err: error },
+      `[removeWorktree] git worktree remove failed, attempting fs cleanup`,
+    );
 
     if (existsSync(worktreePath)) {
       // NOTE: Double-check that the target is NOT a real .git directory (indicates main repo, not worktree)
@@ -212,7 +215,10 @@ export async function removeWorktree(
         await rm(worktreePath, { recursive: true, force: true });
         logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
       } catch (fsError) {
-        logger.error({ err: fsError }, `[removeWorktree] Failed to clean up directory: ${worktreePath}`);
+        logger.error(
+          { err: fsError },
+          `[removeWorktree] Failed to clean up directory: ${worktreePath}`,
+        );
       }
     }
   }
@@ -325,7 +331,7 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
     });
 
     logger.info(
-      `[cleanupOrphanedWorktrees] Found ${orphanedSessions.length} orphaned sessions with worktree paths`
+      `[cleanupOrphanedWorktrees] Found ${orphanedSessions.length} orphaned sessions with worktree paths`,
     );
 
     for (const session of orphanedSessions) {
@@ -343,12 +349,12 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
         });
 
         logger.info(
-          `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`
+          `[cleanupOrphanedWorktrees] Cleaned up worktree for session ${session.id} (${session.status}): ${session.worktreePath}`,
         );
       } catch (error) {
         logger.warn(
           { err: error },
-          `[cleanupOrphanedWorktrees] Failed to clean up session ${session.id} worktree: ${session.worktreePath}`
+          `[cleanupOrphanedWorktrees] Failed to clean up session ${session.id} worktree: ${session.worktreePath}`,
         );
       }
     }
@@ -389,25 +395,23 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
                 await rm(dirPath, { recursive: true, force: true });
                 cleanedCount++;
                 logger.info(
-                  `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`
+                  `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`,
                 );
               } catch (fsError) {
                 logger.warn(
                   { err: fsError },
-                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory: ${dirPath}`
+                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory: ${dirPath}`,
                 );
               }
             } else {
-              logger.warn(
-                `[cleanupOrphanedWorktrees] Skipped unsafe path: ${dirPath}`
-              );
+              logger.warn(`[cleanupOrphanedWorktrees] Skipped unsafe path: ${dirPath}`);
             }
           }
         }
       } catch (error) {
         logger.warn(
           { err: error },
-          '[cleanupOrphanedWorktrees] Failed to check filesystem orphans'
+          '[cleanupOrphanedWorktrees] Failed to check filesystem orphans',
         );
       }
     }
@@ -418,7 +422,7 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
   } catch (error) {
     logger.error(
       { err: error },
-      '[cleanupOrphanedWorktrees] Failed to clean up orphaned worktrees'
+      '[cleanupOrphanedWorktrees] Failed to clean up orphaned worktrees',
     );
   }
 

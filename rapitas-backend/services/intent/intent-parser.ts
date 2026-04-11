@@ -62,7 +62,10 @@ export function parseIntentFile(content: string): IntentParseResult {
 
     // Section headers: @goals, @constraints, etc.
     if (line.startsWith('@')) {
-      currentSection = line.slice(1).toLowerCase().replace(/[:：\s]+$/, '');
+      currentSection = line
+        .slice(1)
+        .toLowerCase()
+        .replace(/[:：\s]+$/, '');
       if (!sections[currentSection]) sections[currentSection] = [];
       continue;
     }
@@ -99,9 +102,9 @@ export function parseIntentFile(content: string): IntentParseResult {
 
   // Extract priority
   const rawPriority = keyValues['priority']?.toLowerCase();
-  const priority = (['low', 'medium', 'high', 'urgent'].includes(rawPriority || '')
-    ? rawPriority
-    : 'medium') as ParsedIntent['priority'];
+  const priority = (
+    ['low', 'medium', 'high', 'urgent'].includes(rawPriority || '') ? rawPriority : 'medium'
+  ) as ParsedIntent['priority'];
 
   // Extract estimated hours
   const estimatedHours = keyValues['hours'] || keyValues['estimatedhours'] || keyValues['estimate'];
@@ -109,9 +112,9 @@ export function parseIntentFile(content: string): IntentParseResult {
 
   // Extract workflow settings
   const rawMode = keyValues['mode'] || keyValues['workflow'];
-  const mode = (['lightweight', 'standard', 'comprehensive'].includes(rawMode || '')
-    ? rawMode
-    : undefined) as ParsedIntent['workflow']['mode'] | undefined;
+  const mode = (
+    ['lightweight', 'standard', 'comprehensive'].includes(rawMode || '') ? rawMode : undefined
+  ) as ParsedIntent['workflow']['mode'] | undefined;
 
   const autoApprove = keyValues['autoapprove'] === 'true' || keyValues['auto_approve'] === 'true';
 
@@ -125,13 +128,19 @@ export function parseIntentFile(content: string): IntentParseResult {
   const constraints = sections['constraints'] || sections['constraint'] || sections['rules'] || [];
 
   // Acceptance criteria
-  const acceptance = sections['acceptance'] || sections['acceptancecriteria'] || sections['criteria'] || sections['done'] || [];
+  const acceptance =
+    sections['acceptance'] ||
+    sections['acceptancecriteria'] ||
+    sections['criteria'] ||
+    sections['done'] ||
+    [];
 
   // Hints
   const hints = sections['hints'] || sections['hint'] || sections['tips'] || [];
 
   // Dependencies
-  const dependencies = sections['dependencies'] || sections['depends'] || sections['requires'] || [];
+  const dependencies =
+    sections['dependencies'] || sections['depends'] || sections['requires'] || [];
 
   // Tags
   const tags = sections['tags'] || sections['labels'] || [];
@@ -147,9 +156,11 @@ export function parseIntentFile(content: string): IntentParseResult {
 
   // Auto-detect complexity for workflow mode
   const autoMode = !mode
-    ? (goals.length <= 2 && constraints.length === 0 ? 'lightweight'
-      : goals.length <= 5 ? 'standard'
-      : 'comprehensive')
+    ? goals.length <= 2 && constraints.length === 0
+      ? 'lightweight'
+      : goals.length <= 5
+        ? 'standard'
+        : 'comprehensive'
     : mode;
 
   const intent: ParsedIntent = {
@@ -169,7 +180,9 @@ export function parseIntentFile(content: string): IntentParseResult {
     tags: tags.length > 0 ? tags : undefined,
   };
 
-  log.info(`[IntentParser] Parsed intent: "${title}" (${goals.length} goals, ${constraints.length} constraints, mode: ${autoMode})`);
+  log.info(
+    `[IntentParser] Parsed intent: "${title}" (${goals.length} goals, ${constraints.length} constraints, mode: ${autoMode})`,
+  );
 
   return { success: true, intent, errors, warnings };
 }

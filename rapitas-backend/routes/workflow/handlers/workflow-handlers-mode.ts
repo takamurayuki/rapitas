@@ -132,7 +132,9 @@ export async function handleAnalyzeComplexity({
       where: { id: taskId },
       data: {
         complexityScore: analysisResult.complexityScore,
-        workflowMode: task.workflowModeOverride ? task.workflowMode : analysisResult.recommendedMode,
+        workflowMode: task.workflowModeOverride
+          ? task.workflowMode
+          : analysisResult.recommendedMode,
         updatedAt: new Date(),
       },
     });

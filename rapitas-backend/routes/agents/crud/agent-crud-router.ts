@@ -10,7 +10,12 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
-import { encrypt, decrypt, maskApiKey, isEncryptionKeyConfigured } from '../../../utils/common/encryption';
+import {
+  encrypt,
+  decrypt,
+  maskApiKey,
+  isEncryptionKeyConfigured,
+} from '../../../utils/common/encryption';
 import { logAgentConfigChange, calculateChanges } from '../../../utils/agent/agent-audit-log';
 
 const log = createLogger('routes:agent-crud');
@@ -284,6 +289,4 @@ export const agentCrudRouter = new Elysia()
         id: t.String(),
       }),
     },
-  )
-
-;
+  );

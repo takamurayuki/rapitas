@@ -33,18 +33,36 @@ export type CodeReviewResult = {
 const SECURITY_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
   { pattern: /eval\s*\(/, message: 'eval() usage detected — potential code injection risk' },
   { pattern: /innerHTML\s*=/, message: 'innerHTML assignment — potential XSS risk' },
-  { pattern: /dangerouslySetInnerHTML/, message: 'dangerouslySetInnerHTML — ensure input is sanitized' },
-  { pattern: /\$\{.*\}.*(?:SELECT|INSERT|UPDATE|DELETE)\b/i, message: 'Template literal in SQL — potential SQL injection' },
-  { pattern: /(?:password|secret|api_key|token)\s*[:=]\s*['"][^'"]+['"]/i, message: 'Hardcoded secret detected' },
-  { pattern: /cors\(\s*\{[^}]*origin\s*:\s*['"]?\*/i, message: 'CORS wildcard origin — consider restricting' },
+  {
+    pattern: /dangerouslySetInnerHTML/,
+    message: 'dangerouslySetInnerHTML — ensure input is sanitized',
+  },
+  {
+    pattern: /\$\{.*\}.*(?:SELECT|INSERT|UPDATE|DELETE)\b/i,
+    message: 'Template literal in SQL — potential SQL injection',
+  },
+  {
+    pattern: /(?:password|secret|api_key|token)\s*[:=]\s*['"][^'"]+['"]/i,
+    message: 'Hardcoded secret detected',
+  },
+  {
+    pattern: /cors\(\s*\{[^}]*origin\s*:\s*['"]?\*/i,
+    message: 'CORS wildcard origin — consider restricting',
+  },
 ];
 
 /** Patterns that indicate performance concerns. */
 const PERFORMANCE_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
-  { pattern: /\.forEach\(.*await\b/, message: 'await inside forEach — use for...of or Promise.all instead' },
+  {
+    pattern: /\.forEach\(.*await\b/,
+    message: 'await inside forEach — use for...of or Promise.all instead',
+  },
   { pattern: /SELECT\s+\*/i, message: 'SELECT * query — consider selecting specific columns' },
   { pattern: /new RegExp\(/, message: 'Dynamic RegExp in hot path — consider pre-compiling' },
-  { pattern: /JSON\.parse\(JSON\.stringify\(/, message: 'Deep clone via JSON — use structuredClone() instead' },
+  {
+    pattern: /JSON\.parse\(JSON\.stringify\(/,
+    message: 'Deep clone via JSON — use structuredClone() instead',
+  },
 ];
 
 /**
@@ -64,11 +82,11 @@ export async function reviewBranchDiff(
   let reviewedFiles = 0;
 
   try {
-    const { stdout: diff } = await execFileAsync(
-      'git',
-      ['diff', `${baseBranch}...HEAD`],
-      { cwd: workingDirectory, timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
-    );
+    const { stdout: diff } = await execFileAsync('git', ['diff', `${baseBranch}...HEAD`], {
+      cwd: workingDirectory,
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024,
+    });
 
     let currentFile = '';
 
@@ -130,12 +148,14 @@ export async function reviewBranchDiff(
       { cwd: workingDirectory, timeout: 10000 },
     );
 
-    const srcFiles = changedFiles.split('\n').filter(
-      (f) => /\.(ts|tsx|js|jsx)$/.test(f) && !f.includes('.test.') && !f.includes('.spec.'),
-    );
-    const testFiles = changedFiles.split('\n').filter(
-      (f) => f.includes('.test.') || f.includes('.spec.'),
-    );
+    const srcFiles = changedFiles
+      .split('\n')
+      .filter(
+        (f) => /\.(ts|tsx|js|jsx)$/.test(f) && !f.includes('.test.') && !f.includes('.spec.'),
+      );
+    const testFiles = changedFiles
+      .split('\n')
+      .filter((f) => f.includes('.test.') || f.includes('.spec.'));
 
     if (srcFiles.length > 0 && testFiles.length === 0) {
       findings.push({
@@ -190,8 +210,7 @@ export async function postReviewToPR(
   }
 
   const body = formatReviewAsMarkdown(review);
-  const ghPath =
-    process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+  const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
   try {
     await execFileAsync(
@@ -229,17 +248,15 @@ function deduplicateFindings(findings: ReviewFinding[]): ReviewFinding[] {
   });
 }
 
-function buildSummary(
-  findings: ReviewFinding[],
-  filesReviewed: number,
-  riskLevel: string,
-): string {
+function buildSummary(findings: ReviewFinding[], filesReviewed: number, riskLevel: string): string {
   const byCat = new Map<string, number>();
   for (const f of findings) {
     byCat.set(f.category, (byCat.get(f.category) || 0) + 1);
   }
 
-  const parts = [`${filesReviewed}ファイルをレビュー、${findings.length}件の指摘 (リスク: ${riskLevel})`];
+  const parts = [
+    `${filesReviewed}ファイルをレビュー、${findings.length}件の指摘 (リスク: ${riskLevel})`,
+  ];
   for (const [cat, count] of byCat) {
     parts.push(`- ${cat}: ${count}件`);
   }
@@ -249,7 +266,11 @@ function buildSummary(
 
 function formatReviewAsMarkdown(review: CodeReviewResult): string {
   const riskBadge =
-    review.riskLevel === 'high' ? '🔴 High' : review.riskLevel === 'medium' ? '🟡 Medium' : '🟢 Low';
+    review.riskLevel === 'high'
+      ? '🔴 High'
+      : review.riskLevel === 'medium'
+        ? '🟡 Medium'
+        : '🟢 Low';
 
   const lines = [
     `## 🤖 AI Code Review`,

@@ -32,11 +32,16 @@ export async function getPullRequests(
   limit: number = 30,
 ): Promise<PullRequest[]> {
   const output = await runGhCommand([
-    'pr', 'list',
-    '--repo', repo,
-    '--state', state,
-    '--limit', String(limit),
-    '--json', 'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,additions,deletions,changedFiles',
+    'pr',
+    'list',
+    '--repo',
+    repo,
+    '--state',
+    state,
+    '--limit',
+    String(limit),
+    '--json',
+    'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,additions,deletions,changedFiles',
   ]);
 
   if (!output) return [];
@@ -69,9 +74,13 @@ export async function getPullRequests(
 export async function getPullRequest(repo: string, prNumber: number): Promise<PullRequest | null> {
   try {
     const output = await runGhCommand([
-      'pr', 'view', String(prNumber),
-      '--repo', repo,
-      '--json', 'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,mergeable,additions,deletions,changedFiles',
+      'pr',
+      'view',
+      String(prNumber),
+      '--repo',
+      repo,
+      '--json',
+      'number,title,body,state,headRefName,baseRefName,author,url,createdAt,updatedAt,mergeable,additions,deletions,changedFiles',
     ]);
 
     const pr = JSON.parse(output);
@@ -106,8 +115,10 @@ export async function getPullRequest(repo: string, prNumber: number): Promise<Pu
 export async function getPullRequestDiff(repo: string, prNumber: number): Promise<FileDiff[]> {
   // NOTE: First call result is unused; kept for potential future jq filtering use
   await runGhCommand([
-    'api', `repos/${repo}/pulls/${prNumber}/files`,
-    '--jq', '.[].filename, .[].status, .[].additions, .[].deletions, .[].patch',
+    'api',
+    `repos/${repo}/pulls/${prNumber}/files`,
+    '--jq',
+    '.[].filename, .[].status, .[].additions, .[].deletions, .[].patch',
   ]);
 
   const filesOutput = await runGhCommand(['api', `repos/${repo}/pulls/${prNumber}/files`]);

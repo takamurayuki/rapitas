@@ -183,10 +183,8 @@ export async function getLearningStats(): Promise<LearningStats> {
     totalRecords: records.length,
     byMode,
     byOutcome,
-    overrideRate:
-      records.length > 0 ? Math.round((overrideCount / records.length) * 100) / 100 : 0,
-    avgAccuracy:
-      accuracyCount > 0 ? Math.round((accuracySum / accuracyCount) * 100) / 100 : 0,
+    overrideRate: records.length > 0 ? Math.round((overrideCount / records.length) * 100) / 100 : 0,
+    avgAccuracy: accuracyCount > 0 ? Math.round((accuracySum / accuracyCount) * 100) / 100 : 0,
     recentTrend: { period: '30d', modeDistribution },
   };
 }

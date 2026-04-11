@@ -244,7 +244,10 @@ export function spawnCodexProcess(
           if (Date.now() - lastOutputTime >= timeout) {
             clearInterval(timeoutCheckInterval);
             cleanupIdleCheck();
-            callbacks.emitOutput(`\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`, true);
+            callbacks.emitOutput(
+              `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
+              true,
+            );
             state.process.kill('SIGTERM');
             state.status = 'failed';
             callbacks.onStatusChange('failed');
@@ -318,7 +321,12 @@ export function spawnCodexProcess(
         logger.info(`${logPrefix} Closed with code: ${code}, time: ${executionTimeMs}ms`);
 
         if (state.status === 'cancelled') {
-          resolve({ success: false, output: state.outputBuffer, errorMessage: 'Execution cancelled', executionTimeMs });
+          resolve({
+            success: false,
+            output: state.outputBuffer,
+            errorMessage: 'Execution cancelled',
+            executionTimeMs,
+          });
           return;
         }
         if (state.status === 'failed') return;
@@ -332,7 +340,19 @@ export function spawnCodexProcess(
           state.status = 'waiting_for_input';
           callbacks.onStatusChange('waiting_for_input');
           callbacks.emitOutput(`\n${logPrefix} 回答を待っています...\n`);
-          resolve({ success: true, output: state.outputBuffer, artifacts, commits, executionTimeMs, waitingForInput: true, question, questionType, questionDetails, questionKey, claudeSessionId: state.codexSessionId || undefined });
+          resolve({
+            success: true,
+            output: state.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: true,
+            question,
+            questionType,
+            questionDetails,
+            questionKey,
+            claudeSessionId: state.codexSessionId || undefined,
+          });
           return;
         }
 
@@ -343,12 +363,22 @@ export function spawnCodexProcess(
         let errorMessage: string | undefined;
         if (code !== 0) {
           const parts = [`プロセスがコード ${code} で終了しました`];
-          if (state.errorBuffer.trim()) parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
+          if (state.errorBuffer.trim())
+            parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
           if (state.outputBuffer.trim()) parts.push(`\n${state.outputBuffer.trim().slice(-1000)}`);
           errorMessage = parts.join('');
         }
 
-        resolve({ success: code === 0, output: state.outputBuffer, artifacts, commits, executionTimeMs, waitingForInput: false, claudeSessionId: state.codexSessionId || undefined, errorMessage });
+        resolve({
+          success: code === 0,
+          output: state.outputBuffer,
+          artifacts,
+          commits,
+          executionTimeMs,
+          waitingForInput: false,
+          claudeSessionId: state.codexSessionId || undefined,
+          errorMessage,
+        });
       });
 
       state.process.on('error', (error: Error) => {
@@ -359,14 +389,25 @@ export function spawnCodexProcess(
         logger.error({ err: error }, `${logPrefix} Process error`);
         callbacks.emitOutput(`${logPrefix} Error: ${error.message}\n`, true);
         const parts = [`プロセス起動エラー: ${error.message}`];
-        if (state.errorBuffer.trim()) parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
-        resolve({ success: false, output: state.outputBuffer, errorMessage: parts.join(''), executionTimeMs: Date.now() - startTime });
+        if (state.errorBuffer.trim())
+          parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
+        resolve({
+          success: false,
+          output: state.outputBuffer,
+          errorMessage: parts.join(''),
+          executionTimeMs: Date.now() - startTime,
+        });
       });
     } catch (error) {
       state.status = 'failed';
       callbacks.onStatusChange('failed');
       logger.error({ err: error }, `${logPrefix} Spawn error`);
-      resolve({ success: false, output: '', errorMessage: error instanceof Error ? error.message : String(error), executionTimeMs: Date.now() - startTime });
+      resolve({
+        success: false,
+        output: '',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        executionTimeMs: Date.now() - startTime,
+      });
     }
   });
 }

@@ -14,16 +14,16 @@ import type {
  * Agent event types.
  */
 export type AgentEventType =
-  | 'state_change' 
-  | 'output' 
-  | 'error' 
-  | 'tool_start' 
-  | 'tool_end' 
-  | 'question' 
-  | 'progress' 
-  | 'artifact' 
-  | 'commit' 
-  | 'metrics_update'; 
+  | 'state_change'
+  | 'output'
+  | 'error'
+  | 'tool_start'
+  | 'tool_end'
+  | 'question'
+  | 'progress'
+  | 'artifact'
+  | 'commit'
+  | 'metrics_update';
 
 /**
  * Base type for all agent events.

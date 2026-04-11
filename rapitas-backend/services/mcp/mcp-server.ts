@@ -40,7 +40,11 @@ export function getToolDefinitions(): MCPTool[] {
       inputSchema: {
         type: 'object',
         properties: {
-          status: { type: 'string', description: 'Filter by status', enum: ['todo', 'in-progress', 'done', 'waiting'] },
+          status: {
+            type: 'string',
+            description: 'Filter by status',
+            enum: ['todo', 'in-progress', 'done', 'waiting'],
+          },
           themeId: { type: 'string', description: 'Filter by theme ID' },
           limit: { type: 'string', description: 'Max results (default 20)' },
         },
@@ -66,7 +70,11 @@ export function getToolDefinitions(): MCPTool[] {
           title: { type: 'string', description: 'Task title' },
           description: { type: 'string', description: 'Task description' },
           themeId: { type: 'string', description: 'Theme ID to assign to' },
-          priority: { type: 'string', description: 'Priority level', enum: ['low', 'medium', 'high', 'urgent'] },
+          priority: {
+            type: 'string',
+            description: 'Priority level',
+            enum: ['low', 'medium', 'high', 'urgent'],
+          },
         },
         required: ['title'],
       },
@@ -78,7 +86,11 @@ export function getToolDefinitions(): MCPTool[] {
         type: 'object',
         properties: {
           taskId: { type: 'string', description: 'Task ID' },
-          status: { type: 'string', description: 'New status', enum: ['todo', 'in-progress', 'done', 'waiting'] },
+          status: {
+            type: 'string',
+            description: 'New status',
+            enum: ['todo', 'in-progress', 'done', 'waiting'],
+          },
         },
         required: ['taskId', 'status'],
       },
@@ -101,7 +113,11 @@ export function getToolDefinitions(): MCPTool[] {
         type: 'object',
         properties: {
           taskId: { type: 'string', description: 'Task ID' },
-          fileType: { type: 'string', description: 'File type', enum: ['research', 'plan', 'verify', 'question'] },
+          fileType: {
+            type: 'string',
+            description: 'File type',
+            enum: ['research', 'plan', 'verify', 'question'],
+          },
           content: { type: 'string', description: 'File content in markdown' },
         },
         required: ['taskId', 'fileType', 'content'],
@@ -179,7 +195,9 @@ async function handleListTasks(args: Record<string, string>): Promise<MCPToolRes
     select: { id: true, title: true, status: true, priority: true, themeId: true, updatedAt: true },
   });
 
-  const text = tasks.map((t) => `#${t.id} [${t.status}] ${t.title} (priority: ${t.priority})`).join('\n');
+  const text = tasks
+    .map((t) => `#${t.id} [${t.status}] ${t.title} (priority: ${t.priority})`)
+    .join('\n');
   return { content: [{ type: 'text', text: text || 'No tasks found.' }] };
 }
 
@@ -224,7 +242,9 @@ async function handleUpdateTaskStatus(args: Record<string, string>): Promise<MCP
     data: { status: args.status },
   });
 
-  return { content: [{ type: 'text', text: `Updated task #${task.id} status to: ${task.status}` }] };
+  return {
+    content: [{ type: 'text', text: `Updated task #${task.id} status to: ${task.status}` }],
+  };
 }
 
 async function handleGetWorkflowFiles(args: Record<string, string>): Promise<MCPToolResult> {
@@ -288,9 +308,9 @@ async function handleGetProgressSummary(args: Record<string, string>): Promise<M
     `In Progress: ${inProgress} | Todo: ${todo}`,
     '',
     completed.length > 0 ? '## Recently Completed' : '',
-    ...completed.slice(0, 10).map((t) =>
-      `- #${t.id} ${t.title} (${t.updatedAt.toLocaleDateString()})`,
-    ),
+    ...completed
+      .slice(0, 10)
+      .map((t) => `- #${t.id} ${t.title} (${t.updatedAt.toLocaleDateString()})`),
   ];
 
   return { content: [{ type: 'text', text: lines.filter(Boolean).join('\n') }] };

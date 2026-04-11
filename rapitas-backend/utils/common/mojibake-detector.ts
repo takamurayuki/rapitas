@@ -177,7 +177,7 @@ function fixUtf8Latin1(text: string): string {
     if (matches) {
       for (const sequence of matches) {
         // Skip if already processed by known patterns
-        if (knownPatterns.some(pattern => pattern.broken.test(sequence))) {
+        if (knownPatterns.some((pattern) => pattern.broken.test(sequence))) {
           continue;
         }
 
@@ -188,9 +188,11 @@ function fixUtf8Latin1(text: string): string {
 
           // Only replace if the result looks like valid text (contains no replacement chars)
           // and produces sensible characters (printable, Japanese, etc.)
-          if (!utf8String.includes('\uFFFD') &&
-              utf8String.length > 0 &&
-              /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u0020-\u007E]/.test(utf8String)) {
+          if (
+            !utf8String.includes('\uFFFD') &&
+            utf8String.length > 0 &&
+            /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u0020-\u007E]/.test(utf8String)
+          ) {
             fixed = fixed.replace(sequence, utf8String);
           }
         } catch {
@@ -226,7 +228,6 @@ function fixUtf8Latin1(text: string): string {
         return match.charAt(0); // Keep only the Japanese character, strip trailing bytes
       });
     }
-
   } catch {
     // If any error occurs during fixing, return original text
     return text;

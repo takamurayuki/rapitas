@@ -133,9 +133,12 @@ export function detectAffectedPages(
     const normalized = file.replace(/\\/g, '/');
 
     const isUIFile =
-      normalized.endsWith('.tsx') || normalized.endsWith('.jsx') ||
-      normalized.endsWith('.vue') || normalized.endsWith('.svelte') ||
-      normalized.endsWith('.css') || normalized.endsWith('.scss');
+      normalized.endsWith('.tsx') ||
+      normalized.endsWith('.jsx') ||
+      normalized.endsWith('.vue') ||
+      normalized.endsWith('.svelte') ||
+      normalized.endsWith('.css') ||
+      normalized.endsWith('.scss');
 
     if (!isUIFile) continue;
 
@@ -150,7 +153,10 @@ export function detectAffectedPages(
     }
 
     // Root page.tsx
-    if (/(?:[\w-]+\/)?src\/app\/page\.[tj]sx?$/.test(normalized)) { addPage('/', 'home'); continue; }
+    if (/(?:[\w-]+\/)?src\/app\/page\.[tj]sx?$/.test(normalized)) {
+      addPage('/', 'home');
+      continue;
+    }
 
     // layout.tsx
     const layoutMatch = normalized.match(/(?:[\w-]+\/)?src\/app\/(.+?)\/layout\.[tj]sx?/);
@@ -161,7 +167,10 @@ export function detectAffectedPages(
     }
 
     // Root layout.tsx
-    if (/(?:[\w-]+\/)?src\/app\/layout\.[tj]sx?$/.test(normalized)) { addPage('/', 'home'); continue; }
+    if (/(?:[\w-]+\/)?src\/app\/layout\.[tj]sx?$/.test(normalized)) {
+      addPage('/', 'home');
+      continue;
+    }
 
     // App Router (no src): app/xxx/page.tsx
     const appDirMatch = normalized.match(/app\/(.+?)\/(?:page\.[tj]sx?|[A-Z]\w*Client\.[tj]sx?)/);
@@ -198,8 +207,10 @@ export function detectAffectedPages(
       const featureName = featureMatch[1];
       const componentName = featureMatch[2];
       if (
-        componentName.endsWith('Panel') || componentName.endsWith('View') ||
-        componentName.endsWith('Page') || componentName.includes('Client')
+        componentName.endsWith('Panel') ||
+        componentName.endsWith('View') ||
+        componentName.endsWith('Page') ||
+        componentName.includes('Client')
       ) {
         if (!affectedFeatures.has(featureName)) {
           affectedFeatures.add(featureName);
@@ -211,7 +222,11 @@ export function detectAffectedPages(
     }
 
     // Global CSS → home
-    if (normalized.includes('globals.css') || normalized.includes('global.css') || normalized.includes('index.css')) {
+    if (
+      normalized.includes('globals.css') ||
+      normalized.includes('global.css') ||
+      normalized.includes('index.css')
+    ) {
       addPage('/', 'home');
     }
   }
@@ -266,4 +281,3 @@ export function detectAllPages(workingDirectory: string): Array<{ path: string; 
 
   return pages;
 }
-

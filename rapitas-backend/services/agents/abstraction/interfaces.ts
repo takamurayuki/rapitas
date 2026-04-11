@@ -416,16 +416,16 @@ export interface IAgentLogger {
  * Agent error type classification.
  */
 export type AgentErrorType =
-  | 'configuration' 
-  | 'authentication' 
-  | 'rate_limit' 
-  | 'timeout' 
-  | 'network' 
-  | 'execution' 
-  | 'validation' 
-  | 'resource' 
-  | 'permission' 
-  | 'internal'; 
+  | 'configuration'
+  | 'authentication'
+  | 'rate_limit'
+  | 'timeout'
+  | 'network'
+  | 'execution'
+  | 'validation'
+  | 'resource'
+  | 'permission'
+  | 'internal';
 
 /**
  * Agent error class.

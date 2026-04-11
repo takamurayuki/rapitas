@@ -9,25 +9,25 @@ import type { TaskAnalysisResult, TaskConstraints } from './task-definition';
  */
 export interface AgentExecutionContext {
   // Execution identification
-  executionId: string; 
-  sessionId?: string; 
-  parentExecutionId?: string; 
+  executionId: string;
+  sessionId?: string;
+  parentExecutionId?: string;
 
   // Working environment
-  workingDirectory: string; 
-  repositoryUrl?: string; 
-  branch?: string; 
+  workingDirectory: string;
+  repositoryUrl?: string;
+  branch?: string;
 
   // Execution options
-  timeout?: number; 
-  maxRetries?: number; 
+  timeout?: number;
+  maxRetries?: number;
   priority?: 'low' | 'normal' | 'high' | 'urgent';
 
   // Flags
-  dryRun?: boolean; 
-  verbose?: boolean; 
-  autoApprove?: boolean; 
-  dangerouslySkipPermissions?: boolean; 
+  dryRun?: boolean;
+  verbose?: boolean;
+  autoApprove?: boolean;
+  dangerouslySkipPermissions?: boolean;
 
   // Metadata
   metadata?: Record<string, unknown>;
@@ -43,8 +43,8 @@ export interface AgentTaskDefinition {
   description?: string;
 
   // Prompts
-  prompt?: string; 
-  optimizedPrompt?: string; 
+  prompt?: string;
+  optimizedPrompt?: string;
 
   // Task analysis
   analysis?: TaskAnalysisResult;

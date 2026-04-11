@@ -270,12 +270,14 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           .replace(/-+/g, '-')
           .replace(/^-+|-+$/g, '');
 
-        const sanitizedAppName = asciiName || appName
-          .trim()
-          .replace(/[\s　]+/g, '-')
-          .replace(/[\\/:*?"<>|]/g, '')
-          .replace(/-+/g, '-')
-          .replace(/^-+|-+$/g, '');
+        const sanitizedAppName =
+          asciiName ||
+          appName
+            .trim()
+            .replace(/[\s　]+/g, '-')
+            .replace(/[\\/:*?"<>|]/g, '')
+            .replace(/-+/g, '-')
+            .replace(/^-+|-+$/g, '');
 
         if (!sanitizedAppName) {
           throw new ValidationError('アプリ名から有効なフォルダ名を生成できませんでした');
@@ -379,12 +381,14 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           .replace(/\s+/g, '-')
           .replace(/-+/g, '-')
           .replace(/^-+|-+$/g, '');
-        const folderName = asciiClean || appName
-          .trim()
-          .replace(/[\s　]+/g, '-')
-          .replace(/[\\/:*?"<>|]/g, '')
-          .replace(/-+/g, '-')
-          .replace(/^-+|-+$/g, '');
+        const folderName =
+          asciiClean ||
+          appName
+            .trim()
+            .replace(/[\s　]+/g, '-')
+            .replace(/[\\/:*?"<>|]/g, '')
+            .replace(/-+/g, '-')
+            .replace(/^-+|-+$/g, '');
         const cleanupBase = basePath || path.join(require('os').homedir(), 'Projects');
         const projectPath = path.join(cleanupBase, folderName);
 

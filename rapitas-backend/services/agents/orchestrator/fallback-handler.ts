@@ -130,8 +130,16 @@ export async function handleResumeFailureFallbacks(
   // Retry with --resume
   const retryAgent = agentFactory.createAgent(agentConfig);
   attachFallbackHandlers(
-    retryAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, execution.claudeSessionId,
+    retryAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    execution.claudeSessionId,
   );
   agentInfo.agent = retryAgent;
 
@@ -162,8 +170,16 @@ export async function handleResumeFailureFallbacks(
     continueConversation: true,
   });
   attachFallbackHandlers(
-    fallbackAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, execution.claudeSessionId,
+    fallbackAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    execution.claudeSessionId,
   );
   agentInfo.agent = fallbackAgent;
 
@@ -194,8 +210,16 @@ export async function handleResumeFailureFallbacks(
     continueConversation: false,
   });
   attachFallbackHandlers(
-    newAgent, ctx, execution.id, execution.sessionId, taskId,
-    state, agentInfo, fileLogger, logManager, null,
+    newAgent,
+    ctx,
+    execution.id,
+    execution.sessionId,
+    taskId,
+    state,
+    agentInfo,
+    fileLogger,
+    logManager,
+    null,
   );
   agentInfo.agent = newAgent;
 

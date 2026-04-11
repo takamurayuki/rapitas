@@ -49,7 +49,10 @@ export async function performAutoCommitAndPR(
   try {
     const execConfig = await prisma.agentExecutionConfig.findUnique({ where: { taskId } });
 
-    if (!execConfig || (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)) {
+    if (
+      !execConfig ||
+      (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)
+    ) {
       return result;
     }
 
@@ -71,13 +74,22 @@ export async function performAutoCommitAndPR(
     const workingDirectory = execConfig.workingDirectory || task.theme?.workingDirectory;
     if (!workingDirectory) {
       log.warn(`[workflow] Task ${taskId} rejected: workingDirectory not configured.`);
-      return { ...result, error: 'Task theme must have workingDirectory configured. Please set the working directory in theme settings.' };
+      return {
+        ...result,
+        error:
+          'Task theme must have workingDirectory configured. Please set the working directory in theme settings.',
+      };
     }
 
     // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
     const projectRoot = getProjectRoot();
-    if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
-      log.warn(`[workflow] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding.`);
+    if (
+      workingDirectory === projectRoot ||
+      workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+    ) {
+      log.warn(
+        `[workflow] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding.`,
+      );
     }
 
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
@@ -95,7 +107,10 @@ export async function performAutoCommitAndPR(
         if (branchName) {
           await orchestrator.createBranch(workingDirectory, branchName);
         }
-        const commitResult = await orchestrator.createCommit(workingDirectory, `feat(task-${taskId}): ${task.title}`);
+        const commitResult = await orchestrator.createCommit(
+          workingDirectory,
+          `feat(task-${taskId}): ${task.title}`,
+        );
         result.autoCommitResult = {
           success: true,
           hash: commitResult.hash,
@@ -103,7 +118,14 @@ export async function performAutoCommitAndPR(
           filesChanged: commitResult.filesChanged,
         };
         log.info(`[Workflow] Auto-commit successful for task ${taskId}: ${commitResult.hash}`);
-        await logAutoCommit(taskId, commitResult.hash, commitResult.branch, commitResult.filesChanged, commitResult.additions, commitResult.deletions);
+        await logAutoCommit(
+          taskId,
+          commitResult.hash,
+          commitResult.branch,
+          commitResult.filesChanged,
+          commitResult.additions,
+          commitResult.deletions,
+        );
       } catch (commitError) {
         log.error({ err: commitError }, `[Workflow] Auto-commit failed for task ${taskId}`);
         result.autoCommitResult = {
@@ -118,14 +140,22 @@ export async function performAutoCommitAndPR(
       try {
         const prTitle = `[Task-${taskId}] ${task.title}`;
         const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
-        const prResult = await orchestrator.createPullRequest(workingDirectory, prTitle, prBody, targetBranch);
+        const prResult = await orchestrator.createPullRequest(
+          workingDirectory,
+          prTitle,
+          prBody,
+          targetBranch,
+        );
         result.autoPRResult = prResult;
 
         if (prResult.success) {
           log.info(`[Workflow] Auto-PR created for task ${taskId}: ${prResult.prUrl}`);
           await logAutoPR(taskId, task.title, prResult.prUrl, prResult.prNumber);
         } else {
-          log.error({ error: prResult.error }, `[Workflow] Auto-PR creation failed for task ${taskId}`);
+          log.error(
+            { error: prResult.error },
+            `[Workflow] Auto-PR creation failed for task ${taskId}`,
+          );
         }
       } catch (prError) {
         log.error({ err: prError }, `[Workflow] Auto-PR failed for task ${taskId}`);
@@ -148,11 +178,28 @@ export async function performAutoCommitAndPR(
         result.autoMergeResult = mergeResult;
 
         if (mergeResult.success) {
-          log.info(`[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`);
-          await logAutoMerge(taskId, task.title, result.autoPRResult.prNumber, result.autoPRResult.prUrl, mergeResult.mergeStrategy);
+          log.info(
+            `[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`,
+          );
+          await logAutoMerge(
+            taskId,
+            task.title,
+            result.autoPRResult.prNumber,
+            result.autoPRResult.prUrl,
+            mergeResult.mergeStrategy,
+          );
         } else {
-          log.error({ error: mergeResult.error }, `[Workflow] Auto-merge failed for task ${taskId}`);
-          await logAutoMergeFailure(taskId, task.title, result.autoPRResult.prNumber, result.autoPRResult.prUrl, mergeResult.error);
+          log.error(
+            { error: mergeResult.error },
+            `[Workflow] Auto-merge failed for task ${taskId}`,
+          );
+          await logAutoMergeFailure(
+            taskId,
+            task.title,
+            result.autoPRResult.prNumber,
+            result.autoPRResult.prUrl,
+            mergeResult.error,
+          );
         }
       } catch (mergeError) {
         log.error({ err: mergeError }, `[Workflow] Auto-merge failed for task ${taskId}`);
@@ -168,12 +215,18 @@ export async function performAutoCommitAndPR(
     if (worktreePath) {
       try {
         await orchestrator.removeWorktree(getProjectRoot(), worktreePath);
-        await prisma.agentSession.update({ where: { id: latestSession.id }, data: { worktreePath: null } });
+        await prisma.agentSession.update({
+          where: { id: latestSession.id },
+          data: { worktreePath: null },
+        });
         result.worktreeCleanupResult = { success: true, worktreePath };
         log.info(`[Workflow] Worktree cleaned up for task ${taskId}: ${worktreePath}`);
       } catch (cleanupError) {
         // NOTE: Cleanup failure should not fail the overall workflow
-        log.error({ err: cleanupError }, `[Workflow] Worktree cleanup failed for task ${taskId}: ${worktreePath}`);
+        log.error(
+          { err: cleanupError },
+          `[Workflow] Worktree cleanup failed for task ${taskId}: ${worktreePath}`,
+        );
         result.worktreeCleanupResult = {
           success: false,
           worktreePath,

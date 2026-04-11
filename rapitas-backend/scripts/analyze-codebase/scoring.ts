@@ -180,12 +180,14 @@ export function computeScoring(
   const suggestions: string[] = [];
 
   if (qualityScore >= 70) strengths.push(`High quality score (${qualityScore}/100)`);
-  if (maintainabilityScore >= 70) strengths.push(`Good maintainability (${maintainabilityScore}/100)`);
+  if (maintainabilityScore >= 70)
+    strengths.push(`Good maintainability (${maintainabilityScore}/100)`);
   if (maintainability.duplicationRatio < 0.03)
     strengths.push(
       `Low code duplication (duplication ratio: ${(maintainability.duplicationRatio * 100).toFixed(1)}%)`,
     );
-  if (quality.anyUsage < 20) strengths.push(`High type safety (any usage: ${quality.anyUsage} locations)`);
+  if (quality.anyUsage < 20)
+    strengths.push(`High type safety (any usage: ${quality.anyUsage} locations)`);
   if (quality.consoleLogCount < 10) strengths.push(`Log output is properly managed`);
   if (security.summary.high === 0) strengths.push(`No critical security risks detected`);
   if (archHealth.layerViolations.length === 0) strengths.push(`Proper inter-layer dependencies`);
@@ -212,8 +214,11 @@ export function computeScoring(
       `Too many oversized files (files under 500 lines: ${maintainability.fileSizeScore}%)`,
     );
   if (maintainability.avgCyclomaticComplexity > 40)
-    weaknesses.push(`High cyclomatic complexity (average: ${maintainability.avgCyclomaticComplexity})`);
-  if (quality.anyUsage > 50) weaknesses.push(`High usage of any type (${quality.anyUsage} locations)`);
+    weaknesses.push(
+      `High cyclomatic complexity (average: ${maintainability.avgCyclomaticComplexity})`,
+    );
+  if (quality.anyUsage > 50)
+    weaknesses.push(`High usage of any type (${quality.anyUsage} locations)`);
   if (quality.emptyTryCatchCount > 0)
     weaknesses.push(
       `Empty catch blocks (${quality.emptyTryCatchCount} locations) - errors are being ignored`,
@@ -260,9 +265,7 @@ export function computeScoring(
     suggestions.push(`[P0] Security fixes - fix ${security.summary.high} high-risk detections`);
   }
   if (quality.emptyTryCatchCount > 0) {
-    suggestions.push(
-      `[P1] Add error handling to ${quality.emptyTryCatchCount} empty catch blocks`,
-    );
+    suggestions.push(`[P1] Add error handling to ${quality.emptyTryCatchCount} empty catch blocks`);
   }
   if (archHealth.layerViolations.length > 0) {
     suggestions.push(

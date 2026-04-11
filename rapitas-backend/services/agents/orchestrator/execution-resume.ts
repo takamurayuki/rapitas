@@ -11,7 +11,12 @@ import type { AgentConfigInput } from '../agent-factory';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import { ExecutionFileLogger } from '../execution-file-logger';
 import { createLogger, getProjectRoot } from '../../../config';
-import type { ExecutionState, ExecutionOptions, ActiveAgentInfo, OrchestratorContext } from './types';
+import type {
+  ExecutionState,
+  ExecutionOptions,
+  ActiveAgentInfo,
+  OrchestratorContext,
+} from './types';
 import {
   createLogChunkManager,
   setupQuestionDetectedHandler,
@@ -124,7 +129,12 @@ export async function resumeInterruptedExecution(
   };
 
   if (execution.agentConfigId) {
-    agentConfig = await resolveAgentConfig(ctx, execution.agentConfigId, agentConfig, claudeSessionId);
+    agentConfig = await resolveAgentConfig(
+      ctx,
+      execution.agentConfigId,
+      agentConfig,
+      claudeSessionId,
+    );
   }
 
   const agent = agentFactory.createAgent(agentConfig);

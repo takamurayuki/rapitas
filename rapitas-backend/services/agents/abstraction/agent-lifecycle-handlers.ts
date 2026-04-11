@@ -57,7 +57,10 @@ export async function runExecute(
   cb: ExecutionCallbacks,
   hooks: AgentLifecycleHooks,
   events: AgentEventEmitter,
-  doExecute: (task: AgentTaskDefinition, ctx: AgentExecutionContext) => Promise<AgentExecutionResult>,
+  doExecute: (
+    task: AgentTaskDefinition,
+    ctx: AgentExecutionContext,
+  ) => Promise<AgentExecutionResult>,
   transitionFn: (state: string, reason?: string) => Promise<void>,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown) => void,
 ): Promise<AgentExecutionResult> {
@@ -80,8 +83,14 @@ export async function runExecute(
 
     // NOTE(agent): Retry loop wraps doExecute() to handle transient errors with exponential backoff.
     const result = await executeWithRetry(
-      doExecute, task, context, hooks, transitionFn,
-      cb.getIsDisposed, cb.getState, logFn,
+      doExecute,
+      task,
+      context,
+      hooks,
+      transitionFn,
+      cb.getIsDisposed,
+      cb.getState,
+      logFn,
     );
 
     const metrics = cb.getMetrics()!;
@@ -130,14 +139,18 @@ export async function runContinue(
   cb: ExecutionCallbacks,
   hooks: AgentLifecycleHooks,
   events: AgentEventEmitter,
-  doContinue: (cont: ContinuationContext, ctx: AgentExecutionContext) => Promise<AgentExecutionResult>,
+  doContinue: (
+    cont: ContinuationContext,
+    ctx: AgentExecutionContext,
+  ) => Promise<AgentExecutionResult>,
   transitionFn: (state: string, reason?: string) => Promise<void>,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown) => void,
 ): Promise<AgentExecutionResult> {
   if (cb.getState() !== 'waiting_for_input') {
     throw new AgentError(
       `Cannot continue execution: agent is in state '${cb.getState()}', expected 'waiting_for_input'`,
-      'execution', false,
+      'execution',
+      false,
     );
   }
 
@@ -149,8 +162,14 @@ export async function runContinue(
 
     // NOTE(agent): Retry loop for continuation, same pattern as executeWithRetry.
     const result = await continueWithRetry(
-      doContinue, continuation, context, hooks, transitionFn,
-      cb.getIsDisposed, cb.getState, logFn,
+      doContinue,
+      continuation,
+      context,
+      hooks,
+      transitionFn,
+      cb.getIsDisposed,
+      cb.getState,
+      logFn,
     );
 
     if (result.pendingQuestion) {
@@ -178,7 +197,8 @@ export async function runContinue(
 
 function wrapError(error: unknown): AgentError {
   if (error instanceof AgentError) return error;
-  if (error instanceof Error) return new AgentError(error.message, 'execution', false, undefined, error);
+  if (error instanceof Error)
+    return new AgentError(error.message, 'execution', false, undefined, error);
   return new AgentError(String(error), 'internal', false);
 }
 
@@ -192,14 +212,22 @@ function enrichResult(result: AgentExecutionResult, cb: ExecutionCallbacks): Age
 
 function buildCancelledResult(reason: string, cb: ExecutionCallbacks): AgentExecutionResult {
   return {
-    success: false, state: 'cancelled', output: '', errorMessage: reason,
-    metrics: cb.getMetrics() || undefined, debugInfo: { logs: [...cb.getDebugLogs()] },
+    success: false,
+    state: 'cancelled',
+    output: '',
+    errorMessage: reason,
+    metrics: cb.getMetrics() || undefined,
+    debugInfo: { logs: [...cb.getDebugLogs()] },
   };
 }
 
 function buildErrorResult(error: AgentError, cb: ExecutionCallbacks): AgentExecutionResult {
   return {
-    success: false, state: 'failed', output: '', errorMessage: error.message,
-    metrics: cb.getMetrics() || undefined, debugInfo: { logs: [...cb.getDebugLogs()] },
+    success: false,
+    state: 'failed',
+    output: '',
+    errorMessage: error.message,
+    metrics: cb.getMetrics() || undefined,
+    debugInfo: { logs: [...cb.getDebugLogs()] },
   };
 }

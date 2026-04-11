@@ -160,9 +160,10 @@ export class MergeValidator {
         description: `${hit.match} modified by ${hit.taskIds.size} tasks`,
         files: [...hit.files],
         taskIds: [...hit.taskIds],
-        severity: hit.type === 'api_route_conflict' || hit.type === 'type_conflict'
-          ? 'critical'
-          : 'warning',
+        severity:
+          hit.type === 'api_route_conflict' || hit.type === 'type_conflict'
+            ? 'critical'
+            : 'warning',
       });
     }
 
@@ -264,18 +265,16 @@ export class MergeValidator {
     branch: TaskBranch,
   ): Promise<{ success: boolean; conflicts: MergeConflictInfo[] }> {
     try {
-      await execFileAsync(
-        'git',
-        ['merge', '--no-commit', '--no-ff', branch.branchName],
-        { cwd: worktreePath, timeout: 30000 },
-      );
+      await execFileAsync('git', ['merge', '--no-commit', '--no-ff', branch.branchName], {
+        cwd: worktreePath,
+        timeout: 30000,
+      });
 
       // NOTE: Commit the merge so subsequent branches merge cleanly on top
-      await execFileAsync(
-        'git',
-        ['commit', '-m', `Trial merge: ${branch.branchName}`],
-        { cwd: worktreePath, timeout: 10000 },
-      );
+      await execFileAsync('git', ['commit', '-m', `Trial merge: ${branch.branchName}`], {
+        cwd: worktreePath,
+        timeout: 10000,
+      });
 
       return { success: true, conflicts: [] };
     } catch (error) {
@@ -313,11 +312,10 @@ export class MergeValidator {
     branchName: string,
   ): Promise<MergeConflictInfo[]> {
     try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['diff', '--name-only', '--diff-filter=U'],
-        { cwd: worktreePath, timeout: 10000 },
-      );
+      const { stdout } = await execFileAsync('git', ['diff', '--name-only', '--diff-filter=U'], {
+        cwd: worktreePath,
+        timeout: 10000,
+      });
 
       return stdout
         .trim()
@@ -346,11 +344,10 @@ export class MergeValidator {
     branchName: string,
     baseBranch: string,
   ): Promise<string> {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', `${baseBranch}...${branchName}`],
-      { cwd: baseDir, timeout: 30000 },
-    );
+    const { stdout } = await execFileAsync('git', ['diff', `${baseBranch}...${branchName}`], {
+      cwd: baseDir,
+      timeout: 30000,
+    });
     return stdout;
   }
 
@@ -446,10 +443,7 @@ export class MergeValidator {
       logger.info(`[MergeValidator] Removed trial worktree at ${worktreePath}`);
     } catch (error) {
       // NOTE: Worktree may already have been cleaned up — not fatal
-      logger.debug(
-        { err: error },
-        `[MergeValidator] Failed to remove worktree at ${worktreePath}`,
-      );
+      logger.debug({ err: error }, `[MergeValidator] Failed to remove worktree at ${worktreePath}`);
     }
 
     this.trialWorktrees = this.trialWorktrees.filter((wt) => wt !== worktreePath);

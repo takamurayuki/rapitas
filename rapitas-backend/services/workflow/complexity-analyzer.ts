@@ -6,7 +6,11 @@
  * from the sub-modules directly for tree-shaking benefits.
  */
 
-export type { TaskComplexityInput, ComplexityAnalysisResult, LearningInsight } from './complexity-analyzer/types';
+export type {
+  TaskComplexityInput,
+  ComplexityAnalysisResult,
+  LearningInsight,
+} from './complexity-analyzer/types';
 export {
   LIGHTWEIGHT_KEYWORDS,
   HEAVYWEIGHT_KEYWORDS,

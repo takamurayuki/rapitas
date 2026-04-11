@@ -72,7 +72,24 @@ export class GeminiCliAgentV2 extends AbstractAgent {
 
   // NOTE: All capability flags are true except parallelExecution — Gemini CLI is single-threaded.
   get capabilities(): AgentCapabilities {
-    return { codeGeneration: true, codeReview: true, codeExecution: true, fileRead: true, fileWrite: true, fileEdit: true, terminalAccess: true, gitOperations: true, webSearch: true, webFetch: true, taskAnalysis: true, taskPlanning: true, parallelExecution: false, questionAsking: true, conversationMemory: true, sessionContinuation: true };
+    return {
+      codeGeneration: true,
+      codeReview: true,
+      codeExecution: true,
+      fileRead: true,
+      fileWrite: true,
+      fileEdit: true,
+      terminalAccess: true,
+      gitOperations: true,
+      webSearch: true,
+      webFetch: true,
+      taskAnalysis: true,
+      taskPlanning: true,
+      parallelExecution: false,
+      questionAsking: true,
+      conversationMemory: true,
+      sessionContinuation: true,
+    };
   }
 
   /**

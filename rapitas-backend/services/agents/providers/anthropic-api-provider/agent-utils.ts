@@ -88,12 +88,7 @@ export function mapApiError(error: InstanceType<typeof APIError>): AgentError {
 
   if (status === 429) {
     const retryAfter = parseInt(error.headers?.get('retry-after') || '60', 10);
-    return new AgentError(
-      `Rate limit exceeded: ${message}`,
-      'rate_limit',
-      true,
-      retryAfter * 1000,
-    );
+    return new AgentError(`Rate limit exceeded: ${message}`, 'rate_limit', true, retryAfter * 1000);
   }
 
   if (status === 500 || status === 502 || status === 503) {

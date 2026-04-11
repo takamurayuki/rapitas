@@ -8,11 +8,7 @@
 import { LogParser, LogType, LogLevel, ParsedLogEntry } from '../debug-log-analyzer';
 import { NginxLogParser } from './http-log-parsers';
 import { ApacheCombinedLogParser } from './http-log-parsers';
-import {
-  WindowsEventLogParser,
-  DockerLogParser,
-  PostgreSQLLogParser,
-} from './system-log-parsers';
+import { WindowsEventLogParser, DockerLogParser, PostgreSQLLogParser } from './system-log-parsers';
 
 /** Field mapping configuration for the user-definable custom regex parser. */
 export interface CustomFieldMapping {
@@ -87,17 +83,24 @@ export class CustomFormatParser implements LogParser {
   private parseLevel(value: string): LogLevel {
     const normalized = value.toLowerCase();
     switch (normalized) {
-      case 'trace': return LogLevel.TRACE;
-      case 'debug': return LogLevel.DEBUG;
+      case 'trace':
+        return LogLevel.TRACE;
+      case 'debug':
+        return LogLevel.DEBUG;
       case 'info':
-      case 'information': return LogLevel.INFO;
+      case 'information':
+        return LogLevel.INFO;
       case 'warn':
-      case 'warning': return LogLevel.WARN;
+      case 'warning':
+        return LogLevel.WARN;
       case 'error':
-      case 'err': return LogLevel.ERROR;
+      case 'err':
+        return LogLevel.ERROR;
       case 'fatal':
-      case 'critical': return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'critical':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }
@@ -136,12 +139,18 @@ export class PythonLogParser implements LogParser {
 
   private mapPythonLevel(level: string): LogLevel {
     switch (level.toUpperCase()) {
-      case 'DEBUG': return LogLevel.DEBUG;
-      case 'INFO': return LogLevel.INFO;
-      case 'WARNING': return LogLevel.WARN;
-      case 'ERROR': return LogLevel.ERROR;
-      case 'CRITICAL': return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'DEBUG':
+        return LogLevel.DEBUG;
+      case 'INFO':
+        return LogLevel.INFO;
+      case 'WARNING':
+        return LogLevel.WARN;
+      case 'ERROR':
+        return LogLevel.ERROR;
+      case 'CRITICAL':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 }

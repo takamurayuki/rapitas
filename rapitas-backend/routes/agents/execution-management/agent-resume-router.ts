@@ -169,7 +169,12 @@ export const agentResumeRouter = new Elysia()
         });
 
         executor
-          .startSession(task.id, analysisResult.plan, analysisResult.treeMap.nodes, workingDirectory)
+          .startSession(
+            task.id,
+            analysisResult.plan,
+            analysisResult.treeMap.nodes,
+            workingDirectory,
+          )
           .then(async (session) => {
             log.info(`[resume] Parallel execution session started: ${session.sessionId}`);
           })

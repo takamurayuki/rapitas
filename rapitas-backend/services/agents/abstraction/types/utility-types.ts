@@ -16,9 +16,9 @@ export interface ContinuationContext {
  * Batch execution options.
  */
 export interface BatchExecutionOptions {
-  maxConcurrency: number; 
-  continueOnError: boolean; 
-  timeout?: number; 
+  maxConcurrency: number;
+  continueOnError: boolean;
+  timeout?: number;
   ordering?: 'sequential' | 'parallel' | 'dependency-based';
 }
 
@@ -28,7 +28,7 @@ export interface BatchExecutionOptions {
 export interface AgentHealthStatus {
   healthy: boolean;
   available: boolean;
-  latency?: number; 
+  latency?: number;
   errors?: string[];
   lastCheck: Date;
   details?: Record<string, unknown>;

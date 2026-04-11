@@ -230,9 +230,7 @@ export async function callClaudeForReview(
   // Concatenate all text blocks (Claude can return multiple). The SDK's
   // ContentBlock is a discriminated union, so a custom type predicate
   // doesn't satisfy structural assignability — narrow inline instead.
-  const text = response.content
-    .map((block) => (block.type === 'text' ? block.text : ''))
-    .join('');
+  const text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
 
   if (!text.trim()) {
     throw new Error('Claude returned an empty response');
@@ -253,11 +251,13 @@ export async function generateWeeklyReview(
 ) {
   // Default: review LAST week (current Monday minus 7 days), since this is
   // typically run on Monday morning to summarize the just-finished week.
-  const targetWeekStart = weekStart ?? (() => {
-    const lastWeek = getWeekStart();
-    lastWeek.setDate(lastWeek.getDate() - 7);
-    return lastWeek;
-  })();
+  const targetWeekStart =
+    weekStart ??
+    (() => {
+      const lastWeek = getWeekStart();
+      lastWeek.setDate(lastWeek.getDate() - 7);
+      return lastWeek;
+    })();
 
   const existing = await prisma.weeklyReview.findUnique({
     where: { weekStart: targetWeekStart },
@@ -310,10 +310,7 @@ export async function getLatestWeeklyReview(prisma: PrismaInstance = defaultPris
 }
 
 /** Return the N most recent weekly reviews (default 10). */
-export async function getWeeklyReviews(
-  prisma: PrismaInstance = defaultPrisma,
-  limit: number = 10,
-) {
+export async function getWeeklyReviews(prisma: PrismaInstance = defaultPrisma, limit: number = 10) {
   return prisma.weeklyReview.findMany({
     orderBy: { weekStart: 'desc' },
     take: Math.min(Math.max(1, limit), 52),

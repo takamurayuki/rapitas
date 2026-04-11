@@ -124,9 +124,17 @@ Description: ${description}`;
   // Generate and store embedding for RAG retrieval
   try {
     const embeddingResult = await generateEmbedding(content);
-    upsertEmbedding(entry.id, embeddingResult.embedding, content.slice(0, 200), embeddingResult.model);
+    upsertEmbedding(
+      entry.id,
+      embeddingResult.embedding,
+      content.slice(0, 200),
+      embeddingResult.model,
+    );
   } catch (embError) {
-    log.warn({ err: embError, entryId: entry.id }, 'Failed to generate embedding for teaching material');
+    log.warn(
+      { err: embError, entryId: entry.id },
+      'Failed to generate embedding for teaching material',
+    );
   }
 
   log.info({ taskType, entryId: entry.id }, 'Teaching material generated and stored');
@@ -207,10 +215,7 @@ Evaluate this output.`,
       await storeCorrection(taskType, input, studentOutput, parsed.correctedOutput, parsed.score);
     }
 
-    log.info(
-      { taskType, score: parsed.score, passed },
-      'Student output evaluated',
-    );
+    log.info({ taskType, score: parsed.score, passed }, 'Student output evaluated');
 
     return {
       score: parsed.score,
@@ -286,7 +291,12 @@ This correction shows the expected quality for ${taskType} tasks.`;
   // Embed for RAG retrieval
   try {
     const embeddingResult = await generateEmbedding(content);
-    upsertEmbedding(entry.id, embeddingResult.embedding, content.slice(0, 200), embeddingResult.model);
+    upsertEmbedding(
+      entry.id,
+      embeddingResult.embedding,
+      content.slice(0, 200),
+      embeddingResult.model,
+    );
   } catch (embError) {
     log.warn({ err: embError }, 'Failed to embed correction');
   }
@@ -316,7 +326,11 @@ export async function executeWithTeacherStudent(
   userMessage: string,
   expectedFormat: string,
   options?: { ragThemeId?: number; skipEvaluation?: boolean },
-): Promise<{ output: string; source: 'student' | 'teacher-corrected' | 'escalated'; score: number }> {
+): Promise<{
+  output: string;
+  source: 'student' | 'teacher-corrected' | 'escalated';
+  score: number;
+}> {
   // Step 1: Student executes with RAG (teaching materials auto-injected via RAG search)
   const studentResponse = await sendAIMessage({
     provider: 'ollama',
@@ -332,7 +346,12 @@ export async function executeWithTeacherStudent(
   }
 
   // Step 2: Teacher evaluates
-  const evaluation = await evaluateStudentOutput(taskType, userMessage, studentResponse.content, expectedFormat);
+  const evaluation = await evaluateStudentOutput(
+    taskType,
+    userMessage,
+    studentResponse.content,
+    expectedFormat,
+  );
 
   // Step 3: Return based on evaluation
   if (evaluation.passed) {
@@ -340,7 +359,11 @@ export async function executeWithTeacherStudent(
   }
 
   if (evaluation.correctedOutput) {
-    return { output: evaluation.correctedOutput, source: 'teacher-corrected', score: evaluation.score };
+    return {
+      output: evaluation.correctedOutput,
+      source: 'teacher-corrected',
+      score: evaluation.score,
+    };
   }
 
   // Step 4: Escalate to paid API

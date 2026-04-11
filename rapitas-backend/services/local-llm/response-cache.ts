@@ -128,7 +128,9 @@ export function generateCacheKey(
 export function getCachedResponse(hash: string): { content: string; tokensUsed: number } | null {
   try {
     const database = getDb();
-    const row = database.prepare('SELECT * FROM llm_cache WHERE hash = ?').get(hash) as CacheEntry | undefined;
+    const row = database.prepare('SELECT * FROM llm_cache WHERE hash = ?').get(hash) as
+      | CacheEntry
+      | undefined;
 
     if (!row) {
       missCount++;
@@ -144,9 +146,11 @@ export function getCachedResponse(hash: string): { content: string; tokensUsed: 
     }
 
     // Update access metadata
-    database.prepare(
-      "UPDATE llm_cache SET last_accessed_at = datetime('now'), hit_count = hit_count + 1 WHERE hash = ?",
-    ).run(hash);
+    database
+      .prepare(
+        "UPDATE llm_cache SET last_accessed_at = datetime('now'), hit_count = hit_count + 1 WHERE hash = ?",
+      )
+      .run(hash);
 
     hitCount++;
     log.debug({ hash: hash.slice(0, 12) }, 'Cache hit');
@@ -182,18 +186,26 @@ export function setCachedResponse(
   try {
     const database = getDb();
 
-    database.prepare(`
+    database
+      .prepare(
+        `
       INSERT OR REPLACE INTO llm_cache (hash, response_content, tokens_used, provider, model, ttl_ms)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(hash, content, tokensUsed, provider, model, ttlMs);
+    `,
+      )
+      .run(hash, content, tokensUsed, provider, model, ttlMs);
 
     // LRU eviction: delete oldest entries when cache is full.
-    const count = (database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }).cnt;
+    const count = (
+      database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }
+    ).cnt;
     if (count > MAX_CACHE_ENTRIES) {
       const deleteCount = count - MAX_CACHE_ENTRIES + 100; // Delete extra 100 to avoid frequent evictions
-      database.prepare(
-        'DELETE FROM llm_cache WHERE hash IN (SELECT hash FROM llm_cache ORDER BY last_accessed_at ASC LIMIT ?)',
-      ).run(deleteCount);
+      database
+        .prepare(
+          'DELETE FROM llm_cache WHERE hash IN (SELECT hash FROM llm_cache ORDER BY last_accessed_at ASC LIMIT ?)',
+        )
+        .run(deleteCount);
       log.info({ evicted: deleteCount }, 'Cache LRU eviction performed');
     }
   } catch (error) {
@@ -210,8 +222,12 @@ export function setCachedResponse(
 export function getCacheStats(): CacheStats {
   try {
     const database = getDb();
-    const countRow = database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number };
-    const oldestRow = database.prepare('SELECT MIN(created_at) as oldest FROM llm_cache').get() as { oldest: string | null };
+    const countRow = database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as {
+      cnt: number;
+    };
+    const oldestRow = database.prepare('SELECT MIN(created_at) as oldest FROM llm_cache').get() as {
+      oldest: string | null;
+    };
     const totalRequests = hitCount + missCount;
 
     return {
@@ -223,7 +239,14 @@ export function getCacheStats(): CacheStats {
       cacheSize: countRow.cnt,
     };
   } catch {
-    return { totalEntries: 0, totalHits: hitCount, totalMisses: missCount, hitRate: 0, oldestEntry: null, cacheSize: 0 };
+    return {
+      totalEntries: 0,
+      totalHits: hitCount,
+      totalMisses: missCount,
+      hitRate: 0,
+      oldestEntry: null,
+      cacheSize: 0,
+    };
   }
 }
 
@@ -235,12 +258,20 @@ export function getCacheStats(): CacheStats {
 export function purgeExpiredEntries(): number {
   try {
     const database = getDb();
-    const beforeCount = (database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }).cnt;
-    database.prepare(`
+    const beforeCount = (
+      database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }
+    ).cnt;
+    database
+      .prepare(
+        `
       DELETE FROM llm_cache
       WHERE (julianday('now') - julianday(created_at)) * 86400000 > ttl_ms
-    `).run();
-    const afterCount = (database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }).cnt;
+    `,
+      )
+      .run();
+    const afterCount = (
+      database.prepare('SELECT COUNT(*) as cnt FROM llm_cache').get() as { cnt: number }
+    ).cnt;
     const deleted = beforeCount - afterCount;
     if (deleted > 0) {
       log.info({ purged: deleted }, 'Expired cache entries purged');

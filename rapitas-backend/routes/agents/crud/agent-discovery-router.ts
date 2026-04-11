@@ -10,7 +10,10 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { agentFactory } from '../../../services/agents/agent-factory';
 import { getModelsForAgentType, getAllModels } from '../../../utils/agent/agent-models';
-import { validateApiKeyFormat, validateAgentConfig } from '../../../utils/agent/agent-config-schema';
+import {
+  validateApiKeyFormat,
+  validateAgentConfig,
+} from '../../../utils/agent/agent-config-schema';
 
 export const agentDiscoveryRouter = new Elysia()
 

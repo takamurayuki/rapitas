@@ -150,7 +150,7 @@ export class SubAgentController extends EventEmitter {
       payload: { taskId: task.id, title: task.title },
     });
 
-    const maxRetries = this.config.retryOnFailure ? (this.config.maxRetries || 3) : 0;
+    const maxRetries = this.config.retryOnFailure ? this.config.maxRetries || 3 : 0;
 
     try {
       let result = await agent.execute(task);

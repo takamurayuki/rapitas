@@ -63,14 +63,14 @@ async function checkGitHubDeployments(
 ): Promise<DeploymentStatus> {
   try {
     const { execSync } = await import('child_process');
-    const ghPath =
-      process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
     // NOTE: Check PR checks for deployment URLs (works with Vercel, Netlify, etc.)
-    const checksJson = execSync(
-      `${ghPath} pr checks ${prNumber} --json name,state,link`,
-      { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
-    );
+    const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+      timeout: 15000,
+    });
 
     const checks = JSON.parse(checksJson) as Array<{
       name: string;
@@ -122,8 +122,7 @@ async function triggerVercelDeploy(
     // NOTE: Vercel auto-deploys on push if GitHub integration is configured.
     // We poll for the deployment status rather than triggering manually.
     const { execSync } = await import('child_process');
-    const ghPath =
-      process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
     // Wait briefly for Vercel to pick up the push
     await new Promise((r) => setTimeout(r, 5000));
@@ -184,18 +183,19 @@ async function postDeploymentComment(
 
   try {
     const { execSync } = await import('child_process');
-    const ghPath =
-      process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+    const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
-    const body = `🚀 **Preview Deploy** (${deployment.provider})\n\n` +
+    const body =
+      `🚀 **Preview Deploy** (${deployment.provider})\n\n` +
       `Status: ${deployment.status}\n` +
       `Preview: ${deployment.previewUrl}\n\n` +
       `---\n🤖 Posted by Rapitas`;
 
-    execSync(
-      `${ghPath} pr comment ${prNumber} --body "${body.replace(/"/g, '\\"')}"`,
-      { cwd: workingDirectory, encoding: 'utf8', timeout: 15000 },
-    );
+    execSync(`${ghPath} pr comment ${prNumber} --body "${body.replace(/"/g, '\\"')}"`, {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+      timeout: 15000,
+    });
 
     log.info(`[PreviewDeploy] Posted preview URL for PR #${prNumber}: ${deployment.previewUrl}`);
   } catch (error) {

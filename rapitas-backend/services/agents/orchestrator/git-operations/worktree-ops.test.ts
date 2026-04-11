@@ -50,7 +50,10 @@ const mockRm = vi.mocked(rm);
 const mockPrisma = vi.mocked(prisma);
 
 // Helper to simulate promisified exec
-const mockExecAsync = (command: string, options: any): Promise<{ stdout: string; stderr: string }> => {
+const mockExecAsync = (
+  command: string,
+  options: any,
+): Promise<{ stdout: string; stderr: string }> => {
   const { callback } = options;
 
   if (command.includes('git worktree list --porcelain')) {
@@ -174,7 +177,8 @@ describe('cleanupOrphanedWorktrees', () => {
     mockPrisma.agentSession.update.mockResolvedValue({} as any);
 
     // Mock first worktree removal fails, second succeeds
-    const mockRemoveWorktree = vi.fn()
+    const mockRemoveWorktree = vi
+      .fn()
       .mockRejectedValueOnce(new Error('Removal failed'))
       .mockResolvedValueOnce(undefined);
 

@@ -84,7 +84,9 @@ ${codeMetrics.byExtension.map((e) => `| ${e.extension} | ${e.fileCount} | ${e.to
 |-----------|-------|-------|------|
 ${Object.entries(codeMetrics.byDirectory)
   .sort(([, a], [, b]) => b.lines - a.lines)
-  .map(([dir, d]) => `| ${dir} | ${d.files} | ${d.lines.toLocaleString()} | ${formatBytes(d.size)} |`)
+  .map(
+    ([dir, d]) => `| ${dir} | ${d.files} | ${d.lines.toLocaleString()} | ${formatBytes(d.size)} |`,
+  )
   .join('\n')}
 
 ### Largest Files Top20

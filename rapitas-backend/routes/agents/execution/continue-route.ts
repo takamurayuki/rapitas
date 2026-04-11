@@ -95,9 +95,7 @@ export const continueRoute = new Elysia().post(
 
       // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
       if (!workingDirectory) {
-        log.error(
-          `[continue-execution] Task ${taskId} rejected: workingDirectory not configured.`,
-        );
+        log.error(`[continue-execution] Task ${taskId} rejected: workingDirectory not configured.`);
         return {
           error:
             'Task theme must have workingDirectory configured. Please set the working directory in theme settings to prevent accidental modification of rapitas source code.',
@@ -148,7 +146,10 @@ export const continueRoute = new Elysia().post(
 
       // NOTE: Session/task update failures are non-fatal — execution proceeds with stale status.
       await prisma.agentSession
-        .update({ where: { id: targetSessionId }, data: { status: 'running', lastActivityAt: new Date() } })
+        .update({
+          where: { id: targetSessionId },
+          data: { status: 'running', lastActivityAt: new Date() },
+        })
         .catch((e: unknown) =>
           log.error({ err: e }, `[continue-execution] Failed to update session status`),
         );
@@ -212,9 +213,7 @@ export const continueRoute = new Elysia().post(
             executionDir: capturedExecutionDir,
           }),
         )
-        .catch((error: Error) =>
-          handleContinueError(error, taskId, capturedTargetSessionId),
-        )
+        .catch((error: Error) => handleContinueError(error, taskId, capturedTargetSessionId))
         .finally(() => {
           releaseTaskExecutionLock(taskId);
         });

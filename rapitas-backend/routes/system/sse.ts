@@ -27,7 +27,6 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
       ['*'],
     );
 
-    
     // Hold clientId in closure for cleanup
     let activeClientId = clientId;
 

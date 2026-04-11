@@ -4,11 +4,7 @@
  * Tests for performance, security, integration scenarios and advanced features.
  */
 import { describe, test, expect } from 'bun:test';
-import {
-  DebugLogAnalyzer,
-  LogType,
-  LogLevel,
-} from '../../utils/debug-log-analyzer';
+import { DebugLogAnalyzer, LogType, LogLevel } from '../../utils/debug-log-analyzer';
 
 describe('DebugLogAnalyzer - Integration Tests', () => {
   describe('パフォーマンステスト', () => {

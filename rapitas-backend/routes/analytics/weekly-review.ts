@@ -87,7 +87,9 @@ export const weeklyReviewRoutes = new Elysia()
     },
     {
       body: t.Object({
-        weekStart: t.Optional(t.String({ description: 'ISO date for the Monday of the target week' })),
+        weekStart: t.Optional(
+          t.String({ description: 'ISO date for the Monday of the target week' }),
+        ),
       }),
       detail: {
         tags: ['Analytics', 'WeeklyReview'],

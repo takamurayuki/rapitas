@@ -229,11 +229,12 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.
   if (updatedTask) {
-    const eventType = fields.status === 'done'
-      ? 'task_completed'
-      : fields.status
-        ? 'task_status_changed'
-        : 'task_updated';
+    const eventType =
+      fields.status === 'done'
+        ? 'task_completed'
+        : fields.status
+          ? 'task_status_changed'
+          : 'task_updated';
 
     realtimeService.sendTaskUpdate(taskId, eventType, {
       taskId,
@@ -246,11 +247,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
     // NOTE: Bidirectional sync — task dueDate changes propagate to calendar events.
     if (fields.dueDate !== undefined) {
-      syncTaskToCalendar(
-        taskId,
-        updatedTask.dueDate,
-        updatedTask.title,
-      ).catch((err) => {
+      syncTaskToCalendar(taskId, updatedTask.dueDate, updatedTask.title).catch((err) => {
         logger.warn({ err, taskId }, 'Task-to-calendar sync failed');
       });
     }

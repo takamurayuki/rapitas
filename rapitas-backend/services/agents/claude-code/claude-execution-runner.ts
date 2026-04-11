@@ -14,14 +14,8 @@ import { spawn } from 'child_process';
 import { writeFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import type {
-  AgentTask,
-  AgentExecutionResult,
-} from '../base-agent';
-import type {
-  WorkerOutputMessage,
-  WorkerInputMessage,
-} from '../../../workers/output-parser-types';
+import type { AgentTask, AgentExecutionResult } from '../base-agent';
+import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
 import { registerProcess, unregisterProcess } from '../agent-process-tracker';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
@@ -34,9 +28,7 @@ const logger = createLogger('claude-code-agent');
 /**
  * Build the Claude Code CLI argument list from agent config. Pure function.
  */
-function buildClaudeArgs(
-  agent: ClaudeCodeAgent,
-): { args: string[]; logExtras: string[] } {
+function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: string[] } {
   const cfg = agent.config;
   const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
   const logExtras: string[] = [];
@@ -254,9 +246,7 @@ export function runClaudeExecution(
     agent.parserWorker.postMessage({
       type: 'configure',
       config: {
-        timeoutSeconds: agent.config.timeout
-          ? Math.floor(agent.config.timeout / 1000)
-          : undefined,
+        timeoutSeconds: agent.config.timeout ? Math.floor(agent.config.timeout / 1000) : undefined,
         logPrefix: agent.logPrefix,
       },
     } satisfies WorkerInputMessage);
@@ -266,10 +256,7 @@ export function runClaudeExecution(
     };
 
     agent.parserWorker.onerror = (error: ErrorEvent) => {
-      logger.error(
-        { errorMessage: error.message },
-        `${agent.logPrefix} Worker uncaught error`,
-      );
+      logger.error({ errorMessage: error.message }, `${agent.logPrefix} Worker uncaught error`);
     };
 
     agent.process.stdout?.on('data', (data: Buffer) => {
@@ -326,9 +313,7 @@ export function runClaudeExecution(
         `${agent.logPrefix} Process closed with code: ${code}, time: ${executionTimeMs}ms`,
       );
       logger.info(`${agent.logPrefix} Final output length: ${agent.outputBuffer.length}`);
-      logger.info(
-        `${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`,
-      );
+      logger.info(`${agent.logPrefix} Last 500 chars of output: ${agent.outputBuffer.slice(-500)}`);
 
       if (agent.getStatus() === 'cancelled') {
         resolve({

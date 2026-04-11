@@ -61,15 +61,25 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
       );
 
       if (res.ok) {
-        log.info(`[SubtaskCompletion] Generated integration verify.md for parent task #${subtask.parentId}`);
+        log.info(
+          `[SubtaskCompletion] Generated integration verify.md for parent task #${subtask.parentId}`,
+        );
       } else {
-        log.warn(`[SubtaskCompletion] Failed to save verify.md for parent task #${subtask.parentId}`);
+        log.warn(
+          `[SubtaskCompletion] Failed to save verify.md for parent task #${subtask.parentId}`,
+        );
       }
     } catch (err) {
-      log.error({ err }, `[SubtaskCompletion] Failed to save verify.md for parent task #${subtask.parentId}`);
+      log.error(
+        { err },
+        `[SubtaskCompletion] Failed to save verify.md for parent task #${subtask.parentId}`,
+      );
     }
   } catch (error) {
-    log.error({ err: error }, `[SubtaskCompletion] Handler failed for subtask #${completedSubtaskId}`);
+    log.error(
+      { err: error },
+      `[SubtaskCompletion] Handler failed for subtask #${completedSubtaskId}`,
+    );
   }
 }
 
@@ -77,7 +87,12 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
  * Build integration verify.md content from all subtask results.
  */
 async function buildIntegrationVerify(
-  parentTask: { id: number; title: string; theme?: { categoryId?: number | null } | null; themeId: number | null },
+  parentTask: {
+    id: number;
+    title: string;
+    theme?: { categoryId?: number | null } | null;
+    themeId: number | null;
+  },
   subtasks: Array<{ id: number; title: string; status: string }>,
 ): Promise<string> {
   const lines: string[] = [];
@@ -106,9 +121,10 @@ async function buildIntegrationVerify(
   lines.push('');
 
   lines.push('## Overall Result');
-  lines.push(allPassed
-    ? 'All subtasks completed. Ready for final review.'
-    : 'Some subtasks have issues. Manual review required.',
+  lines.push(
+    allPassed
+      ? 'All subtasks completed. Ready for final review.'
+      : 'Some subtasks have issues. Manual review required.',
   );
 
   return lines.join('\n');

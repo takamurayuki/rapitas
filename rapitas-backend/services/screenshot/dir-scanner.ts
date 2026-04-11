@@ -204,7 +204,10 @@ export function detectPagesFromAgentOutput(
     const pagePath = match[1] || '/';
     if (!addedPaths.has(pagePath)) {
       addedPaths.add(pagePath);
-      pages.push({ path: pagePath, label: pagePath === '/' ? 'home' : pagePath.split('/').pop() || pagePath });
+      pages.push({
+        path: pagePath,
+        label: pagePath === '/' ? 'home' : pagePath.split('/').pop() || pagePath,
+      });
     }
   }
 

@@ -21,15 +21,27 @@ export type VoiceCommand =
 
 /** Navigation keyword mappings (Japanese + English). */
 const NAV_COMMANDS: Array<{ keywords: string[]; path: string; label: string }> = [
-  { keywords: ['ホーム', 'タスク一覧', 'タスクリスト', 'home', 'task list'], path: '/', label: 'ホーム' },
+  {
+    keywords: ['ホーム', 'タスク一覧', 'タスクリスト', 'home', 'task list'],
+    path: '/',
+    label: 'ホーム',
+  },
   { keywords: ['ダッシュボード', 'dashboard'], path: '/dashboard', label: 'ダッシュボード' },
   { keywords: ['カレンダー', 'calendar', '予定'], path: '/calendar', label: 'カレンダー' },
   { keywords: ['カンバン', 'kanban', 'ボード'], path: '/kanban', label: 'カンバン' },
   { keywords: ['設定', 'settings', '環境設定'], path: '/settings', label: '設定' },
-  { keywords: ['フラッシュカード', 'flashcard', '暗記カード'], path: '/flashcards', label: 'フラッシュカード' },
+  {
+    keywords: ['フラッシュカード', 'flashcard', '暗記カード'],
+    path: '/flashcards',
+    label: 'フラッシュカード',
+  },
   { keywords: ['試験', '試験目標', 'exam', 'テスト'], path: '/exam-goals', label: '試験目標' },
   { keywords: ['学習目標', 'learning goal'], path: '/learning-goals', label: '学習目標' },
-  { keywords: ['学習ダッシュボード', 'learning dashboard'], path: '/learning/dashboard', label: '学習ダッシュボード' },
+  {
+    keywords: ['学習ダッシュボード', 'learning dashboard'],
+    path: '/learning/dashboard',
+    label: '学習ダッシュボード',
+  },
   { keywords: ['習慣', 'habit', 'ハビット'], path: '/habits', label: '習慣' },
   { keywords: ['レポート', 'report', '報告'], path: '/reports', label: 'レポート' },
   { keywords: ['エージェント', 'agent'], path: '/agents', label: 'エージェント' },
@@ -39,7 +51,11 @@ const NAV_COMMANDS: Array<{ keywords: string[]; path: string; label: string }> =
   { keywords: ['集中', 'フォーカス', 'focus', 'ポモドーロ'], path: '/focus', label: '集中モード' },
   { keywords: ['メモ', 'ノート', 'note'], path: '/notes', label: 'ノート' },
   { keywords: ['検索', 'search', '探す'], path: '/search', label: '検索' },
-  { keywords: ['新しいタスク', 'タスク作成', 'タスクを作成', 'new task', 'create task'], path: '/tasks/new', label: '新規タスク' },
+  {
+    keywords: ['新しいタスク', 'タスク作成', 'タスクを作成', 'new task', 'create task'],
+    path: '/tasks/new',
+    label: '新規タスク',
+  },
   { keywords: ['オーケストラ', 'orchestra', 'キュー'], path: '/orchestra', label: 'オーケストラ' },
   { keywords: ['ラベル', 'label'], path: '/labels', label: 'ラベル' },
   { keywords: ['カテゴリ', 'category'], path: '/categories', label: 'カテゴリ' },
@@ -48,15 +64,21 @@ const NAV_COMMANDS: Array<{ keywords: string[]; path: string; label: string }> =
 
 /** Task creation trigger phrases. */
 const CREATE_TRIGGERS = [
-  'タスクを作成', 'タスク作成', 'タスクを追加', 'タスク追加',
-  'create task', 'add task', 'new task',
-  'を作って', 'を追加して', 'を登録して', '作成して',
+  'タスクを作成',
+  'タスク作成',
+  'タスクを追加',
+  'タスク追加',
+  'create task',
+  'add task',
+  'new task',
+  'を作って',
+  'を追加して',
+  'を登録して',
+  '作成して',
 ];
 
 /** Search trigger phrases. */
-const SEARCH_TRIGGERS = [
-  '検索', '探して', '見つけて', 'search for', 'find',
-];
+const SEARCH_TRIGGERS = ['検索', '探して', '見つけて', 'search for', 'find'];
 
 /**
  * Parse transcribed text into a voice command.

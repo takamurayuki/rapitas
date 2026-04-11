@@ -14,7 +14,6 @@ export const batchRoutes = new Elysia({ prefix: '/batch' }).post(
     const results = await Promise.all(
       body.requests.map(async (request) => {
         try {
-          
           const result = await processRequest(request);
           return {
             id: request.id,
@@ -60,9 +59,8 @@ export const batchRoutes = new Elysia({ prefix: '/batch' }).post(
 async function processRequest(request: { method: string; url: string; body?: unknown }) {
   const { method, url, body } = request;
 
-  
   const [rawPath, queryString] = url.split('?');
-  const path = rawPath.replace(/^\//, ''); 
+  const path = rawPath.replace(/^\//, '');
   const pathParts = path.split('/');
   const [resource, ...rest] = pathParts;
   const query = new URLSearchParams(queryString || '');

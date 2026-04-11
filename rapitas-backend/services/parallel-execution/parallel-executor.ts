@@ -130,7 +130,9 @@ export class ParallelExecutor extends EventEmitter {
   async analyzeDependencies(input: DependencyAnalysisInput): Promise<DependencyAnalysisResult> {
     logger.info(`[ParallelExecutor] Analyzing dependencies for parent task ${input.parentTaskId}`);
     const result = this.analyzer.analyze({ ...input, config: this.config });
-    logger.info(`[ParallelExecutor] - Groups: ${result.plan.groups.length}, Efficiency: ${result.plan.parallelEfficiency}%`);
+    logger.info(
+      `[ParallelExecutor] - Groups: ${result.plan.groups.length}, Efficiency: ${result.plan.parallelEfficiency}%`,
+    );
     return result;
   }
 
@@ -155,12 +157,21 @@ export class ParallelExecutor extends EventEmitter {
     this.schedulers.set(sessionId, scheduler);
 
     const session: ParallelExecutionSession = {
-      sessionId, parentTaskId, plan,
-      status: 'running', currentLevel: 0,
-      activeAgents: new Map(), completedTasks: [], failedTasks: [],
-      taskBranches: new Map(), nodes, workingDirectory,
-      startedAt: new Date(), lastActivityAt: new Date(),
-      totalTokensUsed: 0, totalExecutionTimeMs: 0,
+      sessionId,
+      parentTaskId,
+      plan,
+      status: 'running',
+      currentLevel: 0,
+      activeAgents: new Map(),
+      completedTasks: [],
+      failedTasks: [],
+      taskBranches: new Map(),
+      nodes,
+      workingDirectory,
+      startedAt: new Date(),
+      lastActivityAt: new Date(),
+      totalTokensUsed: 0,
+      totalExecutionTimeMs: 0,
     };
 
     this.sessions.set(sessionId, session);
@@ -173,12 +184,21 @@ export class ParallelExecutor extends EventEmitter {
       type: 'session_started',
       sessionId,
       timestamp: new Date(),
-      data: { parentTaskId, totalTasks: plan.groups.flatMap((g) => g.taskIds).length, estimatedDuration: plan.estimatedTotalDuration },
+      data: {
+        parentTaskId,
+        totalTasks: plan.groups.flatMap((g) => g.taskIds).length,
+        estimatedDuration: plan.estimatedTotalDuration,
+      },
     });
 
     scheduler.addEventListener((event) => {
       if (event.type === 'level_completed') {
-        this.emitEvent({ type: 'level_completed', sessionId, level: event.level, timestamp: event.timestamp });
+        this.emitEvent({
+          type: 'level_completed',
+          sessionId,
+          level: event.level,
+          timestamp: event.timestamp,
+        });
       } else if (event.type === 'all_completed') {
         void completeSession(this.buildSessionManagerContext(), sessionId);
       }
@@ -186,15 +206,22 @@ export class ParallelExecutor extends EventEmitter {
 
     // NOTE: setImmediate defers first batch so the session object is returned before execution starts
     setImmediate(() => {
-      executeNextBatch(this.buildSessionManagerContext(), sessionId, nodes, workingDirectory).catch((error) => {
-        logger.error({ err: error }, '[ParallelExecutor] Error in executeNextBatch');
-        const s = this.sessions.get(sessionId);
-        if (s && s.status === 'running') {
-          s.status = 'failed';
-          s.completedAt = new Date();
-          this.emitEvent({ type: 'session_failed', sessionId, timestamp: new Date(), data: { error: error instanceof Error ? error.message : String(error) } });
-        }
-      });
+      executeNextBatch(this.buildSessionManagerContext(), sessionId, nodes, workingDirectory).catch(
+        (error) => {
+          logger.error({ err: error }, '[ParallelExecutor] Error in executeNextBatch');
+          const s = this.sessions.get(sessionId);
+          if (s && s.status === 'running') {
+            s.status = 'failed';
+            s.completedAt = new Date();
+            this.emitEvent({
+              type: 'session_failed',
+              sessionId,
+              timestamp: new Date(),
+              data: { error: error instanceof Error ? error.message : String(error) },
+            });
+          }
+        },
+      );
     });
 
     return session;
@@ -224,7 +251,7 @@ export class ParallelExecutor extends EventEmitter {
         } catch (error) {
           logger.warn(
             { err: error },
-            `[ParallelExecutor] Failed to clean up worktree for task ${taskId}: ${worktreePath}`
+            `[ParallelExecutor] Failed to clean up worktree for task ${taskId}: ${worktreePath}`,
           );
         }
       }
@@ -232,7 +259,12 @@ export class ParallelExecutor extends EventEmitter {
 
     session.status = 'cancelled';
     session.completedAt = new Date();
-    this.emitEvent({ type: 'session_failed', sessionId, timestamp: new Date(), data: { reason: 'cancelled' } });
+    this.emitEvent({
+      type: 'session_failed',
+      sessionId,
+      timestamp: new Date(),
+      data: { reason: 'cancelled' },
+    });
   }
 
   /**
@@ -253,7 +285,15 @@ export class ParallelExecutor extends EventEmitter {
     const scheduler = this.schedulers.get(sessionId);
     if (!session || !scheduler) return null;
     const s = scheduler.getStatus();
-    return { status: session.status, progress: s.progress, completed: s.completed, running: s.running, pending: s.pending, failed: s.failed, blocked: s.blocked };
+    return {
+      status: session.status,
+      progress: s.progress,
+      completed: s.completed,
+      running: s.running,
+      pending: s.pending,
+      failed: s.failed,
+      blocked: s.blocked,
+    };
   }
 
   /**

@@ -124,7 +124,10 @@ export async function delegateToLocalLLM(request: DelegationRequest): Promise<De
     throw new Error(`Unknown delegation task type: ${request.taskType}`);
   }
 
-  log.info({ taskType: request.taskType, inputLength: request.input.length }, 'Delegating to local LLM');
+  log.info(
+    { taskType: request.taskType, inputLength: request.input.length },
+    'Delegating to local LLM',
+  );
 
   try {
     if (request.evaluate) {

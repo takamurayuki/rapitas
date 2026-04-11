@@ -106,7 +106,9 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
 
       // NOTE: orchestrator.getActiveExecutions() (sync) always returns empty due to worker process isolation.
       // Use the async version to retrieve actual active execution IDs from the worker.
-      const workerManager = orchestrator as unknown as { getActiveExecutionIdsAsync?: () => Promise<number[]> };
+      const workerManager = orchestrator as unknown as {
+        getActiveExecutionIdsAsync?: () => Promise<number[]>;
+      };
       const currentActiveIds = workerManager.getActiveExecutionIdsAsync
         ? await workerManager.getActiveExecutionIdsAsync()
         : orchestrator.getActiveExecutions().map((e: { executionId: number }) => e.executionId);

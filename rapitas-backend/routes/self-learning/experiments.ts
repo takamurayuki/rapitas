@@ -55,71 +55,91 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
     return experiment;
   })
 
-  .post('/', async ({ body }) => {
-    return createExperiment(body);
-  }, {
-    body: t.Object({
-      taskId: t.Number(),
-      title: t.String(),
-      metadata: t.Optional(t.Record(t.String(), t.Any()))
-    })
-  })
+  .post(
+    '/',
+    async ({ body }) => {
+      return createExperiment(body);
+    },
+    {
+      body: t.Object({
+        taskId: t.Number(),
+        title: t.String(),
+        metadata: t.Optional(t.Record(t.String(), t.Any())),
+      }),
+    },
+  )
 
-  .put('/:id', async ({ params, body }) => {
-    return updateExperiment(parseInt(params.id), {
-      ...body,
-      status: body.status as ExperimentPhase | undefined,
-      evaluation: body.evaluation ? {
-        ...body.evaluation,
-        testsPassed: 0,
-        testsFailed: 0,
-        errorsEncountered: [],
-        overallSuccess: true
-      } : undefined
-    });
-  }, {
-    body: t.Object({
-      title: t.Optional(t.String()),
-      metadata: t.Optional(t.Record(t.String(), t.Any())),
-      status: t.Optional(t.String()),
-      evaluation: t.Optional(t.Object({
+  .put(
+    '/:id',
+    async ({ params, body }) => {
+      return updateExperiment(parseInt(params.id), {
+        ...body,
+        status: body.status as ExperimentPhase | undefined,
+        evaluation: body.evaluation
+          ? {
+              ...body.evaluation,
+              testsPassed: 0,
+              testsFailed: 0,
+              errorsEncountered: [],
+              overallSuccess: true,
+            }
+          : undefined,
+      });
+    },
+    {
+      body: t.Object({
+        title: t.Optional(t.String()),
+        metadata: t.Optional(t.Record(t.String(), t.Any())),
+        status: t.Optional(t.String()),
+        evaluation: t.Optional(
+          t.Object({
+            learningValue: t.Number(),
+            confidence: t.Number(),
+            applicability: t.Number(),
+            insights: t.Array(t.String()),
+          }),
+        ),
+      }),
+    },
+  )
+
+  // --- Research ---
+  .post(
+    '/:id/research',
+    async ({ params, body }) => {
+      return runResearch(parseInt(params.id), body.query);
+    },
+    {
+      body: t.Object({
+        query: t.String(),
+      }),
+    },
+  )
+
+  // --- Evaluate ---
+  .post(
+    '/:id/evaluate',
+    async ({ params, body }) => {
+      return updateExperiment(parseInt(params.id), {
+        evaluation: {
+          ...body,
+          testsPassed: 0,
+          testsFailed: 0,
+          errorsEncountered: [],
+          overallSuccess: true,
+        },
+        status: 'evaluating',
+      });
+    },
+    {
+      body: t.Object({
         learningValue: t.Number(),
         confidence: t.Number(),
         applicability: t.Number(),
-        insights: t.Array(t.String())
-      }))
-    })
-  })
-
-  // --- Research ---
-  .post('/:id/research', async ({ params, body }) => {
-    return runResearch(parseInt(params.id), body.query);
-  }, {
-    body: t.Object({
-      query: t.String()
-    })
-  })
-
-  // --- Evaluate ---
-  .post('/:id/evaluate', async ({ params, body }) => {
-    return updateExperiment(parseInt(params.id), {
-      evaluation: {
-        ...body,
-        testsPassed: 0,
-        testsFailed: 0,
-        errorsEncountered: [],
-        overallSuccess: true
-      },
-      status: 'evaluating',
-    });
-  }, {
-    body: t.Object({
-      learningValue: t.Number(),
-      confidence: t.Number(),
-      applicability: t.Number(),
-      insights: t.Array(t.String())
-    })
-  })
+        insights: t.Array(t.String()),
+      }),
+    },
+  )
 
   // --- Timeline ---
   .get('/:id/timeline', async ({ params }) => {
@@ -136,42 +156,60 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
     return getHypotheses(parseInt(params.id));
   })
 
-  .post('/:id/hypotheses', async ({ params, body }) => {
-    return createHypothesis({
-      experimentId: parseInt(params.id),
-      ...body,
-    });
-  }, {
-    body: t.Object({
-      content: t.String(),
-      reasoning: t.Optional(t.String()),
-      confidence: t.Number(),
-      priority: t.Number()
-    })
-  })
-
-  .put('/:id/hypotheses/:hId/status', async ({ params, body }) => {
-    return updateHypothesisStatus(parseInt(params.hId), body.status as HypothesisStatus, body.testResult as unknown as HypothesisTestResult | undefined);
-  }, {
-    body: t.Object({
-      status: t.String(),
-      testResult: t.Optional(t.Object({
-        outcome: t.String(),
-        evidence: t.String(),
+  .post(
+    '/:id/hypotheses',
+    async ({ params, body }) => {
+      return createHypothesis({
+        experimentId: parseInt(params.id),
+        ...body,
+      });
+    },
+    {
+      body: t.Object({
+        content: t.String(),
+        reasoning: t.Optional(t.String()),
         confidence: t.Number(),
-        metadata: t.Optional(t.Record(t.String(), t.Any()))
-      }))
-    })
-  })
+        priority: t.Number(),
+      }),
+    },
+  )
 
-  .post('/:id/hypotheses/:hId/revise', async ({ params, body }) => {
-    return reviseHypothesis(parseInt(params.hId), body.content, body.reasoning);
-  }, {
-    body: t.Object({
-      content: t.String(),
-      reasoning: t.Optional(t.String())
-    })
-  })
+  .put(
+    '/:id/hypotheses/:hId/status',
+    async ({ params, body }) => {
+      return updateHypothesisStatus(
+        parseInt(params.hId),
+        body.status as HypothesisStatus,
+        body.testResult as unknown as HypothesisTestResult | undefined,
+      );
+    },
+    {
+      body: t.Object({
+        status: t.String(),
+        testResult: t.Optional(
+          t.Object({
+            outcome: t.String(),
+            evidence: t.String(),
+            confidence: t.Number(),
+            metadata: t.Optional(t.Record(t.String(), t.Any())),
+          }),
+        ),
+      }),
+    },
+  )
+
+  .post(
+    '/:id/hypotheses/:hId/revise',
+    async ({ params, body }) => {
+      return reviseHypothesis(parseInt(params.hId), body.content, body.reasoning);
+    },
+    {
+      body: t.Object({
+        content: t.String(),
+        reasoning: t.Optional(t.String()),
+      }),
+    },
+  )
 
   .get('/:id/hypotheses/ranking', async ({ params }) => {
     return rankHypotheses(parseInt(params.id));
@@ -182,39 +220,47 @@ export const experimentsRoutes = new Elysia({ prefix: '/experiments' })
     return getReviews(parseInt(params.id));
   })
 
-  .post('/:id/reviews', async ({ params, body }) => {
-    return performReview({
-      experimentId: parseInt(params.id),
-      phase: body.phase as CriticPhase,
-      targetContent: body.targetContent,
-      context: body.context,
-    });
-  }, {
-    body: t.Object({
-      phase: t.String(),
-      targetContent: t.String(),
-      context: t.Optional(t.String())
-    })
-  })
+  .post(
+    '/:id/reviews',
+    async ({ params, body }) => {
+      return performReview({
+        experimentId: parseInt(params.id),
+        phase: body.phase as CriticPhase,
+        targetContent: body.targetContent,
+        context: body.context,
+      });
+    },
+    {
+      body: t.Object({
+        phase: t.String(),
+        targetContent: t.String(),
+        context: t.Optional(t.String()),
+      }),
+    },
+  )
 
   // --- Episodes ---
-  .post('/:id/episodes', async ({ params, body }) => {
-    return saveEpisode({
-      experimentId: parseInt(params.id),
-      phase: body.phase as EpisodePhase,
-      content: body.content,
-      context: body.context as Record<string, unknown> | undefined,
-      outcome: body.outcome as EpisodeOutcome | undefined,
-      emotionalTag: body.emotionalTag as EmotionalTag | undefined,
-      importance: body.importance,
-    });
-  }, {
-    body: t.Object({
-      phase: t.String(),
-      content: t.String(),
-      context: t.Optional(t.String()),
-      outcome: t.Optional(t.String()),
-      emotionalTag: t.Optional(t.String()),
-      importance: t.Number()
-    })
-  });
+  .post(
+    '/:id/episodes',
+    async ({ params, body }) => {
+      return saveEpisode({
+        experimentId: parseInt(params.id),
+        phase: body.phase as EpisodePhase,
+        content: body.content,
+        context: body.context as Record<string, unknown> | undefined,
+        outcome: body.outcome as EpisodeOutcome | undefined,
+        emotionalTag: body.emotionalTag as EmotionalTag | undefined,
+        importance: body.importance,
+      });
+    },
+    {
+      body: t.Object({
+        phase: t.String(),
+        content: t.String(),
+        context: t.Optional(t.String()),
+        outcome: t.Optional(t.String()),
+        emotionalTag: t.Optional(t.String()),
+        importance: t.Number(),
+      }),
+    },
+  );

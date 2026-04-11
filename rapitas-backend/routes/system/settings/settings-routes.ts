@@ -13,10 +13,7 @@ import { getApiKeyForProvider } from '../../../utils/ai-client';
 import { systemSchemas } from '../../../schemas/system.schema';
 import { createLogger } from '../../../config/logger';
 import { t } from 'elysia';
-import {
-  PROVIDER_MODEL_COLUMNS,
-  isValidProvider,
-} from './settings-types';
+import { PROVIDER_MODEL_COLUMNS, isValidProvider } from './settings-types';
 import { fetchAvailableModels } from './model-fetcher';
 
 const log = createLogger('routes:settings');

@@ -132,11 +132,14 @@ describe('TaskTitle後処理ロジック', () => {
   });
 
   test('文字数制限が適用されること', () => {
-    const longTitle = 'これは非常に長いタスクタイトルで40文字を超える内容になっていますので切り詰められるはずです';
+    const longTitle =
+      'これは非常に長いタスクタイトルで40文字を超える内容になっていますので切り詰められるはずです';
     const result = simulateTaskTitlePostProcessing(longTitle);
 
     expect(result.length).toBeLessThanOrEqual(40);
-    expect(result).toBe('これは非常に長いタスクタイトルで40文字を超える内容になっていますので切り詰めら');
+    expect(result).toBe(
+      'これは非常に長いタスクタイトルで40文字を超える内容になっていますので切り詰めら',
+    );
   });
 
   test('空文字列や空白のみの場合にフォールバックされること', () => {
@@ -152,11 +155,11 @@ describe('TaskTitle後処理ロジック', () => {
     const testCases = [
       {
         input: 'タイトル: * ログイン・画面・改善',
-        expected: 'ログイン 画面 改善'
+        expected: 'ログイン 画面 改善',
       },
       {
         input: '件名：（緊急）データベースが更新されないエラー',
-        expected: 'データベースの更新修正'
+        expected: 'データベースの更新修正',
       },
     ];
 

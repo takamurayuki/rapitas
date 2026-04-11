@@ -125,8 +125,7 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
         questionDetails.multiSelect = firstQuestion.multiSelect;
       }
     }
-  }
-  else if (input.question && typeof input.question === 'string') {
+  } else if (input.question && typeof input.question === 'string') {
     questionText = input.question;
   }
 

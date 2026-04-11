@@ -72,9 +72,7 @@ export async function getLatestExecution(
  * @param prisma - Prisma client instance / Prismaクライアント
  * @returns Array of running/pending executions / 実行中・待機中の実行一覧
  */
-export async function getExecutingTasks(
-  prisma: PrismaClient,
-): Promise<AgentExecutionWithExtras[]> {
+export async function getExecutingTasks(prisma: PrismaClient): Promise<AgentExecutionWithExtras[]> {
   return await prisma.agentExecution.findMany({
     where: {
       status: { in: ['running', 'pending', 'waiting_for_input'] },

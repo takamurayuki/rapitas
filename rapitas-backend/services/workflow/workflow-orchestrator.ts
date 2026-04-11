@@ -110,7 +110,12 @@ export class WorkflowOrchestrator {
       include: { theme: { include: { category: true } } },
     });
     if (!task) {
-      return { success: false, role: 'researcher', status: 'draft', error: 'タスクが見つかりません' };
+      return {
+        success: false,
+        role: 'researcher',
+        status: 'draft',
+        error: 'タスクが見つかりません',
+      };
     }
 
     // Select the appropriate transition map based on workflow mode
@@ -158,7 +163,9 @@ export class WorkflowOrchestrator {
     // Get system prompt
     let systemPromptContent = '';
     if (roleConfig.systemPromptKey) {
-      const sp = await prisma.systemPrompt.findUnique({ where: { key: roleConfig.systemPromptKey } });
+      const sp = await prisma.systemPrompt.findUnique({
+        where: { key: roleConfig.systemPromptKey },
+      });
       if (sp) systemPromptContent = sp.content;
     }
 
@@ -193,12 +200,19 @@ export class WorkflowOrchestrator {
       }
     }
 
-    const context = await buildRoleContext(taskId, transition.role, workflowInfo.dir, task, language);
+    const context = await buildRoleContext(
+      taskId,
+      transition.role,
+      workflowInfo.dir,
+      task,
+      language,
+    );
 
     const agentConfig = roleConfig.agentConfig;
     const isCLI = CLI_AGENT_TYPES.has(agentConfig.agentType);
     // Override with role-specific model ID if available
-    const effectiveModelId = (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
+    const effectiveModelId =
+      (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
 
     if (currentStatus === 'draft') {
       await prisma.task.update({
@@ -213,15 +227,29 @@ export class WorkflowOrchestrator {
     try {
       if (isCLI) {
         return await executeCLIAgent(
-          taskId, task, agentConfig, systemPromptContent,
-          context, transition, workflowInfo.dir, language,
-          advanceFn, devConfigFn,
+          taskId,
+          task,
+          agentConfig,
+          systemPromptContent,
+          context,
+          transition,
+          workflowInfo.dir,
+          language,
+          advanceFn,
+          devConfigFn,
         );
       } else {
         return await executeAPIAgent(
-          taskId, task, { ...agentConfig, modelId: effectiveModelId },
-          systemPromptContent, context, transition, workflowInfo.dir, language,
-          advanceFn, devConfigFn,
+          taskId,
+          task,
+          { ...agentConfig, modelId: effectiveModelId },
+          systemPromptContent,
+          context,
+          transition,
+          workflowInfo.dir,
+          language,
+          advanceFn,
+          devConfigFn,
         );
       }
     } catch (error: unknown) {

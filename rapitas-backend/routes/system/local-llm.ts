@@ -157,7 +157,14 @@ export const localLLMRouter = new Elysia({ prefix: '/local-llm' })
     try {
       return getCacheStats();
     } catch {
-      return { totalEntries: 0, totalHits: 0, totalMisses: 0, hitRate: 0, oldestEntry: null, cacheSize: 0 };
+      return {
+        totalEntries: 0,
+        totalHits: 0,
+        totalMisses: 0,
+        hitRate: 0,
+        oldestEntry: null,
+        cacheSize: 0,
+      };
     }
   })
 

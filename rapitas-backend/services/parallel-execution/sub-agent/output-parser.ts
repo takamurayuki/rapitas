@@ -93,7 +93,8 @@ export class OutputParser {
   private handleSystemEvent(json: Record<string, unknown>): string {
     if (json.subtype === 'init') return `[System: init]\n`;
     if (json.subtype === 'error') {
-      const errorMsg = typeof json.message === 'string' ? json.message : (json.error as string) || 'unknown';
+      const errorMsg =
+        typeof json.message === 'string' ? json.message : (json.error as string) || 'unknown';
       return `[System Error: ${errorMsg}]\n`;
     }
     return '';
@@ -132,7 +133,10 @@ export class OutputParser {
       return `\n[質問] ${questionInfo.questionText}\n`;
     }
 
-    const toolInfo = formatToolInfo(block.name as string, block.input as Record<string, unknown> | undefined);
+    const toolInfo = formatToolInfo(
+      block.name as string,
+      block.input as Record<string, unknown> | undefined,
+    );
     if (block.id) {
       this.activeTools.set(block.id as string, {
         name: block.name as string,

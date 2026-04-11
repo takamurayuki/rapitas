@@ -295,7 +295,10 @@ export async function executeTask(
             );
           })
           .catch((err) => {
-            logger.warn({ err, taskId: options.taskId }, '[TaskExecutor] Failed to auto-complete task');
+            logger.warn(
+              { err, taskId: options.taskId },
+              '[TaskExecutor] Failed to auto-complete task',
+            );
           });
       }
     }

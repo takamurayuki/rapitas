@@ -63,7 +63,9 @@ export abstract class AbstractAgent implements IAgent {
     },
   ) {
     this._metadata = {
-      id, providerId, name,
+      id,
+      providerId,
+      name,
       version: options?.version,
       description: options?.description,
       modelId: options?.modelId,
@@ -78,9 +80,15 @@ export abstract class AbstractAgent implements IAgent {
   // Properties
   // ============================================================================
 
-  get metadata(): AgentMetadata { return { ...this._metadata }; }
-  get state(): AgentState { return this._state; }
-  get events(): AgentEventEmitter { return this._events; }
+  get metadata(): AgentMetadata {
+    return { ...this._metadata };
+  }
+  get state(): AgentState {
+    return this._state;
+  }
+  get events(): AgentEventEmitter {
+    return this._events;
+  }
   abstract get capabilities(): AgentCapabilities;
 
   // ============================================================================
@@ -88,10 +96,16 @@ export abstract class AbstractAgent implements IAgent {
   // ============================================================================
 
   /** Performs the actual task execution. Must be implemented by subclasses. */
-  protected abstract doExecute(task: AgentTaskDefinition, context: AgentExecutionContext): Promise<AgentExecutionResult>;
+  protected abstract doExecute(
+    task: AgentTaskDefinition,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult>;
 
   /** Performs continuation execution. Must be implemented by subclasses. */
-  protected abstract doContinue(continuation: ContinuationContext, context: AgentExecutionContext): Promise<AgentExecutionResult>;
+  protected abstract doContinue(
+    continuation: ContinuationContext,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult>;
 
   /** Stops execution. Must be implemented by subclasses. */
   protected abstract doStop(): Promise<void>;
@@ -113,11 +127,17 @@ export abstract class AbstractAgent implements IAgent {
    * @param context - Execution context / 実行コンテキスト
    * @returns Execution result / 実行結果
    */
-  async execute(task: AgentTaskDefinition, context: AgentExecutionContext): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTaskDefinition,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult> {
     this.ensureNotDisposed();
     return runExecute(
-      task, context, this.makeCallbacks(),
-      this._lifecycleHooks, this._events,
+      task,
+      context,
+      this.makeCallbacks(),
+      this._lifecycleHooks,
+      this._events,
       this.doExecute.bind(this),
       this.transitionState.bind(this),
       this.log.bind(this),
@@ -132,11 +152,17 @@ export abstract class AbstractAgent implements IAgent {
    * @returns Execution result / 実行結果
    * @throws {AgentError} If agent is not in 'waiting_for_input' state / エージェントが待機状態でない場合
    */
-  async continue(continuation: ContinuationContext, context: AgentExecutionContext): Promise<AgentExecutionResult> {
+  async continue(
+    continuation: ContinuationContext,
+    context: AgentExecutionContext,
+  ): Promise<AgentExecutionResult> {
     this.ensureNotDisposed();
     return runContinue(
-      continuation, context, this.makeCallbacks(),
-      this._lifecycleHooks, this._events,
+      continuation,
+      context,
+      this.makeCallbacks(),
+      this._lifecycleHooks,
+      this._events,
       this.doContinue.bind(this),
       this.transitionState.bind(this),
       this.log.bind(this),
@@ -204,7 +230,11 @@ export abstract class AbstractAgent implements IAgent {
     this.log('debug', `State transition: ${previousState} -> ${newState}`, { reason });
     await this._events.emitStateChange(previousState, newState as AgentState, reason);
     if (this._lifecycleHooks.onStateChange && this._currentContext) {
-      await this._lifecycleHooks.onStateChange(this._currentContext, previousState, newState as AgentState);
+      await this._lifecycleHooks.onStateChange(
+        this._currentContext,
+        previousState,
+        newState as AgentState,
+      );
     }
   }
 
@@ -216,13 +246,24 @@ export abstract class AbstractAgent implements IAgent {
   /** Emits a question for the user. */
   protected async emitQuestion(question: PendingQuestion): Promise<void> {
     if (!this._currentContext) return;
-    await EventHelpers.emitQuestion(this._events, this._lifecycleHooks, this._currentContext, question, this.log.bind(this));
+    await EventHelpers.emitQuestion(
+      this._events,
+      this._lifecycleHooks,
+      this._currentContext,
+      question,
+      this.log.bind(this),
+    );
   }
 
   /** Emits an artifact event. */
   protected async emitArtifact(artifact: AgentArtifact): Promise<void> {
     if (!this._currentContext) return;
-    await EventHelpers.emitArtifact(this._events, this._lifecycleHooks, this._currentContext, artifact);
+    await EventHelpers.emitArtifact(
+      this._events,
+      this._lifecycleHooks,
+      this._currentContext,
+      artifact,
+    );
   }
 
   /** Emits a Git commit event. */
@@ -239,15 +280,22 @@ export abstract class AbstractAgent implements IAgent {
    * @returns Object with an end() callback to signal tool completion / ツール完了を通知するend()コールバック付きオブジェクト
    */
   protected async notifyToolExecution(
-    toolId: string, toolName: string, input: unknown,
+    toolId: string,
+    toolName: string,
+    input: unknown,
   ): Promise<{ end: (output: unknown, success: boolean, error?: string) => Promise<void> }> {
     if (!this._currentContext) {
       // NOTE: Guard against subclasses calling this outside an active execution.
       return { end: async () => {} };
     }
     return EventHelpers.notifyToolExecution(
-      this._events, this._lifecycleHooks, this._currentContext,
-      toolId, toolName, input, this.log.bind(this),
+      this._events,
+      this._lifecycleHooks,
+      this._currentContext,
+      toolId,
+      toolName,
+      input,
+      this.log.bind(this),
     );
   }
 
@@ -300,9 +348,15 @@ export abstract class AbstractAgent implements IAgent {
       getState: () => this._state,
       getIsDisposed: () => this._isDisposed,
       getMetadata: () => this._metadata,
-      setCurrentContext: (ctx) => { this._currentContext = ctx; },
-      setMetrics: (m) => { this._metrics = m; },
-      setDebugLogs: (logs) => { this._debugLogs = logs; },
+      setCurrentContext: (ctx) => {
+        this._currentContext = ctx;
+      },
+      setMetrics: (m) => {
+        this._metrics = m;
+      },
+      setDebugLogs: (logs) => {
+        this._debugLogs = logs;
+      },
       getMetrics: () => this._metrics,
       getDebugLogs: () => this._debugLogs,
     };

@@ -6,5 +6,10 @@
  * so existing imports require no changes.
  */
 export { CLI_TOOLS, type CLITool, type GitHubRelease } from './types';
-export { getToolStatus, getLatestReleaseInfo, checkAuthenticationStatus, generateInstallationGuide } from './tool-status';
+export {
+  getToolStatus,
+  getLatestReleaseInfo,
+  checkAuthenticationStatus,
+  generateInstallationGuide,
+} from './tool-status';
 export { cliToolsManagementRoutes } from './routes';

@@ -10,7 +10,11 @@ export type { AnthropicApiConfig, ConversationMessage } from './anthropic-api-pr
 export { CLAUDE_MODELS } from './anthropic-api-provider/models';
 export type { ClaudeModelId } from './anthropic-api-provider/models';
 
-export { buildPrompt, getDefaultSystemPrompt, mapApiError } from './anthropic-api-provider/agent-utils';
+export {
+  buildPrompt,
+  getDefaultSystemPrompt,
+  mapApiError,
+} from './anthropic-api-provider/agent-utils';
 
 export { AnthropicApiAgent } from './anthropic-api-provider/agent';
 

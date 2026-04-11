@@ -8,7 +8,7 @@
 export interface TaskAnalysisResult {
   summary: string;
   complexity: 'simple' | 'medium' | 'complex';
-  estimatedDuration?: number; 
+  estimatedDuration?: number;
   subtasks?: SubtaskDefinition[];
   tips?: string[];
   risks?: string[];
@@ -31,9 +31,9 @@ export interface SubtaskDefinition {
  * Task constraints.
  */
 export interface TaskConstraints {
-  maxFiles?: number; 
-  allowedPaths?: string[]; 
-  forbiddenPaths?: string[]; 
-  allowedCommands?: string[]; 
-  forbiddenCommands?: string[]; 
+  maxFiles?: number;
+  allowedPaths?: string[];
+  forbiddenPaths?: string[];
+  allowedCommands?: string[];
+  forbiddenCommands?: string[];
 }

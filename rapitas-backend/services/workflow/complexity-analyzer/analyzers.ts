@@ -54,9 +54,13 @@ export function analyzeKeywords(input: TaskComplexityInput): { score: number; re
   score = Math.max(0, Math.min(100, score));
 
   if (lightweightMatches > heavyweightMatches) {
-    reasons.push(`Lightweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`);
+    reasons.push(
+      `Lightweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`,
+    );
   } else if (heavyweightMatches > lightweightMatches) {
-    reasons.push(`Heavyweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`);
+    reasons.push(
+      `Heavyweight tendency (lightweight:${lightweightMatches}, heavyweight:${heavyweightMatches})`,
+    );
   } else {
     reasons.push(`キーワード分析: バランス型`);
   }
@@ -70,7 +74,10 @@ export function analyzeKeywords(input: TaskComplexityInput): { score: number; re
  * @param input - Task complexity input data / タスク複雑度の入力データ
  * @returns Score 0-100 and reasoning strings / スコアと理由の文字列
  */
-export function analyzeEstimatedTime(input: TaskComplexityInput): { score: number; reasons: string[] } {
+export function analyzeEstimatedTime(input: TaskComplexityInput): {
+  score: number;
+  reasons: string[];
+} {
   const reasons: string[] = [];
 
   if (!input.estimatedHours) {
@@ -194,7 +201,9 @@ export function analyzeLabels(input: TaskComplexityInput): { score: number; reas
  * @param complexityScore - Aggregated complexity score 0-100 / 集計された複雑度スコア
  * @returns Workflow mode recommendation / ワークフローモードの推奨
  */
-export function getRecommendedMode(complexityScore: number): 'lightweight' | 'standard' | 'comprehensive' {
+export function getRecommendedMode(
+  complexityScore: number,
+): 'lightweight' | 'standard' | 'comprehensive' {
   if (complexityScore <= 35) {
     return 'lightweight';
   } else if (complexityScore <= 70) {

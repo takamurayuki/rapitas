@@ -6,7 +6,10 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { fromJsonString } from '../../../utils/database/db-helpers';
-import { getAgentConfigSchema, getAllAgentConfigSchemas } from '../../../utils/agent/agent-config-schema';
+import {
+  getAgentConfigSchema,
+  getAllAgentConfigSchemas,
+} from '../../../utils/agent/agent-config-schema';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 

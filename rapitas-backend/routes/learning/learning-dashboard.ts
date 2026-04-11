@@ -55,9 +55,9 @@ interface LearningDashboardResponse {
   };
 }
 
-export const learningDashboardRouter = new Elysia({ prefix: '/learning' })
-
-  .get('/dashboard', async (): Promise<LearningDashboardResponse> => {
+export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
+  '/dashboard',
+  async (): Promise<LearningDashboardResponse> => {
     try {
       const now = new Date();
       const todayStart = new Date(now);
@@ -92,10 +92,7 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' })
         // Cards due today
         prisma.flashcard.count({
           where: {
-            OR: [
-              { nextReview: { lte: now } },
-              { nextReview: null, reviewCount: 0 },
-            ],
+            OR: [{ nextReview: { lte: now } }, { nextReview: null, reviewCount: 0 }],
           },
         }),
 
@@ -135,7 +132,8 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' })
       const examGoalData = examGoals.map((goal) => {
         const taskCount = goal.tasks.length;
         const completedTaskCount = goal.tasks.filter((t) => t.status === 'done').length;
-        const progressPercent = taskCount > 0 ? Math.round((completedTaskCount / taskCount) * 100) : 0;
+        const progressPercent =
+          taskCount > 0 ? Math.round((completedTaskCount / taskCount) * 100) : 0;
         const daysRemaining = Math.max(
           0,
           Math.ceil((goal.examDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)),
@@ -160,9 +158,11 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' })
       const learningGoalData = learningGoals.map((goal) => {
         let progressPercent = 0;
         if (goal.deadline && goal.createdAt) {
-          const totalDays = (goal.deadline.getTime() - goal.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+          const totalDays =
+            (goal.deadline.getTime() - goal.createdAt.getTime()) / (1000 * 60 * 60 * 24);
           const elapsedDays = (now.getTime() - goal.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-          progressPercent = totalDays > 0 ? Math.min(100, Math.round((elapsedDays / totalDays) * 100)) : 0;
+          progressPercent =
+            totalDays > 0 ? Math.min(100, Math.round((elapsedDays / totalDays) * 100)) : 0;
         }
         if (goal.status === 'completed') progressPercent = 100;
 
@@ -253,4 +253,5 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' })
       log.error({ err: error }, 'Failed to build learning dashboard');
       throw error;
     }
-  });
+  },
+);

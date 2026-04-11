@@ -29,7 +29,13 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
     const nodeType = query.nodeType as string | undefined;
     const search = query.search as string | undefined;
     const sortBy = (query.sortBy as string) ?? 'weight';
-    return listNodes({ nodeType: nodeType as KnowledgeNodeType | undefined, search, page, limit, sortBy: sortBy as 'weight' | 'accessCount' | 'createdAt' });
+    return listNodes({
+      nodeType: nodeType as KnowledgeNodeType | undefined,
+      search,
+      page,
+      limit,
+      sortBy: sortBy as 'weight' | 'accessCount' | 'createdAt',
+    });
   })
 
   .get('/nodes/:id', async ({ params }) => {
@@ -38,20 +44,24 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
     return node;
   })
 
-  .post('/nodes', async ({ body }) => {
-    return addNode({
-      ...body,
-      nodeType: body.nodeType as KnowledgeNodeType
-    });
-  }, {
-    body: t.Object({
-      label: t.String(),
-      nodeType: t.String(),
-      description: t.Optional(t.String()),
-      properties: t.Optional(t.Record(t.String(), t.Any())),
-      weight: t.Optional(t.Number())
-    })
-  })
+  .post(
+    '/nodes',
+    async ({ body }) => {
+      return addNode({
+        ...body,
+        nodeType: body.nodeType as KnowledgeNodeType,
+      });
+    },
+    {
+      body: t.Object({
+        label: t.String(),
+        nodeType: t.String(),
+        description: t.Optional(t.String()),
+        properties: t.Optional(t.Record(t.String(), t.Any())),
+        weight: t.Optional(t.Number()),
+      }),
+    },
+  )
 
   .get('/nodes/:id/related', async ({ params, query }) => {
     const edgeTypes = query.edgeTypes ? (query.edgeTypes as string).split(',') : undefined;
@@ -59,20 +69,24 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
   })
 
   // --- Edges ---
-  .post('/edges', async ({ body }) => {
-    return addEdge({
-      ...body,
-      edgeType: body.edgeType as KnowledgeEdgeType
-    });
-  }, {
-    body: t.Object({
-      fromNodeId: t.Number(),
-      toNodeId: t.Number(),
-      edgeType: t.String(),
-      weight: t.Optional(t.Number()),
-      metadata: t.Optional(t.Record(t.String(), t.Any()))
-    })
-  })
+  .post(
+    '/edges',
+    async ({ body }) => {
+      return addEdge({
+        ...body,
+        edgeType: body.edgeType as KnowledgeEdgeType,
+      });
+    },
+    {
+      body: t.Object({
+        fromNodeId: t.Number(),
+        toNodeId: t.Number(),
+        edgeType: t.String(),
+        weight: t.Optional(t.Number()),
+        metadata: t.Optional(t.Record(t.String(), t.Any())),
+      }),
+    },
+  )
 
   // --- Subgraph ---
   .get('/subgraph', async ({ query }) => {
@@ -83,18 +97,27 @@ export const knowledgeGraphRoutes = new Elysia({ prefix: '/knowledge-graph' })
 
     if (isNaN(nodeId)) return { error: 'nodeId is required' };
 
-    return getSubgraph({ nodeId, depth, edgeTypes: edgeTypes as KnowledgeEdgeType[] | undefined, maxNodes });
+    return getSubgraph({
+      nodeId,
+      depth,
+      edgeTypes: edgeTypes as KnowledgeEdgeType[] | undefined,
+      maxNodes,
+    });
   })
 
   // --- Merge ---
-  .post('/nodes/merge', async ({ body }) => {
-    return mergeNodes(body.keepId, body.removeId);
-  }, {
-    body: t.Object({
-      keepId: t.Number(),
-      removeId: t.Number()
-    })
-  })
+  .post(
+    '/nodes/merge',
+    async ({ body }) => {
+      return mergeNodes(body.keepId, body.removeId);
+    },
+    {
+      body: t.Object({
+        keepId: t.Number(),
+        removeId: t.Number(),
+      }),
+    },
+  )
 
   // --- Stats ---
   .get('/stats', async () => {

@@ -8,20 +8,8 @@
  *   - stats-ops.ts    — getLearningStats, getGrowthTimeline, getMemoryOverview
  */
 
-export {
-  analyzeFailure,
-  extractStrategy,
-  createPattern,
-  listPatterns,
-} from './pattern-ops';
+export { analyzeFailure, extractStrategy, createPattern, listPatterns } from './pattern-ops';
 
-export {
-  recordPromptEvolution,
-  getPromptEvolutionHistory,
-} from './prompt-ops';
+export { recordPromptEvolution, getPromptEvolutionHistory } from './prompt-ops';
 
-export {
-  getLearningStats,
-  getGrowthTimeline,
-  getMemoryOverview,
-} from './stats-ops';
+export { getLearningStats, getGrowthTimeline, getMemoryOverview } from './stats-ops';

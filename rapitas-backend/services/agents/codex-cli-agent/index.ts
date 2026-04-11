@@ -11,11 +11,7 @@
 import { spawn, execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
-import type {
-  AgentCapability,
-  AgentTask,
-  AgentExecutionResult,
-} from '../base-agent';
+import type { AgentCapability, AgentTask, AgentExecutionResult } from '../base-agent';
 import { createInitialWaitingState } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
 import { createLogger } from '../../../config/logger';
@@ -64,7 +60,10 @@ export class CodexCliAgent extends BaseAgent {
     };
   }
 
-  async execute(task: AgentTask, _options?: Record<string, unknown>): Promise<AgentExecutionResult> {
+  async execute(
+    task: AgentTask,
+    _options?: Record<string, unknown>,
+  ): Promise<AgentExecutionResult> {
     this.status = 'running';
     this.outputBuffer = '';
     this.errorBuffer = '';
@@ -149,9 +148,15 @@ export class CodexCliAgent extends BaseAgent {
             questionDetails: payload.questionDetails,
             questionKey: payload.questionKey,
           }),
-        onSessionId: (id) => { this.codexSessionId = id; },
-        onQuestionDetected: (state) => { this.detectedQuestion = state; },
-        onStatusChange: (status) => { this.status = status as typeof this.status; },
+        onSessionId: (id) => {
+          this.codexSessionId = id;
+        },
+        onQuestionDetected: (state) => {
+          this.detectedQuestion = state;
+        },
+        onStatusChange: (status) => {
+          this.status = status as typeof this.status;
+        },
         logPrefix: this.logPrefix,
       },
       startTime,

@@ -74,13 +74,21 @@ export async function executeTask(
     let taskWorkDir = workingDirectory;
     try {
       const branchName = `feature/task-${taskId}-parallel`;
-      taskWorkDir = await ctx.gitOps.createWorktree(workingDirectory, branchName, taskId, repositoryUrl);
+      taskWorkDir = await ctx.gitOps.createWorktree(
+        workingDirectory,
+        branchName,
+        taskId,
+        repositoryUrl,
+      );
       ctx.taskWorktrees.set(taskId, taskWorkDir);
       session.taskBranches.set(taskId, branchName);
       ctx.conflictDetector.startTracking(taskId, `agent-${taskId}`, taskWorkDir);
       logger.info(`[ParallelExecutor] Created worktree for task ${taskId}: ${taskWorkDir}`);
     } catch (wtError) {
-      logger.error({ err: wtError }, `[ParallelExecutor] Worktree creation failed for task ${taskId}, using shared directory`);
+      logger.error(
+        { err: wtError },
+        `[ParallelExecutor] Worktree creation failed for task ${taskId}, using shared directory`,
+      );
       // HACK(agent): Fallback to shared directory if worktree creation fails
       taskWorkDir = workingDirectory;
     }
@@ -117,11 +125,17 @@ export async function executeTask(
     const agentId = ctx.agentController.createAgent(taskId, execution.id, taskWorkDir);
 
     session.activeAgents.set(agentId, {
-      agentId, taskId, executionId: execution.id,
+      agentId,
+      taskId,
+      executionId: execution.id,
       status: 'running',
       startedAt: new Date(),
       lastActivityAt: new Date(),
-      output: '', artifacts: [], tokensUsed: 0, executionTimeMs: 0, watingForInput: false,
+      output: '',
+      artifacts: [],
+      tokensUsed: 0,
+      executionTimeMs: 0,
+      watingForInput: false,
     });
 
     ctx.emitEvent({ type: 'task_started', sessionId, taskId, timestamp: new Date() });
@@ -147,7 +161,9 @@ export async function executeTask(
       });
       if (previousExecution?.claudeSessionId) {
         previousSessionId = previousExecution.claudeSessionId;
-        logger.info(`[ParallelExecutor] Found previous session for task ${taskId}: ${previousSessionId}`);
+        logger.info(
+          `[ParallelExecutor] Found previous session for task ${taskId}: ${previousSessionId}`,
+        );
       }
     } catch {
       logger.info(`[ParallelExecutor] No previous session found for task ${taskId}`);
@@ -167,7 +183,11 @@ export async function executeTask(
     try {
       await dbMutex.acquire();
       // NOTE: 'waiting_for_input' is a valid terminal status for user-gated tasks
-      const executionStatus = result.waitingForInput ? 'waiting_for_input' : result.success ? 'completed' : 'failed';
+      const executionStatus = result.waitingForInput
+        ? 'waiting_for_input'
+        : result.success
+          ? 'completed'
+          : 'failed';
       await withRetry(async () => {
         await ctx.prisma.agentExecution.update({
           where: { id: execution.id },
@@ -188,7 +208,9 @@ export async function executeTask(
     }
 
     if (result.waitingForInput) {
-      logger.info(`[ParallelExecutor] Task ${taskId} waiting for input: ${result.question?.substring(0, 200)}`);
+      logger.info(
+        `[ParallelExecutor] Task ${taskId} waiting for input: ${result.question?.substring(0, 200)}`,
+      );
 
       try {
         await dbMutex.acquire();
@@ -206,7 +228,12 @@ export async function executeTask(
         sessionId,
         taskId,
         timestamp: new Date(),
-        data: { waitingForInput: true, question: result.question, questionDetails: result.questionDetails, claudeSessionId: result.claudeSessionId },
+        data: {
+          waitingForInput: true,
+          question: result.question,
+          questionDetails: result.questionDetails,
+          claudeSessionId: result.claudeSessionId,
+        },
       });
 
       return;

@@ -22,7 +22,10 @@ export { collectImportMetrics } from './analyze-codebase/metrics/import-metrics'
 export { collectAPIConsistency } from './analyze-codebase/metrics/api-consistency';
 export { collectTestCoverage } from './analyze-codebase/metrics/test-coverage';
 export { collectArchitectureHealth } from './analyze-codebase/metrics/architecture-health';
-export { collectAIAgentMetrics, collectDependencyMetrics } from './analyze-codebase/metrics/ai-agent-metrics';
+export {
+  collectAIAgentMetrics,
+  collectDependencyMetrics,
+} from './analyze-codebase/metrics/ai-agent-metrics';
 export { collectFeatureCompleteness } from './analyze-codebase/metrics/feature-completeness';
 export { collectMaintainabilityMetrics } from './analyze-codebase/metrics/maintainability-metrics';
 export { computeScoring } from './analyze-codebase/scoring';

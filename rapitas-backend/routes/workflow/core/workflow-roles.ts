@@ -47,7 +47,7 @@ async function ensureRolesExist() {
 }
 
 export const workflowRolesRoutes = new Elysia()
-  
+
   .get('/workflow-roles', async () => {
     await ensureRolesExist();
 
@@ -80,7 +80,6 @@ export const workflowRolesRoutes = new Elysia()
     return sorted;
   })
 
-  
   .get('/workflow-roles/:role', async ({ params, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {
@@ -113,7 +112,6 @@ export const workflowRolesRoutes = new Elysia()
     return config;
   })
 
-  
   .put('/workflow-roles/:role', async ({ params, body, set }) => {
     const role = params.role as string;
     if (!VALID_ROLES.includes(role as WorkflowRole)) {

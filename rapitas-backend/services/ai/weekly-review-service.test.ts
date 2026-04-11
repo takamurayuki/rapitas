@@ -61,7 +61,9 @@ describe('getWeekEnd', () => {
     expect(end.getSeconds()).toBe(59);
     expect(end.getMilliseconds()).toBe(999);
     // Difference should be 6 days, 23:59:59.999
-    expect(end.getTime() - monday.getTime()).toBe(6 * 86_400_000 + 23 * 3_600_000 + 59 * 60_000 + 59_000 + 999);
+    expect(end.getTime() - monday.getTime()).toBe(
+      6 * 86_400_000 + 23 * 3_600_000 + 59 * 60_000 + 59_000 + 999,
+    );
   });
 });
 

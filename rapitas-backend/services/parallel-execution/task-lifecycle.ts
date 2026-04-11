@@ -201,9 +201,6 @@ export async function cleanupTaskWorktree(
     ctx.taskWorktrees.delete(taskId);
     logger.info(`[ParallelExecutor] Cleaned up worktree for task ${taskId}: ${worktreePath}`);
   } catch (error) {
-    logger.warn(
-      { err: error },
-      `[ParallelExecutor] Failed to cleanup worktree for task ${taskId}`,
-    );
+    logger.warn({ err: error }, `[ParallelExecutor] Failed to cleanup worktree for task ${taskId}`);
   }
 }

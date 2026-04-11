@@ -49,7 +49,11 @@ import { getOllamaUrl } from './credentials';
 import { ensureLocalLLM } from '../../services/local-llm';
 import { createLogger } from '../../config';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
-import { generateCacheKey, getCachedResponse, setCachedResponse } from '../../services/local-llm/response-cache';
+import {
+  generateCacheKey,
+  getCachedResponse,
+  setCachedResponse,
+} from '../../services/local-llm/response-cache';
 
 const log = createLogger('ai-client');
 
@@ -136,7 +140,10 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
             });
             if (ragContext.contextText.length > 0) {
               systemPrompt = ragContext.contextText + '\n\n---\n\n' + (systemPrompt || '');
-              log.debug({ ragEntries: ragContext.entries.length }, 'RAG context injected for local LLM');
+              log.debug(
+                { ragEntries: ragContext.entries.length },
+                'RAG context injected for local LLM',
+              );
             }
           }
         } catch (ragError) {
@@ -153,8 +160,20 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
           return cached;
         }
 
-        const response = await callOllama(localLLM.url, localLLM.model, options.messages, systemPrompt, maxTokens);
-        setCachedResponse(cacheKey, response.content, response.tokensUsed, 'ollama', localLLM.model);
+        const response = await callOllama(
+          localLLM.url,
+          localLLM.model,
+          options.messages,
+          systemPrompt,
+          maxTokens,
+        );
+        setCachedResponse(
+          cacheKey,
+          response.content,
+          response.tokensUsed,
+          'ollama',
+          localLLM.model,
+        );
         return response;
       }
 

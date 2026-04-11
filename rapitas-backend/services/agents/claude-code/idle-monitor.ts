@@ -131,10 +131,7 @@ export function startIdleMonitor(
           try {
             proc.kill();
           } catch (killErr) {
-            logger.warn(
-              { err: killErr },
-              `${logPrefix} process.kill() also failed (idle hang)`,
-            );
+            logger.warn({ err: killErr }, `${logPrefix} process.kill() also failed (idle hang)`);
           }
         }
       } else {

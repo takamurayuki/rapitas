@@ -29,10 +29,7 @@ export const projectHealthRoutes = new Elysia({ prefix: '/project-health' })
         workingDirectory: string;
         projectName?: string;
       };
-      const items = await checkProjectHealth(
-        workingDirectory,
-        projectName || workingDirectory,
-      );
+      const items = await checkProjectHealth(workingDirectory, projectName || workingDirectory);
       return { success: true, data: { items } };
     },
     {

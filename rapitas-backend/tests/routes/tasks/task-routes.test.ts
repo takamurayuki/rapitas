@@ -2,8 +2,8 @@
  * Task Routes テスト
  * タスクCRUD操作のユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from "bun:test";
-import { Elysia } from "elysia";
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { Elysia } from 'elysia';
 
 const mockPrisma = {
   task: {
@@ -39,17 +39,17 @@ const mockPrisma = {
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
-mock.module("../../../config/database", () => ({
+mock.module('../../../config/database', () => ({
   prisma: mockPrisma,
   ensureDatabaseConnection: () => Promise.resolve(),
 }));
-mock.module("../../../services/achievement-checker", () => ({
+mock.module('../../../services/achievement-checker', () => ({
   checkAchievements: mock(() => Promise.resolve()),
 }));
-mock.module("../../../services/communication/notification-service", () => ({
+mock.module('../../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
-mock.module("../../../src/services/userBehaviorService", () => ({
+mock.module('../../../src/services/userBehaviorService', () => ({
   UserBehaviorService: {
     recordTaskCreated: mock(() => Promise.resolve()),
     recordTaskStarted: mock(() => Promise.resolve()),
@@ -57,15 +57,15 @@ mock.module("../../../src/services/userBehaviorService", () => ({
     recordBehavior: mock(() => Promise.resolve()),
   },
 }));
-mock.module("../../../utils/ai-client", () => ({
-  sendAIMessage: mock(() => Promise.resolve({ content: "{}", tokensUsed: 0 })),
-  getDefaultProvider: mock(() => Promise.resolve("openai")),
+mock.module('../../../utils/ai-client', () => ({
+  sendAIMessage: mock(() => Promise.resolve({ content: '{}', tokensUsed: 0 })),
+  getDefaultProvider: mock(() => Promise.resolve('openai')),
   isAnyApiKeyConfigured: mock(() => Promise.resolve(false)),
 }));
-mock.module("../../../routes/agents/approvals", () => ({
+mock.module('../../../routes/agents/approvals', () => ({
   orchestrator: { execute: mock(() => Promise.resolve()) },
 }));
-mock.module("../../../config/logger", () => ({
+mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -81,22 +81,22 @@ mock.module("../../../config/logger", () => ({
   },
 }));
 
-const { tasksRoutes } = await import("../../../routes/tasks/tasks");
-const { AppError } = await import("../../../middleware/error-handler");
+const { tasksRoutes } = await import('../../../routes/tasks/tasks');
+const { AppError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
-    if (typeof model === "object" && model !== null) {
+    if (typeof model === 'object' && model !== null) {
       for (const method of Object.values(model)) {
-        if (typeof method === "function" && "mockReset" in method) {
+        if (typeof method === 'function' && 'mockReset' in method) {
           (method as ReturnType<typeof mock>).mockReset();
         }
       }
     }
   }
   // Restore default for $transaction
-  mockPrisma.$transaction.mockImplementation(
-    (fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma),
+  mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
+    fn(mockPrisma),
   );
 }
 
@@ -107,17 +107,17 @@ function createApp() {
         set.status = error.statusCode;
         return { error: error.message, code: error.code };
       }
-      if (code === "VALIDATION") {
+      if (code === 'VALIDATION') {
         set.status = 422;
-        return { error: "Validation error" };
+        return { error: 'Validation error' };
       }
       set.status = 500;
-      return { error: error instanceof Error ? error.message : "Server error" };
+      return { error: error instanceof Error ? error.message : 'Server error' };
     })
     .use(tasksRoutes);
 }
 
-describe("GET /tasks", () => {
+describe('GET /tasks', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -125,24 +125,24 @@ describe("GET /tasks", () => {
     app = createApp();
   });
 
-  test("全タスクを返すこと", async () => {
+  test('全タスクを返すこと', async () => {
     const tasks = [
-      { id: 1, title: "Task 1", status: "todo", parentId: null },
-      { id: 2, title: "Task 2", status: "done", parentId: null },
+      { id: 1, title: 'Task 1', status: 'todo', parentId: null },
+      { id: 2, title: 'Task 2', status: 'done', parentId: null },
     ];
     mockPrisma.task.findMany.mockResolvedValue(tasks);
 
-    const res = await app.handle(new Request("http://localhost/tasks"));
+    const res = await app.handle(new Request('http://localhost/tasks'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toEqual(tasks);
   });
 
-  test("projectIdフィルタを適用すること", async () => {
+  test('projectIdフィルタを適用すること', async () => {
     mockPrisma.task.findMany.mockResolvedValue([]);
 
-    await app.handle(new Request("http://localhost/tasks?projectId=5"));
+    await app.handle(new Request('http://localhost/tasks?projectId=5'));
 
     const call = mockPrisma.task.findMany.mock.calls[0]![0] as {
       where: { projectId?: number };
@@ -150,14 +150,12 @@ describe("GET /tasks", () => {
     expect(call.where.projectId).toBe(5);
   });
 
-  test("sinceパラメータでincremental fetchすること", async () => {
-    const since = "2026-03-01T00:00:00.000Z";
+  test('sinceパラメータでincremental fetchすること', async () => {
+    const since = '2026-03-01T00:00:00.000Z';
     mockPrisma.task.findMany.mockResolvedValue([]);
     mockPrisma.task.count.mockResolvedValue(10);
 
-    const res = await app.handle(
-      new Request(`http://localhost/tasks?since=${since}`),
-    );
+    const res = await app.handle(new Request(`http://localhost/tasks?since=${since}`));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -166,15 +164,13 @@ describe("GET /tasks", () => {
     expect(body.since).toBe(since);
   });
 
-  test("不正なsinceパラメータで400を返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/tasks?since=invalid"),
-    );
+  test('不正なsinceパラメータで400を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/tasks?since=invalid'));
     expect(res.status).toBe(400);
   });
 });
 
-describe("GET /tasks/:id", () => {
+describe('GET /tasks/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -182,11 +178,11 @@ describe("GET /tasks/:id", () => {
     app = createApp();
   });
 
-  test("IDでタスクを取得すること", async () => {
+  test('IDでタスクを取得すること', async () => {
     const task = {
       id: 1,
-      title: "Test Task",
-      status: "todo",
+      title: 'Test Task',
+      status: 'todo',
       subtasks: [],
       theme: null,
       project: null,
@@ -196,21 +192,21 @@ describe("GET /tasks/:id", () => {
     };
     mockPrisma.task.findUnique.mockResolvedValue(task);
 
-    const res = await app.handle(new Request("http://localhost/tasks/1"));
+    const res = await app.handle(new Request('http://localhost/tasks/1'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body.id).toBe(1);
-    expect(body.title).toBe("Test Task");
+    expect(body.title).toBe('Test Task');
   });
 
-  test("無効なIDでValidationErrorを返すこと", async () => {
-    const res = await app.handle(new Request("http://localhost/tasks/abc"));
+  test('無効なIDでValidationErrorを返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/tasks/abc'));
     expect(res.status).toBe(400);
   });
 });
 
-describe("POST /tasks", () => {
+describe('POST /tasks', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -218,8 +214,8 @@ describe("POST /tasks", () => {
     app = createApp();
   });
 
-  test("基本的なタスクを作成すること", async () => {
-    const created = { id: 1, title: "New Task", status: "todo" };
+  test('基本的なタスクを作成すること', async () => {
+    const created = { id: 1, title: 'New Task', status: 'todo' };
     mockPrisma.task.create.mockResolvedValue(created);
     mockPrisma.task.findUnique.mockResolvedValue({
       ...created,
@@ -234,21 +230,21 @@ describe("POST /tasks", () => {
     });
 
     const res = await app.handle(
-      new Request("http://localhost/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New Task" }),
+      new Request('http://localhost/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New Task' }),
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.title).toBe("New Task");
+    expect(body.title).toBe('New Task');
     expect(mockPrisma.task.create).toHaveBeenCalledTimes(1);
   });
 
-  test("labelIds付きでタスクを作成すること", async () => {
-    const created = { id: 1, title: "Labeled Task" };
+  test('labelIds付きでタスクを作成すること', async () => {
+    const created = { id: 1, title: 'Labeled Task' };
     mockPrisma.task.create.mockResolvedValue(created);
     mockPrisma.task.findUnique.mockResolvedValue({
       ...created,
@@ -257,16 +253,16 @@ describe("POST /tasks", () => {
       project: null,
       milestone: null,
       examGoal: null,
-      taskLabels: [{ labelId: 1, label: { id: 1, name: "Bug" } }],
+      taskLabels: [{ labelId: 1, label: { id: 1, name: 'Bug' } }],
       themeId: null,
       parentId: null,
     });
 
     const res = await app.handle(
-      new Request("http://localhost/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Labeled Task", labelIds: [1, 2] }),
+      new Request('http://localhost/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Labeled Task', labelIds: [1, 2] }),
       }),
     );
 
@@ -278,11 +274,11 @@ describe("POST /tasks", () => {
     expect(labelCall.data.length).toBe(2);
   });
 
-  test("サブタスク作成時にトランザクションを使用すること", async () => {
+  test('サブタスク作成時にトランザクションを使用すること', async () => {
     const parent = { id: 10 };
     const subtask = {
       id: 11,
-      title: "Subtask",
+      title: 'Subtask',
       parentId: 10,
       subtasks: [],
       theme: null,
@@ -300,10 +296,10 @@ describe("POST /tasks", () => {
       .mockResolvedValueOnce(subtask); // created subtask fetch
 
     const res = await app.handle(
-      new Request("http://localhost/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Subtask", parentId: 10 }),
+      new Request('http://localhost/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Subtask', parentId: 10 }),
       }),
     );
 
@@ -311,11 +307,11 @@ describe("POST /tasks", () => {
     expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
-  test("タイトルなしでバリデーションエラーを返すこと", async () => {
+  test('タイトルなしでバリデーションエラーを返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       }),
     );
@@ -323,7 +319,7 @@ describe("POST /tasks", () => {
   });
 });
 
-describe("PATCH /tasks/:id", () => {
+describe('PATCH /tasks/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -331,12 +327,12 @@ describe("PATCH /tasks/:id", () => {
     app = createApp();
   });
 
-  test("タスクのタイトルを更新すること", async () => {
-    const current = { status: "todo", parentId: null };
+  test('タスクのタイトルを更新すること', async () => {
+    const current = { status: 'todo', parentId: null };
     const updated = {
       id: 1,
-      title: "Updated",
-      status: "todo",
+      title: 'Updated',
+      status: 'todo',
       themeId: null,
       theme: null,
       project: null,
@@ -344,30 +340,28 @@ describe("PATCH /tasks/:id", () => {
       examGoal: null,
       taskLabels: [],
     };
-    mockPrisma.task.findUnique
-      .mockResolvedValueOnce(current)
-      .mockResolvedValueOnce(updated);
+    mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
     mockPrisma.task.update.mockResolvedValue(updated);
 
     const res = await app.handle(
-      new Request("http://localhost/tasks/1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "Updated" }),
+      new Request('http://localhost/tasks/1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Updated' }),
       }),
     );
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.title).toBe("Updated");
+    expect(body.title).toBe('Updated');
   });
 
-  test("ステータスをdoneに変更時にstudyStreakをupsertすること", async () => {
-    const current = { status: "in_progress", parentId: null };
+  test('ステータスをdoneに変更時にstudyStreakをupsertすること', async () => {
+    const current = { status: 'in_progress', parentId: null };
     const updated = {
       id: 1,
-      title: "Task",
-      status: "done",
+      title: 'Task',
+      status: 'done',
       themeId: 1,
       theme: null,
       project: null,
@@ -375,22 +369,18 @@ describe("PATCH /tasks/:id", () => {
       examGoal: null,
       taskLabels: [],
     };
-    mockPrisma.task.findUnique
-      .mockResolvedValueOnce(current)
-      .mockResolvedValueOnce(updated);
+    mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
     mockPrisma.task.update.mockResolvedValue(updated);
 
     // Mock the fetch for achievement check
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = mock(() =>
-      Promise.resolve(new Response("ok")),
-    ) as typeof fetch;
+    globalThis.fetch = mock(() => Promise.resolve(new Response('ok'))) as typeof fetch;
 
     const res = await app.handle(
-      new Request("http://localhost/tasks/1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "done" }),
+      new Request('http://localhost/tasks/1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' }),
       }),
     );
 
@@ -400,12 +390,12 @@ describe("PATCH /tasks/:id", () => {
     globalThis.fetch = originalFetch;
   });
 
-  test("labelIds更新時に既存ラベルを削除して新規作成すること", async () => {
-    const current = { status: "todo", parentId: null };
+  test('labelIds更新時に既存ラベルを削除して新規作成すること', async () => {
+    const current = { status: 'todo', parentId: null };
     const updated = {
       id: 1,
-      title: "Task",
-      status: "todo",
+      title: 'Task',
+      status: 'todo',
       themeId: null,
       theme: null,
       project: null,
@@ -413,15 +403,13 @@ describe("PATCH /tasks/:id", () => {
       examGoal: null,
       taskLabels: [],
     };
-    mockPrisma.task.findUnique
-      .mockResolvedValueOnce(current)
-      .mockResolvedValueOnce(updated);
+    mockPrisma.task.findUnique.mockResolvedValueOnce(current).mockResolvedValueOnce(updated);
     mockPrisma.task.update.mockResolvedValue(updated);
 
     const res = await app.handle(
-      new Request("http://localhost/tasks/1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      new Request('http://localhost/tasks/1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ labelIds: [3, 4] }),
       }),
     );
@@ -433,19 +421,19 @@ describe("PATCH /tasks/:id", () => {
     expect(mockPrisma.taskLabel.createMany).toHaveBeenCalledTimes(1);
   });
 
-  test("無効なIDでValidationErrorを返すこと", async () => {
+  test('無効なIDでValidationErrorを返すこと', async () => {
     const res = await app.handle(
-      new Request("http://localhost/tasks/abc", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "test" }),
+      new Request('http://localhost/tasks/abc', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'test' }),
       }),
     );
     expect(res.status).toBe(400);
   });
 });
 
-describe("DELETE /tasks/:id", () => {
+describe('DELETE /tasks/:id', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -453,26 +441,22 @@ describe("DELETE /tasks/:id", () => {
     app = createApp();
   });
 
-  test("タスクを削除すること", async () => {
-    mockPrisma.task.delete.mockResolvedValue({ id: 1, title: "Deleted" });
+  test('タスクを削除すること', async () => {
+    mockPrisma.task.delete.mockResolvedValue({ id: 1, title: 'Deleted' });
 
-    const res = await app.handle(
-      new Request("http://localhost/tasks/1", { method: "DELETE" }),
-    );
+    const res = await app.handle(new Request('http://localhost/tasks/1', { method: 'DELETE' }));
 
     expect(res.status).toBe(200);
     expect(mockPrisma.task.delete).toHaveBeenCalledWith({ where: { id: 1 } });
   });
 
-  test("無効なIDでValidationErrorを返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/tasks/abc", { method: "DELETE" }),
-    );
+  test('無効なIDでValidationErrorを返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/tasks/abc', { method: 'DELETE' }));
     expect(res.status).toBe(400);
   });
 });
 
-describe("GET /tasks/search", () => {
+describe('GET /tasks/search', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
@@ -480,10 +464,8 @@ describe("GET /tasks/search", () => {
     app = createApp();
   });
 
-  test("空のクエリで空配列を返すこと", async () => {
-    const res = await app.handle(
-      new Request("http://localhost/tasks/search?q="),
-    );
+  test('空のクエリで空配列を返すこと', async () => {
+    const res = await app.handle(new Request('http://localhost/tasks/search?q='));
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -491,27 +473,21 @@ describe("GET /tasks/search", () => {
     expect(mockPrisma.task.findMany).not.toHaveBeenCalled();
   });
 
-  test("クエリで検索結果を返すこと", async () => {
-    const results = [
-      { id: 1, title: "Test Task", priority: "medium", status: "todo" },
-    ];
+  test('クエリで検索結果を返すこと', async () => {
+    const results = [{ id: 1, title: 'Test Task', priority: 'medium', status: 'todo' }];
     mockPrisma.task.findMany.mockResolvedValue(results);
 
-    const res = await app.handle(
-      new Request("http://localhost/tasks/search?q=Test"),
-    );
+    const res = await app.handle(new Request('http://localhost/tasks/search?q=Test'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toEqual(results);
   });
 
-  test("themeIdフィルタを適用すること", async () => {
+  test('themeIdフィルタを適用すること', async () => {
     mockPrisma.task.findMany.mockResolvedValue([]);
 
-    await app.handle(
-      new Request("http://localhost/tasks/search?q=test&themeId=3"),
-    );
+    await app.handle(new Request('http://localhost/tasks/search?q=test&themeId=3'));
 
     const call = mockPrisma.task.findMany.mock.calls[0]![0] as {
       where: { themeId?: number };

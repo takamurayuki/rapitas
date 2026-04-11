@@ -183,7 +183,11 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
       }
 
       const resultLimit = limit ? parseInt(limit) : 5;
-      const suggestions = await getKnowledgeBasedSuggestions(prisma, parseInt(themeId), resultLimit);
+      const suggestions = await getKnowledgeBasedSuggestions(
+        prisma,
+        parseInt(themeId),
+        resultLimit,
+      );
       return { suggestions };
     },
     {
@@ -323,4 +327,4 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
         themeId: t.Optional(t.String()),
       }),
     },
-  )
+  );

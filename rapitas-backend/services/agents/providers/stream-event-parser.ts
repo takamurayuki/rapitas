@@ -37,9 +37,11 @@ export function processStreamEvent(json: Record<string, unknown>): StreamEventRe
                 output += b.text;
               } else if (b.type === 'tool_use' && b.name === 'AskUserQuestion') {
                 isQuestion = true;
-                const input = b.input as {
-                  questions?: Array<{ question?: string }>;
-                } | undefined;
+                const input = b.input as
+                  | {
+                      questions?: Array<{ question?: string }>;
+                    }
+                  | undefined;
                 if (input?.questions?.[0]?.question) {
                   questionText = input.questions[0].question;
                 }

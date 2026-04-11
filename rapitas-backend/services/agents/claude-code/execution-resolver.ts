@@ -12,11 +12,7 @@
  */
 import { tolegacyQuestionType } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
-import type {
-  AgentArtifact,
-  AgentExecutionResult,
-  GitCommitInfo,
-} from '../base-agent';
+import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
 
@@ -91,9 +87,7 @@ export function buildResolveAfterParse(
     // Claude Code may exit with non-zero even after outputting a question.
     if (hasQuestion) {
       ctx.status = 'waiting_for_input';
-      logger.info(
-        `${ctx.logPrefix} Setting status to waiting_for_input (exitCode: ${code})`,
-      );
+      logger.info(`${ctx.logPrefix} Setting status to waiting_for_input (exitCode: ${code})`);
       logger.info(
         `${ctx.logPrefix} Question detected (${questionType}): ${question.substring(0, 200)}`,
       );
@@ -184,19 +178,13 @@ export function buildResolveAfterParse(
     // NOTE: On success (code === 0) or idle-hang kill, verify actual changes via git diff.
     // File-modifying tools (Write/Edit) may have been called in plan mode (EnterPlanMode)
     // or via sub-agents (Task) without actually modifying files.
-    logger.info(
-      `${ctx.logPrefix} Process exited successfully, verifying actual code changes...`,
-    );
-    logger.info(
-      `${ctx.logPrefix} hasFileModifyingToolCalls: ${ctx.hasFileModifyingToolCalls}`,
-    );
+    logger.info(`${ctx.logPrefix} Process exited successfully, verifying actual code changes...`);
+    logger.info(`${ctx.logPrefix} hasFileModifyingToolCalls: ${ctx.hasFileModifyingToolCalls}`);
 
     checkGitDiff(workDir, ctx.logPrefix)
       .then((hasChanges) => {
         if (hasChanges) {
-          logger.info(
-            `${ctx.logPrefix} Git diff confirmed changes, setting status to completed`,
-          );
+          logger.info(`${ctx.logPrefix} Git diff confirmed changes, setting status to completed`);
           ctx.status = 'completed';
           resolve({
             success: true,

@@ -171,8 +171,16 @@ export const intentRoutes = new Elysia({ prefix: '/intent' })
 
         let planContent: string | null = null;
         let verifyContent: string | null = null;
-        try { planContent = await readFile(join(taskDir, 'plan.md'), 'utf-8'); } catch { /* no plan */ }
-        try { verifyContent = await readFile(join(taskDir, 'verify.md'), 'utf-8'); } catch { /* no verify */ }
+        try {
+          planContent = await readFile(join(taskDir, 'plan.md'), 'utf-8');
+        } catch {
+          /* no plan */
+        }
+        try {
+          verifyContent = await readFile(join(taskDir, 'verify.md'), 'utf-8');
+        } catch {
+          /* no verify */
+        }
 
         const intentContent = exportToIntentFormat(task, {
           plan: planContent,

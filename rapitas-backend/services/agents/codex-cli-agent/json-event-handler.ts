@@ -154,10 +154,7 @@ export function processJsonEvent(
       break;
 
     default:
-      logger.info(
-        { eventType: json.type },
-        `${logPrefix} Unknown event type: ${json.type}`,
-      );
+      logger.info({ eventType: json.type }, `${logPrefix} Unknown event type: ${json.type}`);
   }
 
   if (displayOutput) {

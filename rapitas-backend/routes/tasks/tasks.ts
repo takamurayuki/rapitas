@@ -16,12 +16,6 @@ import {
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
 
-
-
-
-
-
-
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
 const logger = createLogger('tasks');
@@ -59,7 +53,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
   })
-
 
   // Get task statistics
   .get('/statistics', async () => {
@@ -460,5 +453,4 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         subtaskIds: t.Array(t.Number()),
       }),
     },
-  )
-
+  );

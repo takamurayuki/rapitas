@@ -82,12 +82,7 @@ export async function buildPrompt(agentId: string, task: AgentTask): Promise<str
 
   // NOTE: Inject related knowledge from agent memory to avoid repeating past mistakes
   try {
-    const knowledge = await findRelatedKnowledge(
-      task.title,
-      task.description,
-      task.themeId,
-      3,
-    );
+    const knowledge = await findRelatedKnowledge(task.title, task.description, task.themeId, 3);
     if (knowledge.length > 0) {
       sections.push('## 過去の知見（エージェントメモリ）');
       for (const entry of knowledge) {
@@ -106,7 +101,9 @@ export async function buildPrompt(agentId: string, task: AgentTask): Promise<str
   sections.push('## 実行指示');
   sections.push('上記のタスクを実装してください。');
   sections.push('不明点がある場合は、AskUserQuestionで質問してください。');
-  sections.push('質問時は必ず選択肢（options配列）を提供してください（2-4個）。フリーテキスト入力はAPIキーやパスなどの場合のみ許可。');
+  sections.push(
+    '質問時は必ず選択肢（options配列）を提供してください（2-4個）。フリーテキスト入力はAPIキーやパスなどの場合のみ許可。',
+  );
   sections.push('');
 
   sections.push('## 注意事項');

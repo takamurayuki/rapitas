@@ -4,7 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WorktreeCleanupScheduler, getWorktreeCleanupScheduler } from './worktree-cleanup-scheduler';
+import {
+  WorktreeCleanupScheduler,
+  getWorktreeCleanupScheduler,
+} from './worktree-cleanup-scheduler';
 
 // Mock modules
 vi.mock('../agents/orchestrator/git-operations/worktree-ops', () => ({
@@ -15,7 +18,8 @@ vi.mock('../../config', () => ({
   getProjectRoot: vi.fn(() => '/test/project'),
 }));
 
-const { cleanupOrphanedWorktrees } = await import('../agents/orchestrator/git-operations/worktree-ops');
+const { cleanupOrphanedWorktrees } =
+  await import('../agents/orchestrator/git-operations/worktree-ops');
 const mockCleanupOrphanedWorktrees = vi.mocked(cleanupOrphanedWorktrees);
 
 describe('WorktreeCleanupScheduler', () => {

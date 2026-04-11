@@ -43,21 +43,11 @@ export interface HandleExecuteResultParams {
  * @param params - Execution context and result / 実行コンテキストと結果
  */
 export async function handleExecuteResult(params: HandleExecuteResultParams): Promise<void> {
-  const {
-    result,
-    taskIdNum,
-    sessionId,
-    configId,
-    taskTitle,
-    workDir,
-    executionDir,
-    branchName,
-  } = params;
+  const { result, taskIdNum, sessionId, configId, taskTitle, workDir, executionDir, branchName } =
+    params;
 
   if (result.waitingForInput) {
-    log.info(
-      `[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`,
-    );
+    log.info(`[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`);
     await prisma.task
       .update({
         where: { id: taskIdNum },

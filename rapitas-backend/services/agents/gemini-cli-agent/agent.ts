@@ -11,10 +11,7 @@
 import { ChildProcess } from 'child_process';
 import { BaseAgent } from '../base-agent';
 import type { AgentCapability, AgentTask, AgentExecutionResult } from '../base-agent';
-import {
-  createInitialWaitingState,
-  tolegacyQuestionType,
-} from '../question-detection';
+import { createInitialWaitingState, tolegacyQuestionType } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
@@ -124,8 +121,12 @@ export class GeminiCliAgent extends BaseAgent {
         process.env.GEMINI_CLI_PATH || (isWindows ? 'gemini.cmd' : 'gemini'),
       );
 
-      logger.info(`${this.logPrefix} Platform: ${process.platform}, Path: ${geminiPath}, Dir: ${workDir}`);
-      logger.info(`${this.logPrefix} Timeout: ${this.config.timeout}ms, Prompt: ${prompt.length} chars`);
+      logger.info(
+        `${this.logPrefix} Platform: ${process.platform}, Path: ${geminiPath}, Dir: ${workDir}`,
+      );
+      logger.info(
+        `${this.logPrefix} Timeout: ${this.config.timeout}ms, Prompt: ${prompt.length} chars`,
+      );
 
       this.emitOutput(`${this.logPrefix} Starting execution...\n`);
       this.emitOutput(`${this.logPrefix} Working directory: ${workDir}\n`);
@@ -150,16 +151,27 @@ export class GeminiCliAgent extends BaseAgent {
           detectedQuestionRef,
           {
             onOutput: (text, isError) => this.emitOutput(text, isError),
-            onOutputBufferAppend: (text) => { this.outputBuffer += text; },
-            onErrorBufferAppend: (text) => { this.errorBuffer += text; },
-            onSessionIdUpdate: (id) => { this.geminiSessionId = id; sessionState.sessionId = id; },
-            onCheckpointIdUpdate: (id) => { this.checkpointId = id; sessionState.checkpointId = id; },
+            onOutputBufferAppend: (text) => {
+              this.outputBuffer += text;
+            },
+            onErrorBufferAppend: (text) => {
+              this.errorBuffer += text;
+            },
+            onSessionIdUpdate: (id) => {
+              this.geminiSessionId = id;
+              sessionState.sessionId = id;
+            },
+            onCheckpointIdUpdate: (id) => {
+              this.checkpointId = id;
+              sessionState.checkpointId = id;
+            },
             onQuestionDetected: (state) => {
               this.detectedQuestion = state;
               detectedQuestionRef.value = state;
               this.status = 'waiting_for_input';
             },
-            onQuestionEmit: (data) => this.emitQuestionDetected(data as Parameters<typeof this.emitQuestionDetected>[0]),
+            onQuestionEmit: (data) =>
+              this.emitQuestionDetected(data as Parameters<typeof this.emitQuestionDetected>[0]),
             onKillProcess: () => {
               if (this.process && !this.process.killed) {
                 this.process.kill('SIGTERM');
@@ -171,7 +183,12 @@ export class GeminiCliAgent extends BaseAgent {
             this.detectedQuestion = detectedQuestionRef.value;
 
             if (this.status === 'cancelled') {
-              resolve({ success: false, output: this.outputBuffer, errorMessage: 'Execution cancelled', executionTimeMs: Date.now() - startTime });
+              resolve({
+                success: false,
+                output: this.outputBuffer,
+                errorMessage: 'Execution cancelled',
+                executionTimeMs: Date.now() - startTime,
+              });
               return;
             }
 
@@ -207,8 +224,10 @@ export class GeminiCliAgent extends BaseAgent {
             let errorMessage: string | undefined;
             if (code !== 0) {
               const parts: string[] = [`プロセスがコード ${code} で終了しました`];
-              if (this.errorBuffer.trim()) parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
-              if (this.outputBuffer.trim()) parts.push(`\n${this.outputBuffer.trim().slice(-1000)}`);
+              if (this.errorBuffer.trim())
+                parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
+              if (this.outputBuffer.trim())
+                parts.push(`\n${this.outputBuffer.trim().slice(-1000)}`);
               errorMessage = parts.join('');
             }
 
@@ -227,15 +246,26 @@ export class GeminiCliAgent extends BaseAgent {
           () => {
             this.status = 'failed';
             const parts: string[] = ['プロセス起動エラー'];
-            if (this.errorBuffer.trim()) parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
-            resolve({ success: false, output: this.outputBuffer, errorMessage: parts.join(''), executionTimeMs: Date.now() - startTime });
+            if (this.errorBuffer.trim())
+              parts.push(`\n\n【標準エラー出力】\n${this.errorBuffer.trim()}`);
+            resolve({
+              success: false,
+              output: this.outputBuffer,
+              errorMessage: parts.join(''),
+              executionTimeMs: Date.now() - startTime,
+            });
           },
         );
       } catch (error) {
         this.status = 'failed';
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error({ err: error }, `${this.logPrefix} Spawn error`);
-        resolve({ success: false, output: '', errorMessage, executionTimeMs: Date.now() - startTime });
+        resolve({
+          success: false,
+          output: '',
+          errorMessage,
+          executionTimeMs: Date.now() - startTime,
+        });
       }
     });
   }

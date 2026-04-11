@@ -7,7 +7,12 @@
  * Not responsible for state transitions or event emission; those remain in AbstractAgent.
  */
 
-import type { AgentExecutionContext, AgentExecutionResult, AgentTaskDefinition, ContinuationContext } from './types';
+import type {
+  AgentExecutionContext,
+  AgentExecutionResult,
+  AgentTaskDefinition,
+  ContinuationContext,
+} from './types';
 import { AgentError } from './interfaces';
 import type { AgentLifecycleHooks } from './types';
 
@@ -91,7 +96,10 @@ export async function evaluateRetry(
  * @returns Execution result / 実行結果
  */
 export async function executeWithRetry(
-  doExecute: (task: AgentTaskDefinition, context: AgentExecutionContext) => Promise<AgentExecutionResult>,
+  doExecute: (
+    task: AgentTaskDefinition,
+    context: AgentExecutionContext,
+  ) => Promise<AgentExecutionResult>,
   task: AgentTaskDefinition,
   context: AgentExecutionContext,
   hooks: AgentLifecycleHooks,
@@ -106,11 +114,12 @@ export async function executeWithRetry(
     try {
       return await doExecute(task, context);
     } catch (error) {
-      const agentError = error instanceof AgentError
-        ? error
-        : error instanceof Error
-          ? new AgentError(error.message, 'execution', false, undefined, error)
-          : new AgentError(String(error), 'internal', false);
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : error instanceof Error
+            ? new AgentError(error.message, 'execution', false, undefined, error)
+            : new AgentError(String(error), 'internal', false);
 
       const retryDecision = await evaluateRetry(agentError, context, retryCount, hooks, logFn);
 
@@ -155,7 +164,10 @@ export async function executeWithRetry(
  * @returns Execution result / 実行結果
  */
 export async function continueWithRetry(
-  doContinue: (continuation: ContinuationContext, context: AgentExecutionContext) => Promise<AgentExecutionResult>,
+  doContinue: (
+    continuation: ContinuationContext,
+    context: AgentExecutionContext,
+  ) => Promise<AgentExecutionResult>,
   continuation: ContinuationContext,
   context: AgentExecutionContext,
   hooks: AgentLifecycleHooks,
@@ -170,11 +182,12 @@ export async function continueWithRetry(
     try {
       return await doContinue(continuation, context);
     } catch (error) {
-      const agentError = error instanceof AgentError
-        ? error
-        : error instanceof Error
-          ? new AgentError(error.message, 'execution', false, undefined, error)
-          : new AgentError(String(error), 'internal', false);
+      const agentError =
+        error instanceof AgentError
+          ? error
+          : error instanceof Error
+            ? new AgentError(error.message, 'execution', false, undefined, error)
+            : new AgentError(String(error), 'internal', false);
 
       const retryDecision = await evaluateRetry(agentError, context, retryCount, hooks, logFn);
 

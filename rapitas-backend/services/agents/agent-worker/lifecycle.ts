@@ -9,10 +9,7 @@
 import type { ChildProcess } from 'child_process';
 import { join } from 'path';
 import { createLogger } from '../../../config/logger';
-import {
-  registerProcess,
-  unregisterProcess,
-} from '../agent-process-tracker';
+import { registerProcess, unregisterProcess } from '../agent-process-tracker';
 import { rejectAllPendingRequests, sendIPCRequest, type PendingRequest } from './ipc';
 import { handleWorkerMessage } from './event-bridge';
 
@@ -215,4 +212,3 @@ export function startHealthCheck(state: WorkerState): void {
     }
   }, 30000);
 }
-

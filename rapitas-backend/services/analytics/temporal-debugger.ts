@@ -110,7 +110,10 @@ export async function recordReasoningTrace(executionId: number): Promise<void> {
     );
   } catch (error) {
     // NOTE: Trace recording failure should never block execution completion
-    log.error({ err: error }, `[TemporalDebugger] Failed to record trace for execution ${executionId}`);
+    log.error(
+      { err: error },
+      `[TemporalDebugger] Failed to record trace for execution ${executionId}`,
+    );
   }
 }
 
@@ -129,10 +132,7 @@ export async function getFileTemporalHistory(
     // Find commits that touched this file
     const commits = await prisma.gitCommit.findMany({
       where: {
-        OR: [
-          { message: { contains: filePath } },
-          { commitHash: { not: undefined } },
-        ],
+        OR: [{ message: { contains: filePath } }, { commitHash: { not: undefined } }],
       },
       include: {
         execution: {
@@ -178,7 +178,9 @@ export async function getFileTemporalHistory(
           tokensUsed: (payload.tokensUsed as number) || 0,
           executionTimeMs: (payload.executionTimeMs as number) || null,
         });
-      } catch { /* skip malformed events */ }
+      } catch {
+        /* skip malformed events */
+      }
     }
 
     return {
@@ -198,9 +200,7 @@ export async function getFileTemporalHistory(
  * @param executionId - Execution ID / 実行ID
  * @returns Full reasoning trace / 完全な推論トレース
  */
-export async function getExecutionTrace(
-  executionId: number,
-): Promise<ReasoningTrace | null> {
+export async function getExecutionTrace(executionId: number): Promise<ReasoningTrace | null> {
   try {
     const event = await prisma.timelineEvent.findFirst({
       where: {
@@ -228,7 +228,10 @@ export async function getExecutionTrace(
       executionTimeMs: (payload.executionTimeMs as number) || null,
     };
   } catch (error) {
-    log.error({ err: error }, `[TemporalDebugger] Failed to get trace for execution ${executionId}`);
+    log.error(
+      { err: error },
+      `[TemporalDebugger] Failed to get trace for execution ${executionId}`,
+    );
     return null;
   }
 }

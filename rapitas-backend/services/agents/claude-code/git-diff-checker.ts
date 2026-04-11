@@ -83,7 +83,12 @@ export async function checkGitDiff(workDir: string, logPrefix: string): Promise<
   }
 
   // 4. Recent commits made during this execution (within the last 5 minutes)
-  const recentCommit = await runGitCommand(workDir, ['log', '--oneline', '--since=5.minutes.ago', '-1']);
+  const recentCommit = await runGitCommand(workDir, [
+    'log',
+    '--oneline',
+    '--since=5.minutes.ago',
+    '-1',
+  ]);
   if (recentCommit.length > 0) {
     logger.info(`${logPrefix} Git diff check: recent commit found: ${recentCommit}`);
     return true;

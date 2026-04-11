@@ -41,26 +41,30 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
     });
   })
 
-  .post('/patterns', async ({ body }) => {
-    return createPattern({
-      patternType: body.patternType as LearningPatternType,
-      category: body.category as LearningCategory,
-      description: body.description,
-      confidence: body.confidence,
-    });
-  }, {
-    body: t.Object({
-      patternType: t.String(),
-      title: t.String(),
-      description: t.String(),
-      category: t.String(),
-      conditions: t.Array(t.String()),
-      examples: t.Array(t.String()),
-      relatedStrategies: t.Optional(t.Array(t.String())),
-      confidence: t.Number(),
-      frequency: t.Optional(t.Number())
-    })
-  })
+  .post(
+    '/patterns',
+    async ({ body }) => {
+      return createPattern({
+        patternType: body.patternType as LearningPatternType,
+        category: body.category as LearningCategory,
+        description: body.description,
+        confidence: body.confidence,
+      });
+    },
+    {
+      body: t.Object({
+        patternType: t.String(),
+        title: t.String(),
+        description: t.String(),
+        category: t.String(),
+        conditions: t.Array(t.String()),
+        examples: t.Array(t.String()),
+        relatedStrategies: t.Optional(t.Array(t.String())),
+        confidence: t.Number(),
+        frequency: t.Optional(t.Number()),
+      }),
+    },
+  )
 
   // --- Analysis ---
   .post('/analyze/failure/:experimentId', async ({ params }) => {
@@ -88,24 +92,28 @@ export const learningRoutes = new Elysia({ prefix: '/learning' })
     return getPromptEvolutionHistory(category);
   })
 
-  .post('/prompt-evolution', async ({ body }) => {
-    return recordPromptEvolution({
-      category: body.category,
-      beforePrompt: body.prompt,
-      afterPrompt: body.results,
-      improvement: body.improvements?.join('; '),
-      performanceDelta: body.performanceScore,
-    });
-  }, {
-    body: t.Object({
-      category: t.String(),
-      iteration: t.Number(),
-      prompt: t.String(),
-      results: t.String(),
-      improvements: t.Array(t.String()),
-      performanceScore: t.Number()
-    })
-  })
+  .post(
+    '/prompt-evolution',
+    async ({ body }) => {
+      return recordPromptEvolution({
+        category: body.category,
+        beforePrompt: body.prompt,
+        afterPrompt: body.results,
+        improvement: body.improvements?.join('; '),
+        performanceDelta: body.performanceScore,
+      });
+    },
+    {
+      body: t.Object({
+        category: t.String(),
+        iteration: t.Number(),
+        prompt: t.String(),
+        results: t.String(),
+        improvements: t.Array(t.String()),
+        performanceScore: t.Number(),
+      }),
+    },
+  )
 
   // --- Episode Search ---
   .get('/episodes/search', async ({ query }) => {

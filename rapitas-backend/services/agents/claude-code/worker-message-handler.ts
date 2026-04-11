@@ -8,21 +8,11 @@
  * not import the class directly and there is no circular dependency.
  */
 import type { ChildProcess } from 'child_process';
-import {
-  updateWaitingStateFromDetection,
-  tolegacyQuestionType,
-} from '../question-detection';
+import { updateWaitingStateFromDetection, tolegacyQuestionType } from '../question-detection';
 import type { QuestionWaitingState } from '../question-detection';
-import type {
-  WorkerOutputMessage,
-  WorkerInputMessage,
-} from '../../../workers/output-parser-types';
+import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
-import type {
-  AgentArtifact,
-  AgentExecutionResult,
-  GitCommitInfo,
-} from '../base-agent';
+import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 
 const logger = createLogger('claude-code-agent');
 
@@ -67,10 +57,7 @@ export interface WorkerMessageContext {
  * @param ctx - Mutable agent state + emitter callbacks. / 状態とコールバック
  * @param msg - Typed Worker output message. / Workerメッセージ
  */
-export function handleWorkerMessage(
-  ctx: WorkerMessageContext,
-  msg: WorkerOutputMessage,
-): void {
+export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutputMessage): void {
   switch (msg.type) {
     case 'system-event':
       if (msg.sessionId) {
@@ -191,9 +178,7 @@ export function handleWorkerMessage(
 
     case 'commits-parsed':
       ctx.workerCommits = msg.data.commits;
-      logger.info(
-        `${ctx.logPrefix} Commits parsed by Worker: ${ctx.workerCommits.length} items`,
-      );
+      logger.info(`${ctx.logPrefix} Commits parsed by Worker: ${ctx.workerCommits.length} items`);
       break;
 
     case 'parse-complete':

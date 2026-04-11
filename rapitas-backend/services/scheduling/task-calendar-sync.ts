@@ -102,10 +102,7 @@ export async function syncTaskToCalendar(
  * @param eventId - Calendar event ID. / カレンダーイベントID
  * @param newStartAt - New start date. / 新しい開始日
  */
-export async function syncCalendarToTask(
-  eventId: number,
-  newStartAt: Date,
-): Promise<void> {
+export async function syncCalendarToTask(eventId: number, newStartAt: Date): Promise<void> {
   try {
     const event = await prisma.scheduleEvent.findUnique({
       where: { id: eventId },

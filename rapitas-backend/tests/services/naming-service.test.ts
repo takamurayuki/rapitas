@@ -112,7 +112,8 @@ describe('cleanGeneratedTitle', () => {
 
   test('長いタイトルを助詞の位置で自然に切り詰める', () => {
     // 25文字目に「の」がある
-    const title = 'ユーザー認証機能における多要素認証の導入とセキュリティ強化に関する包括的な設計と実装';
+    const title =
+      'ユーザー認証機能における多要素認証の導入とセキュリティ強化に関する包括的な設計と実装';
     const result = cleanGeneratedTitle(title);
     expect(result.length).toBeLessThanOrEqual(40);
   });

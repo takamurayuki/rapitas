@@ -10,19 +10,8 @@
  *   - worktree-ops.ts      (createWorktree, removeWorktree, cleanupStaleWorktrees)
  */
 
-import {
-  getGitDiff,
-  getFullGitDiff,
-  commitChanges,
-  getDiff,
-  createCommit,
-} from './core-ops';
-import {
-  createBranch,
-  createPullRequest,
-  mergePullRequest,
-  revertChanges,
-} from './branch-pr-ops';
+import { getGitDiff, getFullGitDiff, commitChanges, getDiff, createCommit } from './core-ops';
+import { createBranch, createPullRequest, mergePullRequest, revertChanges } from './branch-pr-ops';
 import {
   ensureGitRepository,
   validateAndSetupRemote,
@@ -120,7 +109,13 @@ export class GitOperations {
   async getDiff(
     workingDirectory: string,
   ): Promise<
-    Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>
+    Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }>
   > {
     return getDiff(workingDirectory);
   }
@@ -131,10 +126,7 @@ export class GitOperations {
   }
 
   /** @see validateAndSetupRemote */
-  async validateAndSetupRemote(
-    directory: string,
-    repositoryUrl?: string | null,
-  ): Promise<boolean> {
+  async validateAndSetupRemote(directory: string, repositoryUrl?: string | null): Promise<boolean> {
     return validateAndSetupRemote(directory, repositoryUrl);
   }
 

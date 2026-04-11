@@ -51,7 +51,11 @@ export class AgentWorkerManager {
     return `req_${Date.now()}_${++this.state.requestIdCounter}`;
   }
 
-  private ipc(type: string, data: Record<string, unknown>, timeoutMs: number = 60000): Promise<unknown> {
+  private ipc(
+    type: string,
+    data: Record<string, unknown>,
+    timeoutMs: number = 60000,
+  ): Promise<unknown> {
     return sendIPCRequest(
       this.state.workerProcess,
       this.state.isWorkerReady,
@@ -81,11 +85,19 @@ export class AgentWorkerManager {
     return api.executeTask(this.ipc.bind(this), task, options);
   }
 
-  async executeContinuation(executionId: number, response: string, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+  async executeContinuation(
+    executionId: number,
+    response: string,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
     return api.executeContinuation(this.ipc.bind(this), executionId, response, options);
   }
 
-  async executeContinuationWithLock(executionId: number, response: string, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+  async executeContinuationWithLock(
+    executionId: number,
+    response: string,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
     return api.executeContinuationWithLock(this.ipc.bind(this), executionId, response, options);
   }
 
@@ -111,7 +123,10 @@ export class AgentWorkerManager {
   }
 
   /** Async version of lock acquisition. */
-  async tryAcquireContinuationLockAsync(executionId: number, source: 'user_response' | 'auto_timeout'): Promise<boolean> {
+  async tryAcquireContinuationLockAsync(
+    executionId: number,
+    source: 'user_response' | 'auto_timeout',
+  ): Promise<boolean> {
     return this.ipc('try-acquire-lock', { executionId, source }, 5000) as Promise<boolean>;
   }
 
@@ -122,16 +137,31 @@ export class AgentWorkerManager {
   }
 
   /** Async retrieval of question timeout info. */
-  async getQuestionTimeoutInfoAsync(executionId: number): Promise<{ remainingSeconds: number; deadline: Date; questionKey?: QuestionKey } | null> {
+  async getQuestionTimeoutInfoAsync(
+    executionId: number,
+  ): Promise<{ remainingSeconds: number; deadline: Date; questionKey?: QuestionKey } | null> {
     return api.getQuestionTimeoutInfoAsync(this.ipc.bind(this), executionId);
   }
 
-  async resumeInterruptedExecution(executionId: number, options: Partial<ExecutionOptions> = {}): Promise<AgentExecutionResult> {
+  async resumeInterruptedExecution(
+    executionId: number,
+    options: Partial<ExecutionOptions> = {},
+  ): Promise<AgentExecutionResult> {
     return api.resumeInterruptedExecution(this.ipc.bind(this), executionId, options);
   }
 
-  async recoverStaleExecutions(): Promise<{ recoveredExecutions: number; updatedTasks: number; updatedSessions: number; interruptedExecutionIds: number[] }> {
-    return this.ipc('recover-stale', {}, 30000) as Promise<{ recoveredExecutions: number; updatedTasks: number; updatedSessions: number; interruptedExecutionIds: number[] }>;
+  async recoverStaleExecutions(): Promise<{
+    recoveredExecutions: number;
+    updatedTasks: number;
+    updatedSessions: number;
+    interruptedExecutionIds: number[];
+  }> {
+    return this.ipc('recover-stale', {}, 30000) as Promise<{
+      recoveredExecutions: number;
+      updatedTasks: number;
+      updatedSessions: number;
+      interruptedExecutionIds: number[];
+    }>;
   }
 
   // ==================== Git Operations ====================
@@ -149,7 +179,12 @@ export class AgentWorkerManager {
    * @param repositoryUrl - Expected remote URL for validation / 検証用リモートURL
    * @returns Absolute path to the created worktree / worktreeの絶対パス
    */
-  async createWorktree(baseDir: string, branchName: string, taskId?: number, repositoryUrl?: string | null): Promise<string> {
+  async createWorktree(
+    baseDir: string,
+    branchName: string,
+    taskId?: number,
+    repositoryUrl?: string | null,
+  ): Promise<string> {
     return git.createWorktree(this.ipc.bind(this), baseDir, branchName, taskId, repositoryUrl);
   }
 
@@ -173,20 +208,49 @@ export class AgentWorkerManager {
     return git.cleanupStaleWorktrees(this.ipc.bind(this), baseDir);
   }
 
-  async commitChanges(workingDirectory: string, message: string, taskTitle?: string): Promise<{ success: boolean; commitHash?: string; error?: string }> {
+  async commitChanges(
+    workingDirectory: string,
+    message: string,
+    taskTitle?: string,
+  ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
     return git.commitChanges(this.ipc.bind(this), workingDirectory, message, taskTitle);
   }
 
-  async createCommit(workingDirectory: string, message: string): Promise<{ hash: string; branch: string; filesChanged: number; additions: number; deletions: number }> {
+  async createCommit(
+    workingDirectory: string,
+    message: string,
+  ): Promise<{
+    hash: string;
+    branch: string;
+    filesChanged: number;
+    additions: number;
+    deletions: number;
+  }> {
     return git.createCommit(this.ipc.bind(this), workingDirectory, message);
   }
 
-  async createPullRequest(workingDirectory: string, title: string, body: string, baseBranch: string = 'main'): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
+  async createPullRequest(
+    workingDirectory: string,
+    title: string,
+    body: string,
+    baseBranch: string = 'main',
+  ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
     return git.createPullRequest(this.ipc.bind(this), workingDirectory, title, body, baseBranch);
   }
 
-  async mergePullRequest(workingDirectory: string, prNumber: number, commitThreshold: number = 5, baseBranch: string = 'master'): Promise<{ success: boolean; mergeStrategy?: 'squash' | 'merge'; error?: string }> {
-    return git.mergePullRequest(this.ipc.bind(this), workingDirectory, prNumber, commitThreshold, baseBranch);
+  async mergePullRequest(
+    workingDirectory: string,
+    prNumber: number,
+    commitThreshold: number = 5,
+    baseBranch: string = 'master',
+  ): Promise<{ success: boolean; mergeStrategy?: 'squash' | 'merge'; error?: string }> {
+    return git.mergePullRequest(
+      this.ipc.bind(this),
+      workingDirectory,
+      prNumber,
+      commitThreshold,
+      baseBranch,
+    );
   }
 
   async getGitDiff(workingDirectory: string): Promise<string> {
@@ -197,7 +261,17 @@ export class AgentWorkerManager {
     return git.getFullGitDiff(this.ipc.bind(this), workingDirectory);
   }
 
-  async getDiff(workingDirectory: string): Promise<Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>> {
+  async getDiff(
+    workingDirectory: string,
+  ): Promise<
+    Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }>
+  > {
     return git.getDiff(this.ipc.bind(this), workingDirectory);
   }
 
@@ -212,11 +286,23 @@ export class AgentWorkerManager {
    * Worker communication is async, so this always returns an empty array.
    * Use getSessionExecutionsAsync() when accurate values are needed.
    */
-  getSessionExecutions(_sessionId: number): ExecutionState[] { return []; }
+  getSessionExecutions(_sessionId: number): ExecutionState[] {
+    return [];
+  }
 
-  getActiveAgentInfos(): Array<{ executionId: number; sessionId: number; taskId: number; startedAt: Date; lastOutput: string }> { return []; }
+  getActiveAgentInfos(): Array<{
+    executionId: number;
+    sessionId: number;
+    taskId: number;
+    startedAt: Date;
+    lastOutput: string;
+  }> {
+    return [];
+  }
 
-  getActiveExecutions(): ExecutionState[] { return []; }
+  getActiveExecutions(): ExecutionState[] {
+    return [];
+  }
 
   /**
    * Asynchronously retrieves the list of active execution IDs from the worker process.
@@ -228,7 +314,9 @@ export class AgentWorkerManager {
     return api.getActiveExecutionIdsAsync(this.ipc.bind(this));
   }
 
-  getExecutionState(_executionId: number): ExecutionState | undefined { return undefined; }
+  getExecutionState(_executionId: number): ExecutionState | undefined {
+    return undefined;
+  }
 
   // ==================== Stub Methods (Orchestrator-compatible) ====================
 
@@ -238,7 +326,9 @@ export class AgentWorkerManager {
 
   removeEventListener(_listener: (event: unknown) => void): void {}
 
-  isInShutdown(): boolean { return this.state.isShuttingDown; }
+  isInShutdown(): boolean {
+    return this.state.isShuttingDown;
+  }
 
   setServerStopCallback(_callback: () => Promise<void> | void): void {
     // Worker does not stop the server
@@ -250,7 +340,9 @@ export class AgentWorkerManager {
 
   // ==================== Lifecycle ====================
 
-  public getIsWorkerReady(): boolean { return this.state.isWorkerReady; }
+  public getIsWorkerReady(): boolean {
+    return this.state.isWorkerReady;
+  }
 
   public async gracefulShutdown(_options?: { skipServerStop?: boolean }): Promise<void> {
     await gracefulShutdown(this.state);

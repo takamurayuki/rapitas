@@ -41,7 +41,9 @@ function parseNdjson(stdout: string): ScreenshotResult[] {
  * @param workerInput - Input configuration passed to the worker via stdin / ワーカーへのstdin入力
  * @returns Array of ScreenshotResult objects (partial results on timeout)
  */
-export function runScreenshotWorker(workerInput: Record<string, unknown>): Promise<ScreenshotResult[]> {
+export function runScreenshotWorker(
+  workerInput: Record<string, unknown>,
+): Promise<ScreenshotResult[]> {
   return new Promise((resolve, reject) => {
     const workerPath = join(import.meta.dir, '..', 'misc', 'screenshot-worker.cjs');
     const child = spawn('node', [workerPath], {

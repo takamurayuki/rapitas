@@ -9,11 +9,7 @@
 import { Elysia } from 'elysia';
 import { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../../config/logger';
-import {
-  getAgentMetrics,
-  getExecutionTrends,
-  getMetricsOverview,
-} from './queries';
+import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queries';
 import { getAgentPerformanceComparison } from './performance-query';
 import type { DateRange } from './types';
 
@@ -203,7 +199,7 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
         'claude-sonnet-4-20250514': 0.006,
         'claude-haiku-4-5-20251001': 0.002,
         'claude-3-5-sonnet-20241022': 0.006,
-        default: 0.010,
+        default: 0.01,
       };
 
       type ModelStats = {
@@ -217,14 +213,23 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
         estimatedCost: number;
       };
 
-      const modelMap = new Map<string, { total: number; success: number; tokens: number; time: number; costs: number }>();
+      const modelMap = new Map<
+        string,
+        { total: number; success: number; tokens: number; time: number; costs: number }
+      >();
 
       for (const exec of executions) {
         const modelId = exec.agentConfig?.modelId || 'unknown';
         const rate = costPer1kTokens[modelId] || costPer1kTokens['default'];
         const cost = (exec.tokensUsed / 1000) * rate;
 
-        const existing = modelMap.get(modelId) || { total: 0, success: 0, tokens: 0, time: 0, costs: 0 };
+        const existing = modelMap.get(modelId) || {
+          total: 0,
+          success: 0,
+          tokens: 0,
+          time: 0,
+          costs: 0,
+        };
         existing.total++;
         if (exec.status === 'completed') existing.success++;
         existing.tokens += exec.tokensUsed;

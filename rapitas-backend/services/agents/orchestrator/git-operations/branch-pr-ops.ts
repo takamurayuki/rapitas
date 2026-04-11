@@ -31,10 +31,7 @@ function ghPath(): string {
  * @param branchName - Branch name to create or check out / 作成またはチェックアウトするブランチ名
  * @returns true on success / 成功時true
  */
-export async function createBranch(
-  workingDirectory: string,
-  branchName: string,
-): Promise<boolean> {
+export async function createBranch(workingDirectory: string, branchName: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync(`git branch --list ${branchName}`, {
       cwd: workingDirectory,

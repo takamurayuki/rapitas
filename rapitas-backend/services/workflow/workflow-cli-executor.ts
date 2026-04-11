@@ -84,17 +84,20 @@ export async function executeCLIAgent(
       noRootFiles: '**プロジェクトルートには絶対にファイルを作成しないでください。**',
       apiCommand: '**API保存コマンド**:',
       contentPlaceholder: '# ファイル内容をここに記述',
-      prohibitions: '**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。',
+      prohibitions:
+        '**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。',
       mandatory: '必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。',
     },
     en: {
       systemHeader: '## System Instructions',
       fileHeader: '## Important: Saving Result Files',
-      fileInstruction: 'After completing the research/analysis, please save the results via the following API.',
+      fileInstruction:
+        'After completing the research/analysis, please save the results via the following API.',
       noRootFiles: '**Never create files in the project root directory.**',
       apiCommand: '**API Save Command**:',
       contentPlaceholder: '# Write file content here',
-      prohibitions: '**Prohibited**: Direct file creation to the project root using Write, mkdir, echo, etc. is strictly forbidden.',
+      prohibitions:
+        '**Prohibited**: Direct file creation to the project root using Write, mkdir, echo, etc. is strictly forbidden.',
       mandatory: 'Please make sure to save files using the API command above before completing.',
     },
   };
@@ -121,8 +124,18 @@ export async function executeCLIAgent(
   }
 
   const result = await orchestrator.executeTask(
-    { id: taskId, title: `[${transition.role}] ${task.title}`, description: fullPrompt, workingDirectory: effectiveWorkDir },
-    { taskId, sessionId: session.id, agentConfigId: agentConfig.id, workingDirectory: effectiveWorkDir },
+    {
+      id: taskId,
+      title: `[${transition.role}] ${task.title}`,
+      description: fullPrompt,
+      workingDirectory: effectiveWorkDir,
+    },
+    {
+      taskId,
+      sessionId: session.id,
+      agentConfigId: agentConfig.id,
+      workingDirectory: effectiveWorkDir,
+    },
   );
 
   const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
@@ -134,21 +147,30 @@ export async function executeCLIAgent(
 
     // Fallback: extract Markdown from raw output when agent did not save via API
     if (!fileContent && result.output && result.output.trim().length > 100) {
-      log.info(`[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`);
+      log.info(
+        `[WorkflowCLIExecutor] ${transition.outputFile}.md not found, extracting from output (${result.output.length} chars)`,
+      );
       const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
       if (extractedContent) {
         await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent);
         fileContent = extractedContent;
-        log.info(`[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`);
+        log.info(
+          `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
+        );
       }
     }
 
     if (fileContent) {
       if (currentWfStatus !== transition.nextStatus) {
-        await prisma.task.update({ where: { id: taskId }, data: { workflowStatus: transition.nextStatus } });
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { workflowStatus: transition.nextStatus },
+        });
       }
       if (!effectiveSuccess) {
-        log.info(`[WorkflowCLIExecutor] Agent reported failure but ${transition.outputFile}.md exists, treating as success`);
+        log.info(
+          `[WorkflowCLIExecutor] Agent reported failure but ${transition.outputFile}.md exists, treating as success`,
+        );
         effectiveSuccess = true;
       }
     }
@@ -173,7 +195,9 @@ export async function executeCLIAgent(
     log.info('[WorkflowCLIExecutor] Implementer done, auto-starting verifier...');
     try {
       // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
-      setTimeout(async () => { await advanceWorkflow(taskId, language); }, 1000);
+      setTimeout(async () => {
+        await advanceWorkflow(taskId, language);
+      }, 1000);
     } catch (error) {
       log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to verifier');
     }

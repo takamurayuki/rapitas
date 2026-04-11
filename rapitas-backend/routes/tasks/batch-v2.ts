@@ -203,7 +203,6 @@ class BatchProcessor {
       body?: unknown;
     }>,
   ): Promise<BatchResult[]> {
-    
     const promises = requests.map((request) => this.createRequestProcessor(request));
 
     // Process with concurrency limit
@@ -228,12 +227,10 @@ class BatchProcessor {
       const startTime = performance.now();
 
       try {
-        
         const urlParts = request.url.split('?');
         const pathParts = urlParts[0].replace(/^\//, '').split('/');
         const query = urlParts[1] ? Object.fromEntries(new URLSearchParams(urlParts[1])) : {};
 
-        
         const handlerKey = this.buildHandlerKey(request.method, pathParts);
         const handler = this.findHandler(handlerKey);
 
@@ -241,7 +238,6 @@ class BatchProcessor {
           throw new Error(`No handler found for ${request.method} ${request.url}`);
         }
 
-        
         const result = await handler.handler({
           params: handler.params,
           query,
@@ -284,18 +280,14 @@ class BatchProcessor {
     return `${method}:/${pattern}`;
   }
 
-  private findHandler(
-    key: string,
-  ): {
+  private findHandler(key: string): {
     handler: (params: HandlerContext) => Promise<unknown>;
     params: Record<string, string>;
   } | null {
-    
     if (requestHandlers.has(key)) {
       return { handler: requestHandlers.get(key)!, params: {} };
     }
 
-    
     for (const [pattern, handler] of Array.from(requestHandlers)) {
       const regex = this.patternToRegex(pattern);
       const match = key.match(regex);
@@ -349,7 +341,6 @@ export const batchRoutesV2 = new Elysia({ prefix: '/batch/v2' })
         })),
       );
 
-      
       const totalTime = results.reduce((sum, r) => sum + (r.executionTime || 0), 0);
       const cachedCount = results.filter((r) => r.cached).length;
 

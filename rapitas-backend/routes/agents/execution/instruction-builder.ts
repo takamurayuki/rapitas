@@ -62,7 +62,14 @@ export function buildFullInstruction(params: {
   /** Target working directory for implementation / 実装先の作業ディレクトリ */
   workingDirectory?: string;
 }): string {
-  const { taskTitle, taskDescription, instruction, optimizedPrompt, attachments, workingDirectory } = params;
+  const {
+    taskTitle,
+    taskDescription,
+    instruction,
+    optimizedPrompt,
+    attachments,
+    workingDirectory,
+  } = params;
 
   let fullInstruction: string;
   if (optimizedPrompt) {
@@ -127,8 +134,7 @@ export async function fetchAnalysisInfo(configId: number): Promise<AnalysisInfo 
 
       return {
         summary: analysisOutput.summary as string,
-        complexity:
-          (analysisOutput.complexity as 'simple' | 'medium' | 'complex') || 'medium',
+        complexity: (analysisOutput.complexity as 'simple' | 'medium' | 'complex') || 'medium',
         estimatedTotalHours: (analysisOutput.estimatedTotalHours as number) || 0,
         subtasks: (
           (analysisOutput.suggestedSubtasks as Array<{

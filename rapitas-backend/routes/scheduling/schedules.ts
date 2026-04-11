@@ -164,7 +164,10 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
 
     // NOTE: Broadcast schedule creation for real-time calendar sync.
     realtimeService.broadcastAll('schedule_created', {
-      eventId: event.id, title: event.title, startAt: event.startAt, timestamp: new Date().toISOString(),
+      eventId: event.id,
+      title: event.title,
+      startAt: event.startAt,
+      timestamp: new Date().toISOString(),
     });
 
     return event;
@@ -212,7 +215,10 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     });
 
     realtimeService.broadcastAll('schedule_updated', {
-      eventId: id, title: updated.title, startAt: updated.startAt, timestamp: new Date().toISOString(),
+      eventId: id,
+      title: updated.title,
+      startAt: updated.startAt,
+      timestamp: new Date().toISOString(),
     });
 
     // NOTE: Bidirectional sync — calendar date changes propagate back to linked task.
@@ -237,7 +243,8 @@ export const schedulesRoutes = new Elysia({ prefix: '/schedules' })
     await prisma.scheduleEvent.delete({ where: { id } });
 
     realtimeService.broadcastAll('schedule_deleted', {
-      eventId: id, timestamp: new Date().toISOString(),
+      eventId: id,
+      timestamp: new Date().toISOString(),
     });
 
     return { success: true, id };

@@ -30,10 +30,14 @@ export async function createPullRequestComment(
   if (input.path && input.line) {
     // Review comment (on a specific file/line)
     const output = await runGhCommand([
-      'api', `repos/${repo}/pulls/${prNumber}/comments`,
-      '-f', `body=${input.body}`,
-      '-f', `path=${input.path}`,
-      '-F', `line=${input.line}`,
+      'api',
+      `repos/${repo}/pulls/${prNumber}/comments`,
+      '-f',
+      `body=${input.body}`,
+      '-f',
+      `path=${input.path}`,
+      '-F',
+      `line=${input.line}`,
       ...(input.side ? ['-f', `side=${input.side}`] : []),
       ...(input.commitId ? ['-f', `commit_id=${input.commitId}`] : []),
     ]);
@@ -86,8 +90,14 @@ export async function approvePullRequest(
  */
 export async function requestChanges(repo: string, prNumber: number, body: string): Promise<void> {
   await runGhCommand([
-    'pr', 'review', String(prNumber), '--repo', repo,
-    '--request-changes', '--body', body,
+    'pr',
+    'review',
+    String(prNumber),
+    '--repo',
+    repo,
+    '--request-changes',
+    '--body',
+    body,
   ]);
 }
 
@@ -113,7 +123,18 @@ export async function createPullRequest(
     await execAsync(`git push -u origin ${headBranch}`, { cwd: workingDirectory });
 
     const output = await runGhCommand(
-      ['pr', 'create', '--title', title, '--body', body, '--base', baseBranch, '--head', headBranch],
+      [
+        'pr',
+        'create',
+        '--title',
+        title,
+        '--body',
+        body,
+        '--base',
+        baseBranch,
+        '--head',
+        headBranch,
+      ],
       workingDirectory,
     );
 

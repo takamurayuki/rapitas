@@ -49,7 +49,10 @@ export async function transcribeLocal(
 
     // Log file header for debugging format issues
     const header = buffer.slice(0, 4).toString('ascii');
-    log.info({ audioSize: buffer.length, header, language }, 'Starting local Whisper transcription');
+    log.info(
+      { audioSize: buffer.length, header, language },
+      'Starting local Whisper transcription',
+    );
 
     const result = await runWhisperWorker(tempPath, language);
 
@@ -77,10 +80,7 @@ export async function transcribeLocal(
  * @param language - Language hint / 言語ヒント
  * @returns Worker output / ワーカー出力
  */
-function runWhisperWorker(
-  audioPath: string,
-  language: string,
-): Promise<LocalTranscriptionResult> {
+function runWhisperWorker(audioPath: string, language: string): Promise<LocalTranscriptionResult> {
   return new Promise((resolve, reject) => {
     const child = spawn('node', [WORKER_PATH], {
       stdio: ['pipe', 'pipe', 'pipe'],

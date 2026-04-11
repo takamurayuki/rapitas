@@ -61,9 +61,7 @@ export const stopRoute = new Elysia().post(
             include: { session: { select: { id: true, worktreePath: true } } },
           });
 
-          const stopped = await orchestrator
-            .stopExecution(runningExecution.id)
-            .catch(() => false);
+          const stopped = await orchestrator.stopExecution(runningExecution.id).catch(() => false);
 
           try {
             await prisma.agentExecutionLog.deleteMany({
@@ -125,7 +123,9 @@ export const stopRoute = new Elysia().post(
                 where: { id: executionSession.session.id },
                 data: { worktreePath: null },
               });
-              log.info(`[stop-execution] Cleaned up worktree: ${executionSession.session.worktreePath}`);
+              log.info(
+                `[stop-execution] Cleaned up worktree: ${executionSession.session.worktreePath}`,
+              );
             } catch (worktreeError) {
               log.error(
                 { err: worktreeError },

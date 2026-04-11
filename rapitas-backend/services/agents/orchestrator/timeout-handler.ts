@@ -44,9 +44,7 @@ export async function handleQuestionTimeout(
       });
 
       if (!execution) {
-        logger.info(
-          `[TimeoutHandler] Execution ${executionId} not found for timeout handling`,
-        );
+        logger.info(`[TimeoutHandler] Execution ${executionId} not found for timeout handling`);
         return;
       }
 

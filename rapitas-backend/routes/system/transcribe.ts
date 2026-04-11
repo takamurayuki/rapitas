@@ -18,8 +18,15 @@ import {
   deleteCorrection,
   getCorrectionStats,
 } from '../../services/transcription';
-import { transcribeFast, isDaemonReady, ensureDaemon } from '../../services/transcription/whisper-daemon-service';
-import { parseVoiceCommand, type VoiceCommand } from '../../services/transcription/voice-command-parser';
+import {
+  transcribeFast,
+  isDaemonReady,
+  ensureDaemon,
+} from '../../services/transcription/whisper-daemon-service';
+import {
+  parseVoiceCommand,
+  type VoiceCommand,
+} from '../../services/transcription/voice-command-parser';
 
 const log = createLogger('routes:transcribe');
 
@@ -43,7 +50,10 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
         return { error: '音声データが空です' };
       }
 
-      log.info({ audioSize: audio.size, type: audio.type, language }, 'Transcription request received');
+      log.info(
+        { audioSize: audio.size, type: audio.type, language },
+        'Transcription request received',
+      );
 
       let rawText = '';
       let source = 'local';
@@ -126,7 +136,13 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
       const totalMs = Date.now() - startTime;
 
       log.info(
-        { textLength: correctedText.length, source, autoCorrected: wasAutoCorrected, commandType: command.type, totalMs },
+        {
+          textLength: correctedText.length,
+          source,
+          autoCorrected: wasAutoCorrected,
+          commandType: command.type,
+          totalMs,
+        },
         'Transcription completed',
       );
 
@@ -149,7 +165,10 @@ export const transcribeRouter = new Elysia({ prefix: '/transcribe' })
   .post('/warm', async ({ set }) => {
     try {
       ensureDaemon().catch(() => {}); // Fire-and-forget
-      return { success: true, message: 'Daemon warming up. First transcription will be fast once ready.' };
+      return {
+        success: true,
+        message: 'Daemon warming up. First transcription will be fast once ready.',
+      };
     } catch (error) {
       set.status = 500;
       return { error: 'Failed to start daemon' };

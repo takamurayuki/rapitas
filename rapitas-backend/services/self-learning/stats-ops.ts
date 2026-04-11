@@ -7,12 +7,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import type {
-  LearningStats,
-  GrowthTimeline,
-  GrowthTimelineEntry,
-  MemoryOverview,
-} from './types';
+import type { LearningStats, GrowthTimeline, GrowthTimelineEntry, MemoryOverview } from './types';
 
 const log = createLogger('self-learning:learning');
 

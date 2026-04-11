@@ -79,13 +79,18 @@ async function detectModeDowngradePatterns(
   const successRate = downgraded.length / Math.max(1, allOverridden.length);
 
   if (successRate >= HIGH_SUCCESS_THRESHOLD) {
-    const complexities = downgraded.map((r) => r.predictedComplexity).filter((c): c is number => c !== null);
+    const complexities = downgraded
+      .map((r) => r.predictedComplexity)
+      .filter((c): c is number => c !== null);
     if (complexities.length === 0) return;
 
     const avgComplexity = complexities.reduce((a, b) => a + b, 0) / complexities.length;
     const maxComplexity = Math.max(...complexities);
 
-    const condition = JSON.stringify({ predictedComplexityBelow: Math.round(maxComplexity + 5), originalMode: 'comprehensive' });
+    const condition = JSON.stringify({
+      predictedComplexityBelow: Math.round(maxComplexity + 5),
+      originalMode: 'comprehensive',
+    });
     const recommendation = JSON.stringify({
       action: 'downgrade_mode',
       targetMode: 'standard',
@@ -93,7 +98,11 @@ async function detectModeDowngradePatterns(
     });
 
     await upsertRule(
-      'downgrade_mode', condition, recommendation, successRate, allOverridden.length,
+      'downgrade_mode',
+      condition,
+      recommendation,
+      successRate,
+      allOverridden.length,
       `複雑度${Math.round(maxComplexity)}以下ではstandardモードで十分（${downgraded.length}件の実績）`,
       result,
     );
@@ -109,7 +118,11 @@ async function detectPhaseSkipPatterns(
 
   for (const phase of phases) {
     const hasPhase = (r: LearningRecord) => {
-      try { return (JSON.parse(r.skippedPhases) as string[]).includes(phase); } catch { return false; }
+      try {
+        return (JSON.parse(r.skippedPhases) as string[]).includes(phase);
+      } catch {
+        return false;
+      }
     };
 
     const skipped = records.filter((r) => hasPhase(r) && r.success);
@@ -119,17 +132,27 @@ async function detectPhaseSkipPatterns(
     const successRate = skipped.length / Math.max(1, allWithSkip.length);
 
     if (successRate >= HIGH_SUCCESS_THRESHOLD) {
-      const complexities = skipped.map((r) => r.predictedComplexity).filter((c): c is number => c !== null);
+      const complexities = skipped
+        .map((r) => r.predictedComplexity)
+        .filter((c): c is number => c !== null);
       const maxComplexity = complexities.length > 0 ? Math.max(...complexities) : 35;
 
-      const condition = JSON.stringify({ predictedComplexityBelow: Math.round(maxComplexity), phase });
+      const condition = JSON.stringify({
+        predictedComplexityBelow: Math.round(maxComplexity),
+        phase,
+      });
       const recommendation = JSON.stringify({
-        action: 'skip_phase', phase,
+        action: 'skip_phase',
+        phase,
         reason: `複雑度${Math.round(maxComplexity)}以下では${phase}フェーズ不要（成功率${Math.round(successRate * 100)}%）`,
       });
 
       await upsertRule(
-        'skip_phase', condition, recommendation, successRate, allWithSkip.length,
+        'skip_phase',
+        condition,
+        recommendation,
+        successRate,
+        allWithSkip.length,
         `${phase}フェーズスキップ推奨: 複雑度${Math.round(maxComplexity)}以下（${skipped.length}件の実績）`,
         result,
       );
@@ -169,10 +192,16 @@ async function detectThemeOptimalMode(
       if (stats.total < 3) continue;
       const successRate = stats.success / stats.total;
       if (successRate < HIGH_SUCCESS_THRESHOLD) continue;
-      const avgDuration = stats.durations.length > 0 ? stats.durations.reduce((a, b) => a + b, 0) / stats.durations.length : Infinity;
+      const avgDuration =
+        stats.durations.length > 0
+          ? stats.durations.reduce((a, b) => a + b, 0) / stats.durations.length
+          : Infinity;
       // Score = success rate * (1 / normalized duration)
       const score = successRate * (1000 / Math.max(1, avgDuration));
-      if (score > bestScore) { bestScore = score; bestMode = mode; }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMode = mode;
+      }
     }
 
     if (!bestMode) continue;
@@ -183,12 +212,17 @@ async function detectThemeOptimalMode(
     const successRate = bestStats.success / bestStats.total;
     const condition = JSON.stringify({ themeId });
     const recommendation = JSON.stringify({
-      action: 'set_mode', targetMode: bestMode,
+      action: 'set_mode',
+      targetMode: bestMode,
       reason: `テーマ${themeId}では${bestMode}モードが最適（成功率${Math.round(successRate * 100)}%）`,
     });
 
     await upsertRule(
-      'adjust_time', condition, recommendation, successRate, themeRecords.length,
+      'adjust_time',
+      condition,
+      recommendation,
+      successRate,
+      themeRecords.length,
       `テーマ${themeId}: ${bestMode}モード推奨（${bestStats.total}件で成功率${Math.round(successRate * 100)}%）`,
       result,
     );
@@ -201,7 +235,11 @@ async function detectComplexityThresholdAdjustment(
   result: RuleGenerationResult,
 ): Promise<void> {
   const lightweightFailed = records.filter(
-    (r) => r.workflowMode === 'lightweight' && !r.success && !r.wasOverridden && r.predictedComplexity !== null,
+    (r) =>
+      r.workflowMode === 'lightweight' &&
+      !r.success &&
+      !r.wasOverridden &&
+      r.predictedComplexity !== null,
   );
 
   if (lightweightFailed.length < 3) return;
@@ -212,14 +250,22 @@ async function detectComplexityThresholdAdjustment(
   // NOTE: 35 is the current lightweight upper threshold defined in complexity-analyzer.ts.
   if (medianComplexity <= 35) {
     const newThreshold = Math.max(15, Math.round(medianComplexity - 5));
-    const condition = JSON.stringify({ currentThreshold: 35, failureComplexityMedian: medianComplexity });
+    const condition = JSON.stringify({
+      currentThreshold: 35,
+      failureComplexityMedian: medianComplexity,
+    });
     const recommendation = JSON.stringify({
-      action: 'adjust_threshold', lightweightMax: newThreshold,
+      action: 'adjust_threshold',
+      lightweightMax: newThreshold,
       reason: `lightweight失敗が複雑度${Math.round(medianComplexity)}付近で多発（${lightweightFailed.length}件）`,
     });
 
     await upsertRule(
-      'upgrade_mode', condition, recommendation, 0.7, lightweightFailed.length,
+      'upgrade_mode',
+      condition,
+      recommendation,
+      0.7,
+      lightweightFailed.length,
       `lightweight閾値を${newThreshold}に引き下げ推奨（${lightweightFailed.length}件の失敗）`,
       result,
     );

@@ -42,7 +42,8 @@ export const taskAutoGenerateRoutes = new Elysia({ prefix: '/tasks' })
       detail: {
         tags: ['Tasks', 'AI'],
         summary: 'AIがプロジェクトを分析してタスクを自動生成',
-        description: 'Claude APIでプロジェクト状態を分析し、3〜5件の新規タスクを自動作成。autoExecute=trueで自動実行も設定。',
+        description:
+          'Claude APIでプロジェクト状態を分析し、3〜5件の新規タスクを自動作成。autoExecute=trueで自動実行も設定。',
       },
     },
   );

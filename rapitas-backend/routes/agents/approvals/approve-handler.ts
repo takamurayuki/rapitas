@@ -152,7 +152,11 @@ export const approveRoutes = new Elysia()
 
       const task = approval.config.task;
       const workDir = proposedChanges.workingDirectory;
-      const commitResult = await orchestrator.commitChanges(workDir, `feat: ${task.title}`, task.title);
+      const commitResult = await orchestrator.commitChanges(
+        workDir,
+        `feat: ${task.title}`,
+        task.title,
+      );
 
       if (!commitResult.success) {
         await prisma.notification.create({
@@ -179,10 +183,20 @@ export const approveRoutes = new Elysia()
             title: 'PR Created Successfully',
             message: `PR created for "${task.title}"`,
             link: prResult.prUrl || `/tasks/${task.id}`,
-            metadata: toJsonString({ taskId: task.id, commitHash: commitResult.commitHash, prUrl: prResult.prUrl, prNumber: prResult.prNumber }),
+            metadata: toJsonString({
+              taskId: task.id,
+              commitHash: commitResult.commitHash,
+              prUrl: prResult.prUrl,
+              prNumber: prResult.prNumber,
+            }),
           },
         });
-        return { success: true, commitHash: commitResult.commitHash, prUrl: prResult.prUrl, prNumber: prResult.prNumber };
+        return {
+          success: true,
+          commitHash: commitResult.commitHash,
+          prUrl: prResult.prUrl,
+          prNumber: prResult.prNumber,
+        };
       } else {
         await prisma.notification.create({
           data: {

@@ -43,7 +43,10 @@ export async function isPortAvailable(port: number): Promise<boolean> {
  * @returns Promise<number> - The first available port number
  * @throws Error if no available port is found within maxTries attempts
  */
-export async function findAvailablePort(startPort: number = 3001, maxTries: number = 10): Promise<number> {
+export async function findAvailablePort(
+  startPort: number = 3001,
+  maxTries: number = 10,
+): Promise<number> {
   for (let i = 0; i < maxTries; i++) {
     const portToTry = startPort + i;
 
@@ -52,5 +55,7 @@ export async function findAvailablePort(startPort: number = 3001, maxTries: numb
     }
   }
 
-  throw new Error(`No available port found after trying ${maxTries} ports starting from ${startPort}`);
+  throw new Error(
+    `No available port found after trying ${maxTries} ports starting from ${startPort}`,
+  );
 }

@@ -142,9 +142,7 @@ export function getSessionFromExecutor(
 ): { taskBranches: Map<number, string>; workingDirectory: string } | null {
   // HACK(agent): Private field access needed until a public getSession() is added.
   const internal = executor as unknown as Record<string, unknown>;
-  const sessions = internal['sessions'] as
-    | Map<string, ParallelExecutionSession>
-    | undefined;
+  const sessions = internal['sessions'] as Map<string, ParallelExecutionSession> | undefined;
   if (!sessions) return null;
   const session = sessions.get(sessionId);
   if (!session) return null;

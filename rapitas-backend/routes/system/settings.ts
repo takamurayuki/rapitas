@@ -11,6 +11,4 @@ import { Elysia } from 'elysia';
 import { settingsRoutes as coreSettingsRoutes } from './settings/settings-routes';
 import { apiKeyRoutes } from './settings/api-key-routes';
 
-export const settingsRoutes = new Elysia()
-  .use(coreSettingsRoutes)
-  .use(apiKeyRoutes);
+export const settingsRoutes = new Elysia().use(coreSettingsRoutes).use(apiKeyRoutes);

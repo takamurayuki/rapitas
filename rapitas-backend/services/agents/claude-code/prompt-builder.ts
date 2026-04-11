@@ -125,9 +125,7 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   sections.push('## Overview');
   sections.push(`**Task Name:** ${task.title}`);
   sections.push(`**Analysis Summary:** ${analysis.summary}`);
-  sections.push(
-    `**Complexity:** ${complexityLabels[analysis.complexity] || analysis.complexity}`,
-  );
+  sections.push(`**Complexity:** ${complexityLabels[analysis.complexity] || analysis.complexity}`);
   sections.push(`**Estimated Total Hours:** ${analysis.estimatedTotalHours} hours`);
   sections.push('');
 
@@ -188,12 +186,8 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   sections.push(
     '   - **MANDATORY**: Always provide multiple-choice options (2-4 choices) in AskUserQuestion',
   );
-  sections.push(
-    '   - Provide options array in the tool input, NOT as plain text',
-  );
-  sections.push(
-    '   - For yes/no questions: options = ["はい", "いいえ"]',
-  );
+  sections.push('   - Provide options array in the tool input, NOT as plain text');
+  sections.push('   - For yes/no questions: options = ["はい", "いいえ"]');
   sections.push(
     '   - For scope questions: options = ["A: minimal", "B: standard", "C: comprehensive"]',
   );
@@ -219,9 +213,7 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   );
   sections.push('');
   sections.push('**Prohibited Actions**:');
-  sections.push(
-    '- **Never create files in the project root. Temporary files are no exception.**',
-  );
+  sections.push('- **Never create files in the project root. Temporary files are no exception.**');
   sections.push(
     '- File creation in project root using Write tool or Bash tool (mkdir/echo) is prohibited.',
   );

@@ -41,7 +41,11 @@ export async function createWorktree(
   taskId?: number,
   repositoryUrl?: string | null,
 ): Promise<string> {
-  return ipc('create-worktree', { baseDir, branchName, taskId, repositoryUrl }, 30000) as Promise<string>;
+  return ipc(
+    'create-worktree',
+    { baseDir, branchName, taskId, repositoryUrl },
+    30000,
+  ) as Promise<string>;
 }
 
 /**
@@ -82,9 +86,19 @@ export async function createCommit(
   ipc: IpcSender,
   workingDirectory: string,
   message: string,
-): Promise<{ hash: string; branch: string; filesChanged: number; additions: number; deletions: number }> {
+): Promise<{
+  hash: string;
+  branch: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
+}> {
   return ipc('create-commit', { workingDirectory, message }, 30000) as Promise<{
-    hash: string; branch: string; filesChanged: number; additions: number; deletions: number;
+    hash: string;
+    branch: string;
+    filesChanged: number;
+    additions: number;
+    deletions: number;
   }>;
 }
 
@@ -105,8 +119,15 @@ export async function createPullRequest(
   body: string,
   baseBranch: string = 'main',
 ): Promise<{ success: boolean; prUrl?: string; prNumber?: number; error?: string }> {
-  return ipc('create-pull-request', { workingDirectory, title, body, baseBranch }, 60000) as Promise<{
-    success: boolean; prUrl?: string; prNumber?: number; error?: string;
+  return ipc(
+    'create-pull-request',
+    { workingDirectory, title, body, baseBranch },
+    60000,
+  ) as Promise<{
+    success: boolean;
+    prUrl?: string;
+    prNumber?: number;
+    error?: string;
   }>;
 }
 
@@ -127,8 +148,14 @@ export async function mergePullRequest(
   commitThreshold: number = 5,
   baseBranch: string = 'master',
 ): Promise<{ success: boolean; mergeStrategy?: 'squash' | 'merge'; error?: string }> {
-  return ipc('merge-pull-request', { workingDirectory, prNumber, commitThreshold, baseBranch }, 60000) as Promise<{
-    success: boolean; mergeStrategy?: 'squash' | 'merge'; error?: string;
+  return ipc(
+    'merge-pull-request',
+    { workingDirectory, prNumber, commitThreshold, baseBranch },
+    60000,
+  ) as Promise<{
+    success: boolean;
+    mergeStrategy?: 'squash' | 'merge';
+    error?: string;
   }>;
 }
 
@@ -164,9 +191,17 @@ export async function getFullGitDiff(ipc: IpcSender, workingDirectory: string): 
 export async function getDiff(
   ipc: IpcSender,
   workingDirectory: string,
-): Promise<Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>> {
+): Promise<
+  Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>
+> {
   return ipc('get-diff', { workingDirectory }, 10000) as Promise<
-    Array<{ filename: string; status: string; additions: number; deletions: number; patch?: string }>
+    Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      patch?: string;
+    }>
   >;
 }
 
@@ -197,6 +232,8 @@ export async function commitChanges(
   taskTitle?: string,
 ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
   return ipc('commit-changes', { workingDirectory, message, taskTitle }, 30000) as Promise<{
-    success: boolean; commitHash?: string; error?: string;
+    success: boolean;
+    commitHash?: string;
+    error?: string;
   }>;
 }

@@ -8,11 +8,11 @@
  */
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../../config';
+import { createDependencyAnalyzer, type TaskPriority } from '../../../services/parallel-execution';
 import {
-  createDependencyAnalyzer,
-  type TaskPriority,
-} from '../../../services/parallel-execution';
-import { SSEStreamController, getUserFriendlyErrorMessage } from '../../../services/communication/sse-utils';
+  SSEStreamController,
+  getUserFriendlyErrorMessage,
+} from '../../../services/communication/sse-utils';
 import { prisma } from '../../../config/database';
 import { buildAnalysisInput, extractFilePaths } from './analysis-helpers';
 

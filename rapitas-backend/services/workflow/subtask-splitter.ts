@@ -84,7 +84,9 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   const estimatedLines = checklistItems.length * 50;
 
   // Detect independent groups (sections with ## headers)
-  const sectionHeaders = lines.filter((l) => /^##\s+/.test(l) && !/summary|risk|done|definition/i.test(l));
+  const sectionHeaders = lines.filter(
+    (l) => /^##\s+/.test(l) && !/summary|risk|done|definition/i.test(l),
+  );
   const independentGroups = sectionHeaders.length;
 
   const metrics = {
@@ -102,9 +104,12 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
 
   const reasons: string[] = [];
   if (allFiles.size >= SPLIT_THRESHOLDS.MIN_FILES) reasons.push(`${allFiles.size} files`);
-  if (checklistItems.length >= SPLIT_THRESHOLDS.MIN_CHECKLIST_ITEMS) reasons.push(`${checklistItems.length} checklist items`);
-  if (estimatedLines >= SPLIT_THRESHOLDS.MIN_LINES) reasons.push(`~${estimatedLines} estimated lines`);
-  if (independentGroups >= SPLIT_THRESHOLDS.MIN_INDEPENDENT_GROUPS) reasons.push(`${independentGroups} independent groups`);
+  if (checklistItems.length >= SPLIT_THRESHOLDS.MIN_CHECKLIST_ITEMS)
+    reasons.push(`${checklistItems.length} checklist items`);
+  if (estimatedLines >= SPLIT_THRESHOLDS.MIN_LINES)
+    reasons.push(`~${estimatedLines} estimated lines`);
+  if (independentGroups >= SPLIT_THRESHOLDS.MIN_INDEPENDENT_GROUPS)
+    reasons.push(`${independentGroups} independent groups`);
 
   // Extract subtask groups from plan structure
   const subtasks = shouldSplit ? extractSubtasksFromPlan(planContent, [...allFiles]) : [];
@@ -133,7 +138,13 @@ export async function createSubtasksFromPlan(
   researchContent?: string,
 ): Promise<SplitResult> {
   if (!analysis.shouldSplit || analysis.subtasks.length === 0) {
-    return { success: false, parentTaskId, subtasksCreated: 0, subtaskIds: [], error: 'No split needed' };
+    return {
+      success: false,
+      parentTaskId,
+      subtasksCreated: 0,
+      subtaskIds: [],
+      error: 'No split needed',
+    };
   }
 
   try {
@@ -143,7 +154,13 @@ export async function createSubtasksFromPlan(
     });
 
     if (!parentTask) {
-      return { success: false, parentTaskId, subtasksCreated: 0, subtaskIds: [], error: 'Parent task not found' };
+      return {
+        success: false,
+        parentTaskId,
+        subtasksCreated: 0,
+        subtaskIds: [],
+        error: 'Parent task not found',
+      };
     }
 
     const subtaskIds: number[] = [];
@@ -161,7 +178,9 @@ export async function createSubtasksFromPlan(
         descParts.push(`\n対象ファイル: ${planned.scope.join(', ')}`);
       }
       if (planned.acceptanceCriteria.length > 0) {
-        descParts.push(`\n受入基準:\n${planned.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`);
+        descParts.push(
+          `\n受入基準:\n${planned.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`,
+        );
       }
 
       // Create subtask in DB
@@ -191,14 +210,17 @@ export async function createSubtasksFromPlan(
       await mkdir(subtaskDir, { recursive: true });
       await writeFile(join(subtaskDir, 'instruction.md'), instructionContent, 'utf-8');
 
-      log.info(`[SubtaskSplitter] Created subtask #${subtask.id}: "${planned.title}" (order: ${planned.order})`);
+      log.info(
+        `[SubtaskSplitter] Created subtask #${subtask.id}: "${planned.title}" (order: ${planned.order})`,
+      );
     }
 
     // Update parent task with subtask count info
     await prisma.task.update({
       where: { id: parentTaskId },
       data: {
-        description: (parentTask.description || '') +
+        description:
+          (parentTask.description || '') +
           `\n\n---\n**Auto-split into ${subtaskIds.length} subtasks**: ${subtaskIds.map((id) => `#${id}`).join(', ')}`,
       },
     });
@@ -220,7 +242,10 @@ export async function createSubtasksFromPlan(
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    log.error({ err: error }, `[SubtaskSplitter] Failed to create subtasks for task #${parentTaskId}`);
+    log.error(
+      { err: error },
+      `[SubtaskSplitter] Failed to create subtasks for task #${parentTaskId}`,
+    );
     return { success: false, parentTaskId, subtasksCreated: 0, subtaskIds: [], error: msg };
   }
 }
@@ -242,7 +267,9 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
     if (/^##\s+/.test(line) && !/summary|risk|done|definition|task/i.test(line)) {
       if (currentSection && currentItems.length > 0) {
         order++;
-        subtasks.push(buildPlannedSubtask(order, currentSection, currentItems, currentFiles, allFiles));
+        subtasks.push(
+          buildPlannedSubtask(order, currentSection, currentItems, currentFiles, allFiles),
+        );
       }
       currentSection = line.replace(/^##\s+/, '').trim();
       currentItems = [];
@@ -380,4 +407,3 @@ function buildInstructionMd(
 
   return lines.join('\n');
 }
-

@@ -72,14 +72,20 @@ export async function handleApprovePlan({
         AIOrchestra.getInstance()
           .handlePlanApproved(taskId)
           .catch((err) => {
-            log.warn({ err }, `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`);
+            log.warn(
+              { err },
+              `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`,
+            );
           });
 
-        const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
+        const { WorkflowOrchestrator } =
+          await import('../../../services/workflow/workflow-orchestrator');
         WorkflowOrchestrator.getInstance()
           .advanceWorkflow(taskId, language)
           .then((result) => {
-            log.info(`[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`);
+            log.info(
+              `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
+            );
           })
           .catch((err) => {
             log.error({ err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
@@ -89,7 +95,12 @@ export async function handleApprovePlan({
       }
     }
 
-    return { success: true, task: updatedTask, workflowStatus: newStatus, autoAdvance: parsedBody.approved };
+    return {
+      success: true,
+      task: updatedTask,
+      workflowStatus: newStatus,
+      autoAdvance: parsedBody.approved,
+    };
   } catch (err) {
     if (err instanceof ValidationError || err instanceof NotFoundError) throw err;
     log.error({ err }, 'Error approving plan');
@@ -121,8 +132,13 @@ export async function handleUpdateStatus({
     const taskId = parseId(params.taskId, 'task ID');
 
     const parsedBody = body as { status: string };
-    if (!parsedBody?.status || !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)) {
-      throw new ValidationError(`Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`);
+    if (
+      !parsedBody?.status ||
+      !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)
+    ) {
+      throw new ValidationError(
+        `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`,
+      );
     }
 
     const task = await prisma.task.findUnique({ where: { id: taskId } });
@@ -137,7 +153,10 @@ export async function handleUpdateStatus({
       data: {
         taskId,
         action: 'workflow_status_updated',
-        metadata: JSON.stringify({ previousStatus: task.workflowStatus, newStatus: parsedBody.status }),
+        metadata: JSON.stringify({
+          previousStatus: task.workflowStatus,
+          newStatus: parsedBody.status,
+        }),
         createdAt: new Date(),
       },
     });
@@ -174,7 +193,8 @@ export async function handleAdvanceWorkflow({
     const parsedBody = body as { language?: 'ja' | 'en' } | undefined;
     const language = parsedBody?.language || 'ja';
 
-    const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
+    const { WorkflowOrchestrator } =
+      await import('../../../services/workflow/workflow-orchestrator');
     const orchestrator = WorkflowOrchestrator.getInstance();
     const resultPromise = orchestrator.advanceWorkflow(taskId, language);
 
@@ -192,7 +212,9 @@ export async function handleAdvanceWorkflow({
 
     resultPromise
       .then(async (result) => {
-        log.info(`[Workflow] Advance completed for task ${taskId}: ${result.success ? 'success' : result.error}`);
+        log.info(
+          `[Workflow] Advance completed for task ${taskId}: ${result.success ? 'success' : result.error}`,
+        );
       })
       .catch((err) => {
         log.error({ err }, `[Workflow] Advance failed for task ${taskId}`);

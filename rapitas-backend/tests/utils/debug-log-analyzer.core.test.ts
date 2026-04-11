@@ -4,11 +4,7 @@
  * Tests for main analysis functionality and core features.
  */
 import { describe, test, expect } from 'bun:test';
-import {
-  DebugLogAnalyzer,
-  LogType,
-  LogLevel,
-} from '../../utils/debug-log-analyzer';
+import { DebugLogAnalyzer, LogType, LogLevel } from '../../utils/debug-log-analyzer';
 
 describe('DebugLogAnalyzer', () => {
   const analyzer = new DebugLogAnalyzer();

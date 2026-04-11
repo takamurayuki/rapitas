@@ -82,10 +82,7 @@ export type RoutingDecision = {
  * @param modelId - Target model / 対象モデル
  * @returns Cost estimate / コスト見積もり
  */
-export async function estimateCost(
-  taskComplexity: number,
-  modelId: string,
-): Promise<CostEstimate> {
+export async function estimateCost(taskComplexity: number, modelId: string): Promise<CostEstimate> {
   const rate = MODEL_COST_RATES[modelId] || MODEL_COST_RATES['default'] || 0.01;
   const tier = MODEL_TIERS[modelId] || 'standard';
 
@@ -115,15 +112,18 @@ export async function estimateCost(
 
   if (similarExecutions.length >= 3) {
     // Use historical average
-    const avgTokens = similarExecutions.reduce((sum, e) => sum + e.tokensUsed, 0) / similarExecutions.length;
+    const avgTokens =
+      similarExecutions.reduce((sum, e) => sum + e.tokensUsed, 0) / similarExecutions.length;
     estimatedTokens = Math.round(avgTokens);
     confidence = Math.min(0.9, 0.5 + similarExecutions.length * 0.04);
   } else {
     // Heuristic: complexity → token estimate
     estimatedTokens = Math.round(
-      taskComplexity <= 35 ? 5000 + taskComplexity * 100
-        : taskComplexity <= 70 ? 10000 + taskComplexity * 200
-        : 20000 + taskComplexity * 500,
+      taskComplexity <= 35
+        ? 5000 + taskComplexity * 100
+        : taskComplexity <= 70
+          ? 10000 + taskComplexity * 200
+          : 20000 + taskComplexity * 500,
     );
     confidence = 0.3;
   }
@@ -204,10 +204,13 @@ export async function getSmartRoute(
 
     const altEstimate = await estimateCost(complexity, model);
     const tradeoff =
-      tier === 'free' ? 'コスト0、品質は低下する可能性'
-      : tier === 'economy' ? '低コスト、シンプルなタスク向き'
-      : tier === 'standard' ? 'バランス型、多くのタスクに適合'
-      : '最高品質、コストが高い';
+      tier === 'free'
+        ? 'コスト0、品質は低下する可能性'
+        : tier === 'economy'
+          ? '低コスト、シンプルなタスク向き'
+          : tier === 'standard'
+            ? 'バランス型、多くのタスクに適合'
+            : '最高品質、コストが高い';
     alternatives.push({
       modelId: model,
       estimatedCost: altEstimate.estimatedCost,
@@ -242,9 +245,7 @@ export async function getSmartRoute(
  * @param weeklyBudget - Weekly budget limit in USD / 週間予算上限（USD）
  * @returns Budget status / 予算状態
  */
-export async function getBudgetStatus(
-  weeklyBudget: number | null = null,
-): Promise<BudgetStatus> {
+export async function getBudgetStatus(weeklyBudget: number | null = null): Promise<BudgetStatus> {
   const now = new Date();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay());

@@ -93,7 +93,10 @@ export async function getKnowledgeBasedSuggestions(
 
     const gapSummary = [...lowConfidence, ...conflicts]
       .slice(0, 5)
-      .map((e) => `- ${e.title} (信頼度: ${(e.confidence * 100).toFixed(0)}%, 状態: ${e.validationStatus})`)
+      .map(
+        (e) =>
+          `- ${e.title} (信頼度: ${(e.confidence * 100).toFixed(0)}%, 状態: ${e.validationStatus})`,
+      )
       .join('\n');
 
     const systemPrompt = `You are a task recommendation engine. Based on the accumulated knowledge entries,

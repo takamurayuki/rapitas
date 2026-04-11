@@ -12,13 +12,20 @@ import type { AnalysisResult, MaintainabilityMetrics } from './types';
 /** Maps a severity string to a bracketed label for Markdown tables. */
 export function severityLabel(s: string): string {
   switch (s) {
-    case 'critical': return '[CRITICAL]';
-    case 'high':     return '[HIGH]';
-    case 'warning':  return '[WARN]';
-    case 'medium':   return '[MEDIUM]';
-    case 'low':      return '[LOW]';
-    case 'info':     return '[INFO]';
-    default:         return '';
+    case 'critical':
+      return '[CRITICAL]';
+    case 'high':
+      return '[HIGH]';
+    case 'warning':
+      return '[WARN]';
+    case 'medium':
+      return '[MEDIUM]';
+    case 'low':
+      return '[LOW]';
+    case 'info':
+      return '[INFO]';
+    default:
+      return '';
   }
 }
 
@@ -229,7 +236,10 @@ ${
 
 | Endpoint | Type | Message |
 |----------|------|---------|
-${apiConsistency.issues.slice(0, 30).map((i) => `| \`${i.endpoint}\` | ${i.type} | ${i.message} |`).join('\n')}
+${apiConsistency.issues
+  .slice(0, 30)
+  .map((i) => `| \`${i.endpoint}\` | ${i.type} | ${i.message} |`)
+  .join('\n')}
 
 </details>`
     : ''
@@ -246,7 +256,10 @@ ${apiConsistency.issues.slice(0, 30).map((i) => `| \`${i.endpoint}\` | ${i.type}
 ${
   imports.circularDependencies.length > 0
     ? `### Circular Dependencies
-${imports.circularDependencies.slice(0, 10).map((c) => `- ${c.cycle.join(' -> ')}`).join('\n')}`
+${imports.circularDependencies
+  .slice(0, 10)
+  .map((c) => `- ${c.cycle.join(' -> ')}`)
+  .join('\n')}`
     : 'No circular dependencies detected'
 }
 
@@ -255,7 +268,10 @@ ${
     ? `### High Fan-Out (many imports)
 | File | Import Count |
 |------|-------------|
-${imports.highFanOutFiles.slice(0, 10).map((f) => `| \`${f.file}\` | ${f.importCount} |`).join('\n')}`
+${imports.highFanOutFiles
+  .slice(0, 10)
+  .map((f) => `| \`${f.file}\` | ${f.importCount} |`)
+  .join('\n')}`
     : ''
 }
 

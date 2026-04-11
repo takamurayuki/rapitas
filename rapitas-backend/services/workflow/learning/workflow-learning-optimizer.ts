@@ -15,7 +15,12 @@ import { runRuleDetection } from './workflow-learning-rules';
 
 // Re-export sub-module symbols so existing imports from this path keep working.
 export { recordWorkflowCompletion, getLearningStats } from './workflow-learning-stats';
-export { calculatePhaseTimings, extractKeywords, detectSkippedPhases, matchesCondition } from './workflow-learning-helpers';
+export {
+  calculatePhaseTimings,
+  extractKeywords,
+  detectSkippedPhases,
+  matchesCondition,
+} from './workflow-learning-helpers';
 export type { PhaseTimings, RuleGenerationResult } from './workflow-learning-helpers';
 export { estimateDurationFromHistory, getDirectInsight } from './workflow-learning-estimator';
 

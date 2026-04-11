@@ -239,7 +239,7 @@ export class QuestionTimeoutManager {
       }
 
       if (details?.options && Array.isArray(details.options) && details.options.length > 0) {
-          const firstOption = details.options[0];
+        const firstOption = details.options[0];
         return firstOption.label || '1';
       }
     }

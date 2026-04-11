@@ -33,7 +33,11 @@ export interface RunState {
 }
 
 /** Builds the argv array for the Gemini CLI invocation. */
-function buildArgs(prompt: string, config: GeminiCliConfig, context: AgentExecutionContext): string[] {
+function buildArgs(
+  prompt: string,
+  config: GeminiCliConfig,
+  context: AgentExecutionContext,
+): string[] {
   const args: string[] = ['-p', prompt, '--output-format', 'stream-json'];
   if (config.sandboxMode) args.push('--sandbox');
   if (config.yolo || context.dangerouslySkipPermissions) args.push('--yolo');
@@ -56,7 +60,13 @@ function buildArgs(prompt: string, config: GeminiCliConfig, context: AgentExecut
 
 /** Builds the process environment, injecting API credentials. */
 function buildEnv(config: GeminiCliConfig): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', CI: '1', TERM: 'dumb' };
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    FORCE_COLOR: '0',
+    NO_COLOR: '1',
+    CI: '1',
+    TERM: 'dumb',
+  };
   if (config.apiKey) {
     env.GEMINI_API_KEY = config.apiKey;
     env.GOOGLE_API_KEY = config.apiKey; // Gemini CLI may also use GOOGLE_API_KEY
@@ -105,7 +115,11 @@ export async function runGeminiCli(
 
     if (isWindows) {
       const argsString = args
-        .map((arg) => (arg.includes(' ') || arg.includes('&') || arg.includes('|') ? `"${arg.replace(/"/g, '\\"')}"` : arg))
+        .map((arg) =>
+          arg.includes(' ') || arg.includes('&') || arg.includes('|')
+            ? `"${arg.replace(/"/g, '\\"')}"`
+            : arg,
+        )
         .join(' ');
       const quotedPath = geminiPath.includes(' ') ? `"${geminiPath}"` : geminiPath;
       finalCommand = `chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`;
@@ -116,15 +130,22 @@ export async function runGeminiCli(
     }
 
     log('info', 'Starting Gemini CLI execution', {
-      workDir, promptLength: prompt.length,
+      workDir,
+      promptLength: prompt.length,
       command: isWindows ? finalCommand : `${finalCommand} ${args.join(' ')}`,
       model: config.model,
     });
 
     try {
       // Log API key presence (only prefix for security)
-      const hasApiKey = !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
-      const apiKeyPrefix = (env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').substring(0, 8);
+      const hasApiKey =
+        !!env.GEMINI_API_KEY || !!process.env.GEMINI_API_KEY || !!process.env.GOOGLE_API_KEY;
+      const apiKeyPrefix = (
+        env.GEMINI_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        ''
+      ).substring(0, 8);
       log('info', 'Gemini API configuration', {
         hasApiKey,
         apiKeyPrefix: apiKeyPrefix ? `${apiKeyPrefix}...` : 'NOT SET',
@@ -177,7 +198,10 @@ export async function runGeminiCli(
           try {
             const json = JSON.parse(line) as GeminiStreamEvent;
             const result = processStreamEvent(json);
-            if (result.output) { state.outputBuffer += result.output; await emitOutput(result.output, false, true); }
+            if (result.output) {
+              state.outputBuffer += result.output;
+              await emitOutput(result.output, false, true);
+            }
             if (result.sessionId) state.geminiSessionId = result.sessionId;
             if (result.checkpointId) state.checkpointId = result.checkpointId;
             if (result.isQuestion) {
@@ -189,7 +213,13 @@ export async function runGeminiCli(
           } catch {
             // Filter out non-JSON lines (e.g. Windows chcp output)
             const t = line.trim();
-            if (!t || /^Active code page:/i.test(t) || /^現在のコード ページ:/i.test(t) || /^chcp\s/i.test(t)) continue;
+            if (
+              !t ||
+              /^Active code page:/i.test(t) ||
+              /^現在のコード ページ:/i.test(t) ||
+              /^chcp\s/i.test(t)
+            )
+              continue;
             state.outputBuffer += line + '\n';
             await emitOutput(line + '\n', false, true);
           }

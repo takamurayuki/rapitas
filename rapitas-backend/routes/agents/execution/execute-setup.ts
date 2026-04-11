@@ -76,7 +76,9 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
         'code' in upsertError &&
         (upsertError as { code: string }).code === 'P2002';
       if (isPrismaUniqueViolation) {
-        log.warn(`[setup] Concurrent upsert race for taskId=${taskIdNum}, fetching existing record`);
+        log.warn(
+          `[setup] Concurrent upsert race for taskId=${taskIdNum}, fetching existing record`,
+        );
         developerModeConfig = await prisma.developerModeConfig.findUniqueOrThrow({
           where: { taskId: taskIdNum },
         });

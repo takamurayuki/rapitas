@@ -12,7 +12,10 @@ import type { FileInfo, AnalysisResult } from '../types';
 /** Feature area configuration used for both test coverage and feature completeness. */
 export const FEATURE_AREAS_CONFIG = [
   { name: 'Task Management', keywords: ['task', 'tasks'] },
-  { name: 'Pomodoro/Time Management', keywords: ['pomodoro', 'time-entr', 'timer', 'time-management'] },
+  {
+    name: 'Pomodoro/Time Management',
+    keywords: ['pomodoro', 'time-entr', 'timer', 'time-management'],
+  },
   {
     name: 'AI Agent',
     keywords: ['agent', 'ai-agent', 'ai-chat', 'claude'],

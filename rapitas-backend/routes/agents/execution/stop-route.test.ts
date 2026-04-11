@@ -56,7 +56,8 @@ vi.mock('../../../services/agents/orchestrator/git-operations/worktree-ops', () 
 
 const { prisma } = await import('../../../config/database');
 const { orchestrator } = await import('../../../services/core/orchestrator-instance');
-const { removeWorktree } = await import('../../../services/agents/orchestrator/git-operations/worktree-ops');
+const { removeWorktree } =
+  await import('../../../services/agents/orchestrator/git-operations/worktree-ops');
 
 const mockPrisma = vi.mocked(prisma);
 const mockOrchestrator = vi.mocked(orchestrator);

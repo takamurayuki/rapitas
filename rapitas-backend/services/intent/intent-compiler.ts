@@ -214,7 +214,9 @@ function buildPrompt(intent: ParsedIntent): string {
 
   sections.push(`# Intent: ${intent.title}`);
   sections.push('');
-  sections.push('このタスクはインテントファイルから自動生成されました。以下の宣言に従って実装してください。');
+  sections.push(
+    'このタスクはインテントファイルから自動生成されました。以下の宣言に従って実装してください。',
+  );
   sections.push('');
 
   if (intent.description) {
@@ -254,7 +256,9 @@ function buildPrompt(intent: ParsedIntent): string {
   }
 
   sections.push('## 指示');
-  sections.push('上記のゴールを全て達成し、制約条件を全て守り、受入基準を満たすように実装してください。');
+  sections.push(
+    '上記のゴールを全て達成し、制約条件を全て守り、受入基準を満たすように実装してください。',
+  );
   sections.push('実装完了後、verify.mdに結果を記録してください。');
 
   return sections.join('\n');

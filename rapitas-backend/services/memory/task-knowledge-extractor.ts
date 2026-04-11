@@ -258,8 +258,14 @@ export async function searchCrossProjectKnowledge(
         })),
       },
       select: {
-        id: true, title: true, content: true, category: true,
-        confidence: true, decayScore: true, themeId: true, tags: true,
+        id: true,
+        title: true,
+        content: true,
+        category: true,
+        confidence: true,
+        decayScore: true,
+        themeId: true,
+        tags: true,
       },
       orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
       take: limit * 5,
@@ -267,12 +273,13 @@ export async function searchCrossProjectKnowledge(
 
     // Fetch theme names for context
     const themeIds = [...new Set(entries.map((e) => e.themeId).filter(Boolean))] as number[];
-    const themes = themeIds.length > 0
-      ? await prisma.theme.findMany({
-          where: { id: { in: themeIds } },
-          select: { id: true, name: true },
-        })
-      : [];
+    const themes =
+      themeIds.length > 0
+        ? await prisma.theme.findMany({
+            where: { id: { in: themeIds } },
+            select: { id: true, name: true },
+          })
+        : [];
     const themeMap = new Map(themes.map((t) => [t.id, t.name]));
 
     const scored = entries.map((entry) => {

@@ -8,12 +8,7 @@
  */
 
 import { PrismaClient, Prisma } from '@prisma/client';
-import type {
-  AgentMetrics,
-  ExecutionTrendData,
-  MetricsOverview,
-  DateRange,
-} from './types';
+import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from './types';
 
 const prisma = new PrismaClient();
 

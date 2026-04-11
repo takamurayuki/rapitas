@@ -13,13 +13,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { createLogger } from '../config/logger';
 import { findAvailablePort } from '../utils/common/find-port';
-import {
-  serverProcess,
-  log,
-  ROOT_DIR,
-  setServerPort,
-  startServer,
-} from './dev/server-manager';
+import { serverProcess, log, ROOT_DIR, setServerPort, startServer } from './dev/server-manager';
 import { watchTypeScriptFiles, watchPrismaSchema } from './dev/watcher';
 
 const pinoLog = createLogger('dev');

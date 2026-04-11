@@ -8,17 +8,9 @@
  */
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import {
-  writeFileSync,
-  appendFileSync,
-  existsSync,
-  statSync,
-} from 'fs';
+import { writeFileSync, appendFileSync, existsSync, statSync } from 'fs';
 import { createLogger } from '../../../config/logger';
-import type {
-  SubAgentState,
-  ParallelExecutionStatus,
-} from '../types-dir/types';
+import type { SubAgentState, ParallelExecutionStatus } from '../types-dir/types';
 import type { AgentTask, AgentExecutionResult } from '../../agents/base-agent';
 import { getLogFilePath } from './log-utils';
 import { buildPrompt } from './prompt-builder';

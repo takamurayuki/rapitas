@@ -10,7 +10,12 @@ import { agentFactory } from '../agent-factory';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import { ExecutionFileLogger } from '../execution-file-logger';
 import { createLogger } from '../../../config/logger';
-import type { ExecutionOptions, ExecutionState, ActiveAgentInfo, OrchestratorContext } from './types';
+import type {
+  ExecutionOptions,
+  ExecutionState,
+  ActiveAgentInfo,
+  OrchestratorContext,
+} from './types';
 import {
   createLogChunkManager,
   setupQuestionDetectedHandler,
@@ -45,7 +50,11 @@ export async function executeContinuation(
     logger.info(
       `[ContinuationExecutor] Skipping continuation for execution ${executionId} - already being processed`,
     );
-    return { success: false, output: '', errorMessage: 'This execution is already being processed' };
+    return {
+      success: false,
+      output: '',
+      errorMessage: 'This execution is already being processed',
+    };
   }
 
   try {
@@ -236,7 +245,13 @@ export async function executeContinuationInternal(
 
   await ctx.prisma.agentExecution.update({
     where: { id: execution.id },
-    data: { status: 'running', question: null, questionType: null, questionDetails: null, output: state.output },
+    data: {
+      status: 'running',
+      question: null,
+      questionType: null,
+      questionDetails: null,
+      output: state.output,
+    },
   });
 
   try {
@@ -256,7 +271,9 @@ export async function executeContinuationInternal(
       `## 指示`,
       `上記の回答を踏まえて、元のタスクの実行を継続してください。`,
       `回答の確認だけで完了せず、タスク本来の作業を最後まで実行してください。`,
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     const agentTask: AgentTask = {
       id: taskId,
@@ -270,24 +287,50 @@ export async function executeContinuationInternal(
     // Fallback on --resume failure
     if (isSessionResumeFailure(result, claudeSessionId)) {
       result = await handleResumeFailureFallbacks(
-        ctx, agent, agentConfig, agentTask, agentInfo, execution, state,
-        fileLogger, logManager, taskId, claudeSessionId!,
+        ctx,
+        agent,
+        agentConfig,
+        agentTask,
+        agentInfo,
+        execution,
+        state,
+        fileLogger,
+        logManager,
+        taskId,
+        claudeSessionId!,
       );
     }
 
-    await saveExecutionResult(ctx.prisma, execution.id, execution.sessionId, state, result, fileLogger, {
-      artifacts: execution.artifacts,
-      tokensUsed: execution.tokensUsed,
-      executionTimeMs: execution.executionTimeMs,
-      claudeSessionId: execution.claudeSessionId,
-    });
-    emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) => ctx.emitEvent(event));
+    await saveExecutionResult(
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      state,
+      result,
+      fileLogger,
+      {
+        artifacts: execution.artifacts,
+        tokensUsed: execution.tokensUsed,
+        executionTimeMs: execution.executionTimeMs,
+        claudeSessionId: execution.claudeSessionId,
+      },
+    );
+    emitResultEvent(result, execution.id, execution.sessionId, taskId, (event) =>
+      ctx.emitEvent(event),
+    );
 
     return result;
   } catch (error) {
     await handleExecutionError(
-      ctx.prisma, execution.id, execution.sessionId, taskId, state,
-      error, fileLogger, (event) => ctx.emitEvent(event), 'Continuation',
+      ctx.prisma,
+      execution.id,
+      execution.sessionId,
+      taskId,
+      state,
+      error,
+      fileLogger,
+      (event) => ctx.emitEvent(event),
+      'Continuation',
     );
     throw error;
   } finally {

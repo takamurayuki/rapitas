@@ -34,7 +34,13 @@ const log = createLogger('routes:workflow:handlers:files');
  * @throws {NotFoundError} When task does not exist
  * @throws {ValidationError} When taskId is invalid
  */
-export async function handleGetFiles({ params, set }: { params: { taskId: string }; set: { status: number } }) {
+export async function handleGetFiles({
+  params,
+  set,
+}: {
+  params: { taskId: string };
+  set: { status: number };
+}) {
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
@@ -153,9 +159,8 @@ export async function handleSaveFile({
     let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;
     if (fileType === 'plan' && newStatus === 'plan_created') {
       try {
-        const { analyzePlanForSplitting, createSubtasksFromPlan } = await import(
-          '../../../services/workflow/subtask-splitter'
-        );
+        const { analyzePlanForSplitting, createSubtasksFromPlan } =
+          await import('../../../services/workflow/subtask-splitter');
         const analysis = analyzePlanForSplitting(sanitizeResult.content);
         if (analysis.shouldSplit) {
           log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
@@ -165,11 +170,16 @@ export async function handleSaveFile({
             const researchPath = join(dirname(filePath), 'research.md');
             const { readFile: rf } = await import('fs/promises');
             researchContent = await rf(researchPath, 'utf-8');
-          } catch { /* no research.md — non-fatal */ }
+          } catch {
+            /* no research.md — non-fatal */
+          }
 
           const result = await createSubtasksFromPlan(taskId, analysis, researchContent);
           if (result.success) {
-            splitResult = { subtasksCreated: result.subtasksCreated, subtaskIds: result.subtaskIds };
+            splitResult = {
+              subtasksCreated: result.subtasksCreated,
+              subtaskIds: result.subtaskIds,
+            };
             log.info(`[Workflow] Created ${result.subtasksCreated} subtasks for task ${taskId}`);
           }
         }
@@ -181,11 +191,7 @@ export async function handleSaveFile({
     // Auto-approve when saving plan.md if autoApprovePlan is enabled
     let autoApproved = false;
     if (fileType === 'plan' && newStatus === 'plan_created') {
-      ({ newStatus, autoApproved } = await _handlePlanAutoApprove(
-        taskId,
-        newStatus,
-        fileLanguage,
-      ));
+      ({ newStatus, autoApproved } = await _handlePlanAutoApprove(taskId, newStatus, fileLanguage));
     }
 
     // Auto commit and PR creation when saving verify.md
@@ -204,15 +210,20 @@ export async function handleSaveFile({
       });
 
       // Record reasoning trace for temporal debugging (async)
-      import('../../../services/analytics/temporal-debugger').then(({ recordReasoningTrace }) => {
-        // Find the latest execution for this task to record its trace
-        prisma.agentExecution.findFirst({
-          where: { session: { config: { taskId } }, status: 'completed' },
-          orderBy: { completedAt: 'desc' },
-        }).then((exec) => {
-          if (exec) recordReasoningTrace(exec.id).catch(() => {});
-        }).catch(() => {});
-      }).catch(() => {});
+      import('../../../services/analytics/temporal-debugger')
+        .then(({ recordReasoningTrace }) => {
+          // Find the latest execution for this task to record its trace
+          prisma.agentExecution
+            .findFirst({
+              where: { session: { config: { taskId } }, status: 'completed' },
+              orderBy: { completedAt: 'desc' },
+            })
+            .then((exec) => {
+              if (exec) recordReasoningTrace(exec.id).catch(() => {});
+            })
+            .catch(() => {});
+        })
+        .catch(() => {});
     }
 
     // Build response
@@ -233,10 +244,13 @@ export async function handleSaveFile({
       response.taskStatus = 'done';
       response.completedAt = new Date().toISOString();
 
-      if (autoCommitPRResult.autoCommitResult) response.autoCommit = autoCommitPRResult.autoCommitResult;
+      if (autoCommitPRResult.autoCommitResult)
+        response.autoCommit = autoCommitPRResult.autoCommitResult;
       if (autoCommitPRResult.autoPRResult) response.autoPR = autoCommitPRResult.autoPRResult;
-      if (autoCommitPRResult.autoMergeResult) response.autoMerge = autoCommitPRResult.autoMergeResult;
-      if (autoCommitPRResult.worktreeCleanupResult) response.worktreeCleanup = autoCommitPRResult.worktreeCleanupResult;
+      if (autoCommitPRResult.autoMergeResult)
+        response.autoMerge = autoCommitPRResult.autoMergeResult;
+      if (autoCommitPRResult.worktreeCleanupResult)
+        response.worktreeCleanup = autoCommitPRResult.worktreeCleanupResult;
     }
 
     return response;
@@ -298,7 +312,8 @@ async function _handlePlanAutoApprove(
         reason: approvalReason,
         taskLevelSetting: task?.autoApprovePlan || false,
         globalLevelSetting: userSettings?.autoApprovePlan || false,
-        subtaskAutoApprove: isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
+        subtaskAutoApprove:
+          isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
         isSubtask,
       }),
       createdAt: new Date(),
@@ -307,7 +322,8 @@ async function _handlePlanAutoApprove(
 
   // Automatically start the implementation phase
   try {
-    const { WorkflowOrchestrator } = await import('../../../services/workflow/workflow-orchestrator');
+    const { WorkflowOrchestrator } =
+      await import('../../../services/workflow/workflow-orchestrator');
     const orchestrator = WorkflowOrchestrator.getInstance();
     orchestrator
       .advanceWorkflow(taskId, fileLanguage)

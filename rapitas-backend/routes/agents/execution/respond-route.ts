@@ -79,7 +79,10 @@ export const respondRoute = new Elysia().post(
       }
       // NOTE: Log warning when workingDirectory overlaps with rapitas project — allowed but flagged
       const projectRoot = getProjectRoot();
-      if (workingDirectory === projectRoot || workingDirectory.startsWith(join(projectRoot, 'rapitas-'))) {
+      if (
+        workingDirectory === projectRoot ||
+        workingDirectory.startsWith(join(projectRoot, 'rapitas-'))
+      ) {
         log.warn(
           `[agent-respond] Task ${taskId}: workingDirectory overlaps with rapitas project (${workingDirectory}). Proceeding as user-intended.`,
         );
@@ -101,11 +104,15 @@ export const respondRoute = new Elysia().post(
 
       // NOTE: Use executeContinuationWithLock because the lock is already held by this endpoint.
       // executeContinuation() would try to acquire the same lock again and fail immediately.
-      const result = await agentWorkerManager.executeContinuationWithLock(latestExecution.id, response, {
-        sessionId: session.id,
-        taskId,
-        workingDirectory,
-      });
+      const result = await agentWorkerManager.executeContinuationWithLock(
+        latestExecution.id,
+        response,
+        {
+          sessionId: session.id,
+          taskId,
+          workingDirectory,
+        },
+      );
 
       if (result.success) {
         return {

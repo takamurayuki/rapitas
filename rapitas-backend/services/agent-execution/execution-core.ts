@@ -10,10 +10,7 @@ import { PrismaClient } from '@prisma/client';
 import { orchestrator } from '../core/orchestrator-instance';
 import type { ExecutionRequest, ExecutionResult } from '../../types/agent-execution-types';
 import { createLogger } from '../../config/logger';
-import {
-  gatherSharedKnowledge,
-  formatKnowledgeContext,
-} from '../agents/agent-knowledge-sharing';
+import { gatherSharedKnowledge, formatKnowledgeContext } from '../agents/agent-knowledge-sharing';
 import {
   getOrCreateSession,
   getAgentConfig,
@@ -167,8 +164,7 @@ export async function stopExecution(prisma: PrismaClient, executionId: number): 
 export async function stopSession(prisma: PrismaClient, sessionId: number): Promise<void> {
   try {
     const { AgentWorkerManager } = await import('../agents/agent-worker-manager');
-    const executions =
-      await AgentWorkerManager.getInstance().getSessionExecutionsAsync(sessionId);
+    const executions = await AgentWorkerManager.getInstance().getSessionExecutionsAsync(sessionId);
     for (const execution of executions) {
       await orchestrator.stopExecution(execution.executionId).catch((err) => {
         log.warn(
@@ -178,10 +174,7 @@ export async function stopSession(prisma: PrismaClient, sessionId: number): Prom
       });
     }
   } catch (err) {
-    log.warn(
-      { err },
-      'Failed to get session executions from worker, falling back to DB-only stop',
-    );
+    log.warn({ err }, 'Failed to get session executions from worker, falling back to DB-only stop');
   }
 
   await prisma.agentExecution.updateMany({

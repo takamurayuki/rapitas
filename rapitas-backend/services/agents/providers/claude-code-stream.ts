@@ -119,9 +119,7 @@ export async function runClaudeCode(
     const timeout = context.timeout || config.timeout || 900000;
     const isWindows = process.platform === 'win32';
     const baseClaudePath =
-      config.cliPath ||
-      process.env.CLAUDE_CODE_PATH ||
-      (isWindows ? 'claude.cmd' : 'claude');
+      config.cliPath || process.env.CLAUDE_CODE_PATH || (isWindows ? 'claude.cmd' : 'claude');
     const claudePath = resolveCliPath(baseClaudePath);
 
     const args: string[] = ['--print', '--verbose', '--output-format', 'stream-json'];
@@ -184,7 +182,11 @@ export async function runClaudeCode(
             state: 'timeout',
             output: streamState.outputBuffer,
             errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
-            metrics: { startTime: new Date(startTime), endTime: new Date(), durationMs: Date.now() - startTime },
+            metrics: {
+              startTime: new Date(startTime),
+              endTime: new Date(),
+              durationMs: Date.now() - startTime,
+            },
           });
         }
       }, 10000);
@@ -213,7 +215,11 @@ export async function runClaudeCode(
       proc.on('close', (code: number | null) => {
         clearInterval(timeoutCheck);
         const executionTimeMs = Date.now() - startTime;
-        const metrics = { startTime: new Date(startTime), endTime: new Date(), durationMs: executionTimeMs };
+        const metrics = {
+          startTime: new Date(startTime),
+          endTime: new Date(),
+          durationMs: executionTimeMs,
+        };
 
         if (streamState.lineBuffer.trim()) {
           streamState.outputBuffer += streamState.lineBuffer + '\n';
@@ -224,7 +230,11 @@ export async function runClaudeCode(
             success: true,
             state: 'waiting_for_input',
             output: streamState.outputBuffer,
-            pendingQuestion: { questionId: `q-${Date.now()}`, text: detectedQuestionText, category: 'clarification' },
+            pendingQuestion: {
+              questionId: `q-${Date.now()}`,
+              text: detectedQuestionText,
+              category: 'clarification',
+            },
             sessionId: streamState.claudeSessionId || undefined,
             metrics,
           });
@@ -248,7 +258,11 @@ export async function runClaudeCode(
           state: 'failed',
           output: streamState.outputBuffer,
           errorMessage: error.message,
-          metrics: { startTime: new Date(startTime), endTime: new Date(), durationMs: Date.now() - startTime },
+          metrics: {
+            startTime: new Date(startTime),
+            endTime: new Date(),
+            durationMs: Date.now() - startTime,
+          },
         });
       });
     } catch (error) {
@@ -257,7 +271,11 @@ export async function runClaudeCode(
         state: 'failed',
         output: '',
         errorMessage: error instanceof Error ? error.message : String(error),
-        metrics: { startTime: new Date(startTime), endTime: new Date(), durationMs: Date.now() - startTime },
+        metrics: {
+          startTime: new Date(startTime),
+          endTime: new Date(),
+          durationMs: Date.now() - startTime,
+        },
       });
     }
   });

@@ -89,10 +89,7 @@ export async function emitArtifact(
  * @param events - Agent event emitter / エージェントイベントエミッター
  * @param commit - Git commit info / Gitコミット情報
  */
-export async function emitCommit(
-  events: AgentEventEmitter,
-  commit: GitCommitInfo,
-): Promise<void> {
+export async function emitCommit(events: AgentEventEmitter, commit: GitCommitInfo): Promise<void> {
   await events.emitCommit(commit);
 }
 

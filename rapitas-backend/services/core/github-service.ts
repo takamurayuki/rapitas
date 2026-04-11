@@ -20,12 +20,7 @@ import {
   requestChanges,
   createPullRequest,
 } from '../github/pr-operations';
-import {
-  getIssues,
-  getIssue,
-  createIssue,
-  addIssueComment,
-} from '../github/issue-operations';
+import { getIssues, getIssue, createIssue, addIssueComment } from '../github/issue-operations';
 import { syncPullRequests, syncIssues, handleWebhook } from '../github/sync-webhook';
 
 // Re-export all public types so consumers can import from the original path

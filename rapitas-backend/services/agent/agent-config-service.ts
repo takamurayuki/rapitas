@@ -70,27 +70,37 @@ import type {
 // instantiate the service via `new AgentConfigService()` or use the singleton export.
 export class AgentConfigService {
   /** Retrieves all active agent configurations. */
-  async getActiveAgents() { return getActiveAgents(); }
+  async getActiveAgents() {
+    return getActiveAgents();
+  }
 
   /** Retrieves all agent configurations including inactive ones. */
-  async getAllAgents() { return getAllAgents(); }
+  async getAllAgents() {
+    return getAllAgents();
+  }
 
   /**
    * Finds an agent configuration by its ID.
    *
    * @param id - Primary key of the record / レコードの主キー
    */
-  async getAgentById(id: number) { return getAgentById(id); }
+  async getAgentById(id: number) {
+    return getAgentById(id);
+  }
 
   /** Returns the default active agent, falling back to a built-in Claude Code config. */
-  async getDefaultAgent() { return getDefaultAgent(); }
+  async getDefaultAgent() {
+    return getDefaultAgent();
+  }
 
   /**
    * Creates a new agent configuration with validation and encryption.
    *
    * @param config - Creation request payload / 作成リクエストペイロード
    */
-  async createAgentConfig(config: CreateAgentConfigRequest) { return createAgentConfig(config); }
+  async createAgentConfig(config: CreateAgentConfigRequest) {
+    return createAgentConfig(config);
+  }
 
   /**
    * Updates an existing agent configuration.
@@ -107,24 +117,32 @@ export class AgentConfigService {
    *
    * @param id - ID of the agent config / エージェント設定のID
    */
-  async toggleAgentActive(id: number) { return toggleAgentActive(id); }
+  async toggleAgentActive(id: number) {
+    return toggleAgentActive(id);
+  }
 
   /**
    * Soft-deletes an agent configuration by deactivating it.
    *
    * @param id - ID of the record / レコードのID
    */
-  async deleteAgentConfig(id: number) { return deleteAgentConfig(id); }
+  async deleteAgentConfig(id: number) {
+    return deleteAgentConfig(id);
+  }
 
   /**
    * Sets a specific agent as the default.
    *
    * @param id - ID of the agent to set as default / デフォルトに設定するエージェントのID
    */
-  async setDefaultAgent(id: number) { return setDefaultAgent(id); }
+  async setDefaultAgent(id: number) {
+    return setDefaultAgent(id);
+  }
 
   /** Clears the default flag on all agents. */
-  async clearDefaultAgent() { return clearDefaultAgent(); }
+  async clearDefaultAgent() {
+    return clearDefaultAgent();
+  }
 
   /**
    * Sets and encrypts an API key for a specific agent.
@@ -132,21 +150,27 @@ export class AgentConfigService {
    * @param id - ID of the agent config / エージェント設定のID
    * @param apiKey - Plain-text API key / 平文APIキー
    */
-  async setApiKey(id: number, apiKey: string) { return setApiKey(id, apiKey); }
+  async setApiKey(id: number, apiKey: string) {
+    return setApiKey(id, apiKey);
+  }
 
   /**
    * Removes the API key from an agent configuration.
    *
    * @param id - ID of the agent config / エージェント設定のID
    */
-  async deleteApiKey(id: number) { return deleteApiKey(id); }
+  async deleteApiKey(id: number) {
+    return deleteApiKey(id);
+  }
 
   /**
    * Retrieves and decrypts the API key for a given agent.
    *
    * @param id - ID of the agent config / エージェント設定のID
    */
-  async getApiKey(id: number) { return getApiKey(id); }
+  async getApiKey(id: number) {
+    return getApiKey(id);
+  }
 
   /**
    * Validates an agent configuration including API key format.
@@ -168,21 +192,27 @@ export class AgentConfigService {
    *
    * @param agentType - Agent type identifier / エージェントタイプの識別子
    */
-  getConfigSchema(agentType: string) { return getAgentConfigSchema(agentType); }
+  getConfigSchema(agentType: string) {
+    return getAgentConfigSchema(agentType);
+  }
 
   /**
    * Returns a masked version of the agent's API key for display.
    *
    * @param id - ID of the agent config / エージェント設定のID
    */
-  async getMaskedApiKey(id: number) { return getMaskedApiKey(id); }
+  async getMaskedApiKey(id: number) {
+    return getMaskedApiKey(id);
+  }
 
   /**
    * Retrieves the capabilities configuration for an agent.
    *
    * @param id - ID of the agent config / エージェント設定のID
    */
-  async getCapabilities(id: number) { return getCapabilities(id); }
+  async getCapabilities(id: number) {
+    return getCapabilities(id);
+  }
 
   /**
    * Updates the capabilities configuration for an agent.

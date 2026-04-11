@@ -5,12 +5,12 @@
  * NOTE: This file handles AUTOMATIC file-path-based dependency analysis.
  * For USER-DECLARED task blocking relationships, see routes/tasks/task-dependency-graph.ts.
  */
-import { Elysia, t } from "elysia";
-import { prisma } from "../../config/database";
+import { Elysia, t } from 'elysia';
+import { prisma } from '../../config/database';
 import {
   SSEStreamController,
   getUserFriendlyErrorMessage,
-} from "../../services/communication/sse-utils";
+} from '../../services/communication/sse-utils';
 
 // Type definitions
 type SubtaskFileInfo = {
@@ -64,10 +64,7 @@ const extractFilePaths = (text: string | null): string[] => {
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
-      const filePath = match[1]
-        .replace(/\\/g, "/")
-        .replace(/^\.\//, "")
-        .toLowerCase();
+      const filePath = match[1].replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
 
       if (/\.[a-zA-Z]{1,10}$/.test(filePath)) {
         files.add(filePath);
@@ -78,24 +75,20 @@ const extractFilePaths = (text: string | null): string[] => {
 };
 
 const getFileName = (path: string): string => {
-  const parts = path.split("/");
+  const parts = path.split('/');
   return parts[parts.length - 1];
 };
 
-const calculateDependencies = (
-  subtaskFiles: SubtaskFileInfo[],
-): DependencyInfo[] => {
+const calculateDependencies = (subtaskFiles: SubtaskFileInfo[]): DependencyInfo[] => {
   const dependencyAnalysis: DependencyInfo[] = [];
 
   for (const current of subtaskFiles) {
-    const dependencies: DependencyInfo["dependencies"] = [];
+    const dependencies: DependencyInfo['dependencies'] = [];
 
     for (const other of subtaskFiles) {
       if (current.id === other.id) continue;
 
-      const sharedFiles = current.fileNames.filter((fn) =>
-        other.fileNames.includes(fn),
-      );
+      const sharedFiles = current.fileNames.filter((fn) => other.fileNames.includes(fn));
 
       if (sharedFiles.length > 0) {
         const score =
@@ -112,24 +105,17 @@ const calculateDependencies = (
       }
     }
 
-    const totalSharedFiles = new Set(
-      dependencies.flatMap((d) => d.sharedFiles),
-    ).size;
+    const totalSharedFiles = new Set(dependencies.flatMap((d) => d.sharedFiles)).size;
     const independenceScore =
       current.files.length > 0
-        ? Math.round(
-            ((current.files.length - totalSharedFiles) / current.files.length) *
-              100,
-          )
+        ? Math.round(((current.files.length - totalSharedFiles) / current.files.length) * 100)
         : 100;
 
     dependencyAnalysis.push({
       taskId: current.id,
       title: current.title,
       files: current.files,
-      dependencies: dependencies.sort(
-        (a, b) => b.dependencyScore - a.dependencyScore,
-      ),
+      dependencies: dependencies.sort((a, b) => b.dependencyScore - a.dependencyScore),
       independenceScore,
       canRunParallel: dependencies.length === 0 || independenceScore >= 70,
     });
@@ -196,292 +182,276 @@ const buildTree = (dependencyAnalysis: DependencyInfo[]): TreeNode[] => {
 
 export const taskDependencyRoutes = new Elysia()
   // Task dependency analysis (file-sharing based)
-  .get(
-    "/tasks/:id/dependency-analysis",
-    async (context) => {
-      const { params  } = context;
-      const taskIdNum = parseInt(params.id);
+  .get('/tasks/:id/dependency-analysis', async (context) => {
+    const { params } = context;
+    const taskIdNum = parseInt(params.id);
 
-      const task = await prisma.task.findUnique({
-        where: { id: taskIdNum },
-        include: {
-          subtasks: {
-            include: {
-              prompts: true,
-            },
+    const task = await prisma.task.findUnique({
+      where: { id: taskIdNum },
+      include: {
+        subtasks: {
+          include: {
+            prompts: true,
           },
-          prompts: true,
         },
-      });
+        prompts: true,
+      },
+    });
 
-      if (!task) {
-        return { error: "タスクが見つかりません" };
+    if (!task) {
+      return { error: 'タスクが見つかりません' };
+    }
+
+    const subtaskFiles: SubtaskFileInfo[] = [];
+
+    if (task.subtasks.length === 0) {
+      const parentFiles: string[] = [];
+      for (const prompt of task.prompts) {
+        parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
+        parentFiles.push(...extractFilePaths(prompt.originalDescription));
       }
+      parentFiles.push(...extractFilePaths(task.description));
 
-      const subtaskFiles: SubtaskFileInfo[] = [];
+      const uniqueFiles = Array.from(new Set(parentFiles));
+      subtaskFiles.push({
+        id: task.id,
+        title: task.title,
+        files: uniqueFiles,
+        fileNames: uniqueFiles.map(getFileName),
+      });
+    } else {
+      for (const subtask of task.subtasks) {
+        const files: string[] = [];
 
-      if (task.subtasks.length === 0) {
-        const parentFiles: string[] = [];
-        for (const prompt of task.prompts) {
-          parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
-          parentFiles.push(...extractFilePaths(prompt.originalDescription));
+        for (const prompt of subtask.prompts) {
+          files.push(...extractFilePaths(prompt.optimizedPrompt));
+          files.push(...extractFilePaths(prompt.originalDescription));
         }
-        parentFiles.push(...extractFilePaths(task.description));
+        files.push(...extractFilePaths(subtask.description));
 
-        const uniqueFiles = Array.from(new Set(parentFiles));
+        const uniqueFiles = Array.from(new Set(files));
         subtaskFiles.push({
-          id: task.id,
-          title: task.title,
+          id: subtask.id,
+          title: subtask.title,
           files: uniqueFiles,
           fileNames: uniqueFiles.map(getFileName),
         });
-      } else {
-        for (const subtask of task.subtasks) {
-          const files: string[] = [];
+      }
+    }
 
-          for (const prompt of subtask.prompts) {
-            files.push(...extractFilePaths(prompt.optimizedPrompt));
-            files.push(...extractFilePaths(prompt.originalDescription));
+    const dependencyAnalysis = calculateDependencies(subtaskFiles);
+    const tree = buildTree(dependencyAnalysis);
+
+    const independentTasks = dependencyAnalysis.filter((t) => t.canRunParallel);
+    const dependentTasks = dependencyAnalysis.filter((t) => !t.canRunParallel);
+
+    const parallelGroups: Array<{
+      groupId: number;
+      tasks: Array<{ id: number; title: string }>;
+      canRunTogether: boolean;
+    }> = [];
+
+    if (independentTasks.length > 0) {
+      parallelGroups.push({
+        groupId: 1,
+        tasks: independentTasks.map((t) => ({ id: t.taskId, title: t.title })),
+        canRunTogether: true,
+      });
+    }
+
+    if (dependentTasks.length > 0) {
+      parallelGroups.push({
+        groupId: 2,
+        tasks: dependentTasks.map((t) => ({ id: t.taskId, title: t.title })),
+        canRunTogether: false,
+      });
+    }
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      hasSubtasks: task.subtasks.length > 0,
+      subtaskCount: task.subtasks.length,
+      analysis: dependencyAnalysis,
+      tree,
+      parallelGroups,
+      summary: {
+        totalTasks: subtaskFiles.length,
+        independentTasks: independentTasks.length,
+        dependentTasks: dependentTasks.length,
+        totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
+        averageIndependence: Math.round(
+          dependencyAnalysis.reduce((sum, t) => sum + t.independenceScore, 0) /
+            dependencyAnalysis.length || 0,
+        ),
+      },
+    };
+  })
+
+  // SSE-based dependency analysis stream
+  .get('/tasks/:id/dependency-analysis/stream', async (context) => {
+    const { params, set } = context;
+    const taskIdNum = parseInt(params.id);
+
+    set.headers = {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+    };
+
+    const sseController = new SSEStreamController({
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 5000,
+      backoffMultiplier: 2,
+    });
+
+    const stream = sseController.createStream();
+
+    (async () => {
+      try {
+        sseController.sendStart({ taskId: taskIdNum });
+        sseController.saveState({ taskId: taskIdNum, status: 'pending' });
+        sseController.sendProgress(10, 'タスク情報を取得中...');
+
+        const task = await sseController.executeWithRetry(async () => {
+          const result = await prisma.task.findUnique({
+            where: { id: taskIdNum },
+            include: {
+              subtasks: {
+                include: {
+                  prompts: true,
+                },
+              },
+              prompts: true,
+            },
+          });
+          if (!result) {
+            throw new Error('タスクが見つかりません');
           }
-          files.push(...extractFilePaths(subtask.description));
+          return result;
+        });
 
-          const uniqueFiles = Array.from(new Set(files));
+        sseController.sendProgress(30, 'ファイル情報を抽出中...');
+
+        const subtaskFiles: SubtaskFileInfo[] = [];
+
+        if (task.subtasks.length === 0) {
+          const parentFiles: string[] = [];
+          for (const prompt of task.prompts) {
+            parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
+            parentFiles.push(...extractFilePaths(prompt.originalDescription));
+          }
+          parentFiles.push(...extractFilePaths(task.description));
+          const uniqueFiles = Array.from(new Set(parentFiles));
           subtaskFiles.push({
-            id: subtask.id,
-            title: subtask.title,
+            id: task.id,
+            title: task.title,
             files: uniqueFiles,
             fileNames: uniqueFiles.map(getFileName),
           });
-        }
-      }
-
-      const dependencyAnalysis = calculateDependencies(subtaskFiles);
-      const tree = buildTree(dependencyAnalysis);
-
-      const independentTasks = dependencyAnalysis.filter(
-        (t) => t.canRunParallel,
-      );
-      const dependentTasks = dependencyAnalysis.filter(
-        (t) => !t.canRunParallel,
-      );
-
-      const parallelGroups: Array<{
-        groupId: number;
-        tasks: Array<{ id: number; title: string }>;
-        canRunTogether: boolean;
-      }> = [];
-
-      if (independentTasks.length > 0) {
-        parallelGroups.push({
-          groupId: 1,
-          tasks: independentTasks.map((t) => ({ id: t.taskId, title: t.title })),
-          canRunTogether: true,
-        });
-      }
-
-      if (dependentTasks.length > 0) {
-        parallelGroups.push({
-          groupId: 2,
-          tasks: dependentTasks.map((t) => ({ id: t.taskId, title: t.title })),
-          canRunTogether: false,
-        });
-      }
-
-      return {
-        taskId: task.id,
-        taskTitle: task.title,
-        hasSubtasks: task.subtasks.length > 0,
-        subtaskCount: task.subtasks.length,
-        analysis: dependencyAnalysis,
-        tree,
-        parallelGroups,
-        summary: {
-          totalTasks: subtaskFiles.length,
-          independentTasks: independentTasks.length,
-          dependentTasks: dependentTasks.length,
-          totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
-          averageIndependence: Math.round(
-            dependencyAnalysis.reduce((sum, t) => sum + t.independenceScore, 0) /
-              dependencyAnalysis.length || 0,
-          ),
-        },
-      };
-    },
-  )
-
-  // SSE-based dependency analysis stream
-  .get(
-    "/tasks/:id/dependency-analysis/stream",
-    async (context) => {
-      const { params, set  } = context;
-      const taskIdNum = parseInt(params.id);
-
-      set.headers = {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-      };
-
-      const sseController = new SSEStreamController({
-        maxRetries: 3,
-        initialDelay: 1000,
-        maxDelay: 5000,
-        backoffMultiplier: 2,
-      });
-
-      const stream = sseController.createStream();
-
-      (async () => {
-        try {
-          sseController.sendStart({ taskId: taskIdNum });
-          sseController.saveState({ taskId: taskIdNum, status: "pending" });
-          sseController.sendProgress(10, "タスク情報を取得中...");
-
-          const task = await sseController.executeWithRetry(async () => {
-            const result = await prisma.task.findUnique({
-              where: { id: taskIdNum },
-              include: {
-                subtasks: {
-                  include: {
-                    prompts: true,
-                  },
-                },
-                prompts: true,
-              },
-            });
-            if (!result) {
-              throw new Error("タスクが見つかりません");
+        } else {
+          for (let i = 0; i < task.subtasks.length; i++) {
+            const subtask = task.subtasks[i];
+            const files: string[] = [];
+            for (const prompt of subtask.prompts) {
+              files.push(...extractFilePaths(prompt.optimizedPrompt));
+              files.push(...extractFilePaths(prompt.originalDescription));
             }
-            return result;
-          });
-
-          sseController.sendProgress(30, "ファイル情報を抽出中...");
-
-          const subtaskFiles: SubtaskFileInfo[] = [];
-
-          if (task.subtasks.length === 0) {
-            const parentFiles: string[] = [];
-            for (const prompt of task.prompts) {
-              parentFiles.push(...extractFilePaths(prompt.optimizedPrompt));
-              parentFiles.push(...extractFilePaths(prompt.originalDescription));
-            }
-            parentFiles.push(...extractFilePaths(task.description));
-            const uniqueFiles = Array.from(new Set(parentFiles));
+            files.push(...extractFilePaths(subtask.description));
+            const uniqueFiles = Array.from(new Set(files));
             subtaskFiles.push({
-              id: task.id,
-              title: task.title,
+              id: subtask.id,
+              title: subtask.title,
               files: uniqueFiles,
               fileNames: uniqueFiles.map(getFileName),
             });
-          } else {
-            for (let i = 0; i < task.subtasks.length; i++) {
-              const subtask = task.subtasks[i];
-              const files: string[] = [];
-              for (const prompt of subtask.prompts) {
-                files.push(...extractFilePaths(prompt.optimizedPrompt));
-                files.push(...extractFilePaths(prompt.originalDescription));
-              }
-              files.push(...extractFilePaths(subtask.description));
-              const uniqueFiles = Array.from(new Set(files));
-              subtaskFiles.push({
-                id: subtask.id,
-                title: subtask.title,
-                files: uniqueFiles,
-                fileNames: uniqueFiles.map(getFileName),
-              });
 
-              const progress = 30 + Math.round((i / task.subtasks.length) * 30);
-              sseController.sendProgress(
-                progress,
-                `サブタスク ${i + 1}/${task.subtasks.length} を分析中...`,
-              );
-            }
+            const progress = 30 + Math.round((i / task.subtasks.length) * 30);
+            sseController.sendProgress(
+              progress,
+              `サブタスク ${i + 1}/${task.subtasks.length} を分析中...`,
+            );
           }
-
-          sseController.sendProgress(60, "依存関係を分析中...");
-
-          const dependencyAnalysis = calculateDependencies(subtaskFiles);
-
-          sseController.sendProgress(80, "ツリー構造を生成中...");
-
-          const tree = buildTree(dependencyAnalysis);
-
-          sseController.sendProgress(90, "結果をまとめています...");
-
-          const independentTasks = dependencyAnalysis.filter(
-            (t) => t.canRunParallel,
-          );
-          const dependentTasks = dependencyAnalysis.filter(
-            (t) => !t.canRunParallel,
-          );
-
-          const parallelGroups: Array<{
-            groupId: number;
-            tasks: Array<{ id: number; title: string }>;
-            canRunTogether: boolean;
-          }> = [];
-          if (independentTasks.length > 0) {
-            parallelGroups.push({
-              groupId: 1,
-              tasks: independentTasks.map((t) => ({
-                id: t.taskId,
-                title: t.title,
-              })),
-              canRunTogether: true,
-            });
-          }
-          if (dependentTasks.length > 0) {
-            parallelGroups.push({
-              groupId: 2,
-              tasks: dependentTasks.map((t) => ({
-                id: t.taskId,
-                title: t.title,
-              })),
-              canRunTogether: false,
-            });
-          }
-
-          sseController.sendData({
-            taskId: task.id,
-            taskTitle: task.title,
-            hasSubtasks: task.subtasks.length > 0,
-            subtaskCount: task.subtasks.length,
-            analysis: dependencyAnalysis,
-            tree,
-            parallelGroups,
-            summary: {
-              totalTasks: subtaskFiles.length,
-              independentTasks: independentTasks.length,
-              dependentTasks: dependentTasks.length,
-              totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
-              averageIndependence: Math.round(
-                dependencyAnalysis.reduce(
-                  (sum, t) => sum + t.independenceScore,
-                  0,
-                ) / (dependencyAnalysis.length || 1),
-              ),
-            },
-          });
-
-          sseController.sendComplete({ success: true });
-        } catch (error) {
-          const errorMessage = getUserFriendlyErrorMessage(error);
-          sseController.sendError(errorMessage, {
-            originalError: error instanceof Error ? error.message : String(error),
-          });
-        } finally {
-          sseController.close();
         }
-      })();
 
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
-    },
-  );
+        sseController.sendProgress(60, '依存関係を分析中...');
+
+        const dependencyAnalysis = calculateDependencies(subtaskFiles);
+
+        sseController.sendProgress(80, 'ツリー構造を生成中...');
+
+        const tree = buildTree(dependencyAnalysis);
+
+        sseController.sendProgress(90, '結果をまとめています...');
+
+        const independentTasks = dependencyAnalysis.filter((t) => t.canRunParallel);
+        const dependentTasks = dependencyAnalysis.filter((t) => !t.canRunParallel);
+
+        const parallelGroups: Array<{
+          groupId: number;
+          tasks: Array<{ id: number; title: string }>;
+          canRunTogether: boolean;
+        }> = [];
+        if (independentTasks.length > 0) {
+          parallelGroups.push({
+            groupId: 1,
+            tasks: independentTasks.map((t) => ({
+              id: t.taskId,
+              title: t.title,
+            })),
+            canRunTogether: true,
+          });
+        }
+        if (dependentTasks.length > 0) {
+          parallelGroups.push({
+            groupId: 2,
+            tasks: dependentTasks.map((t) => ({
+              id: t.taskId,
+              title: t.title,
+            })),
+            canRunTogether: false,
+          });
+        }
+
+        sseController.sendData({
+          taskId: task.id,
+          taskTitle: task.title,
+          hasSubtasks: task.subtasks.length > 0,
+          subtaskCount: task.subtasks.length,
+          analysis: dependencyAnalysis,
+          tree,
+          parallelGroups,
+          summary: {
+            totalTasks: subtaskFiles.length,
+            independentTasks: independentTasks.length,
+            dependentTasks: dependentTasks.length,
+            totalFiles: new Set(subtaskFiles.flatMap((t) => t.files)).size,
+            averageIndependence: Math.round(
+              dependencyAnalysis.reduce((sum, t) => sum + t.independenceScore, 0) /
+                (dependencyAnalysis.length || 1),
+            ),
+          },
+        });
+
+        sseController.sendComplete({ success: true });
+      } catch (error) {
+        const errorMessage = getUserFriendlyErrorMessage(error);
+        sseController.sendError(errorMessage, {
+          originalError: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        sseController.close();
+      }
+    })();
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  });

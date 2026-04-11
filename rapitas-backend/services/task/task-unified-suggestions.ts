@@ -110,11 +110,12 @@ export async function getUnifiedSuggestions(
         source: 'knowledge',
         confidence: s.confidence,
         relatedKnowledgeIds: s.relatedKnowledgeIds,
-        reason: s.source === 'knowledge-gap'
-          ? '知識ベースのギャップを補填'
-          : s.source === 'knowledge-pattern'
-            ? '蓄積パターンからの提案'
-            : '過去の学びに基づくフォローアップ',
+        reason:
+          s.source === 'knowledge-gap'
+            ? '知識ベースのギャップを補填'
+            : s.source === 'knowledge-pattern'
+              ? '蓄積パターンからの提案'
+              : '過去の学びに基づくフォローアップ',
       });
     }
   } catch (error) {

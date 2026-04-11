@@ -13,9 +13,9 @@ export interface AgentExecutionResult {
   state: AgentState;
 
   // Output
-  output: string; 
-  structuredOutput?: unknown; 
-  errorMessage?: string; 
+  output: string;
+  structuredOutput?: unknown;
+  errorMessage?: string;
 
   // Artifacts
   artifacts?: AgentArtifact[];
@@ -28,7 +28,7 @@ export interface AgentExecutionResult {
   pendingQuestion?: PendingQuestion;
 
   // Session info
-  sessionId?: string; 
+  sessionId?: string;
 
   // Debug info
   debugInfo?: ExecutionDebugInfo;
@@ -42,7 +42,7 @@ export interface AgentArtifact {
   name: string;
   content: string;
   path?: string;
-  language?: string; 
+  language?: string;
   mimeType?: string;
   metadata?: Record<string, unknown>;
 }
@@ -89,7 +89,7 @@ export interface PendingQuestion {
   options?: QuestionOption[];
   multiSelect?: boolean;
   defaultValue?: string;
-  timeout?: number; 
+  timeout?: number;
   metadata?: Record<string, unknown>;
 }
 

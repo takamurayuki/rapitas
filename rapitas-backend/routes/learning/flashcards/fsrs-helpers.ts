@@ -28,9 +28,9 @@ export const f = fsrs(generatorParameters());
  */
 export function qualityToRating(quality: number): Grade {
   if (quality <= 1) return Rating.Again; // 1
-  if (quality === 2) return Rating.Hard;  // 2
-  if (quality === 3) return Rating.Good;  // 3
-  return Rating.Easy;                     // 4
+  if (quality === 2) return Rating.Hard; // 2
+  if (quality === 3) return Rating.Good; // 3
+  return Rating.Easy; // 4
 }
 
 /**

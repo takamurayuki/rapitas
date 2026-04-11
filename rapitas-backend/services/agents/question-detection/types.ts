@@ -7,18 +7,12 @@
 /**
  * Question status
  */
-export type QuestionStatus =
-  | 'awaiting_user_input'
-  | 'processing'
-  | 'completed';
+export type QuestionStatus = 'awaiting_user_input' | 'processing' | 'completed';
 
 /**
  * Question category (semantic classification)
  */
-export type QuestionCategory =
-  | 'clarification'
-  | 'confirmation'
-  | 'selection';
+export type QuestionCategory = 'clarification' | 'confirmation' | 'selection';
 
 /**
  * Question detection method (technical classification).

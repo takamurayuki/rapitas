@@ -5,7 +5,7 @@ import {
   removeDependency,
   removeDependencyById,
   getDependenciesForTask,
-  getUnblockedTasks
+  getUnblockedTasks,
 } from './task-dependency-service';
 
 const prisma = new PrismaClient();
@@ -16,13 +16,13 @@ describe('TaskDependencyService', () => {
   beforeEach(async () => {
     // テスト用のタスクを作成
     const task1 = await prisma.task.create({
-      data: { title: 'テストタスク1', description: 'テスト用' }
+      data: { title: 'テストタスク1', description: 'テスト用' },
     });
     const task2 = await prisma.task.create({
-      data: { title: 'テストタスク2', description: 'テスト用' }
+      data: { title: 'テストタスク2', description: 'テスト用' },
     });
     const task3 = await prisma.task.create({
-      data: { title: 'テストタスク3', description: 'テスト用' }
+      data: { title: 'テストタスク3', description: 'テスト用' },
     });
 
     testTasks = [task1, task2, task3];
@@ -33,13 +33,13 @@ describe('TaskDependencyService', () => {
     await prisma.taskDependency.deleteMany({
       where: {
         OR: [
-          { fromTaskId: { in: testTasks.map(t => t.id) } },
-          { toTaskId: { in: testTasks.map(t => t.id) } }
-        ]
-      }
+          { fromTaskId: { in: testTasks.map((t) => t.id) } },
+          { toTaskId: { in: testTasks.map((t) => t.id) } },
+        ],
+      },
     });
     await prisma.task.deleteMany({
-      where: { id: { in: testTasks.map(t => t.id) } }
+      where: { id: { in: testTasks.map((t) => t.id) } },
     });
     testTasks = [];
   });
@@ -57,27 +57,27 @@ describe('TaskDependencyService', () => {
     });
 
     test('自己依存の防止', async () => {
-      await expect(
-        addDependency(testTasks[0].id, testTasks[0].id)
-      ).rejects.toThrow('タスクは自分自身に依存できません');
+      await expect(addDependency(testTasks[0].id, testTasks[0].id)).rejects.toThrow(
+        'タスクは自分自身に依存できません',
+      );
     });
 
     test('存在しないタスクへの依存', async () => {
-      await expect(
-        addDependency(testTasks[0].id, 99999)
-      ).rejects.toThrow('後続タスク（ID: 99999）が見つかりません');
+      await expect(addDependency(testTasks[0].id, 99999)).rejects.toThrow(
+        '後続タスク（ID: 99999）が見つかりません',
+      );
 
-      await expect(
-        addDependency(99999, testTasks[0].id)
-      ).rejects.toThrow('前提タスク（ID: 99999）が見つかりません');
+      await expect(addDependency(99999, testTasks[0].id)).rejects.toThrow(
+        '前提タスク（ID: 99999）が見つかりません',
+      );
     });
 
     test('重複依存の防止', async () => {
       await addDependency(testTasks[0].id, testTasks[1].id);
 
-      await expect(
-        addDependency(testTasks[0].id, testTasks[1].id)
-      ).rejects.toThrow('この依存関係は既に存在します');
+      await expect(addDependency(testTasks[0].id, testTasks[1].id)).rejects.toThrow(
+        'この依存関係は既に存在します',
+      );
     });
 
     test('循環依存の検出', async () => {
@@ -85,9 +85,9 @@ describe('TaskDependencyService', () => {
       await addDependency(testTasks[0].id, testTasks[1].id);
 
       // B -> A を追加しようとすると循環になる
-      await expect(
-        addDependency(testTasks[1].id, testTasks[0].id)
-      ).rejects.toThrow('この依存関係を追加すると循環依存が発生します');
+      await expect(addDependency(testTasks[1].id, testTasks[0].id)).rejects.toThrow(
+        'この依存関係を追加すると循環依存が発生します',
+      );
     });
 
     test('複雑な循環依存の検出 (A->B->C->A)', async () => {
@@ -96,9 +96,9 @@ describe('TaskDependencyService', () => {
       await addDependency(testTasks[1].id, testTasks[2].id);
 
       // C -> A を追加しようとすると循環になる
-      await expect(
-        addDependency(testTasks[2].id, testTasks[0].id)
-      ).rejects.toThrow('この依存関係を追加すると循環依存が発生します');
+      await expect(addDependency(testTasks[2].id, testTasks[0].id)).rejects.toThrow(
+        'この依存関係を追加すると循環依存が発生します',
+      );
     });
   });
 
@@ -112,9 +112,9 @@ describe('TaskDependencyService', () => {
     });
 
     test('存在しない依存関係の削除', async () => {
-      await expect(
-        removeDependency(testTasks[0].id, testTasks[1].id)
-      ).rejects.toThrow('指定された依存関係が見つかりません');
+      await expect(removeDependency(testTasks[0].id, testTasks[1].id)).rejects.toThrow(
+        '指定された依存関係が見つかりません',
+      );
     });
   });
 
@@ -128,9 +128,9 @@ describe('TaskDependencyService', () => {
     });
 
     test('存在しないIDの削除', async () => {
-      await expect(
-        removeDependencyById(99999)
-      ).rejects.toThrow('指定された依存関係が見つかりません');
+      await expect(removeDependencyById(99999)).rejects.toThrow(
+        '指定された依存関係が見つかりません',
+      );
     });
   });
 

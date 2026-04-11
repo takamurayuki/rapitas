@@ -220,14 +220,8 @@ export class ClaudeCodeAgent extends BaseAgent {
     }
 
     return new Promise((resolve) => {
-      runClaudeExecution(
-        this,
-        task,
-        workDir,
-        startTime,
-        timeout,
-        resolve,
-        (code, wd, st, res) => this.buildResolveAfterParse(code, wd, st, res),
+      runClaudeExecution(this, task, workDir, startTime, timeout, resolve, (code, wd, st, res) =>
+        this.buildResolveAfterParse(code, wd, st, res),
       );
     });
   }

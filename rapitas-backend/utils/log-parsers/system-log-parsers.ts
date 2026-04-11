@@ -56,11 +56,16 @@ export class WindowsEventLogParser implements LogParser {
 
   private mapEventLevel(level: string): LogLevel {
     switch (level.toLowerCase()) {
-      case 'information': return LogLevel.INFO;
-      case 'warning': return LogLevel.WARN;
-      case 'error': return LogLevel.ERROR;
-      case 'critical': return LogLevel.FATAL;
-      default: return LogLevel.INFO;
+      case 'information':
+        return LogLevel.INFO;
+      case 'warning':
+        return LogLevel.WARN;
+      case 'error':
+        return LogLevel.ERROR;
+      case 'critical':
+        return LogLevel.FATAL;
+      default:
+        return LogLevel.INFO;
     }
   }
 

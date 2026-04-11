@@ -284,7 +284,7 @@ describe('POST /developer-mode/enable/:taskId', () => {
     // Simulate P2002 error on upsert
     const p2002Error = new Error('Unique constraint failed') as Error & {
       code: string;
-      meta: { target: string[] }
+      meta: { target: string[] };
     };
     p2002Error.code = 'P2002';
     p2002Error.meta = { target: ['taskId'] };

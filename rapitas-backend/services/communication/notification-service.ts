@@ -88,9 +88,7 @@ export async function notifyAgentExecutionCompleted(
   void sendWebhookNotification(webhookEvent, {
     taskId: executionId,
     taskTitle,
-    message: success
-      ? `AI実行完了: 「${taskTitle}」`
-      : `AI実行失敗: 「${taskTitle}」`,
+    message: success ? `AI実行完了: 「${taskTitle}」` : `AI実行失敗: 「${taskTitle}」`,
   });
 
   return createNotification({

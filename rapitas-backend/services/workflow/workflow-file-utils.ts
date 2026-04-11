@@ -178,11 +178,7 @@ export function extractMarkdownFromOutput(output: string, fileType: string): str
       inToolBlock = true;
       continue;
     }
-    if (
-      line.match(/^\[Result:\s/) ||
-      line.match(/^\[完了\]/) ||
-      line.match(/^\[フェーズ完了\]/)
-    ) {
+    if (line.match(/^\[Result:\s/) || line.match(/^\[完了\]/) || line.match(/^\[フェーズ完了\]/)) {
       inToolBlock = false;
       continue;
     }

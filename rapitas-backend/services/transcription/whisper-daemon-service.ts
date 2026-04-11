@@ -19,7 +19,10 @@ const TEMP_DIR = join(__dirname, '../../data/temp-audio');
 
 let daemon: ChildProcess | null = null;
 let isReady = false;
-let pendingRequests = new Map<string, { resolve: (text: string) => void; reject: (err: Error) => void }>();
+let pendingRequests = new Map<
+  string,
+  { resolve: (text: string) => void; reject: (err: Error) => void }
+>();
 let requestCounter = 0;
 let stdoutBuffer = '';
 let stderrBuffer = ''; // line-buffer the daemon's stderr so partial chunks don't split messages
@@ -208,7 +211,11 @@ export async function transcribeFast(
 
     return text;
   } finally {
-    try { unlinkSync(tempPath); } catch { /* ignore */ }
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      /* ignore */
+    }
   }
 }
 

@@ -132,7 +132,11 @@ export const executeRoutes = new Elysia()
           };
         }
 
-        const wdResult = validateWorkingDirectory(taskId, task.theme?.workingDirectory, 'parallel-start');
+        const wdResult = validateWorkingDirectory(
+          taskId,
+          task.theme?.workingDirectory,
+          'parallel-start',
+        );
         if (!wdResult.ok) {
           log.error(`[parallel-start] Task ${taskId} rejected: ${wdResult.error}`);
           return { success: false, error: wdResult.error };
