@@ -164,6 +164,12 @@ jobs:
         working-directory: rapitas-backend
         run: bun install
 
+      - name: Generate Prisma Client (needed for tsc)
+        working-directory: rapitas-backend
+        run: bunx prisma generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+
       - name: Install frontend dependencies
         working-directory: rapitas-frontend
         run: pnpm install --no-frozen-lockfile
