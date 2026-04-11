@@ -16,3 +16,13 @@ export const BADGES: Badge[] = [];
 export function getAchievementById(id: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
 }
+
+/** Return a CSS color string for the given rarity tier. */
+export function getRarityColor(rarity: string): string {
+  switch (rarity) {
+    case 'legendary': return '#F59E0B';
+    case 'epic': return '#8B5CF6';
+    case 'rare': return '#3B82F6';
+    default: return '#6B7280';
+  }
+}

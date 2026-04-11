@@ -50,3 +50,13 @@ export interface Badge {
   icon: string;
   requirement: string;
 }
+
+/** Notification payload for a newly unlocked achievement. */
+export interface AchievementNotification {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  rarity: Achievement['rarity'];
+  unlockedAt: string;
+}
