@@ -7,7 +7,7 @@ import { Elysia, t } from 'elysia';
 import {
   checkProjectHealth,
   runProjectHealthScan,
-} from '../../services/analytics/project-health-monitor';
+} from '../../../services/analytics/project-health-monitor';
 
 export const projectHealthRoutes = new Elysia({ prefix: '/project-health' })
   /**

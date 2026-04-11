@@ -65,17 +65,18 @@ export { notificationsRoutes } from './system/notifications';
 export { searchRoutes } from './system/search';
 export { urlMetadataRoutes } from './system/url-metadata';
 export { screenshotsRoutes } from './system/screenshots';
-export { rateLimitRoutes } from './system/rate-limits';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
 export { transcribeRouter } from './system/transcribe';
 export { mcpRoutes } from './system/mcp';
-export { progressSummaryRoutes } from './system/progress-summary';
-export { techDebtRoutes } from './system/tech-debt';
-export { temporalDebugRoutes } from './system/temporal-debug';
-export { projectHealthRoutes } from './system/project-health';
 export { gitCleanupRoutes } from './system/git-cleanup';
+// System > Monitoring (extracted per FOLDER_ORGANIZATION_POLICY)
+export { rateLimitRoutes } from './system/monitoring/rate-limits';
+export { progressSummaryRoutes } from './system/monitoring/progress-summary';
+export { techDebtRoutes } from './system/monitoring/tech-debt';
+export { temporalDebugRoutes } from './system/monitoring/temporal-debug';
+export { projectHealthRoutes } from './system/monitoring/project-health';
 
 // Workflow
 export { workflowRoutes } from './workflow/core/workflow';

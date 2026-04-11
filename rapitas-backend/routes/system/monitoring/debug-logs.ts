@@ -3,14 +3,14 @@
  */
 
 import { Elysia, t, type Context } from 'elysia';
-import { createLogger } from '../../config/logger';
+import { createLogger } from '../../../config/logger';
 import DebugLogAnalyzer, {
   LogType,
   LogLevel,
   LogAnalysisResult,
   AnalyzeOptions,
-} from '../../utils/debug-log-analyzer';
-import { LogParserFactory } from '../../utils/common/debug-log-parsers';
+} from '../../../utils/debug-log-analyzer';
+import { LogParserFactory } from '../../../utils/common/debug-log-parsers';
 
 const log = createLogger('routes:debug-logs');
 

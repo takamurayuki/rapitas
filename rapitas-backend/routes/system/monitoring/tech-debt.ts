@@ -4,8 +4,8 @@
  * API endpoints for tech debt scanning and management.
  */
 import { Elysia, t } from 'elysia';
-import { scanForTechDebt, runScheduledTechDebtScan } from '../../services/misc/tech-debt-liquidator';
-import { createLogger } from '../../config/logger';
+import { scanForTechDebt, runScheduledTechDebtScan } from '../../../services/misc/tech-debt-liquidator';
+import { createLogger } from '../../../config/logger';
 
 const log = createLogger('routes:tech-debt');
 
