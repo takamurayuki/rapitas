@@ -147,7 +147,7 @@ fn main() {
             "rapitas-backend-placeholder"
         };
 
-        let placeholder_path = binaries_dir.join(&placeholder_name);
+        let placeholder_path = binaries_dir.join(placeholder_name);
 
         // Create an empty placeholder file
         if let Err(e) = fs::write(&placeholder_path, b"") {
