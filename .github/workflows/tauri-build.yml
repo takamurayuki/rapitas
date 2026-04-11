@@ -32,19 +32,19 @@ jobs:
           - platform: 'ubuntu-latest'
             target: 'x86_64-unknown-linux-gnu'
             rust_version: stable
-            bunjs_version: '1.1.42'
+            bunjs_version: '1.3.11'
           - platform: 'macos-latest'
             target: 'x86_64-apple-darwin'
             rust_version: stable
-            bunjs_version: '1.1.42'
+            bunjs_version: '1.3.11'
           - platform: 'macos-latest'
             target: 'aarch64-apple-darwin'
             rust_version: stable
-            bunjs_version: '1.1.42'
+            bunjs_version: '1.3.11'
           - platform: 'windows-latest'
             target: 'x86_64-pc-windows-msvc'
             rust_version: stable
-            bunjs_version: '1.1.42'
+            bunjs_version: '1.3.11'
 
     runs-on: ${{ matrix.platform }}
 

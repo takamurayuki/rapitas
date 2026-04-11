@@ -43,15 +43,15 @@ pub fn setup_sidecar(app: &tauri::App) {
 
         if dev_resource_dir.exists() {
             if let Ok(entries) = std::fs::read_dir(&dev_resource_dir) {
-                backend_path = entries
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.path())
-                    .find(|p| {
-                        p.file_name()
-                            .and_then(|n| n.to_str())
-                            .map(|n| n.starts_with("rapitas-backend") && n.ends_with(if cfg!(windows) { ".exe" } else { "" }))
-                            .unwrap_or(false)
-                    });
+                backend_path = entries.filter_map(|e| e.ok()).map(|e| e.path()).find(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| {
+                            n.starts_with("rapitas-backend")
+                                && n.ends_with(if cfg!(windows) { ".exe" } else { "" })
+                        })
+                        .unwrap_or(false)
+                });
             }
         }
 
@@ -64,19 +64,22 @@ pub fn setup_sidecar(app: &tauri::App) {
                 .to_path_buf();
 
             let release_binaries_dir = app_dir.join("binaries");
-            println!("[Backend] Checking release binaries: {:?}", release_binaries_dir);
+            println!(
+                "[Backend] Checking release binaries: {:?}",
+                release_binaries_dir
+            );
 
             if release_binaries_dir.exists() {
                 if let Ok(entries) = std::fs::read_dir(&release_binaries_dir) {
-                    backend_path = entries
-                        .filter_map(|e| e.ok())
-                        .map(|e| e.path())
-                        .find(|p| {
-                            p.file_name()
-                                .and_then(|n| n.to_str())
-                                .map(|n| n.starts_with("rapitas-backend") && n.ends_with(if cfg!(windows) { ".exe" } else { "" }))
-                                .unwrap_or(false)
-                        });
+                    backend_path = entries.filter_map(|e| e.ok()).map(|e| e.path()).find(|p| {
+                        p.file_name()
+                            .and_then(|n| n.to_str())
+                            .map(|n| {
+                                n.starts_with("rapitas-backend")
+                                    && n.ends_with(if cfg!(windows) { ".exe" } else { "" })
+                            })
+                            .unwrap_or(false)
+                    });
                 }
             }
         }
@@ -97,8 +100,7 @@ pub fn setup_sidecar(app: &tauri::App) {
     let backend_path = app_data_dir.join(backend_filename);
 
     // Copy resource (overwrite on update)
-    std::fs::copy(&resource_path, &backend_path)
-        .expect("failed to copy backend executable");
+    std::fs::copy(&resource_path, &backend_path).expect("failed to copy backend executable");
     println!("[Backend] Copied to: {:?}", backend_path);
 
     // Launch the backend process

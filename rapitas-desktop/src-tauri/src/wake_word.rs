@@ -60,9 +60,7 @@ pub fn stop() {
 /// Main detection loop.
 fn detection_loop(app_handle: &tauri::AppHandle) -> Result<(), String> {
     let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or("No input device found")?;
+    let device = host.default_input_device().ok_or("No input device found")?;
 
     let config = device
         .default_input_config()
@@ -115,7 +113,8 @@ fn detection_loop(app_handle: &tauri::AppHandle) -> Result<(), String> {
             move |data: &[i16], _: &cpal::InputCallbackInfo| {
                 let mut sum = 0.0f32;
                 for chunk in data.chunks(channels) {
-                    let mono = chunk.iter().map(|&s| s as f32 / 32768.0).sum::<f32>() / channels as f32;
+                    let mono =
+                        chunk.iter().map(|&s| s as f32 / 32768.0).sum::<f32>() / channels as f32;
                     sum += mono * mono;
                     if is_recording_clone.load(Ordering::Relaxed) {
                         if let Ok(mut buf) = clip_clone.try_lock() {
@@ -171,7 +170,10 @@ fn detection_loop(app_handle: &tauri::AppHandle) -> Result<(), String> {
             match transcribe_clip(&pcm_16k) {
                 Ok(text) => {
                     let lower = text.to_lowercase();
-                    if WAKE_WORDS.iter().any(|kw| lower.contains(&kw.to_lowercase())) {
+                    if WAKE_WORDS
+                        .iter()
+                        .any(|kw| lower.contains(&kw.to_lowercase()))
+                    {
                         last_detection = Instant::now();
 
                         // Emit event to frontend
@@ -215,7 +217,8 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
         let idx = src_idx as usize;
         let frac = src_idx - idx as f64;
         if idx + 1 < samples.len() {
-            output.push((samples[idx] as f64 * (1.0 - frac) + samples[idx + 1] as f64 * frac) as f32);
+            output
+                .push((samples[idx] as f64 * (1.0 - frac) + samples[idx + 1] as f64 * frac) as f32);
         } else if idx < samples.len() {
             output.push(samples[idx]);
         }

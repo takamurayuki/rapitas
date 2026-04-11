@@ -68,7 +68,10 @@ pub fn is_model_downloaded() -> bool {
     let model = get_model_path();
     let binary = get_whisper_binary_path();
     model.exists()
-        && model.metadata().map(|m| m.len() > 1_000_000).unwrap_or(false)
+        && model
+            .metadata()
+            .map(|m| m.len() > 1_000_000)
+            .unwrap_or(false)
         && binary.exists()
 }
 
@@ -131,9 +134,11 @@ pub fn capture_audio() -> Result<PathBuf, String> {
             move |data: &[i16], _: &cpal::InputCallbackInfo| {
                 let mut buf = samples_clone.lock().unwrap();
                 for chunk in data.chunks(channels) {
-                    let mono: f32 =
-                        chunk.iter().map(|&s| s as f32 / i16::MAX as f32).sum::<f32>()
-                            / channels as f32;
+                    let mono: f32 = chunk
+                        .iter()
+                        .map(|&s| s as f32 / i16::MAX as f32)
+                        .sum::<f32>()
+                        / channels as f32;
                     buf.push(mono);
                 }
             },
@@ -167,8 +172,7 @@ pub fn capture_audio() -> Result<PathBuf, String> {
     // Write to temporary WAV file
     let wav_path = rapitas_dir().join("data").join("voice-input.wav");
     if let Some(parent) = wav_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("ディレクトリ作成に失敗: {e}"))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成に失敗: {e}"))?;
     }
 
     let spec = WavSpec {
@@ -183,7 +187,9 @@ pub fn capture_audio() -> Result<PathBuf, String> {
 
     for &sample in &pcm_16k {
         let s16 = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
-        writer.write_sample(s16).map_err(|e| format!("サンプル書き込み失敗: {e}"))?;
+        writer
+            .write_sample(s16)
+            .map_err(|e| format!("サンプル書き込み失敗: {e}"))?;
     }
 
     writer
@@ -199,10 +205,14 @@ pub fn transcribe(wav_path: &PathBuf, language: &str) -> Result<TranscriptionRes
     let model = get_model_path();
 
     if !binary.exists() {
-        return Err("whisper.cppバイナリが見つかりません。設定からダウンロードしてください。".to_string());
+        return Err(
+            "whisper.cppバイナリが見つかりません。設定からダウンロードしてください。".to_string(),
+        );
     }
     if !model.exists() {
-        return Err("Whisperモデルが見つかりません。設定からダウンロードしてください。".to_string());
+        return Err(
+            "Whisperモデルが見つかりません。設定からダウンロードしてください。".to_string(),
+        );
     }
 
     let start = std::time::Instant::now();
@@ -216,7 +226,7 @@ pub fn transcribe(wav_path: &PathBuf, language: &str) -> Result<TranscriptionRes
             "-l",
             language,
             "--no-timestamps",
-            "-nt",     // no timestamps in output
+            "-nt", // no timestamps in output
             "--print-special",
             "false",
         ])
@@ -228,9 +238,7 @@ pub fn transcribe(wav_path: &PathBuf, language: &str) -> Result<TranscriptionRes
         return Err(format!("whisper.cpp エラー: {stderr}"));
     }
 
-    let text = String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .to_string();
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
     let duration_ms = start.elapsed().as_millis() as u64;
 
@@ -256,8 +264,7 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
         let frac = src_idx - idx as f64;
 
         if idx + 1 < samples.len() {
-            let interpolated =
-                samples[idx] as f64 * (1.0 - frac) + samples[idx + 1] as f64 * frac;
+            let interpolated = samples[idx] as f64 * (1.0 - frac) + samples[idx + 1] as f64 * frac;
             output.push(interpolated as f32);
         } else if idx < samples.len() {
             output.push(samples[idx]);
@@ -274,7 +281,9 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
 /// * `samples` - PCM f32 samples at 16kHz mono
 /// * `language` - Language hint (e.g. "ja")
 pub fn transcribe_pcm(samples: &[f32], language: &str) -> Result<TranscriptionResult, String> {
-    let wav_path = rapitas_dir().join("data").join(format!("wake-{}.wav", std::process::id()));
+    let wav_path = rapitas_dir()
+        .join("data")
+        .join(format!("wake-{}.wav", std::process::id()));
 
     if let Some(parent) = wav_path.parent() {
         std::fs::create_dir_all(parent).ok();
@@ -287,14 +296,16 @@ pub fn transcribe_pcm(samples: &[f32], language: &str) -> Result<TranscriptionRe
         sample_format: hound::SampleFormat::Int,
     };
 
-    let mut writer = WavWriter::create(&wav_path, spec)
-        .map_err(|e| format!("WAV write error: {e}"))?;
+    let mut writer =
+        WavWriter::create(&wav_path, spec).map_err(|e| format!("WAV write error: {e}"))?;
 
     for &sample in samples {
         let s16 = (sample * i16::MAX as f32).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
         writer.write_sample(s16).ok();
     }
-    writer.finalize().map_err(|e| format!("WAV finalize error: {e}"))?;
+    writer
+        .finalize()
+        .map_err(|e| format!("WAV finalize error: {e}"))?;
 
     let result = transcribe(&wav_path, language);
 

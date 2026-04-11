@@ -35,13 +35,10 @@ fn main() {
     let alternative_names: Vec<String> = match target_os.as_str() {
         "windows" => vec![
             "rapitas-backend".to_string(),
-            "rapitas-backend.exe".to_string(),  // Old naming scheme
+            "rapitas-backend.exe".to_string(), // Old naming scheme
             "rapitas-backend-x86_64-pc-windows-msvc.exe".to_string(),
         ],
-        _ => vec![
-            "rapitas-backend".to_string(),
-            alt_binary_name.clone(),
-        ],
+        _ => vec!["rapitas-backend".to_string(), alt_binary_name.clone()],
     };
 
     let mut found = false;
@@ -134,7 +131,9 @@ fn main() {
     // This allows the build to proceed, and the actual binary will be
     // handled by the prepare-backend-binary.js script
     if !found && env::var("CI").is_ok() {
-        println!("cargo:warning=CI environment detected with missing binary - creating placeholder");
+        println!(
+            "cargo:warning=CI environment detected with missing binary - creating placeholder"
+        );
 
         // Create binaries directory if it doesn't exist
         if !binaries_dir.exists() {
@@ -154,10 +153,16 @@ fn main() {
         if let Err(e) = fs::write(&placeholder_path, b"") {
             println!("cargo:warning=Failed to create placeholder file: {}", e);
         } else {
-            println!("cargo:warning=Created placeholder file: {}", placeholder_path.display());
+            println!(
+                "cargo:warning=Created placeholder file: {}",
+                placeholder_path.display()
+            );
         }
 
-        println!("cargo:rustc-env=RAPITAS_BACKEND_PATH={}", placeholder_path.display());
+        println!(
+            "cargo:rustc-env=RAPITAS_BACKEND_PATH={}",
+            placeholder_path.display()
+        );
     } else if !found {
         // Not in CI and binary not found - this is an error
         // However, don't panic here to allow the build to show a better error message
