@@ -53,7 +53,10 @@ export default function ApprovalsClient() {
 
   const totalPages = Math.ceil(approvals.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedApprovals = approvals.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedApprovals = approvals.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -171,7 +174,11 @@ export default function ApprovalsClient() {
                 diffFiles={codeReviewDiff.get(approval.id) || []}
                 onToggleExpand={() => handleExpandCodeReview(approval.id)}
                 onApprove={(commitMessage, baseBranch) =>
-                  handleCodeReviewApprove(approval.id, commitMessage, baseBranch)
+                  handleCodeReviewApprove(
+                    approval.id,
+                    commitMessage,
+                    baseBranch,
+                  )
                 }
                 onReject={() => handleCodeReviewReject(approval.id)}
                 onRequestChanges={(feedback, comments) =>

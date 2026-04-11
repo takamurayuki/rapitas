@@ -72,7 +72,9 @@ export function useMetricsData() {
 
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [agentMetrics, setAgentMetrics] = useState<AgentMetrics[]>([]);
-  const [executionTrends, setExecutionTrends] = useState<ExecutionTrendData[]>([]);
+  const [executionTrends, setExecutionTrends] = useState<ExecutionTrendData[]>(
+    [],
+  );
   const [performanceComparison, setPerformanceComparison] = useState<
     AgentPerformanceComparison[]
   >([]);

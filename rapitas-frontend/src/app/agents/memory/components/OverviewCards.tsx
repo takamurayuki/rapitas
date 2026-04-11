@@ -7,7 +7,14 @@
 
 'use client';
 
-import { ArrowDownRight, ArrowUpRight, Database, Network, Sparkles, Target } from 'lucide-react';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Database,
+  Network,
+  Sparkles,
+  Target,
+} from 'lucide-react';
 import type { MemoryOverview } from '../types';
 
 interface OverviewCardsProps {
@@ -112,10 +119,7 @@ export function OverviewCards({ memoryOverview }: OverviewCardsProps) {
           </div>
           <Sparkles className="w-8 h-8 text-amber-200" />
         </div>
-        <GrowthBadge
-          value={memoryOverview.growthRate.monthly}
-          label="先月比"
-        />
+        <GrowthBadge value={memoryOverview.growthRate.monthly} label="先月比" />
       </div>
     </div>
   );

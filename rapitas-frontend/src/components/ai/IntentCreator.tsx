@@ -7,7 +7,14 @@
  * Provides a template editor with preview of the compiled output.
  */
 import React, { useState, useCallback } from 'react';
-import { FileText, Play, Eye, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import {
+  FileText,
+  Play,
+  Eye,
+  AlertCircle,
+  CheckCircle,
+  Sparkles,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 const INTENT_TEMPLATE = `title:
@@ -54,7 +61,10 @@ export function IntentCreator({ themeId, onCreated }: Props) {
   const [preview, setPreview] = useState<ParsePreview | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState<{ taskId: number; title: string } | null>(null);
+  const [created, setCreated] = useState<{
+    taskId: number;
+    title: string;
+  } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   const handlePreview = useCallback(async () => {
@@ -128,7 +138,10 @@ export function IntentCreator({ themeId, onCreated }: Props) {
               タスクを開く
             </a>
             <button
-              onClick={() => { setCreated(null); setContent(INTENT_TEMPLATE); }}
+              onClick={() => {
+                setCreated(null);
+                setContent(INTENT_TEMPLATE);
+              }}
               className="px-4 py-2 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-lg text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
             >
               新規作成
@@ -141,7 +154,10 @@ export function IntentCreator({ themeId, onCreated }: Props) {
           <div className="p-4">
             <textarea
               value={content}
-              onChange={(e) => { setContent(e.target.value); setShowPreview(false); }}
+              onChange={(e) => {
+                setContent(e.target.value);
+                setShowPreview(false);
+              }}
               rows={16}
               className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 resize-y"
               placeholder="title: My Feature&#10;@goals&#10;- Implement..."
@@ -155,12 +171,23 @@ export function IntentCreator({ themeId, onCreated }: Props) {
                 Preview
               </h4>
               <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
-                <p><strong>Title:</strong> {preview.intent.title}</p>
-                <p><strong>Mode:</strong> {preview.intent.workflow.mode}</p>
-                <p><strong>Goals:</strong> {preview.intent.goals.length}件</p>
-                <p><strong>Constraints:</strong> {preview.intent.constraints.length}件</p>
+                <p>
+                  <strong>Title:</strong> {preview.intent.title}
+                </p>
+                <p>
+                  <strong>Mode:</strong> {preview.intent.workflow.mode}
+                </p>
+                <p>
+                  <strong>Goals:</strong> {preview.intent.goals.length}件
+                </p>
+                <p>
+                  <strong>Constraints:</strong>{' '}
+                  {preview.intent.constraints.length}件
+                </p>
                 {preview.warnings.length > 0 && (
-                  <p className="text-amber-600">⚠️ {preview.warnings.join(', ')}</p>
+                  <p className="text-amber-600">
+                    ⚠️ {preview.warnings.join(', ')}
+                  </p>
                 )}
               </div>
             </div>
@@ -170,7 +197,10 @@ export function IntentCreator({ themeId, onCreated }: Props) {
           {errors.length > 0 && (
             <div className="mx-4 mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               {errors.map((e, i) => (
-                <p key={i} className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                <p
+                  key={i}
+                  className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1"
+                >
                   <AlertCircle className="w-3 h-3" /> {e}
                 </p>
               ))}

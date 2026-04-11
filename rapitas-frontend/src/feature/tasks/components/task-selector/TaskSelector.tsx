@@ -17,7 +17,8 @@ interface TaskSelectorProps {
   description?: string;
 }
 
-const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE =
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
 
 export function TaskSelector({
   isOpen,
@@ -25,7 +26,7 @@ export function TaskSelector({
   onSelect,
   excludeTaskIds = [],
   title = 'タスクを選択',
-  description = '選択したいタスクをクリックしてください'
+  description = '選択したいタスクをクリックしてください',
 }: TaskSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -46,16 +47,22 @@ export function TaskSelector({
       searchParams.append('status', 'in_progress');
       searchParams.append('status', 'completed');
 
-      const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
+      const response = await fetch(
+        `${API_BASE}/tasks?${searchParams.toString()}`,
+      );
       if (!response.ok) {
         throw new Error(`Failed to fetch tasks: ${response.statusText}`);
       }
 
       const data = await response.json();
-      const filteredTasks = data.tasks?.filter((task: Task) => !excludeTaskIds.includes(task.id)) || [];
+      const filteredTasks =
+        data.tasks?.filter((task: Task) => !excludeTaskIds.includes(task.id)) ||
+        [];
       setTasks(filteredTasks);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
+      setError(
+        err instanceof Error ? err.message : 'タスクの取得に失敗しました',
+      );
       setTasks([]);
     } finally {
       setIsLoading(false);
@@ -86,9 +93,12 @@ export function TaskSelector({
   const getStatusBadge = (status: string) => {
     const colors = {
       todo: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-      in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
-      completed: 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
-      blocked: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
+      in_progress:
+        'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+      completed:
+        'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
+      blocked:
+        'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
     };
 
     const labels = {
@@ -99,7 +109,9 @@ export function TaskSelector({
     };
 
     return (
-      <span className={`px-2 py-1 text-xs rounded-full ${colors[status as keyof typeof colors] || colors.todo}`}>
+      <span
+        className={`px-2 py-1 text-xs rounded-full ${colors[status as keyof typeof colors] || colors.todo}`}
+      >
         {labels[status as keyof typeof labels] || status}
       </span>
     );
@@ -112,9 +124,13 @@ export function TaskSelector({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {title}
+            </h2>
             {description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {description}
+              </p>
             )}
           </div>
           <button
@@ -152,7 +168,9 @@ export function TaskSelector({
             ) : tasks.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 dark:text-gray-400">
-                  {searchQuery ? '検索結果が見つかりません' : '利用可能なタスクがありません'}
+                  {searchQuery
+                    ? '検索結果が見つかりません'
+                    : '利用可能なタスクがありません'}
                 </p>
               </div>
             ) : (
@@ -182,7 +200,10 @@ export function TaskSelector({
                           )}
                           {task.dueDate && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              期限: {new Date(task.dueDate).toLocaleDateString('ja-JP')}
+                              期限:{' '}
+                              {new Date(task.dueDate).toLocaleDateString(
+                                'ja-JP',
+                              )}
                             </span>
                           )}
                         </div>

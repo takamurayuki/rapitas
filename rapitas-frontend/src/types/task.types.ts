@@ -8,7 +8,11 @@
 import type { Theme, Project, Milestone } from './project.types';
 import type { ExamGoal, TaskLabel } from './learning.types';
 import type { WorkflowStatus, WorkflowMode } from './workflow.types';
-import type { DeveloperModeConfig, TaskAnalysisConfig, AgentExecutionConfig } from './agent.types';
+import type {
+  DeveloperModeConfig,
+  TaskAnalysisConfig,
+  AgentExecutionConfig,
+} from './agent.types';
 import type { Priority, Status } from './common.types';
 
 export type { Priority, Status } from './common.types';
@@ -213,8 +217,8 @@ export type TaskDependencyInfo = {
 };
 
 export type TaskDependencies = {
-  blocking: TaskDependencyInfo[];      // このタスクがブロックしているタスク群
-  blockedBy: TaskDependencyInfo[];     // このタスクをブロックしているタスク群
+  blocking: TaskDependencyInfo[]; // このタスクがブロックしているタスク群
+  blockedBy: TaskDependencyInfo[]; // このタスクをブロックしているタスク群
 };
 
 // Gantt Chart Types

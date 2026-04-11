@@ -35,8 +35,12 @@ export interface ArrowData {
  */
 export function dateToX(date: Date, viewport: GanttViewport): number {
   const { startDate, endDate, width, margin } = viewport;
-  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const targetDays = Math.ceil((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const totalDays = Math.ceil(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const targetDays = Math.ceil(
+    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
 
   if (totalDays <= 0) return margin.left;
 
@@ -71,7 +75,7 @@ export function taskToBar(
     theme?: { color?: string } | null;
   },
   index: number,
-  viewport: GanttViewport
+  viewport: GanttViewport,
 ): GanttBarData {
   const { rowHeight, margin } = viewport;
 
@@ -82,12 +86,18 @@ export function taskToBar(
   if (task.dueDate) {
     endDate = new Date(task.dueDate);
     // 推定時間がある場合はそれを基に開始日を計算、なければ7日前
-    const daysToSubtract = task.estimatedHours ? Math.max(1, Math.ceil(task.estimatedHours / 8)) : 7;
-    startDate = new Date(endDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+    const daysToSubtract = task.estimatedHours
+      ? Math.max(1, Math.ceil(task.estimatedHours / 8))
+      : 7;
+    startDate = new Date(
+      endDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000,
+    );
   } else {
     // 期限がない場合は今日から推定時間分またはデフォルト7日間
     startDate = new Date();
-    const daysToAdd = task.estimatedHours ? Math.max(1, Math.ceil(task.estimatedHours / 8)) : 7;
+    const daysToAdd = task.estimatedHours
+      ? Math.max(1, Math.ceil(task.estimatedHours / 8))
+      : 7;
     endDate = new Date(startDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
   }
 
@@ -148,7 +158,7 @@ export function arrowheadPath(toBar: GanttBarData): string {
  */
 export function adjustDateRange(
   tasks: Array<{ dueDate?: string | null; estimatedHours?: number | null }>,
-  margin: { before: number; after: number } = { before: 7, after: 7 }
+  margin: { before: number; after: number } = { before: 7, after: 7 },
 ): { start: Date; end: Date } {
   if (tasks.length === 0) {
     const now = new Date();
@@ -160,7 +170,7 @@ export function adjustDateRange(
 
   const dates: Date[] = [];
 
-  tasks.forEach(task => {
+  tasks.forEach((task) => {
     if (task.dueDate) {
       const dueDate = new Date(task.dueDate);
       dates.push(dueDate);
@@ -168,7 +178,9 @@ export function adjustDateRange(
       // 推定時間がある場合は開始日も推定
       if (task.estimatedHours) {
         const daysToSubtract = Math.max(1, Math.ceil(task.estimatedHours / 8));
-        const startDate = new Date(dueDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+        const startDate = new Date(
+          dueDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000,
+        );
         dates.push(startDate);
       }
     }
@@ -183,8 +195,8 @@ export function adjustDateRange(
     };
   }
 
-  const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-  const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+  const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+  const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
 
   return {
     start: new Date(minDate.getTime() - margin.before * 24 * 60 * 60 * 1000),

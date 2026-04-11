@@ -91,12 +91,20 @@ export default function Header() {
           label: t('category'),
           icon: FolderOpen,
           children: [
-            { href: '/categories', label: t('categoryList'), icon: FolderKanban },
+            {
+              href: '/categories',
+              label: t('categoryList'),
+              icon: FolderKanban,
+            },
             { href: '/themes', label: t('themeList'), icon: SwatchBook },
             { href: '/labels', label: t('labelList'), icon: Tags },
           ],
         },
-        { href: '/settings/developer-mode', label: t('taskSettings'), icon: Settings },
+        {
+          href: '/settings/developer-mode',
+          label: t('taskSettings'),
+          icon: Settings,
+        },
       ],
     },
     {
@@ -111,7 +119,11 @@ export default function Header() {
       icon: GraduationCap,
       mode: 'learning',
       children: [
-        { href: '/learning-goals', label: t('learningGoals'), icon: BookMarked },
+        {
+          href: '/learning-goals',
+          label: t('learningGoals'),
+          icon: BookMarked,
+        },
         { href: '/exam-goals', label: t('examGoals'), icon: Target },
         { href: '/flashcards', label: t('flashcards'), icon: Brain },
       ],
@@ -121,9 +133,18 @@ export default function Header() {
       label: t('habitsAchievements'),
       icon: CalendarClock,
       children: [
-        { href: '/calendar', label: t('calendar'), icon: Calendar, shortcut: h.getShortcutLabel('calendar') },
+        {
+          href: '/calendar',
+          label: t('calendar'),
+          icon: Calendar,
+          shortcut: h.getShortcutLabel('calendar'),
+        },
         { href: '/habits', label: t('habitTracker'), icon: Flame },
-        { href: '/habits/daily-schedule', label: t('dailySchedule'), icon: Clock },
+        {
+          href: '/habits/daily-schedule',
+          label: t('dailySchedule'),
+          icon: Clock,
+        },
         { href: '/reports', label: t('weeklyReport'), icon: FileText },
       ],
     },
@@ -139,7 +160,11 @@ export default function Header() {
           icon: Github,
           children: [
             { href: '/github', label: t('devDashboard'), icon: BarChart3 },
-            { href: '/github/pull-requests', label: 'Pull Requests', icon: GitPullRequest },
+            {
+              href: '/github/pull-requests',
+              label: 'Pull Requests',
+              icon: GitPullRequest,
+            },
             { href: '/github/issues', label: 'Issues', icon: CircleDot },
           ],
         },
@@ -150,24 +175,52 @@ export default function Header() {
           children: [
             { href: '/agents', label: t('agentManagement'), icon: Settings },
             { href: '/agents/metrics', label: t('metrics'), icon: BarChart3 },
-            { href: '/agents/versions', label: t('versionControl'), icon: Package },
-            { href: '/agents/memory', label: t('memoryVisualization'), icon: Sparkles },
+            {
+              href: '/agents/versions',
+              label: t('versionControl'),
+              icon: Package,
+            },
+            {
+              href: '/agents/memory',
+              label: t('memoryVisualization'),
+              icon: Sparkles,
+            },
             {
               href: '#',
               label: t('knowledgeBase'),
               icon: Brain,
               children: [
-                { href: '/knowledge', label: t('knowledgeBrowser'), icon: Brain },
-                { href: '/knowledge/contradictions', label: t('contradictions'), icon: NotebookTabs },
-                { href: '/knowledge/admin', label: t('memoryAdmin'), icon: Settings },
+                {
+                  href: '/knowledge',
+                  label: t('knowledgeBrowser'),
+                  icon: Brain,
+                },
+                {
+                  href: '/knowledge/contradictions',
+                  label: t('contradictions'),
+                  icon: NotebookTabs,
+                },
+                {
+                  href: '/knowledge/admin',
+                  label: t('memoryAdmin'),
+                  icon: Settings,
+                },
               ],
             },
           ],
         },
         { href: '/orchestra', label: t('orchestra'), icon: Activity },
         { href: '/approvals', label: t('approvals'), icon: CheckCircle },
-        { href: '/system-prompts', label: t('promptManagement'), icon: MessageSquare },
-        { href: '/claude-md-generator', label: t('claudeGeneration'), icon: Sparkles },
+        {
+          href: '/system-prompts',
+          label: t('promptManagement'),
+          icon: MessageSquare,
+        },
+        {
+          href: '/claude-md-generator',
+          label: t('claudeGeneration'),
+          icon: Sparkles,
+        },
       ],
     },
     {
@@ -175,10 +228,18 @@ export default function Header() {
       label: t('settings'),
       icon: Settings,
       children: [
-        { href: '/settings/general', label: t('generalSettings'), icon: Settings },
+        {
+          href: '/settings/general',
+          label: t('generalSettings'),
+          icon: Settings,
+        },
         { href: '/settings', label: t('apiKeySettings'), icon: Key },
         { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
-        { href: '/settings/shortcuts', label: t('shortcutSettings'), icon: Keyboard },
+        {
+          href: '/settings/shortcuts',
+          label: t('shortcutSettings'),
+          icon: Keyboard,
+        },
       ],
     },
   ];

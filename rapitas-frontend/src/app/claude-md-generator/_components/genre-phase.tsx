@@ -48,11 +48,7 @@ export function GenrePhase({ topRef, t, onSelectGenre }: GenrePhaseProps) {
         }}
       >
         {GENRES.map((g) => (
-          <div
-            key={g.id}
-            className="card"
-            onClick={() => onSelectGenre(g.id)}
-          >
+          <div key={g.id} className="card" onClick={() => onSelectGenre(g.id)}>
             <div style={{ fontSize: 24, marginBottom: 6 }}>{g.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600 }}>
               {t('genre_' + g.id)}

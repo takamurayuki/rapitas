@@ -178,7 +178,9 @@ export function useAgentManager() {
    * @param apiKeyStatuses - Current map of provider → status. / プロバイダーごとのAPI設定状況
    * @returns Filtered agent list. / 使用可能なエージェント一覧
    */
-  const getAvailableAgents = (apiKeyStatuses: ApiKeyStatusMap): AIAgentConfig[] => {
+  const getAvailableAgents = (
+    apiKeyStatuses: ApiKeyStatusMap,
+  ): AIAgentConfig[] => {
     const configuredProviders = (
       Object.keys(apiKeyStatuses) as ApiProvider[]
     ).filter((provider) => apiKeyStatuses[provider].configured);

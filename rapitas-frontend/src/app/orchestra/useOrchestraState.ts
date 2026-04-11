@@ -10,11 +10,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import type {
-  OrchestraState,
-  QueueState,
-  AvailableTask,
-} from './types';
+import type { OrchestraState, QueueState, AvailableTask } from './types';
 
 /**
  * Manages all Orchestra page async state, SSE subscription, and CRUD actions.

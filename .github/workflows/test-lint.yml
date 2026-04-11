@@ -230,4 +230,8 @@ jobs:
 
       - name: Run Clippy
         working-directory: rapitas-desktop/src-tauri
-        run: cargo clippy -- -D warnings
+        # NOTE: build.rs calls tauri_build::build() which requires the backend
+        # sidecar binary. In the clippy-only job, skip the build script check.
+        run: cargo clippy --lib --bins -- -D warnings
+        env:
+          CLIPPY_CONF_DIR: .

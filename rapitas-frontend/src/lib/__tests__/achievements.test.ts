@@ -18,12 +18,14 @@ import {
   createAchievementNotification,
   checkBadgeEligibility,
   getEligibleBadges,
-  calculateTotalPoints
+  calculateTotalPoints,
 } from '../achievements';
 import { ACHIEVEMENTS, BADGES } from '../../data/achievements';
 
 // Mock player stats for testing
-const createMockPlayerStats = (overrides: Partial<PlayerStats> = {}): PlayerStats => ({
+const createMockPlayerStats = (
+  overrides: Partial<PlayerStats> = {},
+): PlayerStats => ({
   userId: 1,
   totalPoints: 0,
   unlockedAchievements: 0,
@@ -51,7 +53,7 @@ describe('Achievement Logic', () => {
   describe('checkAchievementUnlocked', () => {
     it('should unlock first_steps achievement after 1 task', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 1 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'first_steps')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'first_steps')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -59,7 +61,7 @@ describe('Achievement Logic', () => {
 
     it('should not unlock first_steps achievement with 0 tasks', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 0 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'first_steps')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'first_steps')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(false);
@@ -67,7 +69,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock task_master achievement after 10 tasks', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 10 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'task_master')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'task_master')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -75,7 +77,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock lightning_fast achievement with 5 tasks today', () => {
       const stats = createMockPlayerStats({ tasksCompletedToday: 5 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'lightning_fast')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'lightning_fast')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -83,7 +85,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock study_rookie achievement after 10 hours study', () => {
       const stats = createMockPlayerStats({ totalStudyTimeMinutes: 600 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'study_rookie')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'study_rookie')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -91,7 +93,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock daily_learner achievement with 7-day streak', () => {
       const stats = createMockPlayerStats({ currentStudyStreak: 7 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'daily_learner')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'daily_learner')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -99,7 +101,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock ai_beginner achievement after 1 agent execution', () => {
       const stats = createMockPlayerStats({ totalAgentExecutions: 1 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'ai_beginner')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'ai_beginner')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -107,7 +109,9 @@ describe('Achievement Logic', () => {
 
     it('should unlock consistency_champion achievement with 30-day task streak', () => {
       const stats = createMockPlayerStats({ currentTaskStreak: 30 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'consistency_champion')!;
+      const achievement = ACHIEVEMENTS.find(
+        (a) => a.id === 'consistency_champion',
+      )!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -117,7 +121,7 @@ describe('Achievement Logic', () => {
   describe('calculateAchievementProgress', () => {
     it('should calculate 50% progress for task_master with 5 tasks', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 5 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'task_master')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'task_master')!;
 
       const progress = calculateAchievementProgress(achievement, stats);
 
@@ -130,7 +134,7 @@ describe('Achievement Logic', () => {
 
     it('should calculate 100% progress for completed achievement', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 10 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'task_master')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'task_master')!;
 
       const progress = calculateAchievementProgress(achievement, stats);
 
@@ -141,7 +145,7 @@ describe('Achievement Logic', () => {
 
     it('should handle overflow progress correctly', () => {
       const stats = createMockPlayerStats({ totalTasksCompleted: 20 });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'task_master')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'task_master')!;
 
       const progress = calculateAchievementProgress(achievement, stats);
 
@@ -155,14 +159,16 @@ describe('Achievement Logic', () => {
       const stats = createMockPlayerStats({
         totalTasksCompleted: 5,
         totalStudyTimeMinutes: 300,
-        totalAgentExecutions: 2
+        totalAgentExecutions: 2,
       });
 
       const allProgress = getAllAchievementProgress(stats);
 
       expect(allProgress).toHaveLength(ACHIEVEMENTS.length);
-      expect(allProgress.every(p => p.achievementId)).toBe(true);
-      expect(allProgress.every(p => typeof p.progressPercentage === 'number')).toBe(true);
+      expect(allProgress.every((p) => p.achievementId)).toBe(true);
+      expect(
+        allProgress.every((p) => typeof p.progressPercentage === 'number'),
+      ).toBe(true);
     });
   });
 
@@ -172,7 +178,11 @@ describe('Achievement Logic', () => {
       const newStats = createMockPlayerStats({ totalTasksCompleted: 1 });
       const currentlyUnlocked: string[] = [];
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, currentlyUnlocked);
+      const newlyUnlocked = checkNewlyUnlockedAchievements(
+        oldStats,
+        newStats,
+        currentlyUnlocked,
+      );
 
       expect(newlyUnlocked).toHaveLength(1);
       expect(newlyUnlocked[0].id).toBe('first_steps');
@@ -183,7 +193,11 @@ describe('Achievement Logic', () => {
       const newStats = createMockPlayerStats({ totalTasksCompleted: 1 });
       const currentlyUnlocked = ['first_steps'];
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, currentlyUnlocked);
+      const newlyUnlocked = checkNewlyUnlockedAchievements(
+        oldStats,
+        newStats,
+        currentlyUnlocked,
+      );
 
       expect(newlyUnlocked).toHaveLength(0);
     });
@@ -191,18 +205,22 @@ describe('Achievement Logic', () => {
     it('should detect multiple newly unlocked achievements', () => {
       const oldStats = createMockPlayerStats({
         totalTasksCompleted: 0,
-        totalAgentExecutions: 0
+        totalAgentExecutions: 0,
       });
       const newStats = createMockPlayerStats({
         totalTasksCompleted: 1,
-        totalAgentExecutions: 1
+        totalAgentExecutions: 1,
       });
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, []);
+      const newlyUnlocked = checkNewlyUnlockedAchievements(
+        oldStats,
+        newStats,
+        [],
+      );
 
       expect(newlyUnlocked).toHaveLength(2);
-      expect(newlyUnlocked.map(a => a.id)).toContain('first_steps');
-      expect(newlyUnlocked.map(a => a.id)).toContain('ai_beginner');
+      expect(newlyUnlocked.map((a) => a.id)).toContain('first_steps');
+      expect(newlyUnlocked.map((a) => a.id)).toContain('ai_beginner');
     });
   });
 
@@ -211,14 +229,14 @@ describe('Achievement Logic', () => {
 
     beforeEach(() => {
       baseStats = createMockPlayerStats({
-        lastUpdatedAt: new Date('2023-01-01T12:00:00Z')
+        lastUpdatedAt: new Date('2023-01-01T12:00:00Z'),
       });
     });
 
     it('should update task completion stats correctly', () => {
       const updateRequest: StatsUpdateRequest = {
         tasksCompleted: 3,
-        timestamp: new Date('2023-01-01T13:00:00Z')
+        timestamp: new Date('2023-01-01T13:00:00Z'),
       };
 
       const updatedStats = updatePlayerStats(baseStats, updateRequest);
@@ -232,7 +250,7 @@ describe('Achievement Logic', () => {
     it('should update study time stats correctly', () => {
       const updateRequest: StatsUpdateRequest = {
         studyTimeMinutes: 120,
-        timestamp: new Date('2023-01-01T13:00:00Z')
+        timestamp: new Date('2023-01-01T13:00:00Z'),
       };
 
       const updatedStats = updatePlayerStats(baseStats, updateRequest);
@@ -246,12 +264,12 @@ describe('Achievement Logic', () => {
     it('should handle day transitions correctly', () => {
       const statsWithTodayData = createMockPlayerStats({
         tasksCompletedToday: 5,
-        lastUpdatedAt: new Date('2023-01-01T12:00:00Z')
+        lastUpdatedAt: new Date('2023-01-01T12:00:00Z'),
       });
 
       const updateRequest: StatsUpdateRequest = {
         tasksCompleted: 2,
-        timestamp: new Date('2023-01-02T12:00:00Z') // Next day
+        timestamp: new Date('2023-01-02T12:00:00Z'), // Next day
       };
 
       const updatedStats = updatePlayerStats(statsWithTodayData, updateRequest);
@@ -264,12 +282,12 @@ describe('Achievement Logic', () => {
       const statsWithData = createMockPlayerStats({
         totalTasksCompleted: 5,
         tasksCompletedToday: 2,
-        lastUpdatedAt: new Date('2023-01-01T10:00:00Z')
+        lastUpdatedAt: new Date('2023-01-01T10:00:00Z'),
       });
 
       const updateRequest: StatsUpdateRequest = {
         tasksCompleted: 3,
-        timestamp: new Date('2023-01-01T14:00:00Z') // Same day
+        timestamp: new Date('2023-01-01T14:00:00Z'), // Same day
       };
 
       const updatedStats = updatePlayerStats(statsWithData, updateRequest);
@@ -281,7 +299,7 @@ describe('Achievement Logic', () => {
 
   describe('createAchievementNotification', () => {
     it('should create a valid notification', () => {
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'first_steps')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'first_steps')!;
       const notification = createAchievementNotification(achievement);
 
       expect(notification.achievementId).toBe('first_steps');
@@ -297,17 +315,23 @@ describe('Achievement Logic', () => {
     describe('checkBadgeEligibility', () => {
       it('should return true when all required achievements are unlocked', () => {
         const unlockedAchievements = ['first_steps', 'task_master'];
-        const badge = BADGES.find(b => b.id === 'task_novice')!;
+        const badge = BADGES.find((b) => b.id === 'task_novice')!;
 
-        const isEligible = checkBadgeEligibility(unlockedAchievements, badge.id);
+        const isEligible = checkBadgeEligibility(
+          unlockedAchievements,
+          badge.id,
+        );
         expect(isEligible).toBe(true);
       });
 
       it('should return false when some achievements are missing', () => {
         const unlockedAchievements = ['first_steps'];
-        const badge = BADGES.find(b => b.id === 'task_novice')!;
+        const badge = BADGES.find((b) => b.id === 'task_novice')!;
 
-        const isEligible = checkBadgeEligibility(unlockedAchievements, badge.id);
+        const isEligible = checkBadgeEligibility(
+          unlockedAchievements,
+          badge.id,
+        );
         expect(isEligible).toBe(false);
       });
     });
@@ -327,7 +351,7 @@ describe('Achievement Logic', () => {
           'first_steps',
           'task_master',
           'ai_beginner',
-          'automation_expert'
+          'automation_expert',
         ];
 
         const eligibleBadges = getEligibleBadges(unlockedAchievements);
@@ -345,9 +369,9 @@ describe('Achievement Logic', () => {
 
       const totalPoints = calculateTotalPoints(unlockedAchievements);
 
-      const expectedPoints = ACHIEVEMENTS
-        .filter(a => unlockedAchievements.includes(a.id))
-        .reduce((sum, a) => sum + a.pointsReward, 0);
+      const expectedPoints = ACHIEVEMENTS.filter((a) =>
+        unlockedAchievements.includes(a.id),
+      ).reduce((sum, a) => sum + a.pointsReward, 0);
 
       expect(totalPoints).toBe(expectedPoints);
     });
@@ -363,7 +387,7 @@ describe('Achievement Logic', () => {
       const stats = createMockPlayerStats();
       const invalidAchievement = {
         ...ACHIEVEMENTS[0],
-        id: 'invalid_achievement'
+        id: 'invalid_achievement',
       };
 
       const isUnlocked = checkAchievementUnlocked(invalidAchievement, stats);
@@ -373,9 +397,9 @@ describe('Achievement Logic', () => {
     it('should handle negative values in stats', () => {
       const stats = createMockPlayerStats({
         totalTasksCompleted: -5,
-        totalStudyTimeMinutes: -100
+        totalStudyTimeMinutes: -100,
       });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'first_steps')!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'first_steps')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(false);
@@ -383,9 +407,11 @@ describe('Achievement Logic', () => {
 
     it('should handle very large stat values', () => {
       const stats = createMockPlayerStats({
-        totalTasksCompleted: 1000000
+        totalTasksCompleted: 1000000,
       });
-      const achievement = ACHIEVEMENTS.find(a => a.id === 'productivity_beast')!;
+      const achievement = ACHIEVEMENTS.find(
+        (a) => a.id === 'productivity_beast',
+      )!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);

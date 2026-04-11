@@ -6,7 +6,10 @@
  */
 'use client';
 
-import { useWindowResize, useResizePerformance } from '@/hooks/ui/useWindowResize';
+import {
+  useWindowResize,
+  useResizePerformance,
+} from '@/hooks/ui/useWindowResize';
 import { useEffect } from 'react';
 
 export default function WindowResizeOptimizer() {

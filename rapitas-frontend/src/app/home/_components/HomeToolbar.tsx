@@ -10,7 +10,10 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  statusConfig,
+  renderStatusIcon,
+} from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { AutoExecutionMode } from './AutoExecutionMode';
 

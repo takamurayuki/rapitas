@@ -60,7 +60,9 @@ export function useTaskDetailData({
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
+    null,
+  );
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

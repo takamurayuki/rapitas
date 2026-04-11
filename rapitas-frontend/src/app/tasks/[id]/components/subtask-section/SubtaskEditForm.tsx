@@ -89,7 +89,9 @@ export function SubtaskEditForm({
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
                     }`}
                   >
-                    <span className={isActive ? opt.color : ''}>{opt.icon}</span>
+                    <span className={isActive ? opt.color : ''}>
+                      {opt.icon}
+                    </span>
                     {t(
                       `priority${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}` as
                         | 'priorityLow'

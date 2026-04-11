@@ -64,7 +64,9 @@ export function useScheduleBlocks(
   const [blocks, setBlocks] = useState<DailyScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(null);
+  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(
+    null,
+  );
   const [formData, setFormData] = useState<BlockFormData>(DEFAULT_FORM);
 
   const fetchBlocks = useCallback(async () => {

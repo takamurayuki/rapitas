@@ -9,27 +9,44 @@ import type { Achievement } from '@/types/achievement';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PlayerStats = any;
 
-export function checkAchievementUnlocked(_achievement: Achievement, _stats: PlayerStats): boolean {
+export function checkAchievementUnlocked(
+  _achievement: Achievement,
+  _stats: PlayerStats,
+): boolean {
   return false;
 }
 
-export function calculateAchievementProgress(_achievement: Achievement, _stats: PlayerStats): number {
+export function calculateAchievementProgress(
+  _achievement: Achievement,
+  _stats: PlayerStats,
+): number {
   return 0;
 }
 
-export function getAllAchievementProgress(_stats: PlayerStats): Array<{ id: string; progress: number }> {
+export function getAllAchievementProgress(
+  _stats: PlayerStats,
+): Array<{ id: string; progress: number }> {
   return [];
 }
 
-export function checkNewlyUnlockedAchievements(_stats: PlayerStats, _previousStats: PlayerStats): Achievement[] {
+export function checkNewlyUnlockedAchievements(
+  _stats: PlayerStats,
+  _previousStats: PlayerStats,
+): Achievement[] {
   return [];
 }
 
-export function updatePlayerStats(_stats: PlayerStats, _update: unknown): PlayerStats {
+export function updatePlayerStats(
+  _stats: PlayerStats,
+  _update: unknown,
+): PlayerStats {
   return _stats;
 }
 
-export function createAchievementNotification(_achievement: Achievement): { title: string; body: string } {
+export function createAchievementNotification(_achievement: Achievement): {
+  title: string;
+  body: string;
+} {
   return { title: '', body: '' };
 }
 

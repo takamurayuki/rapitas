@@ -15,10 +15,54 @@ export const MODIFIER_KEYS: ModifierKey[] = ['Ctrl', 'Alt', 'Shift'];
 
 /** All keys available for shortcut assignment. */
 export const AVAILABLE_KEYS = [
-  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  'F1',
+  'F2',
+  'F3',
+  'F4',
+  'F5',
+  'F6',
+  'F7',
+  'F8',
+  'F9',
+  'F10',
+  'F11',
+  'F12',
   '/',
 ];
 
@@ -50,7 +94,10 @@ export function parseGlobalShortcut(shortcut: string): {
  * @param key - Main key / メインキー
  * @returns Formatted shortcut string e.g. "Ctrl+Alt+R"
  */
-export function buildGlobalShortcut(modifiers: ModifierKey[], key: string): string {
+export function buildGlobalShortcut(
+  modifiers: ModifierKey[],
+  key: string,
+): string {
   return [...modifiers, key].join('+');
 }
 

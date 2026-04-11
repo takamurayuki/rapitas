@@ -50,7 +50,9 @@ export function useHomeKeyboard({
           case 'n': {
             e.preventDefault();
             const themeParam = themeFilter || defaultThemeId;
-            router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
+            router.push(
+              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
+            );
             break;
           }
           case 'q':

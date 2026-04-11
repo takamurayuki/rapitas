@@ -60,7 +60,9 @@ function isJpQuestionLine(line: string): boolean {
 
 /** Check if a line contains Japanese question keywords */
 function containsJpQuestionKeyword(line: string): boolean {
-  return /(?:しますか|ですか|でしょうか|どうしますか|よろしいですか|含めますか|スキップしますか|適用しますか|実行しますか|確認しますか)/.test(line);
+  return /(?:しますか|ですか|でしょうか|どうしますか|よろしいですか|含めますか|スキップしますか|適用しますか|実行しますか|確認しますか)/.test(
+    line,
+  );
 }
 
 /**
@@ -87,7 +89,10 @@ export function parseQuestionOptions(
   }
 
   // 2. Numbered list: "1. Option1\n2. Option2"
-  const lines = questionText.split('\n').map((l) => l.trim()).filter(Boolean);
+  const lines = questionText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
   const numberedLines = lines.filter((l) => /^\d+[.．、)\]]\s*.+/.test(l));
   if (numberedLines.length >= 2) {
     const nonNumbered = lines.filter((l) => !numberedLines.includes(l));
@@ -98,7 +103,9 @@ export function parseQuestionOptions(
   }
 
   // 3. Multiple Japanese yes/no questions
-  const jpQuestionLines = lines.filter((l) => isJpQuestionLine(l) || containsJpQuestionKeyword(l));
+  const jpQuestionLines = lines.filter(
+    (l) => isJpQuestionLine(l) || containsJpQuestionKeyword(l),
+  );
   if (jpQuestionLines.length >= 2) {
     const contextLines = lines.filter((l) => !jpQuestionLines.includes(l));
     return {
@@ -113,7 +120,11 @@ export function parseQuestionOptions(
   }
 
   // 4. Single Japanese yes/no question
-  if (jpQuestionLines.length === 1 || isJpQuestionLine(questionText.trim()) || containsJpQuestionKeyword(questionText)) {
+  if (
+    jpQuestionLines.length === 1 ||
+    isJpQuestionLine(questionText.trim()) ||
+    containsJpQuestionKeyword(questionText)
+  ) {
     return {
       text: questionText,
       options: ['はい', 'いいえ'],
@@ -121,7 +132,11 @@ export function parseQuestionOptions(
   }
 
   // 5. English yes/no / confirm patterns
-  if (/\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(questionText)) {
+  if (
+    /\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(
+      questionText,
+    )
+  ) {
     return {
       text: questionText,
       options: ['Yes', 'No'],

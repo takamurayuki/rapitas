@@ -8,7 +8,15 @@
 
 'use client';
 
-import { Search, X, Save, FolderKanban, Code, BookOpen, Layers } from 'lucide-react';
+import {
+  Search,
+  X,
+  Save,
+  FolderKanban,
+  Code,
+  BookOpen,
+  Layers,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getIconComponent } from '@/components/category/icon-data';
 import { IconGrid } from '@/components/category/IconGrid';
@@ -22,8 +30,18 @@ export const MODE_OPTIONS: {
   icon: typeof Code;
   color: string;
 }[] = [
-  { value: 'development', labelKey: 'modeDevelopment', icon: Code, color: '#3B82F6' },
-  { value: 'learning', labelKey: 'modeLearning', icon: BookOpen, color: '#10B981' },
+  {
+    value: 'development',
+    labelKey: 'modeDevelopment',
+    icon: Code,
+    color: '#3B82F6',
+  },
+  {
+    value: 'learning',
+    labelKey: 'modeLearning',
+    icon: BookOpen,
+    color: '#10B981',
+  },
   { value: 'both', labelKey: 'modeBoth', icon: Layers, color: '#8B5CF6' },
 ];
 
@@ -105,7 +123,9 @@ export function CategoryForm({
         </label>
         <textarea
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
           placeholder={t('categoryDescriptionPlaceholder')}
           rows={1}
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
@@ -121,13 +141,17 @@ export function CategoryForm({
             <input
               type="color"
               value={formData.color}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, color: e.target.value })
+              }
               className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
             />
             <input
               type="text"
               value={formData.color}
-              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, color: e.target.value })
+              }
               className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
             />
           </div>
@@ -139,7 +163,10 @@ export function CategoryForm({
           </label>
           <div
             className="h-9 rounded-lg border-2 flex items-center justify-center"
-            style={{ borderColor: formData.color, backgroundColor: formData.color + '15' }}
+            style={{
+              borderColor: formData.color,
+              backgroundColor: formData.color + '15',
+            }}
           >
             <div style={{ color: formData.color }}>
               {renderIcon(formData.icon, 20)}
@@ -174,7 +201,9 @@ export function CategoryForm({
             <IconGrid
               icons={filteredIcons.map((i) => i.name)}
               selectedIcon={formData.icon}
-              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
+              onIconSelect={(iconName) =>
+                setFormData({ ...formData, icon: iconName })
+              }
               renderIcon={renderIcon}
               accentClass="bg-indigo-500"
             />

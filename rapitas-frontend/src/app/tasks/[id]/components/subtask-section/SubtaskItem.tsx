@@ -124,7 +124,9 @@ export function SubtaskItem({
                   )}
                 </button>
               )}
-              {!isSelectionMode && isParallelExecutionRunning && executionStatus ? (
+              {!isSelectionMode &&
+              isParallelExecutionRunning &&
+              executionStatus ? (
                 <SubtaskTitleIndicator
                   executionStatus={executionStatus}
                   size="sm"
@@ -220,7 +222,9 @@ export function SubtaskItem({
                     currentStatus={subtask.status}
                     config={config}
                     renderIcon={renderStatusIcon}
-                    onClick={(newStatus) => onUpdateStatus(subtask.id, newStatus)}
+                    onClick={(newStatus) =>
+                      onUpdateStatus(subtask.id, newStatus)
+                    }
                     size="sm"
                   />
                 );

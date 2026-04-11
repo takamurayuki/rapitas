@@ -35,7 +35,10 @@ interface FieldSetters {
  * @returns Action handlers, subtask state, and UI flags.
  */
 export function useTaskFormActions(
-  values: TaskPayloadValues & { description: string; globalSettings: UserSettings | null },
+  values: TaskPayloadValues & {
+    description: string;
+    globalSettings: UserSettings | null;
+  },
   setters: FieldSetters,
 ) {
   const { showToast } = useToast();
@@ -43,13 +46,16 @@ export function useTaskFormActions(
 
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(null);
+  const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(
+    null,
+  );
 
   // ── Subtask list ──────────────────────────────────────────────────────────
   const [subtasks, setSubtasks] = useState<PendingSubtask[]>([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskDescription, setNewSubtaskDescription] = useState('');
-  const [newSubtaskPriority, setNewSubtaskPriority] = useState<Priority>('medium');
+  const [newSubtaskPriority, setNewSubtaskPriority] =
+    useState<Priority>('medium');
   const [newSubtaskLabels, setNewSubtaskLabels] = useState('');
   const [newSubtaskEstimatedHours, setNewSubtaskEstimatedHours] = useState('');
 
@@ -88,7 +94,9 @@ export function useTaskFormActions(
       {
         id: Date.now().toString(),
         title: newSubtaskTitle.trim(),
-        ...(newSubtaskDescription.trim() && { description: newSubtaskDescription.trim() }),
+        ...(newSubtaskDescription.trim() && {
+          description: newSubtaskDescription.trim(),
+        }),
         priority: newSubtaskPriority,
         ...(labelsArray.length > 0 && { labels: labelsArray }),
         ...(hours && !isNaN(hours) && { estimatedHours: hours }),
@@ -119,7 +127,8 @@ export function useTaskFormActions(
     if (data.title) setters.setTitle(data.title);
     if (data.description) setters.setDescription(data.description);
     if (data.priority) setters.setPriority(data.priority);
-    if (data.estimatedHours) setters.setEstimatedHours(data.estimatedHours.toString());
+    if (data.estimatedHours)
+      setters.setEstimatedHours(data.estimatedHours.toString());
     if (data.subtasks && Array.isArray(data.subtasks)) {
       setSubtasks(
         data.subtasks.map((st, idx) => ({
@@ -159,8 +168,14 @@ export function useTaskFormActions(
           showToast(t('titleGeneratedSuccess'), 'success');
         }
         // NOTE: Auto-create after title generation (only when called from auto-generate).
-        if (fromAutoGenerate && values.globalSettings?.autoCreateAfterTitleGeneration) {
-          logger.debug('[useTaskFormActions] Auto-creating task with title:', data.title);
+        if (
+          fromAutoGenerate &&
+          values.globalSettings?.autoCreateAfterTitleGeneration
+        ) {
+          logger.debug(
+            '[useTaskFormActions] Auto-creating task with title:',
+            data.title,
+          );
           setTimeout(() => {
             handleSubmitWithTitle(data.title);
           }, 100); // NOTE: Short delay to ensure state update completes before submission.
@@ -168,13 +183,18 @@ export function useTaskFormActions(
       }
     } catch (e) {
       logger.error(e);
-      showToast(e instanceof Error ? e.message : t('titleGenerateFailed'), 'error');
+      showToast(
+        e instanceof Error ? e.message : t('titleGenerateFailed'),
+        'error',
+      );
     } finally {
       setIsGeneratingTitle(false);
     }
   };
 
-  const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoGenerateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
     if (autoGenerateTimerRef.current) {
@@ -222,9 +242,11 @@ export function useTaskFormActions(
   }) => {
     setters.setTitle(suggestion.title);
     setters.setPriority(suggestion.priority);
-    if (suggestion.estimatedHours) setters.setEstimatedHours(suggestion.estimatedHours);
+    if (suggestion.estimatedHours)
+      setters.setEstimatedHours(suggestion.estimatedHours);
     if (suggestion.description) setters.setDescription(suggestion.description);
-    if (suggestion.labelIds.length > 0) setters.setSelectedLabelIds(suggestion.labelIds);
+    if (suggestion.labelIds.length > 0)
+      setters.setSelectedLabelIds(suggestion.labelIds);
     showToast(t('suggestionApplied'), 'success');
   };
 

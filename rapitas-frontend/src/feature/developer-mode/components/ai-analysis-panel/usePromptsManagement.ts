@@ -33,7 +33,9 @@ export type UsePromptsManagementReturn = {
  * @param taskId - The task whose prompts to manage.
  * @returns State values and handler functions for prompt list management.
  */
-export function usePromptsManagement(taskId: number): UsePromptsManagementReturn {
+export function usePromptsManagement(
+  taskId: number,
+): UsePromptsManagementReturn {
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);

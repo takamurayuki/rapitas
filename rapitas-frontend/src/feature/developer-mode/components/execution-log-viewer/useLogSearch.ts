@@ -36,7 +36,9 @@ type UseLogSearchReturn = {
  * @param options.logs - Current log array; search is re-run when this changes. / 検索対象のログ配列。変化すると再検索される。
  * @returns Search state and stable callbacks for the view layer. / ビュー層が使う検索ステートと安定したコールバック。
  */
-export function useLogSearch({ logs }: UseLogSearchOptions): UseLogSearchReturn {
+export function useLogSearch({
+  logs,
+}: UseLogSearchOptions): UseLogSearchReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatches, setSearchMatches] = useState<number[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);

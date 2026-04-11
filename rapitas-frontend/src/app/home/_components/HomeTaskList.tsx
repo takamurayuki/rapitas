@@ -28,7 +28,11 @@ interface HomeTaskListProps {
   totalPages: number;
   itemsPerPage: number;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void;
+  onStatusChange: (
+    taskId: number,
+    status: Status,
+    cardElement?: HTMLElement,
+  ) => void;
   onToggleSelect: (taskId: number) => void;
   onTaskUpdated: () => Promise<void>;
   onOpenInPage: (taskId: number) => void;

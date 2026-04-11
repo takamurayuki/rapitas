@@ -223,8 +223,7 @@ function ClarificationQuestionsView({
         <span className="text-[11px] font-medium">追加情報が必要です</span>
       </div>
       <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2">
-        スコア: {score}/100 -{' '}
-        より良いプロンプトを生成するために回答してください
+        スコア: {score}/100 - より良いプロンプトを生成するために回答してください
       </div>
       <div className="space-y-2.5 max-h-48 overflow-y-auto">
         {questions.map((q) => (
@@ -232,9 +231,7 @@ function ClarificationQuestionsView({
             <div className="flex items-start gap-1.5">
               <span className="text-[10px] text-zinc-700 dark:text-zinc-300 flex-1">
                 {q.question}
-                {q.isRequired && (
-                  <span className="text-red-500 ml-0.5">*</span>
-                )}
+                {q.isRequired && <span className="text-red-500 ml-0.5">*</span>}
               </span>
               <span className="text-[9px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded shrink-0">
                 {getCategoryLabel(q.category)}

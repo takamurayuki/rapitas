@@ -14,7 +14,10 @@ type RestartDialogsProps = {
   /** State for the confirmation dialog. */
   restartConfirmDialog: { open: boolean; activeExecutions: number };
   /** Closes or resets the confirmation dialog. */
-  setRestartConfirmDialog: (v: { open: boolean; activeExecutions: number }) => void;
+  setRestartConfirmDialog: (v: {
+    open: boolean;
+    activeExecutions: number;
+  }) => void;
   /** Proceeds with the restart even if executions are active. */
   executeRestart: () => Promise<void>;
   /** Whether the restart is currently in progress (shows blocking overlay). */

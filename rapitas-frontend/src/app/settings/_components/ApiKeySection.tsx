@@ -87,7 +87,11 @@ type Props = {
   onUpdateProviderState: (key: string, updates: Partial<ProviderState>) => void;
   onSaveApiKey: (key: string, configuredField: keyof UserSettings) => void;
   onDeleteApiKey: (key: string, configuredField: keyof UserSettings) => void;
-  onSaveModel: (key: string, modelField: keyof UserSettings, model: string) => void;
+  onSaveModel: (
+    key: string,
+    modelField: keyof UserSettings,
+    model: string,
+  ) => void;
 };
 
 /**
@@ -172,7 +176,9 @@ export function ApiKeySection({
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() =>
-                          onUpdateProviderState(provider.key, { isEditing: true })
+                          onUpdateProviderState(provider.key, {
+                            isEditing: true,
+                          })
                         }
                         className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
                       >
@@ -212,7 +218,11 @@ export function ApiKeySection({
                           | undefined) ?? ''
                       }
                       onChange={(e) =>
-                        onSaveModel(provider.key, provider.modelField, e.target.value)
+                        onSaveModel(
+                          provider.key,
+                          provider.modelField,
+                          e.target.value,
+                        )
                       }
                       className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-zinc-900 dark:text-zinc-100"
                     >

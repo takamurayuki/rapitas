@@ -11,7 +11,10 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import Button from '@/components/ui/button/Button';
 import { Search, RefreshCw, Download } from 'lucide-react';
-import { ErrorCategory, ErrorSeverity } from '../../services/error-analysis-service';
+import {
+  ErrorCategory,
+  ErrorSeverity,
+} from '../../services/error-analysis-service';
 
 type ErrorFiltersProps = {
   searchQuery: string;
@@ -60,7 +63,9 @@ export function ErrorFilters({
 
         <select
           value={selectedCategory}
-          onChange={(e) => onCategoryChange(e.target.value as ErrorCategory | 'all')}
+          onChange={(e) =>
+            onCategoryChange(e.target.value as ErrorCategory | 'all')
+          }
           className="px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
         >
           <option value="all">All Categories</option>
@@ -73,7 +78,9 @@ export function ErrorFilters({
 
         <select
           value={selectedSeverity}
-          onChange={(e) => onSeverityChange(e.target.value as ErrorSeverity | 'all')}
+          onChange={(e) =>
+            onSeverityChange(e.target.value as ErrorSeverity | 'all')
+          }
           className="px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
         >
           <option value="all">All Severities</option>
@@ -89,7 +96,9 @@ export function ErrorFilters({
           variant={isAutoRefresh ? 'primary' : 'secondary'}
           size="sm"
         >
-          <RefreshCw className={`h-4 w-4 ${isAutoRefresh ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`h-4 w-4 ${isAutoRefresh ? 'animate-spin' : ''}`}
+          />
         </Button>
 
         <Button onClickAction={onExport} variant="secondary" size="sm">

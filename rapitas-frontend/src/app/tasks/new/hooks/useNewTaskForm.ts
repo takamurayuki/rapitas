@@ -44,7 +44,8 @@ export function useNewTaskForm() {
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [estimatedHours, setEstimatedHours] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('comprehensive');
+  const [workflowMode, setWorkflowMode] =
+    useState<WorkflowMode>('comprehensive');
   const [isWorkflowModeOverride, setIsWorkflowModeOverride] = useState(false);
 
   // ── Remote data + derived values ──────────────────────────────────────────

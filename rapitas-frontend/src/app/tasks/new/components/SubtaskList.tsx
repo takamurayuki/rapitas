@@ -8,7 +8,10 @@
 import { Clock, Trash2 } from 'lucide-react';
 import type { PendingSubtask } from '../hooks/useNewTaskForm';
 import type { PriorityOption } from './PrioritySelector';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  statusConfig,
+  renderStatusIcon,
+} from '@/feature/tasks/config/StatusConfig';
 
 interface SubtaskListProps {
   subtasks: PendingSubtask[];
@@ -24,7 +27,11 @@ interface SubtaskListProps {
  * @param props.priorityOptions - Priority descriptors used for badge rendering / 優先度バッジ用オプション
  * @param props.onRemove - Remove handler / 削除ハンドラ
  */
-export function SubtaskList({ subtasks, priorityOptions, onRemove }: SubtaskListProps) {
+export function SubtaskList({
+  subtasks,
+  priorityOptions,
+  onRemove,
+}: SubtaskListProps) {
   if (subtasks.length === 0) return null;
 
   return (
@@ -64,7 +71,9 @@ export function SubtaskList({ subtasks, priorityOptions, onRemove }: SubtaskList
               {st.priority &&
                 st.priority !== 'medium' &&
                 (() => {
-                  const opt = priorityOptions.find((o) => o.value === st.priority);
+                  const opt = priorityOptions.find(
+                    (o) => o.value === st.priority,
+                  );
                   return opt ? (
                     <span
                       className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium text-white ${opt.bgColor}`}

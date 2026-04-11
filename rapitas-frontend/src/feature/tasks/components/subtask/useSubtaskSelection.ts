@@ -21,7 +21,9 @@ export interface SubtaskSelectionState {
   setShowDeleteConfirm: React.Dispatch<
     React.SetStateAction<'all' | 'selected' | null>
   >;
-  handleDeleteSelected: (onDeleteSelectedSubtasks?: (ids: number[]) => void) => void;
+  handleDeleteSelected: (
+    onDeleteSelectedSubtasks?: (ids: number[]) => void,
+  ) => void;
   handleDeleteAll: (onDeleteAllSubtasks?: () => void) => void;
 }
 

@@ -140,7 +140,16 @@ export function useTerminalSubmit({
     // NOTE: isWaiting intentionally excluded — read via ref to avoid stale-closure
     // re-creation on every polling tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [taskId, selectedAgentId, onExecute, polling, setLines, setSubmitting, setInput, lineIdCounter],
+    [
+      taskId,
+      selectedAgentId,
+      onExecute,
+      polling,
+      setLines,
+      setSubmitting,
+      setInput,
+      lineIdCounter,
+    ],
   );
 
   return handleSubmit;

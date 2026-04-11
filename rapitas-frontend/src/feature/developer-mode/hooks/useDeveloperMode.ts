@@ -22,8 +22,10 @@ export type { ExecutionStatus, ExecutionResult };
 
 export function useDeveloperMode(taskId: number) {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle');
-  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [executionStatus, setExecutionStatus] =
+    useState<ExecutionStatus>('idle');
+  const [executionResult, setExecutionResult] =
+    useState<ExecutionResult | null>(null);
   /** True while fetching execution state from DB on initial load. */
   const [isRestoringState, setIsRestoringState] = useState(true);
 
@@ -70,13 +72,17 @@ export function useDeveloperMode(taskId: number) {
     fetchAgents,
   } = useDeveloperModeConfig(taskId);
 
-  const { executeAgent, stopExecution, resetExecutionState, setExecutionCancelled } =
-    useAgentExecutionActions(taskId, agentConfigId, {
-      setIsExecuting,
-      setExecutionStatus,
-      setExecutionResult,
-      setError,
-    });
+  const {
+    executeAgent,
+    stopExecution,
+    resetExecutionState,
+    setExecutionCancelled,
+  } = useAgentExecutionActions(taskId, agentConfigId, {
+    setIsExecuting,
+    setExecutionStatus,
+    setExecutionResult,
+    setError,
+  });
 
   // NOTE: Auto-restore execution state on mount so the execution panel is visible
   // immediately without requiring a page reload. The ref prevents duplicate calls.
@@ -88,7 +94,9 @@ export function useDeveloperMode(taskId: number) {
     restoreExecutionState()
       .then((restored) => {
         if (restored) {
-          logger.debug(`[useDeveloperMode] Auto-restored execution state for task ${taskId}: ${restored.status}`);
+          logger.debug(
+            `[useDeveloperMode] Auto-restored execution state for task ${taskId}: ${restored.status}`,
+          );
         }
       })
       .catch(() => {})
@@ -109,7 +117,9 @@ export function useDeveloperMode(taskId: number) {
    */
   const restoreExecutionState = async () => {
     try {
-      const statusRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`);
+      const statusRes = await fetch(
+        `${API_BASE_URL}/tasks/${taskId}/execution-status`,
+      );
       if (!statusRes.ok) return null;
 
       const statusData = await statusRes.json();
@@ -133,16 +143,23 @@ export function useDeveloperMode(taskId: number) {
       let fullOutput = statusData.output || '';
       if (!fullOutput) {
         try {
-          const logsRes = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-logs`);
+          const logsRes = await fetch(
+            `${API_BASE_URL}/tasks/${taskId}/execution-logs`,
+          );
           if (logsRes.ok) {
             const logsData = await logsRes.json();
             if (logsData.logs?.length > 0) {
-              fullOutput = logsData.logs.map((log: { chunk: string }) => log.chunk).join('');
+              fullOutput = logsData.logs
+                .map((log: { chunk: string }) => log.chunk)
+                .join('');
               logger.debug(`Restored ${logsData.logs.length} log chunks`);
             }
           }
         } catch (logErr) {
-          logger.warn('Failed to fetch execution logs, using status output:', logErr);
+          logger.warn(
+            'Failed to fetch execution logs, using status output:',
+            logErr,
+          );
         }
       }
 
@@ -207,7 +224,9 @@ export function useDeveloperMode(taskId: number) {
     // Downstream components see idle state and show skeleton instead of running panel.
     isExecuting: isRestoringState ? false : isExecuting,
     isRestoringState,
-    executionStatus: isRestoringState ? ('idle' as ExecutionStatus) : executionStatus,
+    executionStatus: isRestoringState
+      ? ('idle' as ExecutionStatus)
+      : executionStatus,
     executionResult: isRestoringState ? null : executionResult,
     analysisResult,
     analysisApprovalId,

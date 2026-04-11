@@ -93,7 +93,10 @@ export function BlockList({
                       className="w-10 h-10 rounded-lg flex items-center justify-center"
                       style={{ backgroundColor: block.color + '20' }}
                     >
-                      <Icon className="w-5 h-5" style={{ color: block.color }} />
+                      <Icon
+                        className="w-5 h-5"
+                        style={{ color: block.color }}
+                      />
                     </div>
 
                     <div className="flex-1 min-w-0">

@@ -66,7 +66,10 @@ export default function FlashcardsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
+              <div
+                key={i}
+                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
+              />
             ))}
           </div>
         </div>

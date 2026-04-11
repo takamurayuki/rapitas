@@ -47,8 +47,9 @@ export function useParallelExecutionStatus({
   pollingInterval = 3000,
 }: UseParallelExecutionStatusOptions): UseParallelExecutionStatusReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionState, setSessionState] =
-    useState<ParallelSessionState | null>(null);
+  const [sessionState, setSessionState] = useState<ParallelSessionState | null>(
+    null,
+  );
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,9 +142,7 @@ export function useParallelExecutionStatus({
 
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(
-            errorData.error || 'セッションの開始に失敗しました',
-          );
+          throw new Error(errorData.error || 'セッションの開始に失敗しました');
         }
 
         const result = await res.json();
@@ -175,9 +174,7 @@ export function useParallelExecutionStatus({
         return null;
       } catch (err) {
         const errorMessage =
-          err instanceof Error
-            ? err.message
-            : 'セッションの開始に失敗しました';
+          err instanceof Error ? err.message : 'セッションの開始に失敗しました';
         setError(errorMessage);
         return null;
       }
@@ -241,7 +238,14 @@ export function useParallelExecutionStatus({
     }
 
     return () => stopPolling();
-  }, [sessionId, isRunning, isConnected, pollingInterval, startPolling, stopPolling]);
+  }, [
+    sessionId,
+    isRunning,
+    isConnected,
+    pollingInterval,
+    startPolling,
+    stopPolling,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {

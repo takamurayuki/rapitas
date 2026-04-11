@@ -134,7 +134,9 @@ export function SubtaskForm({
         <div className="flex items-center gap-2 pt-1">
           <div
             className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              !title.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:border-emerald-500 dark:hover:border-emerald-400'
+              !title.trim()
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:border-emerald-500 dark:hover:border-emerald-400'
             }`}
           >
             <button

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useSearchFilters, type SearchFilter } from '../search/useSearchFilters';
+import {
+  useSearchFilters,
+  type SearchFilter,
+} from '../search/useSearchFilters';
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({

@@ -9,7 +9,10 @@
 
 import { Loader2, MessageSquare, HelpCircle, Send } from 'lucide-react';
 import type { PromptClarificationQuestion } from './prompt-optimization-types';
-import { getCategoryLabel, getCategoryColor } from './prompt-optimization-types';
+import {
+  getCategoryLabel,
+  getCategoryColor,
+} from './prompt-optimization-types';
 
 type Props = {
   questions: PromptClarificationQuestion[];

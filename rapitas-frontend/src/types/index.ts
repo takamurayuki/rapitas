@@ -5,10 +5,7 @@
  * Maintains backward compatibility: all existing imports from 'types' continue to work.
  */
 
-export type {
-  Priority,
-  Status,
-} from './common.types';
+export type { Priority, Status } from './common.types';
 
 export type {
   CategoryMode,
@@ -58,10 +55,7 @@ export type {
   WeeklyReport,
 } from './task.types';
 
-export {
-  priorityColors,
-  priorityLabels,
-} from './task.types';
+export { priorityColors, priorityLabels } from './task.types';
 
 export type {
   ExecutionStatus,

@@ -73,9 +73,7 @@ export function WorkflowTabBar({
               ) : (
                 <div
                   className={`w-2 h-2 rounded-full ${
-                    hasContent
-                      ? 'bg-green-500'
-                      : 'bg-zinc-300 dark:bg-zinc-600'
+                    hasContent ? 'bg-green-500' : 'bg-zinc-300 dark:bg-zinc-600'
                   }`}
                 />
               )}

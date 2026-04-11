@@ -14,7 +14,11 @@ export function WebhookSettings() {
   const [slackUrl, setSlackUrl] = useState('');
   const [discordUrl, setDiscordUrl] = useState('');
   const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState<{ type: string; success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    type: string;
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -49,10 +53,18 @@ export function WebhookSettings() {
       if (res.ok) {
         setTestResult({ type: 'save', success: true, message: '保存しました' });
       } else {
-        setTestResult({ type: 'save', success: false, message: '保存に失敗しました' });
+        setTestResult({
+          type: 'save',
+          success: false,
+          message: '保存に失敗しました',
+        });
       }
     } catch {
-      setTestResult({ type: 'save', success: false, message: '保存に失敗しました' });
+      setTestResult({
+        type: 'save',
+        success: false,
+        message: '保存に失敗しました',
+      });
     } finally {
       setSaving(false);
     }
@@ -64,9 +76,10 @@ export function WebhookSettings() {
 
     setTestResult(null);
     try {
-      const payload = type === 'slack'
-        ? { text: '🔔 Rapitas Webhook テスト通知' }
-        : { content: '🔔 Rapitas Webhook テスト通知' };
+      const payload =
+        type === 'slack'
+          ? { text: '🔔 Rapitas Webhook テスト通知' }
+          : { content: '🔔 Rapitas Webhook テスト通知' };
 
       const res = await fetch(url, {
         method: 'POST',
@@ -77,7 +90,9 @@ export function WebhookSettings() {
       setTestResult({
         type,
         success: res.ok,
-        message: res.ok ? 'テスト通知を送信しました' : `エラー: HTTP ${res.status}`,
+        message: res.ok
+          ? 'テスト通知を送信しました'
+          : `エラー: HTTP ${res.status}`,
       });
     } catch {
       setTestResult({

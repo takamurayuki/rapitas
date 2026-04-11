@@ -19,7 +19,9 @@ interface LogSummaryCardsProps {
  *
  * @param summary - Aggregated summary data from the log analysis result / ログ解析結果のサマリーデータ
  */
-export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({ summary }) => {
+export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({
+  summary,
+}) => {
   const durationMinutes = summary.timeRange
     ? Math.round(
         (summary.timeRange.end.getTime() - summary.timeRange.start.getTime()) /
@@ -35,7 +37,9 @@ export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({ summary }) => 
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">総エントリー数</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                総エントリー数
+              </p>
               <p className="text-2xl font-bold">{summary.totalEntries}</p>
             </div>
             <Activity className="w-8 h-8 text-gray-400" />
@@ -48,8 +52,12 @@ export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({ summary }) => 
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">エラー数</p>
-              <p className="text-2xl font-bold text-red-500">{summary.errorCount}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                エラー数
+              </p>
+              <p className="text-2xl font-bold text-red-500">
+                {summary.errorCount}
+              </p>
             </div>
             <AlertCircle className="w-8 h-8 text-red-500" />
           </div>
@@ -62,7 +70,9 @@ export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({ summary }) => 
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">警告数</p>
-              <p className="text-2xl font-bold text-yellow-500">{summary.warningCount}</p>
+              <p className="text-2xl font-bold text-yellow-500">
+                {summary.warningCount}
+              </p>
             </div>
             <AlertTriangle className="w-8 h-8 text-yellow-500" />
           </div>
@@ -74,7 +84,9 @@ export const LogSummaryCards: React.FC<LogSummaryCardsProps> = ({ summary }) => 
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">時間範囲</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                時間範囲
+              </p>
               <p className="text-sm font-medium">
                 {durationMinutes !== null ? `${durationMinutes}分` : 'N/A'}
               </p>

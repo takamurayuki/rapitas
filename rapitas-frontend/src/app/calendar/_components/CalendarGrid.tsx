@@ -66,7 +66,8 @@ export function CalendarGrid({
   const multiDayBars = getMultiDayBars(events, currentDate);
 
   const holidays = useMemo(
-    () => getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
+    () =>
+      getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
     [currentDate],
   );
 
@@ -145,7 +146,9 @@ export function CalendarGrid({
       {weeks.map((week, weekIndex) => {
         const weekBars = multiDayBars.filter((b) => b.gridRow === weekIndex);
         const maxLaneInWeek =
-          weekBars.length > 0 ? Math.max(...weekBars.map((b) => b.lane)) + 1 : 0;
+          weekBars.length > 0
+            ? Math.max(...weekBars.map((b) => b.lane)) + 1
+            : 0;
         const barAreaHeight = maxLaneInWeek * 18;
 
         return (
@@ -221,44 +224,52 @@ export function CalendarGrid({
                     </div>
                     <div className="w-full border-b border-zinc-200 dark:border-zinc-600/60" />
                     <div className="w-full aspect-square relative">
-                      {barAreaHeight > 0 && <div style={{ height: barAreaHeight }} />}
+                      {barAreaHeight > 0 && (
+                        <div style={{ height: barAreaHeight }} />
+                      )}
                       <div className="px-0.5 py-0.5 space-y-0.5 overflow-hidden">
-                        {singleDayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => {
-                          let bgColor = event.color || '#3B82F6';
-                          let eventIcon = null;
+                        {singleDayEvents
+                          .slice(0, MAX_VISIBLE_EVENTS)
+                          .map((event) => {
+                            let bgColor = event.color || '#3B82F6';
+                            let eventIcon = null;
 
-                          if (event.type === 'exam') {
-                            bgColor = event.color || '#10B981';
-                          } else if (event.type === 'schedule') {
-                            const scheduleEvent = schedules.find((s) => s.id === event.id);
-                            if (scheduleEvent?.type === 'PAID_LEAVE') {
-                              bgColor = event.color || '#FF6B6B';
-                              eventIcon = (
-                                <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />
+                            if (event.type === 'exam') {
+                              bgColor = event.color || '#10B981';
+                            } else if (event.type === 'schedule') {
+                              const scheduleEvent = schedules.find(
+                                (s) => s.id === event.id,
                               );
-                            } else {
-                              bgColor = event.color || '#6366F1';
+                              if (scheduleEvent?.type === 'PAID_LEAVE') {
+                                bgColor = event.color || '#FF6B6B';
+                                eventIcon = (
+                                  <Coffee className="w-2.5 h-2.5 shrink-0 opacity-80" />
+                                );
+                              } else {
+                                bgColor = event.color || '#6366F1';
+                              }
                             }
-                          }
 
-                          return (
-                            <div
-                              key={`${event.type}-${event.id}`}
-                              className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
-                              style={{
-                                backgroundColor: `${bgColor}18`,
-                                color: bgColor,
-                                borderLeft: `2px solid ${bgColor}`,
-                              }}
-                            >
-                              {eventIcon}
-                              {event.time && (
-                                <span className="shrink-0 opacity-70">{event.time}</span>
-                              )}
-                              <span className="truncate">{event.title}</span>
-                            </div>
-                          );
-                        })}
+                            return (
+                              <div
+                                key={`${event.type}-${event.id}`}
+                                className="flex items-center gap-0.5 rounded px-1 py-px text-[10px] leading-tight font-medium truncate"
+                                style={{
+                                  backgroundColor: `${bgColor}18`,
+                                  color: bgColor,
+                                  borderLeft: `2px solid ${bgColor}`,
+                                }}
+                              >
+                                {eventIcon}
+                                {event.time && (
+                                  <span className="shrink-0 opacity-70">
+                                    {event.time}
+                                  </span>
+                                )}
+                                <span className="truncate">{event.title}</span>
+                              </div>
+                            );
+                          })}
                         {hiddenCount > 0 && (
                           <div className="text-[9px] text-zinc-400 dark:text-zinc-500 pl-1 leading-tight">
                             +{hiddenCount}
@@ -299,7 +310,9 @@ export function CalendarGrid({
                       borderRadius: `${bar.isStart ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isEnd ? '3px' : '0'} ${bar.isStart ? '3px' : '0'}`,
                     }}
                   >
-                    {bar.isStart && <span className="truncate">{bar.event.title}</span>}
+                    {bar.isStart && (
+                      <span className="truncate">{bar.event.title}</span>
+                    )}
                   </div>
                 </div>
               );

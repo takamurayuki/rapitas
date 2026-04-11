@@ -27,7 +27,9 @@ export function ErrorTrendsChart({ summary }: ErrorTrendsChartProps) {
 
   return (
     <Card className="p-6 dark:bg-gray-800 dark:border-gray-700">
-      <h3 className="text-lg font-semibold mb-4">Error Trends (Last 24 Hours)</h3>
+      <h3 className="text-lg font-semibold mb-4">
+        Error Trends (Last 24 Hours)
+      </h3>
       <div className="h-32 flex items-end space-x-1">
         {summary.errorTrends.map((trend, index) => (
           <div

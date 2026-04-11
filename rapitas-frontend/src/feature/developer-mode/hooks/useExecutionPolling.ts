@@ -10,14 +10,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createLogger } from '@/lib/logger';
-import {
-  type ExecutionStreamState,
-  trimLogs,
-} from './execution-stream-types';
-import {
-  type PollRefs,
-  executePoll,
-} from './execution-poll-handlers';
+import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
+import { type PollRefs, executePoll } from './execution-poll-handlers';
 
 const logger = createLogger('ExecutionStream');
 

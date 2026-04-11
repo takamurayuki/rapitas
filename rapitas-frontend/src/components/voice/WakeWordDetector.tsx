@@ -44,7 +44,10 @@ interface WakeWordDetectorProps {
 // avoids the TS2717 "subsequent property declarations" conflict.
 import type { SpeechRecognition } from '@/hooks/common/speech-recognition.types';
 
-export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWordDetectorProps) {
+export default function WakeWordDetector({
+  config,
+  onWakeWordDetected,
+}: WakeWordDetectorProps) {
   const { openVoiceInput, isVoiceOpen } = useVoiceInput();
   const [isListening, setIsListening] = useState(false);
   const [lastHeard, setLastHeard] = useState('');
@@ -64,7 +67,11 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
   const handleWakeWord = useCallback(() => {
     // Stop listening while voice input is active
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch { /* ignore */ }
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        /* ignore */
+      }
     }
 
     onWakeWordDetected?.();
@@ -92,7 +99,17 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
         setIsListening(true);
       };
 
-      recognition.onresult = (event: { resultIndex: number; results: { length: number; [i: number]: { isFinal: boolean; length: number; [j: number]: { transcript: string } } } }) => {
+      recognition.onresult = (event: {
+        resultIndex: number;
+        results: {
+          length: number;
+          [i: number]: {
+            isFinal: boolean;
+            length: number;
+            [j: number]: { transcript: string };
+          };
+        };
+      }) => {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           // Check all alternatives for wake word
@@ -138,7 +155,11 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
       startListening();
     } else {
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch { /* ignore */ }
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          /* ignore */
+        }
         recognitionRef.current = null;
       }
     }
@@ -146,7 +167,11 @@ export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWor
     return () => {
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch { /* ignore */ }
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          /* ignore */
+        }
         recognitionRef.current = null;
       }
     };

@@ -23,7 +23,12 @@ import {
   LoadingPanel,
   ErrorPanel,
 } from './dependency-tree/DependencyStatusPanels';
-import { TreeView, ListView, GroupsView, SummaryStats } from './dependency-tree/DependencyViews';
+import {
+  TreeView,
+  ListView,
+  GroupsView,
+  SummaryStats,
+} from './dependency-tree/DependencyViews';
 import type { AnalysisResult } from './dependency-tree/types';
 
 const logger = createLogger('DependencyTree');
@@ -215,14 +220,24 @@ export function DependencyTree({ taskId }: Props) {
                 : 'text-zinc-500 hover:text-zinc-700'
             }`}
           >
-            {mode === 'tree' ? 'Tree View' : mode === 'list' ? 'List View' : 'Group View'}
+            {mode === 'tree'
+              ? 'Tree View'
+              : mode === 'list'
+                ? 'List View'
+                : 'Group View'}
           </button>
         ))}
         <div className="flex-1" />
-        <button onClick={expandAll} className="text-xs text-zinc-500 hover:text-zinc-700">
+        <button
+          onClick={expandAll}
+          className="text-xs text-zinc-500 hover:text-zinc-700"
+        >
           Expand All
         </button>
-        <button onClick={collapseAll} className="text-xs text-zinc-500 hover:text-zinc-700">
+        <button
+          onClick={collapseAll}
+          className="text-xs text-zinc-500 hover:text-zinc-700"
+        >
           Collapse All
         </button>
       </div>

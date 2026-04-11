@@ -20,9 +20,12 @@ import type {
 
 // 型ガード: エントリーが検索結果かどうかを判定
 function isKnowledgeSearchResult(
-  entry: KnowledgeEntry | KnowledgeSearchResult
+  entry: KnowledgeEntry | KnowledgeSearchResult,
 ): entry is KnowledgeSearchResult {
-  return 'similarity' in entry && typeof (entry as KnowledgeSearchResult).similarity === 'number';
+  return (
+    'similarity' in entry &&
+    typeof (entry as KnowledgeSearchResult).similarity === 'number'
+  );
 }
 
 export default function KnowledgeClient() {

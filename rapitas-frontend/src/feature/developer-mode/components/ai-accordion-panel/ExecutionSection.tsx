@@ -39,7 +39,13 @@ export type ExecutionSectionProps = {
   isExecuting: boolean;
   isParallelExecutionRunning?: boolean;
   hasSubtasks: boolean;
-  execStatusIcon: 'loading' | 'success' | 'error' | 'cancelled' | 'interrupted' | 'idle';
+  execStatusIcon:
+    | 'loading'
+    | 'success'
+    | 'error'
+    | 'cancelled'
+    | 'interrupted'
+    | 'idle';
   // Logs
   logs: string[];
   showLogs: boolean;
@@ -178,7 +184,10 @@ export function ExecutionSection({
         <div className="flex items-center gap-1.5">
           {isRunning && (
             <button
-              onClick={(e) => { e.stopPropagation(); onStop(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStop();
+              }}
               className="flex items-center gap-1 px-2 py-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-300 text-[10px] font-medium rounded transition-colors"
               aria-label="実行を停止"
             >
@@ -189,7 +198,10 @@ export function ExecutionSection({
           {isCompleted && (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
@@ -207,7 +219,10 @@ export function ExecutionSection({
           )}
           {isCancelled && (
             <button
-              onClick={(e) => { e.stopPropagation(); onRerun(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRerun();
+              }}
               className="flex items-center gap-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-[10px] font-medium rounded transition-colors"
             >
               <RefreshCw className="w-2.5 h-2.5" />
@@ -217,14 +232,20 @@ export function ExecutionSection({
           {isInterrupted && (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
                 リセット
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onRerun(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRerun();
+                }}
                 className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
@@ -235,14 +256,20 @@ export function ExecutionSection({
           {isFailed && !isRunning && !isCompleted && (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); onReset(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
                 className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
                 リセット
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onRerun(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRerun();
+                }}
                 className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
@@ -250,17 +277,24 @@ export function ExecutionSection({
               </button>
             </>
           )}
-          {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onExecute(); }}
-              disabled={isExecuting || isParallelExecutionRunning}
-              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-              aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
-            >
-              <Play className="w-2.5 h-2.5" />
-              {hasSubtasks ? 'サブタスクを実行' : '実行'}
-            </button>
-          )}
+          {!isRunning &&
+            !isCompleted &&
+            !isCancelled &&
+            !isFailed &&
+            !isInterrupted && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExecute();
+                }}
+                disabled={isExecuting || isParallelExecutionRunning}
+                className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+                aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
+              >
+                <Play className="w-2.5 h-2.5" />
+                {hasSubtasks ? 'サブタスクを実行' : '実行'}
+              </button>
+            )}
           {isExpanded ? (
             <ChevronUp className="w-4 h-4 text-zinc-400" />
           ) : (

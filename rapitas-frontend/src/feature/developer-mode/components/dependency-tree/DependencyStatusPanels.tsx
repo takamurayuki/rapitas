@@ -23,7 +23,11 @@ interface RetryPanelProps {
  *
  * @param props - RetryPanelProps
  */
-export function RetryPanel({ retryCount, maxRetries, reason }: RetryPanelProps) {
+export function RetryPanel({
+  retryCount,
+  maxRetries,
+  reason,
+}: RetryPanelProps) {
   return (
     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
       <div className="flex items-center gap-3 mb-3">

@@ -102,7 +102,11 @@ export function RecurrenceCustomForm({
             className="w-16 px-2 py-1 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
           />
           <span className="text-sm text-zinc-600 dark:text-zinc-400">
-            {customFreq === 'DAILY' ? '日ごと' : customFreq === 'WEEKLY' ? '週ごと' : 'ヶ月ごと'}
+            {customFreq === 'DAILY'
+              ? '日ごと'
+              : customFreq === 'WEEKLY'
+                ? '週ごと'
+                : 'ヶ月ごと'}
           </span>
         </div>
       </div>
@@ -110,7 +114,9 @@ export function RecurrenceCustomForm({
       {/* Weekdays (only for WEEKLY) */}
       {customFreq === 'WEEKLY' && (
         <div>
-          <label className="text-xs text-zinc-500 dark:text-zinc-400">曜日</label>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
+            曜日
+          </label>
           <div className="flex gap-1 mt-1">
             {WEEKDAYS.map((day) => (
               <button
@@ -132,7 +138,9 @@ export function RecurrenceCustomForm({
 
       {/* End date */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">終了日（任意）</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          終了日（任意）
+        </label>
         <input
           type="date"
           value={endDate}
@@ -143,7 +151,9 @@ export function RecurrenceCustomForm({
 
       {/* Execution time */}
       <div>
-        <label className="text-xs text-zinc-500 dark:text-zinc-400">実行時刻</label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          実行時刻
+        </label>
         <input
           type="time"
           value={recurrenceTime}
@@ -170,7 +180,9 @@ export function RecurrenceCustomForm({
       {/* Preview */}
       {previewDates.length > 0 && (
         <div>
-          <label className="text-xs text-zinc-500 dark:text-zinc-400">プレビュー</label>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
+            プレビュー
+          </label>
           <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5">
             {previewDates.slice(0, 5).map((date, i) => (
               <div key={i}>

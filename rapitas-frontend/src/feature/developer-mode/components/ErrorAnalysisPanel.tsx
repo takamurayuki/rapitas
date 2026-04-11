@@ -61,8 +61,12 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
   const [summary, setSummary] = useState<ErrorSummary | null>(null);
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<ErrorCategory | 'all'>('all');
-  const [selectedSeverity, setSelectedSeverity] = useState<ErrorSeverity | 'all'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<
+    ErrorCategory | 'all'
+  >('all');
+  const [selectedSeverity, setSelectedSeverity] = useState<
+    ErrorSeverity | 'all'
+  >('all');
   const [isAutoRefresh, setIsAutoRefresh] = useState(true);
 
   // Simulate error detection from failed agent sessions
@@ -86,7 +90,8 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
 
   // Periodic summary refresh — empty deps intentional (mount/unmount only)
   useEffect(() => {
-    const updateSummary = () => setSummary(errorAnalysisService.getErrorSummary());
+    const updateSummary = () =>
+      setSummary(errorAnalysisService.getErrorSummary());
     updateSummary();
     const interval = setInterval(updateSummary, 5000);
     return () => clearInterval(interval);
@@ -174,7 +179,9 @@ export const ErrorAnalysisPanel: React.FC<ErrorAnalysisPanelProps> = ({
           {summary.mostCommonErrors.map((error, index) => (
             <div key={index} className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <Badge className={`${categoryColors[error.category]} text-white`}>
+                <Badge
+                  className={`${categoryColors[error.category]} text-white`}
+                >
                   {error.category}
                 </Badge>
                 <span className="text-sm">{error.message}</span>

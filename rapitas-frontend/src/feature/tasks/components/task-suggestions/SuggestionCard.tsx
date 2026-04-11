@@ -46,17 +46,20 @@ const CATEGORY_CONFIG: Record<
   extension: {
     label: '発展',
     icon: <ArrowRight className="w-2.5 h-2.5" />,
-    color: 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
+    color:
+      'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
   },
   improvement: {
     label: '改善',
     icon: <Wrench className="w-2.5 h-2.5" />,
-    color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
+    color:
+      'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
   },
   new: {
     label: '新規',
     icon: <PlusCircle className="w-2.5 h-2.5" />,
-    color: 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
+    color:
+      'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
   },
 };
 

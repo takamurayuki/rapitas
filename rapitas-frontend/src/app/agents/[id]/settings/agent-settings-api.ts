@@ -48,7 +48,9 @@ export async function saveAgentSettings(
   } = params;
 
   const endpointEditable =
-    agentType === 'custom' || agentType === 'openai' || agentType === 'azure-openai';
+    agentType === 'custom' ||
+    agentType === 'openai' ||
+    agentType === 'azure-openai';
 
   const endpointResult: ValidationResult = endpointEditable
     ? validateUrl(
@@ -83,13 +85,21 @@ export async function saveAgentSettings(
   });
 
   if (!serverResult.valid) {
-    return { ok: false, fieldErrors: {}, message: serverResult.errors.join('、') };
+    return {
+      ok: false,
+      fieldErrors: {},
+      message: serverResult.errors.join('、'),
+    };
   }
 
   const configRes = await fetch(`${API_BASE_URL}/agents/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint: endpoint || null, modelId: modelId || null, capabilities }),
+    body: JSON.stringify({
+      endpoint: endpoint || null,
+      modelId: modelId || null,
+      capabilities,
+    }),
   });
 
   if (!configRes.ok) throw new Error('settingsSaveFailed');

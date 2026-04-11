@@ -85,7 +85,11 @@ export function useHomeActions({
         hasThemesInCategory
       ) {
         const rect = cardElement.getBoundingClientRect();
-        triggerTaskCompletion(id, rect.left + rect.width * 0.15, rect.top + rect.height / 2);
+        triggerTaskCompletion(
+          id,
+          rect.left + rect.width * 0.15,
+          rect.top + rect.height / 2,
+        );
       }
 
       updateTaskLocally(id, { status });
@@ -102,7 +106,15 @@ export function useHomeActions({
         if (oldTask) updateTaskLocally(id, { status: oldTask.status });
       }
     },
-    [tasks, themes, categoryFilter, isTodayTask, triggerTaskCompletion, updateTaskLocally, t],
+    [
+      tasks,
+      themes,
+      categoryFilter,
+      isTodayTask,
+      triggerTaskCompletion,
+      updateTaskLocally,
+      t,
+    ],
   );
 
   /**
@@ -134,7 +146,15 @@ export function useHomeActions({
         showToast(t('createFailed'), 'error');
       }
     },
-    [themeFilter, defaultTheme, setQuickTaskTitle, setIsQuickAdding, showToast, t, fetchTasks],
+    [
+      themeFilter,
+      defaultTheme,
+      setQuickTaskTitle,
+      setIsQuickAdding,
+      showToast,
+      t,
+      fetchTasks,
+    ],
   );
 
   /**
@@ -183,7 +203,14 @@ export function useHomeActions({
         showToast(t('bulkUpdateFailed'), 'error');
       }
     },
-    [selectedTasks, updateTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode],
+    [
+      selectedTasks,
+      updateTaskLocally,
+      showToast,
+      t,
+      setSelectedTasks,
+      setIsSelectionMode,
+    ],
   );
 
   /**
@@ -194,7 +221,9 @@ export function useHomeActions({
     const taskIds = Array.from(selectedTasks);
     try {
       await Promise.all(
-        taskIds.map((id) => fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' })),
+        taskIds.map((id) =>
+          fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' }),
+        ),
       );
       for (const id of taskIds) removeTaskLocally(id);
       showToast(`${taskIds.length}${t('bulkDeleted')}`, 'success');
@@ -203,7 +232,14 @@ export function useHomeActions({
     } catch {
       showToast(t('bulkDeleteFailed'), 'error');
     }
-  }, [selectedTasks, removeTaskLocally, showToast, t, setSelectedTasks, setIsSelectionMode]);
+  }, [
+    selectedTasks,
+    removeTaskLocally,
+    showToast,
+    t,
+    setSelectedTasks,
+    setIsSelectionMode,
+  ]);
 
   // NOTE: tc is consumed here only to satisfy the import; the tc reference
   // originates from the same translations bundle used by child components.

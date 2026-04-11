@@ -61,7 +61,8 @@ export function useWeeklyReview(): UseWeeklyReviewReturn {
         await mutate();
         return body.review;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Regeneration failed';
+        const message =
+          err instanceof Error ? err.message : 'Regeneration failed';
         setRegenerateError(message);
         return null;
       } finally {

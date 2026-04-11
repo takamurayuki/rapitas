@@ -48,7 +48,10 @@ export type UseHeaderReturn = {
   userMenuRef: React.RefObject<HTMLDivElement | null>;
   isRestarting: boolean;
   restartConfirmDialog: { open: boolean; activeExecutions: number };
-  setRestartConfirmDialog: (v: { open: boolean; activeExecutions: number }) => void;
+  setRestartConfirmDialog: (v: {
+    open: boolean;
+    activeExecutions: number;
+  }) => void;
   handleRestartClick: () => Promise<void>;
   executeRestart: () => Promise<void>;
   user: ReturnType<typeof useAuth>['user'];
@@ -120,7 +123,9 @@ export function useHeader(): UseHeaderReturn {
   // NOTE: Side nav click-outside also checks isMenuPinned; pinned menu must not auto-close.
   useClickOutside(
     menuRef,
-    useCallback(() => { if (!isMenuPinned) setIsMenuOpen(false); }, [isMenuPinned]),
+    useCallback(() => {
+      if (!isMenuPinned) setIsMenuOpen(false);
+    }, [isMenuPinned]),
     isMenuOpen,
   );
   useClickOutside(moreMenuRef, closeMoreMenu, isMoreMenuOpen);
@@ -161,7 +166,10 @@ export function useHeader(): UseHeaderReturn {
         await new Promise((r) => setTimeout(r, 2000));
         try {
           const res = await fetch(`${API_BASE_URL}/agents/system-status`);
-          if (res.ok) { window.location.reload(); return; }
+          if (res.ok) {
+            window.location.reload();
+            return;
+          }
         } catch {}
       }
       setIsRestarting(false);
@@ -178,7 +186,8 @@ export function useHeader(): UseHeaderReturn {
       const res = await fetch(`${API_BASE_URL}/agents/system-status`);
       if (!res.ok) throw new Error('Failed to fetch system status');
       const status = await res.json();
-      const activeCount = (status.activeExecutions || 0) + (status.runningExecutions || 0);
+      const activeCount =
+        (status.activeExecutions || 0) + (status.runningExecutions || 0);
       if (activeCount > 0) {
         setRestartConfirmDialog({ open: true, activeExecutions: activeCount });
       } else {
@@ -199,7 +208,11 @@ export function useHeader(): UseHeaderReturn {
   const toggleExpand = (label: string) => {
     setExpandedItems((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(label)) { newSet.delete(label); } else { newSet.add(label); }
+      if (newSet.has(label)) {
+        newSet.delete(label);
+      } else {
+        newSet.add(label);
+      }
       return newSet;
     });
   };
@@ -213,19 +226,27 @@ export function useHeader(): UseHeaderReturn {
   };
 
   // Mount guards
-  useEffect(() => { setHasMounted(true); }, []);
-  useEffect(() => { setIsTauriEnv(isTauri()); }, []);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+  useEffect(() => {
+    setIsTauriEnv(isTauri());
+  }, []);
 
   useEffect(() => {
     const windowPath = window.location.pathname;
-    const isDetail = checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
+    const isDetail =
+      checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
     setIsTaskDetailPage(isDetail);
   }, [pathname]);
 
   // Persist menu pin state
   useEffect(() => {
     const savedPinned = localStorage.getItem('menuPinned');
-    if (savedPinned === 'true') { setIsMenuPinned(true); setIsMenuOpen(true); }
+    if (savedPinned === 'true') {
+      setIsMenuPinned(true);
+      setIsMenuOpen(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -248,13 +269,18 @@ export function useHeader(): UseHeaderReturn {
       }, 300);
     }
 
-    return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, pathname, router]);
 
   // URL → search box sync
   useEffect(() => {
-    if (isUpdatingSearchRef.current) { isUpdatingSearchRef.current = false; return; }
+    if (isUpdatingSearchRef.current) {
+      isUpdatingSearchRef.current = false;
+      return;
+    }
 
     if (pathname === '/search') {
       const q = searchParams.get('q');
@@ -267,19 +293,48 @@ export function useHeader(): UseHeaderReturn {
   }, [searchParams, pathname]);
 
   return {
-    pathname, router, hideHeader, showHeader, isTaskDetailPage,
-    isMenuOpen, setIsMenuOpen, isMenuPinned, setIsMenuPinned, menuRef,
-    expandedItems, toggleExpand,
-    searchQuery, setSearchQuery, handleSearchKeyDown, debounceTimerRef,
-    isTauriEnv, hasMounted,
-    isMoreMenuOpen, setIsMoreMenuOpen, moreMenuRef,
-    isUserMenuOpen, setIsUserMenuOpen, userMenuRef,
-    isRestarting, restartConfirmDialog, setRestartConfirmDialog,
-    handleRestartClick, executeRestart,
-    user, isAuthenticated, isAuthLoading, handleLogout,
-    isDarkMode, darkModeMounted, toggleTheme,
-    getShortcutLabel, appMode,
-    modalState, openModal, closeModal,
-    t, tc,
+    pathname,
+    router,
+    hideHeader,
+    showHeader,
+    isTaskDetailPage,
+    isMenuOpen,
+    setIsMenuOpen,
+    isMenuPinned,
+    setIsMenuPinned,
+    menuRef,
+    expandedItems,
+    toggleExpand,
+    searchQuery,
+    setSearchQuery,
+    handleSearchKeyDown,
+    debounceTimerRef,
+    isTauriEnv,
+    hasMounted,
+    isMoreMenuOpen,
+    setIsMoreMenuOpen,
+    moreMenuRef,
+    isUserMenuOpen,
+    setIsUserMenuOpen,
+    userMenuRef,
+    isRestarting,
+    restartConfirmDialog,
+    setRestartConfirmDialog,
+    handleRestartClick,
+    executeRestart,
+    user,
+    isAuthenticated,
+    isAuthLoading,
+    handleLogout,
+    isDarkMode,
+    darkModeMounted,
+    toggleTheme,
+    getShortcutLabel,
+    appMode,
+    modalState,
+    openModal,
+    closeModal,
+    t,
+    tc,
   };
 }

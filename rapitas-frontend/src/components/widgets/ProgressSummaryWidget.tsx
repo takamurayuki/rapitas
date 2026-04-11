@@ -7,7 +7,13 @@
  * Fetches data from /progress/summary API and shows highlights.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Sparkles, TrendingUp, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Sparkles,
+  TrendingUp,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 type ProgressSummary = {
@@ -79,7 +85,9 @@ export function ProgressSummaryWidget() {
               disabled={refreshing}
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
+              />
             </button>
           </div>
         </div>
@@ -91,7 +99,10 @@ export function ProgressSummaryWidget() {
         {data.highlights.length > 0 && (
           <div className="mt-3 space-y-1.5">
             {data.highlights.map((h, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <div
+                key={i}
+                className="flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400"
+              >
                 <TrendingUp className="w-3 h-3 mt-0.5 text-emerald-500 shrink-0" />
                 <span>{h}</span>
               </div>
@@ -104,7 +115,11 @@ export function ProgressSummaryWidget() {
             onClick={() => setExpanded(!expanded)}
             className="mt-3 flex items-center gap-1 text-xs text-violet-500 hover:text-violet-600 transition-colors"
           >
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {expanded ? (
+              <ChevronUp className="w-3 h-3" />
+            ) : (
+              <ChevronDown className="w-3 h-3" />
+            )}
             {expanded ? '閉じる' : `${data.tasksById.length}件のタスクを表示`}
           </button>
         )}
@@ -116,9 +131,14 @@ export function ProgressSummaryWidget() {
                 key={t.id}
                 className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 py-1"
               >
-                <span className="truncate flex-1">#{t.id} {t.title}</span>
+                <span className="truncate flex-1">
+                  #{t.id} {t.title}
+                </span>
                 <span className="shrink-0 ml-2 text-zinc-400">
-                  {new Date(t.completedAt).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
+                  {new Date(t.completedAt).toLocaleDateString('ja-JP', {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </span>
               </div>
             ))}

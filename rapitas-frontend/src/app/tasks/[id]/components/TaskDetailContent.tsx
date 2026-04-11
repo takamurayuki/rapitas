@@ -9,9 +9,17 @@
 
 'use client';
 import { useRef, useState, useEffect } from 'react';
-import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
+import type {
+  Task,
+  Resource,
+  Comment,
+  WorkflowStatus,
+  DeveloperModeConfig,
+} from '@/types';
 import TaskDetailHeader from './TaskDetailHeader';
-import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
+import TaskDetailViewBody, {
+  type TaskDetailViewBodyProps,
+} from './TaskDetailViewBody';
 import TaskEditForm from './TaskEditForm';
 import TaskDetailModals from './TaskDetailModals';
 import type { WorkflowFile } from '@/types';
@@ -56,7 +64,9 @@ export interface TaskDetailContentProps {
   showPlanApprovalModal: boolean;
   onClosePlanApprovalModal: () => void;
   devModeConfig: DeveloperModeConfig | null;
-  updateDevModeConfig: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  updateDevModeConfig: (
+    updates: Partial<DeveloperModeConfig>,
+  ) => Promise<DeveloperModeConfig | null>;
   agentConfigId: number | null;
   setAgentConfigId: (id: number | null) => void;
   planFile: WorkflowFile | null;

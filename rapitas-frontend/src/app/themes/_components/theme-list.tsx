@@ -46,7 +46,10 @@ type Props = {
   branchError: string | null;
   setBranches: (b: string[]) => void;
   setBranchError: (e: string | null) => void;
-  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
+  renderIcon: (
+    iconName: string | null | undefined,
+    size?: number,
+  ) => React.ReactNode;
   onDragEnd: (result: DropResult) => void;
   onEdit: (item: Theme) => void;
   onDelete: (id: number, name: string) => void;
@@ -112,8 +115,7 @@ export function ThemeList({
   );
 
   const currentCategoryId =
-    selectedCategoryId ??
-    (categories.length > 0 ? categories[0].id : null);
+    selectedCategoryId ?? (categories.length > 0 ? categories[0].id : null);
 
   if (sortedItems.length === 0) {
     return (

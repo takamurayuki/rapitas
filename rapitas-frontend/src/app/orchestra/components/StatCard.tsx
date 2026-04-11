@@ -39,7 +39,9 @@ export function StatCard({ icon, label, value, color }: StatCardProps) {
     >
       <div className="flex items-center gap-2 mb-1">
         {icon}
-        <span className="text-xs text-gray-600 dark:text-gray-400">{label}</span>
+        <span className="text-xs text-gray-600 dark:text-gray-400">
+          {label}
+        </span>
       </div>
       <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
         {value}

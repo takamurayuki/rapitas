@@ -79,18 +79,22 @@ export function CategoryItem({
                   <span className="hidden sm:inline">{t('default')}</span>
                 </span>
               )}
-              {modeOpt && (() => {
-                const ModeIcon = modeOpt.icon;
-                return (
-                  <span
-                    className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full"
-                    style={{ backgroundColor: modeOpt.color + '20', color: modeOpt.color }}
-                  >
-                    <ModeIcon className="w-3 h-3" />
-                    {t(modeOpt.labelKey)}
-                  </span>
-                );
-              })()}
+              {modeOpt &&
+                (() => {
+                  const ModeIcon = modeOpt.icon;
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: modeOpt.color + '20',
+                        color: modeOpt.color,
+                      }}
+                    >
+                      <ModeIcon className="w-3 h-3" />
+                      {t(modeOpt.labelKey)}
+                    </span>
+                  );
+                })()}
             </div>
 
             {item.description && (
@@ -102,9 +106,15 @@ export function CategoryItem({
             <div className="flex items-center gap-2 mt-1.5">
               <span
                 className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded"
-                style={{ backgroundColor: item.color + '15', color: item.color }}
+                style={{
+                  backgroundColor: item.color + '15',
+                  color: item.color,
+                }}
               >
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
                 {item.color}
               </span>
               <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
@@ -127,9 +137,15 @@ export function CategoryItem({
                 ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-500'
                 : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             }`}
-            title={isDefault ? t('defaultCategoryLabel') : t('setDefaultCategoryLabel')}
+            title={
+              isDefault
+                ? t('defaultCategoryLabel')
+                : t('setDefaultCategoryLabel')
+            }
           >
-            <Star className={`w-3.5 h-3.5 ${isDefault ? 'fill-current' : ''}`} />
+            <Star
+              className={`w-3.5 h-3.5 ${isDefault ? 'fill-current' : ''}`}
+            />
             <span className="hidden sm:inline">
               {isDefault ? t('default') : t('setAsDefault')}
             </span>
@@ -160,12 +176,16 @@ export function CategoryItem({
         <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-1.5 flex-wrap">
             {item.themes.slice(0, 5).map((theme) => {
-              const ThemeIcon = getIconComponent(theme.icon || '') || SwatchBook;
+              const ThemeIcon =
+                getIconComponent(theme.icon || '') || SwatchBook;
               return (
                 <span
                   key={theme.id}
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
-                  style={{ backgroundColor: theme.color + '15', color: theme.color }}
+                  style={{
+                    backgroundColor: theme.color + '15',
+                    color: theme.color,
+                  }}
                 >
                   <ThemeIcon className="w-3 h-3" />
                   {theme.name}

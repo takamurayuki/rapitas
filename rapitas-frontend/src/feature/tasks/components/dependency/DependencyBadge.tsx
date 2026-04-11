@@ -13,7 +13,10 @@ interface DependencyBadgeProps {
   compact?: boolean;
 }
 
-export function DependencyBadge({ taskId, compact = false }: DependencyBadgeProps) {
+export function DependencyBadge({
+  taskId,
+  compact = false,
+}: DependencyBadgeProps) {
   const { dependencies, isLoading } = useDependencies(taskId);
 
   if (isLoading || !dependencies) {
@@ -48,8 +51,11 @@ export function DependencyBadge({ taskId, compact = false }: DependencyBadgeProp
   }
 
   // 詳細モード
-  const blockedByTasks = dependencies.blockedBy.filter(dep => dep.fromTask.status !== 'completed');
-  const completedBlockers = dependencies.blockedBy.length - blockedByTasks.length;
+  const blockedByTasks = dependencies.blockedBy.filter(
+    (dep) => dep.fromTask.status !== 'completed',
+  );
+  const completedBlockers =
+    dependencies.blockedBy.length - blockedByTasks.length;
 
   return (
     <div className="space-y-2">
@@ -62,7 +68,10 @@ export function DependencyBadge({ taskId, compact = false }: DependencyBadgeProp
             </p>
             <ul className="mt-1 space-y-1">
               {blockedByTasks.map((dep) => (
-                <li key={dep.id} className="text-sm text-orange-700 dark:text-orange-400 truncate">
+                <li
+                  key={dep.id}
+                  className="text-sm text-orange-700 dark:text-orange-400 truncate"
+                >
                   • {dep.fromTask.title}
                 </li>
               ))}

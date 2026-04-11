@@ -24,8 +24,10 @@ import { CheckboxButton } from './CheckboxButton';
 
 /** Tailwind colour classes keyed by approval status. */
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  pending:
+    'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  approved:
+    'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
   rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   expired: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
 };
@@ -43,7 +45,6 @@ interface ApprovalCardProps {
   onReject: () => void;
   formatDate: (date: string) => string;
 }
-
 
 /**
  * Card component for a subtask-decomposition approval request.
@@ -136,7 +137,9 @@ export function ApprovalCard({
             {approval.description && (
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3 line-clamp-3">
                 {approval.description.length > 200
-                  ? approval.description.substring(0, 200).replace(/\s+\S*$/, '') + '...'
+                  ? approval.description
+                      .substring(0, 200)
+                      .replace(/\s+\S*$/, '') + '...'
                   : approval.description}
               </p>
             )}
@@ -243,7 +246,9 @@ export function ApprovalCard({
               </button>
               <button
                 onClick={() =>
-                  onApprove(allSelected ? undefined : Array.from(selectedSubtasks))
+                  onApprove(
+                    allSelected ? undefined : Array.from(selectedSubtasks),
+                  )
                 }
                 disabled={isProcessing || selectedSubtasks.size === 0}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50"

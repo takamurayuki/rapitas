@@ -185,19 +185,31 @@ export function AIAnalysisPanel({
         <>
           {/* Tab bar */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
-            <button onClick={() => setActiveTab('analysis')} className={tabClass('analysis')}>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={tabClass('analysis')}
+            >
               <Bot className="w-4 h-4" />
               分析
             </button>
-            <button onClick={() => setActiveTab('prompt')} className={tabClass('prompt')}>
+            <button
+              onClick={() => setActiveTab('prompt')}
+              className={tabClass('prompt')}
+            >
               <Wand2 className="w-4 h-4" />
               最適化
             </button>
-            <button onClick={() => setActiveTab('prompts')} className={tabClass('prompts')}>
+            <button
+              onClick={() => setActiveTab('prompts')}
+              className={tabClass('prompts')}
+            >
               <List className="w-4 h-4" />
               管理
             </button>
-            <button onClick={() => setActiveTab('dependency')} className={tabClass('dependency')}>
+            <button
+              onClick={() => setActiveTab('dependency')}
+              className={tabClass('dependency')}
+            >
               <GitBranch className="w-4 h-4" />
               依存度
             </button>
@@ -269,9 +281,7 @@ export function AIAnalysisPanel({
               />
             )}
 
-            {activeTab === 'dependency' && (
-              <DependencyTree taskId={taskId} />
-            )}
+            {activeTab === 'dependency' && <DependencyTree taskId={taskId} />}
 
             {activeTab === 'settings' && (
               <SettingsTab
@@ -282,7 +292,9 @@ export function AIAnalysisPanel({
                 apiKeyInput={apiKey.apiKeyInput}
                 onApiKeyInputChange={apiKey.setApiKeyInput}
                 showApiKey={apiKey.showApiKey}
-                onToggleShowApiKey={() => apiKey.setShowApiKey(!apiKey.showApiKey)}
+                onToggleShowApiKey={() =>
+                  apiKey.setShowApiKey(!apiKey.showApiKey)
+                }
                 isSavingApiKey={apiKey.isSavingApiKey}
                 apiKeyError={apiKey.apiKeyError}
                 apiKeySuccess={apiKey.apiKeySuccess}

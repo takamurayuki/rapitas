@@ -30,10 +30,7 @@ export function SuggestionDetailModal({
 }: SuggestionDetailModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
@@ -47,10 +44,7 @@ export function SuggestionDetailModal({
           </button>
         </div>
         <div className="p-6">
-          <TaskSuggestionDetail
-            suggestion={suggestion}
-            onApply={onApply}
-          />
+          <TaskSuggestionDetail suggestion={suggestion} onApply={onApply} />
         </div>
       </div>
     </div>

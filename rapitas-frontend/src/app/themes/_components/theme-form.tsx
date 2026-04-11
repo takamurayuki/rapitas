@@ -41,7 +41,10 @@ type Props = {
   setBranches: (b: string[]) => void;
   setBranchError: (e: string | null) => void;
   editingId: number | null;
-  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
+  renderIcon: (
+    iconName: string | null | undefined,
+    size?: number,
+  ) => React.ReactNode;
   onSave: (itemId?: number) => void;
   onCancel: () => void;
   onCheckDirectory: (path: string) => void;
@@ -216,7 +219,9 @@ export function ThemeForm({
           {selectedCategoryId !== null ? (
             <div className="flex items-center gap-2">
               {(() => {
-                const cat = categories.find((c) => c.id === formData.categoryId);
+                const cat = categories.find(
+                  (c) => c.id === formData.categoryId,
+                );
                 if (!cat) return null;
                 return (
                   <span

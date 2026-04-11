@@ -8,7 +8,11 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import { searchIcons, getIconComponent, ICON_DATA } from '@/components/category/icon-data';
+import {
+  searchIcons,
+  getIconComponent,
+  ICON_DATA,
+} from '@/components/category/icon-data';
 import { SwatchBook } from 'lucide-react';
 import type { Theme, Category } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -63,7 +67,9 @@ export function useThemesPage() {
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
+    null,
+  );
   const [initialCategorySet, setInitialCategorySet] = useState(false);
 
   // NOTE: Refs used as stable accessors passed to sub-hooks so they always
@@ -103,7 +109,9 @@ export function useThemesPage() {
 
   const seedDefaults = async () => {
     try {
-      await fetch(`${API_BASE_URL}/categories/seed-defaults`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/categories/seed-defaults`, {
+        method: 'POST',
+      });
     } catch (e) {
       logger.error('Failed to seed default categories:', e);
     }
@@ -136,8 +144,8 @@ export function useThemesPage() {
       fetchItems();
       fetchCategories();
     });
-  // NOTE: Empty deps — runs once on mount only.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: Empty deps — runs once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startEdit = (item: Theme) => {

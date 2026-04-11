@@ -63,7 +63,9 @@ type Props = {
   setPromptError: (v: string | null) => void;
   copied: boolean;
   promptAnswers: Record<string, string>;
-  setPromptAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setPromptAnswers: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
   isSubmittingAnswers: boolean;
   onGenerate: () => void;
   onSubmitAnswers: () => Promise<void>;

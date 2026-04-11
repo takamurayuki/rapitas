@@ -21,7 +21,11 @@ import { LogEntry } from './LogEntry';
 import { useLogViewer } from './useLogViewer';
 import type { ExecutionLogViewerProps } from './types';
 
-export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps } from './types';
+export type {
+  ExecutionLogStatus,
+  ExecutionLogViewMode,
+  ExecutionLogViewerProps,
+} from './types';
 
 /**
  * Displays execution logs with advanced features such as auto-scroll, search,
@@ -81,7 +85,12 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     goToNextMatch,
     goToPreviousMatch,
     highlightText,
-  } = useLogViewer({ logs, defaultExpanded, defaultFullscreen, defaultViewMode });
+  } = useLogViewer({
+    logs,
+    defaultExpanded,
+    defaultFullscreen,
+    defaultViewMode,
+  });
 
   // Memoize log content based on view mode
   const logContent = useMemo(() => {
@@ -198,7 +207,9 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
         className={`bg-zinc-900 overflow-auto execution-log-container break-words ${
-          viewMode === 'detailed' ? 'font-mono text-xs sm:text-sm' : 'text-xs sm:text-sm'
+          viewMode === 'detailed'
+            ? 'font-mono text-xs sm:text-sm'
+            : 'text-xs sm:text-sm'
         } ${isFullscreen ? 'flex-1' : ''} ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
       >

@@ -38,9 +38,9 @@ export function OfflineIndicator() {
       className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-lg transition-colors"
       style={{
         backgroundColor: !isOnline
-          ? 'rgba(239, 68, 68, 0.95)'  // red for offline
+          ? 'rgba(239, 68, 68, 0.95)' // red for offline
           : isSyncing
-            ? 'rgba(59, 130, 246, 0.95)'  // blue for syncing
+            ? 'rgba(59, 130, 246, 0.95)' // blue for syncing
             : 'rgba(245, 158, 11, 0.95)', // amber for pending
         color: 'white',
         borderColor: 'transparent',

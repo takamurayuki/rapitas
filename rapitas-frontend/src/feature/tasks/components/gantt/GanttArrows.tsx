@@ -19,17 +19,17 @@ export function GanttArrows({
   bars,
   dependencies,
   criticalPath,
-  hoveredTaskId
+  hoveredTaskId,
 }: GanttArrowsProps) {
   // タスクIDからバーデータを引く辞書を作成
   const barMap = new Map<number, GanttBarData>();
-  bars.forEach(bar => {
+  bars.forEach((bar) => {
     barMap.set(bar.taskId, bar);
   });
 
   // 依存関係をバーデータペアに変換
   const arrowData = dependencies
-    .map(dep => {
+    .map((dep) => {
       const fromBar = barMap.get(dep.from);
       const toBar = barMap.get(dep.to);
 
@@ -41,17 +41,18 @@ export function GanttArrows({
         fromBar,
         toBar,
         dependency: dep,
-        isOnCriticalPath: criticalPath.includes(dep.from) && criticalPath.includes(dep.to),
-        isHighlighted: hoveredTaskId === dep.from || hoveredTaskId === dep.to
+        isOnCriticalPath:
+          criticalPath.includes(dep.from) && criticalPath.includes(dep.to),
+        isHighlighted: hoveredTaskId === dep.from || hoveredTaskId === dep.to,
       };
     })
     .filter(Boolean) as Array<{
-      fromBar: GanttBarData;
-      toBar: GanttBarData;
-      dependency: GanttDependency;
-      isOnCriticalPath: boolean;
-      isHighlighted: boolean;
-    }>;
+    fromBar: GanttBarData;
+    toBar: GanttBarData;
+    dependency: GanttDependency;
+    isOnCriticalPath: boolean;
+    isHighlighted: boolean;
+  }>;
 
   // 矢印のスタイル設定
   const getArrowStyle = (isOnCriticalPath: boolean, isHighlighted: boolean) => {
@@ -74,7 +75,7 @@ export function GanttArrows({
       strokeWidth,
       opacity,
       fill: 'none',
-      markerEnd: 'url(#arrowhead)'
+      markerEnd: 'url(#arrowhead)',
     };
   };
 
@@ -91,10 +92,7 @@ export function GanttArrows({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <polygon
-            points="0 0, 10 3.5, 0 7"
-            fill="currentColor"
-          />
+          <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
         </marker>
         <marker
           id="arrowhead-critical"
@@ -105,10 +103,7 @@ export function GanttArrows({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <polygon
-            points="0 0, 10 3.5, 0 7"
-            fill="#EF4444"
-          />
+          <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444" />
         </marker>
         <marker
           id="arrowhead-highlighted"
@@ -119,46 +114,48 @@ export function GanttArrows({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <polygon
-            points="0 0, 10 3.5, 0 7"
-            fill="#3B82F6"
-          />
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6" />
         </marker>
       </defs>
 
       {/* 依存関係の矢印 */}
-      {arrowData.map(({ fromBar, toBar, dependency, isOnCriticalPath, isHighlighted }, index) => {
-        const style = getArrowStyle(isOnCriticalPath, isHighlighted);
-        const markerId = isOnCriticalPath
-          ? 'url(#arrowhead-critical)'
-          : isHighlighted
-            ? 'url(#arrowhead-highlighted)'
-            : 'url(#arrowhead)';
+      {arrowData.map(
+        (
+          { fromBar, toBar, dependency, isOnCriticalPath, isHighlighted },
+          index,
+        ) => {
+          const style = getArrowStyle(isOnCriticalPath, isHighlighted);
+          const markerId = isOnCriticalPath
+            ? 'url(#arrowhead-critical)'
+            : isHighlighted
+              ? 'url(#arrowhead-highlighted)'
+              : 'url(#arrowhead)';
 
-        return (
-          <g key={`${dependency.from}-${dependency.to}-${index}`}>
-            {/* 矢印の線 */}
-            <path
-              d={arrowPath(fromBar, toBar)}
-              {...style}
-              markerEnd={markerId}
-              className="transition-all duration-200 ease-out"
-            />
+          return (
+            <g key={`${dependency.from}-${dependency.to}-${index}`}>
+              {/* 矢印の線 */}
+              <path
+                d={arrowPath(fromBar, toBar)}
+                {...style}
+                markerEnd={markerId}
+                className="transition-all duration-200 ease-out"
+              />
 
-            {/* 中点にホバーエリア（太い透明線）*/}
-            <path
-              d={arrowPath(fromBar, toBar)}
-              stroke="transparent"
-              strokeWidth="8"
-              fill="none"
-              className="cursor-pointer"
-            >
-              {/* SVG <title> child renders as a native browser tooltip on hover */}
-              <title>{`${fromBar.title} → ${toBar.title}`}</title>
-            </path>
-          </g>
-        );
-      })}
+              {/* 中点にホバーエリア（太い透明線）*/}
+              <path
+                d={arrowPath(fromBar, toBar)}
+                stroke="transparent"
+                strokeWidth="8"
+                fill="none"
+                className="cursor-pointer"
+              >
+                {/* SVG <title> child renders as a native browser tooltip on hover */}
+                <title>{`${fromBar.title} → ${toBar.title}`}</title>
+              </path>
+            </g>
+          );
+        },
+      )}
     </g>
   );
 }

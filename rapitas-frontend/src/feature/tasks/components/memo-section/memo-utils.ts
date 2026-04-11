@@ -69,7 +69,9 @@ export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   const length = content.length;
-  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(content);
+  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(
+    content,
+  );
   const hasIssueWords = /問題|エラー|バグ|課題|困る|難しい|失敗/.test(content);
   const hasPositiveWords = /完了|成功|良い|改善|進捗|解決/.test(content);
 

@@ -95,7 +95,9 @@ export function ErrorList({
   return (
     <Card className="dark:bg-gray-800 dark:border-gray-700">
       <div className="p-4 border-b dark:border-gray-700">
-        <h3 className="text-lg font-semibold">Recent Errors ({errors.length})</h3>
+        <h3 className="text-lg font-semibold">
+          Recent Errors ({errors.length})
+        </h3>
       </div>
       <div className="max-h-[600px] overflow-y-auto">
         {errors.length === 0 ? (
@@ -124,10 +126,15 @@ export function ErrorList({
 
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
-                      {React.createElement(severityConfig[error.severity].icon, {
-                        className: `h-5 w-5 ${severityConfig[error.severity].color.replace('bg-', 'text-')}`,
-                      })}
-                      <Badge className={`${categoryColors[error.category]} text-white`}>
+                      {React.createElement(
+                        severityConfig[error.severity].icon,
+                        {
+                          className: `h-5 w-5 ${severityConfig[error.severity].color.replace('bg-', 'text-')}`,
+                        },
+                      )}
+                      <Badge
+                        className={`${categoryColors[error.category]} text-white`}
+                      >
                         {error.category}
                       </Badge>
                       <Badge variant="default" className="text-xs">
@@ -142,7 +149,8 @@ export function ErrorList({
                       <div className="flex items-center space-x-2 mt-2">
                         <Zap className="h-3 w-3 text-orange-500" />
                         <span className="text-xs text-gray-500">
-                          Affects: {error.affectedTasks.map((t) => t.title).join(', ')}
+                          Affects:{' '}
+                          {error.affectedTasks.map((t) => t.title).join(', ')}
                         </span>
                       </div>
                     )}
@@ -153,7 +161,9 @@ export function ErrorList({
                   <div className="mt-4 ml-7 space-y-4">
                     {error.stackTrace && (
                       <div>
-                        <h4 className="text-sm font-semibold mb-2">Stack Trace</h4>
+                        <h4 className="text-sm font-semibold mb-2">
+                          Stack Trace
+                        </h4>
                         <pre className="text-xs bg-gray-100 dark:bg-gray-900 p-3 rounded overflow-x-auto">
                           {error.stackTrace}
                         </pre>
@@ -162,10 +172,15 @@ export function ErrorList({
 
                     {error.suggestedFixes.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold mb-2">Suggested Solutions</h4>
+                        <h4 className="text-sm font-semibold mb-2">
+                          Suggested Solutions
+                        </h4>
                         <ul className="space-y-2">
                           {error.suggestedFixes.map((fix, index) => (
-                            <li key={index} className="flex items-start space-x-2">
+                            <li
+                              key={index}
+                              className="flex items-start space-x-2"
+                            >
                               <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
                               <span className="text-sm">{fix}</span>
                             </li>
@@ -176,7 +191,9 @@ export function ErrorList({
 
                     {error.documentationLinks.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold mb-2">Documentation</h4>
+                        <h4 className="text-sm font-semibold mb-2">
+                          Documentation
+                        </h4>
                         <div className="space-y-1">
                           {error.documentationLinks.map((link, index) => (
                             <a
@@ -196,18 +213,26 @@ export function ErrorList({
 
                     {error.relatedErrors.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold mb-2">Related Errors</h4>
+                        <h4 className="text-sm font-semibold mb-2">
+                          Related Errors
+                        </h4>
                         <div className="space-y-2">
-                          {error.relatedErrors.slice(0, 3).map((relatedError) => (
-                            <div
-                              key={relatedError.id}
-                              className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400"
-                            >
-                              <Clock className="h-3 w-3" />
-                              <span>{relatedError.timestamp.toLocaleTimeString()}</span>
-                              <span className="truncate">{relatedError.message}</span>
-                            </div>
-                          ))}
+                          {error.relatedErrors
+                            .slice(0, 3)
+                            .map((relatedError) => (
+                              <div
+                                key={relatedError.id}
+                                className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400"
+                              >
+                                <Clock className="h-3 w-3" />
+                                <span>
+                                  {relatedError.timestamp.toLocaleTimeString()}
+                                </span>
+                                <span className="truncate">
+                                  {relatedError.message}
+                                </span>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     )}
@@ -224,7 +249,9 @@ export function ErrorList({
                         size="sm"
                         variant="secondary"
                         onClickAction={() => {
-                          navigator.clipboard.writeText(JSON.stringify(error, null, 2));
+                          navigator.clipboard.writeText(
+                            JSON.stringify(error, null, 2),
+                          );
                         }}
                       >
                         Copy Details

@@ -7,7 +7,14 @@
 
 'use client';
 
-import { Plus, Link2, ChevronDown, ChevronUp, MessageSquare, Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Link2,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  Loader2,
+} from 'lucide-react';
 import type { Comment } from '@/types';
 import { Note } from './comments/Note';
 import { LinkModal } from './comments/LinkModal';
@@ -66,7 +73,13 @@ export default function CommentsSection({
     handleLinkSelect,
     handleUnlink,
     handleScrollToNote,
-  } = useCommentsSection(comments, onUpdateComment, onAddComment, onCreateLink, onDeleteLink);
+  } = useCommentsSection(
+    comments,
+    onUpdateComment,
+    onAddComment,
+    onCreateLink,
+    onDeleteLink,
+  );
 
   const handleSubmit = () => {
     if (newComment.trim()) onAddComment(newComment);
@@ -87,8 +100,12 @@ export default function CommentsSection({
             <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <h2 className="font-bold text-xs text-zinc-900 dark:text-zinc-50">メモ</h2>
-            <p className="text-[9px] text-zinc-500 dark:text-zinc-400">アイデア・気づき</p>
+            <h2 className="font-bold text-xs text-zinc-900 dark:text-zinc-50">
+              メモ
+            </h2>
+            <p className="text-[9px] text-zinc-500 dark:text-zinc-400">
+              アイデア・気づき
+            </p>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-[9px] font-medium">
@@ -176,7 +193,9 @@ export default function CommentsSection({
               <div className="w-10 h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-2">
                 <MessageSquare className="w-5 h-5 text-zinc-400 dark:text-zinc-500" />
               </div>
-              <p className="text-xs text-zinc-400">メモを追加してアイデアを記録</p>
+              <p className="text-xs text-zinc-400">
+                メモを追加してアイデアを記録
+              </p>
               <p className="text-[10px] text-zinc-300 dark:text-zinc-600 mt-0.5">
                 メモ同士をリンクで結び付けられます
               </p>

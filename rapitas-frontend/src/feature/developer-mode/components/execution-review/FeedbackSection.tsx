@@ -67,7 +67,10 @@ function getCommentTypeColor(type: ReviewComment['type']): string {
  * @param files - Changed files for the per-file comment target selector / コメント対象ファイルリスト
  * @param onRequestChanges - Callback to submit feedback and re-run the agent / フィードバック送信コールバック
  */
-export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProps) {
+export function FeedbackSection({
+  files,
+  onRequestChanges,
+}: FeedbackSectionProps) {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);

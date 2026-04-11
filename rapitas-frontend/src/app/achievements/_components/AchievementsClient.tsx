@@ -12,13 +12,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Trophy, BarChart3, Gift, Settings, RefreshCw,
-  Bell, BellOff, Download, Share2, Filter
+  Trophy,
+  BarChart3,
+  Gift,
+  Settings,
+  RefreshCw,
+  Bell,
+  BellOff,
+  Download,
+  Share2,
+  Filter,
 } from 'lucide-react';
 import {
   AchievementPanel,
   TaskStatsBoard,
-  AchievementToast
+  AchievementToast,
 } from '../../../components/achievement';
 import { useAchievements } from '../../../hooks/use-achievements';
 import { useTaskStats } from '../../../hooks/use-task-stats';
@@ -33,7 +41,9 @@ type TabType = 'achievements' | 'stats' | 'badges';
  * Main achievements client component
  * メイン実績クライアントコンポーネント
  */
-export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
+export const AchievementsClient: React.FC<AchievementsClientProps> = ({
+  userId,
+}) => {
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
@@ -52,7 +62,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
     isError,
     markNotificationAsShown,
     clearNotifications,
-    refreshAchievements
+    refreshAchievements,
   } = useAchievements({ userId });
 
   const {
@@ -60,7 +70,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
     trackStudySession,
     trackAgentExecution,
     recentAchievements,
-    isTracking
+    isTracking,
   } = useTaskStats({ userId });
 
   // Loading state
@@ -72,7 +82,10 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded w-1/3" />
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-300 dark:bg-gray-700 rounded-xl" />
+                <div
+                  key={i}
+                  className="h-24 bg-gray-300 dark:bg-gray-700 rounded-xl"
+                />
               ))}
             </div>
             <div className="h-96 bg-gray-300 dark:bg-gray-700 rounded-xl" />
@@ -164,7 +177,11 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               }`}
               title={`通知を${notificationsEnabled ? '無効' : '有効'}にする`}
             >
-              {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+              {notificationsEnabled ? (
+                <Bell className="w-5 h-5" />
+              ) : (
+                <BellOff className="w-5 h-5" />
+              )}
             </button>
 
             {/* Refresh button */}
@@ -174,7 +191,9 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
               title="データを更新"
             >
-              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`}
+              />
             </button>
 
             {/* Clear notifications */}
@@ -200,28 +219,36 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {unlockedCount}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">解除済み実績</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              解除済み実績
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {Math.round(completionPercentage)}%
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">完了率</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              完了率
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {totalPoints.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">ポイント</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              ポイント
+            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {playerStats?.totalTasksCompleted || 0}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">総タスク数</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              総タスク数
+            </div>
           </div>
         </motion.div>
 
@@ -246,11 +273,13 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
                 <tab.icon className="w-5 h-5" />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    activeTab === tab.id
-                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                  }`}>
+                  <span
+                    className={`px-2 py-1 text-xs rounded-full ${
+                      activeTab === tab.id
+                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    }`}
+                  >
                     {tab.count}
                   </span>
                 )}
@@ -357,7 +386,10 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
               <div>User ID: {userId}</div>
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>
               <div>Notifications: {notifications.length} pending</div>
-              <div>Last update: {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}</div>
+              <div>
+                Last update:{' '}
+                {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}
+              </div>
             </div>
           </div>
         )}

@@ -29,7 +29,9 @@ export interface PriorityOption {
  * @param t - Translation function for the 'task' namespace / タスク名前空間の翻訳関数
  * @returns Array of priority option objects.
  */
-export function usePriorityOptions(t: ReturnType<typeof useTranslations>): PriorityOption[] {
+export function usePriorityOptions(
+  t: ReturnType<typeof useTranslations>,
+): PriorityOption[] {
   return [
     {
       value: 'urgent',
@@ -78,7 +80,11 @@ interface PrioritySelectorProps {
  * @param props.onChange - Change handler / 変更ハンドラ
  * @param props.options - Optional pre-built options list / オプションリスト（省略可）
  */
-export function PrioritySelector({ value, onChange, options }: PrioritySelectorProps) {
+export function PrioritySelector({
+  value,
+  onChange,
+  options,
+}: PrioritySelectorProps) {
   const t = useTranslations('task');
   const defaultOptions = usePriorityOptions(t);
   const priorityOptions = options ?? defaultOptions;

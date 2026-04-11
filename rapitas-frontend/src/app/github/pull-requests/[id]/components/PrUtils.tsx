@@ -5,7 +5,14 @@
  * Returns JSX elements — kept here to avoid duplicating icon logic across sub-components.
  */
 
-import { GitPullRequest, GitMerge, XCircle, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
+import {
+  GitPullRequest,
+  GitMerge,
+  XCircle,
+  CheckCircle2,
+  AlertCircle,
+  MessageSquare,
+} from 'lucide-react';
 
 /**
  * Returns an icon element that represents the PR's open/merged/closed state.

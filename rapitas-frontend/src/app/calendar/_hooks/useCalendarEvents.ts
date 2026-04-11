@@ -9,7 +9,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import type { ExamGoal, ScheduleEvent, ScheduleEventInput, PaidLeaveBalance } from '@/types';
+import type {
+  ExamGoal,
+  ScheduleEvent,
+  ScheduleEventInput,
+  PaidLeaveBalance,
+} from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
@@ -38,7 +43,8 @@ export function useCalendarEvents() {
   const [loading, setLoading] = useState(true);
   const [exams, setExams] = useState<ExamGoal[]>([]);
   const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
-  const [paidLeaveBalance, setPaidLeaveBalance] = useState<PaidLeaveBalance | null>(null);
+  const [paidLeaveBalance, setPaidLeaveBalance] =
+    useState<PaidLeaveBalance | null>(null);
 
   const fetchPaidLeaveBalance = useCallback(async () => {
     try {
@@ -77,7 +83,12 @@ export function useCalendarEvents() {
     } finally {
       setLoading(false);
     }
-  }, [taskCacheInitialized, fetchTaskUpdates, fetchAllTasks, fetchPaidLeaveBalance]);
+  }, [
+    taskCacheInitialized,
+    fetchTaskUpdates,
+    fetchAllTasks,
+    fetchPaidLeaveBalance,
+  ]);
 
   // NOTE: Auto-sync keeps calendar in sync when the user switches app focus.
   useTaskAutoSync({ enabled: true, interval: 30000, silent: true });
@@ -111,14 +122,16 @@ export function useCalendarEvents() {
         return timePart.slice(0, 5); // "HH:MM"
       };
       const timeStr = s.isAllDay ? undefined : extractUTCTime(s.startAt);
-      const endTimeStr = s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
+      const endTimeStr =
+        s.endAt && !s.isAllDay ? extractUTCTime(s.endAt) : undefined;
       const startDateStr = s.startAt.split('T')[0];
       const endDateStr = s.endAt ? s.endAt.split('T')[0] : undefined;
       return {
         id: s.id,
         title: s.title,
         date: startDateStr,
-        endDate: endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
+        endDate:
+          endDateStr && endDateStr > startDateStr ? endDateStr : undefined,
         type: 'schedule' as const,
         color: s.color,
         time: timeStr,
@@ -145,7 +158,10 @@ export function useCalendarEvents() {
    * @param selectedDate - Due date as YYYY-MM-DD.
    * @returns True if creation succeeded.
    */
-  const createTask = async (title: string, selectedDate: string): Promise<boolean> => {
+  const createTask = async (
+    title: string,
+    selectedDate: string,
+  ): Promise<boolean> => {
     try {
       const res = await fetch(`${API_BASE}/tasks`, {
         method: 'POST',
@@ -177,7 +193,9 @@ export function useCalendarEvents() {
    * @param data - Schedule event input.
    * @returns True if creation succeeded.
    */
-  const createScheduleEvent = async (data: ScheduleEventInput): Promise<boolean> => {
+  const createScheduleEvent = async (
+    data: ScheduleEventInput,
+  ): Promise<boolean> => {
     try {
       const res = await fetch(`${API_BASE}/schedules`, {
         method: 'POST',
@@ -205,7 +223,9 @@ export function useCalendarEvents() {
    * @param data - Schedule event input (type will be overridden to PAID_LEAVE).
    * @returns True if creation succeeded.
    */
-  const createPaidLeave = async (data: ScheduleEventInput): Promise<boolean> => {
+  const createPaidLeave = async (
+    data: ScheduleEventInput,
+  ): Promise<boolean> => {
     try {
       const res = await fetch(`${API_BASE}/schedules`, {
         method: 'POST',

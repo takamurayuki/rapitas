@@ -120,7 +120,9 @@ export function LocalLlmSection({
               className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
             <button
-              onClick={() => onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })}
+              onClick={() =>
+                onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })
+              }
               className="px-3 py-2 text-sm font-medium rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition-colors"
             >
               <Save className="w-4 h-4" />
@@ -176,8 +178,8 @@ export function LocalLlmSection({
               <div className="flex justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
                 <span>{t('localLlmDownloading')}</span>
                 <span>
-                  {downloadProgress.downloadedMB}MB / {downloadProgress.totalMB}MB (
-                  {downloadProgress.progress}%)
+                  {downloadProgress.downloadedMB}MB / {downloadProgress.totalMB}
+                  MB ({downloadProgress.progress}%)
                 </span>
               </div>
               <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
@@ -222,7 +224,9 @@ export function LocalLlmSection({
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
-              onClick={() => onSaveLocalLlmSettings({ titleGenerationProvider: 'ollama' })}
+              onClick={() =>
+                onSaveLocalLlmSettings({ titleGenerationProvider: 'ollama' })
+              }
               className={`p-3 rounded-xl border-2 text-left transition-all ${
                 !settings?.titleGenerationProvider ||
                 settings.titleGenerationProvider === 'ollama'
@@ -241,7 +245,9 @@ export function LocalLlmSection({
               </div>
             </button>
             <button
-              onClick={() => onSaveLocalLlmSettings({ titleGenerationProvider: 'default' })}
+              onClick={() =>
+                onSaveLocalLlmSettings({ titleGenerationProvider: 'default' })
+              }
               className={`p-3 rounded-xl border-2 text-left transition-all ${
                 settings?.titleGenerationProvider === 'default'
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'

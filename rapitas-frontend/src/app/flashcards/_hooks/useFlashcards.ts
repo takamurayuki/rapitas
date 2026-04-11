@@ -91,7 +91,8 @@ export function useFlashcards(): UseFlashcardsReturn {
   >('intermediate');
   const [generateLanguage, setGenerateLanguage] = useState<'ja' | 'en'>('ja');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [schedulePreview, setSchedulePreview] = useState<SchedulePreview | null>(null);
+  const [schedulePreview, setSchedulePreview] =
+    useState<SchedulePreview | null>(null);
 
   const {
     fetchDecks,

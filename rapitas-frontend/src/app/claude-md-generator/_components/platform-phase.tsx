@@ -190,11 +190,7 @@ export function PlatformPhase({
         <button className="btn btn-g" onClick={onBack}>
           {t('back')}
         </button>
-        <button
-          className="btn btn-p"
-          onClick={onGenerate}
-          disabled={!canGo}
-        >
+        <button className="btn btn-p" onClick={onGenerate} disabled={!canGo}>
           {t('proposeWithAi')}
         </button>
       </div>

@@ -223,7 +223,9 @@ export function DevProjectFields({
                   <option key={branch} value={branch}>
                     {branch}
                     {branch === 'develop' && ' (推奨)'}
-                    {branch === 'main' && branches.length > 1 && ' (GitHub Flow)'}
+                    {branch === 'main' &&
+                      branches.length > 1 &&
+                      ' (GitHub Flow)'}
                   </option>
                 ))}
               </select>

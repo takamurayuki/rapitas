@@ -63,7 +63,9 @@ export function SubtaskHeader({
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                <span className="text-xs text-zinc-500">{progressPercent}%</span>
+                <span className="text-xs text-zinc-500">
+                  {progressPercent}%
+                </span>
               </div>
             </>
           ) : (

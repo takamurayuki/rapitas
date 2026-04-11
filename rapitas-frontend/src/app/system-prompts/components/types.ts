@@ -17,7 +17,10 @@ export type SystemPrompt = {
   updatedAt: string;
 };
 
-export const CATEGORY_LABELS: Record<string, { labelKey: string; color: string }> = {
+export const CATEGORY_LABELS: Record<
+  string,
+  { labelKey: string; color: string }
+> = {
   general: {
     labelKey: 'categoryGeneral',
     color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',

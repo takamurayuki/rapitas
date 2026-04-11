@@ -29,7 +29,9 @@ export interface UseWorkflowHandlersParams {
 
 export interface UseWorkflowHandlersResult {
   currentWorkflowStatus: WorkflowStatus | null;
-  setCurrentWorkflowStatus: React.Dispatch<React.SetStateAction<WorkflowStatus | null>>;
+  setCurrentWorkflowStatus: React.Dispatch<
+    React.SetStateAction<WorkflowStatus | null>
+  >;
   showPlanApprovalModal: boolean;
   closePlanApprovalModal: () => void;
   handlePlanApprovalRequest: () => void;

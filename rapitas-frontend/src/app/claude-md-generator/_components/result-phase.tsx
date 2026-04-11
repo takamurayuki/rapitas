@@ -95,7 +95,10 @@ export function ResultPhase({
                 whiteSpace: 'pre-line',
               }}
             >
-              {(t as (k: string, v?: Record<string, unknown>) => string)('resultTitle', { name: pickedProp?.name ?? '' })}
+              {(t as (k: string, v?: Record<string, unknown>) => string)(
+                'resultTitle',
+                { name: pickedProp?.name ?? '' },
+              )}
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -177,7 +180,11 @@ export function ResultPhase({
             <button
               className="btn btn-p"
               onClick={onCreateTheme}
-              style={{ background: '#10b981', fontSize: 14, padding: '12px 24px' }}
+              style={{
+                background: '#10b981',
+                fontSize: 14,
+                padding: '12px 24px',
+              }}
             >
               {t('createTheme')}
             </button>

@@ -9,7 +9,15 @@
 'use client';
 
 import React from 'react';
-import { Play, Bot, GitBranch, Sparkles, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import {
+  Play,
+  Bot,
+  GitBranch,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+} from 'lucide-react';
 import { AgentSwitcher } from '@/components/ui/AgentSwitcher';
 import { AgentKnowledgeContext } from '@/feature/intelligence/components/AgentKnowledgeContext';
 

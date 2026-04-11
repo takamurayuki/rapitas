@@ -35,7 +35,10 @@ type Props = {
  *
  * @param props - settings and save handler.
  */
-export function DefaultProviderSection({ settings, onSaveDefaultProvider }: Props) {
+export function DefaultProviderSection({
+  settings,
+  onSaveDefaultProvider,
+}: Props) {
   const t = useTranslations('settings');
 
   return (

@@ -62,12 +62,17 @@ export function SubPhase({
   return (
     <PageWrap
       topRef={topRef}
-      title={(t as (k: string, v?: Record<string, unknown>) => string)('subTitle', { genre: t('genre_' + genre) })}
+      title={(t as (k: string, v?: Record<string, unknown>) => string)(
+        'subTitle',
+        { genre: t('genre_' + genre) },
+      )}
       sub={t('subSub')}
       step={2}
       total={5}
       onBack={onBack}
-      onNext={() => onNext(subs.filter((s) => selectedSubs.includes(s.id)).map((s) => s.id))}
+      onNext={() =>
+        onNext(subs.filter((s) => selectedSubs.includes(s.id)).map((s) => s.id))
+      }
       nextLabel={t('next')}
       canNext={true}
       backLabel={t('back')}

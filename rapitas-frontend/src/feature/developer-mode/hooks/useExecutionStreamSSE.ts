@@ -11,10 +11,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import {
-  type ExecutionStreamState,
-  trimLogs,
-} from './execution-stream-types';
+import { type ExecutionStreamState, trimLogs } from './execution-stream-types';
 
 const logger = createLogger('ExecutionStream');
 

@@ -109,7 +109,9 @@ function SettingsPage() {
           onTestConnection={handleTestConnection}
           onDownloadModel={handleDownloadModel}
           onDeleteModel={async () => {
-            await fetch(`${API_BASE_URL}/local-llm/model`, { method: 'DELETE' });
+            await fetch(`${API_BASE_URL}/local-llm/model`, {
+              method: 'DELETE',
+            });
             fetchLocalLlmStatus();
           }}
           onSaveLocalLlmSettings={saveLocalLlmSettings}

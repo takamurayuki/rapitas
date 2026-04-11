@@ -6,10 +6,27 @@
  * without coupling consumers to internal file locations.
  */
 
-export type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from './_types/types';
-export { GENRES, SUB_GENRES, ELEMENTS, PLATFORMS, SCALES, PRIORITIES } from './_utils/constants';
+export type {
+  AppAnswers,
+  AppProposal,
+  DynamicItem,
+  GenerateResult,
+} from './_types/types';
+export {
+  GENRES,
+  SUB_GENRES,
+  ELEMENTS,
+  PLATFORMS,
+  SCALES,
+  PRIORITIES,
+} from './_utils/constants';
 export { GLOBAL_CSS } from './_utils/styles';
-export { resolveLabels, proposeApps, generateClaudeMd, fetchSuggestions } from './_utils/api';
+export {
+  resolveLabels,
+  proposeApps,
+  generateClaudeMd,
+  fetchSuggestions,
+} from './_utils/api';
 export { useWizard } from './_hooks/useWizard';
 export type { WizardPhase, SetupPhase } from './_hooks/useWizard';
 export { CheckIcon, DotIcon } from './_components/icons';

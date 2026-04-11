@@ -84,9 +84,7 @@ export default function ClaudeMdGeneratorPage() {
     );
 
   if (w.phase === 'proposing')
-    return (
-      <LoadingPhase topRef={w.topRef} t={w.t} variant="proposing" />
-    );
+    return <LoadingPhase topRef={w.topRef} t={w.t} variant="proposing" />;
 
   if (w.phase === 'proposals')
     return (
@@ -103,9 +101,7 @@ export default function ClaudeMdGeneratorPage() {
     );
 
   if (w.phase === 'generating')
-    return (
-      <LoadingPhase topRef={w.topRef} t={w.t} variant="generating" />
-    );
+    return <LoadingPhase topRef={w.topRef} t={w.t} variant="generating" />;
 
   if (w.phase === 'result')
     return (

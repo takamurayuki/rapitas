@@ -12,7 +12,8 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useBrowserNotifications');
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /** Notification event payload from SSE. */
 interface SSENotificationPayload {
@@ -44,9 +45,12 @@ interface UseBrowserNotificationsOptions {
  * @param options - Hook configuration. / フック設定
  * @returns Permission state and unread count. / 許可状態と未読数
  */
-export function useBrowserNotifications(options: UseBrowserNotificationsOptions = {}) {
+export function useBrowserNotifications(
+  options: UseBrowserNotificationsOptions = {},
+) {
   const { enabled = true, onNotification } = options;
-  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [permission, setPermission] =
+    useState<NotificationPermission>('default');
   const [unreadCount, setUnreadCount] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onNotificationRef = useRef(onNotification);
@@ -73,34 +77,31 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
   }, []);
 
   // Show native browser notification
-  const showNotification = useCallback(
-    (payload: SSENotificationPayload) => {
-      if (typeof window === 'undefined' || !('Notification' in window)) return;
-      if (Notification.permission !== 'granted') return;
+  const showNotification = useCallback((payload: SSENotificationPayload) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
 
-      // NOTE: Don't show notification if the window is focused — avoid duplicating in-app notifications.
-      if (document.hasFocus()) return;
+    // NOTE: Don't show notification if the window is focused — avoid duplicating in-app notifications.
+    if (document.hasFocus()) return;
 
-      const { notification } = payload;
-      const icon = '/icon-192x192.png';
+    const { notification } = payload;
+    const icon = '/icon-192x192.png';
 
-      const n = new Notification(notification.title, {
-        body: notification.message,
-        icon,
-        tag: `rapitas-${notification.id}`,
-        silent: false,
-      });
+    const n = new Notification(notification.title, {
+      body: notification.message,
+      icon,
+      tag: `rapitas-${notification.id}`,
+      silent: false,
+    });
 
-      n.onclick = () => {
-        window.focus();
-        n.close();
-      };
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
 
-      // Auto-close after 5 seconds
-      setTimeout(() => n.close(), 5000);
-    },
-    [],
-  );
+    // Auto-close after 5 seconds
+    setTimeout(() => n.close(), 5000);
+  }, []);
 
   // Connect to SSE notifications channel
   useEffect(() => {

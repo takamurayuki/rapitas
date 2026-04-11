@@ -21,7 +21,9 @@ import { GoalDetailPanel } from './_components/GoalDetailPanel';
  * @param generatedPlan - Raw JSON string from the API.
  * @returns Parsed plan or null if absent/invalid.
  */
-function parsePlan(generatedPlan?: string | null): GeneratedLearningPlan | null {
+function parsePlan(
+  generatedPlan?: string | null,
+): GeneratedLearningPlan | null {
   if (!generatedPlan) return null;
   try {
     return JSON.parse(generatedPlan) as GeneratedLearningPlan;

@@ -52,8 +52,17 @@ export default function SmartCommandBar() {
   const handleVoiceResult = useCallback((text: string) => {
     setInput((prev) => prev + text);
   }, []);
-  const { isListening, isTranscribing, interimTranscript, error: voiceError, isSupported: voiceSupported, startListening, stopListening, submitCorrection, activeStream } =
-    useSpeechRecognition('ja-JP', handleVoiceResult);
+  const {
+    isListening,
+    isTranscribing,
+    interimTranscript,
+    error: voiceError,
+    isSupported: voiceSupported,
+    startListening,
+    stopListening,
+    submitCorrection,
+    activeStream,
+  } = useSpeechRecognition('ja-JP', handleVoiceResult);
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => {
@@ -262,10 +271,22 @@ export default function SmartCommandBar() {
                     ? 'bg-red-500 text-white animate-pulse'
                     : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
               }`}
-              aria-label={isTranscribing ? 'Transcribing...' : isListening ? 'Stop voice input' : 'Start voice input'}
+              aria-label={
+                isTranscribing
+                  ? 'Transcribing...'
+                  : isListening
+                    ? 'Stop voice input'
+                    : 'Start voice input'
+              }
               type="button"
             >
-              {isTranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              {isTranscribing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : isListening ? (
+                <MicOff className="w-4 h-4" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
             </button>
           )}
           {/* Live audio waveform when recording */}

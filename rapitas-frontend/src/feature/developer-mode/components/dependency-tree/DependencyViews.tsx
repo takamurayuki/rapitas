@@ -39,20 +39,40 @@ export function SummaryStats({ summary }: SummaryStatsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
-        <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1"><Layers className="w-3 h-3" />Tasks</div>
-        <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{summary.totalTasks}</div>
+        <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1">
+          <Layers className="w-3 h-3" />
+          Tasks
+        </div>
+        <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+          {summary.totalTasks}
+        </div>
       </div>
       <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mb-1"><Unlink className="w-3 h-3" />Independent</div>
-        <div className="text-lg font-bold text-green-700 dark:text-green-300">{summary.independentTasks}</div>
+        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400 mb-1">
+          <Unlink className="w-3 h-3" />
+          Independent
+        </div>
+        <div className="text-lg font-bold text-green-700 dark:text-green-300">
+          {summary.independentTasks}
+        </div>
       </div>
       <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1"><Link2 className="w-3 h-3" />Dependent</div>
-        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">{summary.dependentTasks}</div>
+        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mb-1">
+          <Link2 className="w-3 h-3" />
+          Dependent
+        </div>
+        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
+          {summary.dependentTasks}
+        </div>
       </div>
       <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg">
-        <div className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 mb-1"><Zap className="w-3 h-3" />Avg Independence</div>
-        <div className="text-lg font-bold text-violet-700 dark:text-violet-300">{summary.averageIndependence}%</div>
+        <div className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400 mb-1">
+          <Zap className="w-3 h-3" />
+          Avg Independence
+        </div>
+        <div className="text-lg font-bold text-violet-700 dark:text-violet-300">
+          {summary.averageIndependence}%
+        </div>
       </div>
     </div>
   );

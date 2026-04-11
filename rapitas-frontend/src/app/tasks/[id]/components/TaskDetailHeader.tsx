@@ -8,7 +8,15 @@
  */
 
 'use client';
-import { Save, Copy, Pencil, X, FileStack, Trash2, ArrowLeft } from 'lucide-react';
+import {
+  Save,
+  Copy,
+  Pencil,
+  X,
+  FileStack,
+  Trash2,
+  ArrowLeft,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskPomodoroButton from './TaskPomodoroButton';
@@ -78,7 +86,11 @@ export default function TaskDetailHeader({
           <TaskPomodoroButton
             taskTitle={task.title}
             isThisTaskTimer={isThisTaskTimer}
-            pomodoroState={pomodoroState as Parameters<typeof TaskPomodoroButton>[0]['pomodoroState']}
+            pomodoroState={
+              pomodoroState as Parameters<
+                typeof TaskPomodoroButton
+              >[0]['pomodoroState']
+            }
             onClick={onOpenPomodoro}
           />
         )}

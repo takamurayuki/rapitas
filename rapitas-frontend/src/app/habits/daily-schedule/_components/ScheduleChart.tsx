@@ -41,18 +41,24 @@ function HourMarkers() {
     markers.push(
       <g key={`marker-${h}`}>
         <line
-          x1={tickStart.x} y1={tickStart.y}
-          x2={tickEnd.x} y2={tickEnd.y}
+          x1={tickStart.x}
+          y1={tickStart.y}
+          x2={tickEnd.x}
+          y2={tickEnd.y}
           stroke="currentColor"
           strokeWidth={isMajor ? '2' : '1'}
           className="text-zinc-400 dark:text-zinc-500"
         />
         {isMajor && (
           <text
-            x={outerP.x} y={outerP.y}
-            textAnchor="middle" dominantBaseline="central"
-            fontSize="12" fontWeight="600"
-            fill="currentColor" className="text-zinc-600 dark:text-zinc-300"
+            x={outerP.x}
+            y={outerP.y}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="12"
+            fontWeight="600"
+            fill="currentColor"
+            className="text-zinc-600 dark:text-zinc-300"
           >
             {h}:00
           </text>
@@ -73,8 +79,13 @@ function CurrentTimeIndicator() {
   return (
     <g>
       <line
-        x1={innerP.x} y1={innerP.y} x2={outerP.x} y2={outerP.y}
-        stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round"
+        x1={innerP.x}
+        y1={innerP.y}
+        x2={outerP.x}
+        y2={outerP.y}
+        stroke="#EF4444"
+        strokeWidth="2.5"
+        strokeLinecap="round"
       />
       <circle cx={outerP.x} cy={outerP.y} r="4" fill="#EF4444" />
     </g>
@@ -128,10 +139,20 @@ export function ScheduleChart({
       <div className="flex justify-center">
         <svg viewBox="0 0 400 400" className="w-full max-w-[400px]">
           {/* Background donut */}
-          <circle cx={CX} cy={CY} r={RADIUS} fill="currentColor"
-            className="text-zinc-100 dark:text-zinc-700/50" />
-          <circle cx={CX} cy={CY} r={INNER_RADIUS} fill="currentColor"
-            className="text-white dark:text-zinc-800" />
+          <circle
+            cx={CX}
+            cy={CY}
+            r={RADIUS}
+            fill="currentColor"
+            className="text-zinc-100 dark:text-zinc-700/50"
+          />
+          <circle
+            cx={CX}
+            cy={CY}
+            r={INNER_RADIUS}
+            fill="currentColor"
+            className="text-white dark:text-zinc-800"
+          />
 
           {blocks.map((block) => (
             <BlockArc
@@ -144,16 +165,35 @@ export function ScheduleChart({
           ))}
 
           {/* Inner overlay to punch the donut hole */}
-          <circle cx={CX} cy={CY} r={INNER_RADIUS} fill="currentColor"
-            className="text-white dark:text-zinc-800" />
+          <circle
+            cx={CX}
+            cy={CY}
+            r={INNER_RADIUS}
+            fill="currentColor"
+            className="text-white dark:text-zinc-800"
+          />
 
-          <text x={CX} y={CY - 8} textAnchor="middle" dominantBaseline="central"
-            fontSize="14" fontWeight="700" fill="currentColor"
-            className="text-zinc-800 dark:text-zinc-100">
+          <text
+            x={CX}
+            y={CY - 8}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="14"
+            fontWeight="700"
+            fill="currentColor"
+            className="text-zinc-800 dark:text-zinc-100"
+          >
             24h
           </text>
-          <text x={CX} y={CY + 12} textAnchor="middle" dominantBaseline="central"
-            fontSize="10" fill="currentColor" className="text-zinc-500 dark:text-zinc-400">
+          <text
+            x={CX}
+            y={CY + 12}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize="10"
+            fill="currentColor"
+            className="text-zinc-500 dark:text-zinc-400"
+          >
             {t('schedule')}
           </text>
 
@@ -163,26 +203,30 @@ export function ScheduleChart({
       </div>
 
       {/* Hover tooltip */}
-      {hoveredBlock && (() => {
-        const block = blocks.find((b) => b.id === hoveredBlock);
-        if (!block) return null;
-        const Icon = getCategoryIcon(block.category);
-        return (
-          <div className="mt-3 text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-lg">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: block.color }} />
-              <Icon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                {block.label}
-              </span>
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {block.startTime}〜{block.endTime}（
-                {formatDuration(block.startTime, block.endTime)}）
-              </span>
+      {hoveredBlock &&
+        (() => {
+          const block = blocks.find((b) => b.id === hoveredBlock);
+          if (!block) return null;
+          const Icon = getCategoryIcon(block.category);
+          return (
+            <div className="mt-3 text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-lg">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: block.color }}
+                />
+                <Icon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  {block.label}
+                </span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {block.startTime}〜{block.endTime}（
+                  {formatDuration(block.startTime, block.endTime)}）
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
     </div>
   );
 }

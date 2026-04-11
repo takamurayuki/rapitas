@@ -11,7 +11,15 @@
  */
 'use client';
 import { useMemo } from 'react';
-import { Sparkles, RefreshCw, Loader2, AlertCircle, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import {
+  Sparkles,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  Clock,
+} from 'lucide-react';
 import { useWeeklyReview } from './useWeeklyReview';
 import type { WeeklyReviewStats } from '@/types/weekly-review.types';
 
@@ -28,7 +36,14 @@ const formatMinutes = (m: number): string => {
 };
 
 export function WeeklyReviewCard() {
-  const { review, isLoading, error, isRegenerating, regenerateError, regenerate } = useWeeklyReview();
+  const {
+    review,
+    isLoading,
+    error,
+    isRegenerating,
+    regenerateError,
+    regenerate,
+  } = useWeeklyReview();
 
   // Decode the stats JSON for display. Falls back to null on parse failure.
   const stats: WeeklyReviewStats | null = useMemo(() => {
@@ -45,7 +60,9 @@ export function WeeklyReviewCard() {
       <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-5 w-5 text-indigo-500" />
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AI 週次レビュー</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+            AI 週次レビュー
+          </h2>
         </div>
         <div className="animate-pulse space-y-3">
           <div className="h-4 w-32 rounded bg-zinc-200 dark:bg-zinc-700" />

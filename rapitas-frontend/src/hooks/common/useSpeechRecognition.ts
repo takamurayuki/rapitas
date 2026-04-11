@@ -68,7 +68,9 @@ export function useSpeechRecognition(
   const audioCtxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
-  const sendForTranscriptionRef = useRef<(chunks: Float32Array[], rate: number) => void>(() => {});
+  const sendForTranscriptionRef = useRef<
+    (chunks: Float32Array[], rate: number) => void
+  >(() => {});
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -205,7 +207,8 @@ export function useSpeechRecognition(
         const timeData = new Float32Array(analyser.fftSize);
         analyser.getFloatTimeDomainData(timeData);
         let rms = 0;
-        for (let i = 0; i < timeData.length; i++) rms += timeData[i] * timeData[i];
+        for (let i = 0; i < timeData.length; i++)
+          rms += timeData[i] * timeData[i];
         rms = Math.sqrt(rms / timeData.length);
 
         const hasSound = avg > SILENCE_THRESHOLD || rms > 0.005;
@@ -218,7 +221,8 @@ export function useSpeechRecognition(
         }
 
         // Always show current audio level for debugging
-        const silenceMs = state.lastSoundTime > 0 ? Date.now() - state.lastSoundTime : 0;
+        const silenceMs =
+          state.lastSoundTime > 0 ? Date.now() - state.lastSoundTime : 0;
         setInterimTranscript(
           state.hasSpoken
             ? `録音中... (音量:${avg.toFixed(0)} rms:${(rms * 1000).toFixed(0)} 無音:${(silenceMs / 1000).toFixed(1)}s)`
@@ -265,8 +269,16 @@ export function useSpeechRecognition(
 
           const pcmData = audioBuffer.getChannelData(0);
           const nativeRate = audioBuffer.sampleRate;
-          const resampled = nativeRate === 16000 ? pcmData : resamplePcm(pcmData, nativeRate, 16000);
-          const wavBlob = encodeWav(resampled instanceof Float32Array ? resampled : new Float32Array(resampled), 16000);
+          const resampled =
+            nativeRate === 16000
+              ? pcmData
+              : resamplePcm(pcmData, nativeRate, 16000);
+          const wavBlob = encodeWav(
+            resampled instanceof Float32Array
+              ? resampled
+              : new Float32Array(resampled),
+            16000,
+          );
 
           const formData = new FormData();
           formData.append('audio', wavBlob, 'audio.wav');
@@ -278,18 +290,27 @@ export function useSpeechRecognition(
           });
 
           if (response.ok) {
-            const result = (await response.json()) as { text: string; rawText?: string };
+            const result = (await response.json()) as {
+              text: string;
+              rawText?: string;
+            };
             if (result.text.trim()) {
               lastRawTextRef.current = result.rawText || result.text;
               setTranscript((prev) => prev + result.text);
               onResultRef.current?.(result.text);
             }
           } else {
-            const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-            setError((data as { error?: string }).error || '文字起こしに失敗しました');
+            const data = await response
+              .json()
+              .catch(() => ({ error: 'Unknown error' }));
+            setError(
+              (data as { error?: string }).error || '文字起こしに失敗しました',
+            );
           }
         } catch (decodeErr) {
-          setError(`音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`);
+          setError(
+            `音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`,
+          );
         } finally {
           setIsTranscribing(false);
           setInterimTranscript('');
@@ -398,7 +419,10 @@ export function useSpeechRecognition(
 
   const stopListening = useCallback(() => {
     // Stop MediaRecorder — onstop handler will process and send audio
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === 'recording'
+    ) {
       mediaRecorderRef.current.stop();
       return;
     }
@@ -470,4 +494,3 @@ export function useSpeechRecognition(
     activeStream,
   };
 }
-

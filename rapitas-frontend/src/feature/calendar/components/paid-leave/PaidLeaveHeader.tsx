@@ -101,9 +101,7 @@ export function PaidLeaveHeader({
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="font-medium">申請後: {afterUsage}日</span>
-            {afterUsage < 0 && (
-              <span className="text-xs">⚠️ 残日数不足</span>
-            )}
+            {afterUsage < 0 && <span className="text-xs">⚠️ 残日数不足</span>}
           </div>
         </div>
       </div>

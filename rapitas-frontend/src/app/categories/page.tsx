@@ -9,11 +9,7 @@
 'use client';
 
 import { Plus, Edit2, FolderKanban } from 'lucide-react';
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-} from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';
 import { useCategories } from './hooks/useCategories';
@@ -147,7 +143,9 @@ export default function CategoriesPage() {
                                   {t('editCategory')}
                                 </h2>
                                 <CategoryForm
-                                  {...(formProps as unknown as Parameters<typeof CategoryForm>[0])}
+                                  {...(formProps as unknown as Parameters<
+                                    typeof CategoryForm
+                                  >[0])}
                                   isEdit={true}
                                   itemId={item.id}
                                   onSubmit={(id) => id && handleUpdate(id)}

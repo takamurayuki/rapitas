@@ -13,7 +13,7 @@ import {
   adjustDateRange,
   getWeekGridLines,
   getDayGridLines,
-  type GanttViewport
+  type GanttViewport,
 } from './gantt-utils';
 
 describe('gantt-utils', () => {
@@ -23,7 +23,7 @@ describe('gantt-utils', () => {
     width: 800,
     height: 400,
     rowHeight: 40,
-    margin: { top: 60, right: 40, bottom: 40, left: 200 }
+    margin: { top: 60, right: 40, bottom: 40, left: 200 },
   };
 
   describe('dateToX', () => {
@@ -73,7 +73,7 @@ describe('gantt-utils', () => {
         status: 'todo',
         dueDate: '2024-01-15',
         estimatedHours: 16, // 2日分
-        theme: { color: '#FF0000' }
+        theme: { color: '#FF0000' },
       };
 
       const bar = taskToBar(task, 0, mockViewport);
@@ -92,7 +92,7 @@ describe('gantt-utils', () => {
         title: 'テストタスク2',
         status: 'in_progress',
         dueDate: null,
-        estimatedHours: null
+        estimatedHours: null,
       };
 
       const bar = taskToBar(task, 1, mockViewport);
@@ -108,7 +108,7 @@ describe('gantt-utils', () => {
         id: 3,
         title: 'テストタスク3',
         status: 'completed',
-        dueDate: '2024-01-20'
+        dueDate: '2024-01-20',
       };
 
       const bar = taskToBar(task, 0, mockViewport);
@@ -120,7 +120,7 @@ describe('gantt-utils', () => {
         id: 4,
         title: 'テストタスク4',
         status: 'blocked',
-        dueDate: '2024-01-25'
+        dueDate: '2024-01-25',
       };
 
       const bar = taskToBar(task, 0, mockViewport);
@@ -138,7 +138,7 @@ describe('gantt-utils', () => {
         color: '#000',
         taskId: 1,
         title: 'From',
-        status: 'completed'
+        status: 'completed',
       };
 
       const toBar = {
@@ -149,7 +149,7 @@ describe('gantt-utils', () => {
         color: '#000',
         taskId: 2,
         title: 'To',
-        status: 'todo'
+        status: 'todo',
       };
 
       const path = arrowPath(fromBar, toBar);
@@ -172,7 +172,7 @@ describe('gantt-utils', () => {
         color: '#000',
         taskId: 1,
         title: 'To',
-        status: 'todo'
+        status: 'todo',
       };
 
       const path = arrowheadPath(toBar);
@@ -188,19 +188,21 @@ describe('gantt-utils', () => {
     test('期限ありタスクの範囲調整', () => {
       const tasks = [
         { dueDate: '2024-01-15', estimatedHours: 8 },
-        { dueDate: '2024-01-25', estimatedHours: 16 }
+        { dueDate: '2024-01-25', estimatedHours: 16 },
       ];
 
       const range = adjustDateRange(tasks);
 
-      expect(range.start.getTime()).toBeLessThan(new Date('2024-01-14').getTime());
-      expect(range.end.getTime()).toBeGreaterThan(new Date('2024-01-25').getTime());
+      expect(range.start.getTime()).toBeLessThan(
+        new Date('2024-01-14').getTime(),
+      );
+      expect(range.end.getTime()).toBeGreaterThan(
+        new Date('2024-01-25').getTime(),
+      );
     });
 
     test('期限なしタスクのデフォルト範囲', () => {
-      const tasks = [
-        { dueDate: null, estimatedHours: 8 }
-      ];
+      const tasks = [{ dueDate: null, estimatedHours: 8 }];
 
       const range = adjustDateRange(tasks);
       const now = new Date();
@@ -222,11 +224,19 @@ describe('gantt-utils', () => {
       const range = adjustDateRange(tasks, { before: 14, after: 14 });
 
       const baseDate = new Date('2024-01-15');
-      const expectedStart = new Date(baseDate.getTime() - 14 * 24 * 60 * 60 * 1000);
-      const expectedEnd = new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const expectedStart = new Date(
+        baseDate.getTime() - 14 * 24 * 60 * 60 * 1000,
+      );
+      const expectedEnd = new Date(
+        baseDate.getTime() + 14 * 24 * 60 * 60 * 1000,
+      );
 
-      expect(Math.abs(range.start.getTime() - expectedStart.getTime())).toBeLessThan(24 * 60 * 60 * 1000);
-      expect(Math.abs(range.end.getTime() - expectedEnd.getTime())).toBeLessThan(24 * 60 * 60 * 1000);
+      expect(
+        Math.abs(range.start.getTime() - expectedStart.getTime()),
+      ).toBeLessThan(24 * 60 * 60 * 1000);
+      expect(
+        Math.abs(range.end.getTime() - expectedEnd.getTime()),
+      ).toBeLessThan(24 * 60 * 60 * 1000);
     });
   });
 
@@ -236,7 +246,7 @@ describe('gantt-utils', () => {
 
       expect(lines.length).toBeGreaterThan(0);
       expect(lines.length).toBeLessThanOrEqual(5); // 1月は最大5週
-      lines.forEach(line => {
+      lines.forEach((line) => {
         expect(line).toBeGreaterThanOrEqual(200); // margin.left 以上
         expect(line).toBeLessThanOrEqual(760); // width - margin.right 以下
       });
@@ -248,7 +258,7 @@ describe('gantt-utils', () => {
       const lines = getDayGridLines(mockViewport);
 
       expect(lines.length).toBe(31); // 1月の日数
-      lines.forEach(line => {
+      lines.forEach((line) => {
         expect(line).toBeGreaterThanOrEqual(200);
         expect(line).toBeLessThanOrEqual(760);
       });

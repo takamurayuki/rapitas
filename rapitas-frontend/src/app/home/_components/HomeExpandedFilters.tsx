@@ -65,7 +65,11 @@ export function HomeExpandedFilters({
             {[
               { value: 'all', label: t('all'), color: 'amber' },
               { value: 'todo', label: statusConfig.todo.label, color: 'slate' },
-              { value: 'in-progress', label: statusConfig['in-progress'].label, color: 'blue' },
+              {
+                value: 'in-progress',
+                label: statusConfig['in-progress'].label,
+                color: 'blue',
+              },
               { value: 'done', label: statusConfig.done.label, color: 'green' },
             ].map((statusItem, idx) => {
               const count = statusCounts[statusItem.value] || 0;
@@ -94,7 +98,9 @@ export function HomeExpandedFilters({
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
                         <div
                           className={`h-full transition-all duration-500 ${
-                            isActive ? 'bg-white/50' : 'bg-slate-400 dark:bg-slate-500'
+                            isActive
+                              ? 'bg-white/50'
+                              : 'bg-slate-400 dark:bg-slate-500'
                           }`}
                           style={{
                             width: `${statusItem.value === 'all' ? 100 : (statusCounts[statusItem.value] / statusCounts.all) * 100}%`,
@@ -121,10 +127,19 @@ export function HomeExpandedFilters({
           </span>
           <div className="flex items-center">
             {[
-              { value: '', label: t('all'), icon: null, iconColor: '', bgColor: 'amber' },
+              {
+                value: '',
+                label: t('all'),
+                icon: null,
+                iconColor: '',
+                bgColor: 'amber',
+              },
               ...(
                 Object.entries(priorityConfig) as Array<
-                  [keyof typeof priorityConfig, (typeof priorityConfig)[keyof typeof priorityConfig]]
+                  [
+                    keyof typeof priorityConfig,
+                    (typeof priorityConfig)[keyof typeof priorityConfig],
+                  ]
                 >
               ).map(([key, cfg]) => ({
                 value: key,
@@ -132,9 +147,13 @@ export function HomeExpandedFilters({
                 icon: <cfg.Icon className="w-3 h-3" />,
                 iconColor: cfg.color,
                 bgColor:
-                  key === 'urgent' ? 'red' :
-                  key === 'high' ? 'orange' :
-                  key === 'medium' ? 'blue' : 'slate',
+                  key === 'urgent'
+                    ? 'red'
+                    : key === 'high'
+                      ? 'orange'
+                      : key === 'medium'
+                        ? 'blue'
+                        : 'slate',
               })),
             ].map((priority, idx) => (
               <div key={priority.value} className="flex items-center">

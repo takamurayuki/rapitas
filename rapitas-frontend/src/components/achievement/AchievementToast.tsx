@@ -12,7 +12,13 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Trophy, Star, Crown, Award, Sparkles, X, CheckCircle
+  Trophy,
+  Star,
+  Crown,
+  Award,
+  Sparkles,
+  X,
+  CheckCircle,
 } from 'lucide-react';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
@@ -43,7 +49,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
   onDismiss,
   onMarkAsShown,
   autoHideDuration,
-  index
+  index,
 }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [progress, setProgress] = useState(100);
@@ -60,8 +66,8 @@ const SingleToast: React.FC<SingleToastProps> = ({
 
       // Progress animation
       const progressTimer = setInterval(() => {
-        setProgress(prev => {
-          const newProgress = prev - (100 / (autoHideDuration / 100));
+        setProgress((prev) => {
+          const newProgress = prev - 100 / (autoHideDuration / 100);
           return Math.max(0, newProgress);
         });
       }, 100);
@@ -85,17 +91,28 @@ const SingleToast: React.FC<SingleToastProps> = ({
     setTimeout(onDismiss, 300);
   };
 
-  const IconComponent = {
-    Trophy, Star, Crown, Award, Sparkles, CheckCircle
-  }[notification.icon] || Trophy;
+  const IconComponent =
+    {
+      Trophy,
+      Star,
+      Crown,
+      Award,
+      Sparkles,
+      CheckCircle,
+    }[notification.icon] || Trophy;
 
   const getRarityEmoji = (rarity: string) => {
     switch (rarity) {
-      case 'legendary': return '🏆';
-      case 'epic': return '💜';
-      case 'rare': return '💙';
-      case 'common': return '💚';
-      default: return '🏅';
+      case 'legendary':
+        return '🏆';
+      case 'epic':
+        return '💜';
+      case 'rare':
+        return '💙';
+      case 'common':
+        return '💚';
+      default:
+        return '🏅';
     }
   };
 
@@ -107,14 +124,14 @@ const SingleToast: React.FC<SingleToastProps> = ({
           animate={{ opacity: 1, x: 0, scale: 1 }}
           exit={{ opacity: 0, x: 400, scale: 0.3 }}
           transition={{
-            type: "spring",
+            type: 'spring',
             stiffness: 500,
             damping: 30,
-            delay: index * 0.1
+            delay: index * 0.1,
           }}
           className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden max-w-sm w-full"
           style={{
-            boxShadow: `0 20px 40px ${rarityColor}20, 0 0 30px ${rarityColor}10`
+            boxShadow: `0 20px 40px ${rarityColor}20, 0 0 30px ${rarityColor}10`,
           }}
         >
           {/* Rarity border */}
@@ -129,11 +146,11 @@ const SingleToast: React.FC<SingleToastProps> = ({
               className="absolute bottom-0 left-0 h-1 bg-gray-300 dark:bg-gray-600"
               style={{
                 width: `${progress}%`,
-                backgroundColor: rarityColor
+                backgroundColor: rarityColor,
               }}
               initial={{ width: '100%' }}
               animate={{ width: '0%' }}
-              transition={{ duration: autoHideDuration / 1000, ease: "linear" }}
+              transition={{ duration: autoHideDuration / 1000, ease: 'linear' }}
             />
           )}
 
@@ -141,7 +158,9 @@ const SingleToast: React.FC<SingleToastProps> = ({
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-lg">{getRarityEmoji(notification.rarity)}</span>
+                <span className="text-lg">
+                  {getRarityEmoji(notification.rarity)}
+                </span>
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                   実績解除！
                 </span>
@@ -158,10 +177,13 @@ const SingleToast: React.FC<SingleToastProps> = ({
             <div className="flex items-center space-x-3 mb-3">
               <motion.div
                 className="p-3 rounded-lg flex-shrink-0"
-                style={{ backgroundColor: `${rarityColor}20`, color: rarityColor }}
+                style={{
+                  backgroundColor: `${rarityColor}20`,
+                  color: rarityColor,
+                }}
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
               >
                 <IconComponent className="w-6 h-6" />
               </motion.div>
@@ -191,18 +213,22 @@ const SingleToast: React.FC<SingleToastProps> = ({
               className="flex items-center justify-between"
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
+              transition={{ delay: 0.5, type: 'spring', stiffness: 300 }}
             >
               <div className="flex items-center space-x-1 text-yellow-500">
                 <Star className="w-4 h-4 fill-current" />
-                <span className="font-semibold">+{notification.pointsReward}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">ポイント</span>
+                <span className="font-semibold">
+                  +{notification.pointsReward}
+                </span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  ポイント
+                </span>
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
                 {new Date(notification.timestamp).toLocaleTimeString('ja-JP', {
                   hour: '2-digit',
-                  minute: '2-digit'
+                  minute: '2-digit',
                 })}
               </div>
             </motion.div>
@@ -221,9 +247,9 @@ const SingleToast: React.FC<SingleToastProps> = ({
                 className="absolute w-1 h-1 rounded-full"
                 style={{ backgroundColor: rarityColor }}
                 initial={{
-                  left: "50%",
-                  top: "50%",
-                  scale: 0
+                  left: '50%',
+                  top: '50%',
+                  scale: 0,
                 }}
                 animate={{
                   left: `${20 + Math.random() * 60}%`,
@@ -233,7 +259,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
                 transition={{
                   duration: 1.5,
                   delay: 0.2 + i * 0.1,
-                  ease: "easeOut"
+                  ease: 'easeOut',
                 }}
               />
             ))}
@@ -254,13 +280,16 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
   onMarkAsShown,
   maxVisible = 3,
   autoHideDuration = 5000,
-  position = 'top-right'
+  position = 'top-right',
 }) => {
   // Only show unshown notifications, limited by maxVisible
   const visibleNotifications = notifications
-    .filter(n => !n.isShown)
+    .filter((n) => !n.isShown)
     .slice(0, maxVisible)
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
 
   // Position classes
   const positionClasses = {
@@ -295,15 +324,16 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
       </div>
 
       {/* Additional notifications indicator */}
-      {notifications.filter(n => !n.isShown).length > maxVisible && (
+      {notifications.filter((n) => !n.isShown).length > maxVisible && (
         <motion.div
           initial={{ opacity: 0, scale: 0.5 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
           <div className="inline-flex items-center px-3 py-2 bg-gray-800 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg">
-            <Sparkles className="w-4 h-4 mr-2" />
-            +{notifications.filter(n => !n.isShown).length - maxVisible} 個の実績
+            <Sparkles className="w-4 h-4 mr-2" />+
+            {notifications.filter((n) => !n.isShown).length - maxVisible}{' '}
+            個の実績
           </div>
         </motion.div>
       )}

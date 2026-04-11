@@ -214,7 +214,9 @@ export function AgentExecutionTab({
           </label>
           <select
             value={branchStrategy}
-            onChange={(e) => setBranchStrategy(e.target.value as BranchStrategy)}
+            onChange={(e) =>
+              setBranchStrategy(e.target.value as BranchStrategy)
+            }
             className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
           >
             <option value="auto">自動（推奨）</option>

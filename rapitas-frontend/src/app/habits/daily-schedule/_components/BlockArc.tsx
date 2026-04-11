@@ -9,7 +9,11 @@
  */
 
 import type { DailyScheduleBlock } from '@/types';
-import { timeToMinutes, minutesToAngle, polarToCartesian } from './schedule-utils';
+import {
+  timeToMinutes,
+  minutesToAngle,
+  polarToCartesian,
+} from './schedule-utils';
 
 /** SVG chart constants shared with ScheduleChart. */
 export const CX = 200;
@@ -32,7 +36,12 @@ type BlockArcProps = {
  * @param onHover - Called on mouse enter/leave / ホバーコールバック
  * @param onClick - Called when the arc is clicked / クリックコールバック
  */
-export function BlockArc({ block, isHovered, onHover, onClick }: BlockArcProps) {
+export function BlockArc({
+  block,
+  isHovered,
+  onHover,
+  onClick,
+}: BlockArcProps) {
   const startMin = timeToMinutes(block.startTime);
   let endMin = timeToMinutes(block.endTime);
   if (endMin <= startMin) endMin += 1440;
@@ -59,7 +68,12 @@ export function BlockArc({ block, isHovered, onHover, onClick }: BlockArcProps) 
   ].join(' ');
 
   const midAngle = startAngle + sweep / 2;
-  const labelPos = polarToCartesian(CX, CY, (currentRadius + INNER_RADIUS) / 2, midAngle);
+  const labelPos = polarToCartesian(
+    CX,
+    CY,
+    (currentRadius + INNER_RADIUS) / 2,
+    midAngle,
+  );
   const showLabel = sweep > 15;
 
   return (

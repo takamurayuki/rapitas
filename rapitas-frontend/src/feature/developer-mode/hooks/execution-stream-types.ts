@@ -61,7 +61,11 @@ export type ExecutionStreamState = {
   /** Question timeout info (only when waiting for input) */
   questionTimeout?: QuestionTimeoutInfo;
   /** Structured question details from the agent (options, headers, multiSelect). */
-  questionDetails?: { options?: Array<{ label: string; description?: string }>; headers?: string[]; multiSelect?: boolean } | null;
+  questionDetails?: {
+    options?: Array<{ label: string; description?: string }>;
+    headers?: string[];
+    multiSelect?: boolean;
+  } | null;
   /** Session mode (e.g. workflow-researcher) */
   sessionMode?: string | null;
   /** Tokens used in this execution */

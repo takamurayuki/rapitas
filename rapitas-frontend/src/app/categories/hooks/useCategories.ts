@@ -62,11 +62,15 @@ export function useCategories() {
   const [isAdding, setIsAdding] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [formData, setFormData] = useState<FormData>(defaultFormData);
-  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null);
+  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(
+    null,
+  );
 
   const seedDefaults = async () => {
     try {
-      await fetch(`${API_BASE_URL}/categories/seed-defaults`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/categories/seed-defaults`, {
+        method: 'POST',
+      });
     } catch (e) {
       logger.error('Failed to seed default categories:', e);
     }
@@ -165,7 +169,9 @@ export function useCategories() {
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(t('deleteConfirm', { name }))) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/categories/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/categories/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error(tc('deleteFailed'));
       showToast(t('deleted'), 'success');
       clearFilterCache();
@@ -204,14 +210,18 @@ export function useCategories() {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || result.source.index === result.destination.index) return;
+    if (!result.destination || result.source.index === result.destination.index)
+      return;
 
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
     setItems(reordered);
 
-    const orders = reordered.map((item, index) => ({ id: item.id, sortOrder: index }));
+    const orders = reordered.map((item, index) => ({
+      id: item.id,
+      sortOrder: index,
+    }));
     try {
       const res = await fetch(`${API_BASE_URL}/categories/reorder`, {
         method: 'PATCH',

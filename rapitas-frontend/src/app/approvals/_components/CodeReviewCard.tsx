@@ -16,8 +16,10 @@ import { getTaskDetailPath } from '@/utils/tauri';
 
 /** Tailwind colour classes keyed by approval status. */
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  pending:
+    'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  approved:
+    'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
   rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   expired: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
 };
@@ -67,7 +69,9 @@ export function CodeReviewCard({
   };
 
   // NOTE: defaultBranch falls back to 'main' when no theme default is configured.
-  const defaultBranch = (approval.config?.task?.theme as Record<string, unknown>)?.defaultBranch as string || 'main';
+  const defaultBranch =
+    ((approval.config?.task?.theme as Record<string, unknown>)
+      ?.defaultBranch as string) || 'main';
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">

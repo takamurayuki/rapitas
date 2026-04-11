@@ -49,8 +49,13 @@ export function useShortcutSettings() {
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
 
-  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(DEFAULT_GLOBAL_SHORTCUT);
-  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>(['Ctrl', 'Alt']);
+  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(
+    DEFAULT_GLOBAL_SHORTCUT,
+  );
+  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>([
+    'Ctrl',
+    'Alt',
+  ]);
   const [globalKey, setGlobalKey] = useState('R');
   const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
@@ -60,8 +65,14 @@ export function useShortcutSettings() {
   } | null>(null);
   const [isRecordingGlobal, setIsRecordingGlobal] = useState(false);
 
-  const { shortcuts, updateShortcut, resetShortcut, resetAll, findDuplicate, getDefault } =
-    useShortcutStore();
+  const {
+    shortcuts,
+    updateShortcut,
+    resetShortcut,
+    resetAll,
+    findDuplicate,
+    getDefault,
+  } = useShortcutStore();
   const [editingId, setEditingId] = useState<ShortcutId | null>(null);
   const [editBinding, setEditBinding] = useState<Pick<
     ShortcutBinding,
@@ -151,18 +162,21 @@ export function useShortcutSettings() {
       const key = resolveKeyFromEvent(e);
       if (!key) return;
 
-      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
-        key,
-        meta: e.ctrlKey || e.metaKey,
-        shift: e.shiftKey,
-        ctrl: false,
-      };
+      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> =
+        {
+          key,
+          meta: e.ctrlKey || e.metaKey,
+          shift: e.shiftKey,
+          ctrl: false,
+        };
 
       setEditBinding(binding);
       setIsRecordingInApp(false);
 
       const dup = findDuplicate(editingId, binding);
-      setDuplicateWarning(dup ? t('duplicateWith', { label: dup.label }) : null);
+      setDuplicateWarning(
+        dup ? t('duplicateWith', { label: dup.label }) : null,
+      );
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
@@ -189,7 +203,10 @@ export function useShortcutSettings() {
     if (!isTauriEnv) {
       localStorage.setItem('globalShortcut', newShortcut);
       setCurrentGlobalShortcut(newShortcut);
-      setGlobalMessage({ type: 'success', text: t('changedToShortcut', { shortcut: newShortcut }) });
+      setGlobalMessage({
+        type: 'success',
+        text: t('changedToShortcut', { shortcut: newShortcut }),
+      });
       setIsSavingGlobal(false);
       return;
     }
@@ -197,13 +214,21 @@ export function useShortcutSettings() {
     try {
       const tauri = window.__TAURI__;
       if (tauri?.core?.invoke) {
-        await tauri.core.invoke('set_global_shortcut', { shortcut: newShortcut });
+        await tauri.core.invoke('set_global_shortcut', {
+          shortcut: newShortcut,
+        });
         setCurrentGlobalShortcut(newShortcut);
-        setGlobalMessage({ type: 'success', text: t('changedToShortcut', { shortcut: newShortcut }) });
+        setGlobalMessage({
+          type: 'success',
+          text: t('changedToShortcut', { shortcut: newShortcut }),
+        });
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
-      setGlobalMessage({ type: 'error', text: `${t('changeFailed')} ${errorMsg}` });
+      setGlobalMessage({
+        type: 'error',
+        text: `${t('changeFailed')} ${errorMsg}`,
+      });
     } finally {
       setIsSavingGlobal(false);
     }
@@ -220,7 +245,12 @@ export function useShortcutSettings() {
     const current = shortcuts.find((s) => s.id === id);
     if (!current) return;
     setEditingId(id);
-    setEditBinding({ key: current.key, meta: current.meta, shift: current.shift, ctrl: current.ctrl });
+    setEditBinding({
+      key: current.key,
+      meta: current.meta,
+      shift: current.shift,
+      ctrl: current.ctrl,
+    });
     setDuplicateWarning(null);
     setInAppMessage(null);
   };
@@ -237,7 +267,10 @@ export function useShortcutSettings() {
 
     const dup = findDuplicate(editingId, editBinding);
     if (dup) {
-      setInAppMessage({ type: 'error', text: t('cannotSaveDuplicate', { label: dup.label }) });
+      setInAppMessage({
+        type: 'error',
+        text: t('cannotSaveDuplicate', { label: dup.label }),
+      });
       return;
     }
 
@@ -254,7 +287,10 @@ export function useShortcutSettings() {
     if (def) {
       const dup = findDuplicate(id, def);
       if (dup) {
-        setInAppMessage({ type: 'error', text: t('defaultConflictsWith', { label: dup.label }) });
+        setInAppMessage({
+          type: 'error',
+          text: t('defaultConflictsWith', { label: dup.label }),
+        });
         return;
       }
     }

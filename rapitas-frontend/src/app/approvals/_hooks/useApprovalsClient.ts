@@ -39,7 +39,11 @@ export interface ApprovalsClientState {
   // Action handlers
   handleApprove: (id: number, selectedSubtasks?: number[]) => Promise<void>;
   handleReject: (id: number) => Promise<void>;
-  handleCodeReviewApprove: (id: number, commitMessage: string, baseBranch: string) => Promise<void>;
+  handleCodeReviewApprove: (
+    id: number,
+    commitMessage: string,
+    baseBranch: string,
+  ) => Promise<void>;
   handleCodeReviewReject: (id: number) => Promise<void>;
   handleRequestChanges: (
     id: number,
@@ -84,7 +88,9 @@ export function useApprovalsClient(): ApprovalsClientState {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(new Map());
+  const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(
+    new Map(),
+  );
   const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
 
   useEffect(() => {
@@ -108,7 +114,10 @@ export function useApprovalsClient(): ApprovalsClientState {
         ) {
           if (targetApproval.proposedChanges?.structuredDiff?.length) {
             setCodeReviewDiff((prev) =>
-              new Map(prev).set(targetId, targetApproval.proposedChanges.structuredDiff!),
+              new Map(prev).set(
+                targetId,
+                targetApproval.proposedChanges.structuredDiff!,
+              ),
             );
           } else {
             fetchDiff(targetId).then((files) => {
@@ -118,43 +127,58 @@ export function useApprovalsClient(): ApprovalsClientState {
         }
       }
     }
-  }, [expandParam, approvals, hasAutoExpanded, filter, codeReviewDiff, fetchDiff]);
+  }, [
+    expandParam,
+    approvals,
+    hasAutoExpanded,
+    filter,
+    codeReviewDiff,
+    fetchDiff,
+  ]);
 
   /** Approve a subtask-decomposition request, optionally for a subset of subtasks. */
-  const handleApprove = useCallback(async (id: number, selectedSubtasks?: number[]) => {
-    setProcessingId(id);
-    await approve(id, selectedSubtasks);
-    setProcessingId(null);
-    setExpandedId(null);
-  }, [approve]);
+  const handleApprove = useCallback(
+    async (id: number, selectedSubtasks?: number[]) => {
+      setProcessingId(id);
+      await approve(id, selectedSubtasks);
+      setProcessingId(null);
+      setExpandedId(null);
+    },
+    [approve],
+  );
 
   /** Reject a subtask-decomposition request. */
-  const handleReject = useCallback(async (id: number) => {
-    setProcessingId(id);
-    await reject(id);
-    setProcessingId(null);
-    setExpandedId(null);
-  }, [reject]);
+  const handleReject = useCallback(
+    async (id: number) => {
+      setProcessingId(id);
+      await reject(id);
+      setProcessingId(null);
+      setExpandedId(null);
+    },
+    [reject],
+  );
 
   /** Approve a code review request, creating a commit with the given message and branch. */
-  const handleCodeReviewApprove = useCallback(async (
-    id: number,
-    commitMessage: string,
-    baseBranch: string,
-  ) => {
-    setProcessingId(id);
-    await approveCodeReview(id, commitMessage, baseBranch);
-    setProcessingId(null);
-    setExpandedId(null);
-  }, [approveCodeReview]);
+  const handleCodeReviewApprove = useCallback(
+    async (id: number, commitMessage: string, baseBranch: string) => {
+      setProcessingId(id);
+      await approveCodeReview(id, commitMessage, baseBranch);
+      setProcessingId(null);
+      setExpandedId(null);
+    },
+    [approveCodeReview],
+  );
 
   /** Reject a code review request. */
-  const handleCodeReviewReject = useCallback(async (id: number) => {
-    setProcessingId(id);
-    await rejectCodeReview(id);
-    setProcessingId(null);
-    setExpandedId(null);
-  }, [rejectCodeReview]);
+  const handleCodeReviewReject = useCallback(
+    async (id: number) => {
+      setProcessingId(id);
+      await rejectCodeReview(id);
+      setProcessingId(null);
+      setExpandedId(null);
+    },
+    [rejectCodeReview],
+  );
 
   /**
    * Send a change-request feedback for a code review.
@@ -163,52 +187,61 @@ export function useApprovalsClient(): ApprovalsClientState {
    * @param feedback - Overall feedback text / <フィードバックテキスト>
    * @param comments - Per-file inline comments / <ファイルごとのコメント>
    */
-  const handleRequestChanges = useCallback(async (
-    id: number,
-    feedback: string,
-    comments: { file?: string; content: string; type: string }[],
-  ) => {
-    setProcessingId(id);
-    try {
-      const res = await fetch(`${API_BASE_URL}/approvals/${id}/request-changes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback, comments }),
-      });
-      if (res.ok) {
-        await fetchApprovals(filter);
+  const handleRequestChanges = useCallback(
+    async (
+      id: number,
+      feedback: string,
+      comments: { file?: string; content: string; type: string }[],
+    ) => {
+      setProcessingId(id);
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/approvals/${id}/request-changes`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feedback, comments }),
+          },
+        );
+        if (res.ok) {
+          await fetchApprovals(filter);
+        }
+      } catch (err) {
+        logger.error('Failed to request changes:', err);
+      } finally {
+        setProcessingId(null);
+        setExpandedId(null);
       }
-    } catch (err) {
-      logger.error('Failed to request changes:', err);
-    } finally {
-      setProcessingId(null);
-      setExpandedId(null);
-    }
-  }, [fetchApprovals, filter]);
+    },
+    [fetchApprovals, filter],
+  );
 
   /**
    * Toggle expansion of a code review card, fetching its diff on first open.
    *
    * @param id - Approval request ID / <承認リクエストID>
    */
-  const handleExpandCodeReview = useCallback(async (id: number) => {
-    if (expandedId === id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(id);
-      if (!codeReviewDiff.has(id)) {
-        const approval = approvals.find((a) => a.id === id);
-        if (approval?.proposedChanges?.structuredDiff?.length) {
-          setCodeReviewDiff((prev) =>
-            new Map(prev).set(id, approval.proposedChanges.structuredDiff!),
-          );
-        } else {
-          const files = await fetchDiff(id);
-          setCodeReviewDiff((prev) => new Map(prev).set(id, files));
+  const handleExpandCodeReview = useCallback(
+    async (id: number) => {
+      if (expandedId === id) {
+        setExpandedId(null);
+      } else {
+        setExpandedId(id);
+        if (!codeReviewDiff.has(id)) {
+          const approval = approvals.find((a) => a.id === id);
+          if (approval?.proposedChanges?.structuredDiff?.length) {
+            setCodeReviewDiff((prev) =>
+              new Map(prev).set(id, approval.proposedChanges.structuredDiff!),
+            );
+          } else {
+            const files = await fetchDiff(id);
+            setCodeReviewDiff((prev) => new Map(prev).set(id, files));
+          }
         }
       }
-    }
-  }, [expandedId, codeReviewDiff, approvals, fetchDiff]);
+    },
+    [expandedId, codeReviewDiff, approvals, fetchDiff],
+  );
 
   /** Approve all currently selected approval requests. */
   const handleBulkApprove = useCallback(async () => {
@@ -245,15 +278,18 @@ export function useApprovalsClient(): ApprovalsClientState {
    * @param dateString - ISO 8601 date string / <ISO 8601形式の日時文字列>
    * @returns Formatted date string / <フォーマットされた日時文字列>
    */
-  const formatDate = useCallback((dateString: string) => {
-    return new Date(dateString).toLocaleDateString(dateLocale, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }, [dateLocale]);
+  const formatDate = useCallback(
+    (dateString: string) => {
+      return new Date(dateString).toLocaleDateString(dateLocale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    },
+    [dateLocale],
+  );
 
   return {
     filter,

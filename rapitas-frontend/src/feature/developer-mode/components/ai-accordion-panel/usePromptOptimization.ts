@@ -24,10 +24,14 @@ type UsePromptOptimizationResult = {
   copied: boolean;
   questionAnswers: Record<string, string>;
   isSubmittingAnswers: boolean;
-  setQuestionAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setQuestionAnswers: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
   setPromptResult: React.Dispatch<React.SetStateAction<PromptResult | null>>;
   setPromptError: React.Dispatch<React.SetStateAction<string | null>>;
-  generatePrompt: (clarificationAnswers?: Record<string, string>) => Promise<void>;
+  generatePrompt: (
+    clarificationAnswers?: Record<string, string>,
+  ) => Promise<void>;
   handleSubmitAnswers: () => Promise<void>;
   handleCopyPrompt: () => void;
   handleUsePrompt: () => void;
@@ -49,7 +53,9 @@ export function usePromptOptimization({
   const [promptResult, setPromptResult] = useState<PromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [questionAnswers, setQuestionAnswers] = useState<
+    Record<string, string>
+  >({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   const generatePrompt = useCallback(

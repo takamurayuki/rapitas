@@ -98,7 +98,10 @@ export function useDeveloperModeSettings(): UseDeveloperModeSettingsReturn {
       } catch (err) {
         const msg = err instanceof Error ? err.message : t('devErrorOccurred');
         setError(msg);
-        showToast(err instanceof Error ? err.message : t('devSaveFailed'), 'error');
+        showToast(
+          err instanceof Error ? err.message : t('devSaveFailed'),
+          'error',
+        );
       } finally {
         setIsSaving(false);
       }

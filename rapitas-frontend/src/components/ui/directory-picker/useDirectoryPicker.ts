@@ -131,14 +131,19 @@ export function useDirectoryPicker(
         : `${API_BASE_URL}/directories/browse`;
       const res = await fetch(url);
       const data: BrowseResult = await res.json();
-      if (data.error) { setError(data.error); return; }
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
       setCurrentPath(data.path);
       setDirectories(data.directories);
       setParentPath(data.parent);
       setIsGitRepo(data.isGitRepo || false);
       setIsDriveList(data.isDriveList || false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました');
+      setError(
+        err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -180,19 +185,28 @@ export function useDirectoryPicker(
   };
 
   const handleSelect = () => {
-    if (currentPath) { onChange(currentPath); handleClose(); }
+    if (currentPath) {
+      onChange(currentPath);
+      handleClose();
+    }
   };
 
   const handleNavigate = (path: string) => browseDirectory(path);
-  const handleGoUp = () => parentPath ? browseDirectory(parentPath) : browseDirectory();
+  const handleGoUp = () =>
+    parentPath ? browseDirectory(parentPath) : browseDirectory();
   const handleGoToDrives = () => browseDirectory();
-  const handleGoToPath = () => { if (manualPath.trim()) browseDirectory(manualPath.trim()); };
+  const handleGoToPath = () => {
+    if (manualPath.trim()) browseDirectory(manualPath.trim());
+  };
 
   const handleStartEdit = () => {
     setEditValue(value);
     setIsEditing(true);
     // NOTE: setTimeout defers focus until after React re-render commits the input to the DOM.
-    setTimeout(() => { editInputRef.current?.focus(); editInputRef.current?.select(); }, 0);
+    setTimeout(() => {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }, 0);
   };
 
   const handleEditComplete = () => {
@@ -200,13 +214,18 @@ export function useDirectoryPicker(
     setIsEditing(false);
   };
 
-  const handleEditCancel = () => { setIsEditing(false); setEditValue(value); };
+  const handleEditCancel = () => {
+    setIsEditing(false);
+    setEditValue(value);
+  };
 
   const handleStartCreateFolder = () => {
     setIsCreatingFolder(true);
     setNewFolderName('');
     setCreateError(null);
-    setTimeout(() => { newFolderInputRef.current?.focus(); }, 0);
+    setTimeout(() => {
+      newFolderInputRef.current?.focus();
+    }, 0);
   };
 
   const handleCancelCreateFolder = () => {
@@ -216,7 +235,10 @@ export function useDirectoryPicker(
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) { setCreateError('フォルダ名を入力してください'); return; }
+    if (!newFolderName.trim()) {
+      setCreateError('フォルダ名を入力してください');
+      return;
+    }
     if (/[<>:"/\\|?*]/.test(newFolderName)) {
       setCreateError('フォルダ名に使用できない文字が含まれています');
       return;
@@ -234,31 +256,68 @@ export function useDirectoryPicker(
         body: JSON.stringify({ path: newPath }),
       });
       const data = await res.json();
-      if (!data.success) { setCreateError(data.error || 'フォルダの作成に失敗しました'); return; }
+      if (!data.success) {
+        setCreateError(data.error || 'フォルダの作成に失敗しました');
+        return;
+      }
       setIsCreatingFolder(false);
       setNewFolderName('');
       setCreateError(null);
       browseDirectory(data.path);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'フォルダの作成に失敗しました');
+      setCreateError(
+        err instanceof Error ? err.message : 'フォルダの作成に失敗しました',
+      );
     } finally {
       setIsCreating(false);
     }
   };
 
   return {
-    isOpen, handleOpen, handleClose,
-    currentPath, directories, parentPath, isGitRepo, isDriveList,
-    isLoading, error, manualPath, setManualPath,
-    handleNavigate, handleGoUp, handleGoToDrives, handleGoToPath, handleSelect,
-    favorites, showFavorites, setShowFavorites, isLoadingFavorites,
-    favoritesOnlyMode, handleStartBrowsing,
-    addToFavorites, removeFromFavorites, isFavorite, getFavoriteId,
-    isEditing, editValue, setEditValue, editInputRef,
-    handleStartEdit, handleEditComplete, handleEditCancel,
-    isCreatingFolder, newFolderName, setNewFolderName,
-    isCreating, createError, setCreateError, newFolderInputRef,
-    handleStartCreateFolder, handleCancelCreateFolder, handleCreateFolder,
+    isOpen,
+    handleOpen,
+    handleClose,
+    currentPath,
+    directories,
+    parentPath,
+    isGitRepo,
+    isDriveList,
+    isLoading,
+    error,
+    manualPath,
+    setManualPath,
+    handleNavigate,
+    handleGoUp,
+    handleGoToDrives,
+    handleGoToPath,
+    handleSelect,
+    favorites,
+    showFavorites,
+    setShowFavorites,
+    isLoadingFavorites,
+    favoritesOnlyMode,
+    handleStartBrowsing,
+    addToFavorites,
+    removeFromFavorites,
+    isFavorite,
+    getFavoriteId,
+    isEditing,
+    editValue,
+    setEditValue,
+    editInputRef,
+    handleStartEdit,
+    handleEditComplete,
+    handleEditCancel,
+    isCreatingFolder,
+    newFolderName,
+    setNewFolderName,
+    isCreating,
+    createError,
+    setCreateError,
+    newFolderInputRef,
+    handleStartCreateFolder,
+    handleCancelCreateFolder,
+    handleCreateFolder,
     dropdownRef,
   };
 }

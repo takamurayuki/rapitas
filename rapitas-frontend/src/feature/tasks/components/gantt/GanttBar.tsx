@@ -18,7 +18,7 @@ export function GanttBar({
   bar,
   isOnCriticalPath = false,
   onClick,
-  onHover
+  onHover,
 }: GanttBarProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -35,7 +35,8 @@ export function GanttBar({
 
   // ステータスに基づくスタイル調整
   const getBarStyle = () => {
-    let baseClass = 'transition-all duration-200 ease-out cursor-pointer hover:opacity-80';
+    let baseClass =
+      'transition-all duration-200 ease-out cursor-pointer hover:opacity-80';
 
     if (isOnCriticalPath) {
       baseClass += ' ring-2 ring-red-400 ring-opacity-60';
@@ -78,7 +79,9 @@ export function GanttBar({
           className="pointer-events-none select-none"
           textAnchor="start"
         >
-          <tspan>{bar.title.length > 20 ? `${bar.title.slice(0, 17)}...` : bar.title}</tspan>
+          <tspan>
+            {bar.title.length > 20 ? `${bar.title.slice(0, 17)}...` : bar.title}
+          </tspan>
         </text>
       )}
 
@@ -118,12 +121,7 @@ export function GanttBar({
       {/* クリティカルパスインジケーター */}
       {isOnCriticalPath && (
         <g>
-          <circle
-            cx={bar.x + 8}
-            cy={bar.y - 6}
-            r={4}
-            fill="#EF4444"
-          />
+          <circle cx={bar.x + 8} cy={bar.y - 6} r={4} fill="#EF4444" />
           <text
             x={bar.x + 8}
             y={bar.y - 6 + 3}

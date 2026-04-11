@@ -34,7 +34,12 @@ type Props = {
  *
  * @param props - See Props type
  */
-export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMerge }: Props) {
+export function PrMergeSection({
+  prState,
+  resetPrState,
+  onCreatePR,
+  onApproveMerge,
+}: Props) {
   return (
     <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/30 dark:bg-indigo-dark-900/20">
       <div className="flex items-center gap-2 mb-3">

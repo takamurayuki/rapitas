@@ -12,8 +12,17 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  CheckSquare, Clock, Bot, Target, Flame, Calendar,
-  TrendingUp, Award, BarChart3, PieChart, Activity
+  CheckSquare,
+  Clock,
+  Bot,
+  Target,
+  Flame,
+  Calendar,
+  TrendingUp,
+  Award,
+  BarChart3,
+  PieChart,
+  Activity,
 } from 'lucide-react';
 import type { PlayerStats } from '../../types/achievement';
 
@@ -45,7 +54,7 @@ const StatCard: React.FC<StatCardProps> = ({
   subtitle,
   icon,
   color,
-  trend
+  trend,
 }) => {
   return (
     <motion.div
@@ -82,12 +91,23 @@ const StatCard: React.FC<StatCardProps> = ({
           </div>
 
           {trend && (
-            <div className={`flex items-center space-x-1 text-sm ${
-              trend.isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-            }`}>
-              <TrendingUp className={`w-4 h-4 ${!trend.isPositive ? 'transform rotate-180' : ''}`} />
-              <span>{trend.value > 0 ? '+' : ''}{trend.value}</span>
-              <span className="text-gray-500 dark:text-gray-400">{trend.label}</span>
+            <div
+              className={`flex items-center space-x-1 text-sm ${
+                trend.isPositive
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              <TrendingUp
+                className={`w-4 h-4 ${!trend.isPositive ? 'transform rotate-180' : ''}`}
+              />
+              <span>
+                {trend.value > 0 ? '+' : ''}
+                {trend.value}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">
+                {trend.label}
+              </span>
             </div>
           )}
         </div>
@@ -115,7 +135,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   strokeWidth = 8,
   color = '#3b82f6',
   label,
-  value
+  value,
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -124,11 +144,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   return (
     <div className="flex flex-col items-center">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg
-          className="transform -rotate-90"
-          width={size}
-          height={size}
-        >
+        <svg className="transform -rotate-90" width={size} height={size}>
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -148,8 +164,11 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
             strokeDasharray={circumference}
             strokeDashoffset={circumference}
             strokeLinecap="round"
-            animate={{ strokeDashoffset: circumference - (percentage / 100) * circumference }}
-            transition={{ duration: 2, ease: "easeOut" }}
+            animate={{
+              strokeDashoffset:
+                circumference - (percentage / 100) * circumference,
+            }}
+            transition={{ duration: 2, ease: 'easeOut' }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -185,7 +204,7 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({
   max,
   label,
   icon,
-  color
+  color,
 }) => {
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -197,7 +216,9 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({
           {icon}
         </div>
         <div className="flex-1">
-          <div className="text-sm text-gray-600 dark:text-gray-400">{label}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {label}
+          </div>
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl font-bold text-gray-900 dark:text-white">
               {current}
@@ -218,7 +239,7 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({
  */
 export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
   playerStats,
-  className = ''
+  className = '',
 }) => {
   const {
     totalTasksCompleted,
@@ -235,7 +256,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
     agentExecutionsToday,
     agentExecutionsThisWeek,
     highPriorityTasksCompleted,
-    onTimeCompletionRate
+    onTimeCompletionRate,
   } = playerStats;
 
   // Format time duration
@@ -251,11 +272,14 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
   const weeklyStudyGoal = 10 * 60; // 10 hours in minutes
   const weeklyAgentGoal = 10;
 
-  const weeklyProgress = useMemo(() => ({
-    tasks: Math.min((tasksCompletedThisWeek / weeklyTaskGoal) * 100, 100),
-    study: Math.min((studyTimeThisWeek / weeklyStudyGoal) * 100, 100),
-    agents: Math.min((agentExecutionsThisWeek / weeklyAgentGoal) * 100, 100),
-  }), [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek]);
+  const weeklyProgress = useMemo(
+    () => ({
+      tasks: Math.min((tasksCompletedThisWeek / weeklyTaskGoal) * 100, 100),
+      study: Math.min((studyTimeThisWeek / weeklyStudyGoal) * 100, 100),
+      agents: Math.min((agentExecutionsThisWeek / weeklyAgentGoal) * 100, 100),
+    }),
+    [tasksCompletedThisWeek, studyTimeThisWeek, agentExecutionsThisWeek],
+  );
 
   return (
     <div className={`space-y-8 ${className}`}>
@@ -272,8 +296,8 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
             color="#10b981"
             trend={{
               value: tasksCompletedToday,
-              label: "今日",
-              isPositive: tasksCompletedToday > 0
+              label: '今日',
+              isPositive: tasksCompletedToday > 0,
             }}
           />
 
@@ -285,7 +309,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
             trend={{
               value: studyTimeToday,
               label: `今日 ${formatTime(studyTimeToday)}`,
-              isPositive: studyTimeToday > 0
+              isPositive: studyTimeToday > 0,
             }}
           />
 
@@ -297,8 +321,8 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
             color="#8b5cf6"
             trend={{
               value: agentExecutionsToday,
-              label: "今日",
-              isPositive: agentExecutionsToday > 0
+              label: '今日',
+              isPositive: agentExecutionsToday > 0,
             }}
           />
 

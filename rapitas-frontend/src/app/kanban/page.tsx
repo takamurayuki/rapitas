@@ -64,7 +64,10 @@ export default function KanbanPage() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
-  const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
+  const priorityConfig: Record<
+    Priority,
+    { label: string; color: string; bg: string }
+  > = {
     low: { label: tt('priorityLow'), ...PRIORITY_STYLES.low },
     medium: { label: tt('priorityMedium'), ...PRIORITY_STYLES.medium },
     high: { label: tt('priorityHigh'), ...PRIORITY_STYLES.high },
@@ -84,7 +87,10 @@ export default function KanbanPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(0);
 
-  const currentWeekRange = useMemo(() => getWeekDateRange(currentWeek), [currentWeek]);
+  const currentWeekRange = useMemo(
+    () => getWeekDateRange(currentWeek),
+    [currentWeek],
+  );
 
   const {
     tasks,
@@ -136,7 +142,8 @@ export default function KanbanPage() {
     const start = fmt(currentWeekRange.start);
     const end = fmt(currentWeekRange.end);
     if (currentWeek === 0) return t('thisWeek', { start, end });
-    if (currentWeek < 0) return t('weeksAgo', { count: Math.abs(currentWeek), start, end });
+    if (currentWeek < 0)
+      return t('weeksAgo', { count: Math.abs(currentWeek), start, end });
     return t('weeksLater', { count: currentWeek, start, end });
   };
 
@@ -181,7 +188,10 @@ export default function KanbanPage() {
               <div key={i} className="space-y-3">
                 <div className="h-5 w-24 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
                 {[1, 2].map((j) => (
-                  <div key={j} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
+                  <div
+                    key={j}
+                    className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
+                  />
                 ))}
               </div>
             ))}
@@ -199,7 +209,12 @@ export default function KanbanPage() {
                   dateLocale={dateLocale}
                   onOpenTask={openTaskPanel}
                   onOpenTaskInPage={openTaskInPage}
-                  t={t as (key: string, values?: Record<string, unknown>) => string}
+                  t={
+                    t as (
+                      key: string,
+                      values?: Record<string, unknown>,
+                    ) => string
+                  }
                 />
               ))}
             </div>

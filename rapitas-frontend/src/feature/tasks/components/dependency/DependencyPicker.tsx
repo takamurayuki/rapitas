@@ -15,7 +15,8 @@ interface DependencyPickerProps {
 }
 
 export function DependencyPicker({ taskId }: DependencyPickerProps) {
-  const { dependencies, isLoading, addDependency, removeDependency } = useDependencies(taskId);
+  const { dependencies, isLoading, addDependency, removeDependency } =
+    useDependencies(taskId);
   const [showAddDependency, setShowAddDependency] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isRemoving, setIsRemoving] = useState<number | null>(null);
@@ -29,7 +30,9 @@ export function DependencyPicker({ taskId }: DependencyPickerProps) {
       await addDependency(selectedTask.id);
       setShowAddDependency(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '依存関係の追加に失敗しました');
+      setError(
+        err instanceof Error ? err.message : '依存関係の追加に失敗しました',
+      );
     } finally {
       setIsAdding(false);
     }
@@ -42,7 +45,9 @@ export function DependencyPicker({ taskId }: DependencyPickerProps) {
     try {
       await removeDependency(dependencyId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '依存関係の削除に失敗しました');
+      setError(
+        err instanceof Error ? err.message : '依存関係の削除に失敗しました',
+      );
     } finally {
       setIsRemoving(null);
     }
@@ -61,7 +66,9 @@ export function DependencyPicker({ taskId }: DependencyPickerProps) {
     return null;
   }
 
-  const blockedByTasks = dependencies.blockedBy.filter(dep => dep.fromTask.status !== 'completed');
+  const blockedByTasks = dependencies.blockedBy.filter(
+    (dep) => dep.fromTask.status !== 'completed',
+  );
   const blockingTasks = dependencies.blocking;
 
   return (
@@ -115,7 +122,8 @@ export function DependencyPicker({ taskId }: DependencyPickerProps) {
                     {dependency.fromTask.title}
                   </p>
                   <p className="text-xs text-orange-700 dark:text-orange-400">
-                    ステータス: {dependency.fromTask.status} • {dependency.type} • {dependency.lagDays}日遅延
+                    ステータス: {dependency.fromTask.status} • {dependency.type}{' '}
+                    • {dependency.lagDays}日遅延
                   </p>
                 </div>
                 <button
@@ -159,7 +167,8 @@ export function DependencyPicker({ taskId }: DependencyPickerProps) {
                     {dependency.toTask.title}
                   </p>
                   <p className="text-xs text-blue-700 dark:text-blue-400">
-                    ステータス: {dependency.toTask.status} • {dependency.type} • {dependency.lagDays}日遅延
+                    ステータス: {dependency.toTask.status} • {dependency.type} •{' '}
+                    {dependency.lagDays}日遅延
                   </p>
                 </div>
                 <button

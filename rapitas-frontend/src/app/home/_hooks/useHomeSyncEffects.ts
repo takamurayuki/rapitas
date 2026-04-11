@@ -62,7 +62,14 @@ export function useHomeSyncEffects({
   // Reset to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, categoryFilter, themeFilter, priorityFilter, searchQuery, setCurrentPage]);
+  }, [
+    filter,
+    categoryFilter,
+    themeFilter,
+    priorityFilter,
+    searchQuery,
+    setCurrentPage,
+  ]);
 
   // Clamp page to valid range when total pages shrinks
   useEffect(() => {
@@ -79,7 +86,9 @@ export function useHomeSyncEffects({
     if (firstDefault) setDefaultTheme(firstDefault);
 
     if (themeFilter === null && categoryFilter !== null) {
-      const inCat = themes.filter((t: Theme) => t.categoryId === categoryFilter);
+      const inCat = themes.filter(
+        (t: Theme) => t.categoryId === categoryFilter,
+      );
       if (inCat.length > 0) {
         const def = inCat.find((t: Theme) => t.isDefault);
         setThemeFilter((def || inCat[0]).id);
@@ -102,7 +111,13 @@ export function useHomeSyncEffects({
         setThemeFilter(null);
       }
     }
-  }, [visibleCategories, categoryFilter, themes, setCategoryFilter, setThemeFilter]);
+  }, [
+    visibleCategories,
+    categoryFilter,
+    themes,
+    setCategoryFilter,
+    setThemeFilter,
+  ]);
 
   // Periodic background refresh of filter data
   useEffect(() => {
@@ -111,6 +126,9 @@ export function useHomeSyncEffects({
     };
     const initial = setTimeout(check, 60000);
     const interval = setInterval(check, 5 * 60 * 1000);
-    return () => { clearTimeout(initial); clearInterval(interval); };
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
   }, [shouldBackgroundRefresh, backgroundRefresh]);
 }

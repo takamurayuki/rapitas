@@ -108,18 +108,44 @@ export function HomeFilterPanel({
       <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 mb-4 animate-skeleton-fade-in">
         <div className="flex items-center overflow-x-auto bg-slate-50 dark:bg-slate-800/50">
           <div className="flex gap-2 px-3 py-2 min-w-max">
-            {([{ w: 'w-16', d: 0 }, { w: 'w-20', d: 100 }, { w: 'w-12', d: 200 }, { w: 'w-18', d: 300 }, { w: 'w-14', d: 400 }] as const).map((item, i) => (
-              <EnhancedSkeletonBlock key={i} className={`${item.w} h-6 rounded-md`} delay={item.d} />
+            {(
+              [
+                { w: 'w-16', d: 0 },
+                { w: 'w-20', d: 100 },
+                { w: 'w-12', d: 200 },
+                { w: 'w-18', d: 300 },
+                { w: 'w-14', d: 400 },
+              ] as const
+            ).map((item, i) => (
+              <EnhancedSkeletonBlock
+                key={i}
+                className={`${item.w} h-6 rounded-md`}
+                delay={item.d}
+              />
             ))}
           </div>
         </div>
         <div className="flex items-center gap-2 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2 flex-1">
-            {([{ w: 'w-12', d: 100 }, { w: 'w-16', d: 200 }, { w: 'w-10', d: 300 }, { w: 'w-14', d: 400 }] as const).map((item, i) => (
-              <EnhancedSkeletonBlock key={i} className={`${item.w} h-5 rounded-sm`} delay={item.d} />
+            {(
+              [
+                { w: 'w-12', d: 100 },
+                { w: 'w-16', d: 200 },
+                { w: 'w-10', d: 300 },
+                { w: 'w-14', d: 400 },
+              ] as const
+            ).map((item, i) => (
+              <EnhancedSkeletonBlock
+                key={i}
+                className={`${item.w} h-5 rounded-sm`}
+                delay={item.d}
+              />
             ))}
           </div>
-          <EnhancedSkeletonBlock className="w-12 h-6 rounded shrink-0" delay={500} />
+          <EnhancedSkeletonBlock
+            className="w-12 h-6 rounded shrink-0"
+            delay={500}
+          />
         </div>
       </div>
     );

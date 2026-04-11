@@ -9,8 +9,17 @@
 
 /** Languages that auto-indent after a trailing `{`. */
 const BRACE_INDENT_LANGS = [
-  'javascript', 'typescript', 'java', 'csharp', 'cpp', 'c', 'rust', 'go',
-  'php', 'swift', 'kotlin',
+  'javascript',
+  'typescript',
+  'java',
+  'csharp',
+  'cpp',
+  'c',
+  'rust',
+  'go',
+  'php',
+  'swift',
+  'kotlin',
 ];
 
 /**

@@ -8,7 +8,12 @@
  */
 
 import { programmingLanguages } from './constants';
-import { getCurrentLine, getIndentation, getIndentString, shouldAutoIndent } from './code-block-indent';
+import {
+  getCurrentLine,
+  getIndentation,
+  getIndentString,
+  shouldAutoIndent,
+} from './code-block-indent';
 
 /** Auto-pair characters for bracket/quote completion. */
 const AUTO_PAIRS: Record<string, string> = {
@@ -27,10 +32,7 @@ const AUTO_PAIRS: Record<string, string> = {
  * @param codeElement - The contenteditable code element / 編集可能なコード要素
  * @param language - Language identifier for indent rules / インデントルール用言語識別子
  */
-function attachKeyHandlers(
-  codeElement: HTMLElement,
-  language: string,
-): void {
+function attachKeyHandlers(codeElement: HTMLElement, language: string): void {
   codeElement.onkeydown = (e) => {
     const keyboardEvent = e as KeyboardEvent;
     const selection = window.getSelection();
@@ -89,8 +91,14 @@ function attachKeyHandlers(
         const newRange = document.createRange();
         const textNode = range.startContainer;
         if (textNode.nodeType === Node.TEXT_NODE) {
-          newRange.setStart(textNode, range.startOffset + 1 + selectedText.length);
-          newRange.setEnd(textNode, range.startOffset + 1 + selectedText.length);
+          newRange.setStart(
+            textNode,
+            range.startOffset + 1 + selectedText.length,
+          );
+          newRange.setEnd(
+            textNode,
+            range.startOffset + 1 + selectedText.length,
+          );
           selection.removeAllRanges();
           selection.addRange(newRange);
         }
@@ -127,8 +135,12 @@ function buildCopyButton(codeElement: HTMLElement): HTMLButtonElement {
   btn.style.borderRadius = '4px';
   btn.style.cursor = 'pointer';
   btn.style.transition = 'all 0.2s';
-  btn.onmouseover = () => { btn.style.backgroundColor = '#475569'; };
-  btn.onmouseout = () => { btn.style.backgroundColor = '#334155'; };
+  btn.onmouseover = () => {
+    btn.style.backgroundColor = '#475569';
+  };
+  btn.onmouseout = () => {
+    btn.style.backgroundColor = '#334155';
+  };
   btn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -166,7 +178,10 @@ function buildDeleteButton(): HTMLButtonElement {
   svg.setAttribute('stroke-linejoin', 'round');
 
   const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path1.setAttribute('d', 'M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z');
+  path1.setAttribute(
+    'd',
+    'M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z',
+  );
   const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   path2.setAttribute('d', 'M10 11v6M14 11v6');
 
@@ -186,8 +201,12 @@ function buildDeleteButton(): HTMLButtonElement {
   btn.style.alignItems = 'center';
   btn.title = '削除';
   btn.dataset.deleteHandler = '1';
-  btn.onmouseover = () => { btn.style.backgroundColor = '#dc2626'; };
-  btn.onmouseout = () => { btn.style.backgroundColor = '#ef4444'; };
+  btn.onmouseover = () => {
+    btn.style.backgroundColor = '#dc2626';
+  };
+  btn.onmouseout = () => {
+    btn.style.backgroundColor = '#ef4444';
+  };
 
   return btn;
 }
@@ -242,7 +261,8 @@ export function createCodeBlockNode(
   const codeElement = document.createElement('code');
   codeElement.className = `language-${language}`;
   codeElement.textContent = code || '// ここにコードを入力...';
-  codeElement.style.fontFamily = "'Consolas', 'Monaco', 'Courier New', monospace";
+  codeElement.style.fontFamily =
+    "'Consolas', 'Monaco', 'Courier New', monospace";
   codeElement.style.fontSize = '14px';
   codeElement.style.lineHeight = '1.5';
   codeElement.style.color = '#e2e8f0';

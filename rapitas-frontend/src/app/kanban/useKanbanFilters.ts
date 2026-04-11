@@ -97,7 +97,14 @@ export function useKanbanFilters({
 
       return true;
     });
-  }, [tasks, searchQuery, selectedPriorities, selectedLabelIds, weekStart, weekEnd]);
+  }, [
+    tasks,
+    searchQuery,
+    selectedPriorities,
+    selectedLabelIds,
+    weekStart,
+    weekEnd,
+  ]);
 
   const hasActiveFilters =
     !!searchQuery ||

@@ -105,7 +105,9 @@ export default function PaidLeaveDialog({
       const toUTCISO = (dateStr: string, timeStr: string = '00:00') => {
         const [year, month, day] = dateStr.split('-').map(Number);
         const [hour, min] = timeStr.split(':').map(Number);
-        return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
+        return new Date(
+          Date.UTC(year, month - 1, day, hour, min, 0),
+        ).toISOString();
       };
 
       let startAt: string;
@@ -117,14 +119,21 @@ export default function PaidLeaveDialog({
           // NOTE: All-day events end at 00:00 on the day after the last day.
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
-          const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
-          endAt = new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
+          const [year, month, day] = nextDay
+            .toISOString()
+            .split('T')[0]
+            .split('-')
+            .map(Number);
+          endAt = new Date(
+            Date.UTC(year, month - 1, day, 0, 0, 0),
+          ).toISOString();
         }
       } else {
         startAt = toUTCISO(startDate, startTime);
-        endAt = isMultiDay && endDate >= startDate
-          ? toUTCISO(endDate, endTime)
-          : toUTCISO(startDate, endTime);
+        endAt =
+          isMultiDay && endDate >= startDate
+            ? toUTCISO(endDate, endTime)
+            : toUTCISO(startDate, endTime);
       }
 
       await onSubmit({
@@ -143,11 +152,14 @@ export default function PaidLeaveDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  });
+  const formattedStartDate = new Date(startDate).toLocaleDateString(
+    dateLocale,
+    {
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    },
+  );
 
   const formattedEndDate =
     isMultiDay && endDate > startDate
@@ -238,8 +250,14 @@ export default function PaidLeaveDialog({
             endDate={endDate}
             startTime={startTime}
             endTime={endTime}
-            onAllDayClick={() => { setIsAllDay(true); setIsHalfDay(false); }}
-            onHalfDayClick={() => { setIsAllDay(false); setIsHalfDay(true); }}
+            onAllDayClick={() => {
+              setIsAllDay(true);
+              setIsHalfDay(false);
+            }}
+            onHalfDayClick={() => {
+              setIsAllDay(false);
+              setIsHalfDay(true);
+            }}
             onMultiDayToggle={() => {
               setIsMultiDay(!isMultiDay);
               if (!isMultiDay) setEndDate(startDate);
@@ -249,8 +267,14 @@ export default function PaidLeaveDialog({
               if (val > endDate) setEndDate(val);
             }}
             onEndDateChange={setEndDate}
-            onMorningHalfDay={() => { setStartTime('09:00'); setEndTime('13:00'); }}
-            onAfternoonHalfDay={() => { setStartTime('13:00'); setEndTime('17:00'); }}
+            onMorningHalfDay={() => {
+              setStartTime('09:00');
+              setEndTime('13:00');
+            }}
+            onAfternoonHalfDay={() => {
+              setStartTime('13:00');
+              setEndTime('17:00');
+            }}
           />
 
           <PaidLeaveOptions

@@ -8,7 +8,15 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Zap, Lightbulb } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 import { API_BASE_URL } from '@/utils/api';
 
 type ModelBreakdown = {
@@ -29,7 +37,14 @@ type CostData = {
   suggestions: string[];
 };
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#f97316'];
+const COLORS = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#f97316',
+];
 
 /** Shorten model IDs for display. */
 function shortModelName(model: string): string {
@@ -46,7 +61,9 @@ export function CostOptimizationWidget() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agent-metrics/cost-optimization`);
+      const res = await fetch(
+        `${API_BASE_URL}/agent-metrics/cost-optimization`,
+      );
       if (res.ok) {
         const json = await res.json();
         if (json.success) setData(json.data);
@@ -125,7 +142,12 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as never}
+                  formatter={
+                    ((value: number) => [
+                      `$${value.toFixed(2)}`,
+                      'コスト',
+                    ]) as never
+                  }
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (
@@ -155,10 +177,18 @@ export function CostOptimizationWidget() {
               </div>
               <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400">
                 <span>{m.executions}回</span>
-                <span className={m.successRate >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}>
+                <span
+                  className={
+                    m.successRate >= 80
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600'
+                  }
+                >
                   {m.successRate}%
                 </span>
-                <span className="font-medium">${m.estimatedCost.toFixed(2)}</span>
+                <span className="font-medium">
+                  ${m.estimatedCost.toFixed(2)}
+                </span>
               </div>
             </div>
           ))}
@@ -168,7 +198,10 @@ export function CostOptimizationWidget() {
         {data.suggestions.length > 0 && (
           <div className="mt-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
             {data.suggestions.map((s, i) => (
-              <p key={i} className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+              <p
+                key={i}
+                className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5"
+              >
                 <Lightbulb className="w-3 h-3 mt-0.5 shrink-0" />
                 {s}
               </p>

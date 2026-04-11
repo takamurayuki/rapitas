@@ -8,7 +8,15 @@
 
 'use client';
 
-import { Loader2, Pin, PinOff, Brain, Pencil, Trash2, CornerDownRight } from 'lucide-react';
+import {
+  Loader2,
+  Pin,
+  PinOff,
+  Brain,
+  Pencil,
+  Trash2,
+  CornerDownRight,
+} from 'lucide-react';
 import type { NoteData } from './types';
 
 type NoteActionBarProps = {

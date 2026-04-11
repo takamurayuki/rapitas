@@ -17,7 +17,11 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { MODIFIER_KEYS, AVAILABLE_KEYS, type ModifierKey } from '../hooks/useShortcutSettings';
+import {
+  MODIFIER_KEYS,
+  AVAILABLE_KEYS,
+  type ModifierKey,
+} from '../hooks/useShortcutSettings';
 
 /** Props for GlobalShortcutSection. */
 interface GlobalShortcutSectionProps {
@@ -194,7 +198,9 @@ export function GlobalShortcutSection({
       <div className="flex items-center gap-3">
         <button
           onClick={onSave}
-          disabled={!hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0}
+          disabled={
+            !hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0
+          }
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-400 rounded-lg text-sm font-medium transition-colors"
         >
           {isSavingGlobal ? (

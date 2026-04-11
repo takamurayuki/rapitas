@@ -130,7 +130,9 @@ export function ResumableExecutionsBanner() {
 
   return (
     <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
-      <div className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}>
+      <div
+        className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}
+      >
         {/* Collapsible header */}
         <div
           className={`px-4 py-3.5 flex items-center justify-between cursor-pointer transition-colors ${headerHoverBg}`}

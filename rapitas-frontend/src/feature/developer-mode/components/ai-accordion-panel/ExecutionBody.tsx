@@ -18,7 +18,10 @@ import {
   GitBranch,
   Wand2,
 } from 'lucide-react';
-import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
+import {
+  ExecutionLogViewer,
+  type ExecutionLogStatus,
+} from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';

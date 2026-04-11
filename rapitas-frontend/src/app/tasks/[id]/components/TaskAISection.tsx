@@ -150,7 +150,9 @@ export default function TaskAISection({
             const freshTask = await res.json();
             setTask(freshTask);
           }
-        } catch { /* non-critical */ }
+        } catch {
+          /* non-critical */
+        }
       }, 5000);
     }
     return () => {
@@ -267,20 +269,38 @@ export default function TaskAISection({
         // HACK(agent): TaskAISectionProps uses loose `unknown` types for values
         // that originate from zustand selectors. Cast to satisfy AIAccordionPanel
         // until the prop chain is fully typed (ADR-0004 Step 2+).
-        analysisResult={analysisResult as Parameters<typeof AIAccordionPanel>[0]['analysisResult']}
+        analysisResult={
+          analysisResult as Parameters<
+            typeof AIAccordionPanel
+          >[0]['analysisResult']
+        }
         analysisError={analysisError}
         analysisApprovalId={analysisApprovalId}
         onAnalyze={onAnalyze}
         onApprove={onApprove}
         onReject={onReject}
-        onApproveSubtasks={onApproveSubtasks as Parameters<typeof AIAccordionPanel>[0]['onApproveSubtasks']}
+        onApproveSubtasks={
+          onApproveSubtasks as Parameters<
+            typeof AIAccordionPanel
+          >[0]['onApproveSubtasks']
+        }
         isApproving={isApproving}
         onPromptGenerated={onPromptGenerated}
         onSubtasksCreated={handleSubtasksCreated}
-        showAgentPanel={devModeConfig?.isEnabled === true || isExecuting || !!executionResult}
+        showAgentPanel={
+          devModeConfig?.isEnabled === true || isExecuting || !!executionResult
+        }
         isExecuting={isExecuting}
-        executionStatus={executionStatus as Parameters<typeof AIAccordionPanel>[0]['executionStatus']}
-        executionResult={executionResult as Parameters<typeof AIAccordionPanel>[0]['executionResult']}
+        executionStatus={
+          executionStatus as Parameters<
+            typeof AIAccordionPanel
+          >[0]['executionStatus']
+        }
+        executionResult={
+          executionResult as Parameters<
+            typeof AIAccordionPanel
+          >[0]['executionResult']
+        }
         executionError={executionResult?.error || null}
         workingDirectory={task.theme?.workingDirectory || undefined}
         defaultBranch={task.theme?.defaultBranch || 'main'}
@@ -292,15 +312,29 @@ export default function TaskAISection({
         onAgentChange={onAgentChange}
         onExecute={handleExecute}
         onReset={onReset}
-        onRestoreExecutionState={onRestoreExecutionState as Parameters<typeof AIAccordionPanel>[0]['onRestoreExecutionState']}
+        onRestoreExecutionState={
+          onRestoreExecutionState as Parameters<
+            typeof AIAccordionPanel
+          >[0]['onRestoreExecutionState']
+        }
         onStopExecution={onStopExecution}
         onExecutionComplete={handleExecutionComplete}
         subtasks={task.subtasks}
-        onStartParallelExecution={onStartParallelExecution as Parameters<typeof AIAccordionPanel>[0]['onStartParallelExecution']}
+        onStartParallelExecution={
+          onStartParallelExecution as Parameters<
+            typeof AIAccordionPanel
+          >[0]['onStartParallelExecution']
+        }
         isParallelExecutionRunning={isParallelExecutionRunning}
-        getSubtaskStatus={getSubtaskStatus as Parameters<typeof AIAccordionPanel>[0]['getSubtaskStatus']}
+        getSubtaskStatus={
+          getSubtaskStatus as Parameters<
+            typeof AIAccordionPanel
+          >[0]['getSubtaskStatus']
+        }
         parallelSessionId={parallelSessionId}
-        subtaskLogs={subtaskLogs as Parameters<typeof AIAccordionPanel>[0]['subtaskLogs']}
+        subtaskLogs={
+          subtaskLogs as Parameters<typeof AIAccordionPanel>[0]['subtaskLogs']
+        }
         onRefreshSubtaskLogs={onRefreshSubtaskLogs}
       />
     </div>

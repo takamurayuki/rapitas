@@ -48,7 +48,10 @@ function openDb(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(STORE_NAME)) {
-        database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        database.createObjectStore(STORE_NAME, {
+          keyPath: 'id',
+          autoIncrement: true,
+        });
       }
     };
 
@@ -147,7 +150,10 @@ async function incrementRetry(mutation: QueuedMutation): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = database.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const request = store.put({ ...mutation, retryCount: mutation.retryCount + 1 });
+    const request = store.put({
+      ...mutation,
+      retryCount: mutation.retryCount + 1,
+    });
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -293,14 +299,21 @@ export async function offlineFetch(
     return response;
   } catch (error) {
     // Network error — queue the mutation
-    if (!navigator.onLine || (error instanceof TypeError && error.message.includes('fetch'))) {
+    if (
+      !navigator.onLine ||
+      (error instanceof TypeError && error.message.includes('fetch'))
+    ) {
       const headers: Record<string, string> = {};
       if (init?.headers) {
         const h = init.headers;
         if (h instanceof Headers) {
-          h.forEach((v, k) => { headers[k] = v; });
+          h.forEach((v, k) => {
+            headers[k] = v;
+          });
         } else if (Array.isArray(h)) {
-          h.forEach(([k, v]) => { headers[k] = v; });
+          h.forEach(([k, v]) => {
+            headers[k] = v;
+          });
         } else {
           Object.assign(headers, h);
         }
@@ -315,10 +328,16 @@ export async function offlineFetch(
       );
 
       // Return synthetic 202 Accepted so the caller knows it was queued
-      return new Response(JSON.stringify({ queued: true, message: 'Saved offline. Will sync when online.' }), {
-        status: 202,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          queued: true,
+          message: 'Saved offline. Will sync when online.',
+        }),
+        {
+          status: 202,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
 
     throw error;

@@ -157,7 +157,11 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
                   size="sm"
                   onClickAction={() => loadSampleLog(key)}
                 >
-                  {key === 'apache' ? 'Apache' : key === 'nodejs' ? 'Node.js' : key.toUpperCase()}
+                  {key === 'apache'
+                    ? 'Apache'
+                    : key === 'nodejs'
+                      ? 'Node.js'
+                      : key.toUpperCase()}
                 </Button>
               ),
             )}
@@ -193,7 +197,10 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
             <Trash2 className="w-4 h-4 mr-2" />
             クリア
           </Button>
-          <Button onClickAction={onAnalyze} disabled={!logContent || isAnalyzing}>
+          <Button
+            onClickAction={onAnalyze}
+            disabled={!logContent || isAnalyzing}
+          >
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

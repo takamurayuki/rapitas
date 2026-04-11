@@ -91,7 +91,9 @@ export function useSettingsData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
+  const [availableModels, setAvailableModels] = useState<
+    Record<string, ModelOption[]>
+  >({});
   const [ollamaUrlInput, setOllamaUrlInput] = useState('');
 
   const [localLlmStatus, setLocalLlmStatus] = useState<{
@@ -109,17 +111,20 @@ export function useSettingsData() {
     totalMB: number;
   } | null>(null);
 
-  const [providerStates, setProviderStates] = useState<Record<string, ProviderState>>(
-    () => {
-      const states: Record<string, ProviderState> = {};
-      for (const key of PROVIDER_KEYS) {
-        states[key] = { ...INITIAL_PROVIDER_STATE };
-      }
-      return states;
-    },
-  );
+  const [providerStates, setProviderStates] = useState<
+    Record<string, ProviderState>
+  >(() => {
+    const states: Record<string, ProviderState> = {};
+    for (const key of PROVIDER_KEYS) {
+      states[key] = { ...INITIAL_PROVIDER_STATE };
+    }
+    return states;
+  });
 
-  const updateProviderState = (providerKey: string, updates: Partial<ProviderState>) => {
+  const updateProviderState = (
+    providerKey: string,
+    updates: Partial<ProviderState>,
+  ) => {
     setProviderStates((prev) => ({
       ...prev,
       [providerKey]: { ...prev[providerKey], ...updates },
@@ -177,8 +182,10 @@ export function useSettingsData() {
       }
       const res = await fetch(`${API_BASE_URL}/settings/api-keys`);
       if (res.ok) {
-        const data: Record<string, { configured: boolean; maskedKey: string | null }> =
-          await res.json();
+        const data: Record<
+          string,
+          { configured: boolean; maskedKey: string | null }
+        > = await res.json();
         setCachedData(CACHE_KEYS.apiKeys, data);
         for (const [provider, info] of Object.entries(data)) {
           if (info.configured && info.maskedKey) {
@@ -193,7 +200,9 @@ export function useSettingsData() {
 
   const fetchModels = useCallback(async () => {
     try {
-      const cached = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
+      const cached = getCachedData<Record<string, ModelOption[]>>(
+        CACHE_KEYS.models,
+      );
       if (cached) {
         setAvailableModels(cached);
         fetch(`${API_BASE_URL}/settings/models`)
@@ -238,7 +247,10 @@ export function useSettingsData() {
    *
    * @param providerKey - Provider identifier (claude, chatgpt, gemini).
    */
-  const saveApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
+  const saveApiKey = async (
+    providerKey: string,
+    configuredField: keyof UserSettings,
+  ) => {
     const state = providerStates[providerKey];
     if (!state.apiKeyInput.trim()) return;
     updateProviderState(providerKey, { isSaving: true });
@@ -247,7 +259,10 @@ export function useSettingsData() {
       const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey: state.apiKeyInput, provider: providerKey }),
+        body: JSON.stringify({
+          apiKey: state.apiKeyInput,
+          provider: providerKey,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -280,7 +295,10 @@ export function useSettingsData() {
    * @param providerKey - Provider identifier.
    * @param configuredField - Settings field to clear on success.
    */
-  const deleteApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
+  const deleteApiKey = async (
+    providerKey: string,
+    configuredField: keyof UserSettings,
+  ) => {
     if (!confirm(t('confirmDeleteKey'))) return;
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
@@ -359,7 +377,9 @@ export function useSettingsData() {
         body: JSON.stringify({ defaultAiProvider: provider }),
       });
       if (res.ok) {
-        setSettings((prev) => (prev ? { ...prev, defaultAiProvider: provider } : prev));
+        setSettings((prev) =>
+          prev ? { ...prev, defaultAiProvider: provider } : prev,
+        );
         showSuccess(t('providerSaved'));
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
@@ -376,14 +396,21 @@ export function useSettingsData() {
   const handleDownloadModel = async () => {
     setLocalLlmLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/local-llm/download-model`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/local-llm/download-model`, {
+        method: 'POST',
+      });
       const pollInterval = setInterval(async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`);
+          const res = await fetch(
+            `${API_BASE_URL}/local-llm/download-progress`,
+          );
           if (res.ok) {
             const progress = await res.json();
             setDownloadProgress(progress);
-            if (progress.status === 'completed' || progress.status === 'error') {
+            if (
+              progress.status === 'completed' ||
+              progress.status === 'error'
+            ) {
               clearInterval(pollInterval);
               setLocalLlmLoading(false);
               fetchLocalLlmStatus();
@@ -442,7 +469,9 @@ export function useSettingsData() {
         body: JSON.stringify(updates),
       });
       if (res.ok) {
-        setSettings((prev) => (prev ? ({ ...prev, ...updates } as UserSettings) : prev));
+        setSettings((prev) =>
+          prev ? ({ ...prev, ...updates } as UserSettings) : prev,
+        );
         showSuccess(t('localLlmSaved'));
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {

@@ -32,7 +32,13 @@ interface GoalModalProps {
  * @param props.onSubmit - Form submit handler / フォーム送信ハンドラー
  * @param props.onClose - Close modal handler / モーダルを閉じるハンドラー
  */
-export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: GoalModalProps) {
+export function GoalModal({
+  isEditing,
+  formData,
+  onChange,
+  onSubmit,
+  onClose,
+}: GoalModalProps) {
   const t = useTranslations('examGoals');
   const tc = useTranslations('common');
   const [iconSearch, setIconSearch] = useState('');
@@ -42,7 +48,8 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
     ? searchIcons(iconSearch)
     : Object.keys(ICON_DATA).slice(0, 30);
 
-  const set = (partial: Partial<ExamGoalFormData>) => onChange({ ...formData, ...partial });
+  const set = (partial: Partial<ExamGoalFormData>) =>
+    onChange({ ...formData, ...partial });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -139,7 +146,9 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 <span style={{ color: formData.color }}>
                   {renderGoalIcon(formData.icon, 20)}
                 </span>
-                <span className="text-sm">{formData.icon || tc('selectIcon')}</span>
+                <span className="text-sm">
+                  {formData.icon || tc('selectIcon')}
+                </span>
               </button>
 
               {showIconPicker && (
@@ -162,7 +171,9 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                           setIconSearch('');
                         }}
                         className={`p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors ${
-                          formData.icon === iconName ? 'bg-zinc-200 dark:bg-zinc-600' : ''
+                          formData.icon === iconName
+                            ? 'bg-zinc-200 dark:bg-zinc-600'
+                            : ''
                         }`}
                         title={iconName}
                       >

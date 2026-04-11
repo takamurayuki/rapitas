@@ -20,7 +20,9 @@ interface MemoryStrengthCardProps {
  *
  * @param memoryOverview - Full overview data including strength score and level.
  */
-export function MemoryStrengthCard({ memoryOverview }: MemoryStrengthCardProps) {
+export function MemoryStrengthCard({
+  memoryOverview,
+}: MemoryStrengthCardProps) {
   const levelCfg =
     LEVEL_CONFIG[memoryOverview.memoryStrength.level] ?? LEVEL_CONFIG.beginner;
 

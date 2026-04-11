@@ -77,7 +77,8 @@ export function DayEventsSidebar({
   const selectedDateEvents = selectedDate
     ? events.filter((e) => {
         if (e.date === selectedDate) return true;
-        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate) return true;
+        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate)
+          return true;
         return false;
       })
     : [];
@@ -159,7 +160,8 @@ export function DayEventsSidebar({
                     {event.type === 'exam' ? (
                       <Target className="w-4 h-4" />
                     ) : event.type === 'schedule' ? (
-                      schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE' ? (
+                      schedules.find((s) => s.id === event.id)?.type ===
+                      'PAID_LEAVE' ? (
                         <Coffee className="w-4 h-4" />
                       ) : (
                         <CalendarIcon className="w-4 h-4" />
@@ -179,7 +181,8 @@ export function DayEventsSidebar({
                         {event.type === 'exam'
                           ? t('legendExam')
                           : event.type === 'schedule'
-                            ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
+                            ? schedules.find((s) => s.id === event.id)?.type ===
+                              'PAID_LEAVE'
                               ? t('paidLeaveLabel')
                               : t('legendSchedule')
                             : t('legendTask')}
@@ -193,10 +196,13 @@ export function DayEventsSidebar({
                             day: 'numeric',
                           })}
                           {' 〜 '}
-                          {new Date(event.endDate).toLocaleDateString(dateLocale, {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {new Date(event.endDate).toLocaleDateString(
+                            dateLocale,
+                            {
+                              month: 'short',
+                              day: 'numeric',
+                            },
+                          )}
                         </span>
                       )}
                       {event.time && (

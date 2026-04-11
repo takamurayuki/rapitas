@@ -131,7 +131,9 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
       logger.debug('Response status:', res.status, 'Response:', responseText);
 
       if (!res.ok) {
-        let errorMessage = t('updateFailedStatus', { status: String(res.status) });
+        let errorMessage = t('updateFailedStatus', {
+          status: String(res.status),
+        });
         try {
           const errorData = JSON.parse(responseText);
           if (errorData.error) errorMessage = errorData.error;
@@ -167,7 +169,9 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     if (!confirm(t('deleteConfirm', { name }))) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/themes/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE_URL}/themes/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) throw new Error(tc('deleteFailed'));
       showToast(t('deleted'), 'success');
       clearFilterCache();
@@ -185,7 +189,9 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
    */
   const setDefault = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/themes/${id}/set-default`, { method: 'PATCH' });
+      const res = await fetch(`${API_BASE_URL}/themes/${id}/set-default`, {
+        method: 'PATCH',
+      });
       if (!res.ok) throw new Error(t('defaultSetFailed'));
       showToast(t('defaultSet'), 'success');
       fetchItems();
@@ -225,7 +231,9 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
 
-    const reorderedMap = new Map(reordered.map((item, index) => [item.id, index]));
+    const reorderedMap = new Map(
+      reordered.map((item, index) => [item.id, index]),
+    );
     const newItems = items.map((item) => {
       if (reorderedMap.has(item.id)) {
         return { ...item, sortOrder: reorderedMap.get(item.id)! };
@@ -234,7 +242,10 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     });
     setItems(newItems);
 
-    const orders = reordered.map((item, index) => ({ id: item.id, sortOrder: index }));
+    const orders = reordered.map((item, index) => ({
+      id: item.id,
+      sortOrder: index,
+    }));
 
     try {
       const res = await fetch(`${API_BASE_URL}/themes/reorder`, {

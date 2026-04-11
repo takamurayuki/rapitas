@@ -7,7 +7,13 @@
  * Renders the PR body, reviews, comments, and the comment/review input form.
  */
 
-import { MessageSquare, CheckCircle2, AlertCircle, Send, Loader2 } from 'lucide-react';
+import {
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  Send,
+  Loader2,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
 import { getReviewIcon } from './PrUtils';

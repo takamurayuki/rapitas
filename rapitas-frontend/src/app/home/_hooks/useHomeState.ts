@@ -25,8 +25,10 @@ export function useHomeState() {
     null,
   );
   const [priorityFilter, setPriorityFilter] = useState<Priority | null>(null);
-  const [isFilterExpanded, setIsFilterExpanded] =
-    useLocalStorageState<boolean>('isFilterExpanded', false);
+  const [isFilterExpanded, setIsFilterExpanded] = useLocalStorageState<boolean>(
+    'isFilterExpanded',
+    false,
+  );
 
   // --- Sort state ---
   const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>(

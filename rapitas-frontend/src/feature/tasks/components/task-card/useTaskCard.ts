@@ -8,9 +8,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import {
-  statusConfig,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
@@ -49,7 +47,9 @@ export interface TaskCardHook {
   contextMenuRef: React.RefObject<HTMLDivElement | null>;
   showContextMenu: boolean;
   contextMenuPosition: { x: number; y: number };
-  setContextMenuPosition: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  setContextMenuPosition: React.Dispatch<
+    React.SetStateAction<{ x: number; y: number }>
+  >;
   setShowContextMenu: React.Dispatch<React.SetStateAction<boolean>>;
   expandedSubtasks: boolean;
   setExpandedSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
@@ -80,7 +80,11 @@ export interface TaskCardHook {
  */
 export function useTaskCard(
   task: Task,
-  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void,
+  onStatusChange: (
+    taskId: number,
+    status: Status,
+    cardElement?: HTMLElement,
+  ) => void,
   onTaskUpdated?: () => void,
   onTaskClick?: (taskId: number) => void,
 ): TaskCardHook {
@@ -94,7 +98,10 @@ export function useTaskCard(
 
   const [expandedSubtasks, setExpandedSubtasks] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
+  const [contextMenuPosition, setContextMenuPosition] = useState({
+    x: 0,
+    y: 0,
+  });
   const [localSubtasks, setLocalSubtasks] = useState(task.subtasks || []);
 
   const { showToast } = useToast();
@@ -126,10 +133,7 @@ export function useTaskCard(
     };
   }, [showContextMenu]);
 
-  const handleSubtaskStatusChange = (
-    subtaskId: number,
-    newStatus: string,
-  ) => {
+  const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
     // Optimistic update
     setLocalSubtasks((prev) =>
       prev.map((s) =>

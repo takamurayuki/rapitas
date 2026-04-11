@@ -22,7 +22,10 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import type { ExecutionTrendData, AgentPerformanceComparison } from '../_hooks/useMetricsData';
+import type {
+  ExecutionTrendData,
+  AgentPerformanceComparison,
+} from '../_hooks/useMetricsData';
 
 /** Chart color palette — index wraps around for more than 10 series. */
 const COLORS = [

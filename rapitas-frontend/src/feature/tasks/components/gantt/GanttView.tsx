@@ -6,7 +6,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import useSWR from 'swr';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Loader2,
+} from 'lucide-react';
 import type { GanttData, GanttTask } from '@/types/task.types';
 import { GanttBar } from './GanttBar';
 import { GanttArrows } from './GanttArrows';
@@ -15,10 +21,11 @@ import {
   taskToBar,
   getWeekGridLines,
   getDayGridLines,
-  type GanttViewport
+  type GanttViewport,
 } from './gantt-utils';
 
-const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE =
+  process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
 
 interface GanttViewProps {
   themeId?: number;
@@ -28,7 +35,11 @@ interface GanttViewProps {
 
 type ZoomLevel = 'day' | 'week' | 'month';
 
-export function GanttView({ themeId, categoryId, className = '' }: GanttViewProps) {
+export function GanttView({
+  themeId,
+  categoryId,
+  className = '',
+}: GanttViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
@@ -55,20 +66,28 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
     }
 
     return {
-      from: new Date(center.getTime() - daysBefore * 24 * 60 * 60 * 1000).toISOString(),
-      to: new Date(center.getTime() + daysAfter * 24 * 60 * 60 * 1000).toISOString()
+      from: new Date(
+        center.getTime() - daysBefore * 24 * 60 * 60 * 1000,
+      ).toISOString(),
+      to: new Date(
+        center.getTime() + daysAfter * 24 * 60 * 60 * 1000,
+      ).toISOString(),
     };
   };
 
   const dateRange = getDateRangeForZoom(viewDate, zoomLevel);
 
   // ガントデータの取得
-  const { data: ganttData, error, isLoading } = useSWR<GanttData>(
+  const {
+    data: ganttData,
+    error,
+    isLoading,
+  } = useSWR<GanttData>(
     `/gantt-data?${new URLSearchParams({
       ...(themeId && { themeId: themeId.toString() }),
       ...(categoryId && { categoryId: categoryId.toString() }),
       from: dateRange.from,
-      to: dateRange.to
+      to: dateRange.to,
     })}`,
     async (url: string) => {
       const response = await fetch(`${API_BASE}${url}`);
@@ -76,16 +95,19 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
         throw new Error(`Failed to fetch gantt data: ${response.statusText}`);
       }
       return response.json();
-    }
+    },
   );
 
   // ビューポートの計算
-  const [containerSize, setContainerSize] = useState({ width: 800, height: 400 });
+  const [containerSize, setContainerSize] = useState({
+    width: 800,
+    height: 400,
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const observer = new ResizeObserver(entries => {
+    const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       setContainerSize({ width, height });
     });
@@ -100,14 +122,16 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
     width: containerSize.width,
     height: Math.max(400, (ganttData?.tasks.length || 0) * 40 + 120),
     rowHeight: 40,
-    margin: { top: 80, right: 40, bottom: 40, left: 200 }
+    margin: { top: 80, right: 40, bottom: 40, left: 200 },
   };
 
   // ナビゲーション関数
   const navigateDate = (direction: 'prev' | 'next') => {
     const days = zoomLevel === 'day' ? 7 : zoomLevel === 'week' ? 30 : 90;
     const multiplier = direction === 'prev' ? -1 : 1;
-    const newDate = new Date(viewDate.getTime() + multiplier * days * 24 * 60 * 60 * 1000);
+    const newDate = new Date(
+      viewDate.getTime() + multiplier * days * 24 * 60 * 60 * 1000,
+    );
     setViewDate(newDate);
   };
 
@@ -121,7 +145,9 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-3 text-gray-600 dark:text-gray-400">ガントチャートを読み込み中...</span>
+        <span className="ml-3 text-gray-600 dark:text-gray-400">
+          ガントチャートを読み込み中...
+        </span>
       </div>
     );
   }
@@ -129,7 +155,9 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
   // エラー状態
   if (error) {
     return (
-      <div className={`bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 ${className}`}>
+      <div
+        className={`bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 ${className}`}
+      >
         <p className="text-red-800 dark:text-red-300">
           ガントチャートの読み込みに失敗しました: {error.message}
         </p>
@@ -149,13 +177,20 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
   }
 
   // タスクバーデータの生成
-  const bars = ganttData.tasks.map((task, index) => taskToBar(task, index, viewport));
+  const bars = ganttData.tasks.map((task, index) =>
+    taskToBar(task, index, viewport),
+  );
 
   // グリッド線の計算
-  const gridLines = zoomLevel === 'day' ? getDayGridLines(viewport) : getWeekGridLines(viewport);
+  const gridLines =
+    zoomLevel === 'day'
+      ? getDayGridLines(viewport)
+      : getWeekGridLines(viewport);
 
   return (
-    <div className={`bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 ${className}`}>
+    <div
+      className={`bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 ${className}`}
+    >
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
@@ -184,7 +219,10 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
               <ChevronLeft className="h-5 w-5" />
             </button>
             <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[120px] text-center">
-              {viewDate.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })}
+              {viewDate.toLocaleDateString('ja-JP', {
+                year: 'numeric',
+                month: 'long',
+              })}
             </span>
             <button
               onClick={() => navigateDate('next')}
@@ -197,7 +235,7 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
 
           {/* ズームレベル */}
           <div className="flex border border-gray-300 dark:border-gray-600 rounded-md">
-            {(['day', 'week', 'month'] as ZoomLevel[]).map(level => (
+            {(['day', 'week', 'month'] as ZoomLevel[]).map((level) => (
               <button
                 key={level}
                 onClick={() => setZoomLevel(level)}
@@ -223,7 +261,11 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
       </div>
 
       {/* ガントチャート */}
-      <div ref={containerRef} className="w-full overflow-auto" style={{ height: '500px' }}>
+      <div
+        ref={containerRef}
+        className="w-full overflow-auto"
+        style={{ height: '500px' }}
+      >
         <svg width={viewport.width} height={viewport.height} className="w-full">
           {/* 背景グリッド */}
           <g className="grid-lines">
@@ -254,13 +296,22 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
                 />
                 <text
                   x={viewport.margin.left - 15}
-                  y={viewport.margin.top + index * viewport.rowHeight + viewport.rowHeight / 2 + 4}
+                  y={
+                    viewport.margin.top +
+                    index * viewport.rowHeight +
+                    viewport.rowHeight / 2 +
+                    4
+                  }
                   textAnchor="end"
                   fontSize="12"
                   fill="currentColor"
                   className="text-gray-700 dark:text-gray-300"
                 >
-                  <tspan>{task.title.length > 25 ? `${task.title.slice(0, 22)}...` : task.title}</tspan>
+                  <tspan>
+                    {task.title.length > 25
+                      ? `${task.title.slice(0, 22)}...`
+                      : task.title}
+                  </tspan>
                 </text>
               </g>
             ))}

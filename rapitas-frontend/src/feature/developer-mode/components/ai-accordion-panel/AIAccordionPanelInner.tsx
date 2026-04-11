@@ -71,14 +71,19 @@ export function AIAccordionPanelInner({
   const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
 
   // Accordion / tab state
-  const { expandedSection, setExpandedSection, toggleSection, analysisTab, setAnalysisTab } =
-    useAccordionState({
-      taskId,
-      onTaskChange: () => {
-        setSelectedSubtasks([]);
-        setSubtaskCreationSuccess(false);
-      },
-    });
+  const {
+    expandedSection,
+    setExpandedSection,
+    toggleSection,
+    analysisTab,
+    setAnalysisTab,
+  } = useAccordionState({
+    taskId,
+    onTaskChange: () => {
+      setSelectedSubtasks([]);
+      setSubtaskCreationSuccess(false);
+    },
+  });
 
   // Prompt optimization
   const {

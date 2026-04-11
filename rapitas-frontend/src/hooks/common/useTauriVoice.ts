@@ -54,12 +54,16 @@ export function useTauriVoice(
     setIsSupported(true);
 
     // Dynamic import to avoid build errors when not in Tauri
-    import('@tauri-apps/api/core').then(({ invoke }) => {
-      invoke('voice_model_status').then((status) => {
-        const s = status as { downloaded: boolean; recording: boolean };
-        setModelDownloaded(s.downloaded);
-      }).catch(() => {});
-    }).catch(() => {});
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => {
+        invoke('voice_model_status')
+          .then((status) => {
+            const s = status as { downloaded: boolean; recording: boolean };
+            setModelDownloaded(s.downloaded);
+          })
+          .catch(() => {});
+      })
+      .catch(() => {});
   }, []);
 
   const startListening = useCallback(async () => {
@@ -73,7 +77,7 @@ export function useTauriVoice(
 
       // voice_start_recording blocks until voice_stop_recording is called,
       // then returns the transcribed text.
-      const text = await invoke('voice_start_recording') as string;
+      const text = (await invoke('voice_start_recording')) as string;
 
       setIsTranscribing(false);
       setIsListening(false);
@@ -85,7 +89,10 @@ export function useTauriVoice(
         setError('音声を認識できませんでした。');
       }
     } catch (err) {
-      const message = typeof err === 'string' ? err : (err as Error).message || 'Unknown error';
+      const message =
+        typeof err === 'string'
+          ? err
+          : (err as Error).message || 'Unknown error';
       setError(message);
       setIsListening(false);
       setIsTranscribing(false);

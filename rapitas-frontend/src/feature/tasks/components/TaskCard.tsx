@@ -257,10 +257,7 @@ const TaskCard = memo(function TaskCard({
                         d="M9 5l7 7-7 7"
                       />
                     </svg>
-                    {
-                      tc.localSubtasks.filter((s) => s.status === 'done')
-                        .length
-                    }
+                    {tc.localSubtasks.filter((s) => s.status === 'done').length}
                     /{tc.localSubtasks.length}
                   </button>
                   {tc.completionRate !== null && (

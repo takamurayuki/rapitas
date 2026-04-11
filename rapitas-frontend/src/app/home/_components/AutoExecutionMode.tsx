@@ -8,7 +8,13 @@
  */
 'use client';
 import { useState, useCallback } from 'react';
-import { Bot, Loader2, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import {
+  Bot,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 interface GeneratedTask {
@@ -51,7 +57,9 @@ export function AutoExecutionMode() {
 
       setResult(data.tasks ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'タスク自動生成に失敗しました');
+      setError(
+        err instanceof Error ? err.message : 'タスク自動生成に失敗しました',
+      );
     } finally {
       setIsGenerating(false);
     }

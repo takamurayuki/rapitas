@@ -45,7 +45,11 @@ export class ApiClientCache {
    * @param data - Value to store / 保存する値
    * @param cacheTime - TTL in milliseconds; defaults to 24 hours / ミリ秒単位のTTL（デフォルト24時間）
    */
-  set(key: string, data: unknown, cacheTime: number = 24 * 60 * 60 * 1000): void {
+  set(
+    key: string,
+    data: unknown,
+    cacheTime: number = 24 * 60 * 60 * 1000,
+  ): void {
     // Default 24-hour cache (significantly extended from previous 5 minutes)
     const entry: CacheEntry = {
       data,
@@ -96,7 +100,10 @@ export class ApiClientCache {
    *
    * @returns Cache statistics object / キャッシュ統計オブジェクト
    */
-  getStats(): { size: number; entries: Array<{ key: string; size: number; age: number }> } {
+  getStats(): {
+    size: number;
+    entries: Array<{ key: string; size: number; age: number }>;
+  } {
     const entries = Array.from(this.cache.entries()).map(([key, entry]) => ({
       key,
       size: JSON.stringify(entry.data).length,
@@ -139,7 +146,9 @@ export class ApiClientCache {
       const persistentCache = JSON.parse(stored) as Record<string, CacheEntry>;
 
       // Cap task-detail entries at 50 to avoid quota exhaustion
-      const taskKeys = Object.keys(persistentCache).filter((k) => k.includes('/tasks/'));
+      const taskKeys = Object.keys(persistentCache).filter((k) =>
+        k.includes('/tasks/'),
+      );
       if (taskKeys.length >= 50) {
         const sorted = taskKeys.sort(
           (a, b) => persistentCache[a].timestamp - persistentCache[b].timestamp,
@@ -148,9 +157,15 @@ export class ApiClientCache {
       }
 
       persistentCache[key] = entry;
-      localStorage.setItem(this.localStorageKey, JSON.stringify(persistentCache));
+      localStorage.setItem(
+        this.localStorageKey,
+        JSON.stringify(persistentCache),
+      );
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      if (
+        error instanceof DOMException &&
+        error.name === 'QuotaExceededError'
+      ) {
         this.cleanupPersistentCache();
       }
       logger.warn('Failed to save persistent cache:', error);
@@ -164,7 +179,10 @@ export class ApiClientCache {
       const stored = localStorage.getItem(this.localStorageKey) || '{}';
       const persistentCache = JSON.parse(stored) as Record<string, CacheEntry>;
       delete persistentCache[key];
-      localStorage.setItem(this.localStorageKey, JSON.stringify(persistentCache));
+      localStorage.setItem(
+        this.localStorageKey,
+        JSON.stringify(persistentCache),
+      );
     } catch (error) {
       logger.warn('Failed to remove persistent cache entry:', error);
     }
@@ -178,13 +196,12 @@ export class ApiClientCache {
       const persistentCache = JSON.parse(stored) as Record<string, CacheEntry>;
       const now = Date.now();
 
-      const cleaned = Object.entries(persistentCache).reduce<Record<string, CacheEntry>>(
-        (acc, [key, entry]) => {
-          if (entry.expiry > now) acc[key] = entry;
-          return acc;
-        },
-        {},
-      );
+      const cleaned = Object.entries(persistentCache).reduce<
+        Record<string, CacheEntry>
+      >((acc, [key, entry]) => {
+        if (entry.expiry > now) acc[key] = entry;
+        return acc;
+      }, {});
 
       localStorage.setItem(this.localStorageKey, JSON.stringify(cleaned));
     } catch (error) {

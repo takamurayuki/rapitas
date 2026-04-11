@@ -198,7 +198,10 @@ interface AdvanceErrorBannerProps {
  * @param error - Error message string to display
  * @param onDismiss - Callback to clear the error / エラーをクリアするコールバック
  */
-export function AdvanceErrorBanner({ error, onDismiss }: AdvanceErrorBannerProps) {
+export function AdvanceErrorBanner({
+  error,
+  onDismiss,
+}: AdvanceErrorBannerProps) {
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
       <div className="flex items-center">
@@ -238,7 +241,9 @@ export function FetchErrorBanner({
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
-          <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
+          <span className="text-sm text-red-700 dark:text-red-300">
+            {error}
+          </span>
         </div>
         <button
           onClick={onRefetch}

@@ -118,37 +118,73 @@ export function GrowthTrendChart({
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="gradExperiments" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient
+                  id="gradExperiments"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
                   <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-700" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} className="fill-zinc-500" tickFormatter={formatChartDate} />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                className="stroke-zinc-200 dark:stroke-zinc-700"
+              />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11 }}
+                className="fill-zinc-500"
+                tickFormatter={formatChartDate}
+              />
               <YAxis tick={{ fontSize: 11 }} className="fill-zinc-500" />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 labelFormatter={(v) => `${v}`}
-                formatter={((value: unknown, name: unknown) => {
+                formatter={
+                  ((value: unknown, name: unknown) => {
+                    const labels: Record<string, string> = {
+                      knowledgeNodes: 'ナレッジノード',
+                      learningPatterns: '学習パターン',
+                      experimentsCompleted: '完了実験',
+                    };
+                    return [value, labels[name as string] ?? name];
+                  }) as never
+                }
+              />
+              <Legend
+                formatter={(value) => {
                   const labels: Record<string, string> = {
                     knowledgeNodes: 'ナレッジノード',
                     learningPatterns: '学習パターン',
                     experimentsCompleted: '完了実験',
                   };
-                  return [value, labels[name as string] ?? name];
-                }) as never}
+                  return labels[value] ?? value;
+                }}
               />
-              <Legend formatter={(value) => {
-                const labels: Record<string, string> = {
-                  knowledgeNodes: 'ナレッジノード',
-                  learningPatterns: '学習パターン',
-                  experimentsCompleted: '完了実験',
-                };
-                return labels[value] ?? value;
-              }} />
-              <Area type="monotone" dataKey="knowledgeNodes" stroke="#3b82f6" fill="url(#gradNodes)" strokeWidth={2} />
-              <Area type="monotone" dataKey="learningPatterns" stroke="#10b981" fill="url(#gradPatterns)" strokeWidth={2} />
-              <Area type="monotone" dataKey="experimentsCompleted" stroke="#8b5cf6" fill="url(#gradExperiments)" strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="knowledgeNodes"
+                stroke="#3b82f6"
+                fill="url(#gradNodes)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="learningPatterns"
+                stroke="#10b981"
+                fill="url(#gradPatterns)"
+                strokeWidth={2}
+              />
+              <Area
+                type="monotone"
+                dataKey="experimentsCompleted"
+                stroke="#8b5cf6"
+                fill="url(#gradExperiments)"
+                strokeWidth={2}
+              />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -164,7 +200,9 @@ export function GrowthTrendChart({
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
               <Zap className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">成功率の推移</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              成功率の推移
+            </h3>
           </div>
 
           {growthTimeline && growthTimeline.timeline.length > 0 ? (
@@ -176,14 +214,38 @@ export function GrowthTrendChart({
                     <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-700" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} className="fill-zinc-500" tickFormatter={formatChartDate} />
-                <YAxis tick={{ fontSize: 11 }} className="fill-zinc-500" domain={[0, 1]} tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  className="stroke-zinc-200 dark:stroke-zinc-700"
+                />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  className="fill-zinc-500"
+                  tickFormatter={formatChartDate}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  className="fill-zinc-500"
+                  domain={[0, 1]}
+                  tickFormatter={(v) => `${Math.round(Number(v) * 100)}%`}
+                />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  formatter={((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, '成功率']) as never}
+                  formatter={
+                    ((v: unknown) => [
+                      `${(Number(v) * 100).toFixed(1)}%`,
+                      '成功率',
+                    ]) as never
+                  }
                 />
-                <Area type="monotone" dataKey="successRate" stroke="#8b5cf6" fill="url(#gradSuccess)" strokeWidth={2} />
+                <Area
+                  type="monotone"
+                  dataKey="successRate"
+                  stroke="#8b5cf6"
+                  fill="url(#gradSuccess)"
+                  strokeWidth={2}
+                />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -197,7 +259,9 @@ export function GrowthTrendChart({
             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識分布</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+              知識分布
+            </h3>
           </div>
 
           {memoryOverview && memoryOverview.knowledgeDistribution.length > 0 ? (
@@ -209,10 +273,18 @@ export function GrowthTrendChart({
                       name: NODE_TYPE_LABELS[d.category] ?? d.category,
                       value: d.count,
                     }))}
-                    cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
                   >
                     {memoryOverview.knowledgeDistribution.map((_, i) => (
-                      <Cell key={`cell-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell
+                        key={`cell-${i}`}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
@@ -221,11 +293,18 @@ export function GrowthTrendChart({
               <div className="flex-1 space-y-2">
                 {memoryOverview.knowledgeDistribution.map((item, i) => (
                   <div key={item.category} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: PIE_COLORS[i % PIE_COLORS.length],
+                      }}
+                    />
                     <span className="text-sm text-zinc-700 dark:text-zinc-300 flex-1 truncate">
                       {NODE_TYPE_LABELS[item.category] ?? item.category}
                     </span>
-                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.count}</span>
+                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                      {item.count}
+                    </span>
                   </div>
                 ))}
               </div>

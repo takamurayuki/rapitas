@@ -143,7 +143,9 @@ export function useAgentExecutionHandlers(
       }
     } catch (err) {
       logger.error('Error continuing execution:', err);
-      s.setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
+      s.setFollowUpError(
+        'サーバーとの通信に失敗しました。再度お試しください。',
+      );
       s.setFollowUpInstruction(savedInstruction);
     }
   };

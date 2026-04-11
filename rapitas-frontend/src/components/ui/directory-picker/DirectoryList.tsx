@@ -182,9 +182,7 @@ export function DirectoryList({
         />
       )}
 
-      <div
-        className={`overflow-y-auto ${showFavorites ? 'h-40' : 'h-72'}`}
-      >
+      <div className={`overflow-y-auto ${showFavorites ? 'h-40' : 'h-72'}`}>
         {isLoading ? (
           <div className="space-y-2 p-4">
             {[1, 2, 3, 4].map((i) => (

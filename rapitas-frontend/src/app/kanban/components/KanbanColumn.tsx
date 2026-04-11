@@ -69,17 +69,16 @@ export function KanbanColumn({
   return (
     <div className="flex flex-col">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{label}</h2>
+        <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+          {label}
+        </h2>
         <span className="rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
           {tasks.length}
         </span>
       </div>
 
       <Droppable droppableId={columnId}>
-        {(
-          provided: DroppableProvided,
-          snapshot: DroppableStateSnapshot,
-        ) => (
+        {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}

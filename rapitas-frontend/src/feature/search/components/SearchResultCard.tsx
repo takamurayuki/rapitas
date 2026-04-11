@@ -9,7 +9,10 @@ import {
   StickyNote,
   ExternalLink,
 } from 'lucide-react';
-import type { SearchResult, SearchResultType } from '@/hooks/search/useGlobalSearch';
+import type {
+  SearchResult,
+  SearchResultType,
+} from '@/hooks/search/useGlobalSearch';
 
 const typeConfig: Record<
   SearchResultType,

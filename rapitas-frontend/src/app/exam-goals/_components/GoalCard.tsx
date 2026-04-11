@@ -48,7 +48,12 @@ export function renderGoalIcon(iconName: string | null | undefined, size = 20) {
  * @param props.onEdit - Open-edit handler / 編集ハンドラー
  * @param props.onDelete - Delete handler / 削除ハンドラー
  */
-export function UpcomingGoalCard({ goal, onComplete, onEdit, onDelete }: UpcomingGoalCardProps) {
+export function UpcomingGoalCard({
+  goal,
+  onComplete,
+  onEdit,
+  onDelete,
+}: UpcomingGoalCardProps) {
   const t = useTranslations('examGoals');
 
   return (
@@ -62,7 +67,9 @@ export function UpcomingGoalCard({ goal, onComplete, onEdit, onDelete }: Upcomin
             {renderGoalIcon(goal.icon, 22)}
           </div>
           <div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{goal.name}</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+              {goal.name}
+            </h3>
             {goal.targetScore && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {t('target')} {goal.targetScore}
@@ -94,7 +101,9 @@ export function UpcomingGoalCard({ goal, onComplete, onEdit, onDelete }: Upcomin
       </div>
 
       {goal.description && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">{goal.description}</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
+          {goal.description}
+        </p>
       )}
 
       <div className="mt-1">

@@ -100,7 +100,9 @@ export default function SubtaskItem({
     return (
       <div
         className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-3 ${
-          isSelectionMode && isSelected ? `${selectionBorder} opacity-100` : `${selectionBorder} opacity-60`
+          isSelectionMode && isSelected
+            ? `${selectionBorder} opacity-100`
+            : `${selectionBorder} opacity-60`
         }`}
       >
         <div className="flex items-center justify-between">
@@ -144,9 +146,7 @@ export default function SubtaskItem({
                   currentStatus={subtask.status}
                   config={config}
                   renderIcon={renderStatusIcon}
-                  onClick={(newStatus) =>
-                    onStatusUpdate(subtask.id, newStatus)
-                  }
+                  onClick={(newStatus) => onStatusUpdate(subtask.id, newStatus)}
                   size="sm"
                 />
               );

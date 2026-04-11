@@ -92,7 +92,9 @@ export function useLearningGoals() {
 
     for (const goal of appliedGoals) {
       try {
-        const res = await fetch(`${API_BASE_URL}/tasks?themeId=${goal.themeId}`);
+        const res = await fetch(
+          `${API_BASE_URL}/tasks?themeId=${goal.themeId}`,
+        );
         if (res.ok) {
           const data = await res.json();
           const tasks = Array.isArray(data) ? data : data.tasks || [];
@@ -136,15 +138,20 @@ export function useLearningGoals() {
   const handleAdaptPlan = async (goal: LearningGoal) => {
     setAdapting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}/adapt`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/learning-goals/${goal.id}/adapt`,
+        {
+          method: 'POST',
+        },
+      );
       if (res.ok) {
         const result = await res.json();
         if (result.success) {
           showToast(t('adaptSuccess'), 'success');
           await fetchGoals();
-          const updated = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}`);
+          const updated = await fetch(
+            `${API_BASE_URL}/learning-goals/${goal.id}`,
+          );
           if (updated.ok) setSelectedGoal(await updated.json());
         } else {
           showToast(result.error || t('adaptFailed'), 'error');
@@ -246,9 +253,12 @@ export function useLearningGoals() {
 
     setApplying(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}/apply`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/learning-goals/${goal.id}/apply`,
+        {
+          method: 'POST',
+        },
+      );
       if (res.ok) {
         const result = await res.json();
         if (result.success) {
@@ -260,7 +270,9 @@ export function useLearningGoals() {
             'success',
           );
           await fetchGoals();
-          const updated = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}`);
+          const updated = await fetch(
+            `${API_BASE_URL}/learning-goals/${goal.id}`,
+          );
           if (updated.ok) setSelectedGoal(await updated.json());
         } else {
           showToast(result.error || t('applyFailed'), 'error');

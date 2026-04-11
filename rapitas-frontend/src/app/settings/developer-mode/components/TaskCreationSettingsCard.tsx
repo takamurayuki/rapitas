@@ -168,9 +168,7 @@ export function TaskCreationSettingsCard({
                     : 'bg-zinc-300 dark:bg-zinc-600'
                 }`}
                 role="switch"
-                aria-checked={
-                  settings?.autoCreateAfterTitleGeneration ?? false
-                }
+                aria-checked={settings?.autoCreateAfterTitleGeneration ?? false}
               >
                 <span
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${

@@ -45,7 +45,10 @@ export function useParallelSSEHandler() {
           };
         }
 
-        const newState = { ...prev, subtaskStates: new Map(prev.subtaskStates) };
+        const newState = {
+          ...prev,
+          subtaskStates: new Map(prev.subtaskStates),
+        };
 
         switch (event.type) {
           case 'session_started':
@@ -119,10 +122,7 @@ export function useParallelSSEHandler() {
                 error: event.data?.errorMessage,
               });
               if (!newState.failedTasks.includes(event.taskId)) {
-                newState.failedTasks = [
-                  ...newState.failedTasks,
-                  event.taskId,
-                ];
+                newState.failedTasks = [...newState.failedTasks, event.taskId];
               }
               newState.runningTasks = newState.runningTasks.filter(
                 (id) => id !== event.taskId,

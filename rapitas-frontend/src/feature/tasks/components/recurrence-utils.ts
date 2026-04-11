@@ -64,10 +64,7 @@ export function describeRule(rule: string | null): string {
       if (byday) {
         const days = byday.split(',');
         // Detect Monday–Friday shorthand
-        if (
-          days.length === 5 &&
-          WEEKDAY_KEYS.every((d) => days.includes(d))
-        ) {
+        if (days.length === 5 && WEEKDAY_KEYS.every((d) => days.includes(d))) {
           return '平日';
         }
         const dayLabels = days

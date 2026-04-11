@@ -22,8 +22,12 @@ export interface UseDeveloperModeSetupResult {
   analysisError: string | null;
   fetchDevModeConfig: () => void;
   enableDeveloperMode: () => Promise<unknown>;
-  updateDevModeConfig: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
-  analyzeTask: () => Promise<{ approvalRequestId?: number; autoApproved?: boolean } | null | undefined>;
+  updateDevModeConfig: (
+    updates: Partial<DeveloperModeConfig>,
+  ) => Promise<DeveloperModeConfig | null>;
+  analyzeTask: () => Promise<
+    { approvalRequestId?: number; autoApproved?: boolean } | null | undefined
+  >;
   setAnalysisResult: (result: null) => void;
   executeAgent: (options?: unknown) => Promise<unknown>;
   resetExecutionState: () => void;
@@ -35,7 +39,10 @@ export interface UseDeveloperModeSetupResult {
   agents: unknown[];
   fetchAgents: () => void;
   isRestoringState: boolean;
-  approveRequest: (id: number, selectedSubtasks?: number[]) => Promise<{ success?: boolean } | null | undefined>;
+  approveRequest: (
+    id: number,
+    selectedSubtasks?: number[],
+  ) => Promise<{ success?: boolean } | null | undefined>;
   rejectRequest: (id: number) => Promise<unknown>;
   approvalLoading: boolean;
 }
@@ -46,7 +53,9 @@ export interface UseDeveloperModeSetupResult {
  * @param taskId - Numeric task ID passed to useDeveloperMode.
  * @returns All developer mode and approval state plus action callbacks.
  */
-export function useDeveloperModeSetup(taskId: number): UseDeveloperModeSetupResult {
+export function useDeveloperModeSetup(
+  taskId: number,
+): UseDeveloperModeSetupResult {
   const {
     config: devModeConfig,
     isLoading: devModeLoading,
@@ -93,12 +102,16 @@ export function useDeveloperModeSetup(taskId: number): UseDeveloperModeSetupResu
     fetchDevModeConfig,
     enableDeveloperMode,
     updateDevModeConfig,
-    analyzeTask: analyzeTask as () => Promise<{ approvalRequestId?: number; autoApproved?: boolean } | null | undefined>,
+    analyzeTask: analyzeTask as () => Promise<
+      { approvalRequestId?: number; autoApproved?: boolean } | null | undefined
+    >,
     setAnalysisResult,
     executeAgent: executeAgent as (options?: unknown) => Promise<unknown>,
     resetExecutionState,
     restoreExecutionState,
-    approveSubtaskCreation: approveSubtaskCreation as (...args: unknown[]) => unknown,
+    approveSubtaskCreation: approveSubtaskCreation as (
+      ...args: unknown[]
+    ) => unknown,
     setExecutionCancelled,
     agentConfigId,
     setAgentConfigId,

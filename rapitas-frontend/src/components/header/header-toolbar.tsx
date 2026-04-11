@@ -244,9 +244,7 @@ export function HeaderToolbar({
               ) : (
                 <RotateCw className="w-4 h-4" />
               )}
-              <span>
-                {isRestarting ? t('restarting') : t('restartServer')}
-              </span>
+              <span>{isRestarting ? t('restarting') : t('restartServer')}</span>
             </button>
           </div>
         )}

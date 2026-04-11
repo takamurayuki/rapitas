@@ -42,10 +42,7 @@ export function TextColorSection({
         className="px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors h-6 flex items-center justify-center"
         title="文字色"
       >
-        <Baseline
-          className="w-3.5 h-3.5"
-          style={{ color: currentTextColor }}
-        />
+        <Baseline className="w-3.5 h-3.5" style={{ color: currentTextColor }} />
       </button>
       {showTextColorPicker && (
         <div className="absolute top-full left-0 mt-1 p-3 bg-white dark:bg-zinc-800 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-700 z-10 min-w-60">

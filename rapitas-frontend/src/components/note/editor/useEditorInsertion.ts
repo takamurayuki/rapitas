@@ -99,7 +99,13 @@ export function useEditorInsertion(
     closeOtherPopups('link');
     setShowLinkInput(true);
     setLinkUrl('');
-  }, [contentRef, savedSelectionRef, setShowLinkInput, setLinkUrl, closeOtherPopups]);
+  }, [
+    contentRef,
+    savedSelectionRef,
+    setShowLinkInput,
+    setLinkUrl,
+    closeOtherPopups,
+  ]);
 
   const openCodeInput = useCallback(() => {
     if (isInTitleInput()) return;
@@ -148,7 +154,15 @@ export function useEditorInsertion(
       setLinkUrl('');
       savedSelectionRef.current = null;
     }
-  }, [linkUrl, insertNodeAtCursor, handleContentChange, setIsLinkLoading, setShowLinkInput, setLinkUrl, savedSelectionRef]);
+  }, [
+    linkUrl,
+    insertNodeAtCursor,
+    handleContentChange,
+    setIsLinkLoading,
+    setShowLinkInput,
+    setLinkUrl,
+    savedSelectionRef,
+  ]);
 
   const insertTable = useCallback(() => {
     if (isInTitleInput()) return;
@@ -221,7 +235,13 @@ export function useEditorInsertion(
     handleContentChange();
     setShowCodeInput(false);
     savedSelectionRef.current = null;
-  }, [codeLanguage, contentRef, savedSelectionRef, handleContentChange, setShowCodeInput]);
+  }, [
+    codeLanguage,
+    contentRef,
+    savedSelectionRef,
+    handleContentChange,
+    setShowCodeInput,
+  ]);
 
   return {
     insertNodeAtCursor,

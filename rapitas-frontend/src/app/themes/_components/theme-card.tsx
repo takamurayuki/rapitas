@@ -4,7 +4,14 @@
  * Renders a single theme row in view mode (name, badges, action buttons).
  * Does not own any state or API calls.
  */
-import { Edit2, Trash2, Star, Code, FolderOpen, GripVertical } from 'lucide-react';
+import {
+  Edit2,
+  Trash2,
+  Star,
+  Code,
+  FolderOpen,
+  GripVertical,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { DraggableProvided } from '@hello-pangea/dnd';
 import type { Theme } from '@/types';
@@ -12,7 +19,10 @@ import type { Theme } from '@/types';
 type Props = {
   item: Theme;
   provided: DraggableProvided;
-  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
+  renderIcon: (
+    iconName: string | null | undefined,
+    size?: number,
+  ) => React.ReactNode;
   onEdit: (item: Theme) => void;
   onDelete: (id: number, name: string) => void;
   onSetDefault: (id: number) => void;

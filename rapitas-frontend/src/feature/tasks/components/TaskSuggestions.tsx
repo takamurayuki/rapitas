@@ -14,7 +14,10 @@ import type { Priority } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { SuggestionsHeader } from './task-suggestions/SuggestionsHeader';
-import { SuggestionCard, type TaskSuggestion } from './task-suggestions/SuggestionCard';
+import {
+  SuggestionCard,
+  type TaskSuggestion,
+} from './task-suggestions/SuggestionCard';
 import { SuggestionDetailModal } from './task-suggestions/SuggestionDetailModal';
 
 const logger = createLogger('TaskSuggestions');
@@ -54,7 +57,8 @@ export default function TaskSuggestions({
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<TaskSuggestion | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] =
+    useState<TaskSuggestion | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [deletedIndices, setDeletedIndices] = useState<Set<number>>(new Set());
 
@@ -75,7 +79,10 @@ export default function TaskSuggestions({
     async (forceRefresh = false) => {
       if (!themeId) return;
 
-      logger.debug('[TaskSuggestions] Fetching AI suggestions, forceRefresh:', forceRefresh);
+      logger.debug(
+        '[TaskSuggestions] Fetching AI suggestions, forceRefresh:',
+        forceRefresh,
+      );
       setIsAiLoading(true);
       setAiError(false);
 
@@ -87,7 +94,10 @@ export default function TaskSuggestions({
           );
           if (cacheRes.ok) {
             const cacheData: AiSuggestionsResponse = await cacheRes.json();
-            if (cacheData.source === 'cache' && cacheData.suggestions.length > 0) {
+            if (
+              cacheData.source === 'cache' &&
+              cacheData.suggestions.length > 0
+            ) {
               logger.debug('[TaskSuggestions] Using cached suggestions');
               setAiSuggestions(cacheData.suggestions);
               setAiAnalysis(cacheData.analysis);
@@ -110,7 +120,12 @@ export default function TaskSuggestions({
         );
         if (res.ok) {
           const data: AiSuggestionsResponse = await res.json();
-          logger.debug('[TaskSuggestions] AI generation response:', data.source, 'suggestions:', data.suggestions.length);
+          logger.debug(
+            '[TaskSuggestions] AI generation response:',
+            data.source,
+            'suggestions:',
+            data.suggestions.length,
+          );
 
           if (data.source === 'ai' && data.suggestions.length > 0) {
             setAiSuggestions(data.suggestions);
@@ -120,8 +135,14 @@ export default function TaskSuggestions({
           } else {
             setAiSuggestions([]);
             setAiAnalysis(null);
-            if (data.source === 'ai_error' || data.source === 'insufficient_data') {
-              logger.debug('[TaskSuggestions] AI generation failed:', data.source);
+            if (
+              data.source === 'ai_error' ||
+              data.source === 'insufficient_data'
+            ) {
+              logger.debug(
+                '[TaskSuggestions] AI generation failed:',
+                data.source,
+              );
               setAiError(true);
             }
           }
@@ -140,9 +161,12 @@ export default function TaskSuggestions({
     if (!themeId) return;
     logger.debug('[TaskSuggestions] Clearing cache for theme:', themeId);
     try {
-      await fetch(`${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`, {
-        method: 'DELETE',
-      });
+      await fetch(
+        `${API_BASE_URL}/tasks/suggestions/ai/cache?themeId=${themeId}`,
+        {
+          method: 'DELETE',
+        },
+      );
     } catch (e) {
       logger.error('[TaskSuggestions] Failed to clear cache:', e);
     }
@@ -155,10 +179,12 @@ export default function TaskSuggestions({
   const handleApply = (suggestion: TaskSuggestion) => {
     let enhancedDescription = suggestion.description ?? '';
     if (suggestion.completionCriteria) {
-      enhancedDescription += '\n\n【完了条件】\n' + suggestion.completionCriteria;
+      enhancedDescription +=
+        '\n\n【完了条件】\n' + suggestion.completionCriteria;
     }
     if (suggestion.measurableOutcome) {
-      enhancedDescription += '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
+      enhancedDescription +=
+        '\n\n【測定可能な成果】\n' + suggestion.measurableOutcome;
     }
 
     onApply({
@@ -173,7 +199,9 @@ export default function TaskSuggestions({
     setSelectedSuggestion(null);
   };
 
-  const filteredSuggestions = aiSuggestions.filter((_, idx) => !deletedIndices.has(idx));
+  const filteredSuggestions = aiSuggestions.filter(
+    (_, idx) => !deletedIndices.has(idx),
+  );
   const visibleSuggestions = isListExpanded
     ? filteredSuggestions
     : filteredSuggestions.slice(0, 3);
@@ -189,7 +217,9 @@ export default function TaskSuggestions({
         isAiLoading={isAiLoading}
         isExpanded={isExpanded}
         canExpand={canExpand}
-        onHeaderClick={() => { if (canExpand) setIsExpanded(!isExpanded); }}
+        onHeaderClick={() => {
+          if (canExpand) setIsExpanded(!isExpanded);
+        }}
         onGenerate={() => {
           setDeletedIndices(new Set());
           fetchAiSuggestions(false);
@@ -207,7 +237,9 @@ export default function TaskSuggestions({
       {/* Suggestion list — animated expand/collapse */}
       <div
         className={`overflow-hidden transition-all duration-300 ${
-          isExpanded && hasSuggestions ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
+          isExpanded && hasSuggestions
+            ? 'max-h-[600px] opacity-100'
+            : 'max-h-0 opacity-0'
         }`}
       >
         <div className="px-3 pb-2 pt-1">

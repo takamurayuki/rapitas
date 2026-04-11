@@ -197,7 +197,9 @@ export default function WorkflowViewer({
         !isPolling && (
           <NextPhaseButton
             effectiveStatus={effectiveStatus}
-            workflowMode={resolvedMode as import('./CompactWorkflowSelector').WorkflowMode}
+            workflowMode={
+              resolvedMode as import('./CompactWorkflowSelector').WorkflowMode
+            }
             roles={roles}
             isAdvancing={isAdvancing}
             onAdvance={handleAdvance}

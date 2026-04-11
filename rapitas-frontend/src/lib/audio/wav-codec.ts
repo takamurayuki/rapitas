@@ -26,7 +26,8 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   const view = new DataView(buffer);
 
   const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    for (let i = 0; i < str.length; i++)
+      view.setUint8(offset + i, str.charCodeAt(i));
   };
 
   writeString(0, 'RIFF');

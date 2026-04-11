@@ -184,10 +184,7 @@ export function handleCancelled(
     waitingForInput: false,
     logs:
       shouldAddLog && prev.logs.length > 0
-        ? trimLogs([
-            ...prev.logs,
-            '\n[キャンセル] 実行が停止されました。\n',
-          ])
+        ? trimLogs([...prev.logs, '\n[キャンセル] 実行が停止されました。\n'])
         : shouldAddLog
           ? ['[キャンセル] 実行が停止されました。\n']
           : prev.logs,
@@ -313,8 +310,7 @@ export async function executePoll(
       setState((prev) => ({
         ...prev,
         tokensUsed: polledTokensUsed ?? prev.tokensUsed,
-        totalSessionTokens:
-          polledTotalSessionTokens ?? prev.totalSessionTokens,
+        totalSessionTokens: polledTotalSessionTokens ?? prev.totalSessionTokens,
       }));
     }
 
@@ -357,16 +353,28 @@ export async function executePoll(
     // Dispatch by status
     if (data.executionStatus === 'completed') {
       const updater = handleCompleted(data, refs);
-      if (updater) { setState(updater); stopPolling(); }
+      if (updater) {
+        setState(updater);
+        stopPolling();
+      }
     } else if (data.executionStatus === 'failed') {
       const updater = handleFailed(data, refs);
-      if (updater) { setState(updater); stopPolling(); }
+      if (updater) {
+        setState(updater);
+        stopPolling();
+      }
     } else if (data.executionStatus === 'cancelled') {
       const updater = handleCancelled(data, refs);
-      if (updater) { setState(updater); stopPolling(); }
+      if (updater) {
+        setState(updater);
+        stopPolling();
+      }
     } else if (data.executionStatus === 'interrupted') {
       const updater = handleInterrupted(data, refs);
-      if (updater) { setState(updater); stopPolling(); }
+      if (updater) {
+        setState(updater);
+        stopPolling();
+      }
     } else if (
       data.executionStatus === 'waiting_for_input' ||
       data.waitingForInput
@@ -399,9 +407,12 @@ export async function executePoll(
 
       const timeoutInfo: QuestionTimeoutInfo | undefined = data.questionTimeout
         ? {
-            remainingSeconds: (data.questionTimeout as { remainingSeconds: number }).remainingSeconds,
+            remainingSeconds: (
+              data.questionTimeout as { remainingSeconds: number }
+            ).remainingSeconds,
             deadline: (data.questionTimeout as { deadline: string }).deadline,
-            totalSeconds: (data.questionTimeout as { totalSeconds: number }).totalSeconds,
+            totalSeconds: (data.questionTimeout as { totalSeconds: number })
+              .totalSeconds,
           }
         : undefined;
 
@@ -427,10 +438,11 @@ export async function executePoll(
         waitingForInput: true,
         question: currentQuestion,
         // NOTE: questionType uses API value only (pattern_match fallback removed)
-        questionType:
-          data.questionType === 'tool_call' ? 'tool_call' : 'none',
+        questionType: data.questionType === 'tool_call' ? 'tool_call' : 'none',
         questionTimeout: timeoutInfo,
-        questionDetails: (data.questionDetails as ExecutionStreamState['questionDetails']) || null,
+        questionDetails:
+          (data.questionDetails as ExecutionStreamState['questionDetails']) ||
+          null,
       }));
     } else if (data.executionStatus === 'running') {
       if (refs.lastProcessedStatusRef.current === 'cancelled') return;

@@ -41,7 +41,8 @@ export default function CalendarPage() {
   } = useCalendarEvents();
 
   const holidays = useMemo(
-    () => getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
+    () =>
+      getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
     [currentDate],
   );
 

@@ -10,7 +10,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from '../_types/types';
+import type {
+  AppAnswers,
+  AppProposal,
+  DynamicItem,
+  GenerateResult,
+} from '../_types/types';
 import { proposeApps, generateClaudeMd, fetchSuggestions } from '../_utils/api';
 import { ELEMENTS, SUB_GENRES } from '../_utils/constants';
 
@@ -143,7 +148,12 @@ export function useWizard() {
   const runProposeApps = async (overrideAnswers: AppAnswers) => {
     setPhase('proposing');
     try {
-      const r = await proposeApps(t, overrideAnswers, dynamicSubs, dynamicElements);
+      const r = await proposeApps(
+        t,
+        overrideAnswers,
+        dynamicSubs,
+        dynamicElements,
+      );
       setProposals(r.proposals || []);
       if (r.aiFailed && r.errorMessage) {
         setAiErrorMessage(r.errorMessage);
@@ -199,7 +209,11 @@ export function useWizard() {
       );
       setResult(r);
     } catch {
-      setResult({ tech_rationale: '', score: 90, claude_md: t('errorOccurred') });
+      setResult({
+        tech_rationale: '',
+        score: 90,
+        claude_md: t('errorOccurred'),
+      });
     }
     setPhase('result');
   };

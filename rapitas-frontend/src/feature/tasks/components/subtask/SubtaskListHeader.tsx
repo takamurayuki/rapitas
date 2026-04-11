@@ -6,7 +6,13 @@
  * All state is received via props; no local state owned here.
  */
 import { useTranslations } from 'next-intl';
-import { Pencil as _Pencil, X, Trash2, CheckSquare, Square as _Square } from 'lucide-react';
+import {
+  Pencil as _Pencil,
+  X,
+  Trash2,
+  CheckSquare,
+  Square as _Square,
+} from 'lucide-react';
 
 interface SubtaskListHeaderProps {
   totalSubtasks: number;

@@ -150,7 +150,7 @@ export function PromptsManagementTab({
                           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                             {isParentTask
                               ? promptsData.task.title
-                              : subtask?.title ?? '不明'}
+                              : (subtask?.title ?? '不明')}
                           </span>
                           {isParentTask ? (
                             <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
@@ -198,7 +198,10 @@ export function PromptsManagementTab({
                           <>
                             <button
                               onClick={() =>
-                                onStartEditing(prompt.id, prompt.optimizedPrompt)
+                                onStartEditing(
+                                  prompt.id,
+                                  prompt.optimizedPrompt,
+                                )
                               }
                               className="p-1 text-zinc-400 hover:text-zinc-600"
                               title="編集"
@@ -230,7 +233,9 @@ export function PromptsManagementTab({
                     {isEditing ? (
                       <textarea
                         value={editingPromptText}
-                        onChange={(e) => onEditingPromptTextChange(e.target.value)}
+                        onChange={(e) =>
+                          onEditingPromptTextChange(e.target.value)
+                        }
                         className="w-full p-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono resize-none"
                         rows={4}
                       />

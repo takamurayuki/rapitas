@@ -105,32 +105,32 @@ export default function RootLayout({
             <PomodoroProvider>
               <ToastProvider>
                 <VoiceInputProvider>
-                <ExternalLinksProvider>
-                  <Suspense fallback={<div className="h-16" />}>
+                  <ExternalLinksProvider>
                     <Suspense fallback={<div className="h-16" />}>
-                      <ConditionalHeader />
+                      <Suspense fallback={<div className="h-16" />}>
+                        <ConditionalHeader />
+                      </Suspense>
+                      {/* <WindowResizeOptimizer /> */}
+                      {children}
+                      <Suspense fallback={null}>
+                        <KeyboardShortcuts />
+                      </Suspense>
+                      <Suspense fallback={null}>
+                        <OfflineIndicatorLoader />
+                      </Suspense>
+                      <Suspense fallback={null}>
+                        <ResumableExecutionsBanner />
+                      </Suspense>
+                      <ScheduleReminderProvider />
+                      <Suspense fallback={null}>
+                        <NoteProvider />
+                      </Suspense>
+                      <CacheWarmupInitializer />
+                      <Suspense fallback={null}>
+                        <SmartCommandBar />
+                      </Suspense>
                     </Suspense>
-                    {/* <WindowResizeOptimizer /> */}
-                    {children}
-                    <Suspense fallback={null}>
-                      <KeyboardShortcuts />
-                    </Suspense>
-                    <Suspense fallback={null}>
-                      <OfflineIndicatorLoader />
-                    </Suspense>
-                    <Suspense fallback={null}>
-                      <ResumableExecutionsBanner />
-                    </Suspense>
-                    <ScheduleReminderProvider />
-                    <Suspense fallback={null}>
-                      <NoteProvider />
-                    </Suspense>
-                    <CacheWarmupInitializer />
-                    <Suspense fallback={null}>
-                      <SmartCommandBar />
-                    </Suspense>
-                  </Suspense>
-                </ExternalLinksProvider>
+                  </ExternalLinksProvider>
                 </VoiceInputProvider>
               </ToastProvider>
             </PomodoroProvider>

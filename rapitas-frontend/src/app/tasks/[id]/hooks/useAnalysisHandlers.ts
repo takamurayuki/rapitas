@@ -17,7 +17,9 @@ const API_BASE = API_BASE_URL;
 export interface UseAnalysisHandlersParams {
   resolvedTaskId: string | null | undefined;
   setTask: React.Dispatch<React.SetStateAction<Task | null>>;
-  analyzeTask: () => Promise<{ approvalRequestId?: number; autoApproved?: boolean } | null | undefined>;
+  analyzeTask: () => Promise<
+    { approvalRequestId?: number; autoApproved?: boolean } | null | undefined
+  >;
   setAnalysisResult: (result: null) => void;
   approveRequest: (
     id: number,
@@ -49,7 +51,9 @@ export function useAnalysisHandlers({
   approveRequest,
   rejectRequest,
 }: UseAnalysisHandlersParams): UseAnalysisHandlersResult {
-  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(
+    null,
+  );
   const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
 
   const handleAnalyze = async () => {

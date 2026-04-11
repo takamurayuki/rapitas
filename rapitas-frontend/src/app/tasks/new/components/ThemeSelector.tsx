@@ -25,7 +25,11 @@ interface ThemeSelectorProps {
  * @param props.themeId - Active theme ID / 選択中テーマID
  * @param props.onSelect - Selection handler / 選択ハンドラ
  */
-export function ThemeSelector({ themes, themeId, onSelect }: ThemeSelectorProps) {
+export function ThemeSelector({
+  themes,
+  themeId,
+  onSelect,
+}: ThemeSelectorProps) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {themes.map((theme) => {

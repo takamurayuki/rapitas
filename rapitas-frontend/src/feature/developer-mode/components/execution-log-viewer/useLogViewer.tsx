@@ -201,7 +201,11 @@ export function useLogViewer({
     const nextIndex =
       (search.currentMatchIndex + 1) % search.searchMatches.length;
     jumpToMatchInContainer(nextIndex);
-  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
+  }, [
+    search.currentMatchIndex,
+    search.searchMatches.length,
+    jumpToMatchInContainer,
+  ]);
 
   const goToPreviousMatch = useCallback(() => {
     if (search.searchMatches.length === 0) return;
@@ -209,7 +213,11 @@ export function useLogViewer({
       (search.currentMatchIndex - 1 + search.searchMatches.length) %
       search.searchMatches.length;
     jumpToMatchInContainer(prevIndex);
-  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
+  }, [
+    search.currentMatchIndex,
+    search.searchMatches.length,
+    jumpToMatchInContainer,
+  ]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -292,10 +300,7 @@ export function useLogViewer({
   }, [logs.length, displayedLogsCount]);
 
   // Transform logs for simple mode
-  const simpleLogEntries = useMemo(
-    () => transformLogsToSimple(logs),
-    [logs],
-  );
+  const simpleLogEntries = useMemo(() => transformLogsToSimple(logs), [logs]);
 
   // Detect current phase for progress bar
   const currentPhase = useMemo(() => detectCurrentPhase(logs), [logs]);

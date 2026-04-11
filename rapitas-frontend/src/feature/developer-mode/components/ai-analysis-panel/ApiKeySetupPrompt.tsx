@@ -7,7 +7,15 @@
 
 'use client';
 
-import { Key, Eye, EyeOff, ExternalLink, Loader2, Save, AlertCircle } from 'lucide-react';
+import {
+  Key,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Loader2,
+  Save,
+  AlertCircle,
+} from 'lucide-react';
 
 type Props = {
   apiKeyInput: string;

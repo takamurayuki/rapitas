@@ -16,7 +16,16 @@ import type {
   ApiProvider,
   ApiKeyStatus,
 } from '@/types';
-import { Bot, Terminal, Zap, Activity, Search, Play, Shield, Scale } from 'lucide-react';
+import {
+  Bot,
+  Terminal,
+  Zap,
+  Activity,
+  Search,
+  Play,
+  Shield,
+  Scale,
+} from 'lucide-react';
 
 export type TabId = 'task-analysis' | 'agent-execution';
 

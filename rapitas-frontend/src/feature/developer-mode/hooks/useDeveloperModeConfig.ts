@@ -41,10 +41,14 @@ export interface UseDeveloperModeConfigReturn {
     priority?: string;
   }) => Promise<DeveloperModeConfig | null>;
   disableDeveloperMode: () => Promise<boolean>;
-  updateConfig: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
+  updateConfig: (
+    updates: Partial<DeveloperModeConfig>,
+  ) => Promise<DeveloperModeConfig | null>;
   analyzeTask: () => Promise<unknown>;
   fetchSessions: () => Promise<void>;
-  approveSubtaskCreation: (selectedSubtaskIndices?: number[]) => Promise<unknown>;
+  approveSubtaskCreation: (
+    selectedSubtaskIndices?: number[],
+  ) => Promise<unknown>;
   fetchAgents: () => Promise<void>;
 }
 
@@ -54,12 +58,17 @@ export interface UseDeveloperModeConfigReturn {
  * @param taskId - Task ID to manage / <管理対象タスクID>
  * @returns UseDeveloperModeConfigReturn
  */
-export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigReturn {
+export function useDeveloperModeConfig(
+  taskId: number,
+): UseDeveloperModeConfigReturn {
   const [config, setConfig] = useState<DeveloperModeConfig | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<TaskAnalysisResult | null>(null);
-  const [analysisApprovalId, setAnalysisApprovalId] = useState<number | null>(null);
+  const [analysisResult, setAnalysisResult] =
+    useState<TaskAnalysisResult | null>(null);
+  const [analysisApprovalId, setAnalysisApprovalId] = useState<number | null>(
+    null,
+  );
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -70,7 +79,9 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/config/${taskId}`);
+      const res = await fetch(
+        `${API_BASE_URL}/developer-mode/config/${taskId}`,
+      );
       if (res.ok) {
         setConfig(await res.json());
       } else {
@@ -90,15 +101,22 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
    * @returns Updated config or null on error / <更新設定またはエラー時null>
    */
   const enableDeveloperMode = useCallback(
-    async (options?: { autoApprove?: boolean; maxSubtasks?: number; priority?: string }) => {
+    async (options?: {
+      autoApprove?: boolean;
+      maxSubtasks?: number;
+      priority?: string;
+    }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/developer-mode/enable/${taskId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(options || {}),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/developer-mode/enable/${taskId}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options || {}),
+          },
+        );
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -124,9 +142,12 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/disable/${taskId}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/developer-mode/disable/${taskId}`,
+        {
+          method: 'DELETE',
+        },
+      );
       if (res.ok) {
         setConfig(null);
         setAnalysisResult(null);
@@ -152,11 +173,14 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/developer-mode/config/${taskId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/developer-mode/config/${taskId}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates),
+          },
+        );
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -184,9 +208,12 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
     setAnalysisResult(null);
     setAnalysisApprovalId(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/analyze/${taskId}`, {
-        method: 'POST',
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/developer-mode/analyze/${taskId}`,
+        {
+          method: 'POST',
+        },
+      );
       const data = await res.json();
       if (res.ok) {
         setAnalysisResult(data.analysis);
@@ -197,7 +224,9 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
       }
       throw new Error(data.error || '分析に失敗しました');
     } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : 'エラーが発生しました');
+      setAnalysisError(
+        err instanceof Error ? err.message : 'エラーが発生しました',
+      );
       return null;
     } finally {
       setIsAnalyzing(false);
@@ -206,7 +235,9 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/developer-mode/sessions/${taskId}`);
+      const res = await fetch(
+        `${API_BASE_URL}/developer-mode/sessions/${taskId}`,
+      );
       if (res.ok) {
         setSessions(await res.json());
       }
@@ -230,11 +261,14 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE_URL}/approvals/${analysisApprovalId}/approve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedSubtasks: selectedSubtaskIndices }),
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/approvals/${analysisApprovalId}/approve`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ selectedSubtasks: selectedSubtaskIndices }),
+          },
+        );
         const data = await res.json();
         if (res.ok) {
           setAnalysisApprovalId(null);
@@ -256,7 +290,9 @@ export function useDeveloperModeConfig(taskId: number): UseDeveloperModeConfigRe
       const res = await fetch(`${API_BASE_URL}/agents`);
       if (res.ok) {
         const data = await res.json();
-        const activeAgents = (data as AIAgentConfig[]).filter((a) => a.isActive);
+        const activeAgents = (data as AIAgentConfig[]).filter(
+          (a) => a.isActive,
+        );
         setAgents(activeAgents);
         if (!agentConfigId && activeAgents.length > 0) {
           const defaultAgent = activeAgents.find((a) => a.isDefault);

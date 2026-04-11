@@ -33,7 +33,10 @@ export interface UseCLIToolsReturn {
   closeAuthModal: () => void;
   verifyAuthentication: () => Promise<void>;
   copyToClipboard: (text: string) => Promise<void>;
-  updateActionState: (toolId: string, updates: Partial<ToolActionState>) => void;
+  updateActionState: (
+    toolId: string,
+    updates: Partial<ToolActionState>,
+  ) => void;
   setAuthModal: React.Dispatch<React.SetStateAction<AuthModalState>>;
 }
 
@@ -49,13 +52,24 @@ export function useCLITools(): UseCLIToolsReturn {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [actionStates, setActionStates] = useState<Record<string, ToolActionState>>({});
+  const [actionStates, setActionStates] = useState<
+    Record<string, ToolActionState>
+  >({});
   const [authModal, setAuthModal] = useState<AuthModalState>({
-    isOpen: false, tool: null, command: null, step: 'command',
+    isOpen: false,
+    tool: null,
+    command: null,
+    step: 'command',
   });
 
-  const updateActionState = (toolId: string, updates: Partial<ToolActionState>) => {
-    setActionStates((prev) => ({ ...prev, [toolId]: { ...prev[toolId], ...updates } }));
+  const updateActionState = (
+    toolId: string,
+    updates: Partial<ToolActionState>,
+  ) => {
+    setActionStates((prev) => ({
+      ...prev,
+      [toolId]: { ...prev[toolId], ...updates },
+    }));
   };
 
   const showSuccess = (msg: string, ms = 5000) => {
@@ -74,14 +88,21 @@ export function useCLITools(): UseCLIToolsReturn {
         // Initialize per-tool action state for freshly fetched tools
         const initialStates: Record<string, ToolActionState> = {};
         data.data.tools.forEach((tool: CLITool) => {
-          initialStates[tool.id] = { isInstalling: false, isUpdating: false, isAuthenticating: false, showCommand: false };
+          initialStates[tool.id] = {
+            isInstalling: false,
+            isUpdating: false,
+            isAuthenticating: false,
+            showCommand: false,
+          };
         });
         setActionStates(initialStates);
       } else {
         throw new Error(data.error || 'Unknown error');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch CLI tools');
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch CLI tools',
+      );
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -92,9 +113,13 @@ export function useCLITools(): UseCLIToolsReturn {
     updateActionState(toolId, { isInstalling: true });
     setError(null);
     try {
-      const data = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/install`, { method: 'POST' }).then((r) => r.json());
-      if (data.success) { showSuccess(data.data.message); await fetchTools(); }
-      else throw new Error(data.error || 'Installation failed');
+      const data = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/install`, {
+        method: 'POST',
+      }).then((r) => r.json());
+      if (data.success) {
+        showSuccess(data.data.message);
+        await fetchTools();
+      } else throw new Error(data.error || 'Installation failed');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Installation failed');
     } finally {
@@ -106,9 +131,13 @@ export function useCLITools(): UseCLIToolsReturn {
     updateActionState(toolId, { isUpdating: true });
     setError(null);
     try {
-      const data = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/update`, { method: 'POST' }).then((r) => r.json());
-      if (data.success) { showSuccess(data.data.message); await fetchTools(); }
-      else throw new Error(data.error || 'Update failed');
+      const data = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/update`, {
+        method: 'POST',
+      }).then((r) => r.json());
+      if (data.success) {
+        showSuccess(data.data.message);
+        await fetchTools();
+      } else throw new Error(data.error || 'Update failed');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed');
     } finally {
@@ -121,17 +150,27 @@ export function useCLITools(): UseCLIToolsReturn {
     setError(null);
     try {
       const data = await fetch(`${API_BASE_URL}/cli-tools/${toolId}/auth`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ interactive: false }),
       }).then((r) => r.json());
       if (data.success) {
-        if (data.data.isAuthenticated) showSuccess(`${data.data.tool.name} is already authenticated`);
-        else setError(`${data.data.tool.name} requires authentication. ${data.data.message}`);
-        setTimeout(() => { setSuccessMessage(null); setError(null); }, 5000);
+        if (data.data.isAuthenticated)
+          showSuccess(`${data.data.tool.name} is already authenticated`);
+        else
+          setError(
+            `${data.data.tool.name} requires authentication. ${data.data.message}`,
+          );
+        setTimeout(() => {
+          setSuccessMessage(null);
+          setError(null);
+        }, 5000);
         await fetchTools();
       } else throw new Error(data.error || 'Authentication check failed');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication check failed');
+      setError(
+        err instanceof Error ? err.message : 'Authentication check failed',
+      );
     } finally {
       updateActionState(toolId, { isAuthenticating: false });
     }
@@ -140,27 +179,40 @@ export function useCLITools(): UseCLIToolsReturn {
   const showAuthModal = async (tool: CLITool) => {
     try {
       const data = await fetch(`${API_BASE_URL}/cli-tools/${tool.id}/auth`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ interactive: true }),
       }).then((r) => r.json());
       if (data.success && data.data.interactive) {
-        setAuthModal({ isOpen: true, tool, command: data.data.command, step: 'command' });
+        setAuthModal({
+          isOpen: true,
+          tool,
+          command: data.data.command,
+          step: 'command',
+        });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get auth command');
+      setError(
+        err instanceof Error ? err.message : 'Failed to get auth command',
+      );
     }
   };
 
-  const closeAuthModal = () => setAuthModal({ isOpen: false, tool: null, command: null, step: 'command' });
+  const closeAuthModal = () =>
+    setAuthModal({ isOpen: false, tool: null, command: null, step: 'command' });
 
   const verifyAuthentication = async () => {
     if (!authModal.tool) return;
     updateActionState(authModal.tool.id, { isAuthenticating: true });
     try {
-      const data = await fetch(`${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interactive: false }),
-      }).then((r) => r.json());
+      const data = await fetch(
+        `${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interactive: false }),
+        },
+      ).then((r) => r.json());
       if (data.success) {
         if (data.data.isAuthenticated) {
           setAuthModal((prev) => ({ ...prev, step: 'completed' }));
@@ -168,13 +220,21 @@ export function useCLITools(): UseCLIToolsReturn {
           // Auto-close after showing the completion state for 3 s
           setTimeout(() => closeAuthModal(), 3000);
         } else {
-          setError(`${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`);
+          setError(
+            `${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`,
+          );
         }
-      } else throw new Error(data.error || 'Authentication verification failed');
+      } else
+        throw new Error(data.error || 'Authentication verification failed');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Authentication verification failed');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Authentication verification failed',
+      );
     } finally {
-      if (authModal.tool) updateActionState(authModal.tool.id, { isAuthenticating: false });
+      if (authModal.tool)
+        updateActionState(authModal.tool.id, { isAuthenticating: false });
     }
   };
 
@@ -187,15 +247,33 @@ export function useCLITools(): UseCLIToolsReturn {
     }
   };
 
-  const refreshTools = async () => { setIsRefreshing(true); await fetchTools(); };
+  const refreshTools = async () => {
+    setIsRefreshing(true);
+    await fetchTools();
+  };
 
-  useEffect(() => { fetchTools(); }, [fetchTools]);
+  useEffect(() => {
+    fetchTools();
+  }, [fetchTools]);
 
   return {
-    tools, summary, isLoading, isRefreshing, error, successMessage,
-    actionStates, authModal,
-    refreshTools, installTool, updateTool, checkAuthentication,
-    showAuthModal, closeAuthModal, verifyAuthentication, copyToClipboard,
-    updateActionState, setAuthModal,
+    tools,
+    summary,
+    isLoading,
+    isRefreshing,
+    error,
+    successMessage,
+    actionStates,
+    authModal,
+    refreshTools,
+    installTool,
+    updateTool,
+    checkAuthentication,
+    showAuthModal,
+    closeAuthModal,
+    verifyAuthentication,
+    copyToClipboard,
+    updateActionState,
+    setAuthModal,
   };
 }

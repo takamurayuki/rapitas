@@ -147,7 +147,10 @@ export function AgentExecutionPanel(props: Props) {
    * @param running - Whether execution is currently in progress
    * @param maxHeight - Maximum pixel height of the log area
    */
-  const buildLogsNode = (running: boolean, maxHeight = 256): React.ReactNode => {
+  const buildLogsNode = (
+    running: boolean,
+    maxHeight = 256,
+  ): React.ReactNode => {
     if (hasSubtaskTabs) {
       return (
         <SubtaskLogTabs
@@ -253,9 +256,7 @@ export function AgentExecutionPanel(props: Props) {
     return (
       <ExecutionFailedPanel
         errorMessage={
-          error ||
-          executionResult?.error ||
-          '不明なErrorが発生しました'
+          error || executionResult?.error || '不明なErrorが発生しました'
         }
         pollingTokensUsed={pollingTokensUsed}
         isExecuting={isExecuting}

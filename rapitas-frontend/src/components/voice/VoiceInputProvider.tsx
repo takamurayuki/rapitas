@@ -7,7 +7,13 @@
  * voice input bar, optionally targeting a specific input field.
  * Renders the floating VoiceInputBar at the app root.
  */
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from 'react';
 import VoiceInputBar, { type VoiceTarget } from './VoiceInputBar';
 import WakeWordDetector from './WakeWordDetector';
 
@@ -41,7 +47,11 @@ export function useVoiceInput(): VoiceInputContextType {
   return useContext(VoiceInputContext);
 }
 
-export default function VoiceInputProvider({ children }: { children: React.ReactNode }) {
+export default function VoiceInputProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [target, setTarget] = useState<VoiceTarget | undefined>(undefined);
   const [wakeWordEnabled, setWakeWordEnabled] = useState(() => {
@@ -61,7 +71,8 @@ export default function VoiceInputProvider({ children }: { children: React.React
 
   // NOTE: Pre-warm Whisper daemon on app load so first voice input is fast.
   useEffect(() => {
-    const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+    const BACKEND =
+      process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
     fetch(`${BACKEND}/transcribe/warm`, { method: 'POST' }).catch(() => {});
   }, []);
 
@@ -71,35 +82,42 @@ export default function VoiceInputProvider({ children }: { children: React.React
 
     // Start/stop Tauri native wake word detector
     if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        if (enabled) {
-          invoke('wake_word_start').catch(() => {});
-        } else {
-          invoke('wake_word_stop').catch(() => {});
-        }
-      }).catch(() => {});
+      import('@tauri-apps/api/core')
+        .then(({ invoke }) => {
+          if (enabled) {
+            invoke('wake_word_start').catch(() => {});
+          } else {
+            invoke('wake_word_stop').catch(() => {});
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
   // Listen for Tauri wake-word-detected event (works even when window is minimized)
   useEffect(() => {
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window))
+      return;
 
     let unlisten: (() => void) | null = null;
 
-    import('@tauri-apps/api/event').then(({ listen }) => {
-      listen('wake-word-detected', () => {
-        openVoiceInput({ type: 'command' });
-      }).then((fn) => {
-        unlisten = fn;
-      });
-    }).catch(() => {});
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => {
+        listen('wake-word-detected', () => {
+          openVoiceInput({ type: 'command' });
+        }).then((fn) => {
+          unlisten = fn;
+        });
+      })
+      .catch(() => {});
 
     // Auto-start wake word if enabled
     if (wakeWordEnabled) {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke('wake_word_start').catch(() => {});
-      }).catch(() => {});
+      import('@tauri-apps/api/core')
+        .then(({ invoke }) => {
+          invoke('wake_word_start').catch(() => {});
+        })
+        .catch(() => {});
     }
 
     return () => {
@@ -118,7 +136,11 @@ export default function VoiceInputProvider({ children }: { children: React.React
       }}
     >
       {children}
-      <VoiceInputBar isOpen={isOpen} onClose={closeVoiceInput} target={target} />
+      <VoiceInputBar
+        isOpen={isOpen}
+        onClose={closeVoiceInput}
+        target={target}
+      />
       <WakeWordDetector config={{ enabled: wakeWordEnabled }} />
     </VoiceInputContext.Provider>
   );

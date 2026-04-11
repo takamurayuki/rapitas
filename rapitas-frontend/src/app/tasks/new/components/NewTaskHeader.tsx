@@ -84,7 +84,9 @@ export function NewTaskHeader({
           {/* Create button */}
           <div
             className={`relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 ${
-              !canCreate ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 dark:hover:border-blue-400'
+              !canCreate
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:border-blue-500 dark:hover:border-blue-400'
             }`}
           >
             <button

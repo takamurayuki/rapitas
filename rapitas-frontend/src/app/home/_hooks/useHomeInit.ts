@@ -56,7 +56,10 @@ export function useHomeInit({
         tasks: taskCacheInitialized ? fetchTaskUpdates() : fetchAllTasks(),
         filterData: initializeFilterData(),
         settings: apiFetch<UserSettings>('/settings', { cacheTime: 300000 })
-          .then((d) => { setGlobalSettings(d); return d; })
+          .then((d) => {
+            setGlobalSettings(d);
+            return d;
+          })
           .catch((e) => {
             logger.transientError('Failed to fetch settings:', e);
             return null;
@@ -69,7 +72,10 @@ export function useHomeInit({
         results = (await Promise.race([
           Promise.allSettled(Object.values(requests)),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), INITIAL_LOAD_TIMEOUT),
+            setTimeout(
+              () => reject(new Error('timeout')),
+              INITIAL_LOAD_TIMEOUT,
+            ),
           ),
         ])) as PromiseSettledResult<unknown>[];
       } catch {
