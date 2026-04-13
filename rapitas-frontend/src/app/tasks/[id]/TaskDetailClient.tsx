@@ -12,7 +12,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePomodoro } from '@/feature/tasks/pomodoro/PomodoroProvider';
 import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import { requireAuth } from '@/contexts/AuthContext';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { createLogger } from '@/lib/logger';
 
@@ -356,8 +355,7 @@ function TaskDetailClient({
   );
 }
 
-// NOTE: Turbopack cannot statically analyze `export default HOC(Component)`.
-// Using a named variable assignment avoids the "Expected export to be in
-// eval context 'default'" error.
-const AuthenticatedTaskDetailClient = requireAuth(TaskDetailClient);
-export default AuthenticatedTaskDetailClient;
+// NOTE: requireAuth HOC wrapper removed because Turbopack cannot statically
+// analyze `export default HOC(Component)` or even `const X = HOC(C); export default X`.
+// Auth check is handled by the page.tsx or AuthProvider instead.
+export default TaskDetailClient;
