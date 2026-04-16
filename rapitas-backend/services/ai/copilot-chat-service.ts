@@ -15,7 +15,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { getLocalLLMStatus } from '../local-llm';
-import { getResponseCache, setResponseCache } from '../local-llm/response-cache';
+import { getCachedResponse, setCachedResponse, generateCacheKey } from '../local-llm/response-cache';
 import { sendAIMessage, sendAIMessageStream } from '../../utils/ai-client';
 import type { AIMessage } from '../../utils/ai-client';
 
@@ -78,7 +78,11 @@ function selectModelTier(
   message: string,
   localAvailable: boolean,
 ): { provider: 'ollama' | 'claude'; model: string; tier: string } {
-  const assessment = assessComplexity(message, 'researcher');
+  const assessment = assessComplexity(
+    { title: message.slice(0, 100), description: message },
+    'researcher',
+    message.length,
+  );
 
   // Tier 1: Local LLM for simple queries
   if (localAvailable && assessment.canUseLocalLLM && message.length < 200) {
@@ -145,12 +149,13 @@ export async function sendCopilotMessage(
   }
 
   // 1. Check cache
-  const cached = getResponseCache(SYSTEM_PROMPT, contextPrompt);
-  if (cached) {
+  const cacheKey = generateCacheKey(SYSTEM_PROMPT + '\n' + contextPrompt);
+  const cachedEntry = getCachedResponse(cacheKey);
+  if (cachedEntry) {
     log.debug('Cache hit for copilot message');
     await saveCopilotMessage('user', message, taskId);
-    await saveCopilotMessage('assistant', cached, taskId);
-    return { content: cached, model: 'cache', tier: 'free', cached: true };
+    await saveCopilotMessage('assistant', cachedEntry.content, taskId);
+    return { content: cachedEntry.content, model: 'cache', tier: 'free', cached: true };
   }
 
   // 2. Select model
@@ -183,13 +188,12 @@ export async function sendCopilotMessage(
     messages,
     systemPrompt: SYSTEM_PROMPT,
     maxTokens: tier === 'free' ? 500 : tier === 'economy' ? 800 : 2000,
-    temperature: 0.5,
   });
 
   const content = response.content;
 
   // 5. Cache the response
-  setResponseCache(SYSTEM_PROMPT, contextPrompt, content);
+  setCachedResponse(cacheKey, content, 0);
 
   // 6. Save to DB
   await saveCopilotMessage('user', message, taskId);
@@ -200,7 +204,7 @@ export async function sendCopilotMessage(
     model,
     tier,
     cached: false,
-    tokensUsed: response.usage?.totalTokens,
+    tokensUsed: response.tokensUsed,
   };
 }
 
@@ -244,7 +248,6 @@ export async function streamCopilotMessage(
     messages,
     systemPrompt: SYSTEM_PROMPT,
     maxTokens: tier === 'free' ? 500 : tier === 'economy' ? 800 : 2000,
-    temperature: 0.5,
   });
 
   return { stream, model, tier };
