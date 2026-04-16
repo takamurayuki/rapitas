@@ -1,12 +1,5 @@
-/**
- * loading-phase
- *
- * Full-screen loading states used during AI proposal generation ("proposing")
- * and CLAUDE.md generation ("generating"). Each variant shows a spinner and
- * contextual copy to set user expectations during the wait.
- */
-
 'use client';
+// loading-phase
 
 import React from 'react';
 import { GLOBAL_CSS } from '../_utils/styles';

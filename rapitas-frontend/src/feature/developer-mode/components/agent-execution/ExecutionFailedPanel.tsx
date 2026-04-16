@@ -1,11 +1,5 @@
-/**
- * ExecutionFailedPanel
- *
- * Renders the UI shown when an agent execution has failed.
- * Does not manage any state; all values and callbacks are received via props.
- */
-
 'use client';
+// ExecutionFailedPanel
 
 import React from 'react';
 import { Play, AlertCircle, RefreshCw, Zap } from 'lucide-react';

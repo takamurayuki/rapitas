@@ -1,12 +1,5 @@
-/**
- * AgentCard
- *
- * Renders a single agent row with status badge, action buttons, and
- * an expandable version history panel.
- * Not responsible for data fetching or global state management.
- */
-
 'use client';
+// AgentCard
 
 import {
   Package,

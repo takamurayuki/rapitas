@@ -1,10 +1,5 @@
-/**
- * useSettingsData
- *
- * Manages all server-state, caching, and mutation logic for the settings page.
- * Does not own any UI rendering.
- */
 'use client';
+// useSettingsData
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';

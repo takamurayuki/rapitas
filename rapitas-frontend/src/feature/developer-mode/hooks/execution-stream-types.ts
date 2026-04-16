@@ -1,11 +1,5 @@
-/**
- * executionStreamTypes
- *
- * Shared type definitions and utilities for execution stream hooks.
- * Does not contain any React state logic.
- */
-
 'use client';
+// executionStreamTypes
 
 export type ExecutionEventData = {
   output?: string;

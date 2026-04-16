@@ -1,11 +1,5 @@
-/**
- * TaskTimeline
- *
- * Renders a chronological merged view of task activity events and memo notes.
- * Combines mock activity data with real memo notes, sorted newest-first.
- */
-
 'use client';
+// TaskTimeline
 
 import { memo, useMemo } from 'react';
 import { History, MessageSquare, Pin } from 'lucide-react';

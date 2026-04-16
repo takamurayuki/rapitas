@@ -1,12 +1,5 @@
-/**
- * ContinuationForm
- *
- * Input form shown after a completed execution that lets the user issue a
- * follow-up instruction to the agent using the previous run's output as context.
- * Purely presentational — async logic is injected via props.
- */
-
 'use client';
+// ContinuationForm
 
 import { Loader2, Play, MessageSquarePlus } from 'lucide-react';
 

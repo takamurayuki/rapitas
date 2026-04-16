@@ -1,11 +1,5 @@
-/**
- * useHomeActions
- *
- * Provides task-mutating action handlers for the home page:
- * status update, quick-add, bulk status change, and bulk delete.
- * All network calls use optimistic updates with rollback on failure.
- */
 'use client';
+// useHomeActions
 import { useCallback } from 'react';
 import type { Status, Task, Theme } from '@/types';
 import { useToast } from '@/components/ui/toast/ToastContainer';

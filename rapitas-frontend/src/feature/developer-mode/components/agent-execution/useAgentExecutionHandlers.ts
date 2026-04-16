@@ -1,13 +1,5 @@
-/**
- * useAgentExecutionHandlers
- *
- * Provides all event-handler callbacks for AgentExecutionPanel, extracted from
- * useAgentExecution to keep each file under 300 lines.
- * Receives shared mutable state via a plain object (not React context) so that
- * the main hook owns the single source of truth for state variables.
- */
-
 'use client';
+// useAgentExecutionHandlers
 
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ExecutionResult } from '../../hooks/useDeveloperMode';

@@ -1,10 +1,5 @@
-/**
- * GoalList
- *
- * Renders the sidebar list of learning goals with status badges and deadlines.
- * Manages selected-goal highlighting; all data comes from props.
- */
 'use client';
+// GoalList
 
 import { useTranslations } from 'next-intl';
 import { ChevronRight, CheckCircle2, Target } from 'lucide-react';

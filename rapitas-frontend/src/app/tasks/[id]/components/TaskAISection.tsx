@@ -1,13 +1,5 @@
-/**
- * TaskAISection
- *
- * Wraps AIAccordionPanel with task-detail-specific handlers for subtask
- * creation, agent execution, execution completion, and parallel execution.
- * All fetch calls that update local task state use callback props so this
- * component remains stateless with respect to the task object itself.
- */
-
 'use client';
+// TaskAISection
 import { useEffect, useRef } from 'react';
 import type { Task, Resource, DeveloperModeConfig } from '@/types';
 import { AIAccordionPanel } from '@/feature/developer-mode/components/AIAccordionPanel';

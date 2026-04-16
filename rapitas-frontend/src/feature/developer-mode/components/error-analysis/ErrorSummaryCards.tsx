@@ -1,11 +1,5 @@
-/**
- * ErrorSummaryCards
- *
- * Renders the four KPI cards at the top of the error analysis dashboard:
- * total errors, critical issues, error rate, and resolution rate.
- */
-
 'use client';
+// ErrorSummaryCards
 
 import React from 'react';
 import { Card } from '@/components/ui/card';

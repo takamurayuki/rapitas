@@ -1,11 +1,5 @@
-/**
- * ErrorTrendsChart
- *
- * Bar chart visualization showing error counts over the last 24 hours.
- * Each bar represents one time-bucket from ErrorSummary.errorTrends.
- */
-
 'use client';
+// ErrorTrendsChart
 
 import React from 'react';
 import { Card } from '@/components/ui/card';

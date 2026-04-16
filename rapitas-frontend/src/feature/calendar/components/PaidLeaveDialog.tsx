@@ -1,11 +1,5 @@
-/**
- * PaidLeaveDialog
- *
- * Modal dialog for submitting a paid leave request. Owns all form state and
- * delegates rendering to PaidLeaveHeader, PaidLeaveDurationPicker, and PaidLeaveOptions.
- */
-
 'use client';
+// PaidLeaveDialog
 
 import { useState, useRef, useEffect } from 'react';
 import type { ScheduleEventInput } from '@/types';

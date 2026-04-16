@@ -1,12 +1,5 @@
-/**
- * useHomeInit
- *
- * Handles one-time initial data load for the home page on mount.
- * Fetches tasks, filter data, global settings, and statistics in parallel
- * with a 15-second timeout guard. Sets the default category based on
- * user settings or the first available category.
- */
 'use client';
+// useHomeInit
 import { useEffect, useState } from 'react';
 import type { UserSettings } from '@/types';
 import { apiFetch } from '@/lib/api-client';

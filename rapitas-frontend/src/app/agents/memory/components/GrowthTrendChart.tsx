@@ -1,12 +1,5 @@
-/**
- * GrowthTrendChart
- *
- * Contains the knowledge growth area chart, success-rate trend chart, and
- * knowledge distribution pie chart. The confidence bar chart is handled by
- * ConfidenceTrendChart. All charts use recharts components.
- */
-
 'use client';
+// GrowthTrendChart
 
 import {
   AreaChart,

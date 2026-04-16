@@ -1,12 +1,5 @@
-/**
- * AddTaskDialog
- *
- * Modal dialog for selecting tasks to add to the Orchestra queue.
- * Supports two modes: starting a new session (renders a "Start Orchestra"
- * button) or adding tasks to an already-running session (renders an "Add"
- * button).
- */
 'use client';
+// AddTaskDialog
 
 import { Play } from 'lucide-react';
 import type { AvailableTask } from '../types';

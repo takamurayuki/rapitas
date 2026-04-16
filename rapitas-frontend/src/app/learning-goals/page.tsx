@@ -1,10 +1,5 @@
-/**
- * LearningGoalsPage
- *
- * Next.js page entry point for /learning-goals.
- * Delegates all data fetching to useLearningGoals and rendering to sub-components.
- */
 'use client';
+// LearningGoalsPage
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';

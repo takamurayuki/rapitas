@@ -1,12 +1,5 @@
-/**
- * ShortcutSettingsPage
- *
- * Settings page for keyboard shortcut configuration.
- * Composes GlobalShortcutSection and InAppShortcutsSection with shared state
- * from useShortcutSettings. Renders a loading spinner while shortcuts are loading.
- */
-
 'use client';
+// ShortcutSettingsPage
 
 import { Keyboard, Info } from 'lucide-react';
 import { useTranslations } from 'next-intl';

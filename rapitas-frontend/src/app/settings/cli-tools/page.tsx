@@ -1,12 +1,5 @@
-/**
- * CLIToolsPage
- *
- * Settings page for managing AI and development CLI tools.
- * Delegates all state/data logic to useCLITools and renders
- * focused sub-components for header, summary, tool list, and auth modal.
- */
-
 'use client';
+// CLIToolsPage
 
 import { Terminal, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';

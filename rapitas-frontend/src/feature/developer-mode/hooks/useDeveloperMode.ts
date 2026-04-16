@@ -1,12 +1,5 @@
-/**
- * useDeveloperMode
- *
- * Orchestrates developer-mode for a single task by composing
- * useDeveloperModeConfig (configuration/analysis/sessions) and
- * useAgentExecutionActions (agent execution lifecycle).
- * Also handles execution-state restoration on mount and task-switch resets.
- */
 'use client';
+// useDeveloperMode
 
 import { useState, useRef, useEffect } from 'react';
 import type { ExecutionStatus, ExecutionResult } from '@/types';

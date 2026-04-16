@@ -1,12 +1,5 @@
-/**
- * TaskDetailErrorState
- *
- * Renders the error or not-found state for the task detail page.
- * Not responsible for fetching data or navigation logic — the caller
- * provides the error message and the back-to-home handler.
- */
-
 'use client';
+// TaskDetailErrorState
 import { useTranslations } from 'next-intl';
 
 export interface TaskDetailErrorStateProps {

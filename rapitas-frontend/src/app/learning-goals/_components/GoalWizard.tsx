@@ -1,10 +1,5 @@
-/**
- * GoalWizard
- *
- * Multi-step form for creating a new learning goal.
- * Covers four steps: goal input, level setting, schedule, and confirmation.
- */
 'use client';
+// GoalWizard
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';

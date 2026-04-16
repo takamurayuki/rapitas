@@ -1,11 +1,5 @@
-/**
- * MemoInputArea
- *
- * Renders the memo type selector buttons, template trigger, the main textarea,
- * and the submit button. Purely presentational — state is owned by MemoSection.
- */
-
 'use client';
+// MemoInputArea
 
 import { Loader2, Plus, Zap } from 'lucide-react';
 import type { MemoType } from './types';

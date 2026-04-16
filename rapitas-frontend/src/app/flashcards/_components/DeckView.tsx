@@ -1,12 +1,5 @@
-/**
- * DeckView
- *
- * Shows the card list for a selected flashcard deck and provides controls for
- * adding cards, generating cards via AI, starting a study session, and deleting
- * individual cards. Modal rendering for add-card and AI-generate forms is
- * delegated to sub-components.
- */
 'use client';
+// DeckView
 
 import { useTranslations } from 'next-intl';
 import {

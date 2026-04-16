@@ -1,10 +1,5 @@
-/**
- * MetricsOverviewCards
- *
- * Displays four summary stat cards: total executions, success rate,
- * token usage, and active agent count.
- */
 'use client';
+// MetricsOverviewCards
 import { Activity, Zap, Users, CheckCircle2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { MetricsOverview } from '../_hooks/useMetricsData';

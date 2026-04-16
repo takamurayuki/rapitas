@@ -1,11 +1,5 @@
-/**
- * PaidLeaveOptions
- *
- * Expandable options panel for paid leave form: color picker, reminder selector,
- * and free-text memo field. Visibility is toggled by the parent.
- */
-
 'use client';
+// PaidLeaveOptions
 
 import { Bell, ChevronDown } from 'lucide-react';
 

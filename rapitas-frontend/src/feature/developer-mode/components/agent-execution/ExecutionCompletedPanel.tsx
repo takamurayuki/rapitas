@@ -1,12 +1,5 @@
-/**
- * ExecutionCompletedPanel
- *
- * Renders the UI for a successfully completed execution, including the follow-up
- * instruction form and PR creation/merge workflow (via PrMergeSection).
- * Does not manage any state; all values and callbacks are received via props.
- */
-
 'use client';
+// ExecutionCompletedPanel
 
 import React from 'react';
 import {

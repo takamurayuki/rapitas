@@ -1,11 +1,5 @@
-/**
- * ExecutionItem
- *
- * Renders a single resumable execution entry inside the expanded banner list.
- * Shows task title, status badge, last output preview, and resume/details/dismiss buttons.
- */
-
 'use client';
+// ExecutionItem
 
 import { Clock, ExternalLink, Loader2, Play, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';

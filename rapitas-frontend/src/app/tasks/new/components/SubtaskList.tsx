@@ -1,10 +1,5 @@
-/**
- * SubtaskList
- *
- * Displays the list of pending subtasks that have been added but not yet saved.
- * Renders status icon, title, priority badge, estimated hours, and a remove button.
- */
 'use client';
+// SubtaskList
 import { Clock, Trash2 } from 'lucide-react';
 import type { PendingSubtask } from '../hooks/useNewTaskForm';
 import type { PriorityOption } from './PrioritySelector';

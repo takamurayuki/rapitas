@@ -1,11 +1,5 @@
-/**
- * useAccordionState
- *
- * Manages accordion open/close state and analysis tab selection.
- * Resets to a neutral state whenever the active taskId changes.
- */
-
 'use client';
+// useAccordionState
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { AccordionSection, AnalysisTabType } from './types';

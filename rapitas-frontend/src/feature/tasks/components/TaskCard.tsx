@@ -1,11 +1,5 @@
-/**
- * TaskCard
- *
- * Orchestrates the task card UI used in list views.
- * Delegates state and logic to useTaskCard, the context menu to
- * TaskCardContextMenu, and the expanded subtask panel to TaskCardSubtaskPanel.
- */
 'use client';
+// TaskCard
 import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';

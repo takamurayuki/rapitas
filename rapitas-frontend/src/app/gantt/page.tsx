@@ -1,10 +1,5 @@
-/**
- * ガントチャートページ
- *
- * プロジェクトのタスクをガントチャートで表示するページ
- */
-
 'use client';
+// ガントチャートページ
 
 import React from 'react';
 import { GanttView } from '@/feature/tasks/components/gantt';

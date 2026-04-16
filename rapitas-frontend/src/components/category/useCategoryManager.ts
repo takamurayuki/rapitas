@@ -1,10 +1,5 @@
-/**
- * useCategoryManager
- *
- * Custom hook that encapsulates all state and API logic for CategoryManager.
- * Does not handle any rendering or UI concerns.
- */
 'use client';
+// useCategoryManager
 import { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { searchIcons } from './icon-data';

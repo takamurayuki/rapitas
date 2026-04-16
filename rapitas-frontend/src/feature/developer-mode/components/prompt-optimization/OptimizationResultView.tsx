@@ -1,11 +1,5 @@
-/**
- * OptimizationResultView
- *
- * Displays the final optimized prompt result: prompt text, quality score header,
- * copy/use actions, score breakdown, structured sections, and a re-generate button.
- */
-
 'use client';
+// OptimizationResultView
 
 import {
   Sparkles,

@@ -1,12 +1,5 @@
-/**
- * useNewTaskForm
- *
- * Thin combiner hook for the new-task page.
- * Composes useTaskFormData (remote data) and useTaskFormActions (API calls)
- * with the controlled form field state, and returns a single flat object
- * that the page component can spread onto its sub-components.
- */
 'use client';
+// useNewTaskForm
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, Theme, WorkflowMode } from '@/types';

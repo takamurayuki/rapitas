@@ -1,10 +1,5 @@
-/**
- * NewTaskClient
- *
- * Page-level orchestrator for the new-task creation flow.
- * Composes sub-components and delegates all state/logic to useNewTaskForm.
- */
 'use client';
+// NewTaskClient
 import {
   Layers,
   Flag,

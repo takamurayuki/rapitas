@@ -1,11 +1,5 @@
-/**
- * genre-phase
- *
- * Step 1 of the CLAUDE.md generator wizard.
- * Displays a grid of top-level app genres for the user to select.
- */
-
 'use client';
+// genre-phase
 
 import React from 'react';
 import { GENRES } from '../_utils/constants';

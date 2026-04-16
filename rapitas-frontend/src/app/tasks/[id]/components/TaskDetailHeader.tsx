@@ -1,13 +1,5 @@
-/**
- * TaskDetailHeader
- *
- * Renders the top action bar of the task detail page. Shows a back button
- * in page mode, and either edit/dropdown controls (view mode) or save/cancel
- * controls (edit mode). Not responsible for any business logic — all actions
- * are passed in as callbacks.
- */
-
 'use client';
+// TaskDetailHeader
 import {
   Save,
   Copy,

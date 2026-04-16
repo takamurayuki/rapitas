@@ -1,9 +1,5 @@
-/**
- * AchievementPanel — stub component
- *
- * Placeholder until the achievement feature is fully implemented.
- */
 'use client';
+// AchievementPanel — stub component
 
 export function AchievementPanel({ children }: { children?: React.ReactNode }) {
   return <div className="achievement-panel">{children}</div>;

@@ -1,10 +1,5 @@
-/**
- * GoalDetailPanel
- *
- * Displays the full detail view of a selected learning goal including
- * its generated plan phases, resources, tips, and progress tracking.
- */
 'use client';
+// GoalDetailPanel
 
 import { useTranslations } from 'next-intl';
 import {

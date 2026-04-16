@@ -1,10 +1,5 @@
-/**
- * HomeThemeFilter
- *
- * Renders the theme filter row (with scroll navigation) and delegates
- * the collapsible expanded panel to HomeExpandedFilters.
- */
 'use client';
+// HomeThemeFilter
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Priority, Theme } from '@/types';

@@ -1,11 +1,5 @@
-/**
- * StudyView
- *
- * Renders the full-screen card-flip study interface for a flashcard deck.
- * Card progression, review quality input, and schedule preview display are
- * all controlled by props — this component owns no state of its own.
- */
 'use client';
+// StudyView
 
 import { useTranslations } from 'next-intl';
 import { ChevronLeft, RotateCcw, Brain, Check, X } from 'lucide-react';

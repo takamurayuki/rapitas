@@ -1,11 +1,5 @@
-/**
- * KanbanCard
- *
- * Single draggable task card for the Kanban board. Renders task metadata
- * (title, date, subtasks, labels, estimated hours) and an optional execution
- * state badge. Does not manage any state or API calls.
- */
 'use client';
+// KanbanCard
 
 import { ExternalLink } from 'lucide-react';
 import type {

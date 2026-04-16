@@ -1,12 +1,5 @@
-/**
- * PromptPanel
- *
- * Renders the prompt-optimization tab content within the analysis section.
- * Handles four states: generating, error, clarification questions, and result.
- * Purely presentational — all async logic is injected via props.
- */
-
 'use client';
+// PromptPanel
 
 import {
   Wand2,

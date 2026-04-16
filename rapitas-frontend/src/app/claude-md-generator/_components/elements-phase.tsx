@@ -1,12 +1,5 @@
-/**
- * elements-phase
- *
- * Step 3 of the CLAUDE.md generator wizard.
- * Lets the user pick optional app features/elements such as auth, payment, AI,
- * realtime etc. Shows a loading skeleton while AI suggestions are being fetched.
- */
-
 'use client';
+// elements-phase
 
 import React from 'react';
 import type { DynamicItem } from '../_types/types';

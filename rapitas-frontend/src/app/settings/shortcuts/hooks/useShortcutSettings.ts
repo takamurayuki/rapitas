@@ -1,12 +1,5 @@
-/**
- * use-shortcut-settings
- *
- * Custom hook managing all state and event logic for the Shortcuts settings page.
- * Handles both global (Tauri) shortcuts and in-app shortcuts stored in Zustand.
- * Not responsible for rendering; all UI is handled by consumer components.
- */
-
 'use client';
+// use-shortcut-settings
 
 import { useEffect, useState, useCallback } from 'react';
 import { isTauri } from '@/utils/tauri';

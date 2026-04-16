@@ -1,10 +1,5 @@
-/**
- * KanbanColumn
- *
- * A single Droppable column in the Kanban board. Renders a column header with
- * task count and a list of KanbanCard components wrapped in Draggable containers.
- */
 'use client';
+// KanbanColumn
 
 import {
   Droppable,

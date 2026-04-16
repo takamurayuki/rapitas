@@ -1,11 +1,5 @@
-/**
- * ExecutionRunningPanel
- *
- * Renders the UI for the "running" and "waiting for input" states of AgentExecutionPanel.
- * Does not manage any state; all values and callbacks are received via props.
- */
-
 'use client';
+// ExecutionRunningPanel
 
 import React from 'react';
 import {

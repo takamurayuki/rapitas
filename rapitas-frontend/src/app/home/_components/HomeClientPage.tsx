@@ -1,12 +1,5 @@
-/**
- * HomeClientPage
- *
- * Orchestrates the home page. Composes sub-components and hooks to render
- * the full task list view with filtering, sorting, pagination, quick-add,
- * and slide panel. Each distinct concern is delegated to a dedicated
- * hook or component in the home/ module.
- */
 'use client';
+// HomeClientPage
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';

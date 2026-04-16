@@ -1,10 +1,5 @@
-/**
- * SubtaskForm
- *
- * Inline form for adding a new subtask within the new-task creation flow.
- * Renders title, description, priority selector, estimated hours, and labels fields.
- */
 'use client';
+// SubtaskForm
 import { Flag, Clock, Tag, Check, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';

@@ -1,11 +1,5 @@
-/**
- * SuggestionDetailModal
- *
- * Full-screen modal overlay displaying the detailed view of a selected AI task
- * suggestion. Renders TaskSuggestionDetail inside a scrollable card.
- */
-
 'use client';
+// SuggestionDetailModal
 
 import { X } from 'lucide-react';
 import TaskSuggestionDetail from '../TaskSuggestionDetail';

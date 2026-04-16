@@ -1,11 +1,5 @@
-/**
- * useWeeklyReview
- *
- * SWR hook that fetches the latest AI-generated weekly review and exposes
- * a `regenerate()` action that triggers backend generation (or returns the
- * cached row if one already exists for the target week).
- */
 'use client';
+// useWeeklyReview
 import useSWR from 'swr';
 import { useCallback, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';

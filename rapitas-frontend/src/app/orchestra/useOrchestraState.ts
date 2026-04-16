@@ -1,12 +1,5 @@
-/**
- * useOrchestraState
- *
- * Custom hook managing Orchestra page state: fetching status/queue data,
- * establishing an SSE connection with exponential-backoff reconnection,
- * polling fallback, and all action handlers (start, stop, resume, enqueue,
- * cancel). Does not own any UI rendering.
- */
 'use client';
+// useOrchestraState
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';

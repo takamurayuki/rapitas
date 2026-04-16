@@ -1,12 +1,5 @@
-/**
- * category-item
- *
- * Displays a single category row in the draggable list, including icon, name, badges,
- * theme chips, and action buttons (set-default, edit, delete).
- * Not responsible for fetching data or managing form state.
- */
-
 'use client';
+// category-item
 
 import { Edit2, Trash2, Star, SwatchBook, GripVertical } from 'lucide-react';
 import { type DraggableProvided } from '@hello-pangea/dnd';

@@ -1,12 +1,5 @@
-/**
- * CategoriesPage
- *
- * Page component for managing categories: listing, creating, editing, deleting,
- * and drag-and-drop reordering. Delegates data logic to useCategories and
- * rendering of individual rows to CategoryItem and CategoryForm.
- */
-
 'use client';
+// CategoriesPage
 
 import { Plus, Edit2, FolderKanban } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';

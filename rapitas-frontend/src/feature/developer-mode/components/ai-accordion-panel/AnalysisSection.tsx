@@ -1,13 +1,5 @@
-/**
- * AnalysisSection
- *
- * Accordion section for task analysis and prompt optimization.
- * Renders the collapsible header and, when expanded, a tab bar that switches
- * between SubtaskPanel and PromptPanel.
- * All async logic is injected via props from the parent hook layer.
- */
-
 'use client';
+// AnalysisSection
 
 import {
   BrainCircuit,

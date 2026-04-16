@@ -1,11 +1,5 @@
-/**
- * useCalendarEvents
- *
- * Manages all server-state and mutation logic for the calendar page.
- * Composes task cache, exam goals, schedules, and paid leave data into a
- * unified CalendarEvent list.
- */
 'use client';
+// useCalendarEvents
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';

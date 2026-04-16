@@ -1,11 +1,5 @@
-/**
- * ScoreBreakdownSection
- *
- * Displays an expandable quality score breakdown for an optimized prompt,
- * with individual bar charts for each scoring dimension.
- */
-
 'use client';
+// ScoreBreakdownSection
 
 import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import type { ScoreBreakdown } from './prompt-optimization-types';

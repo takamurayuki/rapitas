@@ -1,11 +1,5 @@
-/**
- * MemoAnalysisDisplay
- *
- * Renders the collapsible AI analysis result panel for a single memo note.
- * Responsible only for display; toggling visibility is handled by the parent.
- */
-
 'use client';
+// MemoAnalysisDisplay
 
 import { memo } from 'react';
 import { Brain, Eye, EyeOff } from 'lucide-react';

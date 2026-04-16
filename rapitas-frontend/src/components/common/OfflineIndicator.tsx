@@ -1,13 +1,5 @@
-/**
- * OfflineIndicator
- *
- * Shows a small floating badge when the browser is offline or when there are
- * pending mutations in the offline queue. Tapping it opens a brief status.
- * Disappears when the queue is empty and the connection is online.
- *
- * Designed to be mounted once in the root layout or Header.
- */
 'use client';
+// OfflineIndicator
 import { useEffect, useState } from 'react';
 import { WifiOff, CloudOff, Loader2 } from 'lucide-react';
 import { useOfflineQueue } from '@/hooks/common/useOfflineQueue';

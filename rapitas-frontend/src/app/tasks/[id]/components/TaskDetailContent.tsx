@@ -1,13 +1,5 @@
-/**
- * TaskDetailContent
- *
- * Renders the fully loaded task detail page: scroll container, header,
- * edit/view body, and modal sheet. Receives all assembled state as props
- * from TaskDetailClient and delegates display logic to sub-components.
- * Not responsible for fetching data or orchestrating hooks.
- */
-
 'use client';
+// TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
 import type {
   Task,

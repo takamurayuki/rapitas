@@ -1,12 +1,5 @@
-/**
- * useAgentExecution
- *
- * Encapsulates all state and side effects for AgentExecutionPanel.
- * Event handlers are delegated to useAgentExecutionHandlers.
- * Types live in agentExecutionTypes; pure utilities in agentExecutionUtils.
- */
-
 'use client';
+// useAgentExecution
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {

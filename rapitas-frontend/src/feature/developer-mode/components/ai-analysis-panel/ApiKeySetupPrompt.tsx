@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/ApiKeySetupPrompt.tsx
- *
- * Full-panel prompt shown when no Claude API key is configured.
- * Renders an inline input to enter and save a key before the main panel is accessible.
- */
-
 'use client';
+// ai-analysis-panel/ApiKeySetupPrompt.tsx
 
 import {
   Key,

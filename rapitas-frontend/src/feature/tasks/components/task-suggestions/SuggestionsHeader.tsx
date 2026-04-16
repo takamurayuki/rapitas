@@ -1,11 +1,5 @@
-/**
- * SuggestionsHeader
- *
- * Compact header bar for the TaskSuggestions panel. Shows the AI badge, suggestion
- * count, and action buttons (generate / refresh / clear / expand toggle).
- */
-
 'use client';
+// SuggestionsHeader
 
 import { ChevronDown, Sparkles, RefreshCw, X } from 'lucide-react';
 import { SkeletonBlock } from '@/components/ui/LoadingSpinner';

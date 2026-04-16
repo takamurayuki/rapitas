@@ -1,12 +1,5 @@
-/**
- * ScreenshotCaptureForm
- *
- * Controlled form for configuring and triggering manual screenshot captures.
- * All form state is managed by the parent; this component only handles local
- * transient state (new-page input fields, capture-in-progress, capture errors).
- */
-
 'use client';
+// ScreenshotCaptureForm
 
 import { useState } from 'react';
 import { Globe, Camera, Plus, X, AlertCircle, Loader2 } from 'lucide-react';

@@ -1,10 +1,5 @@
-/**
- * WindowResizeOptimizer
- *
- * Prevents layout thrashing and animation re-triggering during window resize events.
- * Does not handle individual component resize logic.
- */
 'use client';
+// WindowResizeOptimizer
 
 import {
   useWindowResize,

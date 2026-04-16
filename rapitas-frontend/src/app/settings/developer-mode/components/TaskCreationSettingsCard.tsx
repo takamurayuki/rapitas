@@ -1,11 +1,5 @@
-/**
- * TaskCreationSettingsCard
- *
- * Settings card for task creation automation options: auto-execute, auto-generate title,
- * title-generation delay, auto-create after title, and auto-fetch suggestions.
- */
-
 'use client';
+// TaskCreationSettingsCard
 
 import { Zap } from 'lucide-react';
 import type { UserSettings } from '@/types';

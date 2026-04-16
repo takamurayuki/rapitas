@@ -1,12 +1,5 @@
-/**
- * usePromptOptimization
- *
- * Encapsulates all state and async logic for generating, submitting answers to,
- * copying, and applying an optimized prompt via the developer-mode API.
- * Does not render any UI — callers consume the returned state and handlers.
- */
-
 'use client';
+// usePromptOptimization
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';

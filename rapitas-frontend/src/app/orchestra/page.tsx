@@ -1,11 +1,5 @@
-/**
- * OrchestraPage
- *
- * Page component for the Orchestra multi-task runner. Composes the
- * useOrchestraState hook with presentational sub-components: StatCard,
- * QueueSection, AddTaskDialog, and OrchestraBadges.
- */
 'use client';
+// OrchestraPage
 
 import { useTranslations } from 'next-intl';
 import {

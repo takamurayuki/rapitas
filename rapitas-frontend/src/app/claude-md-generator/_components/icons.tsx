@@ -1,11 +1,5 @@
-/**
- * icons
- *
- * Lightweight inline SVG icon components used throughout the wizard.
- * Kept separate so they can be imported without pulling in heavier modules.
- */
-
 'use client';
+// icons
 
 /** Renders a white checkmark polyline inside a 11×11 SVG viewport. */
 export function CheckIcon() {

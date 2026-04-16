@@ -1,11 +1,5 @@
-/**
- * ExamGoalsPage
- *
- * Orchestrates data fetching and CRUD operations for exam goals.
- * Rendering is delegated to GoalCard and GoalModal sub-components.
- */
-
 'use client';
+// ExamGoalsPage
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';

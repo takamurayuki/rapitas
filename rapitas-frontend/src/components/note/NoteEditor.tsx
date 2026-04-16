@@ -1,11 +1,5 @@
-/**
- * NoteEditor
- *
- * Orchestrates the rich-text note editing surface.
- * Delegates state management to useNoteEditor and rendering to sub-components:
- * NoteEditorHeader, EditorToolbar, and NoteEditorFooter.
- */
 'use client';
+// NoteEditor
 import { type Note } from '@/stores/note-store';
 import { useNoteEditor } from './editor/useNoteEditor';
 import NoteEditorHeader from './editor/NoteEditorHeader';

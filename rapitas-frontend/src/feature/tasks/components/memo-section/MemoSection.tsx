@@ -1,12 +1,5 @@
-/**
- * MemoSection
- *
- * Root component for the task memo/comment feature. Composes MemoStatsBar,
- * MemoInputArea, TaskTimeline, NoteItem list, and TemplateSelector.
- * All state logic is delegated to the useMemoSection hook.
- */
-
 'use client';
+// MemoSection
 
 import { useRef } from 'react';
 import { MessageSquare, History } from 'lucide-react';

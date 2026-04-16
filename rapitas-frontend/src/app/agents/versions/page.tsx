@@ -1,12 +1,5 @@
-/**
- * AgentVersionManagementPage
- *
- * Orchestrates data fetching, filter state, and install/uninstall actions
- * for the agent version management view.
- * UI rendering is delegated to AgentCard and VersionList sub-components.
- */
-
 'use client';
+// AgentVersionManagementPage
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';

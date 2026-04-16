@@ -1,11 +1,5 @@
-/**
- * CategoryManager
- *
- * Generic manager page for categories or labels with drag-and-drop reordering,
- * inline editing, icon selection, and color customization.
- * Delegates API/state logic to useCategoryManager and UI rows to CategoryItemRow.
- */
 'use client';
+// CategoryManager
 import { Plus, type LucideIcon } from 'lucide-react';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';

@@ -1,12 +1,5 @@
-/**
- * useExecutionStream
- *
- * Re-export barrel for execution stream hooks and types.
- * Preserves backward compatibility for all existing consumers.
- * Actual implementations live in useExecutionStreamSSE.ts and useExecutionPolling.ts.
- */
-
 'use client';
+// useExecutionStream
 
 export type {
   ExecutionEventData,

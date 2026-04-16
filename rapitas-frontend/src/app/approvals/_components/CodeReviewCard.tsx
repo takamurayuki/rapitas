@@ -1,11 +1,5 @@
-/**
- * CodeReviewCard
- *
- * Renders a code-review approval request card. When expanded, delegates to
- * ExecutionReviewPanel for diff display and review actions.
- * Does not own data-fetching — the parent passes pre-fetched diff files.
- */
 'use client';
+// CodeReviewCard
 
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';

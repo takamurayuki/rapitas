@@ -1,11 +1,5 @@
-/**
- * useCommentsSection
- *
- * Custom hook encapsulating all interaction state and handlers for
- * CommentsSection. Separates UI logic from the component render tree.
- */
-
 'use client';
+// useCommentsSection
 
 import { useMemo, useRef, useState, useCallback } from 'react';
 import type { Comment } from '@/types';

@@ -1,12 +1,5 @@
-/**
- * DeveloperModeSettingsPage
- *
- * Top-level page for developer mode settings.
- * Delegates state management to useDeveloperModeSettings and renders
- * individual settings cards for each feature group.
- */
-
 'use client';
+// DeveloperModeSettingsPage
 
 import { Bot, AlertCircle, Bug } from 'lucide-react';
 import { useTranslations } from 'next-intl';

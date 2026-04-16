@@ -1,11 +1,5 @@
-/**
- * useAgentSettings
- *
- * Custom hook encapsulating state, data-fetching, and mutation coordination
- * for the agent settings page. Delegates API calls to agentSettingsApi.
- */
-
 'use client';
+// useAgentSettings
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';

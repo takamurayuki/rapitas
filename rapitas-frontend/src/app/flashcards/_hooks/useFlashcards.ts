@@ -1,11 +1,5 @@
-/**
- * useFlashcards
- *
- * Orchestration hook for the flashcards feature. Owns all UI state (modals,
- * study mode, flip state) and delegates API operations to useFlashcardApi.
- * Also exports SchedulePreview for use by sub-components.
- */
 'use client';
+// useFlashcards
 
 import { useEffect, useState, useCallback } from 'react';
 import type { FlashcardDeck } from '@/types';

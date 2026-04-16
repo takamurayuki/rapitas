@@ -1,12 +1,5 @@
-/**
- * QuickActions
- *
- * Collapsed-state action area of the ResumableExecutionsBanner.
- * Shows a single Resume/View button for one execution, or a dropdown
- * selector plus Resume-All for multiple executions.
- */
-
 'use client';
+// QuickActions
 
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';

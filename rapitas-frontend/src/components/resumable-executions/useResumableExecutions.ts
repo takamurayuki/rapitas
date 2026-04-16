@@ -1,11 +1,5 @@
-/**
- * use-resumable-executions
- *
- * Custom hook that manages fetching, polling, auto-resume, and action handlers
- * for resumable task executions. Keeps the banner component focused on rendering.
- */
-
 'use client';
+// use-resumable-executions
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';

@@ -1,11 +1,5 @@
-/**
- * FlashcardsPage
- *
- * Root page component for the flashcards feature. Delegates all state to
- * useFlashcards and conditionally renders StudyView, DeckView, or DeckListView
- * based on the current navigation state.
- */
 'use client';
+// FlashcardsPage
 
 import { useFlashcards } from './_hooks/useFlashcards';
 import { StudyView } from './_components/StudyView';

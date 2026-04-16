@@ -1,11 +1,5 @@
-/**
- * PrMergeSection
- *
- * Renders the PR creation and merge UI shown after a successful execution.
- * Extracted from ExecutionCompletedPanel to keep file sizes under 300 lines.
- */
-
 'use client';
+// PrMergeSection
 
 import React from 'react';
 import {

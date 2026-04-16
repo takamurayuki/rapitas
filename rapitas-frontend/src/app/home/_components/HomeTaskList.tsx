@@ -1,10 +1,5 @@
-/**
- * HomeTaskList
- *
- * Renders the paginated task grid, the empty state UI, and the pagination control.
- * Includes completion animation sweeping state forwarded to each TaskCard.
- */
 'use client';
+// HomeTaskList
 import { useRouter } from 'next/navigation';
 import type { Status, Task } from '@/types';
 import TaskCard from '@/feature/tasks/components/TaskCard';

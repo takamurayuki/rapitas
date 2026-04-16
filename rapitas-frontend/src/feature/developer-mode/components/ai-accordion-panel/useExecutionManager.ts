@@ -1,14 +1,5 @@
-/**
- * useExecutionManager
- *
- * Orchestrates agent execution lifecycle: state restoration on mount, polling/SSE
- * log aggregation, branch-name generation, user-response submission, stop, reset,
- * rerun, and continue-execution flows.
- *
- * Does not render UI. All side-effects are self-contained.
- */
-
 'use client';
+// useExecutionManager
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { API_BASE_URL } from '@/utils/api';

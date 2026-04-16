@@ -1,11 +1,5 @@
-/**
- * EditorToolbar
- *
- * Top toolbar for the rich-text note editor.
- * Composes font, text color, highlight, list, and insert tool sections.
- * All popup visibility state and action handlers are passed in from the parent.
- */
 'use client';
+// EditorToolbar
 import { Bold, Italic, Underline, List, ListOrdered } from 'lucide-react';
 import { FontPickerSection } from './toolbar/FontPickerSection';
 import { TextColorSection } from './toolbar/TextColorSection';

@@ -1,13 +1,5 @@
-/**
- * AgentSettingsSections
- *
- * Presentational sub-components for the agent settings page:
- * BasicSettingsSection, ClaudeCodeInfoSection, ConnectionTestSection,
- * and SettingsActionBar.
- * Re-exports ApiKeySection from its own module for convenience.
- */
-
 'use client';
+// AgentSettingsSections
 
 import {
   Settings,

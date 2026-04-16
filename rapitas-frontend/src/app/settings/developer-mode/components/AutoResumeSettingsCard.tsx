@@ -1,10 +1,5 @@
-/**
- * AutoResumeSettingsCard
- *
- * Settings card for the auto-resume interrupted tasks toggle in developer mode.
- */
-
 'use client';
+// AutoResumeSettingsCard
 
 import { RotateCcw } from 'lucide-react';
 import type { UserSettings } from '@/types';

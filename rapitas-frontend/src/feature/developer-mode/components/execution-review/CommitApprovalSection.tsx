@@ -1,11 +1,5 @@
-/**
- * CommitApprovalSection
- *
- * Renders the commit message input, base branch input, and approve/reject action buttons.
- * When isReadyToApprove is false, only the reject button is shown in the action footer.
- */
-
 'use client';
+// CommitApprovalSection
 
 import { useState } from 'react';
 import {

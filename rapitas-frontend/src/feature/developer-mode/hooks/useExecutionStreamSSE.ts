@@ -1,12 +1,5 @@
-/**
- * useExecutionStreamSSE
- *
- * SSE (Server-Sent Events) based execution stream hook.
- * Manages a persistent EventSource connection to receive real-time execution events.
- * Note: SSE is currently disabled; polling via useExecutionPolling is the primary mechanism.
- */
-
 'use client';
+// useExecutionStreamSSE
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';

@@ -1,11 +1,5 @@
-/**
- * WorkflowViewer
- *
- * Top-level component that displays workflow progress for a single task.
- * Composes useWorkflowViewer (state), WorkflowBanners (status banners),
- * WorkflowTabBar (tab navigation), and WorkflowFileContent (markdown body).
- */
 'use client';
+// WorkflowViewer
 
 import { useEffect } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';

@@ -1,11 +1,5 @@
-/**
- * RecentLearnings
- *
- * Two-column panel showing the latest learning patterns and the newest
- * knowledge nodes added to the agent's memory graph.
- */
-
 'use client';
+// RecentLearnings
 
 import { Clock, Network, Sparkles, Target } from 'lucide-react';
 import { NODE_TYPE_LABELS } from '../constants';

@@ -1,11 +1,5 @@
-/**
- * useDeveloperModeSettings
- *
- * Custom hook that manages fetching, updating, and local state for developer-mode settings.
- * Encapsulates API calls and debounced delay input so page.tsx stays lean.
- */
-
 'use client';
+// useDeveloperModeSettings
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { UserSettings } from '@/types';

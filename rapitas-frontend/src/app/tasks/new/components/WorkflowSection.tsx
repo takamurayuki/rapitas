@@ -1,10 +1,5 @@
-/**
- * WorkflowSection
- *
- * Accordion content for selecting the workflow mode on the new-task form.
- * Renders the CompactWorkflowSelector together with an explanatory info box.
- */
 'use client';
+// WorkflowSection
 import { useTranslations } from 'next-intl';
 import type { WorkflowMode } from '@/types';
 import CompactWorkflowSelector from '@/components/workflow/CompactWorkflowSelector';

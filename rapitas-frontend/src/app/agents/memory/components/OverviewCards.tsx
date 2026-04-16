@@ -1,11 +1,5 @@
-/**
- * OverviewCards
- *
- * Four stat cards: total memory size, knowledge nodes, success rate,
- * and episode memory — each with a gradient background and growth indicator.
- */
-
 'use client';
+// OverviewCards
 
 import {
   ArrowDownRight,

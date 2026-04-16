@@ -1,10 +1,5 @@
-/**
- * NewTaskHeader
- *
- * Top bar for the new-task page: back navigation, template button, and create button.
- * Does not manage any state itself — receives everything via props.
- */
 'use client';
+// NewTaskHeader
 import { ArrowLeft, FileStack, Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';

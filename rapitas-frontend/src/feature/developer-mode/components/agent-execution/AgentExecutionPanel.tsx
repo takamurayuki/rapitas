@@ -1,13 +1,5 @@
-/**
- * AgentExecutionPanel
- *
- * Orchestrates agent execution state and delegates rendering to state-specific
- * sub-panels (Running, Completed, Cancelled, Failed, Idle).
- * All business logic lives in useAgentExecution; this component only selects
- * which panel to render and builds the shared logsNode.
- */
-
 'use client';
+// AgentExecutionPanel
 
 import React from 'react';
 import type {

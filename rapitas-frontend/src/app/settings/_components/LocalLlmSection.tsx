@@ -1,11 +1,5 @@
-/**
- * LocalLlmSection
- *
- * Settings panel for the local LLM integration (Ollama / llama-server).
- * Handles connection testing, model download progress, and title-generation
- * provider selection.
- */
 'use client';
+// LocalLlmSection
 
 import { useTranslations } from 'next-intl';
 import { Terminal, Loader2, Save, CheckCircle, Trash2 } from 'lucide-react';

@@ -1,11 +1,5 @@
-/**
- * use-cli-tools
- *
- * Custom hook encapsulating all state and async operations for the CLI Tools
- * settings page. Keeps the page component focused on rendering only.
- */
-
 'use client';
+// use-cli-tools
 
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';

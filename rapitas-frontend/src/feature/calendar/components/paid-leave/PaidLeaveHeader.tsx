@@ -1,11 +1,5 @@
-/**
- * PaidLeaveHeader
- *
- * Displays the dialog header for the paid leave form: date icon, formatted date range,
- * remaining balance info, and close button. Does not own any state.
- */
-
 'use client';
+// PaidLeaveHeader
 
 import { X, Coffee } from 'lucide-react';
 

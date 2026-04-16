@@ -1,10 +1,5 @@
-/**
- * CalendarGrid
- *
- * Renders the main monthly calendar grid with event chips, multi-day bars,
- * weekend/holiday coloring, and "today" highlight.
- */
 'use client';
+// CalendarGrid
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';

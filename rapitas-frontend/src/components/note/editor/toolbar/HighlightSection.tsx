@@ -1,10 +1,5 @@
-/**
- * HighlightSection
- *
- * Toolbar section for text highlight color and style selection.
- * Renders a Highlighter button that opens a picker with style tabs and color options.
- */
 'use client';
+// HighlightSection
 import { Highlighter } from 'lucide-react';
 import { highlightColors, highlightStyles } from '../constants';
 

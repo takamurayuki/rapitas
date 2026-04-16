@@ -1,10 +1,5 @@
-/**
- * QueueSection
- *
- * Collapsible list section displaying queue items in a given state category
- * (running, queued, waiting_approval, completed, failed).
- */
 'use client';
+// QueueSection
 
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import type { QueueItem } from '../types';

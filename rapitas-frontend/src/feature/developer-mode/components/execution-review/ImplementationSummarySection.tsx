@@ -1,12 +1,5 @@
-/**
- * ImplementationSummarySection
- *
- * Collapsible summary card showing the agent's implementation description,
- * file change count, and execution time. Long summaries (>300 chars) are
- * truncated with an expand/collapse toggle.
- */
-
 'use client';
+// ImplementationSummarySection
 
 import { useState } from 'react';
 import { FileText, Code2, Timer } from 'lucide-react';

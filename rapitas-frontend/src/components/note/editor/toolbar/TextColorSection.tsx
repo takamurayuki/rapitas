@@ -1,11 +1,5 @@
-/**
- * TextColorSection
- *
- * Toolbar section for text color selection.
- * Renders a color swatch button that opens a picker with quick colors,
- * a grayscale palette, an extended palette, and a reset button.
- */
 'use client';
+// TextColorSection
 import { Baseline } from 'lucide-react';
 import {
   quickTextColors,

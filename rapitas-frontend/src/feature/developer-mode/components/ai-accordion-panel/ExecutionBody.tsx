@@ -1,12 +1,5 @@
-/**
- * ExecutionBody
- *
- * Renders the expanded content of the execution accordion section.
- * Switches between running, completed, cancelled, interrupted, failed, and idle
- * states based on props. Does not manage any state — purely presentational.
- */
-
 'use client';
+// ExecutionBody
 
 import {
   CheckCircle2,

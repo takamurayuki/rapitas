@@ -1,10 +1,5 @@
-/**
- * CategoryItemForm
- *
- * Form UI for creating or editing a single category/label item.
- * Handles name, description, color picker, and icon selection.
- */
 'use client';
+// CategoryItemForm
 import { Search, Save, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getIconComponent, ICON_DATA } from './icon-data';

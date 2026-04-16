@@ -1,10 +1,5 @@
-/**
- * AiAssistantSettingsCard
- *
- * Settings card for enabling/disabling the AI assistant feature in developer mode.
- */
-
 'use client';
+// AiAssistantSettingsCard
 
 import { Bot } from 'lucide-react';
 import type { UserSettings } from '@/types';

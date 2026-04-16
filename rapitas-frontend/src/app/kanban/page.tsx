@@ -1,11 +1,5 @@
-/**
- * KanbanPage
- *
- * Weekly Kanban board page. Composes useKanbanBoard (task state + D&D),
- * useKanbanFilters (filter state), KanbanWeekNav, KanbanFilterBar, and
- * KanbanColumn for a fully featured drag-and-drop weekly view.
- */
 'use client';
+// KanbanPage
 
 import { useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';

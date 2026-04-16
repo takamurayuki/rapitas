@@ -1,11 +1,5 @@
-/**
- * usePromptOptimization
- *
- * Custom hook encapsulating prompt generation, answer submission,
- * copy-to-clipboard, and all related state for the PromptOptimizationPanel.
- */
-
 'use client';
+// usePromptOptimization
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';

@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/usePromptsManagement.ts
- *
- * Hook encapsulating saved-prompt list fetching, batch generation, editing, and deletion.
- * Not responsible for single-task prompt generation — see use-prompt-optimization.ts.
- */
-
 'use client';
+// ai-analysis-panel/usePromptsManagement.ts
 
 import { useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';

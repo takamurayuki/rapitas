@@ -1,11 +1,5 @@
-/**
- * ErrorList
- *
- * Scrollable list of filtered ErrorAnalysis entries. Each row is expandable to show
- * stack trace, suggested fixes, documentation links, related errors, and action buttons.
- */
-
 'use client';
+// ErrorList
 
 import React from 'react';
 import { Card } from '@/components/ui/card';

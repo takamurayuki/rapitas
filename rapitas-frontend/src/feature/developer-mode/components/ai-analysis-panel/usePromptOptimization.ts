@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/usePromptOptimization.ts
- *
- * Hook encapsulating single-task prompt generation and clarification state.
- * Not responsible for saved-prompts list management — see use-prompts-management.ts.
- */
-
 'use client';
+// ai-analysis-panel/usePromptOptimization.ts
 
 import { useState, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';

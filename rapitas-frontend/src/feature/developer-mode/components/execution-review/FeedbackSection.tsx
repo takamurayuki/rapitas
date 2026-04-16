@@ -1,11 +1,5 @@
-/**
- * FeedbackSection
- *
- * Collapsible panel for submitting change requests and inline comments on the agent's output.
- * Visible only when execution has completed with file changes.
- */
-
 'use client';
+// FeedbackSection
 
 import { useState } from 'react';
 import {

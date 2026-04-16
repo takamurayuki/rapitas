@@ -1,10 +1,5 @@
-/**
- * SettingsPage
- *
- * Next.js page entry point for /settings.
- * Delegates all data fetching to useSettingsData and rendering to sub-components.
- */
 'use client';
+// SettingsPage
 
 import { useTranslations } from 'next-intl';
 import { Settings, AlertCircle, CheckCircle } from 'lucide-react';

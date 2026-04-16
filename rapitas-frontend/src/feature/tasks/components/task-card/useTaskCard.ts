@@ -1,11 +1,5 @@
-/**
- * useTaskCard
- *
- * Custom hook encapsulating all state and side-effect logic for TaskCard.
- * Covers: context menu, subtask local state, prefetch, and execution-status
- * derived display values. Does not render any UI.
- */
 'use client';
+// useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
 import { statusConfig } from '@/feature/tasks/config/StatusConfig';

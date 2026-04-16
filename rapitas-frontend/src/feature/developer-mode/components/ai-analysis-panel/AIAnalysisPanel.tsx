@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/AIAnalysisPanel.tsx
- *
- * Assembles the AI assistant accordion panel from its sub-components and hooks.
- * Manages top-level tab selection, expand/collapse, and subtask creation flow.
- */
-
 'use client';
+// ai-analysis-panel/AIAnalysisPanel.tsx
 
 import { useState, useEffect } from 'react';
 import {

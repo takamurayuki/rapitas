@@ -1,10 +1,5 @@
-/**
- * useTaskSubmit
- *
- * Handles the POST /tasks API call, subtask creation, and post-create navigation.
- * Extracted from useTaskFormActions to keep each hook under 300 lines.
- */
 'use client';
+// useTaskSubmit
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';

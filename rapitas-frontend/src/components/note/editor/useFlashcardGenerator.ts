@@ -1,10 +1,5 @@
-/**
- * useFlashcardGenerator
- *
- * Custom hook that handles flashcard generation from note content.
- * Isolated from the main editor hook so it can evolve or be tested independently.
- */
 'use client';
+// useFlashcardGenerator
 import { useState, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 

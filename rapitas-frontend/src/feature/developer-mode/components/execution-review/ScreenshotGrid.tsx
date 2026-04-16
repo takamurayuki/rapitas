@@ -1,11 +1,5 @@
-/**
- * ScreenshotGrid
- *
- * Stateless grid display for screenshot thumbnails with a lightbox overlay.
- * Renders an empty-state message when no screenshots are available.
- */
-
 'use client';
+// ScreenshotGrid
 
 import { useState } from 'react';
 import { Camera, AlertCircle, Maximize2, X } from 'lucide-react';

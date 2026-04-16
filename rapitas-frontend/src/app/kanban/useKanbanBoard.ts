@@ -1,11 +1,5 @@
-/**
- * useKanbanBoard
- *
- * Custom hook managing Kanban board task state: fetching/updating tasks,
- * drag-and-drop status changes, task panel open/close, executing-task
- * polling, and execution-state badge derivation.
- */
 'use client';
+// useKanbanBoard
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';

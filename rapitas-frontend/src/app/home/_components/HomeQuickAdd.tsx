@@ -1,10 +1,5 @@
-/**
- * HomeQuickAdd
- *
- * Inline quick-add form for creating a task without navigating away.
- * Renders only when isQuickAdding is true.
- */
 'use client';
+// HomeQuickAdd
 import { useTranslations } from 'next-intl';
 
 interface HomeQuickAddProps {

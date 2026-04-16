@@ -1,10 +1,5 @@
-/**
- * TaskCardContextMenu
- *
- * Fixed-position context menu shown on right-click of a TaskCard.
- * Stateless — position and visibility are controlled by the parent.
- */
 'use client';
+// TaskCardContextMenu
 import { Edit, Copy, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 

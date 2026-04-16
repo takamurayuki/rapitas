@@ -1,11 +1,5 @@
-/**
- * GenerateCardsModal
- *
- * Modal dialog for AI-powered flashcard generation. Accepts topic, count,
- * difficulty, and language settings. Stateless — all values and callbacks
- * are provided via props.
- */
 'use client';
+// GenerateCardsModal
 
 import { useTranslations } from 'next-intl';
 import { Sparkles } from 'lucide-react';

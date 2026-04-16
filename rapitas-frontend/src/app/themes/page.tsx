@@ -1,11 +1,5 @@
-/**
- * ThemesPage
- *
- * Next.js page entry point for theme management. Delegates all state logic to
- * useThemesPage and UI sections to sub-components. Does not contain business
- * logic directly.
- */
 'use client';
+// ThemesPage
 import { Plus, SwatchBook } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { ListSkeleton } from '@/components/ui/LoadingSpinner';

@@ -1,10 +1,5 @@
-/**
- * DayEventsSidebar
- *
- * Right-hand panel showing the events for the currently selected date,
- * with add buttons and delete actions.
- */
 'use client';
+// DayEventsSidebar
 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';

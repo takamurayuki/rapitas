@@ -1,10 +1,5 @@
-/**
- * MetricsFilters
- *
- * Filter panel for the agent metrics page.
- * Provides date range, aggregation period, and trend days controls.
- */
 'use client';
+// MetricsFilters
 import { Filter } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { DateRange } from '../_hooks/useMetricsData';

@@ -1,12 +1,5 @@
-/**
- * GoalModal
- *
- * Modal form for creating and editing exam goals.
- * Handles color selection and icon picker UI.
- * Not responsible for API calls — delegates to onSubmit.
- */
-
 'use client';
+// GoalModal
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';

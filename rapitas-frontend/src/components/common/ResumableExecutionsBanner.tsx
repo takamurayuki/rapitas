@@ -1,12 +1,5 @@
-/**
- * ResumableExecutionsBanner
- *
- * Fixed-position banner that notifies the user of running or interrupted
- * agent executions. Delegates data logic to useResumableExecutions and
- * rendering sub-tasks to ExecutionItem and QuickActions.
- */
-
 'use client';
+// ResumableExecutionsBanner
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';

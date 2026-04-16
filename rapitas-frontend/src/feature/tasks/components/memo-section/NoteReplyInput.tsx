@@ -1,11 +1,5 @@
-/**
- * NoteReplyInput
- *
- * Inline reply input bar shown below a note when that note is in reply mode.
- * Stateless — controlled by parent via props.
- */
-
 'use client';
+// NoteReplyInput
 
 import { X } from 'lucide-react';
 

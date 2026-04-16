@@ -1,11 +1,5 @@
-/**
- * ApiKeySection
- *
- * Displays current API key status, a new-key input with visibility toggle,
- * a delete button, a help link, and an encryption notice.
- */
-
 'use client';
+// ApiKeySection
 
 import {
   Key,

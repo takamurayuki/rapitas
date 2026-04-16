@@ -1,11 +1,5 @@
-/**
- * NoteTabContent
- *
- * Renders the note-editing tab body: a hover-expandable sidebar overlaid on
- * the left edge and the main NoteEditor or empty-state prompt to the right.
- * Not responsible for modal chrome, drag/resize, or note store management.
- */
 'use client';
+// NoteTabContent
 import { useRef, useState } from 'react';
 import { FileText, Plus, PanelLeftOpen } from 'lucide-react';
 import NoteEditor from './NoteEditor';

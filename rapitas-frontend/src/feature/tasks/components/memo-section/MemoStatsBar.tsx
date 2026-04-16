@@ -1,12 +1,5 @@
-/**
- * MemoStatsBar
- *
- * Displays the memo count, pinned count, timeline toggle, filter toggle,
- * active filter chips, and the bulk-analyze quick action button.
- * Purely presentational — all state and callbacks are provided by MemoSection.
- */
-
 'use client';
+// MemoStatsBar
 
 import { MessageSquare, Pin, History, Filter, Sparkles } from 'lucide-react';
 import type { MemoType } from './types';

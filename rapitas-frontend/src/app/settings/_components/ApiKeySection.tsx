@@ -1,11 +1,5 @@
-/**
- * ApiKeySection
- *
- * Renders the API key configuration panel for Claude, ChatGPT, and Gemini.
- * Each provider row shows its status, current masked key, model selector,
- * and an edit/save form.
- */
 'use client';
+// ApiKeySection
 
 import { useTranslations } from 'next-intl';
 import {

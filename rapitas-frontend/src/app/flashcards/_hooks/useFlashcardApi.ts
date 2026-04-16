@@ -1,11 +1,5 @@
-/**
- * useFlashcardApi
- *
- * Low-level API interaction for flashcard decks and cards: CRUD, review,
- * AI generation, and schedule preview fetching. All React state is owned
- * by the caller — this hook only performs fetches and calls provided setters.
- */
 'use client';
+// useFlashcardApi
 
 import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';

@@ -1,11 +1,5 @@
-/**
- * SuggestionCard
- *
- * Renders a single AI task suggestion as a compact card with category badge,
- * title, time estimate, priority indicator, and hover action buttons.
- */
-
 'use client';
+// SuggestionCard
 
 import {
   Repeat,

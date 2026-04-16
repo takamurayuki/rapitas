@@ -1,11 +1,5 @@
-/**
- * AITabContent
- *
- * Renders the AI chat interface tab within the Note modal, including provider
- * and model selection settings, message history, and the message input area.
- * Not responsible for modal layout or drag/resize behaviour.
- */
 'use client';
+// AITabContent
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Send,

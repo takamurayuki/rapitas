@@ -1,12 +1,5 @@
-/**
- * global-shortcut-section
- *
- * UI section for configuring the global (OS-level) keyboard shortcut that activates the app.
- * Supports keyboard recording, manual modifier + key selection, and Tauri/localStorage persistence.
- * Not responsible for in-app shortcut management; see in-app-shortcuts-section.tsx.
- */
-
 'use client';
+// global-shortcut-section
 
 import {
   Keyboard,

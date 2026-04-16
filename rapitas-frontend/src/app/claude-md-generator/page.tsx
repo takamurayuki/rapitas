@@ -1,11 +1,5 @@
-/**
- * ClaudeMdGeneratorPage
- *
- * Next.js page entry point for the CLAUDE.md generator wizard.
- * All state lives in useWizard; this file only wires phases to components.
- */
-
 'use client';
+// ClaudeMdGeneratorPage
 
 import { useWizard } from './_hooks/useWizard';
 import { IntroPhase } from './_components/intro-phase';

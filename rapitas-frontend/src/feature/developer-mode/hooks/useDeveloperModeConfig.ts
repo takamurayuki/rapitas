@@ -1,11 +1,5 @@
-/**
- * useDeveloperModeConfig
- *
- * Provides developer-mode configuration CRUD, task analysis, subtask approval,
- * session listing, and agent registry fetching for a given task.
- * Does not own execution state — that is handled by useAgentExecutionActions.
- */
 'use client';
+// useDeveloperModeConfig
 
 import { useState, useCallback } from 'react';
 import type {

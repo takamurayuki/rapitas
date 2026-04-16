@@ -1,14 +1,5 @@
-/**
- * useHomeSyncEffects
- *
- * Encapsulates reactive side effects that keep home page state consistent:
- * - Resets pagination when any filter changes.
- * - Clamps current page to the valid range when total pages shrinks.
- * - Auto-selects a default theme when themes load.
- * - Corrects the active category when app mode hides it.
- * - Schedules periodic background refresh of filter data.
- */
 'use client';
+// useHomeSyncEffects
 import { useEffect } from 'react';
 import type { Category, Priority, Theme } from '@/types';
 

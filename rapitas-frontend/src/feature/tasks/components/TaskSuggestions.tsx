@@ -1,12 +1,5 @@
-/**
- * TaskSuggestions
- *
- * Manages AI-powered task suggestion state and coordinates between the header,
- * suggestion cards, and detail modal sub-components. Handles cache lookup,
- * generation, and deletion without owning any visual logic.
- */
-
 'use client';
+// TaskSuggestions
 
 import { useState, useCallback, useEffect } from 'react';
 import { Info } from 'lucide-react';

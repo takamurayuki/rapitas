@@ -1,11 +1,5 @@
-/**
- * ExecutionCancelledPanel
- *
- * Renders the UI shown when an agent execution has been cancelled by the user.
- * Does not manage any state; all values and callbacks are received via props.
- */
-
 'use client';
+// ExecutionCancelledPanel
 
 import React from 'react';
 import { Square, RefreshCw, Zap } from 'lucide-react';

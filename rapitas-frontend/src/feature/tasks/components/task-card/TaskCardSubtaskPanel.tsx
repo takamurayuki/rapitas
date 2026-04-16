@@ -1,11 +1,5 @@
-/**
- * TaskCardSubtaskPanel
- *
- * Expanded inline subtask panel shown below the TaskCard main row.
- * Renders each subtask with its status icon, title, and quick-status buttons.
- * Stateless — subtask list and handlers are received as props.
- */
 'use client';
+// TaskCardSubtaskPanel
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
 import {

@@ -1,11 +1,5 @@
-/**
- * ErrorFilters
- *
- * Search input, category/severity select dropdowns, auto-refresh toggle,
- * and export button for the error analysis panel.
- */
-
 'use client';
+// ErrorFilters
 
 import React from 'react';
 import { Card } from '@/components/ui/card';

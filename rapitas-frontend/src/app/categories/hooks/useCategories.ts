@@ -1,11 +1,5 @@
-/**
- * use-categories
- *
- * Custom hook encapsulating all data-fetching and mutation logic for the Categories page.
- * Not responsible for rendering; consumers must supply their own UI.
- */
-
 'use client';
+// use-categories
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';

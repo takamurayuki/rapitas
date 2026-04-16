@@ -1,12 +1,5 @@
-/**
- * AgentSettingsClient
- *
- * Page-level client component for the agent settings route.
- * Composes useAgentSettings hook and presentational sub-components.
- * Renders loading/error states and delegates all logic to the hook.
- */
-
 'use client';
+// AgentSettingsClient
 
 import { use } from 'react';
 import Link from 'next/link';

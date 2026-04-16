@@ -1,11 +1,5 @@
-/**
- * KanbanFilterBar
- *
- * Filter controls for the Kanban board: text search input, collapsible filter
- * panel (priority + label multi-selects), and an active-filter summary.
- * Purely presentational — all state is owned by the parent via props.
- */
 'use client';
+// KanbanFilterBar
 
 import { Search, SlidersHorizontal, X, Flag, Tag } from 'lucide-react';
 import type { Label } from '@/types';

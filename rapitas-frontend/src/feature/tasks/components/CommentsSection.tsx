@@ -1,11 +1,5 @@
-/**
- * CommentsSection
- *
- * Collapsible panel displaying threaded comments (メモ) for a task.
- * Delegates state management to useCommentsSection, rendering to Note and LinkModal.
- */
-
 'use client';
+// CommentsSection
 
 import {
   Plus,

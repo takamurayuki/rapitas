@@ -1,12 +1,5 @@
-/**
- * PromptOptimizationPanel
- *
- * Entry point for the AI prompt optimization feature. Orchestrates the four
- * display states: idle, generating, clarification questions, and result.
- * Delegates all logic to usePromptOptimization and rendering to sub-components.
- */
-
 'use client';
+// PromptOptimizationPanel
 
 import { Sparkles, Loader2, AlertCircle, Wand2 } from 'lucide-react';
 import { usePromptOptimization } from './prompt-optimization/usePromptOptimization';

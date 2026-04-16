@@ -1,13 +1,5 @@
-/**
- * AIAccordionPanelInner
- *
- * Assembles hooks and sub-components into the complete AI accordion panel.
- * Wires useAccordionState, usePromptOptimization, and useExecutionManager
- * together and delegates rendering to PanelHeader, AnalysisSection, and
- * ExecutionSection.
- */
-
 'use client';
+// AIAccordionPanelInner
 
 import { useState, useCallback } from 'react';
 import { PanelHeader } from './PanelHeader';

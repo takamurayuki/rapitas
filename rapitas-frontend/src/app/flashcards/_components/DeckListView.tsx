@@ -1,10 +1,5 @@
-/**
- * DeckListView
- *
- * Renders the top-level flashcard deck grid, empty state, and the
- * create-deck modal. Deck selection and deletion are handled via callbacks.
- */
 'use client';
+// DeckListView
 
 import { useTranslations } from 'next-intl';
 import { Plus, Trash2, Brain, Layers, Sparkles } from 'lucide-react';

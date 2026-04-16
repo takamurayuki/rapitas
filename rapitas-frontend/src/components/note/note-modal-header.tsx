@@ -1,11 +1,5 @@
-/**
- * NoteModalHeader
- *
- * Renders the draggable gradient header bar for the Note modal, including tab
- * switcher, search input, and window control buttons (maximize/close).
- * Not responsible for drag state management — callers supply event handlers.
- */
 'use client';
+// NoteModalHeader
 import {
   NotebookTabs,
   Sparkles,

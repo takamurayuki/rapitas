@@ -1,10 +1,5 @@
-/**
- * KanbanWeekNav
- *
- * Week navigation bar for the Kanban board: previous/next week arrow buttons
- * and a centred label showing the current week range (or "this week").
- */
 'use client';
+// KanbanWeekNav
 
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 

@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/useApiKey.ts
- *
- * Hook encapsulating Claude API key fetch, save, and delete logic.
- * Not responsible for rendering — returns state and handlers only.
- */
-
 'use client';
+// ai-analysis-panel/useApiKey.ts
 
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';

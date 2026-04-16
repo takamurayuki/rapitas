@@ -1,12 +1,5 @@
-/**
- * useNoteEditor
- *
- * Composition hook for the NoteEditor. Combines popup/format state with
- * insertion operations (useEditorInsertion) and flashcard generation
- * (useFlashcardGenerator). Exports a single NoteEditorState object consumed
- * by NoteEditor and its sub-components.
- */
 'use client';
+// useNoteEditor
 import { useState, useRef, useEffect, useCallback } from 'react';
 import DOMPurify from 'dompurify';
 import { type Note, useNoteStore } from '@/stores/note-store';

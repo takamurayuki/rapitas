@@ -1,11 +1,5 @@
-/**
- * Note
- *
- * Renders a single comment node with inline edit, reply input, link badges,
- * and recursive nested replies. Stateless except for local collapse toggle.
- */
-
 'use client';
+// Note
 
 import { useState, memo } from 'react';
 import {

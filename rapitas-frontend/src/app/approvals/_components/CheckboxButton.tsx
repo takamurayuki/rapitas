@@ -1,10 +1,5 @@
-/**
- * CheckboxButton
- *
- * Shared styled checkbox button used in ApprovalCard and the select-all row.
- * Renders a violet filled checkbox when checked, an empty bordered box otherwise.
- */
 'use client';
+// CheckboxButton
 
 interface CheckboxButtonProps {
   checked: boolean;

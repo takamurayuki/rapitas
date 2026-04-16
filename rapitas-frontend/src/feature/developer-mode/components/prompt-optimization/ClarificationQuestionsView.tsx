@@ -1,11 +1,5 @@
-/**
- * ClarificationQuestionsView
- *
- * Renders the clarification questions form shown when the AI requests
- * additional information before generating the final optimized prompt.
- */
-
 'use client';
+// ClarificationQuestionsView
 
 import { Loader2, MessageSquare, HelpCircle, Send } from 'lucide-react';
 import type { PromptClarificationQuestion } from './prompt-optimization-types';

@@ -1,11 +1,5 @@
-/**
- * LinkModal
- *
- * Modal dialog for searching and selecting a target comment to link to.
- * Debounces the search query and displays paginated results with label selection.
- */
-
 'use client';
+// LinkModal
 
 import { useState, useEffect, memo } from 'react';
 import { Link2, Search, X, MessageSquare, Loader2 } from 'lucide-react';

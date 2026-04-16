@@ -1,11 +1,5 @@
-/**
- * AuthModal
- *
- * Multi-step modal dialog that guides the user through the interactive
- * authentication flow for a CLI tool (copy command → run → verify → complete).
- */
-
 'use client';
+// AuthModal
 
 import {
   Terminal,

@@ -1,10 +1,5 @@
-/**
- * PrioritySelector
- *
- * Renders a row of priority toggle buttons (urgent / high / medium / low).
- * Used in both the main task form and the subtask add form.
- */
 'use client';
+// PrioritySelector
 import {
   ChevronsUp,
   ChevronUp,

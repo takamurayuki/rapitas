@@ -1,13 +1,5 @@
-/**
- * ExecutionSection
- *
- * Accordion section for agent execution. Renders the collapsible header with
- * context-sensitive action buttons (stop / reset / re-run / approve) and
- * delegates expanded body rendering to ExecutionBody.
- * Purely presentational — all logic is injected via props.
- */
-
 'use client';
+// ExecutionSection
 
 import {
   Rocket,

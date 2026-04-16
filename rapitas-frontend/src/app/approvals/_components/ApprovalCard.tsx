@@ -1,10 +1,5 @@
-/**
- * ApprovalCard
- *
- * Renders a single subtask-decomposition approval request card with expandable
- * subtask list and per-subtask selection for partial approval.
- */
 'use client';
+// ApprovalCard
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';

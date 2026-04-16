@@ -1,13 +1,5 @@
-/**
- * useAgentExecutionActions
- *
- * Provides executeAgent, stopExecution, resetExecutionState, and
- * setExecutionCancelled actions for the developer-mode agent runner.
- * Owns the ref-based mutex that prevents duplicate concurrent executions.
- * Does not own any persistent state — execution status is surfaced via
- * the setters passed in from the parent hook.
- */
 'use client';
+// useAgentExecutionActions
 
 import { useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';

@@ -1,12 +1,5 @@
-/**
- * AgentMemoryPage
- *
- * Analytics page visualising the AI agent's accumulated knowledge and learning
- * patterns. Delegates data fetching to useMemoryData and rendering to focused
- * sub-components.
- */
-
 'use client';
+// AgentMemoryPage
 
 import { AlertTriangle, Brain } from 'lucide-react';
 import { useMemoryData } from './useMemoryData';

@@ -1,10 +1,5 @@
-/**
- * useHomeState
- *
- * Centralizes all local UI state for the home page.
- * Does not own data-fetching; see useHomeData for that.
- */
 'use client';
+// useHomeState
 import { useState, useRef } from 'react';
 import type { Priority } from '@/types';
 import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';

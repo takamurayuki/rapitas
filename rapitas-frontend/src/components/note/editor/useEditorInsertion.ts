@@ -1,11 +1,5 @@
-/**
- * useEditorInsertion
- *
- * Custom hook providing DOM-level content-insertion operations for the NoteEditor:
- * link insertion (with metadata fetch), code-block insertion, and table insertion.
- * Depends on a saved-selection ref and the editor contentRef.
- */
 'use client';
+// useEditorInsertion
 import { useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { isInTitleInput } from './formatting';

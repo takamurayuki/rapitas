@@ -1,10 +1,5 @@
-/**
- * CalendarPage
- *
- * Next.js page entry point for /calendar.
- * Delegates data fetching to useCalendarEvents and rendering to sub-components.
- */
 'use client';
+// CalendarPage
 
 import { useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';

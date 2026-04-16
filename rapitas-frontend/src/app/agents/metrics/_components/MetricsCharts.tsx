@@ -1,11 +1,5 @@
-/**
- * MetricsCharts
- *
- * Chart section for the agent metrics page.
- * Renders an area chart for execution trends and a bar + pie chart for
- * performance comparison and token distribution.
- */
 'use client';
+// MetricsCharts
 import { useTranslations } from 'next-intl';
 import {
   BarChart,

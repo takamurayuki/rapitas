@@ -1,11 +1,5 @@
-/**
- * WorkflowBanners
- *
- * Renders contextual status banners for WorkflowViewer: plan-approval pending,
- * verification complete, async-execution in progress, and error notifications.
- * Does not manage any state — all data is passed via props.
- */
 'use client';
+// WorkflowBanners
 
 import {
   ShieldCheck,

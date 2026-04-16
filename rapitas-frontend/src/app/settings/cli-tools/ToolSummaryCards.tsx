@@ -1,11 +1,5 @@
-/**
- * ToolSummaryCards
- *
- * Renders the four aggregate stat cards (total, installed, authenticated,
- * needs-update) at the top of the CLI Tools settings page.
- */
-
 'use client';
+// ToolSummaryCards
 
 import { Package, Download, Key, RefreshCcw } from 'lucide-react';
 import type { ToolsSummary } from './types';

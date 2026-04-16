@@ -1,10 +1,5 @@
-/**
- * AddCardModal
- *
- * Modal dialog for manually adding a flashcard (front/back) to the selected deck.
- * Stateless — all values and handlers are provided via props.
- */
 'use client';
+// AddCardModal
 
 import { useTranslations } from 'next-intl';
 

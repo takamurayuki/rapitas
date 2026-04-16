@@ -1,10 +1,5 @@
-/**
- * HomeExpandedFilters
- *
- * The collapsible panel containing status, priority, and sort controls.
- * Rendered inside HomeThemeFilter when the user toggles the filter button.
- */
 'use client';
+// HomeExpandedFilters
 import React from 'react';
 import type { Priority } from '@/types';
 import { statusConfig } from '@/feature/tasks/config/StatusConfig';

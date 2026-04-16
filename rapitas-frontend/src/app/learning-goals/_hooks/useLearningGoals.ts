@@ -1,10 +1,5 @@
-/**
- * useLearningGoals
- *
- * Manages all server-state and mutation logic for the learning goals page.
- * Does not own any UI rendering; delegates display to page components.
- */
 'use client';
+// useLearningGoals
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';

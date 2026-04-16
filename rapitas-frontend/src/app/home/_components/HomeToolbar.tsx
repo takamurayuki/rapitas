@@ -1,11 +1,5 @@
-/**
- * HomeToolbar
- *
- * Renders the top action bar of the home page: progress ring, quick-add toggle,
- * new-task button, bulk-selection controls, and bulk status change buttons.
- * Does not own any state — all state is passed via props.
- */
 'use client';
+// HomeToolbar
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Task } from '@/types';

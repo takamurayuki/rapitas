@@ -1,12 +1,5 @@
-/**
- * result-phase
- *
- * Final phase of the CLAUDE.md generator wizard.
- * Displays the generated CLAUDE.md alongside a quality score ring, tech
- * rationale, and a theme-creation panel that calls /api/setup-theme.
- */
-
 'use client';
+// result-phase
 
 import React from 'react';
 import type { AppProposal, GenerateResult } from '../_types/types';

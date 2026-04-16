@@ -1,10 +1,5 @@
-/**
- * useThemeScroll
- *
- * Manages horizontal scroll state and navigation for the theme filter row.
- * Tracks whether scrolling is needed and current scroll position.
- */
 'use client';
+// useThemeScroll
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**

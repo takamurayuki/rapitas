@@ -1,12 +1,5 @@
-/**
- * TaskDetailViewBody
- *
- * Renders the view-mode body of the task detail page: the compact task card,
- * AI assistant panel, workflow section, dependency graph, and subtask list.
- * Not responsible for edit mode — TaskEditForm handles that branch.
- */
-
 'use client';
+// TaskDetailViewBody
 import type {
   Task,
   Resource,

@@ -1,11 +1,5 @@
-/**
- * TaskActivityItem
- *
- * Renders a single task activity entry (status change, assignment, etc.) in the timeline.
- * Stateless — all data is passed via props.
- */
-
 'use client';
+// TaskActivityItem
 
 import { memo } from 'react';
 import {

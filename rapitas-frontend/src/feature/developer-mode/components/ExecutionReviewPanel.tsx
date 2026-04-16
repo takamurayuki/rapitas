@@ -1,12 +1,5 @@
-/**
- * ExecutionReviewPanel
- *
- * Top-level review panel displayed after agent execution completes.
- * Composes ImplementationSummarySection, ScreenshotsSection, FeedbackSection,
- * CommitApprovalSection, and DiffViewer into a single cohesive review UI.
- */
-
 'use client';
+// ExecutionReviewPanel
 
 import { useState } from 'react';
 import { Terminal, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';

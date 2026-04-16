@@ -1,11 +1,5 @@
-/**
- * TemplateSelector
- *
- * Modal overlay that allows the user to pick a memo template for the current memo type.
- * Filters available templates by the selected MemoType and notifies the parent on selection.
- */
-
 'use client';
+// TemplateSelector
 
 import { memo } from 'react';
 import { X, FileText, ChevronLeft } from 'lucide-react';

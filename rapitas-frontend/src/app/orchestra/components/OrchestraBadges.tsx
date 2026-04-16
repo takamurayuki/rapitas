@@ -1,10 +1,5 @@
-/**
- * OrchestraBadges
- *
- * Small presentational badge components used throughout the Orchestra page:
- * StatusBadge (queue item status) and PhaseBadge (workflow phase).
- */
 'use client';
+// OrchestraBadges
 
 /**
  * Displays a coloured pill badge for a queue-item status value.

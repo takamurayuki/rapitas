@@ -1,10 +1,5 @@
-/**
- * ThemeSelector
- *
- * Renders a row of colour-coded theme pill buttons for the new-task form.
- * Visibility is pre-filtered by the caller (useNewTaskForm.visibleThemes).
- */
 'use client';
+// ThemeSelector
 import { SwatchBook } from 'lucide-react';
 import type { Theme } from '@/types';
 import { getIconComponent } from '@/components/category/icon-data';

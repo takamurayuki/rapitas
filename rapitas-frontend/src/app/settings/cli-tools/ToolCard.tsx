@@ -1,11 +1,5 @@
-/**
- * ToolCard
- *
- * Renders a single CLI tool row with status badge, version/path info,
- * show-command toggle, external links, and install/update/auth action buttons.
- */
-
 'use client';
+// ToolCard
 
 import {
   Terminal,

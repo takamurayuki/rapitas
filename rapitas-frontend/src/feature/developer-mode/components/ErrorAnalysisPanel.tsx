@@ -1,12 +1,5 @@
-/**
- * ErrorAnalysisPanel
- *
- * Developer-mode dashboard for real-time error detection and analysis.
- * Owns all state and data-fetching; delegates rendering to sub-components
- * in the error-analysis/ subdirectory.
- */
-
 'use client';
+// ErrorAnalysisPanel
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';

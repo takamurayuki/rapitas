@@ -1,11 +1,5 @@
-/**
- * NoteEditorHeader
- *
- * Renders the top bar of the NoteEditor: title input, pin button,
- * flashcard generation button, and save button.
- * Does not own any state; all values and handlers are passed as props.
- */
 'use client';
+// NoteEditorHeader
 import { Save, Pin, Layers, Loader2 } from 'lucide-react';
 import { type Note } from '@/stores/note-store';
 import { type FlashcardResult } from './useNoteEditor';

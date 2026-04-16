@@ -1,10 +1,5 @@
-/**
- * useMetricsData
- *
- * Custom hook that fetches and manages agent metrics data.
- * Does not handle any rendering or UI concerns.
- */
 'use client';
+// useMetricsData
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';

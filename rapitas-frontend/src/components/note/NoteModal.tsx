@@ -1,11 +1,5 @@
-/**
- * NoteModal
- *
- * Floating, draggable, and resizable modal window that hosts the Note editor
- * and AI chat tabs. Responsible for drag/resize logic, keyboard shortcuts,
- * and wiring store state to child components.
- */
 'use client';
+// NoteModal
 import { useEffect, useRef, useState } from 'react';
 import { useNoteStore, type ModalTab } from '@/stores/note-store';
 import DragOverlay from './drag-overlay';

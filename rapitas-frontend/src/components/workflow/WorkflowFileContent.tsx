@@ -1,11 +1,5 @@
-/**
- * WorkflowFileContent
- *
- * Renders the body of the currently selected workflow tab: either a markdown
- * viewer with metadata, an in-tab approval/completion call-to-action, or an
- * empty-state placeholder. Does not own any async state.
- */
 'use client';
+// WorkflowFileContent
 
 import { Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';

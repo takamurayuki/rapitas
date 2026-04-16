@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/AnalysisTab.tsx
- *
- * Content panel for the "分析" (Analysis) tab of AIAnalysisPanel.
- * Displays loading state, errors, analysis results with subtask selection, or an empty CTA.
- */
-
 'use client';
+// ai-analysis-panel/AnalysisTab.tsx
 
 import {
   Play,

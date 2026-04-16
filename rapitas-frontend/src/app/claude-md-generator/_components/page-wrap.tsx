@@ -1,12 +1,5 @@
-/**
- * page-wrap
- *
- * Shared layout shell used by the wizard's step-based phases. Renders the
- * progress bar, step label, page title, optional subtitle, and a navigation
- * footer with back/next buttons.
- */
-
 'use client';
+// page-wrap
 
 import React from 'react';
 import { GLOBAL_CSS } from '../_utils/styles';

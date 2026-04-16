@@ -1,11 +1,5 @@
-/**
- * ConfidenceTrendChart
- *
- * Bar chart showing the average confidence score of learning patterns
- * over time. Rendered only when timeline data with non-zero confidence exists.
- */
-
 'use client';
+// ConfidenceTrendChart
 
 import {
   BarChart,

@@ -1,10 +1,5 @@
-/**
- * DefaultProviderSection
- *
- * Renders the default AI provider selector card grid.
- * Providers are disabled when their API key is not configured.
- */
 'use client';
+// DefaultProviderSection
 
 import { useTranslations } from 'next-intl';
 import { Settings, CheckCircle } from 'lucide-react';

@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/PromptOptimizationTab.tsx
- *
- * Content panel for the "最適化" (Prompt Optimization) tab of AIAnalysisPanel.
- * Handles loading, error, clarification Q&A, result display, and the initial CTA.
- */
-
 'use client';
+// ai-analysis-panel/PromptOptimizationTab.tsx
 
 import {
   Wand2,

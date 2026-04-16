@@ -1,11 +1,5 @@
-/**
- * AgentMetricsPage
- *
- * Entry point for the /agents/metrics route.
- * Composes filter, overview, chart, and table sub-components.
- * All data fetching is delegated to useMetricsData.
- */
 'use client';
+// AgentMetricsPage
 
 import { useTranslations } from 'next-intl';
 import { Download, AlertCircle, XCircle } from 'lucide-react';

@@ -1,10 +1,5 @@
-/**
- * FontPickerSection
- *
- * Toolbar section for font family and font size selection.
- * Renders dropdown pickers for both controls.
- */
 'use client';
+// FontPickerSection
 import { ChevronDown } from 'lucide-react';
 import { fonts, fontSizePresets } from '../constants';
 

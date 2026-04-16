@@ -1,11 +1,5 @@
-/**
- * intro-phase
- *
- * The landing / intro screen of the CLAUDE.md generator wizard.
- * Presents the hero headline, feature tags, and a start button.
- */
-
 'use client';
+// intro-phase
 
 import React from 'react';
 import { GLOBAL_CSS } from '../_utils/styles';

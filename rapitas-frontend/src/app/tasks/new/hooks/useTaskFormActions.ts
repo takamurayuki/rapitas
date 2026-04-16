@@ -1,11 +1,5 @@
-/**
- * useTaskFormActions
- *
- * Handles non-submission async actions for the new-task form:
- * AI title generation, template application, subtask management, and suggestion application.
- * Submission is delegated to useTaskSubmit.
- */
 'use client';
+// useTaskFormActions
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Priority, TaskTemplate, UserSettings } from '@/types';

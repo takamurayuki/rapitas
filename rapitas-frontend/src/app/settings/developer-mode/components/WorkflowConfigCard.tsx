@@ -1,10 +1,5 @@
-/**
- * WorkflowConfigCard
- *
- * Settings card for workflow automation options: auto-approve plan and auto-complexity analysis.
- */
-
 'use client';
+// WorkflowConfigCard
 
 import { ShieldCheck } from 'lucide-react';
 import type { UserSettings } from '@/types';

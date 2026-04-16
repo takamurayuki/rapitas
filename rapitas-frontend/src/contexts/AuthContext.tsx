@@ -1,10 +1,5 @@
-/**
- * AuthContext
- *
- * Provides authentication state and actions (login, register, logout, Google OAuth)
- * via React context. Uses cookie-based session authentication.
- */
 'use client';
+// AuthContext
 
 import React, {
   createContext,

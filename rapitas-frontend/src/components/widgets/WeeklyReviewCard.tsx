@@ -1,15 +1,5 @@
-/**
- * WeeklyReviewCard
- *
- * Displays the most recent AI-generated weekly review on the /reports
- * page. Shows period, key stats, the AI narrative, and a "regenerate"
- * button. The data lives in the WeeklyReview Prisma table; the backend
- * generates rows on Monday 9:00 via the behavior scheduler, and on
- * demand via this component.
- *
- * Tier S #3.
- */
 'use client';
+// WeeklyReviewCard
 import { useMemo } from 'react';
 import {
   Sparkles,

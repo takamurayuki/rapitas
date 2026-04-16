@@ -1,12 +1,5 @@
-/**
- * platform-phase
- *
- * Step 4 of the CLAUDE.md generator wizard.
- * Collects platform, user scale, and development priority selections before
- * triggering AI proposal generation.
- */
-
 'use client';
+// platform-phase
 
 import React from 'react';
 import { PLATFORMS, SCALES, PRIORITIES } from '../_utils/constants';

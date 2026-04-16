@@ -1,10 +1,5 @@
-/**
- * NoteEditorFooter
- *
- * Displays the creation and last-updated timestamps at the bottom of the NoteEditor.
- * Stateless — all values are passed as props.
- */
 'use client';
+// NoteEditorFooter
 import { Calendar } from 'lucide-react';
 
 interface NoteEditorFooterProps {

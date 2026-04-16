@@ -1,10 +1,5 @@
-/**
- * useAchievements — stub hook
- *
- * Placeholder until the achievement feature is fully implemented.
- * Returns empty achievements and no-op actions.
- */
 'use client';
+// useAchievements — stub hook
 
 import type { Achievement } from '@/types/achievement';
 

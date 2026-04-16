@@ -1,12 +1,5 @@
-/**
- * score-ring
- *
- * Circular SVG progress ring that displays a numeric quality score for a
- * generated CLAUDE.md. Color transitions from red → amber → green based on
- * the score value.
- */
-
 'use client';
+// score-ring
 
 interface ScoreRingProps {
   /** Score value 0-100 / スコア値 0〜100 */

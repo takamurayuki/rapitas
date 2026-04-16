@@ -1,17 +1,5 @@
-/**
- * useNotePopups
- *
- * Owns visibility state for the seven NoteEditor popups (color picker,
- * border picker, link input, code input, font-size picker, font picker,
- * text-color picker), plus the close-all / close-others helpers and the
- * shared "click outside or press Escape closes everything" effect.
- *
- * Extracted from useNoteEditor.ts (ADR-0006 follow-up: per-file 500-line
- * limit). The hook intentionally returns every setter so other callbacks
- * inside useNoteEditor can still close individual popups when they need to
- * — the only logic that lives here is the *coordination* between popups.
- */
 'use client';
+// useNotePopups
 import { useCallback, useEffect, useState } from 'react';
 
 /** All values and helpers returned by useNotePopups. */

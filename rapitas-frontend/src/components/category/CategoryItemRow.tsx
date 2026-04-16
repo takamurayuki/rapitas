@@ -1,10 +1,5 @@
-/**
- * CategoryItemRow
- *
- * Single draggable row in the CategoryManager list.
- * Renders both display mode and inline edit mode for a category item.
- */
 'use client';
+// CategoryItemRow
 import { Edit2, Trash2, GripVertical, Star } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';

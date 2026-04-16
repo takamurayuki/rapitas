@@ -1,12 +1,5 @@
-/**
- * SubtaskPanel
- *
- * Renders the subtask tab content within the analysis accordion section.
- * Shows loading, error, populated subtask list, or idle call-to-action states.
- * Purely presentational — all async logic is injected via props.
- */
-
 'use client';
+// SubtaskPanel
 
 import {
   BrainCircuit,

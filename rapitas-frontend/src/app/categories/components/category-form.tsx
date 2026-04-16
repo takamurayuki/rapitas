@@ -1,12 +1,5 @@
-/**
- * category-form
- *
- * Reusable form for creating or editing a category, including name, description,
- * color picker, icon selector, and mode selector.
- * Not responsible for data fetching or submit logic; all handlers are injected via props.
- */
-
 'use client';
+// category-form
 
 import {
   Search,

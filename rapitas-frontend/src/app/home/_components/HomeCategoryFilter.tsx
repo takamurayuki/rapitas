@@ -1,10 +1,5 @@
-/**
- * HomeCategoryFilter
- *
- * Renders the horizontal category tab strip at the top of the filter panel.
- * Highlights the active category and calls back when the user switches.
- */
 'use client';
+// HomeCategoryFilter
 import type { Category, Theme, UserSettings } from '@/types';
 import { Star, FolderKanban } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';

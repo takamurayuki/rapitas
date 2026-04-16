@@ -1,10 +1,5 @@
-/**
- * MetricsTable
- *
- * Detailed data table listing per-agent metrics including name, model,
- * execution count, success rate, average time, token usage, and last run.
- */
 'use client';
+// MetricsTable
 import { useTranslations } from 'next-intl';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';

@@ -1,12 +1,5 @@
-/**
- * NoteActionBar
- *
- * Hover-visible row of action buttons for a memo note: timestamp, reply count,
- * pin toggle, AI analyze, reply, edit, and delete. Stateless — all callbacks
- * are provided by the parent NoteItem.
- */
-
 'use client';
+// NoteActionBar
 
 import {
   Loader2,

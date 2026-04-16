@@ -1,11 +1,5 @@
-/**
- * VersionList
- *
- * Renders the expandable list of available versions for a single agent.
- * Not responsible for fetching data or managing install state.
- */
-
 'use client';
+// VersionList
 
 import { Tag } from 'lucide-react';
 import { useTranslations } from 'next-intl';

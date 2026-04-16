@@ -1,11 +1,5 @@
-/**
- * useKanbanFilters
- *
- * Custom hook managing Kanban page filter state: search query, priority
- * multi-select, label multi-select, and derived filtered task list.
- * Does not own week navigation — that lives in useKanbanWeek.
- */
 'use client';
+// useKanbanFilters
 
 import { useState, useMemo } from 'react';
 import type { Label } from '@/types';

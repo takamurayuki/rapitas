@@ -1,12 +1,5 @@
-/**
- * in-app-shortcuts-section
- *
- * UI section for viewing and editing in-app keyboard shortcuts stored in Zustand.
- * Supports keyboard recording, duplicate detection, per-shortcut reset, and reset-all.
- * Not responsible for global (OS-level) shortcut management; see global-shortcut-section.tsx.
- */
-
 'use client';
+// in-app-shortcuts-section
 
 import {
   Keyboard,

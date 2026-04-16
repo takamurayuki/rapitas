@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/SettingsTab.tsx
- *
- * Content panel for the "Settings" tab of AIAnalysisPanel.
- * Allows updating or deleting the Claude API key and opening the full developer settings modal.
- */
-
 'use client';
+// ai-analysis-panel/SettingsTab.tsx
 
 import {
   Key,

@@ -1,12 +1,5 @@
-/**
- * AutoExecutionMode
- *
- * Toggle button + status indicator for the "auto-execution mode" on the
- * task list page. When activated, calls the backend to auto-generate tasks
- * by analyzing the project state via Claude, and optionally starts
- * agent execution on them.
- */
 'use client';
+// AutoExecutionMode
 import { useState, useCallback } from 'react';
 import {
   Bot,

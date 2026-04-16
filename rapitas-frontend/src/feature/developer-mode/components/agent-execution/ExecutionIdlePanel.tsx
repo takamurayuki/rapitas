@@ -1,12 +1,5 @@
-/**
- * ExecutionIdlePanel
- *
- * Renders the collapsible idle state of AgentExecutionPanel, including the
- * advanced options form (agent selector, instruction, branch name).
- * Does not manage any state; all values and callbacks are received via props.
- */
-
 'use client';
+// ExecutionIdlePanel
 
 import React from 'react';
 import {

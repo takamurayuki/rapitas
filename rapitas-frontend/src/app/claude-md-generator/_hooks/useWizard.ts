@@ -1,12 +1,5 @@
-/**
- * use-wizard
- *
- * Central state and action hook for the CLAUDE.md generator wizard.
- * Encapsulates all phases, async API calls, and local state so that
- * phase components remain purely presentational.
- */
-
 'use client';
+// use-wizard
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';

@@ -1,12 +1,5 @@
-/**
- * ScreenshotsSection
- *
- * Collapsible panel that coordinates screenshot display and manual capture.
- * Owns screenshot state, capture-form visibility, and project auto-detection.
- * Delegates rendering to ScreenshotCaptureForm and ScreenshotGrid.
- */
-
 'use client';
+// ScreenshotsSection
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Camera } from 'lucide-react';

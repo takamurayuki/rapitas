@@ -1,11 +1,5 @@
-/**
- * ai-analysis-panel/PromptsManagementTab.tsx
- *
- * Content panel for the "管理" (Prompts Management) tab of AIAnalysisPanel.
- * Lists saved prompts with inline editing, copy, delete, and batch generation actions.
- */
-
 'use client';
+// ai-analysis-panel/PromptsManagementTab.tsx
 
 import {
   FileText,

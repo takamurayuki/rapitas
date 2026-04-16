@@ -1,10 +1,5 @@
-/**
- * useHomeKeyboard
- *
- * Registers keyboard shortcuts for the home page.
- * Ctrl+N → new task, Ctrl+Q → quick-add, Ctrl+S → toggle selection, Escape → cancel quick-add.
- */
 'use client';
+// useHomeKeyboard
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 

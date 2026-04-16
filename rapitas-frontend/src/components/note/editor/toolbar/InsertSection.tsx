@@ -1,10 +1,5 @@
-/**
- * InsertSection
- *
- * Toolbar section for insert tools: link, border line, table, and code block.
- * Each tool either shows a popup input or immediately invokes an insert action.
- */
 'use client';
+// InsertSection
 import { TextQuote, Table, Link2, Code2, Loader2 } from 'lucide-react';
 import { borderLineColors, programmingLanguages } from '../constants';
 

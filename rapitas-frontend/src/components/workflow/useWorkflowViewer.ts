@@ -1,10 +1,5 @@
-/**
- * useWorkflowViewer
- *
- * Custom hook encapsulating all state management and side-effect logic for
- * WorkflowViewer. Does not own any UI rendering.
- */
 'use client';
+// useWorkflowViewer
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type {

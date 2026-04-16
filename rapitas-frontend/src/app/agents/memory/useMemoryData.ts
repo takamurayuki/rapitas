@@ -1,11 +1,5 @@
-/**
- * use-memory-data
- *
- * Custom hook that fetches and manages the Agent Memory page data:
- * memory overview statistics and the growth timeline.
- */
-
 'use client';
+// use-memory-data
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';

@@ -1,11 +1,5 @@
-/**
- * ApprovalsClient
- *
- * Top-level client component for the approvals page. Composes filter tabs,
- * bulk-approve controls, a paginated list of ApprovalCard / CodeReviewCard
- * items, and delegates all state management to useApprovalsClient.
- */
 'use client';
+// ApprovalsClient
 
 import { useTranslations } from 'next-intl';
 import {

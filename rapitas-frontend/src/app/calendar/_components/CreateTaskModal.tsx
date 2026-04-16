@@ -1,9 +1,5 @@
-/**
- * CreateTaskModal
- *
- * Inline modal for quickly creating a task with a due date from the calendar.
- */
 'use client';
+// CreateTaskModal
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';

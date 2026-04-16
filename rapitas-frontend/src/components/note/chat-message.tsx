@@ -1,10 +1,5 @@
-/**
- * ChatMessage
- *
- * Renders a single AI chat message bubble with markdown support and
- * syntax-highlighted code blocks. Not responsible for layout or message list management.
- */
 'use client';
+// ChatMessage
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

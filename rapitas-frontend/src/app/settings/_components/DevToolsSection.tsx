@@ -1,10 +1,5 @@
-/**
- * DevToolsSection
- *
- * Renders the developer tools section, including the CLI management link
- * and the external integrations panel (Webhook + MCP).
- */
 'use client';
+// DevToolsSection
 
 import { useTranslations } from 'next-intl';
 import { Terminal, ChevronRight } from 'lucide-react';

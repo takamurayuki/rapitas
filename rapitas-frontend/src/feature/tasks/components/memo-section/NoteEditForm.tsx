@@ -1,11 +1,5 @@
-/**
- * NoteEditForm
- *
- * Inline edit form rendered inside a NoteItem when the note is in edit mode.
- * Stateless — controlled by parent via props.
- */
-
 'use client';
+// NoteEditForm
 
 type NoteEditFormProps = {
   editText: string;

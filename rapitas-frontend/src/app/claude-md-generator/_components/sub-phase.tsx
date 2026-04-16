@@ -1,12 +1,5 @@
-/**
- * sub-phase
- *
- * Step 2 of the CLAUDE.md generator wizard.
- * Lets the user pick zero or more sub-genres within the selected top-level genre.
- * Shows a loading skeleton while AI suggestions are being fetched.
- */
-
 'use client';
+// sub-phase
 
 import React from 'react';
 import type { DynamicItem } from '../_types/types';

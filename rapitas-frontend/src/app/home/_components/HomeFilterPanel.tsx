@@ -1,10 +1,5 @@
-/**
- * HomeFilterPanel
- *
- * Wraps the category + theme filter section with its loading skeleton
- * and error fallback. Renders nothing when there are no categories.
- */
 'use client';
+// HomeFilterPanel
 import type { Category, Priority, Theme, UserSettings } from '@/types';
 import { EnhancedSkeletonBlock } from '@/components/ui/LoadingSpinner';
 import { useTranslations } from 'next-intl';

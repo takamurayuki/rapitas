@@ -1,12 +1,5 @@
-/**
- * useExecutionPolling
- *
- * Polling-based execution state hook, used as the primary execution monitoring mechanism.
- * Polls the backend execution-status endpoint at 300ms intervals for near-realtime responsiveness.
- * Per-status dispatch logic lives in executionPollHandlers.ts (executePoll).
- */
-
 'use client';
+// useExecutionPolling
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createLogger } from '@/lib/logger';

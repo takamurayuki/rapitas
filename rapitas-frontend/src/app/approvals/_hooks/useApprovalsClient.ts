@@ -1,11 +1,5 @@
-/**
- * useApprovalsClient
- *
- * Encapsulates all local UI state and action handlers for the approvals page.
- * Data-fetching delegates to the useApprovals feature hook; this hook owns
- * selection, expansion, pagination, and code-review diff caching.
- */
 'use client';
+// useApprovalsClient
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';

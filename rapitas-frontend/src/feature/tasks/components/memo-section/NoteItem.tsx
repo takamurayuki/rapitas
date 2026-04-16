@@ -1,11 +1,5 @@
-/**
- * NoteItem
- *
- * Renders a single memo note card including type badge, content, AI analysis toggle,
- * inline edit form, reply input, and action buttons. Recursively renders nested replies.
- */
-
 'use client';
+// NoteItem
 
 import { memo, useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Pin } from 'lucide-react';

@@ -1,9 +1,5 @@
-/**
- * useTaskStats — stub hook
- *
- * Placeholder until the achievement/stats feature is fully implemented.
- */
 'use client';
+// useTaskStats — stub hook
 
 export interface TaskStats {
   totalCompleted: number;

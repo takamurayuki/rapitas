@@ -1,12 +1,5 @@
-/**
- * PanelHeader
- *
- * Renders the top header bar of AIAccordionPanel: the AI assistant title,
- * status badges (optimized prompt, analysis complete), and the settings button.
- * Purely presentational — no internal state.
- */
-
 'use client';
+// PanelHeader
 
 import { Bot, Sparkles, CheckCircle2, Settings } from 'lucide-react';
 import type { TaskAnalysisResult } from '@/types';

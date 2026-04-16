@@ -1,11 +1,5 @@
-/**
- * WorkflowTabBar
- *
- * Renders the tab navigation row for WorkflowViewer. Highlights the active tab,
- * shows content-presence indicators, and surfaces an "awaiting approval" badge
- * on the plan tab when applicable.
- */
 'use client';
+// WorkflowTabBar
 
 import { Clock } from 'lucide-react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';

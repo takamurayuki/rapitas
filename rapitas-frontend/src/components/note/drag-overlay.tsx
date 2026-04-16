@@ -1,10 +1,5 @@
-/**
- * DragOverlay
- *
- * A full-screen transparent overlay rendered during modal drag or resize to
- * capture all mouse events and prevent pointer bleed into underlying content.
- */
 'use client';
+// DragOverlay
 
 interface DragOverlayProps {
   /** CSS cursor value applied during the interaction / インタラクション中のCSSカーソル値 */

@@ -1,11 +1,5 @@
-/**
- * useTaskFormData
- *
- * Manages remote data loading for the new-task form:
- * themes, categories, and global user settings.
- * Does not handle form field state or submission logic.
- */
 'use client';
+// useTaskFormData
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { Theme, UserSettings, Category } from '@/types';

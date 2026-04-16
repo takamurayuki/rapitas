@@ -1,11 +1,5 @@
-/**
- * MemoryStrengthCard
- *
- * Hero card showing the agent's overall memory strength score, level badge,
- * an animated progress bar, and level-scale labels.
- */
-
 'use client';
+// MemoryStrengthCard
 
 import { Brain } from 'lucide-react';
 import { LEVEL_CONFIG, LEVEL_LABELS } from '../constants';

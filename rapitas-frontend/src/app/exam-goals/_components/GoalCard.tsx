@@ -1,11 +1,5 @@
-/**
- * GoalCard
- *
- * Renders a single exam goal card in either upcoming or completed state.
- * Not responsible for data fetching or modal state.
- */
-
 'use client';
+// GoalCard
 
 import { Edit2, Trash2, CheckCircle2, Calendar, Target } from 'lucide-react';
 import { useTranslations } from 'next-intl';

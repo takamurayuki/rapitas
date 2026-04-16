@@ -1,11 +1,5 @@
-/**
- * PaidLeaveDurationPicker
- *
- * Controls for selecting whether the paid leave is all-day, half-day, or multi-day,
- * and renders the appropriate date/time inputs for each mode.
- */
-
 'use client';
+// PaidLeaveDurationPicker
 
 import { Clock, CalendarDays } from 'lucide-react';
 

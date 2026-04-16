@@ -1,10 +1,5 @@
-/**
- * StatCard
- *
- * Single metric card displayed in the Orchestra page stats grid.
- * Pure presentational component with no state or side effects.
- */
 'use client';
+// StatCard
 
 const COLOR_MAP: Record<string, string> = {
   yellow:

@@ -1,13 +1,5 @@
-/**
- * proposals-phase
- *
- * Step 5 of the CLAUDE.md generator wizard.
- * Displays AI-generated app proposal cards and lets the user pick one before
- * proceeding to CLAUDE.md generation. Handles the empty / error state and
- * provides a "regenerate" action.
- */
-
 'use client';
+// proposals-phase
 
 import React from 'react';
 import type { AppProposal } from '../_types/types';
