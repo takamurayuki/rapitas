@@ -39,6 +39,7 @@ export { smartRouterRoutes } from './agents/system/smart-router-routes';
 
 // AI
 export { aiChatRoutes } from './ai/ai-chat';
+export { copilotChatRoutes } from './ai/copilot-chat';
 export { promptsRoutes } from './ai/prompts';
 export { systemPromptsRoutes } from './ai/system-prompts';
 

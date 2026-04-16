@@ -220,3 +220,17 @@ model AgentConfigAuditLog {
   @@index([agentConfigId])
   @@index([createdAt])
 }
+
+// AI Copilot chat messages (Claude Code CLI based, not API)
+model CopilotMessage {
+  id              Int      @id @default(autoincrement())
+  taskId          Int?     // Associated task (null for global chat)
+  role            String   // "user" | "assistant"
+  content         String   // Message text
+  claudeSessionId String?  // Claude Code --resume session ID for continuity
+  metadata        String   @default("{}") // JSON: model, tokens, etc.
+  createdAt       DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([claudeSessionId])
+}
