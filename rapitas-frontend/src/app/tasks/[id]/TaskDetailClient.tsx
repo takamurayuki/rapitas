@@ -1,12 +1,5 @@
-/**
- * TaskDetailClient
- *
- * Orchestrates the task detail page: resolves the task ID, coordinates
- * all extracted hooks, and composes the page layout via TaskDetailContent.
- * Business logic lives in the hooks; rendering lives in the components.
- */
-
 'use client';
+// TaskDetailClient — orchestrates the task detail page.
 import { useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePomodoro } from '@/feature/tasks/pomodoro/PomodoroProvider';
