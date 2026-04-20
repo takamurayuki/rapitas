@@ -202,7 +202,12 @@ export default function TaskDetailViewBody({
         ))}
 
       <div className="mb-6">
-        <CopilotChatPanel taskId={taskId} />
+        <CopilotChatPanel
+          taskId={taskId}
+          taskTitle={task.title}
+          taskStatus={task.status}
+          taskDescription={task.description}
+        />
       </div>
 
       <div className="mb-6">

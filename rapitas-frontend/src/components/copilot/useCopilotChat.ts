@@ -10,6 +10,7 @@ export interface CopilotMessage {
   model?: string;
   tier?: string;
   cached?: boolean;
+  actions?: Array<{ type: string; label: string }>;
   createdAt: string;
 }
 
