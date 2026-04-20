@@ -14,7 +14,6 @@ import TaskDetailViewBody, {
 } from './TaskDetailViewBody';
 import TaskEditForm from './TaskEditForm';
 import TaskDetailModals from './TaskDetailModals';
-import { CopilotChatPanel } from '@/components/copilot';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -127,8 +126,7 @@ export default function TaskDetailContent({
         contentReady ? 'overflow-auto opacity-100' : 'overflow-hidden opacity-0'
       }`}
     >
-      {/* Header spans full width */}
-      <div className="max-w-7xl mx-auto px-4 pt-8 pb-4">
+      <div className="max-w-4xl mx-auto px-4 pt-8 pb-4">
         <TaskDetailHeader
           task={task}
           isEditing={taskActions.isEditing}
@@ -146,49 +144,32 @@ export default function TaskDetailContent({
         />
       </div>
 
-      {/* Two-column layout: task content + copilot sidebar */}
-      <div className="max-w-7xl mx-auto px-4 pb-8">
-        <div className="flex gap-6">
-          {/* Main content */}
-          <div className="flex-1 min-w-0">
-            {taskActions.isEditing ? (
-              <TaskEditForm
-                editTitle={taskActions.editTitle}
-                setEditTitle={taskActions.setEditTitle}
-                editStatus={taskActions.editStatus}
-                setEditStatus={taskActions.setEditStatus}
-                editDescription={taskActions.editDescription}
-                setEditDescription={taskActions.setEditDescription}
-                editLabelIds={taskActions.editLabelIds}
-                setEditLabelIds={taskActions.setEditLabelIds}
-                editPriority={taskActions.editPriority}
-                setEditPriority={taskActions.setEditPriority}
-                editEstimatedHours={taskActions.editEstimatedHours}
-                setEditEstimatedHours={taskActions.setEditEstimatedHours}
-              />
-            ) : (
-              <TaskDetailViewBody
-                task={task}
-                taskId={taskId}
-                resolvedTaskId={resolvedTaskId}
-                taskActions={taskActions}
-                {...viewBodyProps}
-              />
-            )}
-          </div>
-
-          {/* Copilot sidebar — sticky on scroll, hidden on small screens */}
-          <div className="hidden lg:block w-80 xl:w-96 shrink-0">
-            <div className="sticky top-20">
-              <CopilotChatPanel
-                taskId={taskId}
-                taskTitle={task.title}
-                taskStatus={task.status}
-                taskDescription={task.description}
-              />
-            </div>
-          </div>
-        </div>
+      {/* Main content — single column */}
+      <div className="max-w-4xl mx-auto px-4 pb-8">
+        {taskActions.isEditing ? (
+          <TaskEditForm
+            editTitle={taskActions.editTitle}
+            setEditTitle={taskActions.setEditTitle}
+            editStatus={taskActions.editStatus}
+            setEditStatus={taskActions.setEditStatus}
+            editDescription={taskActions.editDescription}
+            setEditDescription={taskActions.setEditDescription}
+            editLabelIds={taskActions.editLabelIds}
+            setEditLabelIds={taskActions.setEditLabelIds}
+            editPriority={taskActions.editPriority}
+            setEditPriority={taskActions.setEditPriority}
+            editEstimatedHours={taskActions.editEstimatedHours}
+            setEditEstimatedHours={taskActions.setEditEstimatedHours}
+          />
+        ) : (
+          <TaskDetailViewBody
+            task={task}
+            taskId={taskId}
+            resolvedTaskId={resolvedTaskId}
+            taskActions={taskActions}
+            {...viewBodyProps}
+          />
+        )}
       </div>
 
       <TaskDetailModals

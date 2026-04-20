@@ -15,6 +15,7 @@ import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { DependencyPicker } from '@/feature/tasks/components/dependency';
+import { CopilotChatPanel } from '@/components/copilot';
 
 const API_BASE = API_BASE_URL;
 
@@ -169,6 +170,16 @@ export default function TaskDetailViewBody({
           onDeleteComment={commentSystem.handleDeleteComment}
           onCreateLink={commentSystem.handleCreateCommentLink}
           onDeleteLink={commentSystem.handleDeleteCommentLink}
+        />
+      </div>
+
+      {/* AI Copilot — always visible for all tasks */}
+      <div className="mb-6">
+        <CopilotChatPanel
+          taskId={taskId}
+          taskTitle={task.title}
+          taskStatus={task.status}
+          taskDescription={task.description}
         />
       </div>
 
