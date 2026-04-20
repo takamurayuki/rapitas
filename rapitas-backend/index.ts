@@ -13,88 +13,8 @@ import { Elysia } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 
-// Import modular routes
-import {
-  categoriesRoutes,
-  themesRoutes,
-  labelsRoutes,
-  projectsRoutes,
-  milestonesRoutes,
-  timeEntriesRoutes,
-  commentsRoutes,
-  notificationsRoutes,
-  settingsRoutes,
-  tasksRoutes,
-  taskSuggestionRoutes,
-  taskQuickCreateRoutes,
-  taskAutoGenerateRoutes,
-  taskDependencyGraphRoutes,
-  taskStatisticsRoutes,
-  tempStatisticsRoutes,
-  examGoalsRoutes,
-  studyStreaksRoutes,
-  resourcesRoutes,
-  directoriesRoutes,
-  statisticsRoutes,
-  habitsRoutes,
-  flashcardsRoutes,
-  templatesRoutes,
-  reportsRoutes,
-  promptsRoutes,
-  systemPromptsRoutes,
-  developerModeRoutes,
-  aiChatRoutes,
-  copilotChatRoutes,
-  sseRoutes,
-  taskDependencyRoutes,
-  githubRoutes,
-  approvalsRoutes,
-  aiAgentRoutes,
-  parallelExecutionRoutes,
-  taskAnalysisConfigRoutes,
-  agentExecutionConfigRoutes,
-  executionLogsRoutes,
-  schedulesRoutes,
-  dailyScheduleRoutes,
-  screenshotsRoutes,
-  learningGoalsRoutes,
-  rateLimitRoutes,
-  paidLeaveRoutes,
-  urlMetadataRoutes,
-  batchRoutes,
-  agentMetricsRouter,
-  agentVersionManagementRoutes,
-  authRoutes,
-  cliToolsManagementRoutes,
-  workflowRoutes,
-  workflowRolesRoutes,
-  orchestraRoutes,
-  workflowLearningRoutes,
-  pomodoroRoutes,
-  searchRoutes,
-  knowledgeRoutes,
-  memorySystemRoutes,
-  intelligentSuggestionsRoutes,
-  weeklyReviewRoutes,
-  smartActionRoutes,
-  experimentsRoutes,
-  knowledgeGraphRoutes,
-  learningRoutes,
-  localLLMRouter,
-  recurringTaskRoutes,
-  mcpRoutes,
-  progressSummaryRoutes,
-  techDebtRoutes,
-  crossProjectKnowledgeRoutes,
-  executionForkRoutes,
-  smartRouterRoutes,
-  temporalDebugRoutes,
-  projectHealthRoutes,
-  intentRoutes,
-  gitCleanupRoutes,
-  learningDashboardRouter,
-  transcribeRouter,
-} from './routes';
+// All modular routes are registered via registerAllRoutes() in register-routes.ts.
+import { registerAllRoutes } from './register-routes';
 
 // Import shared database client
 import { prisma, ensureDatabaseConnection } from './config';
@@ -177,86 +97,8 @@ app.use(
   }),
 );
 
-// Apply modular routes
-app.use(categoriesRoutes);
-app.use(themesRoutes);
-app.use(labelsRoutes);
-app.use(projectsRoutes);
-app.use(milestonesRoutes);
-app.use(timeEntriesRoutes);
-app.use(commentsRoutes);
-app.use(notificationsRoutes);
-app.use(settingsRoutes);
-app.use(tempStatisticsRoutes);
-app.use(taskStatisticsRoutes);
-app.use(tasksRoutes);
-app.use(taskSuggestionRoutes);
-app.use(taskQuickCreateRoutes);
-app.use(taskAutoGenerateRoutes);
-app.use(taskDependencyGraphRoutes);
-app.use(recurringTaskRoutes);
-app.use(examGoalsRoutes);
-app.use(studyStreaksRoutes);
-app.use(resourcesRoutes);
-app.use(directoriesRoutes);
-app.use(statisticsRoutes);
-app.use(habitsRoutes);
-app.use(flashcardsRoutes);
-app.use(templatesRoutes);
-app.use(reportsRoutes);
-app.use(promptsRoutes);
-app.use(systemPromptsRoutes);
-app.use(developerModeRoutes);
-app.use(aiChatRoutes);
-app.use(copilotChatRoutes);
-app.use(sseRoutes);
-app.use(taskDependencyRoutes);
-app.use(githubRoutes);
-app.use(approvalsRoutes);
-app.use(aiAgentRoutes);
-app.use(parallelExecutionRoutes);
-app.use(taskAnalysisConfigRoutes);
-app.use(agentExecutionConfigRoutes);
-app.use(executionLogsRoutes);
-app.use(schedulesRoutes);
-app.use(dailyScheduleRoutes);
-app.use(screenshotsRoutes);
-app.use(learningGoalsRoutes);
-app.use(learningDashboardRouter);
-app.use(rateLimitRoutes);
-app.use(paidLeaveRoutes);
-app.use(urlMetadataRoutes);
-app.use(batchRoutes);
-app.use(agentMetricsRouter);
-app.use(agentVersionManagementRoutes);
-app.use(authRoutes);
-app.use(cliToolsManagementRoutes);
-app.use(workflowRoutes);
-app.use(workflowRolesRoutes);
-app.use(orchestraRoutes);
-app.use(workflowLearningRoutes);
-app.use(pomodoroRoutes);
-app.use(searchRoutes);
-app.use(knowledgeRoutes);
-app.use(memorySystemRoutes);
-app.use(intelligentSuggestionsRoutes);
-app.use(weeklyReviewRoutes);
-app.use(smartActionRoutes);
-app.use(localLLMRouter);
-app.use(transcribeRouter);
-app.use(experimentsRoutes);
-app.use(knowledgeGraphRoutes);
-app.use(learningRoutes);
-app.use(mcpRoutes);
-app.use(progressSummaryRoutes);
-app.use(techDebtRoutes);
-app.use(crossProjectKnowledgeRoutes);
-app.use(executionForkRoutes);
-app.use(smartRouterRoutes);
-app.use(temporalDebugRoutes);
-app.use(projectHealthRoutes);
-app.use(intentRoutes);
-app.use(gitCleanupRoutes);
+// Apply all modular routes (82 Elysia instances, organized by domain)
+registerAllRoutes(app);
 
 // Start behavior scheduler
 import { BehaviorScheduler } from './src/services/behavior-scheduler';
