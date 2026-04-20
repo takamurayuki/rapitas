@@ -183,8 +183,8 @@ export function CopilotChatPanel({
         </div>
       </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3" style={{ minHeight: '180px', maxHeight: '400px' }}>
+      {/* Messages — fills available height in sidebar mode */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }}>
         {messages.length === 0 && !isLoading && (
           <div>
             <ProactiveInsight taskStatus={taskStatus} taskTitle={taskTitle} />
