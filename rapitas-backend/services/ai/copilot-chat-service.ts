@@ -149,7 +149,8 @@ export async function sendCopilotMessage(
   }
 
   // 1. Check cache
-  const cacheKey = generateCacheKey(SYSTEM_PROMPT + '\n' + contextPrompt);
+  const cacheMessages = [{ role: 'user', content: contextPrompt }];
+  const cacheKey = generateCacheKey('copilot', 'auto', SYSTEM_PROMPT, cacheMessages);
   const cachedEntry = getCachedResponse(cacheKey);
   if (cachedEntry) {
     log.debug('Cache hit for copilot message');
@@ -193,7 +194,7 @@ export async function sendCopilotMessage(
   const content = response.content;
 
   // 5. Cache the response
-  setCachedResponse(cacheKey, content, 0);
+  setCachedResponse(cacheKey, content, response.tokensUsed || 0, provider, model);
 
   // 6. Save to DB
   await saveCopilotMessage('user', message, taskId);

@@ -1,11 +1,12 @@
 'use client';
-// useSettingsData
+// useSettingsData — central hook for the settings page.
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import type { UserSettings, ApiProvider } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { CACHE_KEYS, getCachedData, setCachedData } from './settings-cache';
 
 const logger = createLogger('useSettingsData');
 
@@ -26,50 +27,6 @@ export const INITIAL_PROVIDER_STATE: ProviderState = {
   isEditing: false,
   isSaving: false,
 };
-
-// Cache keys
-const CACHE_KEYS = {
-  settings: 'settings-cache',
-  models: 'models-cache',
-  apiKeys: 'api-keys-cache',
-} as const;
-
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-/**
- * Reads a time-stamped entry from localStorage.
- *
- * @param key - localStorage key.
- * @returns Cached data or null if missing/expired.
- */
-function getCachedData<T>(key: string): T | null {
-  try {
-    const cached = localStorage.getItem(key);
-    if (!cached) return null;
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp > CACHE_DURATION) {
-      localStorage.removeItem(key);
-      return null;
-    }
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Writes a time-stamped entry to localStorage.
- *
- * @param key - localStorage key.
- * @param data - Data to persist.
- */
-function setCachedData<T>(key: string, data: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch (error) {
-    logger.error('Failed to cache data:', error);
-  }
-}
 
 export const PROVIDER_KEYS = ['claude', 'chatgpt', 'gemini'] as const;
 
