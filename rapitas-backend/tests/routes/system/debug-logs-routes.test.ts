@@ -15,7 +15,7 @@ mock.module('../../../config/logger', () => ({
   }),
 }));
 
-const { debugLogsRouter } = await import('../../../routes/system/debug-logs');
+const { debugLogsRouter } = await import('../../../routes/system/monitoring/debug-logs');
 
 function createApp() {
   return new Elysia().use(debugLogsRouter);

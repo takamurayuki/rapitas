@@ -27,7 +27,7 @@ mock.module('../../../utils/common/encryption', () => ({
   decrypt: mock((v: string) => `decrypted:${v}`),
 }));
 
-const { rateLimitRoutes } = await import('../../../routes/system/rate-limits');
+const { rateLimitRoutes } = await import('../../../routes/system/monitoring/rate-limits');
 const { getApiKeyForProvider } = await import('../../../utils/ai-client');
 
 function resetAllMocks() {
