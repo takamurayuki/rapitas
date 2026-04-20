@@ -202,11 +202,11 @@ export default function TaskDetailViewBody({
         ))}
 
       <div className="mb-6">
-        <DependencyPicker taskId={taskId} />
+        <CopilotChatPanel taskId={taskId} />
       </div>
 
       <div className="mb-6">
-        <CopilotChatPanel taskId={taskId} />
+        <DependencyPicker taskId={taskId} />
       </div>
 
       {task.theme?.isDevelopment === true && (

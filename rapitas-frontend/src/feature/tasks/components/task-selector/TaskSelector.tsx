@@ -55,9 +55,11 @@ export function TaskSelector({
       }
 
       const data = await response.json();
-      const filteredTasks =
-        data.tasks?.filter((task: Task) => !excludeTaskIds.includes(task.id)) ||
-        [];
+      // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
+      const taskList = Array.isArray(data) ? data : data.tasks ?? [];
+      const filteredTasks = taskList.filter(
+        (task: Task) => !excludeTaskIds.includes(task.id),
+      );
       setTasks(filteredTasks);
     } catch (err) {
       setError(
