@@ -2,8 +2,6 @@
 // AIAccordionPanelInner
 
 import { useState, useCallback } from 'react';
-import { PanelHeader } from './PanelHeader';
-import { AnalysisSection } from './AnalysisSection';
 import { ExecutionSection } from './ExecutionSection';
 import { useAccordionState } from './useAccordionState';
 import { usePromptOptimization } from './usePromptOptimization';
@@ -17,6 +15,7 @@ import type { AIAccordionPanelProps } from './types';
  * @param props - Complete panel props as defined in AIAccordionPanelProps.
  */
 export function AIAccordionPanelInner({
+  embedded = false,
   taskId,
   taskTitle,
   taskDescription,
@@ -180,60 +179,14 @@ export function AIAccordionPanelInner({
 
   return (
     <div
-      className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden"
+      className={
+        embedded
+          ? 'border-t border-zinc-200 dark:border-zinc-700'
+          : 'border-t border-zinc-200 dark:border-zinc-700 overflow-hidden'
+      }
       role="region"
-      aria-label="AI アシスタントパネル"
+      aria-label="AI エージェント実行パネル"
     >
-      <PanelHeader
-        optimizedPrompt={optimizedPrompt}
-        analysisResult={analysisResult}
-        onOpenSettings={onOpenSettings}
-      />
-
-      <AnalysisSection
-        isExpanded={expandedSection === 'analysis'}
-        onToggle={() => toggleSection('analysis')}
-        analysisStatusIcon={getAnalysisStatus()}
-        analysisTab={analysisTab}
-        onTabChange={setAnalysisTab}
-        isAnalyzing={isAnalyzing}
-        analysisError={analysisError}
-        analysisResult={analysisResult}
-        analysisApprovalId={analysisApprovalId}
-        selectedSubtasks={selectedSubtasks}
-        onSelectSubtask={handleSelectSubtask}
-        onSelectAll={handleSelectAll}
-        isCreatingSubtasks={isCreatingSubtasks}
-        subtaskCreationSuccess={subtaskCreationSuccess}
-        onApproveSubtasks={handleApproveSubtasks}
-        onAnalyze={onAnalyze}
-        isGeneratingPrompt={isGeneratingPrompt}
-        promptResult={promptResult}
-        promptError={promptError}
-        questionAnswers={questionAnswers}
-        isSubmittingAnswers={isSubmittingAnswers}
-        copied={copied}
-        onSetQuestionAnswer={(id, value) =>
-          setQuestionAnswers((prev) => ({ ...prev, [id]: value }))
-        }
-        onCancelQuestions={() => {
-          setPromptResult(null);
-          setQuestionAnswers({});
-        }}
-        onSubmitAnswers={handleSubmitAnswers}
-        onCopyPrompt={handleCopyPrompt}
-        onUsePrompt={handleUsePrompt}
-        onRegeneratePrompt={() => {
-          setPromptResult(null);
-          generatePrompt();
-        }}
-        onGeneratePrompt={() => generatePrompt()}
-        onRetryPrompt={() => {
-          setPromptError(null);
-          generatePrompt();
-        }}
-        getCategoryLabel={getCategoryLabel}
-      />
 
       {showAgentPanel && (
         <ExecutionSection

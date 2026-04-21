@@ -104,6 +104,7 @@ export { paidLeaveRoutes } from './lifestyle/paid-leave';
 export { knowledgeRoutes } from './memory/knowledge';
 export { memorySystemRoutes } from './memory/memory-system';
 export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
+export { ideaBoxRoutes } from './memory/idea-box';
 
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';

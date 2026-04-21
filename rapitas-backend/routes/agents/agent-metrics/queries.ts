@@ -46,9 +46,12 @@ export async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetri
   const whereClause = buildDateWhereClause(dateRange);
 
   const agents = await prisma.aIAgentConfig.findMany({
+    take: 50,
     include: {
       executions: {
         where: whereClause,
+        take: 200,
+        orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           status: true,
@@ -126,6 +129,8 @@ export async function getExecutionTrends(
         gte: startDate,
       },
     },
+    take: 500,
+    orderBy: { createdAt: 'desc' },
     select: {
       createdAt: true,
       status: true,

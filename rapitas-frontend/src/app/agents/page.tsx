@@ -109,6 +109,8 @@ export default function AgentsPage() {
             setAvailableModels(modelsData);
             setCachedData(CACHE_KEYS.models, modelsData);
           }
+        }).catch(() => {
+          // NOTE: Non-critical background refresh — cached data remains valid.
         });
         return;
       }

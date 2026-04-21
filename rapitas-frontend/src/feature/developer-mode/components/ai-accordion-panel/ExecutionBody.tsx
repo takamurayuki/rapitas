@@ -1,6 +1,7 @@
 'use client';
 // ExecutionBody
 
+import { useState } from 'react';
 import {
   CheckCircle2,
   AlertCircle,
@@ -9,7 +10,8 @@ import {
   Send,
   Square,
   GitBranch,
-  Wand2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   ExecutionLogViewer,
@@ -170,7 +172,7 @@ export function ExecutionBody({
               subtaskLogs={subtaskLogs!}
               isRunning={isRunning}
               onRefreshLogs={onRefreshSubtaskLogs}
-              maxHeight={180}
+              maxHeight={300}
             />
           ) : logs.length > 0 ? (
             <ExecutionLogViewer
@@ -179,7 +181,7 @@ export function ExecutionBody({
               isConnected={isSseConnected}
               isRunning={isRunning}
               collapsible={false}
-              maxHeight={150}
+              maxHeight={300}
             />
           ) : null}
         </div>
@@ -187,18 +189,10 @@ export function ExecutionBody({
     );
   }
 
-  // Completed state
+  // Completed state — status card removed, shown in ExecutionSection header badge
   if (isCompleted) {
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="text-xs text-emerald-700 dark:text-emerald-300">
-            {pollingSessionMode?.startsWith('workflow-')
-              ? workflowPhaseLabel(pollingSessionMode)
-              : '実行完了'}
-          </span>
-        </div>
         {hasSubtaskLogs ? (
           <SubtaskLogTabs
             subtasks={subtasks || []}
@@ -206,7 +200,7 @@ export function ExecutionBody({
             subtaskLogs={subtaskLogs!}
             isRunning={false}
             onRefreshLogs={onRefreshSubtaskLogs}
-            maxHeight={180}
+            maxHeight={300}
           />
         ) : logs.length > 0 && showLogs ? (
           <ExecutionLogViewer
@@ -215,10 +209,9 @@ export function ExecutionBody({
             isConnected={isSseConnected}
             isRunning={false}
             collapsible={false}
-            maxHeight={150}
+            maxHeight={300}
           />
         ) : null}
-        {/* Continuation input */}
         <ContinuationForm
           continueInstruction={continueInstruction}
           onSetContinueInstruction={onSetContinueInstruction}
@@ -229,54 +222,43 @@ export function ExecutionBody({
     );
   }
 
-  // Cancelled state
+  // Cancelled state — status shown in header badge
   if (isCancelled) {
-    return (
-      <div className="flex items-center gap-1.5 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-        <Square className="w-3.5 h-3.5 text-yellow-500" />
-        <span className="text-xs text-yellow-700 dark:text-yellow-300">
-          実行を停止しました
-        </span>
-      </div>
-    );
+    return logs.length > 0 && showLogs ? (
+      <ExecutionLogViewer
+        logs={logs}
+        status="cancelled"
+        isConnected={false}
+        isRunning={false}
+        collapsible={false}
+        maxHeight={300}
+      />
+    ) : null;
   }
 
-  // Interrupted state
+  // Interrupted state — status shown in header badge
   if (isInterrupted) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-1.5 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-          <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-          <span className="text-xs text-amber-700 dark:text-amber-300">
-            実行が中断されました
-          </span>
-        </div>
-        {logs.length > 0 && showLogs && (
-          <ExecutionLogViewer
-            logs={logs}
-            status="failed"
-            isConnected={false}
-            isRunning={false}
-            collapsible={false}
-            maxHeight={150}
-          />
-        )}
-      </div>
-    );
+    return logs.length > 0 && showLogs ? (
+      <ExecutionLogViewer
+        logs={logs}
+        status="failed"
+        isConnected={false}
+        isRunning={false}
+        collapsible={false}
+        maxHeight={300}
+      />
+    ) : null;
   }
 
-  // Failed state
+  // Failed state — error detail shown inline only if message exists
   if (isFailed) {
     return (
       <div className="space-y-2">
-        <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-          <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-          <span className="text-xs text-red-600 dark:text-red-400 line-clamp-2">
-            {typeof executionError === 'string'
-              ? executionError
-              : 'エラーが発生しました'}
-          </span>
-        </div>
+        {typeof executionError === 'string' && executionError && (
+          <p className="text-[10px] text-red-600 dark:text-red-400 line-clamp-2 px-1">
+            {executionError}
+          </p>
+        )}
         {logs.length > 0 && showLogs && (
           <ExecutionLogViewer
             logs={logs}
@@ -284,7 +266,7 @@ export function ExecutionBody({
             isConnected={false}
             isRunning={false}
             collapsible={false}
-            maxHeight={150}
+            maxHeight={300}
           />
         )}
       </div>
@@ -293,59 +275,82 @@ export function ExecutionBody({
 
   // Initial (idle) state — execution form
   return (
+    <IdleExecutionForm
+      optimizedPrompt={optimizedPrompt}
+      instruction={instruction}
+      branchName={branchName}
+      onSetInstruction={onSetInstruction}
+      onSetBranchName={onSetBranchName}
+    />
+  );
+}
+
+/** Compact idle-state execution form with inline instruction + collapsible details. */
+function IdleExecutionForm({
+  optimizedPrompt,
+  instruction,
+  branchName,
+  onSetInstruction,
+  onSetBranchName,
+}: {
+  optimizedPrompt?: string | null;
+  instruction: string;
+  branchName: string;
+  onSetInstruction: (v: string) => void;
+  onSetBranchName: (v: string) => void;
+}) {
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
     <div className="space-y-2">
+      {/* Inline instruction input */}
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={instruction}
+          onChange={(e) => onSetInstruction(e.target.value)}
+          placeholder="追加指示があれば入力...（任意）"
+          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          aria-label="追加の実装指示"
+        />
+      </div>
+
+      {/* Status badges */}
       {optimizedPrompt && (
-        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-          <Sparkles className="w-2.5 h-2.5 text-green-600 dark:text-green-400" />
-          <span className="text-[10px] text-green-700 dark:text-green-300">
-            最適化プロンプト使用
-          </span>
+        <div className="flex items-center gap-1.5 px-1">
+          <Sparkles className="w-2.5 h-2.5 text-green-500" />
+          <span className="text-[10px] text-green-600 dark:text-green-400">最適化プロンプト適用済み</span>
         </div>
       )}
-      <div className="space-y-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/30 rounded-lg">
-        <div>
-          <label className="text-[10px] text-zinc-600 dark:text-zinc-400 mb-1 block">
-            追加指示
-          </label>
-          <textarea
-            value={instruction}
-            onChange={(e) => onSetInstruction(e.target.value)}
-            placeholder="追加の実装指示..."
-            rows={2}
-            className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] resize-none"
-            aria-label="追加の実装指示"
-          />
-        </div>
-        <div>
-          <label className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400 mb-1">
-            <GitBranch className="w-2.5 h-2.5" />
-            ブランチ名
-          </label>
-          <div className="flex gap-1.5">
+
+      {/* Collapsible details */}
+      <button
+        onClick={() => setShowDetails(!showDetails)}
+        className="flex items-center gap-1 px-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+      >
+        {showDetails ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+        詳細設定
+      </button>
+
+      {showDetails && (
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2.5 space-y-2">
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+              <GitBranch className="w-2.5 h-2.5" />
+              ブランチ名
+              <span className="text-zinc-400 dark:text-zinc-500">（空欄で自動生成）</span>
+            </label>
             <input
               type="text"
               value={branchName}
               onChange={(e) => onSetBranchName(e.target.value)}
-              placeholder="feature/..."
-              className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono"
+              placeholder="自動生成されます"
+              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
               aria-label="ブランチ名"
             />
-            <button
-              onClick={onGenerateBranchName}
-              disabled={isGeneratingBranchName}
-              className="px-2 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded text-[10px] hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors disabled:opacity-50 flex items-center gap-1"
-              title="AIでブランチ名を生成"
-            >
-              {isGeneratingBranchName ? (
-                <Loader2 className="w-2.5 h-2.5 animate-spin" />
-              ) : (
-                <Wand2 className="w-2.5 h-2.5" />
-              )}
-              <span>生成</span>
-            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

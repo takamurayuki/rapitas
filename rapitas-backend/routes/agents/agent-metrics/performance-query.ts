@@ -48,6 +48,8 @@ export async function getAgentPerformanceComparison(
 
   const executions = await prisma.agentExecution.findMany({
     where: whereClause,
+    take: 500,
+    orderBy: { createdAt: 'desc' },
     include: {
       agentConfig: {
         select: {

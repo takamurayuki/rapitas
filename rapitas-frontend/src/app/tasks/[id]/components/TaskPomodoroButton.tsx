@@ -25,7 +25,7 @@ function getTimerButtonStyle(
   pomodoroState: PomodoroButtonState,
 ): string {
   const baseStyle =
-    'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors text-zinc-700 dark:text-zinc-300 border';
+    'flex items-center gap-2 px-3 py-2 text-xs font-black font-mono tracking-tight rounded-lg shadow-sm transition-all duration-300 text-zinc-700 dark:text-zinc-300 border';
 
   if (isThisTaskTimer && pomodoroState.isTimerRunning) {
     if (pomodoroState.isBreakTime) {

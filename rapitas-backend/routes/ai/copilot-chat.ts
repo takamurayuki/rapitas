@@ -9,6 +9,7 @@ import {
   streamCopilotMessage,
   getCopilotHistory,
 } from '../../services/ai/copilot-chat-service';
+import { executeCopilotAction, type CopilotActionType } from '../../services/ai/copilot-action-service';
 
 const log = createLogger('routes:copilot-chat');
 
@@ -93,6 +94,41 @@ export const copilotChatRoutes = new Elysia()
         conversationHistory: t.Optional(
           t.Array(t.Object({ role: t.String(), content: t.String() })),
         ),
+      }),
+    },
+  )
+
+  /** Execute a copilot action (analyze, execute, create subtasks, etc.). */
+  .post(
+    '/copilot/action',
+    async ({ body, set }) => {
+      const { action, taskId, params } = body;
+
+      if (!taskId) {
+        set.status = 400;
+        return { error: 'タスクIDが必要です' };
+      }
+
+      try {
+        const result = await executeCopilotAction({
+          action: action as CopilotActionType,
+          taskId,
+          params: params ?? undefined,
+        });
+        return result;
+      } catch (err) {
+        log.error({ err }, 'Copilot action error');
+        set.status = 500;
+        return {
+          error: err instanceof Error ? err.message : 'Action failed',
+        };
+      }
+    },
+    {
+      body: t.Object({
+        action: t.String({ minLength: 1 }),
+        taskId: t.Number(),
+        params: t.Optional(t.Record(t.String(), t.Any())),
       }),
     },
   )

@@ -5,12 +5,17 @@ import { API_BASE_URL } from '@/utils/api';
 
 export interface CopilotMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   model?: string;
   tier?: string;
   cached?: boolean;
-  actions?: Array<{ type: string; label: string }>;
+  actions?: Array<{ type: string; label: string; params?: Record<string, unknown> }>;
+  /** Structured data from action results (analysis, execution status, etc.). */
+  actionData?: {
+    type: string;
+    data: unknown;
+  };
   createdAt: string;
 }
 
@@ -83,10 +88,98 @@ export function useCopilotChat(taskId?: number) {
     [messages, isLoading, taskId],
   );
 
+  /** Execute a copilot action (analyze, execute, create_subtasks, update_status). */
+  const executeAction = useCallback(
+    async (action: string, params?: Record<string, unknown>) => {
+      if (!taskId || isLoading) return;
+
+      setIsLoading(true);
+      setError(null);
+
+      // Add a system message showing the action in progress
+      const actionLabels: Record<string, string> = {
+        analyze: 'タスクを分析中...',
+        execute: 'エージェント実行を開始中...',
+        create_subtasks: 'サブタスクを作成中...',
+        update_status: 'ステータスを更新中...',
+        get_execution_status: '実行状態を確認中...',
+      };
+
+      const pendingMsg: CopilotMessage = {
+        id: `action-${Date.now()}`,
+        role: 'system',
+        content: actionLabels[action] ?? `${action}を実行中...`,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, pendingMsg]);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/copilot/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, taskId, params }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(
+            (errData as { error?: string }).error ?? `HTTP ${res.status}`,
+          );
+        }
+
+        const result = await res.json() as {
+          success: boolean;
+          action: string;
+          data: unknown;
+          message: string;
+        };
+
+        // Replace the pending message with the result
+        const resultMsg: CopilotMessage = {
+          id: `action-result-${Date.now()}`,
+          role: 'assistant',
+          content: result.message,
+          actionData: { type: result.action, data: result.data },
+          createdAt: new Date().toISOString(),
+        };
+
+        // Add action buttons based on the result
+        if (result.action === 'analyze' && result.success && result.data) {
+          const analysisData = result.data as { suggestedSubtasks?: Array<{ title: string; description?: string }> };
+          if (analysisData.suggestedSubtasks && analysisData.suggestedSubtasks.length > 0) {
+            resultMsg.actions = [
+              {
+                type: 'create_subtasks',
+                label: `サブタスクを作成 (${analysisData.suggestedSubtasks.length}件)`,
+                params: {
+                  subtasks: analysisData.suggestedSubtasks.map((s) => ({
+                    title: s.title,
+                    description: s.description,
+                  })),
+                },
+              },
+            ];
+          }
+        }
+
+        setMessages((prev) =>
+          prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)),
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'アクション実行に失敗しました');
+        // Remove the pending message on error
+        setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [taskId, isLoading],
+  );
+
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, clearChat };
+  return { messages, isLoading, error, sendMessage, executeAction, clearChat };
 }

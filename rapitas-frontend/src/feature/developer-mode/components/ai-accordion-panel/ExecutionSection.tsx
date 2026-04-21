@@ -17,7 +17,7 @@ import Link from 'next/link';
 import type { Task } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import { ExecutionBody } from './ExecutionBody';
+import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
 
 export type ExecutionSectionProps = {
   isExpanded: boolean;
@@ -152,23 +152,33 @@ export function ExecutionSection({
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
             エージェント実行
           </span>
-          {execStatusIcon === 'loading' && (
-            <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />
-          )}
-          {execStatusIcon === 'success' && (
-            <CheckCircle2 className="w-3 h-3 text-green-500" />
-          )}
-          {execStatusIcon === 'error' && (
-            <AlertCircle className="w-3 h-3 text-red-500" />
-          )}
-          {execStatusIcon === 'cancelled' && (
-            <span className="px-1 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
-              停止
+          {/* NOTE: Status badge shown only when collapsed — expanded view has its own status in logs */}
+          {!isExpanded && execStatusIcon === 'loading' && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-[10px] rounded">
+              <Loader2 className="w-2.5 h-2.5 animate-spin" />実行中
             </span>
           )}
-          {execStatusIcon === 'interrupted' && (
-            <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
-              中断
+          {!isExpanded && execStatusIcon === 'success' && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] rounded">
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              {pollingSessionMode?.startsWith('workflow-')
+                ? workflowPhaseLabel(pollingSessionMode)
+                : '実行完了'}
+            </span>
+          )}
+          {!isExpanded && execStatusIcon === 'error' && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[10px] rounded">
+              <AlertCircle className="w-2.5 h-2.5" />エラー
+            </span>
+          )}
+          {!isExpanded && execStatusIcon === 'cancelled' && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-[10px] rounded">
+              <Square className="w-2.5 h-2.5" />停止
+            </span>
+          )}
+          {!isExpanded && execStatusIcon === 'interrupted' && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] rounded">
+              <AlertCircle className="w-2.5 h-2.5" />中断
             </span>
           )}
         </div>

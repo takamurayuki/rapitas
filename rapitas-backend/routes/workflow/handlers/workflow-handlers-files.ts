@@ -209,6 +209,15 @@ export async function handleSaveFile({
         log.error({ err, taskId }, 'Failed to extract knowledge from task');
       });
 
+      // Extract improvement ideas for IdeaBox (async, Ollama-first)
+      import('../../../services/memory/idea-extractor')
+        .then(({ extractIdeasFromExecutionLog }) => {
+          extractIdeasFromExecutionLog(taskId, sanitizeResult.content).catch((err) => {
+            log.error({ err, taskId }, 'Failed to extract ideas from task');
+          });
+        })
+        .catch(() => {});
+
       // Record reasoning trace for temporal debugging (async)
       import('../../../services/analytics/temporal-debugger')
         .then(({ recordReasoningTrace }) => {

@@ -9,8 +9,24 @@ import { orchestrator, stopServer } from '../../../services/core/orchestrator-in
 import { isEncryptionKeyConfigured } from '../../../utils/common/encryption';
 import { realtimeService } from '../../../services/communication/realtime-service';
 import { createLogger } from '../../../config/logger';
+import { AuthenticationError } from '../../../middleware/error-handler';
 
 const log = createLogger('routes:agent-system');
+
+/**
+ * Verify admin access for sensitive system endpoints.
+ * Skipped in development mode for convenience (dev.js calls these).
+ *
+ * @param headers - Request headers / リクエストヘッダー
+ * @throws AuthenticationError in production without valid token
+ */
+function requireAdmin(headers: Record<string, string | undefined>): void {
+  if (process.env.NODE_ENV === 'development') return;
+  const token = headers['x-admin-token'];
+  if (!token || token !== process.env.ADMIN_SECRET) {
+    throw new AuthenticationError('Admin authentication required');
+  }
+}
 
 export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
@@ -23,7 +39,8 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
     };
   })
 
-  .get('/diagnose', async () => {
+  .get('/diagnose', async ({ headers }) => {
+    requireAdmin(headers);
     const { spawn } = await import('child_process');
     const claudePath = process.env.CLAUDE_CODE_PATH || 'claude';
 
@@ -277,7 +294,8 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
   })
 
   // Graceful shutdown endpoint (called by dev.js before stopping)
-  .post('/shutdown', async () => {
+  .post('/shutdown', async ({ headers }) => {
+    requireAdmin(headers);
     try {
       log.info('[shutdown] Graceful shutdown requested via API');
 
@@ -319,7 +337,8 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
 
   // Server restart endpoint (called by frontend or dev tools)
   // Performs graceful shutdown then exits with code 75 to signal dev.js to restart
-  .post('/restart', async () => {
+  .post('/restart', async ({ headers }) => {
+    requireAdmin(headers);
     try {
       log.info('[restart] Server restart requested via API');
 

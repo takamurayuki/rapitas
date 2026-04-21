@@ -100,7 +100,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         return createResponse(balance);
       } catch (error) {
         log.error({ err: error }, 'Failed to get paid leave balance');
-        return createErrorResponse('Failed to get paid leave balance', 500);
+        return createErrorResponse('Failed to get paid leave balance');
       }
     },
     {
@@ -167,7 +167,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         return createResponse(updatedBalance);
       } catch (error) {
         log.error({ err: error }, 'Failed to update paid leave balance');
-        return createErrorResponse('Failed to update paid leave balance', 500);
+        return createErrorResponse('Failed to update paid leave balance');
       }
     },
     {
@@ -229,7 +229,7 @@ export const paidLeaveRoutes = new Elysia({ prefix: '/paid-leave' })
         return createResponse(history);
       } catch (error) {
         log.error({ err: error }, 'Failed to get paid leave history');
-        return createErrorResponse('Failed to get paid leave history', 500);
+        return createErrorResponse('Failed to get paid leave history');
       }
     },
     {

@@ -72,7 +72,7 @@ jobs:
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest
-    # Advisory: pre-existing test failures + coverage gate still at 15%.
+    # Advisory: pre-existing test failures. Coverage gate raised to 20%.
     continue-on-error: true
 
     steps:
@@ -126,8 +126,8 @@ jobs:
             const branches = total.branches.pct;
             const functions = total.functions.pct;
             console.log('Coverage: lines=' + lines + '% branches=' + branches + '% functions=' + functions + '%');
-            // TODO: raise stepwise — 15 → 30 → 50 → 80 (CLAUDE.md target).
-            const THRESHOLD = 15;
+            // ADR-0002: raise stepwise — 20 → 30 → 50 → 80 (CLAUDE.md target).
+            const THRESHOLD = 20;
             if (lines < THRESHOLD) { console.error('Line coverage ' + lines + '% is below threshold ' + THRESHOLD + '%'); process.exit(1); }
           "
 
@@ -186,9 +186,10 @@ jobs:
         working-directory: rapitas-backend
         run: bunx prettier --check "**/*.ts" --ignore-path .gitignore
 
-      - name: Lint frontend code (advisory — pre-existing errors)
+      - name: Lint frontend code
         working-directory: rapitas-frontend
-        continue-on-error: true
+        # NOTE: Removed advisory flag. Lint errors should now be fixed before merge.
+        # If pre-existing errors remain, fix them or adjust eslint config rules.
         run: pnpm lint
 
       - name: Check frontend formatting

@@ -200,6 +200,15 @@ export async function sendCopilotMessage(
   await saveCopilotMessage('user', message, taskId);
   await saveCopilotMessage('assistant', content, taskId);
 
+  // 7. Extract ideas periodically from longer conversations (fire-and-forget)
+  if (conversationHistory.length >= 5 && conversationHistory.length % 5 === 0) {
+    import('../memory/idea-extractor')
+      .then(({ extractIdeasFromCopilotChat }) => {
+        extractIdeasFromCopilotChat(conversationHistory, taskId).catch(() => {});
+      })
+      .catch(() => {});
+  }
+
   return {
     content,
     model,

@@ -38,7 +38,7 @@ export const executeRoute = new Elysia().post(
         ip,
       )
     ) {
-      return { error: 'Too many requests. Please try again later.' };
+      return { success: false, error: 'Too many requests. Please try again later.' };
     }
     const params = context.params as { id: string };
     const body = context.body as {
@@ -77,9 +77,9 @@ export const executeRoute = new Elysia().post(
       log.error({ err: dbError, prismaCode }, `[API] Database error fetching task ${taskIdNum}`);
       context.set.status = 500;
       return {
+        success: false,
         error: 'Database query error occurred',
         code: prismaCode || undefined,
-        details: dbError instanceof Error ? dbError.message : String(dbError),
       };
     }
 

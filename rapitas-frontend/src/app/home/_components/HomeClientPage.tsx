@@ -272,7 +272,7 @@ function HomeClientPage() {
   // --- Render ---
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
-      <div className="mx-auto max-w-6xl px-4 py-4">
+      <div className="mx-auto max-w-6xl px-3 sm:px-4 md:px-6 py-3 sm:py-4">
         <HomeToolbar
           completedTasksCount={completedTasksCount}
           totalTasksCount={totalTasksCount}
@@ -282,6 +282,7 @@ function HomeClientPage() {
           isQuickAdding={isQuickAdding}
           themeFilter={themeFilter}
           defaultThemeId={defaultTheme?.id}
+          categoryFilter={categoryFilter}
           onQuickAddToggle={() => setIsQuickAdding(!isQuickAdding)}
           onBulkUpdateStatus={bulkUpdateStatus}
           onBulkDelete={bulkDelete}

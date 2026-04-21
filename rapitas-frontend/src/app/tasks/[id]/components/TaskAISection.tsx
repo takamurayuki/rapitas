@@ -57,6 +57,8 @@ export interface TaskAISectionProps {
   startSession: () => void;
   /** True while the initial execution status fetch is in progress. */
   isRestoringState?: boolean;
+  /** When true, omit the outer card wrapper (used inside a unified container). */
+  embedded?: boolean;
 }
 
 /**
@@ -104,31 +106,8 @@ export default function TaskAISection({
   onTaskUpdated,
   startSession,
   isRestoringState,
+  embedded = false,
 }: TaskAISectionProps) {
-  // Show skeleton while execution status is being fetched
-  if (isRestoringState) {
-    return (
-      <div className="mb-6">
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse">
-          <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
-            <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded" />
-            <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-32" />
-          </div>
-          <div className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
-              <div className="flex-1 space-y-3">
-                <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
-                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-72" />
-                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-56" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // NOTE: Poll for subtask status updates while execution is in progress.
   // Refreshes the parent task every 5 seconds to pick up newly created subtasks
   // and their status changes (todo → in-progress → done).
@@ -154,6 +133,29 @@ export default function TaskAISection({
       }
     };
   }, [isExecuting, isParallelExecutionRunning, resolvedTaskId, setTask]);
+
+  // Show skeleton while execution status is being fetched
+  if (isRestoringState) {
+    const skeleton = (
+      <div className={embedded ? 'animate-pulse border-t border-zinc-200 dark:border-zinc-700' : 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse'}>
+        <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded" />
+          <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-32" />
+        </div>
+        <div className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-200 dark:bg-zinc-700" />
+            <div className="flex-1 space-y-3">
+              <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-64" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+    if (embedded) return skeleton;
+    return <div className="mb-6">{skeleton}</div>;
+  }
 
   const handleSubtasksCreated = async () => {
     try {
@@ -249,9 +251,10 @@ export default function TaskAISection({
     return onExecute(options);
   };
 
-  return (
-    <div className="mb-6">
+  // NOTE: When embedded, skip the wrapper div — parent handles spacing.
+  const content = (
       <AIAccordionPanel
+        embedded={embedded}
         taskId={taskId}
         taskTitle={task.title}
         taskDescription={task.description}
@@ -329,6 +332,7 @@ export default function TaskAISection({
         }
         onRefreshSubtaskLogs={onRefreshSubtaskLogs}
       />
-    </div>
   );
+
+  return content;
 }

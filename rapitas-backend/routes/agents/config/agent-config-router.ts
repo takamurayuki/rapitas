@@ -22,6 +22,7 @@ export const agentConfigRouter = new Elysia()
         _count: { select: { executions: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 50,
     });
 
     // NOTE: Only expose development, review, and default agents — other types are internal-only.
@@ -46,6 +47,7 @@ export const agentConfigRouter = new Elysia()
         _count: { select: { executions: true } },
       },
       orderBy: [{ isDefault: 'desc' }, { isActive: 'desc' }, { createdAt: 'desc' }],
+      take: 100,
     });
     return agents.map((agent: (typeof agents)[0]) => ({
       ...agent,

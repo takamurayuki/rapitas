@@ -1,7 +1,7 @@
 'use client';
 // TaskDetailHeader
 import {
-  Save,
+  Check,
   Copy,
   Pencil,
   X,
@@ -60,11 +60,12 @@ export default function TaskDetailHeader({
   const tc = useTranslations('common');
 
   return (
-    <div className="mb-6 flex items-center justify-between gap-2">
+    <div className="mb-3 flex items-center justify-between gap-2">
       <div>
         {isPageMode && (
           <button
             onClick={onBack}
+            aria-label="戻る"
             className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -89,17 +90,16 @@ export default function TaskDetailHeader({
 
         {!isEditing ? (
           <>
-            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400">
-              <button
-                onClick={onStartEditing}
-                className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
-              >
-                <Pencil className="w-4 h-4" />
-                <span className="font-mono text-xs font-black tracking-tight">
-                  {tc('edit')}
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={onStartEditing}
+              aria-label="タスクを編集"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">
+                {tc('edit')}
+              </span>
+            </button>
             <DropdownMenu
               items={[
                 {
@@ -123,28 +123,26 @@ export default function TaskDetailHeader({
           </>
         ) : (
           <>
-            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400">
-              <button
-                onClick={onSaveTask}
-                className="flex items-center gap-2 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-all cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span className="font-mono text-xs font-black tracking-tight">
-                  {tc('save')}
-                </span>
-              </button>
-            </div>
-            <div className="relative overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400">
-              <button
-                onClick={onCancelEditing}
-                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <span className="font-mono text-xs font-black tracking-tight">
-                  {tc('cancel')}
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={onSaveTask}
+              aria-label="タスクを保存"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">
+                {tc('save')}
+              </span>
+            </button>
+            <button
+              onClick={onCancelEditing}
+              aria-label="編集をキャンセル"
+              className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span className="font-mono text-xs font-black tracking-tight">
+                {tc('cancel')}
+              </span>
+            </button>
           </>
         )}
       </div>

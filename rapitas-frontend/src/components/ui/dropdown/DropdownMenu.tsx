@@ -71,16 +71,16 @@ export default function DropdownMenu({
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${
+        className={`flex items-center justify-center px-2 py-2 rounded-lg shadow-sm transition-all duration-300 ${
           isOpen
-            ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
-            : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300'
+            ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border-zinc-400 dark:border-zinc-500'
+            : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-zinc-700 dark:hover:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-500'
         } border border-zinc-200 dark:border-zinc-700 ${triggerClassName}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
         aria-label={triggerLabel}
       >
-        <MoreVertical className="w-5 h-5" aria-hidden="true" />
+        <MoreVertical className="w-4 h-4" aria-hidden="true" />
       </button>
 
       {isOpen && (

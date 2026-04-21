@@ -29,6 +29,7 @@ import {
   learningGoalsRoutes, learningDashboardRouter, flashcardsRoutes,
   directoriesRoutes, experimentsRoutes, learningRoutes, intentRoutes,
   aiChatRoutes, copilotChatRoutes, promptsRoutes, systemPromptsRoutes,
+  ideaBoxRoutes,
 } from './routes';
 
 /**
@@ -90,6 +91,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(memorySystemRoutes);
   app.use(knowledgeGraphRoutes);
   app.use(crossProjectKnowledgeRoutes);
+  app.use(ideaBoxRoutes);
 
   // Workflow
   app.use(workflowRoutes);

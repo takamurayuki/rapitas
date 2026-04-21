@@ -44,6 +44,8 @@ export type AccordionSection = 'analysis' | 'execution' | 'terminal';
 export type AnalysisTabType = 'subtasks' | 'prompt';
 
 export type AIAccordionPanelProps = {
+  /** When true, omit the outer card wrapper (used inside a unified container). */
+  embedded?: boolean;
   taskId: number;
   taskTitle: string;
   taskDescription?: string | null;

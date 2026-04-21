@@ -10,6 +10,7 @@ import {
 } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { AutoExecutionMode } from './AutoExecutionMode';
+import { IdeaBoxPanel } from './IdeaBoxPanel';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -20,6 +21,7 @@ interface HomeToolbarProps {
   isQuickAdding: boolean;
   themeFilter: number | null;
   defaultThemeId: number | undefined;
+  categoryFilter: number | null;
   onQuickAddToggle: () => void;
   onBulkUpdateStatus: (status: string) => void;
   onBulkDelete: () => void;
@@ -42,6 +44,7 @@ export function HomeToolbar({
   isQuickAdding,
   themeFilter,
   defaultThemeId,
+  categoryFilter,
   onQuickAddToggle,
   onBulkUpdateStatus,
   onBulkDelete,
@@ -67,8 +70,9 @@ export function HomeToolbar({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Auto-execution mode */}
-        <AutoExecutionMode />
+        {/* Auto-execution mode + IdeaBox */}
+        <AutoExecutionMode categoryId={categoryFilter} />
+        <IdeaBoxPanel categoryId={categoryFilter} />
 
         {/* Bulk status change buttons — visible when items are selected */}
         {isSelectionMode && selectedTasksSize > 0 && (
