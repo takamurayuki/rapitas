@@ -1174,3 +1174,9 @@ iframe:not([src='']) + .iframe-loading {
   -ms-overflow-style: none; /* Internet Explorer 10+ */
   scrollbar-width: none; /* Firefox */
 }
+
+@keyframes flash-line {
+  0% { opacity: 0; transform: scaleY(0) translateY(4px); }
+  30% { opacity: 1; transform: scaleY(1) translateY(0); }
+  100% { opacity: 0; transform: scaleY(0.5) translateY(-4px); }
+}

@@ -98,20 +98,22 @@ export default function AgentsPage() {
         Promise.all([
           fetch(`${API_BASE_URL}/agents/all`),
           fetch(`${API_BASE_URL}/agents/models`),
-        ]).then(async ([agentsRes, modelsRes]) => {
-          if (agentsRes.ok) {
-            const agentsData = await agentsRes.json();
-            setAgents(agentsData);
-            setCachedData(CACHE_KEYS.agents, agentsData);
-          }
-          if (modelsRes.ok) {
-            const modelsData = await modelsRes.json();
-            setAvailableModels(modelsData);
-            setCachedData(CACHE_KEYS.models, modelsData);
-          }
-        }).catch(() => {
-          // NOTE: Non-critical background refresh — cached data remains valid.
-        });
+        ])
+          .then(async ([agentsRes, modelsRes]) => {
+            if (agentsRes.ok) {
+              const agentsData = await agentsRes.json();
+              setAgents(agentsData);
+              setCachedData(CACHE_KEYS.agents, agentsData);
+            }
+            if (modelsRes.ok) {
+              const modelsData = await modelsRes.json();
+              setAvailableModels(modelsData);
+              setCachedData(CACHE_KEYS.models, modelsData);
+            }
+          })
+          .catch(() => {
+            // NOTE: Non-critical background refresh — cached data remains valid.
+          });
         return;
       }
 

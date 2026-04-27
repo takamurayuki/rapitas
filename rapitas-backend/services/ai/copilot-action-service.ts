@@ -238,9 +238,7 @@ async function handleUpdateStatus(
 }
 
 /** Get current execution status for a task. */
-async function handleGetExecutionStatus(
-  taskId: number,
-): Promise<CopilotActionResult> {
+async function handleGetExecutionStatus(taskId: number): Promise<CopilotActionResult> {
   try {
     const service = new AgentExecutionService(prisma);
     const execution = await service.getLatestExecution(taskId);

@@ -137,7 +137,13 @@ export default function TaskAISection({
   // Show skeleton while execution status is being fetched
   if (isRestoringState) {
     const skeleton = (
-      <div className={embedded ? 'animate-pulse border-t border-zinc-200 dark:border-zinc-700' : 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse'}>
+      <div
+        className={
+          embedded
+            ? 'animate-pulse border-t border-zinc-200 dark:border-zinc-700'
+            : 'rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden animate-pulse'
+        }
+      >
         <div className="px-4 py-2.5 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800">
           <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded" />
           <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded w-32" />
@@ -253,85 +259,85 @@ export default function TaskAISection({
 
   // NOTE: When embedded, skip the wrapper div — parent handles spacing.
   const content = (
-      <AIAccordionPanel
-        embedded={embedded}
-        taskId={taskId}
-        taskTitle={task.title}
-        taskDescription={task.description}
-        config={devModeConfig}
-        onOpenSettings={onOpenSettings}
-        isAnalyzing={isAnalyzing}
-        // HACK(agent): TaskAISectionProps uses loose `unknown` types for values
-        // that originate from zustand selectors. Cast to satisfy AIAccordionPanel
-        // until the prop chain is fully typed (ADR-0004 Step 2+).
-        analysisResult={
-          analysisResult as Parameters<
-            typeof AIAccordionPanel
-          >[0]['analysisResult']
-        }
-        analysisError={analysisError}
-        analysisApprovalId={analysisApprovalId}
-        onAnalyze={onAnalyze}
-        onApprove={onApprove}
-        onReject={onReject}
-        onApproveSubtasks={
-          onApproveSubtasks as Parameters<
-            typeof AIAccordionPanel
-          >[0]['onApproveSubtasks']
-        }
-        isApproving={isApproving}
-        onPromptGenerated={onPromptGenerated}
-        onSubtasksCreated={handleSubtasksCreated}
-        showAgentPanel={
-          devModeConfig?.isEnabled === true || isExecuting || !!executionResult
-        }
-        isExecuting={isExecuting}
-        executionStatus={
-          executionStatus as Parameters<
-            typeof AIAccordionPanel
-          >[0]['executionStatus']
-        }
-        executionResult={
-          executionResult as Parameters<
-            typeof AIAccordionPanel
-          >[0]['executionResult']
-        }
-        executionError={executionResult?.error || null}
-        workingDirectory={task.theme?.workingDirectory || undefined}
-        defaultBranch={task.theme?.defaultBranch || 'main'}
-        useTaskAnalysis={!!analysisResult}
-        optimizedPrompt={optimizedPrompt}
-        resources={resources}
-        agentConfigId={agentConfigId}
-        agents={agents as Parameters<typeof AIAccordionPanel>[0]['agents']}
-        onAgentChange={onAgentChange}
-        onExecute={handleExecute}
-        onReset={onReset}
-        onRestoreExecutionState={
-          onRestoreExecutionState as Parameters<
-            typeof AIAccordionPanel
-          >[0]['onRestoreExecutionState']
-        }
-        onStopExecution={onStopExecution}
-        onExecutionComplete={handleExecutionComplete}
-        subtasks={task.subtasks}
-        onStartParallelExecution={
-          onStartParallelExecution as Parameters<
-            typeof AIAccordionPanel
-          >[0]['onStartParallelExecution']
-        }
-        isParallelExecutionRunning={isParallelExecutionRunning}
-        getSubtaskStatus={
-          getSubtaskStatus as Parameters<
-            typeof AIAccordionPanel
-          >[0]['getSubtaskStatus']
-        }
-        parallelSessionId={parallelSessionId}
-        subtaskLogs={
-          subtaskLogs as Parameters<typeof AIAccordionPanel>[0]['subtaskLogs']
-        }
-        onRefreshSubtaskLogs={onRefreshSubtaskLogs}
-      />
+    <AIAccordionPanel
+      embedded={embedded}
+      taskId={taskId}
+      taskTitle={task.title}
+      taskDescription={task.description}
+      config={devModeConfig}
+      onOpenSettings={onOpenSettings}
+      isAnalyzing={isAnalyzing}
+      // HACK(agent): TaskAISectionProps uses loose `unknown` types for values
+      // that originate from zustand selectors. Cast to satisfy AIAccordionPanel
+      // until the prop chain is fully typed (ADR-0004 Step 2+).
+      analysisResult={
+        analysisResult as Parameters<
+          typeof AIAccordionPanel
+        >[0]['analysisResult']
+      }
+      analysisError={analysisError}
+      analysisApprovalId={analysisApprovalId}
+      onAnalyze={onAnalyze}
+      onApprove={onApprove}
+      onReject={onReject}
+      onApproveSubtasks={
+        onApproveSubtasks as Parameters<
+          typeof AIAccordionPanel
+        >[0]['onApproveSubtasks']
+      }
+      isApproving={isApproving}
+      onPromptGenerated={onPromptGenerated}
+      onSubtasksCreated={handleSubtasksCreated}
+      showAgentPanel={
+        devModeConfig?.isEnabled === true || isExecuting || !!executionResult
+      }
+      isExecuting={isExecuting}
+      executionStatus={
+        executionStatus as Parameters<
+          typeof AIAccordionPanel
+        >[0]['executionStatus']
+      }
+      executionResult={
+        executionResult as Parameters<
+          typeof AIAccordionPanel
+        >[0]['executionResult']
+      }
+      executionError={executionResult?.error || null}
+      workingDirectory={task.theme?.workingDirectory || undefined}
+      defaultBranch={task.theme?.defaultBranch || 'main'}
+      useTaskAnalysis={!!analysisResult}
+      optimizedPrompt={optimizedPrompt}
+      resources={resources}
+      agentConfigId={agentConfigId}
+      agents={agents as Parameters<typeof AIAccordionPanel>[0]['agents']}
+      onAgentChange={onAgentChange}
+      onExecute={handleExecute}
+      onReset={onReset}
+      onRestoreExecutionState={
+        onRestoreExecutionState as Parameters<
+          typeof AIAccordionPanel
+        >[0]['onRestoreExecutionState']
+      }
+      onStopExecution={onStopExecution}
+      onExecutionComplete={handleExecutionComplete}
+      subtasks={task.subtasks}
+      onStartParallelExecution={
+        onStartParallelExecution as Parameters<
+          typeof AIAccordionPanel
+        >[0]['onStartParallelExecution']
+      }
+      isParallelExecutionRunning={isParallelExecutionRunning}
+      getSubtaskStatus={
+        getSubtaskStatus as Parameters<
+          typeof AIAccordionPanel
+        >[0]['getSubtaskStatus']
+      }
+      parallelSessionId={parallelSessionId}
+      subtaskLogs={
+        subtaskLogs as Parameters<typeof AIAccordionPanel>[0]['subtaskLogs']
+      }
+      onRefreshSubtaskLogs={onRefreshSubtaskLogs}
+    />
   );
 
   return content;

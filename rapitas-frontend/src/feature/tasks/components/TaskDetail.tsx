@@ -1,4 +1,4 @@
-import { Task } from '@/types';
+import { type Task } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {

@@ -4,7 +4,7 @@ import {
   useEffect,
   useRef,
   useCallback,
-  KeyboardEvent,
+  type KeyboardEvent,
   forwardRef,
   useImperativeHandle,
   useMemo,

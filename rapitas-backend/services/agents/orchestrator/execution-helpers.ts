@@ -231,6 +231,11 @@ export function setupOutputHandler(
         logger.error({ err: e }, 'Error emitting event');
       }
 
+      // Detect [IDEA] markers in agent output and submit to IdeaBox in real-time.
+      if (!isError && output.includes('[IDEA]')) {
+        extractIdeaMarkers(output, ctx.taskId);
+      }
+
       const now = Date.now();
       if (now - lastDbUpdate > DB_UPDATE_INTERVAL && !pendingDbUpdate) {
         pendingDbUpdate = true;
@@ -476,4 +481,48 @@ export async function handleExecutionError(
     data: { errorMessage },
     timestamp: new Date(),
   });
+}
+
+// Deduplicate [IDEA] submissions within a single execution to avoid double-posting
+// when the same output chunk is processed multiple times.
+const recentIdeaHashes = new Set<string>();
+
+/**
+ * Parse [IDEA] markers from agent output and submit each to the IdeaBox.
+ * Called inline during log streaming — must not block or throw.
+ */
+function extractIdeaMarkers(output: string, taskId: number): void {
+  const lines = output.split('\n');
+  for (const line of lines) {
+    const match = line.match(/\[IDEA]\s*(.+)/);
+    if (!match) continue;
+
+    const content = match[1].trim();
+    if (!content || content.length < 5) continue;
+
+    // Simple dedup within this process lifetime
+    const hash = `${taskId}:${content.slice(0, 50)}`;
+    if (recentIdeaHashes.has(hash)) continue;
+    recentIdeaHashes.add(hash);
+    // NOTE: Keep the set bounded to prevent memory leak in long-running processes.
+    if (recentIdeaHashes.size > 200) {
+      const first = recentIdeaHashes.values().next().value;
+      if (first) recentIdeaHashes.delete(first);
+    }
+
+    import('../../memory/idea-box-service')
+      .then(({ submitIdea }) =>
+        submitIdea({
+          title: content.slice(0, 80),
+          content,
+          taskId,
+          source: 'agent_execution',
+          confidence: 0.8,
+        }),
+      )
+      .then(() => {
+        logger.debug({ taskId, idea: content.slice(0, 60) }, '[IDEA] marker submitted');
+      })
+      .catch(() => {});
+  }
 }

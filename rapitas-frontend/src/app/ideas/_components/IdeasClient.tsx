@@ -1,0 +1,398 @@
+'use client';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  Lightbulb,
+  Loader2,
+  Search,
+  Globe,
+  FolderOpen,
+  Sparkles,
+  Bot,
+  MessageSquare,
+  User,
+  Trash2,
+} from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import { useFilterDataStore } from '@/stores/filter-data-store';
+import { IdeaBoxHeader } from './IdeaBoxHeader';
+
+type IdeaScope = 'global' | 'project';
+
+interface Idea {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  scope: IdeaScope;
+  tags: string[];
+  themeId: number | null;
+  source: string;
+  usedInTaskId: number | null;
+  createdAt: string;
+}
+
+interface IdeaStats {
+  total: number;
+  unused: number;
+}
+
+const SOURCE_ICONS: Record<string, typeof User> = {
+  user: User,
+  agent_execution: Bot,
+  copilot: MessageSquare,
+  code_review: Sparkles,
+};
+
+export default function IdeasClient() {
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [stats, setStats] = useState<IdeaStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [scopeFilter, setScopeFilter] = useState<IdeaScope | 'all'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  const [newScope, setNewScope] = useState<IdeaScope>('global');
+  const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
+  const [newThemeId, setNewThemeId] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const { categories, themes } = useFilterDataStore();
+
+  const filteredThemes = newCategoryId
+    ? themes.filter((t) => t.categoryId === newCategoryId)
+    : themes;
+
+  const fetchIdeas = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: '50' });
+      if (scopeFilter !== 'all') params.set('scope', scopeFilter);
+      const [ideasRes, statsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/idea-box?${params}`),
+        fetch(`${API_BASE_URL}/idea-box/stats`),
+      ]);
+      if (ideasRes.ok) {
+        const data = (await ideasRes.json()) as { ideas: Idea[] };
+        setIdeas(data.ideas);
+      }
+      if (statsRes.ok) setStats((await statsRes.json()) as IdeaStats);
+    } catch {
+      /* non-critical */
+    } finally {
+      setIsLoading(false);
+    }
+  }, [scopeFilter]);
+
+  useEffect(() => {
+    fetchIdeas();
+  }, [fetchIdeas]);
+
+  useEffect(() => {
+    if (showQuickAdd) titleRef.current?.focus();
+  }, [showQuickAdd]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!newTitle.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await fetch(`${API_BASE_URL}/idea-box`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          content: newContent.trim() || newTitle.trim(),
+          scope: newScope,
+          ...(newScope === 'project' && newThemeId
+            ? { themeId: newThemeId }
+            : {}),
+        }),
+      });
+      setNewTitle('');
+      setNewContent('');
+      setShowQuickAdd(false);
+      await fetchIdeas();
+    } catch {
+      /* error */
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [newTitle, newContent, newScope, newThemeId, fetchIdeas]);
+
+  const handleDelete = useCallback(async (id: number) => {
+    try {
+      await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
+      setIdeas((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      /* non-critical */
+    }
+  }, []);
+
+  const filtered = ideas.filter((idea) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (
+        idea.title.toLowerCase().includes(q) ||
+        idea.content.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const globalCount = ideas.filter((i) => i.scope === 'global').length;
+  const projectCount = ideas.filter((i) => i.scope === 'project').length;
+
+  const totalIdeas = stats?.total ?? ideas.length;
+
+  return (
+    <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
+      <div className="mx-auto max-w-4xl px-3 sm:px-4 md:px-6 py-4">
+        <IdeaBoxHeader
+          totalIdeas={totalIdeas}
+          onAddClick={() => setShowQuickAdd(!showQuickAdd)}
+        />
+
+        {/* Quick Add — inline card that appears at the top */}
+        {showQuickAdd && (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+            <div className="space-y-3">
+              <input
+                ref={titleRef}
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
+                  if (e.key === 'Escape') setShowQuickAdd(false);
+                }}
+                placeholder="💡 アイデアをひとことで..."
+                className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+              />
+              <textarea
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                placeholder="詳細（任意）"
+                rows={2}
+                className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none"
+              />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {/* Scope toggle */}
+                  <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                    <button
+                      onClick={() => setNewScope('global')}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'global' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                    >
+                      <Globe className="h-3 w-3" />
+                      グローバル
+                    </button>
+                    <button
+                      onClick={() => setNewScope('project')}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'project' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                    >
+                      <FolderOpen className="h-3 w-3" />
+                      プロジェクト
+                    </button>
+                  </div>
+                  {/* Category → Theme selector (project scope only) */}
+                  {newScope === 'project' && (
+                    <>
+                      <select
+                        value={newCategoryId ?? ''}
+                        onChange={(e) => {
+                          const id = e.target.value
+                            ? parseInt(e.target.value)
+                            : null;
+                          setNewCategoryId(id);
+                          setNewThemeId(null);
+                        }}
+                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                      >
+                        <option value="">カテゴリ</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={newThemeId ?? ''}
+                        onChange={(e) =>
+                          setNewThemeId(
+                            e.target.value ? parseInt(e.target.value) : null,
+                          )
+                        }
+                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                      >
+                        <option value="">テーマ</option>
+                        {filteredThemes.map((th) => (
+                          <option key={th.id} value={th.id}>
+                            {th.name}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowQuickAdd(false)}
+                    className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!newTitle.trim() || isSubmitting}
+                    className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Lightbulb className="h-3 w-3" />
+                    )}
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filters */}
+        <div className="mb-4 flex items-center gap-3">
+          {/* Scope tabs */}
+          <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+            {[
+              { key: 'all' as const, label: 'すべて', count: ideas.length },
+              {
+                key: 'global' as const,
+                label: 'グローバル',
+                count: globalCount,
+                icon: Globe,
+              },
+              {
+                key: 'project' as const,
+                label: 'プロジェクト',
+                count: projectCount,
+                icon: FolderOpen,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setScopeFilter(tab.key)}
+                className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  scopeFilter === tab.key
+                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                    : 'text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {tab.icon && <tab.icon className="h-3 w-3" />}
+                {tab.label}
+                <span className="ml-0.5 text-[10px] opacity-60">
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          {/* Search */}
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="アイデアを検索..."
+              className="w-full rounded-lg border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-xs focus:border-amber-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800"
+            />
+          </div>
+        </div>
+
+        {/* Idea list */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Lightbulb className="h-12 w-12 text-zinc-200 dark:text-zinc-700 mb-3" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {searchQuery
+                ? '検索結果がありません'
+                : 'アイデアがまだありません'}
+            </p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+              上の「アイデアを追加」ボタンで気軽にメモしましょう
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((idea) => {
+              const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
+              return (
+                <div
+                  key={idea.id}
+                  className={`group rounded-xl border px-4 py-3 transition-colors ${
+                    idea.usedInTaskId
+                      ? 'border-zinc-100 bg-zinc-50/50 opacity-50 dark:border-zinc-800 dark:bg-zinc-900/30'
+                      : 'border-zinc-200 bg-white hover:border-amber-300 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-amber-700'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                          {idea.title}
+                        </span>
+                        {idea.scope === 'global' ? (
+                          <Globe className="h-3 w-3 text-indigo-400" />
+                        ) : (
+                          <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
+                            <FolderOpen className="h-3 w-3" />
+                            {themes.find((t) => t.id === idea.themeId)?.name ??
+                              'プロジェクト'}
+                          </span>
+                        )}
+                      </div>
+                      {idea.content !== idea.title && (
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                          {idea.content}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
+                        <span className="flex items-center gap-0.5">
+                          <SourceIcon className="h-2.5 w-2.5" />
+                          {idea.source === 'user'
+                            ? '手動'
+                            : idea.source === 'agent_execution'
+                              ? 'エージェント'
+                              : idea.source === 'copilot'
+                                ? 'コパイロット'
+                                : idea.source}
+                        </span>
+                        <span>
+                          {new Date(idea.createdAt).toLocaleDateString('ja-JP')}
+                        </span>
+                        {idea.usedInTaskId && (
+                          <span className="text-emerald-500">タスク化済み</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(idea.id)}
+                      className="opacity-0 group-hover:opacity-100 rounded p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                      aria-label="削除"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

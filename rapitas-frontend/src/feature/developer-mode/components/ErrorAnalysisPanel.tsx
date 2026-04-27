@@ -6,12 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { FlaskConical } from 'lucide-react';
 import {
   errorAnalysisService,
-  ErrorAnalysis,
+  type ErrorAnalysis,
   ErrorCategory,
-  ErrorSeverity,
-  ErrorSummary,
+  type ErrorSeverity,
+  type ErrorSummary,
 } from '../services/error-analysis-service';
-import { Task, AgentSession } from '@/types';
+import { type Task, type AgentSession } from '@/types';
 import { ErrorSummaryCards } from './error-analysis/ErrorSummaryCards';
 import { ErrorTrendsChart } from './error-analysis/ErrorTrendsChart';
 import { ErrorFilters } from './error-analysis/ErrorFilters';

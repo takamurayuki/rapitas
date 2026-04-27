@@ -52,6 +52,8 @@ export interface AutoGenerateResult {
   /** True when completed task count is below the threshold. */
   insufficientData?: boolean;
   completedTaskCount?: number;
+  /** True when an innovation session was triggered due to idea exhaustion. */
+  innovationTriggered?: boolean;
 }
 
 /**
@@ -125,9 +127,7 @@ async function countCompletedTasks(categoryId?: number | null): Promise<number> 
 /**
  * Build the LLM prompt from gathered context and ideas.
  */
-function buildPrompt(
-  context: Awaited<ReturnType<typeof gatherContext>>,
-): string {
+function buildPrompt(context: Awaited<ReturnType<typeof gatherContext>>): string {
   const completedLines =
     context.recentCompleted
       .map((t) => `- ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`)
@@ -289,8 +289,25 @@ export async function autoGenerateTasks(
   // Mark ideas as used based on reasoning references
   ideasUsed = await markUsedIdeas(context.ideas, createdTasks);
 
+  // Check if ideas are exhausted — trigger innovation session once per auto-execution cycle
+  let innovationTriggered = false;
+  if (autoExecute) {
+    const remaining = await getUnusedIdeasForContext(categoryId ?? null, 1);
+    if (remaining.length === 0) {
+      log.info('Ideas exhausted during auto-execution — triggering innovation session');
+      try {
+        const { runInnovationSession } = await import('../memory/innovation-session');
+        const newIdeas = await runInnovationSession();
+        innovationTriggered = newIdeas > 0;
+        log.info({ newIdeas }, 'Innovation session completed during auto-execution');
+      } catch (err) {
+        log.warn({ err }, 'Innovation session during auto-execution failed');
+      }
+    }
+  }
+
   log.info(
-    { count: createdTasks.length, ideasUsed, autoExecute },
+    { count: createdTasks.length, ideasUsed, autoExecute, innovationTriggered },
     'Auto-generation complete',
   );
 
@@ -300,6 +317,7 @@ export async function autoGenerateTasks(
     prompt,
     ideasUsed,
     completedTaskCount: completedCount,
+    innovationTriggered,
   };
 }
 

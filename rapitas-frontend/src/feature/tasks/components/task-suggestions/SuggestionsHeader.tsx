@@ -70,7 +70,7 @@ export function SuggestionsHeader({
               e.stopPropagation();
               onGenerate();
             }}
-            className="group flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-200 bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-sm hover:shadow-md transform hover:scale-105"
+            className="group flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium transition-all duration-200 bg-linear-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-sm hover:shadow-md transform hover:scale-105"
             title="AI提案を生成"
           >
             <Sparkles className="w-3 h-3 group-hover:rotate-12 transition-transform duration-200" />

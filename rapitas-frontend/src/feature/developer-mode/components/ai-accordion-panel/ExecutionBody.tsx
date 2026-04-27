@@ -319,7 +319,9 @@ function IdleExecutionForm({
       {optimizedPrompt && (
         <div className="flex items-center gap-1.5 px-1">
           <Sparkles className="w-2.5 h-2.5 text-green-500" />
-          <span className="text-[10px] text-green-600 dark:text-green-400">最適化プロンプト適用済み</span>
+          <span className="text-[10px] text-green-600 dark:text-green-400">
+            最適化プロンプト適用済み
+          </span>
         </div>
       )}
 
@@ -328,7 +330,11 @@ function IdleExecutionForm({
         onClick={() => setShowDetails(!showDetails)}
         className="flex items-center gap-1 px-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
       >
-        {showDetails ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+        {showDetails ? (
+          <ChevronUp className="w-2.5 h-2.5" />
+        ) : (
+          <ChevronDown className="w-2.5 h-2.5" />
+        )}
         詳細設定
       </button>
 
@@ -338,7 +344,9 @@ function IdleExecutionForm({
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
               ブランチ名
-              <span className="text-zinc-400 dark:text-zinc-500">（空欄で自動生成）</span>
+              <span className="text-zinc-400 dark:text-zinc-500">
+                （空欄で自動生成）
+              </span>
             </label>
             <input
               type="text"

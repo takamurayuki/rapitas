@@ -1,6 +1,6 @@
 'use client';
 
-import { Task, Label, Resource, Comment } from '@/types';
+import { type Task, type Label, type Resource, type Comment } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import {

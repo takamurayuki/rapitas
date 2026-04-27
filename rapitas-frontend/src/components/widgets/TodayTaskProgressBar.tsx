@@ -139,23 +139,14 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                   <Trophy size={14} className="text-amber-500" />
                 </motion.div>
               )}
-              <p className="font-mono text-xs font-black tracking-tight text-slate-800 dark:text-slate-100">
+              <p className="text-xs font-medium text-slate-800 dark:text-slate-100">
                 {t('todayTask')}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="font-mono text-xs text-slate-500 dark:text-slate-600">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-600">
                 ({completedCount}/{totalCount})
               </p>
-              {/* <p
-                className={`font-mono text-sm font-bold ${
-                  efficiency === 100
-                    ? 'text-amber-500 dark:text-amber-400'
-                    : 'text-slate-700 dark:text-slate-200'
-                }`}
-              >
-                {efficiency}%
-              </p> */}
             </div>
           </div>
 

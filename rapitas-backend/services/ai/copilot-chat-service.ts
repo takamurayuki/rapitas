@@ -15,7 +15,11 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { getLocalLLMStatus } from '../local-llm';
-import { getCachedResponse, setCachedResponse, generateCacheKey } from '../local-llm/response-cache';
+import {
+  getCachedResponse,
+  setCachedResponse,
+  generateCacheKey,
+} from '../local-llm/response-cache';
 import { sendAIMessage, sendAIMessageStream } from '../../utils/ai-client';
 import type { AIMessage } from '../../utils/ai-client';
 
@@ -53,9 +57,7 @@ async function buildTaskContext(taskId: number): Promise<string> {
   if (task.theme) parts.push(`テーマ: ${task.theme.name}`);
 
   if (task.subtasks.length > 0) {
-    parts.push(
-      `\nサブタスク: ${task.subtasks.map((s) => `[${s.status}] ${s.title}`).join(', ')}`,
-    );
+    parts.push(`\nサブタスク: ${task.subtasks.map((s) => `[${s.status}] ${s.title}`).join(', ')}`);
   }
 
   if (task.incomingDependencies.length > 0) {
@@ -134,9 +136,7 @@ export interface CopilotChatResult {
  * Send a copilot chat message with cost-optimized routing.
  * Checks cache → local LLM → API in order of cost.
  */
-export async function sendCopilotMessage(
-  options: CopilotChatOptions,
-): Promise<CopilotChatResult> {
+export async function sendCopilotMessage(options: CopilotChatOptions): Promise<CopilotChatResult> {
   const { message, taskId, conversationHistory = [] } = options;
 
   // Build context
@@ -168,10 +168,7 @@ export async function sendCopilotMessage(
     (localStatus as { available: boolean }).available,
   );
 
-  log.info(
-    { provider, model, tier, messageLength: message.length },
-    'Copilot routing',
-  );
+  log.info({ provider, model, tier, messageLength: message.length }, 'Copilot routing');
 
   // 3. Build messages
   const messages: AIMessage[] = [

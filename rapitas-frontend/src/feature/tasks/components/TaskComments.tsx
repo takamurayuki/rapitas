@@ -1,4 +1,4 @@
-import { Comment } from '@/types';
+import { type Comment } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';

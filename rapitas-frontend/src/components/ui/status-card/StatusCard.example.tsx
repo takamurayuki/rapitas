@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { StatusCard, AgentStatusType } from './index';
+import { StatusCard, type AgentStatusType } from './index';
 import { Bot, Zap } from 'lucide-react';
 import { createLogger } from '@/lib/logger';
 const logger = createLogger('StatusCardExample');

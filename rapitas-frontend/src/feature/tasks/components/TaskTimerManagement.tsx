@@ -1,5 +1,5 @@
 'use client';
-import { TimeEntry } from '@/types';
+import { type TimeEntry } from '@/types';
 import { useState, useEffect, useRef } from 'react';
 
 interface TaskTimeTrackingProps {

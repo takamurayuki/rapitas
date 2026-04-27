@@ -65,9 +65,9 @@ describe('Auto Task Generator', () => {
     mockTask.findMany.mockReset().mockReturnValue(Promise.resolve([]));
     mockTask.create.mockReset().mockReturnValue(Promise.resolve({ id: 1 }));
     mockTheme.findMany.mockReset().mockReturnValue(Promise.resolve([]));
-    mockCreate.mockReset().mockReturnValue(
-      Promise.resolve({ content: [{ type: 'text', text: '[]' }] }),
-    );
+    mockCreate
+      .mockReset()
+      .mockReturnValue(Promise.resolve({ content: [{ type: 'text', text: '[]' }] }));
   });
 
   describe('閾値チェック', () => {
@@ -85,7 +85,12 @@ describe('Auto Task Generator', () => {
       mockTask.count.mockReturnValue(Promise.resolve(3));
       mockCreate.mockReturnValue(
         Promise.resolve({
-          content: [{ type: 'text', text: '[{"title":"test","description":"desc","priority":"medium","reasoning":"reason"}]' }],
+          content: [
+            {
+              type: 'text',
+              text: '[{"title":"test","description":"desc","priority":"medium","reasoning":"reason"}]',
+            },
+          ],
         }),
       );
 
@@ -99,7 +104,12 @@ describe('Auto Task Generator', () => {
       mockTask.count.mockReturnValue(Promise.resolve(15));
       mockCreate.mockReturnValue(
         Promise.resolve({
-          content: [{ type: 'text', text: '[{"title":"task1","description":"desc","priority":"high","reasoning":"reason"}]' }],
+          content: [
+            {
+              type: 'text',
+              text: '[{"title":"task1","description":"desc","priority":"high","reasoning":"reason"}]',
+            },
+          ],
         }),
       );
 
@@ -116,7 +126,12 @@ describe('Auto Task Generator', () => {
       mockTask.count.mockReturnValue(Promise.resolve(20));
       mockCreate.mockReturnValue(
         Promise.resolve({
-          content: [{ type: 'text', text: '[{"title":"t","description":"d","priority":"medium","reasoning":"r"}]' }],
+          content: [
+            {
+              type: 'text',
+              text: '[{"title":"t","description":"d","priority":"medium","reasoning":"r"}]',
+            },
+          ],
         }),
       );
 
@@ -129,9 +144,7 @@ describe('Auto Task Generator', () => {
 
     test('空のレスポンスを正しくハンドル', async () => {
       mockTask.count.mockReturnValue(Promise.resolve(20));
-      mockCreate.mockReturnValue(
-        Promise.resolve({ content: [{ type: 'text', text: '[]' }] }),
-      );
+      mockCreate.mockReturnValue(Promise.resolve({ content: [{ type: 'text', text: '[]' }] }));
 
       const result = await autoGenerateTasks({});
 

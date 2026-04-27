@@ -92,6 +92,19 @@ export function buildFullInstruction(params: {
     fullInstruction += `すべてのファイル操作は上記ディレクトリ内で行ってください。\n`;
   }
 
+  // NOTE: Instruct the agent to emit [IDEA] markers in its output whenever
+  // it notices an improvement opportunity. These are detected by the log
+  // processor and submitted to the IdeaBox in real-time.
+  fullInstruction += `\n\n## アイデア記録ルール
+実装中に以下のような気づきがあれば、ログに [IDEA] マーカー付きで出力してください:
+- 設計上の問題や改善すべき点
+- パフォーマンスのボトルネック
+- ユーザー体験を損なう問題
+- 未対処のエッジケースやバグ
+形式: [IDEA] 具体的な改善内容（1行）
+例: [IDEA] GET /tasks のN+1クエリを解消すればレスポンスが50%改善する
+※ 実装作業を中断する必要はありません。気づいた時点でマーカーを出力してください。\n`;
+
   if (attachments && attachments.length > 0) {
     const attachmentInfo = attachments
       .map((a) => {

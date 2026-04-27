@@ -17,7 +17,7 @@ import type {
   ApiKeyStatus,
 } from '@/types';
 import {
-  Bot,
+  type Bot,
   Terminal,
   Zap,
   Activity,

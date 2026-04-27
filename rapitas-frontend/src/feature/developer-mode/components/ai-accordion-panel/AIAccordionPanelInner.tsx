@@ -187,7 +187,6 @@ export function AIAccordionPanelInner({
       role="region"
       aria-label="AI エージェント実行パネル"
     >
-
       {showAgentPanel && (
         <ExecutionSection
           isExpanded={expandedSection === 'execution'}

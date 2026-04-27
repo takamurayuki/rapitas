@@ -77,9 +77,22 @@ describe('IdeaBox Service', () => {
 
   describe('listIdeas', () => {
     test('ページネーション付きでアイデアを取得', async () => {
-      mockKnowledgeEntry.findMany.mockReturnValue(Promise.resolve([
-        { id: 1, title: 'idea1', content: 'c', category: 'improvement', tags: '[]', confidence: 0.7, themeId: null, taskId: null, sourceId: 'user', createdAt: new Date() },
-      ]));
+      mockKnowledgeEntry.findMany.mockReturnValue(
+        Promise.resolve([
+          {
+            id: 1,
+            title: 'idea1',
+            content: 'c',
+            category: 'improvement',
+            tags: '[]',
+            confidence: 0.7,
+            themeId: null,
+            taskId: null,
+            sourceId: 'user',
+            createdAt: new Date(),
+          },
+        ]),
+      );
       mockKnowledgeEntry.count.mockReturnValue(Promise.resolve(1));
 
       const result = await listIdeas({ limit: 10, offset: 0 });
@@ -113,10 +126,12 @@ describe('IdeaBox Service', () => {
       mockKnowledgeEntry.count
         .mockReturnValueOnce(Promise.resolve(10))
         .mockReturnValueOnce(Promise.resolve(7));
-      mockKnowledgeEntry.groupBy.mockReturnValue(Promise.resolve([
-        { category: 'improvement', _count: { id: 5 } },
-        { category: 'bug_noticed', _count: { id: 3 } },
-      ]));
+      mockKnowledgeEntry.groupBy.mockReturnValue(
+        Promise.resolve([
+          { category: 'improvement', _count: { id: 5 } },
+          { category: 'bug_noticed', _count: { id: 3 } },
+        ]),
+      );
 
       const stats = await getIdeaStats();
 

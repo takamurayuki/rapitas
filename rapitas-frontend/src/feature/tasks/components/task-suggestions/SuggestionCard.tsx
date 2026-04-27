@@ -139,7 +139,7 @@ export function SuggestionCard({
               e.stopPropagation();
               onApply();
             }}
-            className="p-1 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded transition-all duration-200 hover:scale-110"
+            className="p-1 bg-linear-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded transition-all duration-200 hover:scale-110"
             title="作成"
           >
             <PlusCircle className="w-3 h-3" />

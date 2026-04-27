@@ -6,11 +6,9 @@
  */
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../config/logger';
-import {
-  listIdeas,
-  submitIdea,
-  getIdeaStats,
-} from '../../services/memory/idea-box-service';
+import { prisma } from '../../config/database';
+import { listIdeas, submitIdea, getIdeaStats } from '../../services/memory/idea-box-service';
+import { runInnovationSession } from '../../services/memory/innovation-session';
 
 const log = createLogger('routes:idea-box');
 
@@ -22,16 +20,18 @@ export const ideaBoxRoutes = new Elysia()
     async ({ query }) => {
       const categoryId = query.categoryId ? parseInt(query.categoryId) : undefined;
       const unusedOnly = query.unusedOnly === 'true';
+      const scope = query.scope as 'global' | 'project' | undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
 
-      const result = await listIdeas({ categoryId, unusedOnly, limit, offset });
+      const result = await listIdeas({ categoryId, unusedOnly, scope, limit, offset });
       return result;
     },
     {
       query: t.Object({
         categoryId: t.Optional(t.String()),
         unusedOnly: t.Optional(t.String()),
+        scope: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),
       }),
@@ -52,6 +52,7 @@ export const ideaBoxRoutes = new Elysia()
           title: body.title.trim(),
           content: body.content.trim(),
           category: body.category ?? 'improvement',
+          scope: (body.scope as 'global' | 'project') ?? 'global',
           themeId: body.themeId ?? undefined,
           tags: body.tags ?? [],
           source: 'user',
@@ -69,6 +70,7 @@ export const ideaBoxRoutes = new Elysia()
         title: t.String({ minLength: 1 }),
         content: t.String({ minLength: 1 }),
         category: t.Optional(t.String()),
+        scope: t.Optional(t.String()),
         themeId: t.Optional(t.Number()),
         tags: t.Optional(t.Array(t.String())),
       }),
@@ -87,4 +89,32 @@ export const ideaBoxRoutes = new Elysia()
         categoryId: t.Optional(t.String()),
       }),
     },
-  );
+  )
+
+  /** Manually trigger an innovation session. */
+  .post('/idea-box/innovate', async () => {
+    try {
+      const count = await runInnovationSession();
+      return { success: true, ideasGenerated: count };
+    } catch (err) {
+      log.error({ err }, 'Innovation session failed');
+      return { success: false, error: 'イノベーションセッションに失敗しました' };
+    }
+  })
+
+  /** Delete an idea by ID. */
+  .delete('/idea-box/:id', async ({ params, set }) => {
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      set.status = 400;
+      return { error: 'Invalid ID' };
+    }
+    try {
+      await prisma.knowledgeEntry.delete({ where: { id } });
+      return { success: true };
+    } catch (err) {
+      log.error({ err, id }, 'Failed to delete idea');
+      set.status = 404;
+      return { error: 'アイデアが見つかりません' };
+    }
+  });

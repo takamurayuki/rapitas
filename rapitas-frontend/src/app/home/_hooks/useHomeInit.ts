@@ -40,7 +40,7 @@ export function useHomeInit({
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // NOTE: Empty dep array is intentional — runs only once on mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (hasInitialized) return;
 

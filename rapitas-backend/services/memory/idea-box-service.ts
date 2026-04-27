@@ -11,14 +11,36 @@ import { createContentHash } from './utils';
 
 const log = createLogger('memory:idea-box');
 
-/** Minimum confidence threshold for ideas to be included in auto-generation context. */
-const MIN_CONFIDENCE_FOR_CONTEXT = 0.3;
+/**
+ * Minimum combined confidence (actionability*0.6 + specificity*0.4) for
+ * ideas to be included in auto-generation context. Enriched ideas with
+ * low actionability or specificity fall below this threshold.
+ */
+const MIN_CONFIDENCE_FOR_CONTEXT = 0.4;
+
+/** Ideas older than this are excluded from auto-generation context. */
+const MAX_IDEA_AGE_DAYS = 90;
+
+/**
+ * Resolve themeIds belonging to a category.
+ * KnowledgeEntry has themeId (Int) but no theme relation, so we query Theme first.
+ */
+async function getThemeIdsForCategory(categoryId: number): Promise<number[]> {
+  const themes = await prisma.theme.findMany({
+    where: { categoryId },
+    select: { id: true },
+  });
+  return themes.map((t) => t.id);
+}
+
+export type IdeaScope = 'global' | 'project';
 
 export interface IdeaBoxEntry {
   id: number;
   title: string;
   content: string;
   category: string;
+  scope: IdeaScope;
   tags: string[];
   confidence: number;
   themeId: number | null;
@@ -32,6 +54,8 @@ export interface SubmitIdeaInput {
   title: string;
   content: string;
   category?: string;
+  /** "global" for cross-project ideas, "project" for project-specific */
+  scope?: IdeaScope;
   themeId?: number;
   taskId?: number;
   tags?: string[];
@@ -60,6 +84,9 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     return existing.id;
   }
 
+  const scope = input.scope ?? (input.themeId ? 'project' : 'global');
+  const allTags = [...(input.tags ?? []), `scope:${scope}`];
+
   const entry = await prisma.knowledgeEntry.create({
     data: {
       sourceType: 'idea_box',
@@ -68,7 +95,7 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
       content: input.content,
       contentHash: hash,
       category: input.category ?? 'improvement',
-      tags: JSON.stringify(input.tags ?? []),
+      tags: JSON.stringify(allTags),
       confidence: input.confidence ?? 0.7,
       themeId: input.themeId ?? null,
       taskId: input.taskId ?? null,
@@ -79,6 +106,16 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   });
 
   log.info({ id: entry.id, title: input.title }, 'Idea submitted');
+
+  // Pipeline: enrich (Ollama) → review (Haiku) asynchronously
+  import('./idea-extractor')
+    .then(({ enrichIdea }) =>
+      enrichIdea(entry.id, input.title, input.content).then(() =>
+        import('./idea-extractor').then(({ reviewIdea }) => reviewIdea(entry.id)),
+      ),
+    )
+    .catch(() => {});
+
   return entry.id;
 }
 
@@ -91,12 +128,13 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
 export async function listIdeas(options: {
   categoryId?: number;
   unusedOnly?: boolean;
+  scope?: IdeaScope;
   limit?: number;
   offset?: number;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
-  const { categoryId, unusedOnly = false, limit = 20, offset = 0 } = options;
+  const { categoryId, unusedOnly = false, scope, limit = 20, offset = 0 } = options;
 
-  const where = buildWhereClause(categoryId, unusedOnly);
+  const where = await buildWhereClause(categoryId, unusedOnly, scope);
 
   const [entries, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
@@ -123,12 +161,19 @@ export async function getUnusedIdeasForContext(
   categoryId: number | null,
   limit = 10,
 ): Promise<IdeaBoxEntry[]> {
+  const themeFilter = categoryId
+    ? { themeId: { in: await getThemeIdsForCategory(categoryId) } }
+    : {};
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - MAX_IDEA_AGE_DAYS);
+
   const where = {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
     confidence: { gte: MIN_CONFIDENCE_FOR_CONTEXT },
+    createdAt: { gte: cutoffDate },
     NOT: { sourceId: { startsWith: 'used_task_' } },
-    ...(categoryId ? { theme: { categoryId } } : {}),
+    ...themeFilter,
   };
 
   const entries = await prisma.knowledgeEntry.findMany({
@@ -165,10 +210,13 @@ export async function getIdeaStats(categoryId?: number): Promise<{
   unused: number;
   byCategory: Array<{ category: string; count: number }>;
 }> {
+  const themeFilter = categoryId
+    ? { themeId: { in: await getThemeIdsForCategory(categoryId) } }
+    : {};
   const baseWhere = {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
-    ...(categoryId ? { theme: { categoryId } } : {}),
+    ...themeFilter,
   };
 
   const [total, unused, grouped] = await Promise.all([
@@ -191,12 +239,16 @@ export async function getIdeaStats(categoryId?: number): Promise<{
 }
 
 /** Build Prisma where clause for idea queries. */
-function buildWhereClause(categoryId?: number, unusedOnly?: boolean) {
+async function buildWhereClause(categoryId?: number, unusedOnly?: boolean, scope?: IdeaScope) {
+  const themeFilter = categoryId
+    ? { themeId: { in: await getThemeIdsForCategory(categoryId) } }
+    : {};
   return {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
     ...(unusedOnly ? { NOT: { sourceId: { startsWith: 'used_task_' } } } : {}),
-    ...(categoryId ? { theme: { categoryId } } : {}),
+    ...(scope ? { tags: { contains: `scope:${scope}` } } : {}),
+    ...themeFilter,
   };
 }
 
@@ -214,12 +266,16 @@ function toIdeaBoxEntry(entry: {
   createdAt: Date;
 }): IdeaBoxEntry {
   const usedMatch = entry.sourceId?.match(/^used_task_(\d+)$/);
+  const parsedTags = JSON.parse(entry.tags || '[]') as string[];
+  const scopeTag = parsedTags.find((t) => t.startsWith('scope:'));
+  const scope: IdeaScope = scopeTag === 'scope:project' ? 'project' : 'global';
   return {
     id: entry.id,
     title: entry.title,
     content: entry.content,
     category: entry.category,
-    tags: JSON.parse(entry.tags || '[]') as string[],
+    scope,
+    tags: parsedTags.filter((t) => !t.startsWith('scope:')),
     confidence: entry.confidence,
     themeId: entry.themeId,
     taskId: entry.taskId,

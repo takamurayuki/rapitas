@@ -10,7 +10,11 @@ export interface CopilotMessage {
   model?: string;
   tier?: string;
   cached?: boolean;
-  actions?: Array<{ type: string; label: string; params?: Record<string, unknown> }>;
+  actions?: Array<{
+    type: string;
+    label: string;
+    params?: Record<string, unknown>;
+  }>;
   /** Structured data from action results (analysis, execution status, etc.). */
   actionData?: {
     type: string;
@@ -127,7 +131,7 @@ export function useCopilotChat(taskId?: number) {
           );
         }
 
-        const result = await res.json() as {
+        const result = (await res.json()) as {
           success: boolean;
           action: string;
           data: unknown;
@@ -145,8 +149,13 @@ export function useCopilotChat(taskId?: number) {
 
         // Add action buttons based on the result
         if (result.action === 'analyze' && result.success && result.data) {
-          const analysisData = result.data as { suggestedSubtasks?: Array<{ title: string; description?: string }> };
-          if (analysisData.suggestedSubtasks && analysisData.suggestedSubtasks.length > 0) {
+          const analysisData = result.data as {
+            suggestedSubtasks?: Array<{ title: string; description?: string }>;
+          };
+          if (
+            analysisData.suggestedSubtasks &&
+            analysisData.suggestedSubtasks.length > 0
+          ) {
             resultMsg.actions = [
               {
                 type: 'create_subtasks',
@@ -166,7 +175,9 @@ export function useCopilotChat(taskId?: number) {
           prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)),
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'アクション実行に失敗しました');
+        setError(
+          err instanceof Error ? err.message : 'アクション実行に失敗しました',
+        );
         // Remove the pending message on error
         setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
       } finally {

@@ -18,7 +18,7 @@ import {
   Clock,
 } from 'lucide-react';
 import {
-  ErrorAnalysis,
+  type ErrorAnalysis,
   ErrorCategory,
   ErrorSeverity,
 } from '../../services/error-analysis-service';

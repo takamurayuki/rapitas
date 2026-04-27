@@ -4,12 +4,12 @@
 
 import { useState, useCallback } from 'react';
 import {
-  LogType,
-  LogAnalysisResult,
-  AnalyzeOptions,
-  AnalyzeLogRequest,
-  AnalyzeLogResponse,
-  ParsedLogEntry,
+  type LogType,
+  type LogAnalysisResult,
+  type AnalyzeOptions,
+  type AnalyzeLogRequest,
+  type AnalyzeLogResponse,
+  type ParsedLogEntry,
 } from '@/types/debug-log';
 import { createLogger } from '@/lib/logger';
 import { API_BASE_URL } from '@/utils/api';

@@ -43,7 +43,10 @@ export function useIdeaBox(categoryId: number | null) {
 
       const res = await fetch(`${API_BASE_URL}/idea-box?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { ideas: IdeaBoxEntry[]; total: number };
+      const data = (await res.json()) as {
+        ideas: IdeaBoxEntry[];
+        total: number;
+      };
       setIdeas(data.ideas);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'アイデアの取得に失敗');
@@ -64,29 +67,44 @@ export function useIdeaBox(categoryId: number | null) {
     }
   }, [categoryId]);
 
-  const submitIdea = useCallback(async (title: string, content: string, category?: string) => {
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/idea-box`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, category: category ?? 'improvement' }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await fetchIdeas();
-      await fetchStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'アイデアの投稿に失敗');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [fetchIdeas, fetchStats]);
+  const submitIdea = useCallback(
+    async (title: string, content: string, category?: string) => {
+      setIsSubmitting(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/idea-box`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            content,
+            category: category ?? 'improvement',
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await fetchIdeas();
+        await fetchStats();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'アイデアの投稿に失敗');
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [fetchIdeas, fetchStats],
+  );
 
   useEffect(() => {
     fetchIdeas();
     fetchStats();
   }, [fetchIdeas, fetchStats]);
 
-  return { ideas, stats, isLoading, isSubmitting, error, submitIdea, refresh: fetchIdeas };
+  return {
+    ideas,
+    stats,
+    isLoading,
+    isSubmitting,
+    error,
+    submitIdea,
+    refresh: fetchIdeas,
+  };
 }

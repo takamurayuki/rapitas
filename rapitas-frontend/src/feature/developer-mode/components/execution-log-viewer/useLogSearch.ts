@@ -8,7 +8,8 @@
  * 300-line file-size guideline.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type React from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 type UseLogSearchOptions = {
   logs: string[];

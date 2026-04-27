@@ -28,6 +28,7 @@ import { HomeToolbar } from './HomeToolbar';
 import { HomeQuickAdd } from './HomeQuickAdd';
 import { HomeFilterPanel } from './HomeFilterPanel';
 import { HomeTaskList } from './HomeTaskList';
+import { DailyBriefingCard } from './DailyBriefingCard';
 
 function HomeClientPage() {
   const router = useRouter();
@@ -292,6 +293,8 @@ function HomeClientPage() {
             setSelectedTasks(new Set());
           }}
         />
+
+        <DailyBriefingCard categoryId={categoryFilter} />
 
         <HomeQuickAdd
           isQuickAdding={isQuickAdding}

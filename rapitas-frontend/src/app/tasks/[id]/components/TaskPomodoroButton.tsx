@@ -1,7 +1,7 @@
 import React from 'react';
 import { Timer, Coffee, Pause, Hourglass } from 'lucide-react';
 import {
-  usePomodoro,
+  type usePomodoro,
   formatTime,
   getRemainingTime,
 } from '@/feature/tasks/pomodoro/PomodoroProvider';

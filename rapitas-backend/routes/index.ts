@@ -42,6 +42,7 @@ export { aiChatRoutes } from './ai/ai-chat';
 export { copilotChatRoutes } from './ai/copilot-chat';
 export { promptsRoutes } from './ai/prompts';
 export { systemPromptsRoutes } from './ai/system-prompts';
+export { dailyBriefingRoutes } from './ai/daily-briefing';
 
 // Scheduling
 export { schedulesRoutes } from './scheduling/schedules';

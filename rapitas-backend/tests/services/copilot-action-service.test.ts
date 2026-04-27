@@ -54,13 +54,17 @@ describe('Copilot Action Service', () => {
   beforeEach(() => {
     mockTask.findUnique.mockReset().mockReturnValue(
       Promise.resolve({
-        id: 1, title: 'テストタスク', description: 'desc',
-        priority: 'medium', dueDate: null, estimatedHours: null,
+        id: 1,
+        title: 'テストタスク',
+        description: 'desc',
+        priority: 'medium',
+        dueDate: null,
+        estimatedHours: null,
       }),
     );
-    mockTask.update.mockReset().mockReturnValue(
-      Promise.resolve({ id: 1, title: 'テストタスク', status: 'in_progress' }),
-    );
+    mockTask.update
+      .mockReset()
+      .mockReturnValue(Promise.resolve({ id: 1, title: 'テストタスク', status: 'in_progress' }));
   });
 
   test('analyze: タスク分析を実行', async () => {

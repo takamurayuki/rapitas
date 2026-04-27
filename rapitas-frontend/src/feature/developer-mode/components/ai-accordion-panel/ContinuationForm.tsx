@@ -29,7 +29,10 @@ export function ContinuationForm({
         type="text"
         value={continueInstruction}
         onChange={(e) => onSetContinueInstruction(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter' && continueInstruction.trim()) onContinueExecution(); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && continueInstruction.trim())
+            onContinueExecution();
+        }}
         placeholder="継続指示を入力..."
         className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
         aria-label="継続実行の内容"
@@ -40,7 +43,11 @@ export function ContinuationForm({
         className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-medium rounded transition-colors disabled:opacity-50 shrink-0"
         aria-label="継続実行"
       >
-        {isExecuting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+        {isExecuting ? (
+          <Loader2 className="w-3 h-3 animate-spin" />
+        ) : (
+          <Play className="w-3 h-3" />
+        )}
         実行
       </button>
     </div>

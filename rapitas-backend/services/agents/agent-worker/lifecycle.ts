@@ -184,10 +184,15 @@ async function restartWorker(state: WorkerState): Promise<void> {
  *
  * @param state - Mutable worker state object / ワーカー状態オブジェクト
  */
+/** Number of consecutive health check failures before triggering crash recovery. */
+const HEALTH_CHECK_FAILURE_THRESHOLD = 3;
+
 export function startHealthCheck(state: WorkerState): void {
   if (state.healthCheckInterval) {
     clearInterval(state.healthCheckInterval);
   }
+
+  let consecutiveFailures = 0;
 
   state.healthCheckInterval = setInterval(async () => {
     if (state.isShuttingDown || !state.isWorkerReady) {
@@ -202,13 +207,22 @@ export function startHealthCheck(state: WorkerState): void {
         () => `req_${Date.now()}_hc`,
         'get-status',
         {},
-        5000,
+        10000,
       );
       const status = result as { activeExecutionCount: number };
       state.cachedActiveCount = status.activeExecutionCount;
+      consecutiveFailures = 0;
     } catch (error) {
-      logger.error({ err: error }, '[AgentWorkerManager] Health check failed');
-      handleWorkerCrash(state);
+      consecutiveFailures++;
+      logger.warn(
+        { consecutiveFailures, threshold: HEALTH_CHECK_FAILURE_THRESHOLD },
+        '[AgentWorkerManager] Health check failed',
+      );
+      if (consecutiveFailures >= HEALTH_CHECK_FAILURE_THRESHOLD) {
+        logger.error('[AgentWorkerManager] Health check threshold exceeded, restarting worker');
+        consecutiveFailures = 0;
+        handleWorkerCrash(state);
+      }
     }
   }, 30000);
 }

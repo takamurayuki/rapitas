@@ -9,7 +9,10 @@ import {
   streamCopilotMessage,
   getCopilotHistory,
 } from '../../services/ai/copilot-chat-service';
-import { executeCopilotAction, type CopilotActionType } from '../../services/ai/copilot-action-service';
+import {
+  executeCopilotAction,
+  type CopilotActionType,
+} from '../../services/ai/copilot-action-service';
 
 const log = createLogger('routes:copilot-chat');
 

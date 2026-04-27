@@ -43,6 +43,7 @@ import {
   BookMarked,
   Keyboard,
   GanttChart,
+  Lightbulb,
 } from 'lucide-react';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -106,6 +107,11 @@ export default function Header() {
           icon: Settings,
         },
       ],
+    },
+    {
+      href: '/ideas',
+      label: 'アイデア',
+      icon: Lightbulb,
     },
     {
       href: '/dashboard',

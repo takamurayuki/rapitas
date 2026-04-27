@@ -2,8 +2,8 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import {
-  ButtonVariant,
-  ButtonSize,
+  type ButtonVariant,
+  type ButtonSize,
   variantStyles,
   buttonSizeStyles,
   buttonIconSizeStyles,

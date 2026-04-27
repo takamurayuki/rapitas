@@ -10,7 +10,6 @@ import {
 } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { AutoExecutionMode } from './AutoExecutionMode';
-import { IdeaBoxPanel } from './IdeaBoxPanel';
 
 interface HomeToolbarProps {
   completedTasksCount: number;
@@ -70,16 +69,12 @@ export function HomeToolbar({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Auto-execution mode + IdeaBox */}
-        <AutoExecutionMode categoryId={categoryFilter} />
-        <IdeaBoxPanel categoryId={categoryFilter} />
+        {/* Auto-execution mode — hidden during bulk selection */}
+        {!isSelectionMode && <AutoExecutionMode categoryId={categoryFilter} />}
 
         {/* Bulk status change buttons — visible when items are selected */}
         {isSelectionMode && selectedTasksSize > 0 && (
           <div className="relative flex items-center gap-1 px-3 py-1 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
-            <span className="font-mono text-[10px] uppercase tracking-wider text-slate-600 dark:text-slate-400 mr-2">
-              CHANGE STATUS:
-            </span>
             {(['todo', 'in-progress', 'done'] as const).map((status, idx) => {
               const config = statusConfig[status];
               const textColorClasses =
@@ -109,7 +104,7 @@ export function HomeToolbar({
                     <span className="w-3.5 h-3.5">
                       {renderStatusIcon(status)}
                     </span>
-                    <span className="font-mono text-xs font-black tracking-tight">
+                    <span className="text-sm font-medium">
                       {config.label}
                     </span>
                   </button>
@@ -146,7 +141,7 @@ export function HomeToolbar({
                       d="M12 4v16m8-8H4"
                     />
                   </svg>
-                  <span className="font-mono text-xs font-black tracking-tight">
+                  <span className="text-sm font-medium">
                     {t('quickAdd')}
                   </span>
                 </button>
@@ -176,7 +171,7 @@ export function HomeToolbar({
                       d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <span className="font-mono text-xs font-black tracking-tight">
+                  <span className="text-sm font-medium">
                     {t('newTask')}
                   </span>
                 </button>
@@ -215,7 +210,7 @@ export function HomeToolbar({
                       />
                     )}
                   </svg>
-                  <span className="font-mono text-xs font-black tracking-tight">
+                  <span className="text-sm font-medium">
                     {allSelected ? t('deselectAll') : t('selectAll')}
                   </span>
                 </button>
@@ -241,7 +236,7 @@ export function HomeToolbar({
                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                       />
                     </svg>
-                    <span className="font-mono text-xs font-black tracking-tight">
+                    <span className="text-sm font-medium">
                       {tc('delete')}
                     </span>
                   </button>
@@ -274,7 +269,7 @@ export function HomeToolbar({
                   d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
                 />
               </svg>
-              <span className="font-mono text-xs font-black tracking-tight">
+              <span className="text-sm font-medium">
                 {isSelectionMode
                   ? t('selecting', { count: selectedTasksSize })
                   : t('bulk')}

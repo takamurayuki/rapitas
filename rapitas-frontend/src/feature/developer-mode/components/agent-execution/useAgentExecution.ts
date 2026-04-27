@@ -140,7 +140,6 @@ export function useAgentExecution(
       };
     }
     return { hasQuestion: false, question: '', questionType: 'none' };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pollingWaitingForInput,
     pollingQuestion,

@@ -124,7 +124,7 @@ export function formatShortcutDisplay(binding: ShortcutBinding): string {
  * @returns Normalized key string or null / 正規化されたキー文字列またはnull
  */
 export function resolveKeyFromEvent(e: KeyboardEvent): string | null {
-  let key = e.key.toUpperCase();
+  const key = e.key.toUpperCase();
   if (key === '/') return '/';
   if (key.length === 1 && /[A-Z0-9]/.test(key)) return key;
   if (e.code.startsWith('Key')) return e.code.replace('Key', '');
