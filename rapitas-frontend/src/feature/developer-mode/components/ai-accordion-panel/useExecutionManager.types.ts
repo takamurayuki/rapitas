@@ -95,6 +95,11 @@ export type UseExecutionManagerResult = {
   hasQuestion: boolean;
   question: string;
   questionType: string;
+  questionDetails?: {
+    options?: Array<{ label: string; description?: string }>;
+    headers?: string[];
+    multiSelect?: boolean;
+  } | null;
   pollingSessionMode: string | null | undefined;
   isSseConnected: boolean;
   // Handlers

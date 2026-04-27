@@ -210,9 +210,25 @@ export class WorkflowOrchestrator {
 
     const agentConfig = roleConfig.agentConfig;
     const isCLI = CLI_AGENT_TYPES.has(agentConfig.agentType);
-    // Override with role-specific model ID if available
-    const effectiveModelId =
-      (roleConfig as { modelId?: string | null }).modelId || agentConfig.modelId;
+    // Model resolution: role override → agent default → smart auto-select
+    const roleModelId = (roleConfig as { modelId?: string | null }).modelId;
+    let effectiveModelId = roleModelId || agentConfig.modelId;
+
+    // Auto-select: when modelId is 'auto' or unset, use Smart Model Router
+    if (!effectiveModelId || effectiveModelId === 'auto') {
+      try {
+        const { getSmartRoute } = await import('../ai/smart-model-router');
+        const route = await getSmartRoute(taskId);
+        effectiveModelId = route.recommendedModel;
+        log.info(
+          { taskId, role: transition.role, model: effectiveModelId, tier: route.recommendedTier },
+          'Auto-selected model via Smart Router',
+        );
+      } catch {
+        effectiveModelId = 'claude-haiku-4-5-20251001';
+        log.warn({ taskId }, 'Smart Router failed, falling back to Haiku');
+      }
+    }
 
     if (currentStatus === 'draft') {
       await prisma.task.update({

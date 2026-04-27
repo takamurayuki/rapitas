@@ -11,6 +11,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { updateSessionStatusWithRetry, createCodeReviewApproval } from './session-helpers';
+import { reviewAndCommitWorktree } from './post-execution-review';
 
 const log = createLogger('routes:agent-execution:post-handler');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -47,11 +48,11 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     params;
 
   if (result.waitingForInput) {
-    log.info(`[API] Task ${taskIdNum} is waiting for user input, keeping status as 'in_progress'`);
+    log.info(`[API] Task ${taskIdNum} is waiting for user input, setting status to 'blocked'`);
     await prisma.task
       .update({
         where: { id: taskIdNum },
-        data: { status: 'in_progress' },
+        data: { status: 'blocked' },
       })
       .catch((e: unknown) => {
         log.error({ err: e }, `[API] Failed to update task ${taskIdNum} status to in_progress`);
@@ -69,39 +70,14 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
   }
 
   if (result.success) {
-    try {
-      const currentTask = await prisma.task.findUnique({ where: { id: taskIdNum } });
-      const wfStatus = currentTask?.workflowStatus;
-      const inProgressStatuses = ['plan_created', 'research_done', 'verify_done'];
-      const doneStatuses = ['in_progress', 'plan_approved', 'completed'];
-
-      if (wfStatus && inProgressStatuses.includes(wfStatus)) {
-        await prisma.task
-          .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
-          .catch((e: unknown) =>
-            log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in-progress`),
-          );
-        log.info(`[API] Task ${taskIdNum} kept as in-progress (workflow: ${wfStatus})`);
-      } else if (wfStatus && doneStatuses.includes(wfStatus)) {
-        await prisma.task
-          .update({ where: { id: taskIdNum }, data: { status: 'done', completedAt: new Date() } })
-          .catch((e: unknown) =>
-            log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to done`),
-          );
-        log.info(`[API] Updated task ${taskIdNum} status to 'done' (workflow: ${wfStatus})`);
-      } else if (!wfStatus || wfStatus === 'draft') {
-        await prisma.task
-          .update({ where: { id: taskIdNum }, data: { status: 'done', completedAt: new Date() } })
-          .catch((e: unknown) =>
-            log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to done`),
-          );
-        log.info(`[API] Updated task ${taskIdNum} status to 'done'`);
-      } else {
-        log.info(`[API] Task ${taskIdNum} kept as in-progress (unknown workflow: ${wfStatus})`);
-      }
-    } catch (taskError) {
-      log.error({ err: taskError }, `[API] Failed to fetch or update task ${taskIdNum}`);
-    }
+    // NOTE: Keep task as in_progress until the full pipeline
+    // (AI review → commit → PR → cleanup) completes. Only then mark as done.
+    await prisma.task
+      .update({ where: { id: taskIdNum }, data: { status: 'in_progress' } })
+      .catch((e: unknown) =>
+        log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+      );
+    log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
 
     await updateSessionStatusWithRetry(sessionId, 'completed', '[API]', 3);
 
@@ -117,17 +93,18 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       logPrefix: '[API]',
     });
 
-    // NOTE: Clean up worktree after successful execution (branch is pushed to remote)
-    try {
-      await agentWorkerManager.removeWorktree(workDir, executionDir);
-      await prisma.agentSession.update({
-        where: { id: sessionId },
-        data: { worktreePath: null },
-      });
-      log.info(`[API] Cleaned up worktree for task ${taskIdNum}`);
-    } catch (cleanupErr) {
-      log.warn({ err: cleanupErr }, `[API] Worktree cleanup failed for task ${taskIdNum}`);
-    }
+    // Pipeline: AI review → commit → PR → cleanup → mark task done
+    reviewAndCommitWorktree({
+      taskId: taskIdNum,
+      taskTitle,
+      sessionId,
+      workDir,
+      executionDir,
+      branchName,
+      executionOutput: result.output,
+    }).catch((err) => {
+      log.warn({ err, taskId: taskIdNum }, '[API] Post-execution review pipeline failed');
+    });
   } else {
     log.error(
       { errorMessage: result.errorMessage },

@@ -8,14 +8,6 @@
     "typeRoots": ["./node_modules/@types", "./@types"],
     "types": []
   },
-  "exclude": [
-    "node_modules/**/*",
-    "**/*.d.ts",
-    "global.d.ts",
-    "tests/**/*"
-  ],
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ]
+  "exclude": ["node_modules/**/*", "**/*.d.ts", "global.d.ts", "tests/**/*"],
+  "include": ["**/*.ts", "**/*.tsx"]
 }

@@ -208,6 +208,7 @@ export function AIAccordionPanelInner({
           pollingSessionMode={exec.pollingSessionMode}
           hasQuestion={exec.hasQuestion}
           question={exec.question}
+          questionDetails={exec.questionDetails}
           userResponse={exec.userResponse}
           isSendingResponse={exec.isSendingResponse}
           onSetUserResponse={exec.setUserResponse}

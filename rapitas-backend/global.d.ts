@@ -1,10 +1,5 @@
 // Global type definitions for rapitas-backend
 
-// Extend HeadersInit for WebSocket
-declare global {
-  type HeadersInit = Headers | Record<string, string> | string[][];
-}
-
 // Suppress type errors for @elysiajs/websocket
 // Note: These any types are required due to Elysia framework constraints
 declare module '@elysiajs/websocket' {

@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Loader2 } from 'lucide-react';
 import type { Task } from '@/types/task.types';
+import { useFocusTrap } from '@/hooks/common/useFocusTrap';
 
 interface TaskSelectorProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export function TaskSelector({
   title = 'タスクを選択',
   description = '選択したいタスクをクリックしてください',
 }: TaskSelectorProps) {
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
   const [searchQuery, setSearchQuery] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -129,6 +131,7 @@ export function TaskSelector({
       }}
     >
       <div
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="task-selector-title"

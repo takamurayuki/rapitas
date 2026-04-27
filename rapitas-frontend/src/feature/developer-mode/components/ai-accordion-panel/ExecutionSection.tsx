@@ -48,6 +48,11 @@ export type ExecutionSectionProps = {
   // Question UI
   hasQuestion: boolean;
   question: string;
+  questionDetails?: {
+    options?: Array<{ label: string; description?: string }>;
+    headers?: string[];
+    multiSelect?: boolean;
+  } | null;
   userResponse: string;
   isSendingResponse: boolean;
   onSetUserResponse: (v: string) => void;
@@ -106,6 +111,7 @@ export function ExecutionSection({
   pollingSessionMode,
   hasQuestion,
   question,
+  questionDetails,
   userResponse,
   isSendingResponse,
   onSetUserResponse,
@@ -326,6 +332,7 @@ export function ExecutionSection({
             pollingSessionMode={pollingSessionMode}
             hasQuestion={hasQuestion}
             question={question}
+            questionDetails={questionDetails}
             userResponse={userResponse}
             isSendingResponse={isSendingResponse}
             onSetUserResponse={onSetUserResponse}

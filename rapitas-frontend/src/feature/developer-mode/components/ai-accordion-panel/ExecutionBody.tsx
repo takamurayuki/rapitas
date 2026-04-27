@@ -39,6 +39,11 @@ export type ExecutionBodyProps = {
   // Question
   hasQuestion: boolean;
   question: string;
+  questionDetails?: {
+    options?: Array<{ label: string; description?: string }>;
+    headers?: string[];
+    multiSelect?: boolean;
+  } | null;
   userResponse: string;
   isSendingResponse: boolean;
   onSetUserResponse: (v: string) => void;
@@ -105,6 +110,7 @@ export function ExecutionBody({
   pollingSessionMode,
   hasQuestion,
   question,
+  questionDetails,
   userResponse,
   isSendingResponse,
   onSetUserResponse,
@@ -133,36 +139,14 @@ export function ExecutionBody({
     return (
       <div className="space-y-2">
         {hasQuestion && (
-          <div className="p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-            <p className="text-[10px] text-amber-800 dark:text-amber-200 font-mono mb-1.5 whitespace-pre-wrap line-clamp-3">
-              {question.length > 150 ? `${question.slice(-150)}...` : question}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={userResponse}
-                onChange={(e) => onSetUserResponse(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && onSendResponse()}
-                placeholder="回答を入力..."
-                className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded text-[10px]"
-                autoFocus
-                aria-label="エージェントへの回答"
-              />
-              <button
-                onClick={onSendResponse}
-                disabled={!userResponse.trim() || isSendingResponse}
-                className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-                aria-label="回答を送信"
-              >
-                {isSendingResponse ? (
-                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                ) : (
-                  <Send className="w-2.5 h-2.5" />
-                )}
-                送信
-              </button>
-            </div>
-          </div>
+          <AgentQuestionCard
+            question={question}
+            questionDetails={questionDetails}
+            userResponse={userResponse}
+            isSendingResponse={isSendingResponse}
+            onSetUserResponse={onSetUserResponse}
+            onSendResponse={onSendResponse}
+          />
         )}
         <div id="execution-logs">
           {hasSubtaskLogs ? (
@@ -357,6 +341,92 @@ function IdleExecutionForm({
               aria-label="ブランチ名"
             />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Agent question card — shows options as clickable buttons, with text fallback. */
+function AgentQuestionCard({
+  question,
+  questionDetails,
+  userResponse,
+  isSendingResponse,
+  onSetUserResponse,
+  onSendResponse,
+}: {
+  question: string;
+  questionDetails?: ExecutionBodyProps['questionDetails'];
+  userResponse: string;
+  isSendingResponse: boolean;
+  onSetUserResponse: (v: string) => void;
+  onSendResponse: () => Promise<void>;
+}) {
+  const options = questionDetails?.options;
+  const hasOptions = options && options.length > 0;
+
+  const handleOptionClick = (label: string) => {
+    onSetUserResponse(label);
+    // Auto-send after a tick so the state updates
+    setTimeout(() => onSendResponse(), 0);
+  };
+
+  return (
+    <div className="p-2.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 space-y-2">
+      <p className="text-[10px] text-amber-800 dark:text-amber-200 whitespace-pre-wrap line-clamp-4">
+        {question}
+      </p>
+
+      {/* Option buttons — shown when structured options are available */}
+      {hasOptions && (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((opt, i) => (
+            <button
+              key={i}
+              onClick={() => handleOptionClick(opt.label)}
+              disabled={isSendingResponse}
+              className="flex flex-col items-start rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-left transition-colors hover:border-amber-500 hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-50"
+            >
+              <span className="text-[11px] font-medium text-amber-900 dark:text-amber-100">
+                {opt.label}
+              </span>
+              {opt.description && (
+                <span className="text-[9px] text-amber-600 dark:text-amber-400 line-clamp-1">
+                  {opt.description}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Text input — shown only when no options or as a fallback */}
+      {!hasOptions && (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="text"
+            value={userResponse}
+            onChange={(e) => onSetUserResponse(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onSendResponse()}
+            placeholder="回答を入力..."
+            className="flex-1 px-2 py-1 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-amber-500"
+            autoFocus
+            aria-label="エージェントへの回答"
+          />
+          <button
+            onClick={onSendResponse}
+            disabled={!userResponse.trim() || isSendingResponse}
+            className="flex items-center gap-1 px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+            aria-label="回答を送信"
+          >
+            {isSendingResponse ? (
+              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+            ) : (
+              <Send className="w-2.5 h-2.5" />
+            )}
+            送信
+          </button>
         </div>
       )}
     </div>

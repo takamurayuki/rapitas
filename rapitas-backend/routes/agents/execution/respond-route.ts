@@ -115,6 +115,11 @@ export const respondRoute = new Elysia().post(
       );
 
       if (result.success) {
+        // Restore task status from blocked (waiting) back to in_progress
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'in_progress' } })
+          .catch(() => {});
+
         return {
           success: true,
           message: 'Response sent successfully',
