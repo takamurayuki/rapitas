@@ -137,10 +137,7 @@ export function HomeFilterPanel({
               />
             ))}
           </div>
-          <EnhancedSkeletonBlock
-            className="w-12 h-6 rounded shrink-0"
-            delay={500}
-          />
+          <EnhancedSkeletonBlock className="w-12 h-6 rounded shrink-0" delay={500} />
         </div>
       </div>
     );

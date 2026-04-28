@@ -56,9 +56,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
         eventSourceRef.current = es;
 
         es.addEventListener('shutdown', () => {
-          logger.info(
-            'Received shutdown event - server is intentionally restarting',
-          );
+          logger.info('Received shutdown event - server is intentionally restarting');
           setIsIntentionalRestart(true);
         });
 
@@ -100,17 +98,12 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           onReconnectRef.current?.();
 
           // Reconnect SSE after recovery
-          if (
-            !eventSourceRef.current ||
-            eventSourceRef.current.readyState === EventSource.CLOSED
-          ) {
+          if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
             try {
               const es = new EventSource(`${API_BASE_URL}/events/stream`);
               eventSourceRef.current = es;
               es.addEventListener('shutdown', () => {
-                logger.info(
-                  'Received shutdown event - server is intentionally restarting',
-                );
+                logger.info('Received shutdown event - server is intentionally restarting');
                 setIsIntentionalRestart(true);
               });
               es.onerror = () => {
@@ -154,8 +147,7 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     // Run initial check asynchronously
     const initialCheck = setTimeout(() => checkHealth(), 0);
 
-    const currentInterval =
-      status === 'disconnected' ? retryIntervalMs : intervalMs;
+    const currentInterval = status === 'disconnected' ? retryIntervalMs : intervalMs;
     const timer = setInterval(checkHealth, currentInterval);
 
     return () => {

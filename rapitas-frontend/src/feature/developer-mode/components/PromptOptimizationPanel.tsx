@@ -17,11 +17,7 @@ type Props = {
  *
  * @param props - PromptOptimizationPanel props
  */
-export function PromptOptimizationPanel({
-  taskId,
-  onPromptGenerated,
-  className = '',
-}: Props) {
+export function PromptOptimizationPanel({ taskId, onPromptGenerated, className = '' }: Props) {
   const {
     isGenerating,
     result,
@@ -52,9 +48,7 @@ export function PromptOptimizationPanel({
             <Wand2 className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              プロンプト最適化
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">プロンプト最適化</h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
               AIがタスク説明を分析し、エージェント向けに最適化されたプロンプトを生成します。
             </p>
@@ -86,9 +80,7 @@ export function PromptOptimizationPanel({
             <Loader2 className="absolute -top-1 -right-1 w-6 h-6 text-indigo-500 animate-spin" />
           </div>
           <div className="text-center">
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">
-              プロンプトを最適化中...
-            </p>
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">プロンプトを最適化中...</p>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
               AIがタスクを分析しています...
             </p>
@@ -110,9 +102,7 @@ export function PromptOptimizationPanel({
             <p className="font-medium text-red-700 dark:text-red-300">
               プロンプト生成に失敗しました
             </p>
-            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-              {error}
-            </p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</p>
           </div>
           <button
             onClick={handleRetry}
@@ -127,8 +117,7 @@ export function PromptOptimizationPanel({
 
   // ── Clarification questions ──
   const shouldShowQuestions =
-    (result?.hasQuestions ?? false) &&
-    (result?.clarificationQuestions?.length ?? 0) > 0;
+    (result?.hasQuestions ?? false) && (result?.clarificationQuestions?.length ?? 0) > 0;
 
   if (shouldShowQuestions && result) {
     return (
@@ -136,9 +125,7 @@ export function PromptOptimizationPanel({
         questions={result.clarificationQuestions}
         answers={answers}
         isSubmitting={isSubmittingAnswers}
-        onAnswerChange={(id, value) =>
-          setAnswers((prev) => ({ ...prev, [id]: value }))
-        }
+        onAnswerChange={(id, value) => setAnswers((prev) => ({ ...prev, [id]: value }))}
         onSubmit={handleSubmitAnswers}
         onCancel={() => setResult(null)}
         className={className}

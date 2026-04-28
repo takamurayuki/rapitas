@@ -117,11 +117,7 @@ export function SettingsTab({
                 onClick={onToggleShowApiKey}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400"
               >
-                {showApiKey ? (
-                  <EyeOff className="w-3 h-3" />
-                ) : (
-                  <Eye className="w-3 h-3" />
-                )}
+                {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               </button>
             </div>
             <div className="flex items-center justify-between">

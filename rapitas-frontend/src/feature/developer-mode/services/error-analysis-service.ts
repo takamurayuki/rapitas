@@ -72,11 +72,7 @@ class ErrorAnalysisService {
       pattern: /SyntaxError: Unexpected token/i,
       category: ErrorCategory.SYNTAX,
       severity: ErrorSeverity.HIGH,
-      commonCauses: [
-        'Missing semicolon',
-        'Unclosed bracket or parenthesis',
-        'Invalid JSON',
-      ],
+      commonCauses: ['Missing semicolon', 'Unclosed bracket or parenthesis', 'Invalid JSON'],
       suggestedFixes: [
         'Check for missing semicolons',
         'Verify all brackets and parentheses are properly closed',
@@ -91,10 +87,7 @@ class ErrorAnalysisService {
       pattern: /TypeError: Cannot read prop/i,
       category: ErrorCategory.RUNTIME,
       severity: ErrorSeverity.HIGH,
-      commonCauses: [
-        'Accessing property of undefined/null',
-        'Async data not loaded',
-      ],
+      commonCauses: ['Accessing property of undefined/null', 'Async data not loaded'],
       suggestedFixes: [
         'Add null/undefined checks before accessing properties',
         'Use optional chaining (?.) operator',
@@ -143,9 +136,7 @@ class ErrorAnalysisService {
         'Include credentials in fetch options if needed',
         'Use a proxy for development',
       ],
-      documentationLinks: [
-        'https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS',
-      ],
+      documentationLinks: ['https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS'],
     },
 
     // Database Errors
@@ -153,11 +144,7 @@ class ErrorAnalysisService {
       pattern: /P\d{4}|Prisma.*Error/i,
       category: ErrorCategory.DATABASE,
       severity: ErrorSeverity.HIGH,
-      commonCauses: [
-        'Database connection issues',
-        'Invalid schema',
-        'Constraint violations',
-      ],
+      commonCauses: ['Database connection issues', 'Invalid schema', 'Constraint violations'],
       suggestedFixes: [
         'Run "prisma db push" to sync schema',
         'Check database connection string',
@@ -165,9 +152,7 @@ class ErrorAnalysisService {
         'Ensure required fields are provided',
         'Check foreign key relationships',
       ],
-      documentationLinks: [
-        'https://www.prisma.io/docs/reference/api-reference/error-reference',
-      ],
+      documentationLinks: ['https://www.prisma.io/docs/reference/api-reference/error-reference'],
     },
 
     // Permission Errors
@@ -175,20 +160,14 @@ class ErrorAnalysisService {
       pattern: /Permission denied|Access denied|Unauthorized/i,
       category: ErrorCategory.PERMISSION,
       severity: ErrorSeverity.HIGH,
-      commonCauses: [
-        'Missing authentication',
-        'Expired token',
-        'Insufficient privileges',
-      ],
+      commonCauses: ['Missing authentication', 'Expired token', 'Insufficient privileges'],
       suggestedFixes: [
         'Check if user is authenticated',
         'Verify authentication token is valid',
         'Check user permissions and roles',
         'Ensure API key is correctly configured',
       ],
-      documentationLinks: [
-        'https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401',
-      ],
+      documentationLinks: ['https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401'],
     },
 
     // Timeout Errors
@@ -196,11 +175,7 @@ class ErrorAnalysisService {
       pattern: /Timeout|timed out|ETIMEDOUT/i,
       category: ErrorCategory.TIMEOUT,
       severity: ErrorSeverity.MEDIUM,
-      commonCauses: [
-        'Slow network',
-        'Server overload',
-        'Long-running operations',
-      ],
+      commonCauses: ['Slow network', 'Server overload', 'Long-running operations'],
       suggestedFixes: [
         'Increase timeout duration',
         'Optimize server-side operations',
@@ -215,11 +190,7 @@ class ErrorAnalysisService {
       pattern: /ValidationError|Invalid input|Required field/i,
       category: ErrorCategory.VALIDATION,
       severity: ErrorSeverity.MEDIUM,
-      commonCauses: [
-        'Missing required fields',
-        'Invalid data format',
-        'Type mismatches',
-      ],
+      commonCauses: ['Missing required fields', 'Invalid data format', 'Type mismatches'],
       suggestedFixes: [
         'Check all required fields are provided',
         'Validate data types match schema',
@@ -233,11 +204,7 @@ class ErrorAnalysisService {
       pattern: /Cannot find module|Module not found|Cannot resolve/i,
       category: ErrorCategory.DEPENDENCY,
       severity: ErrorSeverity.HIGH,
-      commonCauses: [
-        'Missing npm packages',
-        'Incorrect import paths',
-        'Build cache issues',
-      ],
+      commonCauses: ['Missing npm packages', 'Incorrect import paths', 'Build cache issues'],
       suggestedFixes: [
         'Run "npm install" or "bun install"',
         'Check import paths are correct',
@@ -245,9 +212,7 @@ class ErrorAnalysisService {
         'Verify package.json dependencies',
         'Check for typos in import statements',
       ],
-      documentationLinks: [
-        'https://nodejs.org/api/modules.html#modules_all_together',
-      ],
+      documentationLinks: ['https://nodejs.org/api/modules.html#modules_all_together'],
     },
   ];
 
@@ -295,9 +260,7 @@ class ErrorAnalysisService {
 
     // Extract additional context from stack trace
     if (context?.stackTrace) {
-      analysis.suggestedFixes.push(
-        ...this.analyzeStackTrace(context.stackTrace),
-      );
+      analysis.suggestedFixes.push(...this.analyzeStackTrace(context.stackTrace));
     }
 
     // Find related errors
@@ -321,9 +284,7 @@ class ErrorAnalysisService {
 
     // Check for specific file patterns
     if (stackTrace.includes('node_modules')) {
-      suggestions.push(
-        'Error originates from a third-party package - check package documentation',
-      );
+      suggestions.push('Error originates from a third-party package - check package documentation');
     }
 
     if (stackTrace.includes('async') || stackTrace.includes('Promise')) {
@@ -335,9 +296,7 @@ class ErrorAnalysisService {
     // Extract file locations
     const fileMatches = stackTrace.match(/at .* \((.*?:\d+:\d+)\)/g);
     if (fileMatches && fileMatches.length > 0) {
-      suggestions.push(
-        `Check the following files: ${fileMatches.slice(0, 3).join(', ')}`,
-      );
+      suggestions.push(`Check the following files: ${fileMatches.slice(0, 3).join(', ')}`);
     }
 
     return suggestions;
@@ -347,24 +306,17 @@ class ErrorAnalysisService {
     return this.errorHistory
       .filter((error) => {
         // Same category
-        if (
-          error.category === currentError.category &&
-          error.id !== currentError.id
-        ) {
+        if (error.category === currentError.category && error.id !== currentError.id) {
           return true;
         }
         // Similar message
-        if (
-          this.calculateSimilarity(error.message, currentError.message) > 0.7
-        ) {
+        if (this.calculateSimilarity(error.message, currentError.message) > 0.7) {
           return true;
         }
         // Same affected components
         if (
           error.affectedTasks.some((task) =>
-            currentError.affectedTasks.some(
-              (currentTask) => currentTask.id === task.id,
-            ),
+            currentError.affectedTasks.some((currentTask) => currentTask.id === task.id),
           )
         ) {
           return true;
@@ -384,20 +336,12 @@ class ErrorAnalysisService {
   public getErrorSummary(timeRange?: { start: Date; end: Date }): ErrorSummary {
     const filteredErrors = timeRange
       ? this.errorHistory.filter(
-          (error) =>
-            error.timestamp >= timeRange.start &&
-            error.timestamp <= timeRange.end,
+          (error) => error.timestamp >= timeRange.start && error.timestamp <= timeRange.end,
         )
       : this.errorHistory;
 
-    const errorsByCategory: Record<ErrorCategory, number> = {} as Record<
-      ErrorCategory,
-      number
-    >;
-    const errorsBySeverity: Record<ErrorSeverity, number> = {} as Record<
-      ErrorSeverity,
-      number
-    >;
+    const errorsByCategory: Record<ErrorCategory, number> = {} as Record<ErrorCategory, number>;
+    const errorsBySeverity: Record<ErrorSeverity, number> = {} as Record<ErrorSeverity, number>;
 
     // Initialize counts
     Object.values(ErrorCategory).forEach((category) => {

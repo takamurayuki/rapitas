@@ -90,9 +90,7 @@ export function WebhookSettings() {
       setTestResult({
         type,
         success: res.ok,
-        message: res.ok
-          ? 'テスト通知を送信しました'
-          : `エラー: HTTP ${res.status}`,
+        message: res.ok ? 'テスト通知を送信しました' : `エラー: HTTP ${res.status}`,
       });
     } catch {
       setTestResult({
@@ -107,9 +105,7 @@ export function WebhookSettings() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 mb-2">
         <Bell className="w-4 h-4 text-violet-500" />
-        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Webhook通知
-        </h4>
+        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Webhook通知</h4>
       </div>
 
       <p className="text-xs text-zinc-500 dark:text-zinc-400">

@@ -109,8 +109,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
     );
 
     const [popupMsg] = useState(
-      () =>
-        PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)],
+      () => PROGRESS_MESSAGES[Math.floor(Math.random() * PROGRESS_MESSAGES.length)],
     );
 
     const [rainEffectData] = useState(() =>
@@ -270,10 +269,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
               {/* Gauge Labels */}
               <div className="mt-1 flex justify-between">
                 {[0, 25, 50, 75, 100].map((m) => (
-                  <span
-                    key={m}
-                    className="font-mono text-[8px] text-slate-500 dark:text-slate-700"
-                  >
+                  <span key={m} className="font-mono text-[8px] text-slate-500 dark:text-slate-700">
                     {m}
                   </span>
                 ))}
@@ -302,8 +298,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
             <div className="flex items-center gap-4">
               <span>MEM_USAGE: LOW</span>
               <span>
-                PRODUCTIVITY:{' '}
-                {efficiency >= 80 ? 'HIGH' : efficiency >= 50 ? 'MED' : 'LOW'}
+                PRODUCTIVITY: {efficiency >= 80 ? 'HIGH' : efficiency >= 50 ? 'MED' : 'LOW'}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -320,13 +315,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
             {showEffects && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 {particleData.map((data, i) => (
-                  <GoldParticle
-                    key={i}
-                    x={50}
-                    y={40}
-                    angle={data.angle}
-                    distance={data.distance}
-                  />
+                  <GoldParticle key={i} x={50} y={40} angle={data.angle} distance={data.distance} />
                 ))}
                 <CynicalPopup x={50} y={40} msg={popupMsg} />
               </div>
@@ -349,10 +338,7 @@ const TodayTaskProgressBar = memo<TodayTaskProgressBarProps>(
                   animate={{ scale: 1, rotate: 0 }}
                   className="mb-4 inline-block border-2 border-amber-500 bg-white dark:bg-black p-8 shadow-[0_0_50px_rgba(251,191,36,0.3)]"
                 >
-                  <Award
-                    size={64}
-                    className="mx-auto mb-4 text-amber-500 dark:text-amber-400"
-                  />
+                  <Award size={64} className="mx-auto mb-4 text-amber-500 dark:text-amber-400" />
                   <h2 className="font-mono text-4xl font-black italic tracking-tighter text-slate-800 dark:text-white">
                     F-A-B-U-L-O-U-S
                   </h2>

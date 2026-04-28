@@ -46,18 +46,13 @@ export function MCPSetupGuide() {
       >
         <Plug className="w-4 h-4 text-blue-500" />
         MCP連携 (IDE統合)
-        {expanded ? (
-          <ChevronUp className="w-3 h-3" />
-        ) : (
-          <ChevronDown className="w-3 h-3" />
-        )}
+        {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
       </button>
 
       {expanded && (
         <div className="space-y-4">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Cursor、Claude
-            Code、WindsurfなどのIDEからRapitasのタスク管理を直接操作できます
+            Cursor、Claude Code、WindsurfなどのIDEからRapitasのタスク管理を直接操作できます
           </p>
 
           <div>
@@ -105,10 +100,7 @@ export function MCPSetupGuide() {
           </div>
 
           <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1">
-            <p>
-              利用可能なツール:
-              タスク一覧/作成/更新、ワークフロー管理、進捗サマリー
-            </p>
+            <p>利用可能なツール: タスク一覧/作成/更新、ワークフロー管理、進捗サマリー</p>
             <p>
               API確認:{' '}
               <code className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-600 dark:text-zinc-400">

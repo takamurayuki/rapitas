@@ -3,14 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import {
-  CircleDot,
-  Filter,
-  ArrowLeft,
-  Loader2,
-  Plus,
-  ArrowRightCircle,
-} from 'lucide-react';
+import { CircleDot, Filter, ArrowLeft, Loader2, Plus, ArrowRightCircle } from 'lucide-react';
 import type { GitHubIssue, GitHubIntegration } from '@/types';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -31,9 +24,7 @@ export default function IssuesPage() {
 
   const [issues, setIssues] = useState<GitHubIssue[]>([]);
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
-  const [selectedIntegration, setSelectedIntegration] = useState<string>(
-    integrationId || '',
-  );
+  const [selectedIntegration, setSelectedIntegration] = useState<string>(integrationId || '');
   const [stateFilter, setStateFilter] = useState<string>('open');
   const [loading, setLoading] = useState(true);
   const [creatingTask, setCreatingTask] = useState<number | null>(null);
@@ -82,14 +73,11 @@ export default function IssuesPage() {
   const createTaskFromIssue = async (issueId: number) => {
     setCreatingTask(issueId);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/github/issues/${issueId}/create-task`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/github/issues/${issueId}/create-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
 
       if (res.ok) {
         await fetchIssues();
@@ -112,12 +100,8 @@ export default function IssuesPage() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              Issues
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-              {t('issuesSubtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Issues</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">{t('issuesSubtitle')}</p>
           </div>
         </div>
 
@@ -162,19 +146,14 @@ export default function IssuesPage() {
         {loading ? (
           <div className="space-y-3 py-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
-              />
+              <div key={i} className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : issues.length === 0 ? (
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <CircleDot className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
-              {selectedIntegration
-                ? t('noIssues')
-                : t('selectRepositoryPrompt')}
+              {selectedIntegration ? t('noIssues') : t('selectRepositoryPrompt')}
             </p>
           </div>
         ) : (
@@ -187,9 +166,7 @@ export default function IssuesPage() {
                 <div className="flex items-start gap-4">
                   <CircleDot
                     className={`w-5 h-5 mt-0.5 ${
-                      issue.state === 'open'
-                        ? 'text-green-500'
-                        : 'text-purple-500'
+                      issue.state === 'open' ? 'text-green-500' : 'text-purple-500'
                     }`}
                   />
                   <div className="flex-1 min-w-0">
@@ -213,11 +190,7 @@ export default function IssuesPage() {
                     <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
                       <span>#{issue.issueNumber}</span>
                       <span>by {issue.authorLogin}</span>
-                      <span>
-                        {new Date(issue.createdAt).toLocaleDateString(
-                          dateLocale,
-                        )}
-                      </span>
+                      <span>{new Date(issue.createdAt).toLocaleDateString(dateLocale)}</span>
                     </div>
                     {hasLabels(issue.labels) && (
                       <div className="flex items-center gap-2 mt-2">

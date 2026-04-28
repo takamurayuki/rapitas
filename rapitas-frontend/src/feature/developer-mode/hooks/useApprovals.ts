@@ -45,32 +45,29 @@ export function useApprovals() {
     }
   }, []);
 
-  const approve = useCallback(
-    async (id: number, selectedSubtasks?: number[]) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE_URL}/approvals/${id}/approve`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedSubtasks }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setApprovals((prev) => prev.filter((a) => a.id !== id));
-          return data;
-        } else {
-          throw new Error('承認に失敗しました');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'エラーが発生しました');
-        return null;
-      } finally {
-        setIsLoading(false);
+  const approve = useCallback(async (id: number, selectedSubtasks?: number[]) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/approvals/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedSubtasks }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApprovals((prev) => prev.filter((a) => a.id !== id));
+        return data;
+      } else {
+        throw new Error('承認に失敗しました');
       }
-    },
-    [],
-  );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'エラーが発生しました');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const reject = useCallback(async (id: number, reason?: string) => {
     setIsLoading(true);
@@ -150,14 +147,11 @@ export function useApprovals() {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/approvals/${id}/approve-code-review`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ commitMessage, baseBranch }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/approvals/${id}/approve-code-review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commitMessage, baseBranch }),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data.error) {
@@ -182,14 +176,11 @@ export function useApprovals() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/approvals/${id}/reject-code-review`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/approvals/${id}/reject-code-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.error) {

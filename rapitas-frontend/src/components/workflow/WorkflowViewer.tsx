@@ -3,10 +3,8 @@
 
 import { useEffect } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
-import { FolderOpen } from 'lucide-react';
-import CompactWorkflowSelector, {
-  type WorkflowMode,
-} from './CompactWorkflowSelector';
+import { FolderOpen, Lock } from 'lucide-react';
+import CompactWorkflowSelector, { type WorkflowMode } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
 import {
@@ -26,12 +24,14 @@ export interface WorkflowViewerProps {
   workflowMode?: WorkflowMode | null;
   complexityScore?: number | null;
   workflowModeOverride?: boolean;
+  /** Effective state — already OR'd with global UserSettings by the caller. */
   autoApprovePlan?: boolean;
+  /** Where the effective ON state originates. Optional informational hint. */
+  autoApprovePlanSource?: 'task' | 'global' | 'subtask-global';
   onPlanApprovalRequest?: () => void;
   onCompleteRequest?: () => void;
   onStatusChange?: (newStatus: WorkflowStatus) => void;
   onWorkflowModeChange?: (mode: WorkflowMode, isOverride: boolean) => void;
-  onAutoApprovePlanChange?: (value: boolean) => void;
   showWorkflowMode?: boolean;
   className?: string;
 }
@@ -43,11 +43,11 @@ export default function WorkflowViewer({
   complexityScore = null,
   workflowModeOverride = false,
   autoApprovePlan = false,
+  autoApprovePlanSource,
   onPlanApprovalRequest,
   onCompleteRequest,
   onStatusChange,
   onWorkflowModeChange,
-  onAutoApprovePlanChange,
   showWorkflowMode = true,
   className = '',
 }: WorkflowViewerProps) {
@@ -97,9 +97,7 @@ export default function WorkflowViewer({
 
   // Always show approval banner during plan_created
   const isPlanAwaitingApproval =
-    tabStatus.plan &&
-    effectiveStatus === 'plan_created' &&
-    !!onPlanApprovalRequest;
+    tabStatus.plan && effectiveStatus === 'plan_created' && !!onPlanApprovalRequest;
 
   // Approval button within plan tab
   const showApprovalButton = activeTab === 'plan' && isPlanAwaitingApproval;
@@ -132,33 +130,13 @@ export default function WorkflowViewer({
             autoComplexityAnalysis={autoComplexityAnalysis}
             onModeChange={onWorkflowModeChange}
             onAnalysisComplete={handleAnalysisComplete}
-            disabled={
-              effectiveStatus === 'in_progress' ||
-              effectiveStatus === 'completed'
-            }
+            disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
             showAnalyzeButton={true}
           />
 
-          {/* Auto-approval settings for plans */}
+          {/* Auto-approval status indicator (read-only — managed in task settings) */}
           <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoApprovePlan}
-                onChange={(e) => onAutoApprovePlanChange?.(e.target.checked)}
-                disabled={
-                  effectiveStatus === 'in_progress' ||
-                  effectiveStatus === 'completed'
-                }
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-600 rounded bg-white dark:bg-zinc-800"
-              />
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                計画を自動承認
-              </span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                (plan.md保存時に承認待ちをスキップ)
-              </span>
-            </label>
+            <AutoApproveStatusIndicator enabled={autoApprovePlan} source={autoApprovePlanSource} />
           </div>
         </div>
       )}
@@ -172,14 +150,12 @@ export default function WorkflowViewer({
       )}
 
       {/* Verification complete banner (shown during verify_done) */}
-      {effectiveStatus === 'verify_done' &&
-        tabStatus.verify &&
-        onCompleteRequest && (
-          <VerifyDoneBanner
-            onNavigateToVerify={() => setActiveTab('verify')}
-            onCompleteRequest={onCompleteRequest}
-          />
-        )}
+      {effectiveStatus === 'verify_done' && tabStatus.verify && onCompleteRequest && (
+        <VerifyDoneBanner
+          onNavigateToVerify={() => setActiveTab('verify')}
+          onCompleteRequest={onCompleteRequest}
+        />
+      )}
 
       {/* Async execution in progress banner */}
       {isPolling && <AsyncExecutionBanner />}
@@ -191,9 +167,7 @@ export default function WorkflowViewer({
         !isPolling && (
           <NextPhaseButton
             effectiveStatus={effectiveStatus}
-            workflowMode={
-              resolvedMode as import('./CompactWorkflowSelector').WorkflowMode
-            }
+            workflowMode={resolvedMode as import('./CompactWorkflowSelector').WorkflowMode}
             roles={roles}
             isAdvancing={isAdvancing}
             onAdvance={handleAdvance}
@@ -202,20 +176,11 @@ export default function WorkflowViewer({
 
       {/* Execution error display */}
       {advanceError && (
-        <AdvanceErrorBanner
-          error={advanceError}
-          onDismiss={() => setAdvanceError(null)}
-        />
+        <AdvanceErrorBanner error={advanceError} onDismiss={() => setAdvanceError(null)} />
       )}
 
       {/* Fetch error display */}
-      {error && (
-        <FetchErrorBanner
-          error={error}
-          isLoading={isLoading}
-          onRefetch={refetch}
-        />
-      )}
+      {error && <FetchErrorBanner error={error} isLoading={isLoading} onRefetch={refetch} />}
 
       {/* Tab header */}
       <WorkflowTabBar
@@ -240,6 +205,81 @@ export default function WorkflowViewer({
           onCompleteRequest={onCompleteRequest}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Read-only "auto-approve plan" indicator. The setting itself is owned by the
+ * task settings page; here we just surface the *effective* state so users
+ * can see at a glance whether plan.md will need manual approval. The
+ * effective value should already be the OR of `task.autoApprovePlan`,
+ * `userSettings.autoApprovePlan`, and the subtask-specific flag — the
+ * caller is responsible for computing it.
+ */
+function AutoApproveStatusIndicator({
+  enabled,
+  source,
+}: {
+  enabled: boolean;
+  /** Where the ON state comes from, surfaced as a small tag. */
+  source?: 'task' | 'global' | 'subtask-global';
+}) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+        enabled
+          ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20'
+          : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/40'
+      }`}
+      role="status"
+      aria-label="計画自動承認の状態"
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <span
+          className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+            enabled ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-zinc-300 dark:bg-zinc-600'
+          }`}
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+              計画自動承認
+            </span>
+            <span
+              className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                enabled
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-200'
+              }`}
+            >
+              {enabled ? 'ON' : 'OFF'}
+            </span>
+            {enabled && source && (
+              <span className="text-[9px] text-zinc-500 dark:text-zinc-400">
+                {source === 'task'
+                  ? '（タスク個別設定）'
+                  : source === 'subtask-global'
+                    ? '（サブタスク用グローバル設定）'
+                    : '（グローバル設定）'}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+            {enabled
+              ? 'plan.md 保存時に承認待ちをスキップして自動的に進行します'
+              : 'plan.md 保存後に手動で承認が必要です'}
+          </p>
+        </div>
+      </div>
+      <span
+        className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0"
+        title="設定はタスクの設定画面または /settings から変更できます"
+      >
+        <Lock className="h-2.5 w-2.5" />
+        設定で変更
+      </span>
     </div>
   );
 }

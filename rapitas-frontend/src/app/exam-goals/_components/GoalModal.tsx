@@ -25,24 +25,15 @@ interface GoalModalProps {
  * @param props.onSubmit - Form submit handler / フォーム送信ハンドラー
  * @param props.onClose - Close modal handler / モーダルを閉じるハンドラー
  */
-export function GoalModal({
-  isEditing,
-  formData,
-  onChange,
-  onSubmit,
-  onClose,
-}: GoalModalProps) {
+export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: GoalModalProps) {
   const t = useTranslations('examGoals');
   const tc = useTranslations('common');
   const [iconSearch, setIconSearch] = useState('');
   const [showIconPicker, setShowIconPicker] = useState(false);
 
-  const filteredIcons = iconSearch
-    ? searchIcons(iconSearch)
-    : Object.keys(ICON_DATA).slice(0, 30);
+  const filteredIcons = iconSearch ? searchIcons(iconSearch) : Object.keys(ICON_DATA).slice(0, 30);
 
-  const set = (partial: Partial<ExamGoalFormData>) =>
-    onChange({ ...formData, ...partial });
+  const set = (partial: Partial<ExamGoalFormData>) => onChange({ ...formData, ...partial });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -136,12 +127,8 @@ export function GoalModal({
                 onClick={() => setShowIconPicker(!showIconPicker)}
                 className="flex items-center gap-2 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors"
               >
-                <span style={{ color: formData.color }}>
-                  {renderGoalIcon(formData.icon, 20)}
-                </span>
-                <span className="text-sm">
-                  {formData.icon || tc('selectIcon')}
-                </span>
+                <span style={{ color: formData.color }}>{renderGoalIcon(formData.icon, 20)}</span>
+                <span className="text-sm">{formData.icon || tc('selectIcon')}</span>
               </button>
 
               {showIconPicker && (
@@ -164,9 +151,7 @@ export function GoalModal({
                           setIconSearch('');
                         }}
                         className={`p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors ${
-                          formData.icon === iconName
-                            ? 'bg-zinc-200 dark:bg-zinc-600'
-                            : ''
+                          formData.icon === iconName ? 'bg-zinc-200 dark:bg-zinc-600' : ''
                         }`}
                         title={iconName}
                       >

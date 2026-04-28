@@ -53,11 +53,7 @@ export function ResultPhase({
       }}
     >
       <style>{GLOBAL_CSS}</style>
-      <div
-        style={{ maxWidth: 760, margin: '0 auto' }}
-        className="fade"
-        ref={topRef}
-      >
+      <div style={{ maxWidth: 760, margin: '0 auto' }} className="fade" ref={topRef}>
         {/* Header row */}
         <div
           style={{
@@ -88,10 +84,9 @@ export function ResultPhase({
                 whiteSpace: 'pre-line',
               }}
             >
-              {(t as (k: string, v?: Record<string, unknown>) => string)(
-                'resultTitle',
-                { name: pickedProp?.name ?? '' },
-              )}
+              {(t as (k: string, v?: Record<string, unknown>) => string)('resultTitle', {
+                name: pickedProp?.name ?? '',
+              })}
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -186,9 +181,7 @@ export function ResultPhase({
           {setupPhase === 'loading' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="spin" style={{ width: 20, height: 20 }} />
-              <span style={{ color: 'var(--text)', fontSize: 14 }}>
-                {t('creatingTheme')}
-              </span>
+              <span style={{ color: 'var(--text)', fontSize: 14 }}>{t('creatingTheme')}</span>
             </div>
           )}
 
@@ -281,8 +274,7 @@ export function ResultPhase({
             fontFamily: "'JetBrains Mono',monospace",
           }}
         >
-          {t('saveInstruction')}{' '}
-          <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
+          {t('saveInstruction')} <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
           {t('saveInstructionSuffix')}
         </p>
       </div>

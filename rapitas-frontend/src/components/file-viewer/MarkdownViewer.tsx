@@ -3,10 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import {
-  oneDark,
-  oneLight,
-} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useDarkMode } from '@/hooks/ui/useDarkMode';
 import { Copy, Check, List, ExternalLink } from 'lucide-react';
 import { createLogger } from '@/lib/logger';
@@ -83,9 +80,7 @@ export default function MarkdownViewer({
   };
 
   if (!mounted) {
-    return (
-      <div className="animate-pulse bg-zinc-100 dark:bg-zinc-800 h-96 rounded" />
-    );
+    return <div className="animate-pulse bg-zinc-100 dark:bg-zinc-800 h-96 rounded" />;
   }
 
   let headingCounter = 0;
@@ -107,9 +102,7 @@ export default function MarkdownViewer({
       {showToc && showTocPanel && (
         <div className="fixed right-8 top-44 z-40 w-72 max-h-[70vh] bg-white dark:bg-zinc-800 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-              目次
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">目次</h3>
           </div>
           <div className="overflow-y-auto max-h-[calc(70vh-60px)] p-4">
             {toc.map((item) => (
@@ -130,10 +123,7 @@ export default function MarkdownViewer({
         </div>
       )}
 
-      <div
-        ref={contentRef}
-        className="prose prose-zinc dark:prose-invert max-w-none"
-      >
+      <div ref={contentRef} className="prose prose-zinc dark:prose-invert max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -187,10 +177,7 @@ export default function MarkdownViewer({
               );
             },
             p: ({ children, ...props }) => (
-              <p
-                className="mb-4 text-zinc-700 dark:text-zinc-300 leading-relaxed"
-                {...props}
-              >
+              <p className="mb-4 text-zinc-700 dark:text-zinc-300 leading-relaxed" {...props}>
                 {children}
               </p>
             ),
@@ -205,9 +192,7 @@ export default function MarkdownViewer({
                   {...props}
                 >
                   {children}
-                  {isExternal && (
-                    <ExternalLink className="w-3 h-3 opacity-70" />
-                  )}
+                  {isExternal && <ExternalLink className="w-3 h-3 opacity-70" />}
                 </a>
               );
             },
@@ -316,9 +301,7 @@ export default function MarkdownViewer({
                 {children}
               </td>
             ),
-            hr: () => (
-              <hr className="border-t border-zinc-200 dark:border-zinc-700 my-8" />
-            ),
+            hr: () => <hr className="border-t border-zinc-200 dark:border-zinc-700 my-8" />,
             img: ({ src, alt, ...props }) => (
               <img
                 src={src}

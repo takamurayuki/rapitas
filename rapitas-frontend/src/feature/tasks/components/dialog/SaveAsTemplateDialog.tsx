@@ -26,12 +26,7 @@ type Props = {
   onSuccess?: (template: TaskTemplate) => void;
 };
 
-export default function SaveAsTemplateDialog({
-  task,
-  isOpen,
-  onClose,
-  onSuccess,
-}: Props) {
+export default function SaveAsTemplateDialog({ task, isOpen, onClose, onSuccess }: Props) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -86,18 +81,15 @@ export default function SaveAsTemplateDialog({
     setError(null);
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/templates/from-task/${task.id}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            description: description.trim() || undefined,
-            category: finalCategory.trim(),
-          }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/templates/from-task/${task.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          category: finalCategory.trim(),
+        }),
+      });
 
       if (!res.ok) {
         const data = await res.json();
@@ -203,9 +195,7 @@ export default function SaveAsTemplateDialog({
                           : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                       }`}
                     >
-                      {category === cat && (
-                        <Check className="w-3.5 h-3.5 inline mr-1" />
-                      )}
+                      {category === cat && <Check className="w-3.5 h-3.5 inline mr-1" />}
                       {cat}
                     </button>
                   ))}
@@ -253,9 +243,7 @@ export default function SaveAsTemplateDialog({
             <ul className="text-sm text-zinc-500 dark:text-zinc-400 space-y-1">
               <li>• タイトル: {task.title}</li>
               <li>• 優先度: {task.priority}</li>
-              {task.estimatedHours && (
-                <li>• 見積もり時間: {task.estimatedHours}時間</li>
-              )}
+              {task.estimatedHours && <li>• 見積もり時間: {task.estimatedHours}時間</li>}
               {task.subtasks && task.subtasks.length > 0 && (
                 <li>• サブタスク: {task.subtasks.length}件</li>
               )}

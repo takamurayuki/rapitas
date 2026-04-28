@@ -17,33 +17,20 @@ function formatLogLine(log: string): { formatted: string; hasJson: boolean } {
   const [, prefix, jsonStr, suffix] = jsonMatch;
   try {
     const parsed = JSON.parse(jsonStr);
-    if (typeof parsed !== 'object' || parsed === null)
-      return { formatted: log, hasJson: false };
+    if (typeof parsed !== 'object' || parsed === null) return { formatted: log, hasJson: false };
 
     const parts: string[] = [];
     const obj = parsed as Record<string, unknown>;
-    const priorityKeys = [
-      'message',
-      'msg',
-      'status',
-      'type',
-      'error',
-      'taskId',
-      'agentId',
-    ];
+    const priorityKeys = ['message', 'msg', 'status', 'type', 'error', 'taskId', 'agentId'];
     for (const key of priorityKeys) {
       if (key in obj && obj[key] !== null && obj[key] !== undefined) {
-        parts.push(
-          `${key}: ${typeof obj[key] === 'object' ? JSON.stringify(obj[key]) : obj[key]}`,
-        );
+        parts.push(`${key}: ${typeof obj[key] === 'object' ? JSON.stringify(obj[key]) : obj[key]}`);
       }
     }
     const skipKeys = new Set([...priorityKeys, 'timestamp', 'level']);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;
-      parts.push(
-        `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`,
-      );
+      parts.push(`${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
     }
     return {
       formatted: `${prefix}${parts.join(' | ')}${suffix}`.trim(),
@@ -62,26 +49,20 @@ describe('formatLogLine (detailed mode)', () => {
   });
 
   test('JSON fields extracted and formatted', () => {
-    const r = formatLogLine(
-      'Coordinator: {"message":"start","status":"running","taskId":1}',
-    );
+    const r = formatLogLine('Coordinator: {"message":"start","status":"running","taskId":1}');
     expect(r.hasJson).toBe(true);
     expect(r.formatted).toContain('message: start');
     expect(r.formatted).toContain('status: running');
   });
 
   test('null values excluded', () => {
-    const r = formatLogLine(
-      '{"message":"test","nullField":null,"status":"ok"}',
-    );
+    const r = formatLogLine('{"message":"test","nullField":null,"status":"ok"}');
     expect(r.hasJson).toBe(true);
     expect(r.formatted).not.toContain('nullField');
   });
 
   test('priority keys shown first', () => {
-    const r = formatLogLine(
-      '{"other":"last","message":"first","status":"second"}',
-    );
+    const r = formatLogLine('{"other":"last","message":"first","status":"second"}');
     expect(r.hasJson).toBe(true);
     const mi = r.formatted.indexOf('message: first');
     const oi = r.formatted.indexOf('other: last');
@@ -89,9 +70,7 @@ describe('formatLogLine (detailed mode)', () => {
   });
 
   test('error info in JSON parsed correctly', () => {
-    const r = formatLogLine(
-      'Agent: {"error":"connection","taskId":5,"status":"failed"}',
-    );
+    const r = formatLogLine('Agent: {"error":"connection","taskId":5,"status":"failed"}');
     expect(r.hasJson).toBe(true);
     expect(r.formatted).toContain('error: connection');
   });
@@ -127,9 +106,7 @@ describe('transformLogToUserFriendly', () => {
   });
 
   test('execution start translated', () => {
-    const r = transformLogToUserFriendly(
-      '[実行開始] タスクの実行を開始します...',
-    );
+    const r = transformLogToUserFriendly('[実行開始] タスクの実行を開始します...');
     expect(r.category).toBe('phase-transition');
   });
 
@@ -159,9 +136,7 @@ describe('transformLogToUserFriendly', () => {
 
 describe('transformLogsToSimple', () => {
   test('multi-line entry split into individual entries', () => {
-    const logs = [
-      '[Tool: Read] -> a.ts\n[Tool Done: Read] (0.1s)\n[Tool: Edit] -> b.ts',
-    ];
+    const logs = ['[Tool: Read] -> a.ts\n[Tool Done: Read] (0.1s)\n[Tool: Edit] -> b.ts'];
     const result = transformLogsToSimple(logs);
     // Should produce: Read, Tool Done, Edit = 3 entries
     expect(result.length).toBe(3);

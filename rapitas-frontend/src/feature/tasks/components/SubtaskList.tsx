@@ -31,14 +31,9 @@ interface SubtaskListProps {
   onSubtaskEstimatedHoursChange: (value: string) => void;
   onAddSubtask: () => void;
   onCancelAddingSubtask: () => void;
-  onUpdateSubtask?: (
-    subtaskId: number,
-    data: { title?: string; description?: string },
-  ) => void;
+  onUpdateSubtask?: (subtaskId: number, data: { title?: string; description?: string }) => void;
   /** Function to get parallel execution status by subtask ID */
-  getExecutionStatus?: (
-    subtaskId: number,
-  ) => ParallelExecutionStatus | undefined;
+  getExecutionStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   /** Whether parallel execution is running */
   isParallelExecutionRunning?: boolean;
   /** Bulk delete subtasks */
@@ -79,9 +74,7 @@ export default function SubtaskList({
   const activeSubtasks = subtasks.filter((s) => s.status !== 'done');
   const totalSubtasks = subtasks.length;
   const progressPercentage =
-    totalSubtasks > 0
-      ? Math.round((completedSubtasks.length / totalSubtasks) * 100)
-      : 0;
+    totalSubtasks > 0 ? Math.round((completedSubtasks.length / totalSubtasks) * 100) : 0;
 
   const selection = useSubtaskSelection(subtasks);
 
@@ -121,9 +114,7 @@ export default function SubtaskList({
         onToggleSelectionMode={selection.toggleSelectionMode}
         onSelectAll={selection.selectAllSubtasks}
         onDeselectAll={selection.deselectAllSubtasks}
-        onRequestDeleteSelected={() =>
-          selection.setShowDeleteConfirm('selected')
-        }
+        onRequestDeleteSelected={() => selection.setShowDeleteConfirm('selected')}
         onRequestDeleteAll={() => selection.setShowDeleteConfirm('all')}
         onConfirmDelete={() => {
           if (selection.showDeleteConfirm === 'all') {

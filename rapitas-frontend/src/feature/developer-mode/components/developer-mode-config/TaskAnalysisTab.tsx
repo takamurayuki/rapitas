@@ -239,9 +239,7 @@ export function TaskAnalysisTab({
           {PRIORITY_OPTIONS.map((option) => (
             <button
               key={option.value}
-              onClick={() =>
-                setPriorityStrategy(option.value as PriorityStrategy)
-              }
+              onClick={() => setPriorityStrategy(option.value as PriorityStrategy)}
               className={`flex flex-col items-center gap-1.5 p-2.5 rounded-lg border transition-all ${
                 priorityStrategy === option.value
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
@@ -268,10 +266,7 @@ export function TaskAnalysisTab({
           ))}
         </div>
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {
-            PRIORITY_OPTIONS.find((o) => o.value === priorityStrategy)
-              ?.description
-          }
+          {PRIORITY_OPTIONS.find((o) => o.value === priorityStrategy)?.description}
         </p>
       </div>
 
@@ -338,9 +333,7 @@ export function TaskAnalysisTab({
 
       {/* Automation */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          自動化
-        </label>
+        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">自動化</label>
         <ToggleSwitch
           value={autoApproveSubtasks}
           onChange={setAutoApproveSubtasks}

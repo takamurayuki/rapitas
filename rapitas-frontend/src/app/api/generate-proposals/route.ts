@@ -3,9 +3,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateProposalsRoute');
 
-const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
-).replace('localhost', '127.0.0.1');
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(
+  'localhost',
+  '127.0.0.1',
+);
 
 interface ProposalRequest {
   genre: string;
@@ -70,28 +71,16 @@ JSONのみ出力。`;
 function parseAIResponse(content: string): { proposals: Proposal[] } | null {
   // Remove markdown code blocks if present
   let cleaned = content.trim();
-  cleaned = cleaned
-    .replace(/^```(?:json)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '');
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
   try {
     const parsed = JSON.parse(cleaned);
-    if (
-      parsed.proposals &&
-      Array.isArray(parsed.proposals) &&
-      parsed.proposals.length > 0
-    ) {
+    if (parsed.proposals && Array.isArray(parsed.proposals) && parsed.proposals.length > 0) {
       // Validate each proposal has required fields
       const valid = parsed.proposals.every(
         (p: Proposal) =>
-          p.id &&
-          p.name &&
-          p.tagline &&
-          p.concept &&
-          p.unique &&
-          p.difficulty &&
-          p.tech_hint,
+          p.id && p.name && p.tagline && p.concept && p.unique && p.difficulty && p.tech_hint,
       );
       if (valid) return parsed;
     }
@@ -144,24 +133,19 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             return NextResponse.json(parsed);
           }
-          logger.warn(
-            'AI response could not be parsed as valid proposals JSON',
-          );
-          errorMessage =
-            'AIからの応答を解析できませんでした。再試行してください。';
+          logger.warn('AI response could not be parsed as valid proposals JSON');
+          errorMessage = 'AIからの応答を解析できませんでした。再試行してください。';
         }
       } else {
         const errData = await response.json().catch(() => ({}));
         logger.warn('Backend AI chat returned error:', errData);
         errorMessage =
-          errData.error ||
-          `AIサーバーからエラーが返されました（ステータス: ${response.status}）`;
+          errData.error || `AIサーバーからエラーが返されました（ステータス: ${response.status}）`;
       }
     } catch (aiError) {
       logger.warn('AI generation failed:', aiError);
       if (aiError instanceof DOMException && aiError.name === 'TimeoutError') {
-        errorMessage =
-          'AIからの応答がタイムアウトしました。再試行してください。';
+        errorMessage = 'AIからの応答がタイムアウトしました。再試行してください。';
       } else {
         errorMessage = 'AIサービスへの接続に失敗しました。';
       }
@@ -171,9 +155,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ proposals: [], aiFailed: true, errorMessage });
   } catch (error) {
     logger.error('Error generating proposals:', error);
-    return NextResponse.json(
-      { error: 'プロポーザルの生成に失敗しました' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: 'プロポーザルの生成に失敗しました' }, { status: 500 });
   }
 }

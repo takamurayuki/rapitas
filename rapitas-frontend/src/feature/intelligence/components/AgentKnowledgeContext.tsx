@@ -48,19 +48,13 @@ interface AgentKnowledgeContextProps {
 }
 
 const categoryColors: Record<string, string> = {
-  success_strategy:
-    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  failure_pattern:
-    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  optimization:
-    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  anti_pattern:
-    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  success_strategy: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  failure_pattern: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  optimization: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  anti_pattern: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   procedure: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  pattern:
-    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  insight:
-    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  pattern: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  insight: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   fact: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
 };
 
@@ -84,9 +78,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
   const fetchContext = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/intelligence/tasks/${taskId}/agent-context`,
-      );
+      const res = await fetch(`${API_BASE_URL}/intelligence/tasks/${taskId}/agent-context`);
       if (res.ok) {
         const data = await res.json();
         setKnowledge(data.knowledge || null);
@@ -117,9 +109,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
   if (!hasData || !knowledge) return null;
 
   const totalItems =
-    knowledge.patterns.length +
-    knowledge.relevantKnowledge.length +
-    knowledge.warnings.length;
+    knowledge.patterns.length + knowledge.relevantKnowledge.length + knowledge.warnings.length;
 
   return (
     <div className="border-t border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/30 dark:bg-indigo-900/10">
@@ -164,9 +154,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
                   key={w.id}
                   className="p-2 rounded-md bg-red-50 dark:bg-red-900/15 border border-red-100 dark:border-red-900/30 mb-1"
                 >
-                  <p className="text-xs text-red-700 dark:text-red-300">
-                    {w.description}
-                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-300">{w.description}</p>
                   <span className="text-[10px] text-red-500 dark:text-red-400">
                     {w.occurrences}回発生
                   </span>
@@ -214,10 +202,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
               </h4>
               <div className="space-y-1">
                 {knowledge.relevantKnowledge.slice(0, 3).map((k) => (
-                  <div
-                    key={k.id}
-                    className="p-2 rounded-md bg-white/60 dark:bg-zinc-800/40"
-                  >
+                  <div key={k.id} className="p-2 rounded-md bg-white/60 dark:bg-zinc-800/40">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">
                         {k.title}
@@ -249,9 +234,7 @@ export function AgentKnowledgeContext({ taskId }: AgentKnowledgeContextProps) {
                   key={pe.id}
                   className="flex items-center gap-2 p-1.5 text-xs text-zinc-600 dark:text-zinc-400"
                 >
-                  <span className="flex-1 truncate">
-                    {pe.changeDescription}
-                  </span>
+                  <span className="flex-1 truncate">{pe.changeDescription}</span>
                   {pe.performanceScore !== null && (
                     <span className="text-[10px] text-violet-500 shrink-0">
                       スコア: {pe.performanceScore}

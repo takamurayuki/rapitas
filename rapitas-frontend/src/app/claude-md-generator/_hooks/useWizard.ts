@@ -3,12 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type {
-  AppAnswers,
-  AppProposal,
-  DynamicItem,
-  GenerateResult,
-} from '../_types/types';
+import type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from '../_types/types';
 import { proposeApps, generateClaudeMd, fetchSuggestions } from '../_utils/api';
 import { ELEMENTS, SUB_GENRES } from '../_utils/constants';
 
@@ -114,11 +109,7 @@ export function useWizard() {
     setElementsLoading(true);
     setDynamicElements([]);
 
-    const aiElements = await fetchSuggestions(
-      'elements',
-      answers.genre,
-      selectedSubIds,
-    );
+    const aiElements = await fetchSuggestions('elements', answers.genre, selectedSubIds);
     if (aiElements) {
       setDynamicElements(aiElements);
     } else {
@@ -141,12 +132,7 @@ export function useWizard() {
   const runProposeApps = async (overrideAnswers: AppAnswers) => {
     setPhase('proposing');
     try {
-      const r = await proposeApps(
-        t,
-        overrideAnswers,
-        dynamicSubs,
-        dynamicElements,
-      );
+      const r = await proposeApps(t, overrideAnswers, dynamicSubs, dynamicElements);
       setProposals(r.proposals || []);
       if (r.aiFailed && r.errorMessage) {
         setAiErrorMessage(r.errorMessage);
@@ -155,11 +141,7 @@ export function useWizard() {
       }
     } catch (error) {
       setProposals([]);
-      setAiErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'プロポーザル生成に失敗しました',
-      );
+      setAiErrorMessage(error instanceof Error ? error.message : 'プロポーザル生成に失敗しました');
     }
     setPhase('proposals');
   };
@@ -193,13 +175,7 @@ export function useWizard() {
     if (!pickedProp) return;
     setPhase('generating');
     try {
-      const r = await generateClaudeMd(
-        t,
-        answers,
-        pickedProp,
-        dynamicSubs,
-        dynamicElements,
-      );
+      const r = await generateClaudeMd(t, answers, pickedProp, dynamicSubs, dynamicElements);
       setResult(r);
     } catch {
       setResult({
@@ -238,9 +214,7 @@ export function useWizard() {
       }
     } catch (error) {
       setSetupPhase('error');
-      setSetupError(
-        error instanceof Error ? error.message : 'テーマの作成に失敗しました',
-      );
+      setSetupError(error instanceof Error ? error.message : 'テーマの作成に失敗しました');
     }
   };
 
@@ -280,9 +254,7 @@ export function useWizard() {
   const toggleSub = (id: string) =>
     setAnswers((a) => ({
       ...a,
-      subs: a.subs?.includes(id)
-        ? a.subs.filter((x) => x !== id)
-        : [...(a.subs || []), id],
+      subs: a.subs?.includes(id) ? a.subs.filter((x) => x !== id) : [...(a.subs || []), id],
     }));
 
   const toggleElement = (id: string) =>

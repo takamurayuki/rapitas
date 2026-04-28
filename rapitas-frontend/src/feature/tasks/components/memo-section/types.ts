@@ -5,25 +5,14 @@
  * Does not contain runtime logic or React components.
  */
 
-import {
-  Clock,
-  Lightbulb,
-  AlertTriangle,
-  CheckCircle,
-  MessageSquare,
-} from 'lucide-react';
+import { Clock, Lightbulb, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 import type { Comment } from '@/types';
 
 export type MemoType = 'work-log' | 'idea' | 'issue' | 'solution' | 'general';
 
 export type TaskActivity = {
   id: string;
-  type:
-    | 'status_change'
-    | 'assignment'
-    | 'priority_change'
-    | 'description_update'
-    | 'label_change';
+  type: 'status_change' | 'assignment' | 'priority_change' | 'description_update' | 'label_change';
   action: string;
   details?: string;
   user?: string;
@@ -63,10 +52,7 @@ export type Props = {
   isAddingComment: boolean;
   taskId: number;
   onNewCommentChange: (v: string) => void;
-  onAddComment: (
-    content?: string,
-    parentId?: number,
-  ) => Promise<number | undefined> | void;
+  onAddComment: (content?: string, parentId?: number) => Promise<number | undefined> | void;
   onUpdateComment: (id: number, content: string) => Promise<void>;
   onDeleteComment: (id: number) => void;
 };
@@ -75,8 +61,7 @@ export const MEMO_TEMPLATES: MemoTemplate[] = [
   {
     id: 'work-start',
     label: '作業開始',
-    content:
-      '## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ',
+    content: '## 作業開始\n\n**目標:**\n- \n\n**作業内容:**\n- \n\n**注意事項:**\n- ',
     type: 'work-log',
     description: '作業開始時の記録用テンプレート',
   },
@@ -147,8 +132,7 @@ export const MEMO_TYPE_CONFIG: Record<
       bg: 'bg-amber-50 dark:bg-amber-900/20',
       text: 'text-amber-600 dark:text-amber-400',
       border: 'border-amber-200 dark:border-amber-800',
-      badge:
-        'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
+      badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
     },
   },
   issue: {
@@ -168,8 +152,7 @@ export const MEMO_TYPE_CONFIG: Record<
       bg: 'bg-emerald-50 dark:bg-emerald-900/20',
       text: 'text-emerald-600 dark:text-emerald-400',
       border: 'border-emerald-200 dark:border-emerald-800',
-      badge:
-        'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400',
+      badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400',
     },
   },
   general: {

@@ -1,14 +1,7 @@
 'use client';
 // WorkflowBanners
 
-import {
-  ShieldCheck,
-  CheckCircle,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-  Play,
-} from 'lucide-react';
+import { ShieldCheck, CheckCircle, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react';
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
 import { getStatusToNextRole } from './workflow-viewer-utils';
 import type { WorkflowMode } from './CompactWorkflowSelector';
@@ -69,10 +62,7 @@ interface VerifyDoneBannerProps {
  * @param onNavigateToVerify - Switches the active tab to 'verify' / タブを検証に切り替える
  * @param onCompleteRequest - Triggers the task-completion flow / タスク完了フローを起動する
  */
-export function VerifyDoneBanner({
-  onNavigateToVerify,
-  onCompleteRequest,
-}: VerifyDoneBannerProps) {
+export function VerifyDoneBanner({ onNavigateToVerify, onCompleteRequest }: VerifyDoneBannerProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/20 border-b border-teal-200 dark:border-teal-800/50">
       <div className="flex items-center gap-2.5">
@@ -80,9 +70,7 @@ export function VerifyDoneBanner({
           <CheckCircle className="h-4 w-4 text-teal-600 dark:text-teal-400" />
         </div>
         <div>
-          <p className="text-sm font-medium text-teal-800 dark:text-teal-200">
-            検証が完了しました
-          </p>
+          <p className="text-sm font-medium text-teal-800 dark:text-teal-200">検証が完了しました</p>
           <p className="text-xs text-teal-600 dark:text-teal-400">
             検証タブで内容を確認し、問題なければタスクを完了にしてください
           </p>
@@ -156,9 +144,7 @@ export function NextPhaseButton({
     <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50">
       <div className="flex items-center gap-2 text-sm">
         <NextIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-        <span className="text-indigo-700 dark:text-indigo-300 font-medium">
-          次: {next.label}
-        </span>
+        <span className="text-indigo-700 dark:text-indigo-300 font-medium">次: {next.label}</span>
         {roleConfig?.agentConfig && (
           <span className="text-xs text-indigo-500 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/50 px-2 py-0.5 rounded-full">
             {roleConfig.agentConfig.name}
@@ -192,19 +178,13 @@ interface AdvanceErrorBannerProps {
  * @param error - Error message string to display
  * @param onDismiss - Callback to clear the error / エラーをクリアするコールバック
  */
-export function AdvanceErrorBanner({
-  error,
-  onDismiss,
-}: AdvanceErrorBannerProps) {
+export function AdvanceErrorBanner({ error, onDismiss }: AdvanceErrorBannerProps) {
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-2">
       <div className="flex items-center">
         <AlertCircle className="h-4 w-4 text-red-500 mr-2 shrink-0" />
         <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
-        <button
-          onClick={onDismiss}
-          className="ml-auto text-red-400 hover:text-red-600 text-xs"
-        >
+        <button onClick={onDismiss} className="ml-auto text-red-400 hover:text-red-600 text-xs">
           閉じる
         </button>
       </div>
@@ -225,19 +205,13 @@ interface FetchErrorBannerProps {
  * @param isLoading - Whether a retry is currently in progress
  * @param onRefetch - Retry callback / 再取得コールバック
  */
-export function FetchErrorBanner({
-  error,
-  isLoading,
-  onRefetch,
-}: FetchErrorBannerProps) {
+export function FetchErrorBanner({ error, isLoading, onRefetch }: FetchErrorBannerProps) {
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <AlertCircle className="h-4 w-4 text-red-500 mr-2" />
-          <span className="text-sm text-red-700 dark:text-red-300">
-            {error}
-          </span>
+          <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
         </div>
         <button
           onClick={onRefetch}

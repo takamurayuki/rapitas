@@ -72,11 +72,7 @@ function handleBackspace(
             checkNode = checkNode.nextSibling;
           } else {
             let parent: Node | null = checkNode.parentNode;
-            while (
-              parent &&
-              parent !== contentRef.current &&
-              !parent.nextSibling
-            ) {
+            while (parent && parent !== contentRef.current && !parent.nextSibling) {
               parent = parent.parentNode;
             }
             checkNode = parent?.nextSibling || null;
@@ -98,20 +94,14 @@ function handleBackspace(
           if (!previousElement && parent.parentElement) {
             const grandParent = parent.parentElement;
 
-            if (
-              grandParent.tagName === 'LI' &&
-              grandParent.previousElementSibling
-            ) {
+            if (grandParent.tagName === 'LI' && grandParent.previousElementSibling) {
               const prevLi = grandParent.previousElementSibling;
               if (prevLi.tagName === 'LI') {
                 e.preventDefault();
                 const newRange = document.createRange();
                 const lastChild = prevLi.lastChild || prevLi;
                 if (lastChild.nodeType === Node.TEXT_NODE) {
-                  newRange.setStart(
-                    lastChild,
-                    lastChild.textContent?.length || 0,
-                  );
+                  newRange.setStart(lastChild, lastChild.textContent?.length || 0);
                 } else {
                   newRange.setStartAfter(lastChild);
                 }
@@ -141,10 +131,7 @@ function handleBackspace(
           const prevNode = previousElement.previousSibling;
           if (prevNode.nodeType === Node.TEXT_NODE) {
             newRange.setStart(prevNode, prevNode.textContent?.length || 0);
-          } else if (
-            prevNode.nodeType === Node.ELEMENT_NODE &&
-            prevNode.lastChild
-          ) {
+          } else if (prevNode.nodeType === Node.ELEMENT_NODE && prevNode.lastChild) {
             const lastChild = prevNode.lastChild;
             if (lastChild.nodeType === Node.TEXT_NODE) {
               newRange.setStart(lastChild, lastChild.textContent?.length || 0);
@@ -229,16 +216,9 @@ function handleEnter(
   let styledSpan: HTMLElement | null = null;
   let isTextColorSpan = false;
   while (node && node !== contentRef.current) {
-    if (
-      node.nodeType === Node.ELEMENT_NODE &&
-      (node as HTMLElement).tagName === 'SPAN'
-    ) {
+    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'SPAN') {
       const el = node as HTMLElement;
-      if (
-        el.style.backgroundColor ||
-        el.style.background ||
-        el.style.borderLeft
-      ) {
+      if (el.style.backgroundColor || el.style.background || el.style.borderLeft) {
         styledSpan = el;
         break;
       }

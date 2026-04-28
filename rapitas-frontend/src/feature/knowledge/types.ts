@@ -18,11 +18,7 @@ export type KnowledgeCategory =
   | 'general';
 
 export type ForgettingStage = 'active' | 'dormant' | 'archived';
-export type ValidationStatus =
-  | 'pending'
-  | 'validated'
-  | 'rejected'
-  | 'conflict';
+export type ValidationStatus = 'pending' | 'validated' | 'rejected' | 'conflict';
 export type ContradictionResolution = 'keep_a' | 'keep_b' | 'merge' | 'dismiss';
 
 export interface KnowledgeEntry {
@@ -63,14 +59,8 @@ export interface KnowledgeContradiction {
   resolution: ContradictionResolution | null;
   resolvedAt: string | null;
   createdAt: string;
-  entryA: Pick<
-    KnowledgeEntry,
-    'id' | 'title' | 'content' | 'category' | 'confidence'
-  >;
-  entryB: Pick<
-    KnowledgeEntry,
-    'id' | 'title' | 'content' | 'category' | 'confidence'
-  >;
+  entryA: Pick<KnowledgeEntry, 'id' | 'title' | 'content' | 'category' | 'confidence'>;
+  entryB: Pick<KnowledgeEntry, 'id' | 'title' | 'content' | 'category' | 'confidence'>;
 }
 
 export interface ConsolidationRun {

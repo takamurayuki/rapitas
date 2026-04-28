@@ -20,10 +20,7 @@ function loadHistory(): string[] {
 }
 
 function saveHistory(items: string[]): void {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(items.slice(0, MAX_HISTORY)),
-  );
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
 }
 
 export function addToSearchHistory(query: string): void {

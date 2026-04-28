@@ -1,20 +1,9 @@
 'use client';
 // in-app-shortcuts-section
 
-import {
-  Keyboard,
-  Save,
-  RotateCcw,
-  CheckCircle,
-  AlertCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import { Keyboard, Save, RotateCcw, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import {
-  formatBindingKey,
-  type ShortcutId,
-  type ShortcutBinding,
-} from '@/stores/shortcut-store';
+import { formatBindingKey, type ShortcutId, type ShortcutBinding } from '@/stores/shortcut-store';
 import { formatShortcutDisplay } from '../hooks/useShortcutSettings';
 
 /** A single shortcut entry as stored in the Zustand store. */
@@ -83,9 +72,7 @@ export function InAppShortcutsSection({
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
             {t('inAppShortcuts')}
           </h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('inAppDescription')}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('inAppDescription')}</p>
         </div>
         <button
           onClick={onResetAll}
@@ -119,17 +106,14 @@ export function InAppShortcutsSection({
         {shortcuts.map((shortcut) => {
           const isEditing = editingId === shortcut.id;
           const def = getDefault(shortcut.id);
-          const isModified =
-            def && formatBindingKey(shortcut) !== formatBindingKey(def);
+          const isModified = def && formatBindingKey(shortcut) !== formatBindingKey(def);
 
           return (
             <div key={shortcut.id} className="py-3">
               {/* Row header: label + current binding + edit button */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {shortcut.label}
-                  </span>
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300">{shortcut.label}</span>
                   {isModified && (
                     <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded">
                       {t('modified')}
@@ -182,9 +166,7 @@ export function InAppShortcutsSection({
 
                   {/* New binding preview */}
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {t('newKey')}
-                    </span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('newKey')}</span>
                     <kbd className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-sm font-mono font-semibold text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                       {formatShortcutDisplay({ ...shortcut, ...editBinding })}
                     </kbd>

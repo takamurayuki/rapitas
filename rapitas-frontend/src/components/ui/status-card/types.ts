@@ -1,11 +1,7 @@
 /**
  * AI agent status types
  */
-export type AgentStatusType =
-  | 'processing'
-  | 'waiting_for_input'
-  | 'error'
-  | 'completed';
+export type AgentStatusType = 'processing' | 'waiting_for_input' | 'error' | 'completed';
 
 /**
  * Status card size variants

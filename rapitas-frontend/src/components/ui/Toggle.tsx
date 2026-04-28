@@ -120,10 +120,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(function Toggle(
         className="sr-only peer"
         aria-label={!label && srLabel ? srLabel : undefined}
       />
-      <span
-        className={`${TRACK_BASE} ${sizing} ${activeColor}`}
-        aria-hidden="true"
-      />
+      <span className={`${TRACK_BASE} ${sizing} ${activeColor}`} aria-hidden="true" />
     </span>
   );
 

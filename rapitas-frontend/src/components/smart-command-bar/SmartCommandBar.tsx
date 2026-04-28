@@ -127,9 +127,7 @@ export default function SmartCommandBar() {
     debounceRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/search/suggest?q=${encodeURIComponent(trimmed)}`,
-        );
+        const res = await fetch(`${API_BASE_URL}/search/suggest?q=${encodeURIComponent(trimmed)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.success) {
@@ -173,17 +171,13 @@ export default function SmartCommandBar() {
             router.push(action.route);
             break;
           case 'start_learning':
-            router.push(
-              `${action.route}?title=${encodeURIComponent(action.prefill || input)}`,
-            );
+            router.push(`${action.route}?title=${encodeURIComponent(action.prefill || input)}`);
             break;
           case 'navigate':
             router.push(action.route);
             break;
           case 'search':
-            router.push(
-              `${action.route}?q=${encodeURIComponent(action.query || input)}`,
-            );
+            router.push(`${action.route}?q=${encodeURIComponent(action.query || input)}`);
             break;
         }
       }
@@ -225,21 +219,15 @@ export default function SmartCommandBar() {
             aria-expanded={suggestions.length > 0}
             aria-controls="smart-command-results"
             aria-activedescendant={
-              selectedIndex >= 0
-                ? `smart-command-option-${selectedIndex}`
-                : undefined
+              selectedIndex >= 0 ? `smart-command-option-${selectedIndex}` : undefined
             }
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown' && suggestions.length > 0) {
                 e.preventDefault();
-                setSelectedIndex((prev) =>
-                  prev < suggestions.length - 1 ? prev + 1 : 0,
-                );
+                setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
               } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
                 e.preventDefault();
-                setSelectedIndex((prev) =>
-                  prev > 0 ? prev - 1 : suggestions.length - 1,
-                );
+                setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
               } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (selectedIndex >= 0 && suggestions[selectedIndex]) {
@@ -299,9 +287,7 @@ export default function SmartCommandBar() {
             </span>
           )}
           {voiceError && !isListening && (
-            <span className="text-xs text-amber-500 truncate max-w-48">
-              {voiceError}
-            </span>
+            <span className="text-xs text-amber-500 truncate max-w-48">{voiceError}</span>
           )}
           {isProcessing ? (
             <Loader2 className="w-5 h-5 text-purple-500 animate-spin shrink-0" />
@@ -437,9 +423,7 @@ function HintItem({
     <div className="flex items-center gap-2 text-sm">
       <Icon className={`w-4 h-4 ${color} shrink-0`} />
       <span className="text-zinc-600 dark:text-zinc-400">{text}</span>
-      <span className="text-zinc-400 dark:text-zinc-500 text-xs">
-        — {example}
-      </span>
+      <span className="text-zinc-400 dark:text-zinc-500 text-xs">— {example}</span>
     </div>
   );
 }
@@ -456,10 +440,7 @@ function HighlightText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <span
-            key={i}
-            className="text-purple-600 dark:text-purple-400 font-medium"
-          >
+          <span key={i} className="text-purple-600 dark:text-purple-400 font-medium">
             {part}
           </span>
         ) : (

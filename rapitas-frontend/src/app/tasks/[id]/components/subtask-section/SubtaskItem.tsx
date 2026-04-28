@@ -7,15 +7,7 @@
  * or delegates to SubtaskEditForm when this item is being edited.
  */
 
-import {
-  Circle,
-  Check,
-  Pencil,
-  CheckSquare,
-  Square,
-  Bot,
-  Clock,
-} from 'lucide-react';
+import { Circle, Check, Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
 import {
   SubtaskTitleIndicator,
   type ParallelExecutionStatus,
@@ -124,13 +116,8 @@ export function SubtaskItem({
                   )}
                 </button>
               )}
-              {!isSelectionMode &&
-              isParallelExecutionRunning &&
-              executionStatus ? (
-                <SubtaskTitleIndicator
-                  executionStatus={executionStatus}
-                  size="sm"
-                />
+              {!isSelectionMode && isParallelExecutionRunning && executionStatus ? (
+                <SubtaskTitleIndicator executionStatus={executionStatus} size="sm" />
               ) : (
                 !isSelectionMode && (
                   <div className="shrink-0">
@@ -157,8 +144,7 @@ export function SubtaskItem({
                             strokeLinecap="round"
                             fill="none"
                             style={{
-                              animation:
-                                'icon-outer-border-spin 1.5s linear infinite',
+                              animation: 'icon-outer-border-spin 1.5s linear infinite',
                               willChange: 'stroke-dashoffset',
                               transform: 'translateZ(0)',
                             }}
@@ -222,9 +208,7 @@ export function SubtaskItem({
                     currentStatus={subtask.status}
                     config={config}
                     renderIcon={renderStatusIcon}
-                    onClick={(newStatus) =>
-                      onUpdateStatus(subtask.id, newStatus)
-                    }
+                    onClick={(newStatus) => onUpdateStatus(subtask.id, newStatus)}
                     size="sm"
                   />
                 );

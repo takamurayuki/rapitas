@@ -141,10 +141,7 @@ export default function ExamGoalsPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
-              />
+              <div key={i} className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
             ))}
           </div>
         </div>
@@ -159,12 +156,8 @@ export default function ExamGoalsPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            {t('subtitle')}
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{t('subtitle')}</p>
         </div>
         <button
           onClick={openCreateModal}
@@ -203,11 +196,7 @@ export default function ExamGoalsPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {completedGoals.map((goal) => (
-              <CompletedGoalCard
-                key={goal.id}
-                goal={goal}
-                onDelete={handleDelete}
-              />
+              <CompletedGoalCard key={goal.id} goal={goal} onDelete={handleDelete} />
             ))}
           </div>
         </div>

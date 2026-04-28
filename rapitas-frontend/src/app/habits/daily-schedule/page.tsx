@@ -71,9 +71,7 @@ export default function DailySchedulePage() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {t('dailyScheduleTitle')}
             </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('dailyScheduleSubtitle')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('dailyScheduleSubtitle')}</p>
           </div>
         </div>
         <button

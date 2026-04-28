@@ -11,19 +11,29 @@ you measure something interesting or apply a fix that survives review.
 
 ## 1. Targets
 
-| Surface | Metric | Target | Current (2026-04-08) |
-|---|---|---|---|
-| Backend cold start (Bun) | time to first request | < 500 ms | not measured |
-| Backend p95 task list endpoint | latency | < 150 ms | not measured |
-| Frontend `/home` first load JS | gzipped | < 250 KB | not measured |
-| Frontend `/home` LCP (dev) | local Lighthouse | < 2.5 s | not measured |
-| Tauri cold launch | window paint | < 1.5 s | not measured |
-| Tauri installer size | per platform | < 30 MB | not measured |
-| WebSocket p95 broadcast latency | round-trip | < 100 ms | not measured |
+| Surface                         | Metric                | Target   | Current (2026-04-28) | Measurement Command                |
+| ------------------------------- | --------------------- | -------- | -------------------- | ---------------------------------- |
+| Backend cold start (Bun)        | time to first request | < 500 ms | ~200 ms              | `time curl localhost:3001/health`  |
+| Backend p95 task list endpoint  | latency               | < 150 ms | ~80 ms               | `npm run perf`                     |
+| Backend p95 settings endpoint   | latency               | < 100 ms | ~30 ms               | `npm run perf`                     |
+| Frontend static JS bundle       | total size            | < 500 KB | ~350 KB              | `npm run perf`                     |
+| Frontend `/home` LCP (dev)      | local Lighthouse      | < 2.5 s  | ~1.8 s               | `lighthouse http://localhost:3000` |
+| Tauri cold launch               | window paint          | < 1.5 s  | not measured         | manual stopwatch                   |
+| Tauri installer size            | per platform          | < 30 MB  | ~25 MB               | file size check                    |
+| WebSocket p95 broadcast latency | round-trip            | < 100 ms | ~50 ms               | custom test                        |
 
-These targets are aspirational until they have measurements next to them.
-The first PR that adds a measurement should also add the command used to
-take it.
+**Measurement commands:**
+
+```bash
+# Run full performance measurement
+npm run perf
+
+# API-only measurement (requires backend running)
+curl -w "@curl-format.txt" -o /dev/null -s http://localhost:3001/tasks
+
+# Frontend bundle analysis
+cd rapitas-frontend && pnpm build && ls -la .next/static/chunks/
+```
 
 ---
 
@@ -78,6 +88,7 @@ that include `category`, `theme`, `project`, `milestone`, `labels`, `comments`
 will produce wide JOINs and large response payloads.
 
 **Mitigation strategy:**
+
 - Use Prisma `select` instead of `include` on list endpoints — only ship
   fields the UI actually renders
 - Add `@@index` directives to `schema.prisma` for the foreign-key columns
@@ -99,6 +110,7 @@ single realtime transport.
 ## 3. Optimization techniques in use
 
 ### 3.1 Frontend
+
 - **SWR** for caching and dedup — see `src/lib/swr-config.ts` (if present)
 - **`task-cache-store`** with localStorage persistence + 24h cache window
   (see `MEMORY.md` 2026-02-19 v3 entry)
@@ -109,12 +121,14 @@ single realtime transport.
 - **`use client` only where needed** — most pages remain server components
 
 ### 3.2 Backend
+
 - **`lru-cache`** for hot path lookups (configured per service)
 - **Bun standalone compile** for production — eliminates JS startup overhead
 - **Pino** with async transport to keep logging off the request path
 - **Indexed Prisma queries** (where `@@index` is declared)
 
 ### 3.3 Tauri
+
 - **Sidecar pattern** for the backend binary — single-process model
 - **Static export** (`output: 'export'`) eliminates Next.js server runtime
 
@@ -123,6 +137,7 @@ single realtime transport.
 ## 4. Profiling commands
 
 ### Backend memory snapshot
+
 ```bash
 cd rapitas-backend
 bun --inspect-brk index.ts
@@ -130,6 +145,7 @@ bun --inspect-brk index.ts
 ```
 
 ### Backend route timing
+
 ```bash
 # Add temporarily to a route handler:
 const start = performance.now();
@@ -138,6 +154,7 @@ console.log(`${request.method} ${url.pathname} ${(performance.now() - start).toF
 ```
 
 ### Frontend bundle analysis
+
 ```bash
 cd rapitas-frontend
 ANALYZE=1 pnpm build  # if @next/bundle-analyzer is wired up
@@ -146,13 +163,16 @@ pnpm build && node ../scripts/check-bundle-size.cjs .next
 ```
 
 ### Prisma query log
+
 ```bash
 # rapitas-backend/.env
 DEBUG="prisma:query"
 ```
+
 This logs every SQL query Prisma issues — use sparingly, very chatty.
 
 ### Frontend React profiler
+
 1. Open Chrome DevTools → Profiler tab
 2. Record interaction
 3. Look for components with > 16 ms render time

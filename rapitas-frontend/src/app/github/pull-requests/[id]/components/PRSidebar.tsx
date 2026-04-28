@@ -32,9 +32,7 @@ export function PRSidebar({ pr, diff }: PRSidebarProps) {
     <div className="space-y-4">
       {/* Status card */}
       <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-          {t('status')}
-        </h3>
+        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">{t('status')}</h3>
         <div
           className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
             pr.state === 'open'
@@ -59,9 +57,7 @@ export function PRSidebar({ pr, diff }: PRSidebarProps) {
             {pr.reviews.map((review) => (
               <div key={review.id} className="flex items-center gap-2 text-sm">
                 {getReviewIcon(review.state)}
-                <span className="text-zinc-600 dark:text-zinc-400">
-                  {review.authorLogin}
-                </span>
+                <span className="text-zinc-600 dark:text-zinc-400">{review.authorLogin}</span>
               </div>
             ))}
           </div>
@@ -75,28 +71,18 @@ export function PRSidebar({ pr, diff }: PRSidebarProps) {
         </h3>
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {t('fileCount')}
-            </span>
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {diff.length}
-            </span>
+            <span className="text-zinc-500 dark:text-zinc-400">{t('fileCount')}</span>
+            <span className="font-medium text-zinc-900 dark:text-zinc-100">{diff.length}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {t('additions')}
-            </span>
+            <span className="text-zinc-500 dark:text-zinc-400">{t('additions')}</span>
             <span className="font-medium text-green-600 dark:text-green-400">
               +{totalAdditions}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {t('deletions')}
-            </span>
-            <span className="font-medium text-red-600 dark:text-red-400">
-              -{totalDeletions}
-            </span>
+            <span className="text-zinc-500 dark:text-zinc-400">{t('deletions')}</span>
+            <span className="font-medium text-red-600 dark:text-red-400">-{totalDeletions}</span>
           </div>
         </div>
       </div>

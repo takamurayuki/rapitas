@@ -56,9 +56,7 @@ export function useCategories() {
   const [isAdding, setIsAdding] = useState(false);
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [formData, setFormData] = useState<FormData>(defaultFormData);
-  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(
-    null,
-  );
+  const [defaultCategoryId, setDefaultCategoryId] = useState<number | null>(null);
 
   const seedDefaults = async () => {
     try {
@@ -204,8 +202,7 @@ export function useCategories() {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || result.source.index === result.destination.index)
-      return;
+    if (!result.destination || result.source.index === result.destination.index) return;
 
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);

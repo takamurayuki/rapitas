@@ -15,10 +15,7 @@ import {
 } from 'lucide-react';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
-import {
-  ExecutionLogViewer,
-  type ExecutionLogStatus,
-} from './ExecutionLogViewer';
+import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { WorkflowLogViewer } from './WorkflowLogViewer';
 
 interface SubtaskLogTabsProps {
@@ -27,10 +24,7 @@ interface SubtaskLogTabsProps {
   /** Function to get subtask status */
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   /** Logs per subtask */
-  subtaskLogs: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   /** Whether overall execution is running */
   isRunning: boolean;
   /** Function to refresh logs */
@@ -102,9 +96,7 @@ export function SubtaskLogTabs({
     const iconClass = 'w-3 h-3';
     switch (status) {
       case 'running':
-        return (
-          <Loader2 className={`${iconClass} text-blue-500 animate-spin`} />
-        );
+        return <Loader2 className={`${iconClass} text-blue-500 animate-spin`} />;
       case 'completed':
         return <CheckCircle2 className={`${iconClass} text-green-500`} />;
       case 'failed':
@@ -135,10 +127,7 @@ export function SubtaskLogTabs({
       });
     });
     // Sort by timestamp
-    return logs.sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    );
+    return logs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [subtaskLogs]);
 
   // Logs for the currently selected tab
@@ -162,11 +151,8 @@ export function SubtaskLogTabs({
   // Convert to ExecutionLogViewer log format
   const formattedLogs = useMemo(() => {
     return currentLogs.map((log) => {
-      const subtask = log.taskId
-        ? subtasks.find((s) => s.id === log.taskId)
-        : undefined;
-      const prefix =
-        activeTab === 'all' && subtask ? `[${subtask.title}] ` : '';
+      const subtask = log.taskId ? subtasks.find((s) => s.id === log.taskId) : undefined;
+      const prefix = activeTab === 'all' && subtask ? `[${subtask.title}] ` : '';
       return `${prefix}${log.message}`;
     });
   }, [currentLogs, activeTab, subtasks]);
@@ -207,9 +193,7 @@ export function SubtaskLogTabs({
   };
 
   // Completed count
-  const completedCount = subtasks.filter(
-    (s) => getSubtaskStatus?.(s.id) === 'completed',
-  ).length;
+  const completedCount = subtasks.filter((s) => getSubtaskStatus?.(s.id) === 'completed').length;
 
   // Estimate start time (from first log timestamp)
   const startTime = useMemo(() => {
@@ -285,9 +269,7 @@ export function SubtaskLogTabs({
                 ? 'text-indigo-400 bg-indigo-900/30'
                 : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
-            title={
-              showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'
-            }
+            title={showWorkflowView ? 'フラット表示に切替' : 'ワークフロー表示に切替'}
           >
             <GitBranch className="w-3 h-3" />
           </button>
@@ -295,9 +277,7 @@ export function SubtaskLogTabs({
 
         {onRefreshLogs && (
           <button
-            onClick={() =>
-              onRefreshLogs(activeTab === 'all' ? undefined : activeTab)
-            }
+            onClick={() => onRefreshLogs(activeTab === 'all' ? undefined : activeTab)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors shrink-0 ml-auto"
             title="ログを更新"
           >
@@ -314,10 +294,7 @@ export function SubtaskLogTabs({
               taskTitle={subtasks.find((s) => s.id === activeTab)?.title || ''}
               taskId={activeTab as number}
               logs={currentLogs}
-              workflowStatus={
-                subtasks.find((s) => s.id === activeTab)?.workflowStatus ??
-                undefined
-              }
+              workflowStatus={subtasks.find((s) => s.id === activeTab)?.workflowStatus ?? undefined}
               isRunning={getSubtaskStatus?.(activeTab as number) === 'running'}
               maxHeight={maxHeight}
             />
@@ -325,11 +302,7 @@ export function SubtaskLogTabs({
         ) : formattedLogs.length > 0 ? (
           <ExecutionLogViewer
             logs={formattedLogs}
-            status={
-              activeTab === 'all'
-                ? overallStatus
-                : getTabStatus(activeTab as number)
-            }
+            status={activeTab === 'all' ? overallStatus : getTabStatus(activeTab as number)}
             isRunning={
               activeTab === 'all'
                 ? isRunning
@@ -341,9 +314,7 @@ export function SubtaskLogTabs({
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-zinc-400 dark:text-zinc-500">
             <Terminal className="w-6 h-6 mb-2 opacity-50" />
-            <p className="text-[10px]">
-              {isRunning ? 'ログを待機中...' : 'ログがありません'}
-            </p>
+            <p className="text-[10px]">{isRunning ? 'ログを待機中...' : 'ログがありません'}</p>
           </div>
         )}
       </div>
@@ -362,9 +333,7 @@ export function SubtaskLogTabs({
         <div className="space-y-1">
           {subtasks.map((subtask) => {
             const status = getSubtaskStatus?.(subtask.id);
-            const workflowStatus = (
-              subtask as Task & { workflowStatus?: string }
-            ).workflowStatus;
+            const workflowStatus = (subtask as Task & { workflowStatus?: string }).workflowStatus;
             const hasWorkflowInfo = useWorkflow && workflowStatus;
             // Show dependency info (simplified check via parentId)
             const parentTask = subtask.parentId
@@ -421,9 +390,7 @@ export function SubtaskLogTabs({
                     title={`依存先: ${parentTask.title}`}
                   >
                     <ArrowRight className="w-2.5 h-2.5" />
-                    <span className="truncate max-w-[60px]">
-                      {parentTask.title}
-                    </span>
+                    <span className="truncate max-w-[60px]">{parentTask.title}</span>
                   </span>
                 )}
               </div>

@@ -141,9 +141,7 @@ export function useDirectoryPicker(
       setIsGitRepo(data.isGitRepo || false);
       setIsDriveList(data.isDriveList || false);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました',
-      );
+      setError(err instanceof Error ? err.message : 'ディレクトリの取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -192,8 +190,7 @@ export function useDirectoryPicker(
   };
 
   const handleNavigate = (path: string) => browseDirectory(path);
-  const handleGoUp = () =>
-    parentPath ? browseDirectory(parentPath) : browseDirectory();
+  const handleGoUp = () => (parentPath ? browseDirectory(parentPath) : browseDirectory());
   const handleGoToDrives = () => browseDirectory();
   const handleGoToPath = () => {
     if (manualPath.trim()) browseDirectory(manualPath.trim());
@@ -265,9 +262,7 @@ export function useDirectoryPicker(
       setCreateError(null);
       browseDirectory(data.path);
     } catch (err) {
-      setCreateError(
-        err instanceof Error ? err.message : 'フォルダの作成に失敗しました',
-      );
+      setCreateError(err instanceof Error ? err.message : 'フォルダの作成に失敗しました');
     } finally {
       setIsCreating(false);
     }

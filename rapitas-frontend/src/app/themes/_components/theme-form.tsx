@@ -41,10 +41,7 @@ type Props = {
   setBranches: (b: string[]) => void;
   setBranchError: (e: string | null) => void;
   editingId: number | null;
-  renderIcon: (
-    iconName: string | null | undefined,
-    size?: number,
-  ) => React.ReactNode;
+  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
   onSave: (itemId?: number) => void;
   onCancel: () => void;
   onCheckDirectory: (path: string) => void;
@@ -119,9 +116,7 @@ export function ThemeForm({
           </label>
           <textarea
             value={formData.description}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder={t('descriptionPlaceholder')}
             rows={1}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
@@ -138,17 +133,13 @@ export function ThemeForm({
               <input
                 type="color"
                 value={formData.color}
-                onChange={(e) =>
-                  setFormData({ ...formData, color: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                 className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
               />
               <input
                 type="text"
                 value={formData.color}
-                onChange={(e) =>
-                  setFormData({ ...formData, color: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                 className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
               />
             </div>
@@ -165,9 +156,7 @@ export function ThemeForm({
                 backgroundColor: formData.color + '15',
               }}
             >
-              <div style={{ color: formData.color }}>
-                {renderIcon(formData.icon, 20)}
-              </div>
+              <div style={{ color: formData.color }}>{renderIcon(formData.icon, 20)}</div>
             </div>
           </div>
         </div>
@@ -199,9 +188,7 @@ export function ThemeForm({
               <IconGrid
                 icons={filteredIcons}
                 selectedIcon={formData.icon}
-                onIconSelect={(iconName) =>
-                  setFormData({ ...formData, icon: iconName })
-                }
+                onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
                 renderIcon={renderIcon}
                 accentClass="bg-purple-500"
               />
@@ -219,9 +206,7 @@ export function ThemeForm({
           {selectedCategoryId !== null ? (
             <div className="flex items-center gap-2">
               {(() => {
-                const cat = categories.find(
-                  (c) => c.id === formData.categoryId,
-                );
+                const cat = categories.find((c) => c.id === formData.categoryId);
                 if (!cat) return null;
                 return (
                   <span

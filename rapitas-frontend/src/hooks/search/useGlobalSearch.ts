@@ -40,11 +40,7 @@ function getCachedResult(key: string): CacheEntry | null {
   return cached;
 }
 
-function setCachedResult(
-  key: string,
-  results: SearchResult[],
-  total: number,
-): void {
+function setCachedResult(key: string, results: SearchResult[], total: number): void {
   // Remove oldest entries if cache is full
   if (searchCache.size >= MAX_CACHE_SIZE) {
     const firstKey = searchCache.keys().next().value;
@@ -84,12 +80,7 @@ interface UseGlobalSearchOptions {
 }
 
 export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
-  const {
-    debounceDelay = 300,
-    types,
-    limit: initialLimit = 20,
-    initialQuery = '',
-  } = options;
+  const { debounceDelay = 300, types, limit: initialLimit = 20, initialQuery = '' } = options;
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -99,9 +90,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [limit, setLimitState] = useState(initialLimit);
-  const [typesState, setTypesState] = useState<SearchResultType[] | undefined>(
-    types,
-  );
+  const [typesState, setTypesState] = useState<SearchResultType[] | undefined>(types);
 
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,12 +113,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
     }
 
     // Check cache first
-    const cacheKey = generateCacheKey(
-      q,
-      typesRef.current,
-      limitRef.current,
-      searchOffset,
-    );
+    const cacheKey = generateCacheKey(q, typesRef.current, limitRef.current, searchOffset);
     const cachedResult = getCachedResult(cacheKey);
 
     if (cachedResult) {
@@ -150,14 +134,13 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}) {
         limit: String(limitRef.current),
         offset: String(searchOffset),
       });
-      if (typesRef.current?.length)
-        params.set('type', typesRef.current.join(','));
+      if (typesRef.current?.length) params.set('type', typesRef.current.join(','));
 
       const res = await fetch(`${API_BASE_URL}/search?${params}`, {
         signal: abortRef.current.signal,
       });
 
-      if (!res.ok) throw new Error('Search failed');
+      if (!res.ok) throw new Error('検索に失敗しました');
 
       const data = await res.json();
       if (!abortRef.current.signal.aborted) {
@@ -266,10 +249,9 @@ export function useSearchSuggest() {
       abortRef.current = new AbortController();
 
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/search/suggest?q=${encodeURIComponent(query)}`,
-          { signal: abortRef.current.signal },
-        );
+        const res = await fetch(`${API_BASE_URL}/search/suggest?q=${encodeURIComponent(query)}`, {
+          signal: abortRef.current.signal,
+        });
         if (res.ok) {
           const data = await res.json();
           setSuggestions(data.suggestions || []);

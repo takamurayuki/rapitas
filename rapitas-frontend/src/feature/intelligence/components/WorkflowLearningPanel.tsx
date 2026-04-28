@@ -52,14 +52,10 @@ const ruleTypeLabels: Record<string, string> = {
 };
 
 const ruleTypeColors: Record<string, string> = {
-  skip_phase:
-    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  downgrade_mode:
-    'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  upgrade_mode:
-    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  adjust_time:
-    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  skip_phase: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  downgrade_mode: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  upgrade_mode: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  adjust_time: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
 const modeLabels: Record<string, string> = {
@@ -105,12 +101,9 @@ export function WorkflowLearningPanel() {
   const handleGenerateRules = async () => {
     setGenerating(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/workflow/learning/rules/generate`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/workflow/learning/rules/generate`, {
+        method: 'POST',
+      });
       if (res.ok) {
         await fetchData();
       }
@@ -123,20 +116,13 @@ export function WorkflowLearningPanel() {
 
   const handleToggleRule = async (ruleId: number, isActive: boolean) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/workflow/learning/rules/${ruleId}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isActive: !isActive }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/workflow/learning/rules/${ruleId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !isActive }),
+      });
       if (res.ok) {
-        setRules((prev) =>
-          prev.map((r) =>
-            r.id === ruleId ? { ...r, isActive: !isActive } : r,
-          ),
-        );
+        setRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, isActive: !isActive } : r)));
       }
     } catch (e) {
       logger.warn('Failed to toggle rule:', e);
@@ -150,10 +136,7 @@ export function WorkflowLearningPanel() {
           <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-3 gap-3">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
-              />
+              <div key={i} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
             ))}
           </div>
         </div>
@@ -194,33 +177,25 @@ export function WorkflowLearningPanel() {
           <div className="text-xl font-bold text-zinc-800 dark:text-zinc-200">
             {stats.totalRecords}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            学習記録
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">学習記録</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-violet-600 dark:text-violet-400">
             {activeRules.length}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            有効ルール
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">有効ルール</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-zinc-800 dark:text-zinc-200">
             {Math.round(stats.overrideRate * 100)}%
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            オーバーライド率
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">オーバーライド率</div>
         </div>
         <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-xl font-bold text-green-600 dark:text-green-400">
             {Math.round(stats.predictionAccuracy * 100)}%
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            予測精度
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">予測精度</div>
         </div>
       </div>
 
@@ -271,11 +246,7 @@ export function WorkflowLearningPanel() {
             <Layers className="w-3.5 h-3.5" />
             最適化ルール ({rules.length})
           </span>
-          {showRules ? (
-            <ChevronUp className="w-4 h-4" />
-          ) : (
-            <ChevronDown className="w-4 h-4" />
-          )}
+          {showRules ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
 
         {showRules && (
@@ -304,9 +275,7 @@ export function WorkflowLearningPanel() {
                       <span className="text-[10px] text-zinc-400">
                         信頼度: {Math.round(rule.confidence * 100)}%
                       </span>
-                      <span className="text-[10px] text-zinc-400">
-                        ({rule.sampleSize}件)
-                      </span>
+                      <span className="text-[10px] text-zinc-400">({rule.sampleSize}件)</span>
                     </div>
                     {rule.description && (
                       <p className="text-xs text-zinc-600 dark:text-zinc-400 truncate">

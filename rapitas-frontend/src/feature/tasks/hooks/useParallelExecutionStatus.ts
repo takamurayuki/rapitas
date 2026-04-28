@@ -47,9 +47,7 @@ export function useParallelExecutionStatus({
   pollingInterval = 3000,
 }: UseParallelExecutionStatusOptions): UseParallelExecutionStatusReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionState, setSessionState] = useState<ParallelSessionState | null>(
-    null,
-  );
+  const [sessionState, setSessionState] = useState<ParallelSessionState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,8 +57,10 @@ export function useParallelExecutionStatus({
 
   const { setExecutingTask, removeExecutingTask } = useExecutionStateStore();
   const { handleSSEEvent } = useParallelSSEHandler();
-  const { fetchStatus, startPolling, stopPolling, pollingIntervalRef } =
-    useParallelPolling({ sessionIdRef, setSessionState });
+  const { fetchStatus, startPolling, stopPolling, pollingIntervalRef } = useParallelPolling({
+    sessionIdRef,
+    setSessionState,
+  });
 
   const getSubtaskStatus = useCallback(
     (subtaskId: number): ParallelExecutionStatus | undefined =>
@@ -68,8 +68,7 @@ export function useParallelExecutionStatus({
     [sessionState],
   );
 
-  const isRunning =
-    sessionState?.status === 'running' || sessionState?.status === 'scheduled';
+  const isRunning = sessionState?.status === 'running' || sessionState?.status === 'scheduled';
 
   const refreshStatus = useCallback(async () => {
     await fetchStatus();
@@ -83,9 +82,7 @@ export function useParallelExecutionStatus({
         eventSourceRef.current.close();
       }
 
-      const eventSource = new EventSource(
-        `${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`,
-      );
+      const eventSource = new EventSource(`${API_BASE_URL}/parallel/sessions/${sId}/logs/stream`);
 
       eventSource.onopen = () => {
         setIsConnected(true);
@@ -115,30 +112,18 @@ export function useParallelExecutionStatus({
 
       eventSourceRef.current = eventSource;
     },
-    [
-      enableSSE,
-      handleSSEEvent,
-      fetchStatus,
-      startPolling,
-      pollingInterval,
-      pollingIntervalRef,
-    ],
+    [enableSSE, handleSSEEvent, fetchStatus, startPolling, pollingInterval, pollingIntervalRef],
   );
 
   const startSession = useCallback(
-    async (config?: {
-      maxConcurrentAgents?: number;
-    }): Promise<string | null> => {
+    async (config?: { maxConcurrentAgents?: number }): Promise<string | null> => {
       try {
         setError(null);
-        const res = await fetch(
-          `${API_BASE_URL}/parallel/tasks/${taskId}/execute`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/parallel/tasks/${taskId}/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config }),
+        });
 
         if (!res.ok) {
           const errorData = await res.json();
@@ -173,8 +158,7 @@ export function useParallelExecutionStatus({
         }
         return null;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'セッションの開始に失敗しました';
+        const errorMessage = err instanceof Error ? err.message : 'セッションの開始に失敗しました';
         setError(errorMessage);
         return null;
       }
@@ -186,10 +170,9 @@ export function useParallelExecutionStatus({
     if (!sessionId) return;
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/parallel/sessions/${sessionId}/stop`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`${API_BASE_URL}/parallel/sessions/${sessionId}/stop`, {
+        method: 'POST',
+      });
 
       if (!res.ok) {
         throw new Error('セッションの停止に失敗しました');
@@ -200,9 +183,7 @@ export function useParallelExecutionStatus({
         eventSourceRef.current = null;
       }
       stopPolling();
-      setSessionState((prev) =>
-        prev ? { ...prev, status: 'cancelled' } : null,
-      );
+      setSessionState((prev) => (prev ? { ...prev, status: 'cancelled' } : null));
       sessionIdRef.current = null;
       removeExecutingTask(taskId);
     } catch (err) {
@@ -238,14 +219,7 @@ export function useParallelExecutionStatus({
     }
 
     return () => stopPolling();
-  }, [
-    sessionId,
-    isRunning,
-    isConnected,
-    pollingInterval,
-    startPolling,
-    stopPolling,
-  ]);
+  }, [sessionId, isRunning, isConnected, pollingInterval, startPolling, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {

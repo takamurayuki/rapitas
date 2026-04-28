@@ -15,9 +15,7 @@ export function ResumableExecutionsBanner() {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const isTaskDetailVisible = useTaskDetailVisibilityStore(
-    (state) => state.isTaskDetailVisible,
-  );
+  const isTaskDetailVisible = useTaskDetailVisibilityStore((state) => state.isTaskDetailVisible);
 
   const {
     executions,
@@ -68,9 +66,7 @@ export function ResumableExecutionsBanner() {
                 <h3 className="font-semibold text-sm text-red-900 dark:text-red-100">
                   {t('connectionError')}
                 </h3>
-                <p className="text-xs text-red-600 dark:text-red-400">
-                  {t('backendUnreachable')}
-                </p>
+                <p className="text-xs text-red-600 dark:text-red-400">{t('backendUnreachable')}</p>
               </div>
               <button
                 onClick={() => {
@@ -123,9 +119,7 @@ export function ResumableExecutionsBanner() {
 
   return (
     <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
-      <div
-        className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}
-      >
+      <div className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}>
         {/* Collapsible header */}
         <div
           className={`px-4 py-3.5 flex items-center justify-between cursor-pointer transition-colors ${headerHoverBg}`}
@@ -160,8 +154,7 @@ export function ResumableExecutionsBanner() {
               <p className={`text-xs ${subtitleColor}`}>
                 {runningCount > 0 && t('runningCount', { count: runningCount })}
                 {runningCount > 0 && interruptedCount > 0 && ' / '}
-                {interruptedCount > 0 &&
-                  t('resumableCount', { count: interruptedCount })}
+                {interruptedCount > 0 && t('resumableCount', { count: interruptedCount })}
               </p>
             </div>
           </div>

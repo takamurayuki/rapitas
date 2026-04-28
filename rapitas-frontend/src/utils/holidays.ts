@@ -20,13 +20,9 @@ function getNthMonday(year: number, month: number, n: number): number {
 function getVernalEquinoxDay(year: number): number {
   if (year <= 1947) return 0;
   if (year <= 1979)
-    return Math.floor(
-      20.8357 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4),
-    );
+    return Math.floor(20.8357 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4));
   if (year <= 2099)
-    return Math.floor(
-      20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4),
-    );
+    return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
   return 21;
 }
 
@@ -34,13 +30,9 @@ function getVernalEquinoxDay(year: number): number {
 function getAutumnalEquinoxDay(year: number): number {
   if (year <= 1947) return 0;
   if (year <= 1979)
-    return Math.floor(
-      23.2588 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4),
-    );
+    return Math.floor(23.2588 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4));
   if (year <= 2099)
-    return Math.floor(
-      23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4),
-    );
+    return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
   return 23;
 }
 

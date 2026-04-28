@@ -78,9 +78,7 @@ export function GrowthTrendChart({
             <div className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-lg">
               <Activity className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-              知識の成長トレンド
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識の成長トレンド</h3>
           </div>
           <div className="flex gap-2">
             {(['7d', '30d', 'all'] as const).map((p) => (
@@ -111,13 +109,7 @@ export function GrowthTrendChart({
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
-                <linearGradient
-                  id="gradExperiments"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
+                <linearGradient id="gradExperiments" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                 </linearGradient>
@@ -193,9 +185,7 @@ export function GrowthTrendChart({
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
               <Zap className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-              成功率の推移
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">成功率の推移</h3>
           </div>
 
           {growthTimeline && growthTimeline.timeline.length > 0 ? (
@@ -226,10 +216,7 @@ export function GrowthTrendChart({
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={
-                    ((v: unknown) => [
-                      `${(Number(v) * 100).toFixed(1)}%`,
-                      '成功率',
-                    ]) as never
+                    ((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, '成功率']) as never
                   }
                 />
                 <Area
@@ -252,9 +239,7 @@ export function GrowthTrendChart({
             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-              知識分布
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">知識分布</h3>
           </div>
 
           {memoryOverview && memoryOverview.knowledgeDistribution.length > 0 ? (
@@ -274,10 +259,7 @@ export function GrowthTrendChart({
                     dataKey="value"
                   >
                     {memoryOverview.knowledgeDistribution.map((_, i) => (
-                      <Cell
-                        key={`cell-${i}`}
-                        fill={PIE_COLORS[i % PIE_COLORS.length]}
-                      />
+                      <Cell key={`cell-${i}`} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={TOOLTIP_STYLE} />

@@ -108,12 +108,7 @@ export default function AudioWaveform({
 
   return (
     <div className="flex items-center gap-2">
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        className="rounded"
-      />
+      <canvas ref={canvasRef} width={width} height={height} className="rounded" />
     </div>
   );
 }

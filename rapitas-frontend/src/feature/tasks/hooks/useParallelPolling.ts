@@ -10,10 +10,7 @@
 import { useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
-import type {
-  ParallelSessionState,
-  SubtaskExecutionState,
-} from './parallel-execution-types';
+import type { ParallelSessionState, SubtaskExecutionState } from './parallel-execution-types';
 import type { ParallelExecutionStatus } from '../components/SubtaskExecutionStatus';
 
 const logger = createLogger('useParallelPolling');
@@ -22,9 +19,7 @@ interface UseParallelPollingOptions {
   /** Ref that always holds the current sessionId to avoid stale closures */
   sessionIdRef: React.RefObject<string | null>;
   /** React state setter for the session state */
-  setSessionState: React.Dispatch<
-    React.SetStateAction<ParallelSessionState | null>
-  >;
+  setSessionState: React.Dispatch<React.SetStateAction<ParallelSessionState | null>>;
 }
 
 /**
@@ -33,10 +28,7 @@ interface UseParallelPollingOptions {
  * @param options - sessionIdRef and setSessionState / セッションIDの参照と状態セッター
  * @returns fetchStatus callback and interval ref
  */
-export function useParallelPolling({
-  sessionIdRef,
-  setSessionState,
-}: UseParallelPollingOptions) {
+export function useParallelPolling({ sessionIdRef, setSessionState }: UseParallelPollingOptions) {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // NOTE: Uses ref to prevent stale closure references when called from onerror
@@ -45,9 +37,7 @@ export function useParallelPolling({
     if (!currentSessionId) return;
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/parallel/sessions/${currentSessionId}/status`,
-      );
+      const res = await fetch(`${API_BASE_URL}/parallel/sessions/${currentSessionId}/status`);
       if (!res.ok) {
         throw new Error('ステータスの取得に失敗しました');
       }

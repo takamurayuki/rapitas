@@ -93,11 +93,7 @@ export function SideNav({
           aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
           title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
         >
-          {isMenuPinned ? (
-            <PinOff className="w-5 h-5" />
-          ) : (
-            <Pin className="w-5 h-5" />
-          )}
+          {isMenuPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
         </button>
       </div>
 

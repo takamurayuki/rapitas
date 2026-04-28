@@ -25,18 +25,13 @@ interface UseTaskFormDataOptions {
  * @param options.setThemeId - Setter from the parent form state / 親フォームのthemeIdセッター
  * @returns Remote data and derived theme helpers.
  */
-export function useTaskFormData({
-  themeId,
-  setThemeId,
-}: UseTaskFormDataOptions) {
+export function useTaskFormData({ themeId, setThemeId }: UseTaskFormDataOptions) {
   const searchParams = useSearchParams();
   const appMode = useAppModeStore((state) => state.mode);
 
   const [themes, setThemes] = useState<Theme[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
-    null,
-  );
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
 
   const fetchCategories = async () => {
     try {

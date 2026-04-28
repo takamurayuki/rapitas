@@ -1,16 +1,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useLocaleStore } from '@/stores/locale-store';
 import { API_BASE_URL } from '@/utils/api';
 
-export function useWorkflowApproval(
-  taskId: number,
-  onComplete?: (newStatus: string) => void,
-) {
+export function useWorkflowApproval(taskId: number, onComplete?: (newStatus: string) => void) {
   const [isApproving, setIsApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const locale = useLocaleStore((s) => s.locale);
 
   const approvePlan = useCallback(
     async (approved: boolean, reason?: string) => {
@@ -18,14 +13,11 @@ export function useWorkflowApproval(
       setError(null);
 
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/workflow/tasks/${taskId}/approve-plan`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ approved, reason, language: locale }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/approve-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved, reason }),
+        });
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -40,15 +32,14 @@ export function useWorkflowApproval(
 
         return { success: true, workflowStatus: data.workflowStatus };
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : '承認処理に失敗しました';
+        const message = err instanceof Error ? err.message : '承認処理に失敗しました';
         setError(message);
         return { success: false, error: message };
       } finally {
         setIsApproving(false);
       }
     },
-    [taskId, locale, onComplete],
+    [taskId, onComplete],
   );
 
   const clearError = useCallback(() => setError(null), []);

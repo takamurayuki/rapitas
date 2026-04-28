@@ -130,12 +130,6 @@ async function handleTaskRequests(
       return prisma.task.findMany({ where });
     }
 
-    if (subResource === 'dependencies') {
-      // GET /tasks/:id/dependencies
-      // Note: TaskDependency model not found in schema, returning empty array for now
-      return [];
-    }
-
     if (subResource === 'related') {
       // GET /tasks/:id/related
       const task = await prisma.task.findUnique({

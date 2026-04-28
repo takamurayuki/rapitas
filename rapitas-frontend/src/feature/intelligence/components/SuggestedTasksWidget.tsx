@@ -1,20 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import {
-  Zap,
-  Brain,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Play,
-  EyeOff,
-} from 'lucide-react';
+import { Zap, Brain, TrendingUp, TrendingDown, Minus, Play, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import {
-  useSuggestedTasks,
-  type TaskSuggestion,
-} from '../hooks/useIntelligence';
+import { useSuggestedTasks, type TaskSuggestion } from '../hooks/useIntelligence';
 
 const priorityColors: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
@@ -65,8 +54,7 @@ function addSnoozedTask(taskId: number) {
 }
 
 export function SuggestedTasksWidget() {
-  const { data, loading, fetch, updateTaskStatus, startPomodoro } =
-    useSuggestedTasks();
+  const { data, loading, fetch, updateTaskStatus, startPomodoro } = useSuggestedTasks();
   const [snoozedTasks, setSnoozedTasks] = useState<number[]>([]);
   const [updatingTask, setUpdatingTask] = useState<number | null>(null);
 
@@ -103,15 +91,12 @@ export function SuggestedTasksWidget() {
     [updateTaskStatus, startPomodoro, fetch],
   );
 
-  const handleSnooze = useCallback(
-    (task: TaskSuggestion, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      addSnoozedTask(task.taskId);
-      setSnoozedTasks(getSnoozedTasks());
-    },
-    [],
-  );
+  const handleSnooze = useCallback((task: TaskSuggestion, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addSnoozedTask(task.taskId);
+    setSnoozedTasks(getSnoozedTasks());
+  }, []);
 
   if (loading) {
     return (
@@ -119,10 +104,7 @@ export function SuggestedTasksWidget() {
         <div className="animate-pulse space-y-3">
           <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded w-40" />
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
-            />
+            <div key={i} className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
           ))}
         </div>
       </div>
@@ -130,8 +112,7 @@ export function SuggestedTasksWidget() {
   }
 
   const filteredSuggestions =
-    data?.suggestions.filter((task) => !snoozedTasks.includes(task.taskId)) ||
-    [];
+    data?.suggestions.filter((task) => !snoozedTasks.includes(task.taskId)) || [];
 
   if (!data || filteredSuggestions.length === 0) {
     return (
@@ -159,9 +140,7 @@ export function SuggestedTasksWidget() {
           <Zap className="w-5 h-5 text-amber-500" />
           今やるべきタスク
         </h2>
-        <div
-          className={`flex items-center gap-1 text-xs ${focusColors[data.focusLevel]}`}
-        >
+        <div className={`flex items-center gap-1 text-xs ${focusColors[data.focusLevel]}`}>
           <FocusIcon className="w-3.5 h-3.5" />
           <span>{data.message}</span>
         </div>
@@ -194,9 +173,7 @@ export function SuggestedTasksWidget() {
               >
                 {task.priority}
               </span>
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                {task.score}pt
-              </span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">{task.score}pt</span>
 
               {/* Status Dropdown */}
               <select

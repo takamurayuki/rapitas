@@ -75,9 +75,7 @@ export function StudyView({
             {isFlipped ? card.back : card.front}
           </p>
           {!isFlipped && (
-            <p className="mt-6 text-sm text-zinc-400 dark:text-zinc-500">
-              {t('tapToSeeAnswer')}
-            </p>
+            <p className="mt-6 text-sm text-zinc-400 dark:text-zinc-500">{t('tapToSeeAnswer')}</p>
           )}
         </div>
       </div>

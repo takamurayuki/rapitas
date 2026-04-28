@@ -2,10 +2,7 @@
 // KanbanCard
 
 import { ExternalLink } from 'lucide-react';
-import type {
-  DraggableProvided,
-  DraggableStateSnapshot,
-} from '@hello-pangea/dnd';
+import type { DraggableProvided, DraggableStateSnapshot } from '@hello-pangea/dnd';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 
 interface KanbanCardTask {
@@ -71,9 +68,7 @@ export function KanbanCard({
       } ${executionClasses?.cardClass || ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">
-          {task.title}
-        </h3>
+        <h3 className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-50">{task.title}</h3>
         <div className="flex items-center gap-2">
           {/* Execution state badge */}
           {executionClasses && (
@@ -104,12 +99,7 @@ export function KanbanCard({
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         {/* Date */}
         <span className="flex items-center gap-1">
-          <svg
-            className="w-3 h-3"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -123,12 +113,7 @@ export function KanbanCard({
         {/* Subtasks */}
         {task.subtasks && task.subtasks.length > 0 && (
           <span className="flex items-center gap-1">
-            <svg
-              className="w-3 h-3"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -136,20 +121,14 @@ export function KanbanCard({
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
               />
             </svg>
-            {task.subtasks.filter((st) => st.status === 'done').length}/
-            {task.subtasks.length}
+            {task.subtasks.filter((st) => st.status === 'done').length}/{task.subtasks.length}
           </span>
         )}
 
         {/* Label count */}
         {hasLabels(task.labels) && (
           <span className="flex items-center gap-1">
-            <svg
-              className="w-3 h-3"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -164,12 +143,7 @@ export function KanbanCard({
         {/* Estimated hours */}
         {task.estimatedHours && (
           <span className="flex items-center gap-1">
-            <svg
-              className="w-3 h-3"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -196,9 +170,7 @@ export function KanbanCard({
               </span>
             ))}
           {getLabelsArray(task.labels).length > 3 && (
-            <span className="text-xs text-zinc-500">
-              +{getLabelsArray(task.labels).length - 3}
-            </span>
+            <span className="text-xs text-zinc-500">+{getLabelsArray(task.labels).length - 3}</span>
           )}
         </div>
       )}

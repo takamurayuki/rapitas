@@ -5,12 +5,7 @@
  * existing import paths (`@/lib/api-client`) continue to work unchanged.
  */
 
-export type {
-  RequestOptions,
-  BatchRequest,
-  BatchResponse,
-  CacheEntry,
-} from './types';
+export type { RequestOptions, BatchRequest, BatchResponse, CacheEntry } from './types';
 export { ApiClientCache } from './cache';
 export { ApiClientBatch } from './batch';
 export { APIClient } from './client';

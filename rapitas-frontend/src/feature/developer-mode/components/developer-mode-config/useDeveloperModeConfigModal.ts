@@ -9,11 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import type {
-  DeveloperModeConfig,
-  TaskAnalysisConfig,
-  AgentExecutionConfig,
-} from '@/types';
+import type { DeveloperModeConfig, TaskAnalysisConfig, AgentExecutionConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -32,9 +28,7 @@ type Params = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (
-    updates: Partial<DeveloperModeConfig>,
-  ) => Promise<DeveloperModeConfig | null>;
+  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId?: number | null;
   onAgentConfigChange?: (agentConfigId: number | null) => void;
   taskId?: number;
@@ -63,33 +57,25 @@ export function useDeveloperModeConfigModal({
   const [autoApprove, _setAutoApprove] = useState(config?.autoApprove ?? false);
   const [notifyInApp, _setNotifyInApp] = useState(config?.notifyInApp ?? true);
   const [maxSubtasks, _setMaxSubtasks] = useState(config?.maxSubtasks ?? 10);
-  const [priority, _setPriority] = useState<string>(
-    config?.priority ?? 'balanced',
-  );
+  const [priority, _setPriority] = useState<string>(config?.priority ?? 'balanced');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // ── Task analysis settings ────────────────────────────────────────────────
-  const [analysisAgentConfigId, setAnalysisAgentConfigId] = useState<
-    number | null
-  >(null);
+  const [analysisAgentConfigId, setAnalysisAgentConfigId] = useState<number | null>(null);
   const [analysisDepth, setAnalysisDepth] = useState<AnalysisDepth>('standard');
   const [analysisMaxSubtasks, setAnalysisMaxSubtasks] = useState(10);
-  const [priorityStrategy, setPriorityStrategy] =
-    useState<PriorityStrategy>('balanced');
+  const [priorityStrategy, setPriorityStrategy] = useState<PriorityStrategy>('balanced');
   const [includeEstimates, setIncludeEstimates] = useState(true);
   const [includeDependencies, setIncludeDependencies] = useState(true);
   const [includeTips, setIncludeTips] = useState(true);
   const [promptStrategy, setPromptStrategy] = useState<PromptStrategy>('auto');
   const [autoApproveSubtasks, setAutoApproveSubtasks] = useState(false);
   const [autoOptimizePrompt, setAutoOptimizePrompt] = useState(false);
-  const [analysisNotifyOnComplete, setAnalysisNotifyOnComplete] =
-    useState(true);
+  const [analysisNotifyOnComplete, setAnalysisNotifyOnComplete] = useState(true);
 
   // ── Agent execution settings ──────────────────────────────────────────────
-  const [executionAgentConfigId, setExecutionAgentConfigId] = useState<
-    number | null
-  >(null);
+  const [executionAgentConfigId, setExecutionAgentConfigId] = useState<number | null>(null);
   const [branchStrategy, setBranchStrategy] = useState<BranchStrategy>('auto');
   const [branchPrefix, setBranchPrefix] = useState('feature/');
   const [autoCommit, setAutoCommit] = useState(false);
@@ -129,10 +115,8 @@ export function useDeveloperModeConfigModal({
   // Reflect external selectedAgentConfigId changes into local state.
   useEffect(() => {
     if (selectedAgentConfigId !== undefined && selectedAgentConfigId !== null) {
-      if (!analysisAgentConfigId)
-        setAnalysisAgentConfigId(selectedAgentConfigId);
-      if (!executionAgentConfigId)
-        setExecutionAgentConfigId(selectedAgentConfigId);
+      if (!analysisAgentConfigId) setAnalysisAgentConfigId(selectedAgentConfigId);
+      if (!executionAgentConfigId) setExecutionAgentConfigId(selectedAgentConfigId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAgentConfigId]);
@@ -214,8 +198,7 @@ export function useDeveloperModeConfigModal({
     );
 
   /** Returns agents filtered by configured API keys. */
-  const getAvailableAgents = () =>
-    agentManager.getAvailableAgents(apiKeyManager.apiKeyStatuses);
+  const getAvailableAgents = () => agentManager.getAvailableAgents(apiKeyManager.apiKeyStatuses);
 
   // ── Save handler ──────────────────────────────────────────────────────────
 
@@ -237,64 +220,54 @@ export function useDeveloperModeConfigModal({
       });
 
       if (taskId) {
-        const analysisRes = await fetch(
-          `${API_BASE_URL}/task-analysis-config/${taskId}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              agentConfigId: analysisAgentConfigId,
-              analysisDepth,
-              maxSubtasks: analysisMaxSubtasks,
-              priorityStrategy,
-              includeEstimates,
-              includeDependencies,
-              includeTips,
-              promptStrategy,
-              autoApproveSubtasks,
-              autoOptimizePrompt,
-              notifyOnComplete: analysisNotifyOnComplete,
-            }),
-          },
-        );
+        const analysisRes = await fetch(`${API_BASE_URL}/task-analysis-config/${taskId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentConfigId: analysisAgentConfigId,
+            analysisDepth,
+            maxSubtasks: analysisMaxSubtasks,
+            priorityStrategy,
+            includeEstimates,
+            includeDependencies,
+            includeTips,
+            promptStrategy,
+            autoApproveSubtasks,
+            autoOptimizePrompt,
+            notifyOnComplete: analysisNotifyOnComplete,
+          }),
+        });
 
         if (!analysisRes.ok) {
           const errData = await analysisRes.json().catch(() => ({}));
-          throw new Error(
-            errData.error || 'タスク分析設定の保存に失敗しました',
-          );
+          throw new Error(errData.error || 'タスク分析設定の保存に失敗しました');
         }
 
-        const executionRes = await fetch(
-          `${API_BASE_URL}/agent-execution-config/${taskId}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              agentConfigId: executionAgentConfigId,
-              branchStrategy,
-              branchPrefix,
-              autoCommit,
-              autoCreatePR,
-              autoMergePR,
-              mergeCommitThreshold,
-              autoExecuteOnAnalysis,
-              useOptimizedPrompt,
-              autoCodeReview,
-              reviewScope,
-              notifyOnStart: execNotifyOnStart,
-              notifyOnComplete: execNotifyOnComplete,
-              notifyOnError: execNotifyOnError,
-              additionalInstructions,
-            }),
-          },
-        );
+        const executionRes = await fetch(`${API_BASE_URL}/agent-execution-config/${taskId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentConfigId: executionAgentConfigId,
+            branchStrategy,
+            branchPrefix,
+            autoCommit,
+            autoCreatePR,
+            autoMergePR,
+            mergeCommitThreshold,
+            autoExecuteOnAnalysis,
+            useOptimizedPrompt,
+            autoCodeReview,
+            reviewScope,
+            notifyOnStart: execNotifyOnStart,
+            notifyOnComplete: execNotifyOnComplete,
+            notifyOnError: execNotifyOnError,
+            additionalInstructions,
+          }),
+        });
 
         if (!executionRes.ok) {
           const errData = await executionRes.json().catch(() => ({}));
-          throw new Error(
-            errData.error || 'エージェント実行設定の保存に失敗しました',
-          );
+          throw new Error(errData.error || 'エージェント実行設定の保存に失敗しました');
         }
       }
 

@@ -21,11 +21,7 @@ import { LogEntry } from './LogEntry';
 import { useLogViewer } from './useLogViewer';
 import type { ExecutionLogViewerProps } from './types';
 
-export type {
-  ExecutionLogStatus,
-  ExecutionLogViewMode,
-  ExecutionLogViewerProps,
-} from './types';
+export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps } from './types';
 
 /**
  * Displays execution logs with advanced features such as auto-scroll, search,
@@ -97,16 +93,8 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
     if (logs.length === 0) return null;
 
     if (viewMode === 'simple') {
-      const newEntriesCount = Math.max(
-        0,
-        simpleLogEntries.length - (displayedLogsCount - 5),
-      );
-      return (
-        <SimpleLogEntryList
-          entries={simpleLogEntries}
-          newEntriesCount={newEntriesCount}
-        />
-      );
+      const newEntriesCount = Math.max(0, simpleLogEntries.length - (displayedLogsCount - 5));
+      return <SimpleLogEntryList entries={simpleLogEntries} newEntriesCount={newEntriesCount} />;
     }
 
     // Detailed mode
@@ -123,14 +111,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         />
       );
     });
-  }, [
-    logs,
-    searchQuery,
-    highlightText,
-    displayedLogsCount,
-    viewMode,
-    simpleLogEntries,
-  ]);
+  }, [logs, searchQuery, highlightText, displayedLogsCount, viewMode, simpleLogEntries]);
 
   // Collapsed state: show a minimal button
   if (collapsible && !isExpanded && logs.length > 0) {
@@ -155,9 +136,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   return (
     <div
       className={`transition-all duration-300 ${
-        isFullscreen
-          ? 'fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col'
-          : ''
+        isFullscreen ? 'fixed inset-4 z-50 bg-zinc-900 rounded-xl shadow-2xl flex flex-col' : ''
       } ${className}`}
     >
       {showHeader && (
@@ -188,16 +167,12 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       )}
 
       {/* Workflow progress bar (simple mode only) */}
-      {viewMode === 'simple' && currentPhase && (
-        <WorkflowProgressBar currentPhase={currentPhase} />
-      )}
+      {viewMode === 'simple' && currentPhase && <WorkflowProgressBar currentPhase={currentPhase} />}
 
       {/* Live execution stats bar */}
-      {viewMode === 'simple' &&
-        executionSummary &&
-        (isRunning || status === 'running') && (
-          <LiveStatsBar summary={executionSummary} />
-        )}
+      {viewMode === 'simple' && executionSummary && (isRunning || status === 'running') && (
+        <LiveStatsBar summary={executionSummary} />
+      )}
 
       <div
         ref={logContainerRef}
@@ -207,9 +182,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         onTouchStart={handleScrollStart}
         onTouchEnd={handleScrollEnd}
         className={`bg-zinc-900 overflow-auto execution-log-container break-words ${
-          viewMode === 'detailed'
-            ? 'font-mono text-xs sm:text-sm'
-            : 'text-xs sm:text-sm'
+          viewMode === 'detailed' ? 'font-mono text-xs sm:text-sm' : 'text-xs sm:text-sm'
         } ${isFullscreen ? 'flex-1' : ''} ${showHeader ? 'rounded-b-lg' : 'rounded-lg'}`}
         style={{ height: isFullscreen ? undefined : maxHeight }}
       >
@@ -223,13 +196,9 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
                 </div>
               </div>
             )}
-            {executionSummary &&
-              (status === 'completed' || status === 'failed') && (
-                <ExecutionSummaryCard
-                  summary={executionSummary}
-                  status={status}
-                />
-              )}
+            {executionSummary && (status === 'completed' || status === 'failed') && (
+              <ExecutionSummaryCard summary={executionSummary} status={status} />
+            )}
           </div>
         ) : (
           <pre className="p-4 text-zinc-300 whitespace-pre-wrap wrap-break-words">

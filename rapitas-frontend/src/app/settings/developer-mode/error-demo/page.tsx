@@ -59,32 +59,22 @@ export default function ErrorDemoPage() {
 
   const triggerPromiseRejection = () => {
     // Unhandled promise rejection
-    Promise.reject(
-      new Error('Unhandled Promise Rejection: Database connection failed'),
-    );
+    Promise.reject(new Error('Unhandled Promise Rejection: Database connection failed'));
   };
 
   const triggerValidationError = () => {
-    manualCaptureError(
-      'ValidationError: Required field "email" is missing',
-      undefined,
-      {
-        formData: { name: 'John Doe', email: null },
-        endpoint: '/api/users/create',
-      },
-    );
+    manualCaptureError('ValidationError: Required field "email" is missing', undefined, {
+      formData: { name: 'John Doe', email: null },
+      endpoint: '/api/users/create',
+    });
   };
 
   const triggerTimeoutError = () => {
-    manualCaptureError(
-      'Timeout: Operation timed out after 30 seconds',
-      undefined,
-      {
-        operation: 'fetchLargeDataset',
-        timeoutMs: 30000,
-        dataSize: '2.5GB',
-      },
-    );
+    manualCaptureError('Timeout: Operation timed out after 30 seconds', undefined, {
+      operation: 'fetchLargeDataset',
+      timeoutMs: 30000,
+      dataSize: '2.5GB',
+    });
   };
 
   const triggerDependencyError = () => {
@@ -127,9 +117,7 @@ export default function ErrorDemoPage() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {t('errorDemoTitle')}
             </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('errorDemoSubtitle')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('errorDemoSubtitle')}</p>
           </div>
         </div>
       </div>
@@ -143,8 +131,8 @@ export default function ErrorDemoPage() {
                 {t('errorDemoCaptured')}
               </h3>
               <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                {t('errorDemoCategory')}: {lastError.category} |{' '}
-                {t('errorDemoSeverity')}: {lastError.severity}
+                {t('errorDemoCategory')}: {lastError.category} | {t('errorDemoSeverity')}:{' '}
+                {lastError.severity}
               </p>
               <p className="text-sm mt-1 font-mono">{lastError.message}</p>
             </div>

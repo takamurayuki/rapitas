@@ -63,17 +63,12 @@ export function BlockList({
           <div className="text-center py-8">
             <Clock className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
             <p className="text-zinc-500 dark:text-zinc-400">{t('noBlocks')}</p>
-            <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">
-              {t('noBlocksHint')}
-            </p>
+            <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">{t('noBlocksHint')}</p>
           </div>
         ) : (
           <div className="space-y-2">
             {blocks
-              .sort(
-                (a, b) =>
-                  timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
-              )
+              .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
               .map((block) => {
                 const Icon = getCategoryIcon(block.category);
                 const isHovered = hoveredBlock === block.id;
@@ -93,10 +88,7 @@ export function BlockList({
                       className="w-10 h-10 rounded-lg flex items-center justify-center"
                       style={{ backgroundColor: block.color + '20' }}
                     >
-                      <Icon
-                        className="w-5 h-5"
-                        style={{ color: block.color }}
-                      />
+                      <Icon className="w-5 h-5" style={{ color: block.color }} />
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -104,9 +96,7 @@ export function BlockList({
                         <span className="font-medium text-zinc-900 dark:text-zinc-50 truncate">
                           {block.label}
                         </span>
-                        {block.isNotify && (
-                          <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        )}
+                        {block.isNotify && <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                       </div>
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {block.startTime}〜{block.endTime}（

@@ -76,9 +76,7 @@ export interface UseSSEReturn<T> {
   reset: () => void;
 }
 
-export function useSSE<T = unknown>(
-  options: UseSSEOptions<T> = {},
-): UseSSEReturn<T> {
+export function useSSE<T = unknown>(options: UseSSEOptions<T> = {}): UseSSEReturn<T> {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -86,9 +84,7 @@ export function useSSE<T = unknown>(
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<SSEErrorData | null>(null);
   const [retryInfo, setRetryInfo] = useState<SSERetryData | null>(null);
-  const [rollbackInfo, setRollbackInfo] = useState<SSERollbackData | null>(
-    null,
-  );
+  const [rollbackInfo, setRollbackInfo] = useState<SSERollbackData | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const optionsRef = useRef(options);
@@ -143,8 +139,7 @@ export function useSSE<T = unknown>(
           const connectionError = new Error('SSE接続でエラーが発生しました');
           optionsRef.current.onConnectionError?.(connectionError);
           setError({
-            error:
-              '接続エラーが発生しました。ネットワーク接続を確認してください。',
+            error: '接続エラーが発生しました。ネットワーク接続を確認してください。',
           });
           disconnect();
         };

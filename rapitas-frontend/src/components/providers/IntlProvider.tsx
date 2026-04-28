@@ -8,19 +8,11 @@ import en from '../../../messages/en.json';
 
 const messages = { ja, en } as const;
 
-export default function IntlProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function IntlProvider({ children }: { children: React.ReactNode }) {
   const locale = useLocaleStore((s) => s.locale);
 
   return (
-    <NextIntlClientProvider
-      locale={locale}
-      messages={messages[locale]}
-      timeZone="Asia/Tokyo"
-    >
+    <NextIntlClientProvider locale={locale} messages={messages[locale]} timeZone="Asia/Tokyo">
       <HtmlLangUpdater />
       {children}
     </NextIntlClientProvider>

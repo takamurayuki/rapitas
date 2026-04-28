@@ -42,14 +42,7 @@ export function PlatformPhase({
   const canGo = localPlatform && localScale && localPrio;
 
   return (
-    <PageWrap
-      topRef={topRef}
-      title={t('platformTitle')}
-      sub=""
-      step={4}
-      total={5}
-      onBack={onBack}
-    >
+    <PageWrap topRef={topRef} title={t('platformTitle')} sub="" step={4} total={5} onBack={onBack}>
       {/* Platform */}
       <div style={{ marginBottom: 28 }}>
         <div

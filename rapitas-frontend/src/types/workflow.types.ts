@@ -63,11 +63,5 @@ export type WorkflowRoleConfig = {
    *   (mitigates self-evaluation bias for reviewer/verifier roles).
    * - `null`: fall back to UserSettings.defaultAiProvider.
    */
-  preferredProviderOverride?:
-    | 'claude'
-    | 'openai'
-    | 'gemini'
-    | 'ollama'
-    | 'cross-provider'
-    | null;
+  preferredProviderOverride?: 'claude' | 'openai' | 'gemini' | 'ollama' | 'cross-provider' | null;
 };

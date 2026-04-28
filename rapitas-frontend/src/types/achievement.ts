@@ -1,22 +1,16 @@
-/**
- * Achievement types — stub module
- *
- * The achievement feature is partially scaffolded but not yet complete.
- * This file provides the type exports that AchievementToast.tsx and
- * AchievementsClient.tsx expect so the project compiles. Real definitions
- * will replace these stubs when the feature is implemented.
- */
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface Achievement {
   id: string;
-  title: string;
+  name: string;
+  title?: string;
   description: string;
   icon: string;
   category: string;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  unlockedAt?: string;
-  progress?: number;
-  maxProgress?: number;
+  rarity: AchievementRarity;
+  pointsReward: number;
+  metric: keyof PlayerStats;
+  targetValue: number;
 }
 
 export interface AchievementCategory {
@@ -25,38 +19,67 @@ export interface AchievementCategory {
   icon: string;
 }
 
-/** Player stats for achievement evaluation. Stub — shape TBD. */
+export interface AchievementProgress {
+  achievementId: string;
+  currentValue: number;
+  targetValue: number;
+  progressPercentage: number;
+  isUnlocked: boolean;
+  unlockedAt?: Date;
+}
+
 export interface PlayerStats {
   userId: number;
+  totalPoints: number;
+  unlockedAchievements: number;
+  earnedBadges: number;
   totalTasksCompleted: number;
-  totalPomodoros: number;
-  consecutiveDays: number;
-  totalFocusMinutes: number;
-  [key: string]: unknown;
+  tasksCompletedToday: number;
+  tasksCompletedThisWeek: number;
+  currentTaskStreak: number;
+  maxTaskStreak: number;
+  totalStudyTimeMinutes: number;
+  studyTimeToday: number;
+  studyTimeThisWeek: number;
+  currentStudyStreak: number;
+  maxStudyStreak: number;
+  totalAgentExecutions: number;
+  agentExecutionsToday: number;
+  agentExecutionsThisWeek: number;
+  highPriorityTasksCompleted: number;
+  onTimeCompletionRate: number;
+  lastUpdatedAt: Date;
+  totalPomodoros?: number;
+  consecutiveDays?: number;
+  totalFocusMinutes?: number;
 }
 
-/** Request shape for updating player stats. Stub — shape TBD. */
 export interface StatsUpdateRequest {
-  type: string;
-  value: number;
-  [key: string]: unknown;
+  tasksCompleted?: number;
+  studyTimeMinutes?: number;
+  agentExecutions?: number;
+  highPriorityTasksCompleted?: number;
+  timestamp?: Date;
 }
 
-/** Badge definition. Stub — shape TBD. */
 export interface Badge {
   id: string;
   name: string;
   description: string;
   icon: string;
-  requirement: string;
+  requiredAchievements: string[];
 }
 
-/** Notification payload for a newly unlocked achievement. */
 export interface AchievementNotification {
   id: string;
+  achievementId: string;
+  achievementName: string;
   title: string;
   description: string;
   icon: string;
-  rarity: Achievement['rarity'];
-  unlockedAt: string;
+  rarity: AchievementRarity;
+  pointsReward: number;
+  timestamp: Date;
+  unlockedAt?: string;
+  isShown: boolean;
 }

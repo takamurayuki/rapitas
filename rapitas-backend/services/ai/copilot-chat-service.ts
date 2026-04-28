@@ -40,9 +40,6 @@ async function buildTaskContext(taskId: number): Promise<string> {
         select: { id: true, title: true, status: true },
         take: 10,
       },
-      incomingDependencies: {
-        select: { fromTask: { select: { title: true, status: true } } },
-      },
     },
   });
 
@@ -58,12 +55,6 @@ async function buildTaskContext(taskId: number): Promise<string> {
 
   if (task.subtasks.length > 0) {
     parts.push(`\nサブタスク: ${task.subtasks.map((s) => `[${s.status}] ${s.title}`).join(', ')}`);
-  }
-
-  if (task.incomingDependencies.length > 0) {
-    parts.push(
-      `ブロッカー: ${task.incomingDependencies.map((d) => `[${d.fromTask.status}] ${d.fromTask.title}`).join(', ')}`,
-    );
   }
 
   if (task.comments.length > 0) {

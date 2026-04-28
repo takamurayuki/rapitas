@@ -26,10 +26,7 @@ describe('getLabelsArray', () => {
   });
 
   it('filters non-string items from array', () => {
-    expect(getLabelsArray(['valid', 42, null, 'also-valid'])).toEqual([
-      'valid',
-      'also-valid',
-    ]);
+    expect(getLabelsArray(['valid', 42, null, 'also-valid'])).toEqual(['valid', 'also-valid']);
   });
 
   it('returns empty array for non-string/non-array input', () => {

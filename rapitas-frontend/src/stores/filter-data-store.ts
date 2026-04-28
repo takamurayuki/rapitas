@@ -1,3 +1,4 @@
+'use client';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Category, Theme } from '@/types';
@@ -63,10 +64,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Fetch function with timeout
  */
-const fetchWithTimeout = async <T>(
-  fetchFn: () => Promise<T>,
-  timeout: number,
-): Promise<T> => {
+const fetchWithTimeout = async <T>(fetchFn: () => Promise<T>, timeout: number): Promise<T> => {
   const timeoutPromise = new Promise<T>((_, reject) =>
     setTimeout(() => reject(new Error('Request timed out')), timeout),
   );
@@ -119,46 +117,30 @@ export const useFilterDataStore = create<FilterDataStore>()(
           return;
         }
 
-        logger.info(
-          '[filterDataStore] initializeData: Starting initialization',
-        );
+        logger.info('[filterDataStore] initializeData: Starting initialization');
         set({ isLoading: true, error: null });
 
         try {
           // Fetch categories and themes in parallel
           const [categoriesResult, themesResult] = await Promise.allSettled([
-            fetchWithRetry(() =>
-              apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
-            ),
-            fetchWithRetry(() =>
-              apiFetch<Theme[]>('/themes', { cacheTime: 300000 }),
-            ),
+            fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
+            fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 })),
           ]);
 
           // Process category results
           if (categoriesResult.status === 'fulfilled') {
             set({ categories: categoriesResult.value });
           } else {
-            logger.error(
-              '[filterDataStore] Categories fetch failed:',
-              categoriesResult.reason,
-            );
-            throw new Error(
-              `Categories fetch failed: ${categoriesResult.reason.message}`,
-            );
+            logger.error('[filterDataStore] Categories fetch failed:', categoriesResult.reason);
+            throw new Error(`Categories fetch failed: ${categoriesResult.reason.message}`);
           }
 
           // Process theme results
           if (themesResult.status === 'fulfilled') {
             set({ themes: themesResult.value });
           } else {
-            logger.error(
-              '[filterDataStore] Themes fetch failed:',
-              themesResult.reason,
-            );
-            throw new Error(
-              `Themes fetch failed: ${themesResult.reason.message}`,
-            );
+            logger.error('[filterDataStore] Themes fetch failed:', themesResult.reason);
+            throw new Error(`Themes fetch failed: ${themesResult.reason.message}`);
           }
 
           logger.info(
@@ -173,18 +155,14 @@ export const useFilterDataStore = create<FilterDataStore>()(
           });
         } catch (error) {
           logger.error('[filterDataStore] initializeData error:', error);
-          const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error occurred';
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
 
-          const hasCachedData =
-            state.categories.length > 0 || state.themes.length > 0;
+          const hasCachedData = state.categories.length > 0 || state.themes.length > 0;
           set({
             isLoading: false,
             // NOTE: Suppress error display when cached data is available (e.g., during server restart).
             // The user already has usable data; showing an error card is disruptive.
-            error: hasCachedData
-              ? null
-              : `Failed to load filter data: ${errorMessage}`,
+            error: hasCachedData ? null : `Failed to load filter data: ${errorMessage}`,
             isInitialized: hasCachedData,
           });
         }
@@ -195,16 +173,12 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
         // Skip if data is fresh and not force-updating
         if (!force && state.isDataFresh()) {
-          logger.debug(
-            '[filterDataStore] refreshData: Data is fresh, skipping refresh',
-          );
+          logger.debug('[filterDataStore] refreshData: Data is fresh, skipping refresh');
           return;
         }
 
         if (force) {
-          logger.info(
-            '[filterDataStore] refreshData: Force refresh - clearing caches',
-          );
+          logger.info('[filterDataStore] refreshData: Force refresh - clearing caches');
           // Also clear api-client cache
           clearApiCache('/categories');
           clearApiCache('/themes');
@@ -212,23 +186,17 @@ export const useFilterDataStore = create<FilterDataStore>()(
           set({ lastUpdated: null, isInitialized: false });
         }
 
-        logger.debug(
-          `[filterDataStore] refreshData: Starting refresh (force: ${force})`,
-        );
+        logger.debug(`[filterDataStore] refreshData: Starting refresh (force: ${force})`);
         return get().initializeData();
       },
 
       setCategories: (categories) => {
-        logger.debug(
-          `[filterDataStore] setCategories: Setting ${categories.length} categories`,
-        );
+        logger.debug(`[filterDataStore] setCategories: Setting ${categories.length} categories`);
         set({ categories });
       },
 
       setThemes: (themes) => {
-        logger.debug(
-          `[filterDataStore] setThemes: Setting ${themes.length} themes`,
-        );
+        logger.debug(`[filterDataStore] setThemes: Setting ${themes.length} themes`);
         set({ themes });
       },
 
@@ -279,19 +247,13 @@ export const useFilterDataStore = create<FilterDataStore>()(
       // Background update (transparent to user)
       backgroundRefresh: async () => {
         const state = get();
-        logger.debug(
-          '[filterDataStore] backgroundRefresh: Starting background update',
-        );
+        logger.debug('[filterDataStore] backgroundRefresh: Starting background update');
 
         try {
           // Fetch categories and themes in parallel (don't change loading state)
           const [categoriesResult, themesResult] = await Promise.allSettled([
-            fetchWithRetry(() =>
-              apiFetch<Category[]>('/categories', { cacheTime: 300000 }),
-            ),
-            fetchWithRetry(() =>
-              apiFetch<Theme[]>('/themes', { cacheTime: 300000 }),
-            ),
+            fetchWithRetry(() => apiFetch<Category[]>('/categories', { cacheTime: 300000 })),
+            fetchWithRetry(() => apiFetch<Theme[]>('/themes', { cacheTime: 300000 })),
           ]);
 
           let hasUpdates = false;
@@ -312,10 +274,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
             set({ themes: themesResult.value });
             hasUpdates = true;
           } else {
-            logger.warn(
-              '[filterDataStore] Background themes fetch failed:',
-              themesResult.reason,
-            );
+            logger.warn('[filterDataStore] Background themes fetch failed:', themesResult.reason);
           }
 
           if (hasUpdates) {
@@ -365,9 +324,7 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
           // Check data freshness after rehydration
           if (state.isInitialized && !state.isDataFresh()) {
-            logger.debug(
-              '[filterDataStore] Cached data is stale, will refresh on next access',
-            );
+            logger.debug('[filterDataStore] Cached data is stale, will refresh on next access');
           }
         }
       },
@@ -380,8 +337,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   (window as unknown as Record<string, unknown>).filterDataStoreDebug = {
     getState: () => useFilterDataStore.getState(),
     clearCache: () => useFilterDataStore.getState().clearCache(),
-    refreshData: (force = true) =>
-      useFilterDataStore.getState().refreshData(force),
+    refreshData: (force = true) => useFilterDataStore.getState().refreshData(force),
     checkFreshness: () => useFilterDataStore.getState().isDataFresh(),
   };
 }

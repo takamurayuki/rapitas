@@ -50,10 +50,7 @@ export default function TaskCardContextMenu({
         <Copy className="w-4 h-4" aria-hidden="true" />
         {tHome('duplicate')}
       </button>
-      <div
-        role="separator"
-        className="my-1 border-t border-slate-200 dark:border-slate-700"
-      />
+      <div role="separator" className="my-1 border-t border-slate-200 dark:border-slate-700" />
       <button
         role="menuitem"
         onClick={onDelete}

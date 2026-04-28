@@ -1,16 +1,7 @@
 'use client';
 // AuthModal
 
-import {
-  Terminal,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Key,
-  Play,
-  Copy,
-  X,
-} from 'lucide-react';
+import { Terminal, CheckCircle, AlertCircle, Loader2, Key, Play, Copy, X } from 'lucide-react';
 import type { AuthModalState, ToolActionState } from './types';
 
 interface AuthModalProps {
@@ -42,8 +33,7 @@ export function AuthModal({
 }: AuthModalProps) {
   if (!authModal.isOpen || !authModal.tool) return null;
 
-  const isAuthenticating =
-    actionStates[authModal.tool.id]?.isAuthenticating ?? false;
+  const isAuthenticating = actionStates[authModal.tool.id]?.isAuthenticating ?? false;
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
@@ -109,10 +99,7 @@ export function AuthModal({
                     </h4>
                     <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
                       <li>1. 上記のコマンドをコピーしてください</li>
-                      <li>
-                        2.
-                        ターミナル（コマンドプロンプトまたはPowerShell）を開いてください
-                      </li>
+                      <li>2. ターミナル（コマンドプロンプトまたはPowerShell）を開いてください</li>
                       <li>3. コマンドを貼り付けて実行してください</li>
                       <li>4. ブラウザで認証プロセスを完了してください</li>
                       <li>5. 下記の「認証確認」ボタンをクリックしてください</li>
@@ -154,9 +141,7 @@ export function AuthModal({
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                     <div className="text-sm text-amber-800 dark:text-amber-200">
-                      <p className="mb-1">
-                        認証が完了していない場合は、以下を確認してください：
-                      </p>
+                      <p className="mb-1">認証が完了していない場合は、以下を確認してください：</p>
                       <ul className="text-xs space-y-1 ml-2">
                         <li>• ターミナルでコマンドを正しく実行したか</li>
                         <li>• ブラウザでの認証プロセスを完了したか</li>

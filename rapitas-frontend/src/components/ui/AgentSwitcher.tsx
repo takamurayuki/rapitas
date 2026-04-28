@@ -29,10 +29,7 @@ type AgentSwitcherProps = {
   showLabel?: boolean;
 };
 
-const AGENT_TYPE_INFO: Record<
-  string,
-  { name: string; icon: React.ReactNode; color: string }
-> = {
+const AGENT_TYPE_INFO: Record<string, { name: string; icon: React.ReactNode; color: string }> = {
   'claude-code': {
     name: 'Claude Code',
     icon: <Terminal className="w-4 h-4" />,
@@ -111,10 +108,7 @@ export function AgentSwitcher({
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -181,9 +175,7 @@ export function AgentSwitcher({
           ) : (
             <>
               <Bot className="w-4 h-4 text-zinc-400" />
-              <span
-                className={`${isSm ? 'text-xs' : 'text-sm'} text-zinc-500 dark:text-zinc-400`}
-              >
+              <span className={`${isSm ? 'text-xs' : 'text-sm'} text-zinc-500 dark:text-zinc-400`}>
                 エージェントを選択
               </span>
             </>
@@ -223,8 +215,7 @@ export function AgentSwitcher({
             {agents.map((agent) => {
               const info = getTypeInfo(agent.agentType);
               const isSelected =
-                agent.id === selectedAgentId ||
-                (!selectedAgentId && agent.isDefault);
+                agent.id === selectedAgentId || (!selectedAgentId && agent.isDefault);
 
               return (
                 <button
@@ -254,9 +245,7 @@ export function AgentSwitcher({
                       {agent.modelId && ` / ${agent.modelId}`}
                     </p>
                   </div>
-                  {isSelected && (
-                    <CheckCircle2 className="w-4 h-4 text-indigo-500 shrink-0" />
-                  )}
+                  {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-500 shrink-0" />}
                 </button>
               );
             })}

@@ -32,9 +32,7 @@ interface TauriVoiceReturn {
  * @param onResult - Callback with transcribed text / 文字起こし結果コールバック
  * @returns Voice state and controls / 音声状態とコントロール
  */
-export function useTauriVoice(
-  onResult?: (text: string) => void,
-): TauriVoiceReturn {
+export function useTauriVoice(onResult?: (text: string) => void): TauriVoiceReturn {
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -89,10 +87,7 @@ export function useTauriVoice(
         setError('音声を認識できませんでした。');
       }
     } catch (err) {
-      const message =
-        typeof err === 'string'
-          ? err
-          : (err as Error).message || 'Unknown error';
+      const message = typeof err === 'string' ? err : (err as Error).message || 'Unknown error';
       setError(message);
       setIsListening(false);
       setIsTranscribing(false);

@@ -1,9 +1,5 @@
 import { useState, useCallback } from 'react';
-import type {
-  AgentExecution,
-  AgentExecutionStatus,
-  AIAgentConfig,
-} from '@/types';
+import type { AgentExecution, AgentExecutionStatus, AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
 export type ExecuteTaskOptions = {
@@ -46,52 +42,45 @@ export type UseAgentExecutionReturn = {
 
 export function useAgentExecution(): UseAgentExecutionReturn {
   const [isExecuting, setIsExecuting] = useState(false);
-  const [currentExecution, setCurrentExecution] =
-    useState<AgentExecution | null>(null);
+  const [currentExecution, setCurrentExecution] = useState<AgentExecution | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const executeTask = useCallback(
-    async (taskId: number, options: ExecuteTaskOptions = {}) => {
-      setIsExecuting(true);
-      setError(null);
+  const executeTask = useCallback(async (taskId: number, options: ExecuteTaskOptions = {}) => {
+    setIsExecuting(true);
+    setError(null);
 
-      try {
-        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(options),
-        });
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Execution failed');
-        }
-
-        if (data.requiresApproval) {
-          return { approvalRequestId: data.approvalRequestId };
-        }
-
-        return { sessionId: data.sessionId };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(message);
-        throw err;
-      } finally {
-        setIsExecuting(false);
+      if (!res.ok) {
+        throw new Error(data.error || 'Execution failed');
       }
-    },
-    [],
-  );
+
+      if (data.requiresApproval) {
+        return { approvalRequestId: data.approvalRequestId };
+      }
+
+      return { sessionId: data.sessionId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setIsExecuting(false);
+    }
+  }, []);
 
   const stopExecution = useCallback(async (sessionId: number) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/agents/sessions/${sessionId}/stop`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {
+        method: 'POST',
+      });
 
       if (!res.ok) {
         const data = await res.json();

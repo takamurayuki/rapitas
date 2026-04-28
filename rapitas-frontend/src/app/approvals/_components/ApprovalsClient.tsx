@@ -2,14 +2,7 @@
 // ApprovalsClient
 
 import { useTranslations } from 'next-intl';
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  Bot,
-  CheckCheck,
-  AlertCircle,
-} from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Bot, CheckCheck, AlertCircle } from 'lucide-react';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { useApprovalsClient } from '../_hooks/useApprovalsClient';
 import { ApprovalCard } from './ApprovalCard';
@@ -47,10 +40,7 @@ export default function ApprovalsClient() {
 
   const totalPages = Math.ceil(approvals.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedApprovals = approvals.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  const paginatedApprovals = approvals.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -64,9 +54,7 @@ export default function ApprovalsClient() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
               {t('pendingList')}
             </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('pendingSubtitle')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('pendingSubtitle')}</p>
           </div>
         </div>
 
@@ -117,10 +105,7 @@ export default function ApprovalsClient() {
       {isLoading && (
         <div className="space-y-3 py-4">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
-            />
+            <div key={i} className="h-20 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
           ))}
         </div>
       )}
@@ -168,11 +153,7 @@ export default function ApprovalsClient() {
                 diffFiles={codeReviewDiff.get(approval.id) || []}
                 onToggleExpand={() => handleExpandCodeReview(approval.id)}
                 onApprove={(commitMessage, baseBranch) =>
-                  handleCodeReviewApprove(
-                    approval.id,
-                    commitMessage,
-                    baseBranch,
-                  )
+                  handleCodeReviewApprove(approval.id, commitMessage, baseBranch)
                 }
                 onReject={() => handleCodeReviewReject(approval.id)}
                 onRequestChanges={(feedback, comments) =>

@@ -20,8 +20,7 @@ export const getAudioContext = (): AudioContext | null => {
   if (!audioContext) {
     const AudioContextClass =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     audioContext = new AudioContextClass();
   }
   return audioContext;
@@ -44,10 +43,7 @@ export const closeAudioContext = (): void => {
  * @param type - 'work' plays three ascending beeps; 'break' plays two descending beeps / 'work'は3回上昇、'break'は2回下降
  * @param volume - Gain level from 0 to 1, defaults to 0.5 / 音量（0〜1）、デフォルト0.5
  */
-export const playNotificationSound = (
-  type: 'work' | 'break',
-  volume: number = 0.5,
-): void => {
+export const playNotificationSound = (type: 'work' | 'break', volume: number = 0.5): void => {
   const context = getAudioContext();
   if (!context) return;
 
@@ -66,10 +62,7 @@ export const playNotificationSound = (
       gain.connect(context.destination);
       osc.frequency.value = 880;
       gain.gain.setValueAtTime(adjustedVolume, context.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(
-        0.01,
-        context.currentTime + delay + 0.15,
-      );
+      gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + delay + 0.15);
       osc.start(context.currentTime + delay);
       osc.stop(context.currentTime + delay + 0.15);
     };
@@ -84,10 +77,7 @@ export const playNotificationSound = (
       gain.connect(context.destination);
       osc.frequency.value = frequency;
       gain.gain.setValueAtTime(adjustedVolume, context.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(
-        0.01,
-        context.currentTime + delay + 0.2,
-      );
+      gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + delay + 0.2);
       osc.start(context.currentTime + delay);
       osc.stop(context.currentTime + delay + 0.2);
     };

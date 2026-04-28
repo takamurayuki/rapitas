@@ -18,9 +18,7 @@ export default function TimeEntryDialog({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md p-6">
-        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">
-          作業を記録
-        </h3>
+        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-4">作業を記録</h3>
         <div className="mb-4">
           <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
             作業内容メモ (任意)

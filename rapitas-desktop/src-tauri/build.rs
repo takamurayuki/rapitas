@@ -10,13 +10,10 @@ fn main() {
 
     // Construct the expected binary name based on target
     let binary_name = match target_os.as_str() {
-        "windows" => format!(
-            "rapitas-backend-{}-pc-windows-{}.exe",
-            target_arch, target_env
-        ),
-        "macos" => format!("rapitas-backend-{}-apple-darwin", target_arch),
-        "linux" => format!("rapitas-backend-{}-unknown-linux-gnu", target_arch),
-        _ => panic!("Unsupported target OS: {}", target_os),
+        "windows" => format!("rapitas-backend-{target_arch}-pc-windows-{target_env}.exe"),
+        "macos" => format!("rapitas-backend-{target_arch}-apple-darwin"),
+        "linux" => format!("rapitas-backend-{target_arch}-unknown-linux-gnu"),
+        _ => panic!("Unsupported target OS: {target_os}"),
     };
 
     let source_path = PathBuf::from("binaries").join(&binary_name);
@@ -27,10 +24,7 @@ fn main() {
     // NOTE: For Windows, use name WITHOUT .exe - Tauri adds it during bundling
     let generic_binary_name = "rapitas-backend";
 
-    let alt_binary_name = format!(
-        "rapitas-backend-{}-{}-{}",
-        target_arch, target_os, target_env
-    );
+    let alt_binary_name = format!("rapitas-backend-{target_arch}-{target_os}-{target_env}");
     // Alternative names to check (for backwards compatibility)
     let alternative_names: Vec<String> = match target_os.as_str() {
         "windows" => vec![
@@ -121,7 +115,7 @@ fn main() {
                 let file_name = entry.file_name();
                 let file_name_str = file_name.to_string_lossy();
                 if file_name_str.starts_with("rapitas-backend") {
-                    println!("cargo:warning=    Found matching file: {}", file_name_str);
+                    println!("cargo:warning=    Found matching file: {file_name_str}");
                 }
             }
         }
@@ -151,7 +145,7 @@ fn main() {
 
         // Create an empty placeholder file
         if let Err(e) = fs::write(&placeholder_path, b"") {
-            println!("cargo:warning=Failed to create placeholder file: {}", e);
+            println!("cargo:warning=Failed to create placeholder file: {e}");
         } else {
             println!(
                 "cargo:warning=Created placeholder file: {}",

@@ -144,9 +144,7 @@ export default function GlobalPomodoroModal({
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 min-w-0">
             <Timer className="w-5 h-5 text-blue-500 shrink-0" />
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
-              時間管理
-            </h2>
+            <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">時間管理</h2>
           </div>
           <button
             onClick={onClose}
@@ -183,26 +181,20 @@ export default function GlobalPomodoroModal({
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-2 mb-2">
             <BarChart3 className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              今日の統計
-            </span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">今日の統計</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
               <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                 {state.todayCompletedPomodoros || 0}
               </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                完了ポモドーロ
-              </div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">完了ポモドーロ</div>
             </div>
             <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 border border-zinc-200 dark:border-zinc-700">
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {formatTime(state.todayTotalWorkSeconds || 0)}
               </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                合計作業時間
-              </div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">合計作業時間</div>
             </div>
           </div>
         </div>
@@ -216,20 +208,14 @@ export default function GlobalPomodoroModal({
               <Settings className="w-4 h-4" />
               設定
             </div>
-            {showSettings ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
+            {showSettings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
 
           {showSettings && (
             <div className="px-4 pb-4 space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm text-zinc-600 dark:text-zinc-400">
-                    通知音
-                  </label>
+                  <label className="text-sm text-zinc-600 dark:text-zinc-400">通知音</label>
                   <button
                     onClick={() =>
                       state.updateSettings({

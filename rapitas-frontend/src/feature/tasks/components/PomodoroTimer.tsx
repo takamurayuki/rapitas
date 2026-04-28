@@ -1,14 +1,6 @@
 'use client';
 import { type TimeEntry } from '@/types';
-import {
-  Icon,
-  Circle,
-  Play,
-  Pause,
-  Square,
-  Coffee,
-  Hourglass,
-} from 'lucide-react';
+import { Icon, Circle, Play, Pause, Square, Coffee, Hourglass } from 'lucide-react';
 import Tomato from '@/components/icons/Tomato';
 import { useTranslations } from 'next-intl';
 import {
@@ -64,9 +56,7 @@ export default function PomodoroTimer({
   const pomodoroCount = isThisTask ? store.pomodoroCount : 0;
   const pomodoroSeconds = isThisTask ? store.pomodoroSeconds : 0;
   const workSeconds = isThisTask ? store.workSeconds : 0;
-  const accumulatedBreakSeconds = isThisTask
-    ? store.accumulatedBreakSeconds
-    : 0;
+  const accumulatedBreakSeconds = isThisTask ? store.accumulatedBreakSeconds : 0;
   const showBreakDialog = isThisTask && store.showBreakDialog;
   const showBreakEndDialog = isThisTask && store.showBreakEndDialog;
 
@@ -188,11 +178,8 @@ export default function PomodoroTimer({
   };
 
   // Calculations for circular progress bar
-  const breakDuration =
-    pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
-  const currentDuration = isBreakTime
-    ? breakDuration
-    : DEFAULT_POMODORO_DURATION;
+  const breakDuration = pomodoroCount % 4 === 0 ? DEFAULT_LONG_BREAK : DEFAULT_SHORT_BREAK;
+  const currentDuration = isBreakTime ? breakDuration : DEFAULT_POMODORO_DURATION;
   const remainingTime = isBreakTime
     ? breakDuration - pomodoroSeconds
     : DEFAULT_POMODORO_DURATION - pomodoroSeconds;
@@ -203,10 +190,7 @@ export default function PomodoroTimer({
   const circumference = 2 * Math.PI * 120;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
-  const breakType =
-    pomodoroCount > 0 && pomodoroCount % 4 === 0
-      ? t('longBreak')
-      : t('shortBreak');
+  const breakType = pomodoroCount > 0 && pomodoroCount % 4 === 0 ? t('longBreak') : t('shortBreak');
 
   // When timer is running for a different task
   const isOtherTaskRunning = store.isTimerRunning && !isThisTask;
@@ -216,9 +200,7 @@ export default function PomodoroTimer({
       {showTaskTitle && store.taskTitle && (
         <div className="mb-4 text-sm text-zinc-600 dark:text-zinc-400 w-full text-center">
           {t('taskDefaultName')}:{' '}
-          <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-            {store.taskTitle}
-          </span>
+          <span className="font-semibold text-zinc-900 dark:text-zinc-50">{store.taskTitle}</span>
         </div>
       )}
 
@@ -266,11 +248,7 @@ export default function PomodoroTimer({
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             className={`transition-all duration-1000 ${
-              isBreakTime
-                ? 'text-green-500'
-                : isPaused
-                  ? 'text-orange-500'
-                  : 'text-blue-500'
+              isBreakTime ? 'text-green-500' : isPaused ? 'text-orange-500' : 'text-blue-500'
             }`}
             strokeLinecap="round"
           />
@@ -371,11 +349,7 @@ export default function PomodoroTimer({
                 onClick={handleCompleteTask}
                 className="flex items-center gap-2 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold transition-all"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path
                     fillRule="evenodd"
                     d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"

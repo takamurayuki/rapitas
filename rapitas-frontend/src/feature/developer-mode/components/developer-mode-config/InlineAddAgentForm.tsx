@@ -131,11 +131,7 @@ export function InlineAddAgentForm({
           disabled={!name.trim() || isSaving}
           className="flex items-center gap-1 px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
         >
-          {isSaving ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Plus className="w-3 h-3" />
-          )}
+          {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
           追加
         </button>
       </div>

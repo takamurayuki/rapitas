@@ -28,10 +28,7 @@ type TaskSuggestionDetailProps = {
   onApply: () => void;
 };
 
-export default function TaskSuggestionDetail({
-  suggestion,
-  onApply,
-}: TaskSuggestionDetailProps) {
+export default function TaskSuggestionDetail({ suggestion, onApply }: TaskSuggestionDetailProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['criteria', 'outcome']),
   );
@@ -130,9 +127,7 @@ export default function TaskSuggestionDetail({
             </span>
           </div>
           <p className="text-xs text-blue-600 dark:text-blue-300">
-            {suggestion.estimatedHours
-              ? `${suggestion.estimatedHours}時間`
-              : '未設定'}
+            {suggestion.estimatedHours ? `${suggestion.estimatedHours}時間` : '未設定'}
           </p>
         </div>
       </div>
@@ -159,17 +154,15 @@ export default function TaskSuggestionDetail({
             {expandedSections.has('criteria') && (
               <div className="px-4 pb-3 pt-1">
                 <ul className="space-y-1">
-                  {formatCriteria(suggestion.completionCriteria).map(
-                    (item, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-300"
-                      >
-                        <ListChecks className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ),
-                  )}
+                  {formatCriteria(suggestion.completionCriteria).map((item, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-300"
+                    >
+                      <ListChecks className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -249,9 +242,7 @@ export default function TaskSuggestionDetail({
             </button>
             {expandedSections.has('reason') && (
               <div className="px-4 pb-3 pt-1">
-                <p className="text-sm text-zinc-600 dark:text-zinc-300">
-                  {suggestion.reason}
-                </p>
+                <p className="text-sm text-zinc-600 dark:text-zinc-300">{suggestion.reason}</p>
               </div>
             )}
           </div>

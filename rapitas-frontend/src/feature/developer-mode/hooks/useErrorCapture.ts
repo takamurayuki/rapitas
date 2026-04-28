@@ -1,9 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import type { ErrorInfo } from 'react';
-import {
-  errorAnalysisService,
-  type ErrorAnalysis,
-} from '../services/error-analysis-service';
+import { errorAnalysisService, type ErrorAnalysis } from '../services/error-analysis-service';
 import { type Task, type AgentSession } from '@/types';
 
 interface UseErrorCaptureOptions {
@@ -94,14 +91,10 @@ export function useErrorCapture({
     if (!captureUnhandledRejections) return;
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      const message =
-        event.reason instanceof Error
-          ? event.reason.message
-          : String(event.reason);
+      const message = event.reason instanceof Error ? event.reason.message : String(event.reason);
 
       captureError(`Unhandled Promise Rejection: ${message}`, {
-        stackTrace:
-          event.reason instanceof Error ? event.reason.stack : undefined,
+        stackTrace: event.reason instanceof Error ? event.reason.stack : undefined,
         userAction: 'Promise rejection',
         systemState: { promise: event.promise },
       });
@@ -110,10 +103,7 @@ export function useErrorCapture({
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     return () => {
-      window.removeEventListener(
-        'unhandledrejection',
-        handleUnhandledRejection,
-      );
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, [captureUnhandledRejections, captureError]);
 
@@ -155,18 +145,15 @@ export function useErrorCapture({
               : args[0] instanceof URL
                 ? args[0].href
                 : (args[0] as Request).url;
-          captureError(
-            `Network request failed: ${response.status} ${response.statusText}`,
-            {
-              userAction: 'Network request',
-              systemState: {
-                url,
-                status: response.status,
-                statusText: response.statusText,
-                headers: Object.fromEntries(response.headers.entries()),
-              },
+          captureError(`Network request failed: ${response.status} ${response.statusText}`, {
+            userAction: 'Network request',
+            systemState: {
+              url,
+              status: response.status,
+              statusText: response.statusText,
+              headers: Object.fromEntries(response.headers.entries()),
             },
-          );
+          });
         }
 
         return response;
@@ -213,11 +200,7 @@ export function useErrorCapture({
 
   // Manual error capture function
   const manualCaptureError = useCallback(
-    (
-      message: string,
-      error?: Error,
-      additionalContext?: Record<string, unknown>,
-    ) => {
+    (message: string, error?: Error, additionalContext?: Record<string, unknown>) => {
       return captureError(message, {
         stackTrace: error?.stack,
         systemState: additionalContext,
@@ -230,11 +213,8 @@ export function useErrorCapture({
     captureReactError,
     manualCaptureError,
     analyzeError: errorAnalysisService.analyzeError.bind(errorAnalysisService),
-    getErrorSummary:
-      errorAnalysisService.getErrorSummary.bind(errorAnalysisService),
-    clearErrorHistory:
-      errorAnalysisService.clearErrorHistory.bind(errorAnalysisService),
-    exportErrorLog:
-      errorAnalysisService.exportErrorLog.bind(errorAnalysisService),
+    getErrorSummary: errorAnalysisService.getErrorSummary.bind(errorAnalysisService),
+    clearErrorHistory: errorAnalysisService.clearErrorHistory.bind(errorAnalysisService),
+    exportErrorLog: errorAnalysisService.exportErrorLog.bind(errorAnalysisService),
   };
 }

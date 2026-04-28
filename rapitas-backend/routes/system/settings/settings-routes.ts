@@ -69,6 +69,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaUrl,
         ollamaDefaultModel,
         titleGenerationProvider,
+        skipAgentPermissionPrompts,
       } = body as {
         developerModeDefault?: boolean;
         aiTaskAnalysisDefault?: boolean;
@@ -85,6 +86,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         ollamaUrl?: string;
         ollamaDefaultModel?: string;
         titleGenerationProvider?: string | null;
+        skipAgentPermissionPrompts?: boolean;
       };
 
       try {
@@ -129,6 +131,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               ...(ollamaUrl !== undefined && { ollamaUrl }),
               ...(ollamaDefaultModel !== undefined && { ollamaDefaultModel }),
               ...(titleGenerationProvider !== undefined && { titleGenerationProvider }),
+              ...(skipAgentPermissionPrompts !== undefined && { skipAgentPermissionPrompts }),
             },
           });
         }

@@ -6,11 +6,7 @@
  * the pattern table.
  */
 
-import {
-  LOG_PATTERNS,
-  HIDDEN_PATTERNS,
-  type UserFriendlyLogEntry,
-} from './log-pattern-rules';
+import { LOG_PATTERNS, HIDDEN_PATTERNS, type UserFriendlyLogEntry } from './log-pattern-rules';
 
 /**
  * Translate a status string to a Japanese label.
@@ -43,9 +39,8 @@ export function translateStatus(status: string): string {
  * @returns classified log entry / 分類済みログエントリ
  */
 export function transformLogToUserFriendly(line: string): UserFriendlyLogEntry {
-  const trimmed = line.trim();
-  if (HIDDEN_PATTERNS.some((p) => p.test(trimmed)))
-    return { category: 'hidden', message: '' };
+  const trimmed = String(line ?? '').trim();
+  if (HIDDEN_PATTERNS.some((p) => p.test(trimmed))) return { category: 'hidden', message: '' };
 
   for (const rule of LOG_PATTERNS) {
     const match = trimmed.match(rule.pattern);
@@ -61,19 +56,32 @@ export function transformLogToUserFriendly(line: string): UserFriendlyLogEntry {
       if (typeof parsed === 'object' && parsed !== null) {
         const obj = parsed as Record<string, unknown>;
         const msg = obj.message || obj.msg || prefix?.trim() || '';
+        const keys = Object.keys(obj);
+        if (
+          !msg &&
+          keys.length > 0 &&
+          keys.every((key) => ['agentId', 'executionId', 'timestamp'].includes(key))
+        ) {
+          return { category: 'hidden', message: '' };
+        }
+        const fields = [];
+        if (obj.status) {
+          const rawStatus = String(obj.status);
+          const translatedStatus = translateStatus(rawStatus);
+          fields.push(
+            translatedStatus === rawStatus
+              ? `状態: ${rawStatus}`
+              : `状態: ${rawStatus} (${translatedStatus})`,
+          );
+        }
+        if (obj.taskId && !String(obj.taskId).match(/^[0-9a-f-]{36}$/))
+          fields.push(`タスク: ${obj.taskId}`);
+        if (fields.length > 0) return { category: 'info', message: fields.join(' / ') };
         for (const rule of LOG_PATTERNS) {
           const m = String(msg).match(rule.pattern);
           if (m) return rule.transform(String(msg), m);
         }
-        const fields = [];
-        if (obj.status)
-          fields.push(`状態: ${translateStatus(String(obj.status))}`);
-        if (obj.taskId && !String(obj.taskId).match(/^[0-9a-f-]{36}$/))
-          fields.push(`タスク: ${obj.taskId}`);
-        if (fields.length > 0)
-          return { category: 'info', message: fields.join(' / ') };
-        if (msg)
-          return { category: 'info', message: String(msg).substring(0, 100) };
+        if (msg) return { category: 'info', message: String(msg).substring(0, 100) };
       }
     } catch {
       /* fall through */
@@ -81,7 +89,18 @@ export function transformLogToUserFriendly(line: string): UserFriendlyLogEntry {
   }
 
   if (trimmed.length <= 3) return { category: 'hidden', message: '' };
-  return { category: 'agent-text', message: trimmed };
+  if (/^(I will|Let me|First I will|Then I will)\b/i.test(trimmed)) {
+    return {
+      category: 'agent-text',
+      message: trimmed,
+      iconName: 'MessageSquare',
+    };
+  }
+  return {
+    category: 'info',
+    message: trimmed.length > 80 ? `${trimmed.substring(0, 80)}...` : trimmed,
+    detail: trimmed.length > 80 ? trimmed : undefined,
+  };
 }
 
 /**
@@ -110,9 +129,7 @@ export function splitLogsIntoLines(logs: string[]): string[] {
  * @param entries - classified entries / 分類済みエントリ配列
  * @returns entries with consecutive agent-text grouped / エージェントテキストをまとめた配列
  */
-export function groupAgentText(
-  entries: UserFriendlyLogEntry[],
-): UserFriendlyLogEntry[] {
+export function groupAgentText(entries: UserFriendlyLogEntry[]): UserFriendlyLogEntry[] {
   const result: UserFriendlyLogEntry[] = [];
   let textBuffer: string[] = [];
 
@@ -120,17 +137,11 @@ export function groupAgentText(
     if (textBuffer.length === 0) return;
     const joined = textBuffer.join('\n');
     const first = textBuffer[0];
-    const preview =
-      first.length > 120 ? first.substring(0, 120) + '...' : first;
+    const preview = first.length > 120 ? first.substring(0, 120) + '...' : first;
     result.push({
       category: 'agent-text',
       message: preview,
-      detail:
-        textBuffer.length > 1
-          ? joined
-          : first.length > 120
-            ? joined
-            : undefined,
+      detail: textBuffer.length > 1 ? joined : first.length > 120 ? joined : undefined,
       iconName: 'MessageSquare',
     });
     textBuffer = [];
@@ -156,16 +167,15 @@ export function groupAgentText(
  */
 export function transformLogsToSimple(logs: string[]): UserFriendlyLogEntry[] {
   const lines = splitLogsIntoLines(logs);
-  const entries = lines
-    .map(transformLogToUserFriendly)
-    .filter((e) => e.category !== 'hidden');
+  const entries = lines.map(transformLogToUserFriendly).filter((e) => e.category !== 'hidden');
   const grouped = groupAgentText(entries);
   return grouped.reduce((acc: UserFriendlyLogEntry[], current) => {
     const last = acc[acc.length - 1];
     if (
       last &&
       last.message === current.message &&
-      last.category === current.category
+      last.category === current.category &&
+      last.detail === current.detail
     )
       return acc;
     acc.push(current);

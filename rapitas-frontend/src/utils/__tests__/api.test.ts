@@ -47,21 +47,14 @@ describe('fetchWithRetry', () => {
     fetchSpy.mockRejectedValueOnce(new TypeError('Failed to fetch'));
     fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
 
-    const result = await fetchWithRetry(
-      'http://test.com/api',
-      undefined,
-      3,
-      10,
-    );
+    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('throws after max retries', async () => {
     vi.useRealTimers();
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
-      new TypeError('Failed to fetch'),
-    );
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
     await expect(
       fetchWithRetry('http://test.com/api', undefined, 2, 10, 10000, {
@@ -73,9 +66,7 @@ describe('fetchWithRetry', () => {
   it('throws immediately on 4xx client error without retrying', async () => {
     vi.useRealTimers();
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    fetchSpy.mockResolvedValue(
-      new Response('Not Found', { status: 404, statusText: 'Not Found' }),
-    );
+    fetchSpy.mockResolvedValue(new Response('Not Found', { status: 404, statusText: 'Not Found' }));
 
     await expect(
       fetchWithRetry('http://test.com/api', undefined, 3, 10, 10000, {
@@ -109,14 +100,9 @@ describe('fetchWithRetry', () => {
     controller.abort();
 
     await expect(
-      fetchWithRetry(
-        'http://test.com/api',
-        { signal: controller.signal },
-        1,
-        50,
-        5000,
-        { silent: true },
-      ),
+      fetchWithRetry('http://test.com/api', { signal: controller.signal }, 1, 50, 5000, {
+        silent: true,
+      }),
     ).rejects.toThrow(/aborted/);
   });
 
@@ -129,16 +115,9 @@ describe('fetchWithRetry', () => {
         statusText: 'Internal Server Error',
       }),
     );
-    fetchSpy.mockResolvedValueOnce(
-      new Response('{"data": "ok"}', { status: 200 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response('{"data": "ok"}', { status: 200 }));
 
-    const result = await fetchWithRetry(
-      'http://test.com/api',
-      undefined,
-      3,
-      10,
-    );
+    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -152,16 +131,9 @@ describe('fetchWithRetry', () => {
         statusText: 'Too Many Requests',
       }),
     );
-    fetchSpy.mockResolvedValueOnce(
-      new Response('{"data": "ok"}', { status: 200 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response('{"data": "ok"}', { status: 200 }));
 
-    const result = await fetchWithRetry(
-      'http://test.com/api',
-      undefined,
-      3,
-      10,
-    );
+    const result = await fetchWithRetry('http://test.com/api', undefined, 3, 10);
     expect(result.ok).toBe(true);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -179,14 +151,9 @@ describe('fetchWithRetry', () => {
     });
 
     await expect(
-      fetchWithRetry(
-        'http://test.com/api',
-        { signal: controller.signal },
-        3,
-        10,
-        5000,
-        { silent: true },
-      ),
+      fetchWithRetry('http://test.com/api', { signal: controller.signal }, 3, 10, 5000, {
+        silent: true,
+      }),
     ).rejects.toThrow(/aborted/);
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);

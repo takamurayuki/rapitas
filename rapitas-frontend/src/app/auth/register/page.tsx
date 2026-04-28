@@ -3,16 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  Eye,
-  EyeOff,
-  UserPlus,
-  User,
-  Lock,
-  Mail,
-  AlertCircle,
-  CheckCircle2,
-} from 'lucide-react';
+import { Eye, EyeOff, UserPlus, User, Lock, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -221,9 +212,7 @@ export default function RegisterPage() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                      {error}
-                    </p>
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200">{error}</p>
                   </div>
                 </div>
               </div>
@@ -368,18 +357,14 @@ export default function RegisterPage() {
                       { key: 'special', label: t('requirementSpecial') },
                     ].map(({ key, label }) => (
                       <div key={key} className="flex items-center text-xs">
-                        {passwordStrength[
-                          key as keyof typeof passwordStrength
-                        ] ? (
+                        {passwordStrength[key as keyof typeof passwordStrength] ? (
                           <CheckCircle2 className="h-3 w-3 text-green-500 mr-1" />
                         ) : (
                           <div className="h-3 w-3 rounded-full border border-zinc-400 mr-1" />
                         )}
                         <span
                           className={
-                            passwordStrength[
-                              key as keyof typeof passwordStrength
-                            ]
+                            passwordStrength[key as keyof typeof passwordStrength]
                               ? 'text-green-600 dark:text-green-400'
                               : 'text-zinc-500'
                           }
@@ -428,12 +413,11 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
-              {formData.confirmPassword &&
-                formData.password !== formData.confirmPassword && (
-                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    {t('passwordMismatch')}
-                  </p>
-                )}
+              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  {t('passwordMismatch')}
+                </p>
+              )}
             </div>
 
             {/* Register button */}

@@ -51,9 +51,7 @@ export function useAnalysisHandlers({
   approveRequest,
   rejectRequest,
 }: UseAnalysisHandlersParams): UseAnalysisHandlersResult {
-  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(
-    null,
-  );
+  const [pendingApprovalId, setPendingApprovalId] = useState<number | null>(null);
   const [optimizedPrompt, setOptimizedPrompt] = useState<string | null>(null);
 
   const handleAnalyze = async () => {

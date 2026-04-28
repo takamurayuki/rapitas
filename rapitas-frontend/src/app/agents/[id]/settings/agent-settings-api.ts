@@ -34,23 +34,11 @@ type SaveResult =
  * @param params - SaveParams
  * @returns SaveResult with field errors on failure / 失敗時はフィールドエラーを返す
  */
-export async function saveAgentSettings(
-  params: SaveParams,
-): Promise<SaveResult> {
-  const {
-    id,
-    agentType,
-    endpoint,
-    modelId,
-    apiKey,
-    capabilities,
-    settingsEndpointLabel,
-  } = params;
+export async function saveAgentSettings(params: SaveParams): Promise<SaveResult> {
+  const { id, agentType, endpoint, modelId, apiKey, capabilities, settingsEndpointLabel } = params;
 
   const endpointEditable =
-    agentType === 'custom' ||
-    agentType === 'openai' ||
-    agentType === 'azure-openai';
+    agentType === 'custom' || agentType === 'openai' || agentType === 'azure-openai';
 
   const endpointResult: ValidationResult = endpointEditable
     ? validateUrl(

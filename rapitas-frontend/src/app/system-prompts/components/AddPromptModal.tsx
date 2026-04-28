@@ -103,13 +103,11 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    {Object.entries(CATEGORY_LABELS).map(
-                      ([value, { labelKey }]) => (
-                        <option key={value} value={value}>
-                          {t(labelKey)}
-                        </option>
-                      ),
-                    )}
+                    {Object.entries(CATEGORY_LABELS).map(([value, { labelKey }]) => (
+                      <option key={value} value={value}>
+                        {t(labelKey)}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -152,11 +150,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                 />
               </div>
             </div>
-            {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 mt-4">
-                {error}
-              </p>
-            )}
+            {error && <p className="text-sm text-red-600 dark:text-red-400 mt-4">{error}</p>}
             <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"

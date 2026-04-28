@@ -203,9 +203,7 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <GitBranch className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Git設定
-          </label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Git設定</label>
         </div>
 
         <div>
@@ -214,9 +212,7 @@ export function AgentExecutionTab({
           </label>
           <select
             value={branchStrategy}
-            onChange={(e) =>
-              setBranchStrategy(e.target.value as BranchStrategy)
-            }
+            onChange={(e) => setBranchStrategy(e.target.value as BranchStrategy)}
             className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
           >
             <option value="auto">自動（推奨）</option>
@@ -261,18 +257,14 @@ export function AgentExecutionTab({
             />
             {autoMergePR && (
               <div className="ml-4 flex items-center gap-2">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Squashマージ閾値
-                </label>
+                <label className="text-xs text-zinc-500 dark:text-zinc-400">Squashマージ閾値</label>
                 <input
                   type="number"
                   min={1}
                   max={100}
                   value={mergeCommitThreshold}
                   onChange={(e) =>
-                    setMergeCommitThreshold(
-                      Math.max(1, parseInt(e.target.value, 10) || 1),
-                    )
+                    setMergeCommitThreshold(Math.max(1, parseInt(e.target.value, 10) || 1))
                   }
                   className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-200"
                 />
@@ -345,9 +337,7 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <FileText className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            実行ルール
-          </label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">実行ルール</label>
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           エージェント実行時に追加で適用されるルールや指示を設定します
@@ -365,9 +355,7 @@ export function AgentExecutionTab({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Bell className="w-4 h-4 text-violet-500" />
-          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            通知設定
-          </label>
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">通知設定</label>
         </div>
         <ToggleSwitch
           value={execNotifyOnStart}

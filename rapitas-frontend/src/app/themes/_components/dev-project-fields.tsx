@@ -87,9 +87,7 @@ export function DevProjectFields({
           onChange={(e) => {
             const checked = e.target.checked;
             if (checked && !formData.categoryId) {
-              const devCategory = categories.find(
-                (c) => c.name === '開発' && c.isDefault,
-              );
+              const devCategory = categories.find((c) => c.name === '開発' && c.isDefault);
               setFormData({
                 ...formData,
                 isDevelopment: true,
@@ -206,26 +204,20 @@ export function DevProjectFields({
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
               <GitBranch className="w-3.5 h-3.5" />
               {t('defaultBranch')}
-              {loadingBranches && (
-                <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-              )}
+              {loadingBranches && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
             </label>
 
             {branches.length > 0 ? (
               <select
                 value={formData.defaultBranch}
-                onChange={(e) =>
-                  setFormData({ ...formData, defaultBranch: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               >
                 {branches.map((branch) => (
                   <option key={branch} value={branch}>
                     {branch}
                     {branch === 'develop' && ' (推奨)'}
-                    {branch === 'main' &&
-                      branches.length > 1 &&
-                      ' (GitHub Flow)'}
+                    {branch === 'main' && branches.length > 1 && ' (GitHub Flow)'}
                   </option>
                 ))}
               </select>
@@ -233,9 +225,7 @@ export function DevProjectFields({
               <input
                 type="text"
                 value={formData.defaultBranch}
-                onChange={(e) =>
-                  setFormData({ ...formData, defaultBranch: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, defaultBranch: e.target.value })}
                 placeholder="develop"
                 disabled={loadingBranches}
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"

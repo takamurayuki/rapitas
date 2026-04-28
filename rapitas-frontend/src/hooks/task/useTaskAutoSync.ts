@@ -38,9 +38,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
   const fetchUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const initialized = useTaskCacheStore((s) => s.initialized);
-  const executingTasksSize = useExecutionStateStore(
-    (s) => s.executingTasks.size,
-  );
+  const executingTasksSize = useExecutionStateStore((s) => s.executingTasks.size);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -97,14 +95,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [
-    enabled,
-    initialized,
-    silent,
-    skipDuringExecution,
-    executingTasksSize,
-    fetchUpdates,
-  ]);
+  }, [enabled, initialized, silent, skipDuringExecution, executingTasksSize, fetchUpdates]);
 
   // When page becomes visible (Page Visibility API)
   useEffect(() => {
@@ -123,14 +114,6 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () =>
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [
-    enabled,
-    initialized,
-    silent,
-    skipDuringExecution,
-    executingTasksSize,
-    fetchUpdates,
-  ]);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [enabled, initialized, silent, skipDuringExecution, executingTasksSize, fetchUpdates]);
 }

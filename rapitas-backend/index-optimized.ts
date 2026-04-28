@@ -35,7 +35,6 @@ import {
   developerModeRoutes,
   aiChatRoutes,
   sseRoutes,
-  taskDependencyRoutes,
   githubRoutes,
   approvalsRoutes,
   aiAgentRoutes,
@@ -168,7 +167,6 @@ app.use(systemPromptsRoutes);
 app.use(developerModeRoutes);
 app.use(aiChatRoutes);
 app.use(sseRoutes);
-app.use(taskDependencyRoutes);
 app.use(githubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);

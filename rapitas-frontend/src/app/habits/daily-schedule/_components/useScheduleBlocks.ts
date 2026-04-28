@@ -10,10 +10,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { DailyScheduleBlock } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import {
-  requestNotificationPermission,
-  showDesktopNotification,
-} from '@/utils/notification';
+import { requestNotificationPermission, showDesktopNotification } from '@/utils/notification';
 import { createLogger } from '@/lib/logger';
 import { CATEGORY_OPTIONS } from './schedule-utils';
 
@@ -64,9 +61,7 @@ export function useScheduleBlocks(
   const [blocks, setBlocks] = useState<DailyScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(
-    null,
-  );
+  const [editingBlock, setEditingBlock] = useState<DailyScheduleBlock | null>(null);
   const [formData, setFormData] = useState<BlockFormData>(DEFAULT_FORM);
 
   const fetchBlocks = useCallback(async () => {

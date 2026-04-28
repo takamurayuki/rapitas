@@ -69,9 +69,7 @@ export type AgentExecutionHandlers = {
  * @param s - Shared state object from useAgentExecution
  * @returns Object containing all handler functions
  */
-export function useAgentExecutionHandlers(
-  s: SharedExecutionState,
-): AgentExecutionHandlers {
+export function useAgentExecutionHandlers(s: SharedExecutionState): AgentExecutionHandlers {
   const sendingResponseRef = useRef(false);
 
   const handleExecute = async () => {
@@ -98,18 +96,15 @@ export function useAgentExecutionHandlers(
     s.setFollowUpError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/tasks/${s.taskId}/continue-execution`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            instruction: trimmedInstruction,
-            sessionId: s.sessionId || s.executionResult?.sessionId,
-            agentConfigId: s.selectedAgentId ?? s.agentConfigId,
-          }),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/tasks/${s.taskId}/continue-execution`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instruction: trimmedInstruction,
+          sessionId: s.sessionId || s.executionResult?.sessionId,
+          agentConfigId: s.selectedAgentId ?? s.agentConfigId,
+        }),
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -124,28 +119,21 @@ export function useAgentExecutionHandlers(
         }, 500);
         s._setShowLogs(true);
       } else {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: '継続実行に失敗しました' }));
+        const errorData = await response.json().catch(() => ({ error: '継続実行に失敗しました' }));
         logger.error('Failed to continue execution:', errorData);
-        s.setFollowUpError(
-          errorData.error || '継続実行に失敗しました。再度お試しください。',
-        );
+        s.setFollowUpError(errorData.error || '継続実行に失敗しました。再度お試しください。');
         s.setFollowUpInstruction(savedInstruction);
       }
     } catch (err) {
       logger.error('Error continuing execution:', err);
-      s.setFollowUpError(
-        'サーバーとの通信に失敗しました。再度お試しください。',
-      );
+      s.setFollowUpError('サーバーとの通信に失敗しました。再度お試しください。');
       s.setFollowUpInstruction(savedInstruction);
     }
   };
 
   const handleSendResponse = async () => {
     const trimmedResponse = s.userResponse.trim();
-    if (!trimmedResponse || s.isSendingResponse || sendingResponseRef.current)
-      return;
+    if (!trimmedResponse || s.isSendingResponse || sendingResponseRef.current) return;
 
     // Set ref immediately to prevent duplicate submissions
     sendingResponseRef.current = true;
@@ -155,14 +143,11 @@ export function useAgentExecutionHandlers(
     s.setUserResponse('');
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/${s.taskId}/agent-respond`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response: savedResponse }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks/${s.taskId}/agent-respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: savedResponse }),
+      });
 
       if (res.ok) {
         // NOTE: Clear question UI after API success (optimistic update removed)
@@ -189,17 +174,15 @@ export function useAgentExecutionHandlers(
 
     try {
       // Use task-level stop endpoint (more reliable)
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/${s.taskId}/stop-execution`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks/${s.taskId}/stop-execution`, {
+        method: 'POST',
+      });
 
       if (!res.ok && s.sessionId) {
         // Fall back to session-level stop on failure
-        const fallbackRes = await fetch(
-          `${API_BASE_URL}/agents/sessions/${s.sessionId}/stop`,
-          { method: 'POST' },
-        );
+        const fallbackRes = await fetch(`${API_BASE_URL}/agents/sessions/${s.sessionId}/stop`, {
+          method: 'POST',
+        });
         if (!fallbackRes.ok) {
           logger.error('Failed to stop execution');
         }
@@ -229,14 +212,11 @@ export function useAgentExecutionHandlers(
   const handleCreatePR = async () => {
     s.setPrState({ status: 'creating_pr' });
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/parallel/tasks/${s.taskId}/create-pr`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ baseBranch: 'develop' }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${s.taskId}/create-pr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseBranch: 'develop' }),
+      });
       const data = await res.json();
       if (data.success) {
         s.setPrState({
@@ -259,13 +239,10 @@ export function useAgentExecutionHandlers(
   const handleApproveMerge = async () => {
     s.setPrState((prev: PrState) => ({ ...prev, status: 'merging' }));
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/parallel/tasks/${s.taskId}/approve-merge`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/parallel/tasks/${s.taskId}/approve-merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
       const data = await res.json();
       if (data.success) {
         s.setPrState((prev: PrState) => ({ ...prev, status: 'merged' }));

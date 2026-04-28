@@ -17,14 +17,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import {
-  Settings,
-  CheckCircle,
-  Cloud,
-  Cpu,
-  AlertTriangle,
-  RefreshCw,
-} from 'lucide-react';
+import { Settings, CheckCircle, Cloud, Cpu, AlertTriangle, RefreshCw } from 'lucide-react';
 import type { UserSettings, ApiProvider } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -95,9 +88,7 @@ const AUTO_RETRY_DELAY_MS = 2500;
 
 export function GlobalProviderPreference() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [availability, setAvailability] = useState<AvailabilityResponse | null>(
-    null,
-  );
+  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [autoRetryCount, setAutoRetryCount] = useState(0);
 
@@ -108,9 +99,7 @@ export function GlobalProviderPreference() {
       // tool's actual response counts as "available".
       const params = new URLSearchParams({ cliOnly: '1' });
       if (force) params.set('refresh', '1');
-      const res = await fetch(
-        `${API_BASE_URL}/agent-availability?${params.toString()}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/agent-availability?${params.toString()}`);
       if (res.ok) setAvailability(await res.json());
     } catch (err) {
       logger.error('Failed to load availability', err);
@@ -159,9 +148,7 @@ export function GlobalProviderPreference() {
         body: JSON.stringify({ defaultAiProvider: provider }),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, defaultAiProvider: provider } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, defaultAiProvider: provider } : prev));
       }
     } catch (err) {
       logger.error('Failed to save default provider', err);
@@ -194,9 +181,7 @@ export function GlobalProviderPreference() {
           className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center gap-1 disabled:opacity-50"
           title="CLI / API へ再 probe してキャッシュを破棄"
         >
-          <RefreshCw
-            className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`}
-          />
+          <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
           再チェック
         </button>
       </div>
@@ -227,9 +212,7 @@ export function GlobalProviderPreference() {
                   </div>
                 )}
                 <div className="flex items-start gap-2">
-                  <div
-                    className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${p.iconColor}`}
-                  >
+                  <div className={`p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${p.iconColor}`}>
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -280,8 +263,7 @@ export function GlobalProviderPreference() {
         </div>
         <p className="mt-4 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
           <Cpu className="w-3 h-3" />
-          CLI が応答するかのみを確認しています（API
-          キーはチェック対象外。5分キャッシュ）
+          CLI が応答するかのみを確認しています（API キーはチェック対象外。5分キャッシュ）
         </p>
       </div>
     </div>

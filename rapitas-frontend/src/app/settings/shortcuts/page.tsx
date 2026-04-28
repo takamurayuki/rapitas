@@ -60,12 +60,8 @@ export default function ShortcutSettingsPage() {
           <Keyboard className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            {t('description')}
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{t('description')}</p>
         </div>
       </div>
 
@@ -111,9 +107,7 @@ export default function ShortcutSettingsPage() {
             <p>{t('globalInfo')}</p>
             <p>{t('inAppInfo')}</p>
             {!isTauriEnv && (
-              <p className="text-amber-600 dark:text-amber-400">
-                {t('desktopOnly')}
-              </p>
+              <p className="text-amber-600 dark:text-amber-400">{t('desktopOnly')}</p>
             )}
           </div>
         </div>

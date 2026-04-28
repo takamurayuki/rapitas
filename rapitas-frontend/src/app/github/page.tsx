@@ -15,11 +15,7 @@ import {
   XCircle,
   AlertCircle,
 } from 'lucide-react';
-import type {
-  GitHubIntegration,
-  GitHubPullRequest,
-  GitHubIssue,
-} from '@/types';
+import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -62,12 +58,8 @@ export default function GitHubPage() {
         // Fetch PRs and issues for the first integration
         if (data.length > 0) {
           const [prsRes, issuesRes] = await Promise.all([
-            fetch(
-              `${API_BASE_URL}/github/integrations/${data[0].id}/pull-requests?state=open`,
-            ),
-            fetch(
-              `${API_BASE_URL}/github/integrations/${data[0].id}/issues?state=open`,
-            ),
+            fetch(`${API_BASE_URL}/github/integrations/${data[0].id}/pull-requests?state=open`),
+            fetch(`${API_BASE_URL}/github/integrations/${data[0].id}/issues?state=open`),
           ]);
 
           if (prsRes.ok) setRecentPRs(await prsRes.json());
@@ -109,12 +101,8 @@ export default function GitHubPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {t('title')}
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              {t('subtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('title')}</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('subtitle')}</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -151,9 +139,7 @@ export default function GitHubPage() {
               ) : (
                 <>
                   <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                  <span className="text-red-700 dark:text-red-300">
-                    {t('cliNotInstalled')}
-                  </span>
+                  <span className="text-red-700 dark:text-red-300">{t('cliNotInstalled')}</span>
                 </>
               )}
             </div>
@@ -167,9 +153,7 @@ export default function GitHubPage() {
           {integrations.length === 0 ? (
             <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
               <GitBranch className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-              <p className="text-zinc-500 dark:text-zinc-400">
-                {t('noLinkedRepos')}
-              </p>
+              <p className="text-zinc-500 dark:text-zinc-400">{t('noLinkedRepos')}</p>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
@@ -318,9 +302,7 @@ export default function GitHubPage() {
                 >
                   <CircleDot
                     className={`w-5 h-5 ${
-                      issue.state === 'open'
-                        ? 'text-green-500'
-                        : 'text-purple-500'
+                      issue.state === 'open' ? 'text-green-500' : 'text-purple-500'
                     }`}
                   />
                   <div className="flex-1 min-w-0">
@@ -445,11 +427,7 @@ function AddIntegrationModal({
                 required
               />
             </div>
-            {error && (
-              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
-                {error}
-              </p>
-            )}
+            {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
             <div className="flex justify-end gap-3">
               <button
                 type="button"

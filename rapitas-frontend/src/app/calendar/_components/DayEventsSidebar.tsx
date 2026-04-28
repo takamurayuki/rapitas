@@ -39,10 +39,7 @@ type Props = {
  * @param t - Translation function from next-intl.
  * @returns Localized label string.
  */
-function getReminderLabel(
-  minutes: number,
-  t: ReturnType<typeof useTranslations>,
-): string {
+function getReminderLabel(minutes: number, t: ReturnType<typeof useTranslations>): string {
   if (minutes < 60) return t('reminderMinutesBefore', { count: minutes });
   if (minutes < 1440) return t('reminderHoursBefore', { count: minutes / 60 });
   return t('reminderDaysBefore', { count: minutes / 1440 });
@@ -72,8 +69,7 @@ export function DayEventsSidebar({
   const selectedDateEvents = selectedDate
     ? events.filter((e) => {
         if (e.date === selectedDate) return true;
-        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate)
-          return true;
+        if (e.endDate && e.date <= selectedDate && e.endDate >= selectedDate) return true;
         return false;
       })
     : [];
@@ -155,8 +151,7 @@ export function DayEventsSidebar({
                     {event.type === 'exam' ? (
                       <Target className="w-4 h-4" />
                     ) : event.type === 'schedule' ? (
-                      schedules.find((s) => s.id === event.id)?.type ===
-                      'PAID_LEAVE' ? (
+                      schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE' ? (
                         <Coffee className="w-4 h-4" />
                       ) : (
                         <CalendarIcon className="w-4 h-4" />
@@ -176,8 +171,7 @@ export function DayEventsSidebar({
                         {event.type === 'exam'
                           ? t('legendExam')
                           : event.type === 'schedule'
-                            ? schedules.find((s) => s.id === event.id)?.type ===
-                              'PAID_LEAVE'
+                            ? schedules.find((s) => s.id === event.id)?.type === 'PAID_LEAVE'
                               ? t('paidLeaveLabel')
                               : t('legendSchedule')
                             : t('legendTask')}
@@ -191,13 +185,10 @@ export function DayEventsSidebar({
                             day: 'numeric',
                           })}
                           {' 〜 '}
-                          {new Date(event.endDate).toLocaleDateString(
-                            dateLocale,
-                            {
-                              month: 'short',
-                              day: 'numeric',
-                            },
-                          )}
+                          {new Date(event.endDate).toLocaleDateString(dateLocale, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </span>
                       )}
                       {event.time && (
@@ -238,9 +229,7 @@ export function DayEventsSidebar({
             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-100 dark:bg-zinc-700/50 flex items-center justify-center">
               <CalendarIcon className="w-6 h-6 text-zinc-400 dark:text-zinc-500" />
             </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-              {t('noEventsOnDay')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{t('noEventsOnDay')}</p>
             <div className="flex flex-col gap-2">
               <button
                 onClick={onAddSchedule}

@@ -62,8 +62,7 @@ export function calcDayCount(startDate: string, endDate: string): number {
   if (endDate <= startDate) return 1;
   return (
     Math.ceil(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) /
-        (1000 * 60 * 60 * 24),
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24),
     ) + 1
   );
 }
@@ -93,11 +92,7 @@ export function resolveEndAt(
       // All-day multi-day events end at 00:00 the day after the last day
       const nextDay = new Date(endDate);
       nextDay.setDate(nextDay.getDate() + 1);
-      const [year, month, day] = nextDay
-        .toISOString()
-        .split('T')[0]
-        .split('-')
-        .map(Number);
+      const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
       return new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
     }
     return undefined;
@@ -113,11 +108,7 @@ export function resolveEndAt(
   if (endH < startH) {
     const nextDay = new Date(startDate);
     nextDay.setDate(nextDay.getDate() + 1);
-    const [year, month, day] = nextDay
-      .toISOString()
-      .split('T')[0]
-      .split('-')
-      .map(Number);
+    const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
     const [hour, min] = endTime.split(':').map(Number);
     return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
   }

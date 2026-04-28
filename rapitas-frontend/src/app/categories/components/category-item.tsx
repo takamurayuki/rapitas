@@ -104,10 +104,7 @@ export function CategoryItem({
                   color: item.color,
                 }}
               >
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                 {item.color}
               </span>
               <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
@@ -130,18 +127,10 @@ export function CategoryItem({
                 ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-2 border-indigo-500'
                 : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
             }`}
-            title={
-              isDefault
-                ? t('defaultCategoryLabel')
-                : t('setDefaultCategoryLabel')
-            }
+            title={isDefault ? t('defaultCategoryLabel') : t('setDefaultCategoryLabel')}
           >
-            <Star
-              className={`w-3.5 h-3.5 ${isDefault ? 'fill-current' : ''}`}
-            />
-            <span className="hidden sm:inline">
-              {isDefault ? t('default') : t('setAsDefault')}
-            </span>
+            <Star className={`w-3.5 h-3.5 ${isDefault ? 'fill-current' : ''}`} />
+            <span className="hidden sm:inline">{isDefault ? t('default') : t('setAsDefault')}</span>
           </button>
 
           <button
@@ -169,8 +158,7 @@ export function CategoryItem({
         <div className="mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-1.5 flex-wrap">
             {item.themes.slice(0, 5).map((theme) => {
-              const ThemeIcon =
-                getIconComponent(theme.icon || '') || SwatchBook;
+              const ThemeIcon = getIconComponent(theme.icon || '') || SwatchBook;
               return (
                 <span
                   key={theme.id}
@@ -182,9 +170,7 @@ export function CategoryItem({
                 >
                   <ThemeIcon className="w-3 h-3" />
                   {theme.name}
-                  {theme._count && (
-                    <span className="opacity-60">({theme._count.tasks})</span>
-                  )}
+                  {theme._count && <span className="opacity-60">({theme._count.tasks})</span>}
                 </span>
               );
             })}

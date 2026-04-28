@@ -23,11 +23,7 @@ interface PRFilesTabProps {
  * @param props.expandedFiles - Set of currently expanded filenames / 展開中のファイル名のセット
  * @param props.onToggleFile - Callback to toggle a file's expanded state / ファイルの展開状態トグルコールバック
  */
-export function PRFilesTab({
-  diff,
-  expandedFiles,
-  onToggleFile,
-}: PRFilesTabProps) {
+export function PRFilesTab({ diff, expandedFiles, onToggleFile }: PRFilesTabProps) {
   return (
     <div className="space-y-2">
       {diff.map((file) => (

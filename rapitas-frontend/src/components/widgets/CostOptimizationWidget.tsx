@@ -8,15 +8,7 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, Zap, Lightbulb } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { API_BASE_URL } from '@/utils/api';
 
 type ModelBreakdown = {
@@ -37,14 +29,7 @@ type CostData = {
   suggestions: string[];
 };
 
-const COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#f97316',
-];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#f97316'];
 
 /** Shorten model IDs for display. */
 function shortModelName(model: string): string {
@@ -61,9 +46,7 @@ export function CostOptimizationWidget() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/agent-metrics/cost-optimization`,
-      );
+      const res = await fetch(`${API_BASE_URL}/agent-metrics/cost-optimization`);
       if (res.ok) {
         const json = await res.json();
         if (json.success) setData(json.data);
@@ -142,12 +125,7 @@ export function CostOptimizationWidget() {
                     fontSize: '12px',
                     color: '#e4e4e7',
                   }}
-                  formatter={
-                    ((value: number) => [
-                      `$${value.toFixed(2)}`,
-                      'コスト',
-                    ]) as never
-                  }
+                  formatter={((value: number) => [`$${value.toFixed(2)}`, 'コスト']) as never}
                 />
                 <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
                   {chartData.map((_, i) => (
@@ -162,18 +140,13 @@ export function CostOptimizationWidget() {
         {/* Model comparison table */}
         <div className="mt-3 space-y-1.5">
           {data.modelBreakdown.map((m, i) => (
-            <div
-              key={m.model}
-              className="flex items-center justify-between text-xs"
-            >
+            <div key={m.model} className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: COLORS[i % COLORS.length] }}
                 />
-                <span className="text-zinc-600 dark:text-zinc-400">
-                  {shortModelName(m.model)}
-                </span>
+                <span className="text-zinc-600 dark:text-zinc-400">{shortModelName(m.model)}</span>
               </div>
               <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400">
                 <span>{m.executions}回</span>
@@ -186,9 +159,7 @@ export function CostOptimizationWidget() {
                 >
                   {m.successRate}%
                 </span>
-                <span className="font-medium">
-                  ${m.estimatedCost.toFixed(2)}
-                </span>
+                <span className="font-medium">${m.estimatedCost.toFixed(2)}</span>
               </div>
             </div>
           ))}

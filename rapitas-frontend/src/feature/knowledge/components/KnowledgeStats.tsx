@@ -18,10 +18,7 @@ export function KnowledgeStats({ stats }: KnowledgeStatsProps) {
         label={t('averageConfidence')}
         value={`${Math.round(stats.averageConfidence * 100)}%`}
       />
-      <StatCard
-        label={t('averageDecay')}
-        value={`${Math.round(stats.averageDecayScore * 100)}%`}
-      />
+      <StatCard label={t('averageDecay')} value={`${Math.round(stats.averageDecayScore * 100)}%`} />
       <StatCard label={t('recentlyAccessed')} value={stats.recentlyAccessed} />
 
       {Object.keys(stats.byCategory).length > 0 && (
@@ -67,9 +64,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
       <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
-        {value}
-      </p>
+      <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{value}</p>
     </div>
   );
 }

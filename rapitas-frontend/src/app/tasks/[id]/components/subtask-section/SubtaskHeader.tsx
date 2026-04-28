@@ -63,9 +63,7 @@ export function SubtaskHeader({
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                <span className="text-xs text-zinc-500">
-                  {progressPercent}%
-                </span>
+                <span className="text-xs text-zinc-500">{progressPercent}%</span>
               </div>
             </>
           ) : (
@@ -128,9 +126,7 @@ export function SubtaskHeader({
                 }}
                 className="px-2 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               >
-                {selectedSubtaskIds.size === subtasks.length
-                  ? t('deselectAll')
-                  : t('selectAll')}
+                {selectedSubtaskIds.size === subtasks.length ? t('deselectAll') : t('selectAll')}
               </button>
               {selectedSubtaskIds.size > 0 && (
                 <button
@@ -157,9 +153,7 @@ export function SubtaskHeader({
               className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-red-500 dark:hover:border-red-400 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {t('deleteAll')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{t('deleteAll')}</span>
             </button>
           )}
         </div>

@@ -155,19 +155,13 @@ const HASH_COMMENT_LANGS = ['python', 'ruby', 'bash', 'powershell', 'yaml'];
  */
 export function highlightCode(text: string, lang: string): string {
   // HTML escape first to prevent XSS from user code
-  let highlighted = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  let highlighted = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   // Language-specific keywords
   const langKeywords = LANGUAGE_KEYWORDS[lang] ?? [];
   if (langKeywords.length > 0) {
     const keywordRegex = new RegExp(`\\b(${langKeywords.join('|')})\\b`, 'g');
-    highlighted = highlighted.replace(
-      keywordRegex,
-      '<span style="color: #c792ea;">$1</span>',
-    );
+    highlighted = highlighted.replace(keywordRegex, '<span style="color: #c792ea;">$1</span>');
   }
 
   // String highlighting (single, double, and backtick quotes)

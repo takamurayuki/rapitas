@@ -13,11 +13,7 @@ import React from 'react';
  * @param className - Additional Tailwind classes for sizing and shape / サイズ・形状のTailwindクラス
  */
 export function SkeletonBlock({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`}
-    />
-  );
+  return <div className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`} />;
 }
 
 /**

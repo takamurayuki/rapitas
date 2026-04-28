@@ -30,16 +30,12 @@ export default function PullRequestDetailClient() {
 
   const [pr, setPr] = useState<GitHubPullRequest | null>(null);
   const [diff, setDiff] = useState<FileDiff[]>([]);
-  const [activeTab, setActiveTab] = useState<'conversation' | 'files'>(
-    'conversation',
-  );
+  const [activeTab, setActiveTab] = useState<'conversation' | 'files'>('conversation');
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [commenting, setCommenting] = useState(false);
   const [commentBody, setCommentBody] = useState('');
-  const [reviewAction, setReviewAction] = useState<
-    'approve' | 'request_changes' | null
-  >(null);
+  const [reviewAction, setReviewAction] = useState<'approve' | 'request_changes' | null>(null);
 
   useEffect(() => {
     fetchPRData();
@@ -122,15 +118,12 @@ export default function PullRequestDetailClient() {
   if (!pr) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <p className="text-center text-zinc-500 dark:text-zinc-400">
-          {t('prNotFound')}
-        </p>
+        <p className="text-center text-zinc-500 dark:text-zinc-400">{t('prNotFound')}</p>
       </div>
     );
   }
 
-  const conversationCount =
-    (pr.reviews?.length || 0) + (pr.comments?.length || 0);
+  const conversationCount = (pr.reviews?.length || 0) + (pr.comments?.length || 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -189,11 +182,7 @@ export default function PullRequestDetailClient() {
               onReview={handleReview}
             />
           ) : (
-            <PRFilesTab
-              diff={diff}
-              expandedFiles={expandedFiles}
-              onToggleFile={toggleFile}
-            />
+            <PRFilesTab diff={diff} expandedFiles={expandedFiles} onToggleFile={toggleFile} />
           )}
         </div>
 

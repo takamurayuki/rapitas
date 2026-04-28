@@ -23,25 +23,17 @@ export default function NotificationSettingsPanel() {
   const [settings, setSettings] = useState<NotificationSettings>(() => {
     try {
       const saved = localStorage.getItem('rapitas-notification-settings');
-      return saved
-        ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) }
-        : DEFAULT_SETTINGS;
+      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
   });
 
   const update = useCallback(
-    <K extends keyof NotificationSettings>(
-      key: K,
-      value: NotificationSettings[K],
-    ) => {
+    <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => {
       setSettings((prev) => {
         const next = { ...prev, [key]: value };
-        localStorage.setItem(
-          'rapitas-notification-settings',
-          JSON.stringify(next),
-        );
+        localStorage.setItem('rapitas-notification-settings', JSON.stringify(next));
         return next;
       });
     },
@@ -57,11 +49,7 @@ export default function NotificationSettingsPanel() {
 
       <label className="flex items-center justify-between text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
         <span className="flex items-center gap-2">
-          {settings.enabled ? (
-            <Bell className="w-4 h-4" />
-          ) : (
-            <BellOff className="w-4 h-4" />
-          )}
+          {settings.enabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
           通知を有効にする
         </span>
         <input

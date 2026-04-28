@@ -44,9 +44,7 @@ function CLIToolsPage() {
             <Terminal className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              CLIツール管理
-            </h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">CLIツール管理</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               AI CLI ツールのインストール・バージョン管理・認証
             </p>
@@ -57,9 +55,7 @@ function CLIToolsPage() {
           disabled={isRefreshing}
           className="flex items-center gap-2 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg transition-colors disabled:opacity-50"
         >
-          <RefreshCcw
-            className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}
-          />
+          <RefreshCcw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           更新
         </button>
       </div>
@@ -105,9 +101,7 @@ function CLIToolsPage() {
               onUpdate={updateTool}
               onCheckAuth={checkAuthentication}
               onShowAuthModal={showAuthModal}
-              onToggleCommand={(id, current) =>
-                updateActionState(id, { showCommand: !current })
-              }
+              onToggleCommand={(id, current) => updateActionState(id, { showCommand: !current })}
             />
           );
         })}

@@ -21,9 +21,7 @@ function AgentVersionManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [expandedVersions, setExpandedVersions] = useState<Set<number>>(
-    new Set(),
-  );
+  const [expandedVersions, setExpandedVersions] = useState<Set<number>>(new Set());
   const [installing, setInstalling] = useState<Set<number>>(new Set());
 
   const fetchData = async () => {
@@ -61,14 +59,11 @@ function AgentVersionManagementPage() {
     try {
       setInstalling((prev) => new Set(prev).add(agentId));
 
-      const response = await fetch(
-        `${API_BASE_URL}/agent-version-management/install`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId, version }),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/agent-version-management/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId, version }),
+      });
 
       const data = await response.json();
 
@@ -91,14 +86,11 @@ function AgentVersionManagementPage() {
 
   const uninstallAgent = async (agentId: number) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/agent-version-management/uninstall`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId }),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/agent-version-management/uninstall`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId }),
+      });
 
       const data = await response.json();
 
@@ -115,14 +107,11 @@ function AgentVersionManagementPage() {
 
   const toggleAutoUpdate = async (agentId: number, enabled: boolean) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/agent-version-management/auto-update`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agentId, enabled }),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/agent-version-management/auto-update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId, enabled }),
+      });
 
       const data = await response.json();
 
@@ -152,17 +141,13 @@ function AgentVersionManagementPage() {
   const getAgentVersions = (agentId: number) =>
     agentVersions
       .filter((v) => v.agentId === agentId)
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const filteredAgents = agentConfigs.filter((agent) => {
     const matchesSearch =
       agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       agent.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'all' || agent.installationStatus === statusFilter;
+    const matchesStatus = statusFilter === 'all' || agent.installationStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -250,9 +235,7 @@ function AgentVersionManagementPage() {
           {filteredAgents.length === 0 && (
             <div className="text-center py-12">
               <Package className="w-12 h-12 text-zinc-400 mx-auto mb-4" />
-              <p className="text-zinc-500 dark:text-zinc-400">
-                {t('noMatchingAgents')}
-              </p>
+              <p className="text-zinc-500 dark:text-zinc-400">{t('noMatchingAgents')}</p>
             </div>
           )}
         </div>

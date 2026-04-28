@@ -7,9 +7,7 @@ import type { KnowledgeStats, QueueStatus, ConsolidationRun } from '../types';
 export function useMemoryStats() {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
-  const [consolidationRuns, setConsolidationRuns] = useState<
-    ConsolidationRun[]
-  >([]);
+  const [consolidationRuns, setConsolidationRuns] = useState<ConsolidationRun[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

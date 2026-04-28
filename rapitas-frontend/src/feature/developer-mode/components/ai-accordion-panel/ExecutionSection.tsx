@@ -31,13 +31,7 @@ export type ExecutionSectionProps = {
   isExecuting: boolean;
   isParallelExecutionRunning?: boolean;
   hasSubtasks: boolean;
-  execStatusIcon:
-    | 'loading'
-    | 'success'
-    | 'error'
-    | 'cancelled'
-    | 'interrupted'
-    | 'idle';
+  execStatusIcon: 'loading' | 'success' | 'error' | 'cancelled' | 'interrupted' | 'idle';
   // Logs
   logs: string[];
   showLogs: boolean;
@@ -59,10 +53,7 @@ export type ExecutionSectionProps = {
   onSendResponse: () => Promise<void>;
   // Subtask logs
   subtasks?: Task[];
-  subtaskLogs?: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   parallelSessionId?: string | null;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   onRefreshSubtaskLogs?: (taskId?: number) => void;
@@ -289,24 +280,20 @@ export function ExecutionSection({
               </button>
             </>
           )}
-          {!isRunning &&
-            !isCompleted &&
-            !isCancelled &&
-            !isFailed &&
-            !isInterrupted && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onExecute();
-                }}
-                disabled={isExecuting || isParallelExecutionRunning}
-                className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-                aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
-              >
-                <Play className="w-2.5 h-2.5" />
-                {hasSubtasks ? 'サブタスクを実行' : '実行'}
-              </button>
-            )}
+          {!isRunning && !isCompleted && !isCancelled && !isFailed && !isInterrupted && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onExecute();
+              }}
+              disabled={isExecuting || isParallelExecutionRunning}
+              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+              aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
+            >
+              <Play className="w-2.5 h-2.5" />
+              {hasSubtasks ? 'サブタスクを実行' : '実行'}
+            </button>
+          )}
           {isExpanded ? (
             <ChevronUp className="w-4 h-4 text-zinc-400" />
           ) : (

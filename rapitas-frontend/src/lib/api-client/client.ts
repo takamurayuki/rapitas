@@ -26,10 +26,7 @@ export class APIClient {
    * @param options - Fetch options including cache control / キャッシュ制御を含むフェッチオプション
    * @returns Response typed as T / レスポンス
    */
-  async fetch<T = unknown>(
-    path: string,
-    options: RequestOptions = {},
-  ): Promise<T> {
+  async fetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = `${API_BASE_URL}${path}`;
     const cacheKey = `${options.method || 'GET'}:${url}:${JSON.stringify(options.body || {})}`;
 
@@ -65,10 +62,7 @@ export class APIClient {
    * @param options - Fetch options / フェッチオプション
    * @returns Response typed as T / レスポンス
    */
-  async batchFetch<T = unknown>(
-    path: string,
-    options: RequestOptions = {},
-  ): Promise<T> {
+  async batchFetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
     return this.batch.enqueue<T>(path, options, (p, o) => this.fetch(p, o));
   }
 
@@ -152,8 +146,7 @@ export class APIClient {
     const response: Record<string, unknown> = {};
     entries.forEach(([key], index) => {
       const result = results[index];
-      response[key] =
-        result.status === 'fulfilled' ? result.value : { error: result.reason };
+      response[key] = result.status === 'fulfilled' ? result.value : { error: result.reason };
     });
 
     return response as T;
@@ -166,9 +159,7 @@ export class APIClient {
    * @param cacheTime - TTL in milliseconds / ミリ秒単位のTTL
    */
   async prefetch(paths: string[], cacheTime?: number): Promise<void> {
-    await Promise.allSettled(
-      paths.map((path) => this.fetch(path, { cacheTime })),
-    );
+    await Promise.allSettled(paths.map((path) => this.fetch(path, { cacheTime })));
   }
 
   /**
@@ -210,10 +201,7 @@ export class APIClient {
    * @returns Parsed JSON response / パース済みJSONレスポンス
    * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
    */
-  private async performFetch<T>(
-    url: string,
-    options: RequestOptions,
-  ): Promise<T> {
+  private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
     const fetchInit: RequestInit = {
       ...options,
       credentials: 'include',

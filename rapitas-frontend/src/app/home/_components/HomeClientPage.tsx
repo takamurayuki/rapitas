@@ -90,9 +90,7 @@ function HomeClientPage() {
   } = useHomeState();
 
   const [defaultTheme, setDefaultTheme] = useState<Theme | null>(null);
-  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(
-    null,
-  );
+  const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
 
   // fetchTasks: incremental after first load, full fetch otherwise
   const fetchTasks = useCallback(async () => {
@@ -162,28 +160,23 @@ function HomeClientPage() {
     progressRingRef as React.RefObject<HTMLDivElement>,
   );
 
-  const {
-    updateStatus,
-    handleQuickAdd,
-    toggleTaskSelection,
-    bulkUpdateStatus,
-    bulkDelete,
-  } = useHomeActions({
-    tasks,
-    themes,
-    categoryFilter,
-    themeFilter,
-    defaultTheme,
-    isSelectionMode,
-    selectedTasks,
-    setSelectedTasks,
-    setIsSelectionMode,
-    setIsQuickAdding,
-    setQuickTaskTitle,
-    triggerTaskCompletion,
-    isTodayTask,
-    fetchTasks,
-  });
+  const { updateStatus, handleQuickAdd, toggleTaskSelection, bulkUpdateStatus, bulkDelete } =
+    useHomeActions({
+      tasks,
+      themes,
+      categoryFilter,
+      themeFilter,
+      defaultTheme,
+      isSelectionMode,
+      selectedTasks,
+      setSelectedTasks,
+      setIsSelectionMode,
+      setIsQuickAdding,
+      setQuickTaskTitle,
+      triggerTaskCompletion,
+      isTodayTask,
+      fetchTasks,
+    });
 
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage);
   const paginatedTasks = sortedTasks.slice(
@@ -261,8 +254,7 @@ function HomeClientPage() {
   });
 
   const handleSelectAll = () => {
-    const allSelected =
-      selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0;
+    const allSelected = selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0;
     if (allSelected) {
       setSelectedTasks(new Set());
       setIsSelectionMode(false);
@@ -332,12 +324,8 @@ function HomeClientPage() {
             onFilterChange={setFilter}
             onPriorityChange={setPriorityFilter}
             onSortByChange={setSortBy}
-            onSortOrderToggle={() =>
-              setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
-            }
-            onFilterExpandedToggle={() =>
-              setIsFilterExpanded(!isFilterExpanded)
-            }
+            onSortOrderToggle={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+            onFilterExpandedToggle={() => setIsFilterExpanded(!isFilterExpanded)}
             onScrollLeft={scrollThemeLeft}
             onScrollRight={scrollThemeRight}
             onRetry={refreshFilterData}
@@ -362,9 +350,7 @@ function HomeClientPage() {
           onStatusChange={updateStatus}
           onToggleSelect={toggleTaskSelection}
           onTaskUpdated={fetchTasks}
-          onOpenInPage={(taskId) =>
-            router.push(`/tasks/${taskId}?showHeader=true`)
-          }
+          onOpenInPage={(taskId) => router.push(`/tasks/${taskId}?showHeader=true`)}
           onPageChange={setCurrentPage}
           onItemsPerPageChange={setItemsPerPage}
         />

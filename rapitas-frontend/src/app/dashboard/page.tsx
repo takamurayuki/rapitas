@@ -2,15 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ExamGoal, StudyStreak } from '@/types';
-import {
-  BarChart3,
-  CheckCircle2,
-  Clock,
-  Flame,
-  Target,
-  TrendingUp,
-  Award,
-} from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp, Award } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
@@ -99,11 +91,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([
-        fetchOverview(),
-        fetchDailyStudy(),
-        fetchStreakInfo(),
-      ]);
+      await Promise.all([fetchOverview(), fetchDailyStudy(), fetchStreakInfo()]);
       setLoading(false);
     };
 
@@ -127,10 +115,7 @@ export default function DashboardPage() {
           <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded w-48" />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
-              />
+              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
             ))}
           </div>
           <div className="h-64 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
@@ -144,12 +129,8 @@ export default function DashboardPage() {
       <div className="flex items-center gap-3 mb-6">
         <BarChart3 className="w-8 h-8 text-indigo-500" />
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('subtitle')}
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
         </div>
       </div>
 
@@ -174,9 +155,7 @@ export default function DashboardPage() {
             <CheckCircle2 className="w-8 h-8" />
             <span className="text-xs opacity-75">{tc('today')}</span>
           </div>
-          <div className="text-3xl font-bold mb-1">
-            {overview?.tasks.todayCompleted || 0}
-          </div>
+          <div className="text-3xl font-bold mb-1">{overview?.tasks.todayCompleted || 0}</div>
           <p className="text-sm opacity-75">{t('taskComplete')}</p>
         </div>
 
@@ -185,9 +164,7 @@ export default function DashboardPage() {
             <Clock className="w-8 h-8" />
             <span className="text-xs opacity-75">{t('thisWeek')}</span>
           </div>
-          <div className="text-3xl font-bold mb-1">
-            {overview?.studyTime.weekHours || 0}h
-          </div>
+          <div className="text-3xl font-bold mb-1">{overview?.studyTime.weekHours || 0}h</div>
           <p className="text-sm opacity-75">{t('studyHours')}</p>
         </div>
 
@@ -196,12 +173,9 @@ export default function DashboardPage() {
             <TrendingUp className="w-8 h-8" />
             <span className="text-xs opacity-75">{t('overall')}</span>
           </div>
-          <div className="text-3xl font-bold mb-1">
-            {overview?.tasks.completionRate || 0}%
-          </div>
+          <div className="text-3xl font-bold mb-1">{overview?.tasks.completionRate || 0}%</div>
           <p className="text-sm opacity-75">
-            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0}{' '}
-            {t('taskComplete')}
+            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} {t('taskComplete')}
           </p>
         </div>
       </div>
@@ -223,14 +197,10 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <div className="flex items-end justify-between h-40 gap-1">
                 {dailyStudy.map((day, index) => {
-                  const height =
-                    day.hours > 0 ? (day.hours / maxHours) * 100 : 2;
+                  const height = day.hours > 0 ? (day.hours / maxHours) * 100 : 2;
                   const isToday = index === dailyStudy.length - 1;
                   return (
-                    <div
-                      key={day.date}
-                      className="flex-1 flex flex-col items-center"
-                    >
+                    <div key={day.date} className="flex-1 flex flex-col items-center">
                       <div
                         className={`w-full rounded-t-md transition-all ${
                           isToday
@@ -261,10 +231,7 @@ export default function DashboardPage() {
                   {tc('hours')}
                 </span>
                 <span>
-                  {(
-                    dailyStudy.reduce((sum, d) => sum + d.hours, 0) /
-                    dailyStudy.length
-                  ).toFixed(1)}
+                  {(dailyStudy.reduce((sum, d) => sum + d.hours, 0) / dailyStudy.length).toFixed(1)}
                   {tc('hoursPerDay')}
                 </span>
               </div>
@@ -285,10 +252,7 @@ export default function DashboardPage() {
           {overview?.upcomingExams && overview.upcomingExams.length > 0 ? (
             <div className="space-y-3">
               {overview.upcomingExams.slice(0, 3).map((exam) => (
-                <div
-                  key={exam.id}
-                  className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50"
-                >
+                <div key={exam.id} className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">
                       {exam.name}
@@ -299,11 +263,7 @@ export default function DashboardPage() {
                       </span>
                     )}
                   </div>
-                  <ExamCountdown
-                    examDate={exam.examDate}
-                    color={exam.color}
-                    compact
-                  />
+                  <ExamCountdown examDate={exam.examDate} color={exam.color} compact />
                 </div>
               ))}
 
@@ -312,8 +272,7 @@ export default function DashboardPage() {
                   href="/exam-goals"
                   className="block text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  {tc('other')} {overview.upcomingExams.length - 3}{' '}
-                  {tc('items')}
+                  {tc('other')} {overview.upcomingExams.length - 3} {tc('items')}
                 </a>
               )}
             </div>
@@ -343,36 +302,28 @@ export default function DashboardPage() {
             <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
               {overview?.tasks.weekCompleted || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('completedTasks')}
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('completedTasks')}</div>
           </div>
 
           <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
             <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
               {overview?.studyTime.weekHours || 0}h
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('studyHours')}
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('studyHours')}</div>
           </div>
 
           <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
             <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
               {streakInfo?.currentStreak || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('consecutiveDays')}
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('consecutiveDays')}</div>
           </div>
 
           <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
             <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
               {overview?.upcomingExams?.length || 0}
             </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('controllingExams')}
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('controllingExams')}</div>
           </div>
         </div>
       </div>

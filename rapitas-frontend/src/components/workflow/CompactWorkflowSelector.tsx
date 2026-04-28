@@ -51,8 +51,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['実装', '自動検証'],
     icon: Zap,
     color: 'text-green-600 dark:text-green-400',
-    bgColor:
-      'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
+    bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
   },
   standard: {
     mode: 'standard',
@@ -62,8 +61,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['計画作成', '実装', '検証'],
     icon: Target,
     color: 'text-blue-600 dark:text-blue-400',
-    bgColor:
-      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
   },
   comprehensive: {
     mode: 'comprehensive',
@@ -73,8 +71,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     steps: ['調査', '計画作成', '実装', '検証'],
     icon: Microscope,
     color: 'text-purple-600 dark:text-purple-400',
-    bgColor:
-      'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
+    bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',
   },
 };
 
@@ -135,9 +132,7 @@ export default function CompactWorkflowSelector({
   showAnalyzeButton = true,
   className = '',
 }: CompactWorkflowSelectorProps) {
-  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(
-    currentMode || 'comprehensive',
-  );
+  const [selectedMode, setSelectedMode] = useState<WorkflowMode>(currentMode || 'comprehensive');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [analysis, setAnalysis] = useState<ComplexityScore | null>(null);
@@ -167,14 +162,11 @@ export default function CompactWorkflowSelector({
 
     setIsUpdating(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, override: true }),
-        },
-      );
+      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/set-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, override: true }),
+      });
 
       const data = await response.json();
       if (data.success) {
@@ -193,9 +185,7 @@ export default function CompactWorkflowSelector({
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`,
-      );
+      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`);
       const data = await response.json();
 
       if (data.success && data.analysis) {
@@ -244,9 +234,7 @@ export default function CompactWorkflowSelector({
               </span>
             )}
             {effectiveScore !== null && effectiveScore !== undefined && (
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                ({effectiveScore})
-              </span>
+              <span className="text-xs text-zinc-400 dark:text-zinc-500">({effectiveScore})</span>
             )}
           </div>
         </div>
@@ -256,26 +244,22 @@ export default function CompactWorkflowSelector({
 
         {/* Workflow mode selection buttons */}
         <div className="flex items-center gap-1">
-          {(
-            Object.entries(WORKFLOW_MODE_CONFIGS) as [
-              WorkflowMode,
-              WorkflowModeConfig,
-            ][]
-          ).map(([mode, config]) => {
-            const isSelected = mode === selectedMode;
-            const ModeIcon = config.icon;
+          {(Object.entries(WORKFLOW_MODE_CONFIGS) as [WorkflowMode, WorkflowModeConfig][]).map(
+            ([mode, config]) => {
+              const isSelected = mode === selectedMode;
+              const ModeIcon = config.icon;
 
-            return (
-              <div
-                key={mode}
-                className="relative"
-                onMouseEnter={() => setShowTooltip(mode)}
-                onMouseLeave={() => setShowTooltip(null)}
-              >
-                <button
-                  onClick={() => handleModeSelect(mode)}
-                  disabled={disabled || isUpdating || autoComplexityAnalysis}
-                  className={`
+              return (
+                <div
+                  key={mode}
+                  className="relative"
+                  onMouseEnter={() => setShowTooltip(mode)}
+                  onMouseLeave={() => setShowTooltip(null)}
+                >
+                  <button
+                    onClick={() => handleModeSelect(mode)}
+                    disabled={disabled || isUpdating || autoComplexityAnalysis}
+                    className={`
                     flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all
                     disabled:opacity-50 disabled:cursor-not-allowed
                     ${
@@ -284,30 +268,31 @@ export default function CompactWorkflowSelector({
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'
                     }
                   `}
-                  title={`${config.description} (${config.estimatedTime})`}
-                >
-                  {isUpdating && isSelected ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ModeIcon className="h-4 w-4" />
-                  )}
-                  <span>{config.name}</span>
-                </button>
+                    title={`${config.description} (${config.estimatedTime})`}
+                  >
+                    {isUpdating && isSelected ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ModeIcon className="h-4 w-4" />
+                    )}
+                    <span>{config.name}</span>
+                  </button>
 
-                {/* Tooltip */}
-                {showTooltip === mode && (
-                  <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs rounded-md whitespace-nowrap shadow-lg">
-                    <div className="font-medium">{config.description}</div>
-                    <div className="text-zinc-300 dark:text-zinc-600 mt-0.5">
-                      {config.estimatedTime} • {config.steps.join(' → ')}
+                  {/* Tooltip */}
+                  {showTooltip === mode && (
+                    <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs rounded-md whitespace-nowrap shadow-lg">
+                      <div className="font-medium">{config.description}</div>
+                      <div className="text-zinc-300 dark:text-zinc-600 mt-0.5">
+                        {config.estimatedTime} • {config.steps.join(' → ')}
+                      </div>
+                      {/* Arrow */}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                     </div>
-                    {/* Arrow */}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  )}
+                </div>
+              );
+            },
+          )}
         </div>
 
         {/* Divider */}
@@ -334,9 +319,7 @@ export default function CompactWorkflowSelector({
             ) : (
               <Info className="h-4 w-4" />
             )}
-            <span className="font-medium">
-              {autoComplexityAnalysis ? '再分析' : '自動分析'}
-            </span>
+            <span className="font-medium">{autoComplexityAnalysis ? '再分析' : '自動分析'}</span>
           </button>
         )}
 
@@ -358,10 +341,7 @@ export default function CompactWorkflowSelector({
           <div className="flex items-center gap-2 text-xs">
             <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
             <span className="text-blue-700 dark:text-blue-300">
-              推奨:{' '}
-              <strong>
-                {WORKFLOW_MODE_CONFIGS[analysis.recommendedMode].name}モード
-              </strong>
+              推奨: <strong>{WORKFLOW_MODE_CONFIGS[analysis.recommendedMode].name}モード</strong>
               （信頼度: {Math.round(analysis.confidence * 100)}%）
             </span>
             <button

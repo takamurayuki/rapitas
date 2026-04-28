@@ -100,5 +100,5 @@ export type OrchestratorContext = {
       modelId: string | null;
     },
     options: { workingDirectory?: string; timeout?: number },
-  ) => AgentConfigInput;
+  ) => Promise<AgentConfigInput>;
 };

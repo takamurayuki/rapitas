@@ -63,9 +63,7 @@ export function PromptPanel({
         className="flex items-center gap-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg"
       >
         <Loader2 className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
-        <span className="text-xs text-zinc-600 dark:text-zinc-400">
-          最適化中...
-        </span>
+        <span className="text-xs text-zinc-600 dark:text-zinc-400">最適化中...</span>
       </div>
     );
   }
@@ -128,11 +126,7 @@ export function PromptPanel({
             className="p-1 text-zinc-400 hover:text-zinc-600 rounded"
             aria-label="プロンプトをコピー"
           >
-            {copied ? (
-              <Check className="w-3 h-3 text-green-500" />
-            ) : (
-              <Copy className="w-3 h-3" />
-            )}
+            {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
           </button>
         </div>
         <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded p-2 font-mono text-[10px] text-zinc-600 dark:text-zinc-400 max-h-20 overflow-y-auto whitespace-pre-wrap">

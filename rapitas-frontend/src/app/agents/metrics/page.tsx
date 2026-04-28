@@ -42,9 +42,7 @@ function AgentMetricsPage() {
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
               {t('metricsTitle')}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              {t('metricsDescription')}
-            </p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('metricsDescription')}</p>
           </div>
           <div className="flex items-center gap-3">
             <button

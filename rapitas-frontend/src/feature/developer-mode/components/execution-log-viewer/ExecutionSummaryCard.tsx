@@ -9,13 +9,7 @@
  */
 
 import React from 'react';
-import {
-  CheckCircle2,
-  AlertCircle,
-  Square,
-  FileEdit,
-  TestTube,
-} from 'lucide-react';
+import { CheckCircle2, AlertCircle, Square, FileEdit, TestTube } from 'lucide-react';
 import type { ExecutionSummary } from '../../utils/log-message-transformer';
 import type { ExecutionLogStatus } from './types';
 
@@ -30,19 +24,14 @@ type ExecutionSummaryCardProps = {
  * @param summary - Aggregated metrics derived from the log stream. / ログストリームから集計したメトリクス。
  * @param status - Final execution status, used to choose success / failure theming. / 成功／失敗テーマの選択に使う最終ステータス。
  */
-export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({
-  summary,
-  status,
-}) => {
+export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({ summary, status }) => {
   const isSuccess = status === 'completed';
   const totalFiles = summary.filesEdited.length + summary.filesCreated.length;
 
   return (
     <div
       className={`mt-4 rounded-lg border p-4 ${
-        isSuccess
-          ? 'border-green-500/40 bg-green-950/20'
-          : 'border-red-500/40 bg-red-950/20'
+        isSuccess ? 'border-green-500/40 bg-green-950/20' : 'border-red-500/40 bg-red-950/20'
       }`}
       style={{ animation: 'fadeInSlide 0.3s ease-out' }}
     >
@@ -51,11 +40,7 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({
           isSuccess ? 'text-green-300' : 'text-red-300'
         }`}
       >
-        {isSuccess ? (
-          <CheckCircle2 className="w-4 h-4" />
-        ) : (
-          <AlertCircle className="w-4 h-4" />
-        )}
+        {isSuccess ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
         {isSuccess ? '完了しました' : '実行に失敗しました'}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
@@ -72,14 +57,10 @@ export const ExecutionSummaryCard: React.FC<ExecutionSummaryCardProps> = ({
             <span className="text-zinc-500">テスト:</span>
             <span className="font-medium">
               {summary.testsPassed > 0 && (
-                <span className="text-green-400">
-                  {summary.testsPassed}成功
-                </span>
+                <span className="text-green-400">{summary.testsPassed}成功</span>
               )}
               {summary.testsFailed > 0 && (
-                <span className="text-red-400 ml-1">
-                  {summary.testsFailed}失敗
-                </span>
+                <span className="text-red-400 ml-1">{summary.testsFailed}失敗</span>
               )}
             </span>
           </div>

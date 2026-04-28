@@ -7,13 +7,7 @@
  * Renders the PR body, reviews, comments, and the comment/review input form.
  */
 
-import {
-  MessageSquare,
-  CheckCircle2,
-  AlertCircle,
-  Send,
-  Loader2,
-} from 'lucide-react';
+import { MessageSquare, CheckCircle2, AlertCircle, Send, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest } from '@/types';
 import { getReviewIcon } from './PrUtils';
@@ -48,9 +42,7 @@ export function PRConversationTab({
     <div className="space-y-4">
       {pr.body && (
         <div className="p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <div className="prose dark:prose-invert max-w-none text-sm">
-            {pr.body}
-          </div>
+          <div className="prose dark:prose-invert max-w-none text-sm">{pr.body}</div>
         </div>
       )}
 
@@ -83,11 +75,7 @@ export function PRConversationTab({
               {new Date(review.submittedAt).toLocaleString('ja-JP')}
             </span>
           </div>
-          {review.body && (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {review.body}
-            </p>
-          )}
+          {review.body && <p className="text-sm text-zinc-600 dark:text-zinc-400">{review.body}</p>}
         </div>
       ))}
 
@@ -110,9 +98,7 @@ export function PRConversationTab({
               {new Date(comment.createdAt).toLocaleString('ja-JP')}
             </span>
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {comment.body}
-          </p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{comment.body}</p>
         </div>
       ))}
 

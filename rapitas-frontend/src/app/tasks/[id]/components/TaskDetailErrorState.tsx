@@ -13,10 +13,7 @@ export interface TaskDetailErrorStateProps {
  *
  * @param props - Error message and navigation callback.
  */
-export default function TaskDetailErrorState({
-  error,
-  onBackToHome,
-}: TaskDetailErrorStateProps) {
+export default function TaskDetailErrorState({ error, onBackToHome }: TaskDetailErrorStateProps) {
   const t = useTranslations('task');
 
   return (
@@ -25,9 +22,7 @@ export default function TaskDetailErrorState({
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
           <span className="text-3xl">!</span>
         </div>
-        <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
-          {error || t('notFound')}
-        </p>
+        <p className="text-red-600 dark:text-red-400 mb-4 font-medium">{error || t('notFound')}</p>
         <button
           onClick={onBackToHome}
           className="px-6 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium"

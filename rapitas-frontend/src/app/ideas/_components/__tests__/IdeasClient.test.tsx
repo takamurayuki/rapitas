@@ -66,8 +66,6 @@ describe('IdeasClient', () => {
     render(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
     fireEvent.click(screen.getByText('アイデアを追加'));
-    expect(
-      screen.getByPlaceholderText(/アイデアをひとことで/),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/アイデアをひとことで/)).toBeInTheDocument();
   });
 });

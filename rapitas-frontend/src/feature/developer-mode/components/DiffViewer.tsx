@@ -19,11 +19,7 @@ type DiffViewerProps = {
   onToggleView?: (isRaw: boolean) => void;
 };
 
-export function DiffViewer({
-  files,
-  showRawDiff = false,
-  onToggleView,
-}: DiffViewerProps) {
+export function DiffViewer({ files, showRawDiff = false, onToggleView }: DiffViewerProps) {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
     new Set(files.map((f) => f.filename)),
   );
@@ -173,14 +169,10 @@ export function DiffViewer({
               </span>
               <div className="flex items-center gap-2 text-xs">
                 {file.additions > 0 && (
-                  <span className="text-green-600 dark:text-green-400">
-                    +{file.additions}
-                  </span>
+                  <span className="text-green-600 dark:text-green-400">+{file.additions}</span>
                 )}
                 {file.deletions > 0 && (
-                  <span className="text-red-600 dark:text-red-400">
-                    -{file.deletions}
-                  </span>
+                  <span className="text-red-600 dark:text-red-400">-{file.deletions}</span>
                 )}
               </div>
             </button>
@@ -211,15 +203,9 @@ export function DiffViewer({
                           {type !== 'header' ? index + 1 : ''}
                         </div>
                         <div className="w-6 shrink-0 px-1 py-0.5 text-center select-none">
-                          {type === 'added' && (
-                            <span className="text-green-400">+</span>
-                          )}
-                          {type === 'removed' && (
-                            <span className="text-red-400">-</span>
-                          )}
-                          {type === 'header' && (
-                            <span className="text-blue-400">@</span>
-                          )}
+                          {type === 'added' && <span className="text-green-400">+</span>}
+                          {type === 'removed' && <span className="text-red-400">-</span>}
+                          {type === 'header' && <span className="text-blue-400">@</span>}
                         </div>
                         <pre
                           className={`flex-1 px-2 py-0.5 ${
@@ -244,9 +230,7 @@ export function DiffViewer({
             {/* No patch available */}
             {expandedFiles.has(file.filename) && !file.patch && (
               <div className="px-4 py-6 bg-zinc-50 dark:bg-indigo-dark-800/30 text-center">
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  差分情報がありません
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">差分情報がありません</p>
               </div>
             )}
           </div>
@@ -257,9 +241,7 @@ export function DiffViewer({
       {files.length === 0 && (
         <div className="px-4 py-12 text-center">
           <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            変更されたファイルはありません
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">変更されたファイルはありません</p>
         </div>
       )}
     </div>

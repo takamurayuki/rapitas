@@ -5,19 +5,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import {
-  useExecutionPolling,
-  useExecutionStream,
-} from '../../hooks/useExecutionStream';
+import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type {
   UseExecutionManagerOptions,
   UseExecutionManagerResult,
 } from './useExecutionManager.types';
-import {
-  deriveExecutionStatusFlags,
-  deriveLogViewerStatus,
-} from './execution-status-flags';
+import { deriveExecutionStatusFlags, deriveLogViewerStatus } from './execution-status-flags';
 
 const logger = createLogger('useExecutionManager');
 
@@ -138,9 +132,7 @@ export function useExecutionManager({
     if (isRestoring) return;
     // NOTE: Do not restart polling if pollingStatus is terminal — prevents infinite loop
     const isTerminalPolling =
-      pollingStatus === 'completed' ||
-      pollingStatus === 'failed' ||
-      pollingStatus === 'cancelled';
+      pollingStatus === 'completed' || pollingStatus === 'failed' || pollingStatus === 'cancelled';
     if (executionSessionId) {
       setSessionId(executionSessionId);
       if (!isPollingRunning && !isTerminalPolling) {
@@ -169,15 +161,8 @@ export function useExecutionManager({
   // Start polling when parent marks execution as running (no sessionId yet)
   useEffect(() => {
     const isTerminalPolling =
-      pollingStatus === 'completed' ||
-      pollingStatus === 'failed' ||
-      pollingStatus === 'cancelled';
-    if (
-      isExecuting &&
-      !isPollingRunning &&
-      !isRestoring &&
-      !isTerminalPolling
-    ) {
+      pollingStatus === 'completed' || pollingStatus === 'failed' || pollingStatus === 'cancelled';
+    if (isExecuting && !isPollingRunning && !isRestoring && !isTerminalPolling) {
       startPolling({ terminalGraceMs: 5000 });
     }
   }, [isExecuting, isPollingRunning, startPolling, isRestoring, pollingStatus]);
@@ -198,13 +183,7 @@ export function useExecutionManager({
       // Reset when returning to running / waiting_for_input
       handledTerminalStatusRef.current = null;
     }
-  }, [
-    pollingStatus,
-    onStopExecution,
-    onExecutionComplete,
-    removeExecutingTask,
-    taskId,
-  ]);
+  }, [pollingStatus, onStopExecution, onExecutionComplete, removeExecutingTask, taskId]);
 
   // Derived status flags
   const hasSubtasks = subtasks && subtasks.length > 0;
@@ -215,32 +194,24 @@ export function useExecutionManager({
   const hasExecutedRef = useRef(false);
   if (isExecuting) hasExecutedRef.current = true;
   const isRestoredTerminal =
-    !hasExecutedRef.current &&
-    executionResult?.success !== undefined &&
-    !isExecuting;
+    !hasExecutedRef.current && executionResult?.success !== undefined && !isExecuting;
 
-  const {
-    isWaitingForInput,
-    isCompleted,
-    isCancelled,
-    isFailed,
-    isInterrupted,
-    isRunning,
-  } = deriveExecutionStatusFlags({
-    pollingStatus,
-    sseStatus,
-    pollingWaitingForInput,
-    pollingError,
-    sseError,
-    executionError,
-    executionResult,
-    isExecuting,
-    isPollingRunning,
-    isSseRunning,
-    isParallelExecutionRunning,
-    isRestoredTerminal,
-    logsLength: logs.length,
-  });
+  const { isWaitingForInput, isCompleted, isCancelled, isFailed, isInterrupted, isRunning } =
+    deriveExecutionStatusFlags({
+      pollingStatus,
+      sseStatus,
+      pollingWaitingForInput,
+      pollingError,
+      sseError,
+      executionError,
+      executionResult,
+      isExecuting,
+      isPollingRunning,
+      isSseRunning,
+      isParallelExecutionRunning,
+      isRestoredTerminal,
+      logsLength: logs.length,
+    });
 
   const logViewerStatus: ExecutionLogStatus = useMemo(
     () =>
@@ -259,8 +230,7 @@ export function useExecutionManager({
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        questionType:
-          pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
+        questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
     return { hasQuestion: false, question: '', questionType: 'none' as const };
@@ -281,11 +251,7 @@ export function useExecutionManager({
     }
 
     const fileResources = resources?.filter(
-      (r) =>
-        r.filePath ||
-        r.type === 'file' ||
-        r.type === 'image' ||
-        r.type === 'pdf',
+      (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
     );
     const attachments = fileResources?.map((r) => ({
       id: r.id,
@@ -303,8 +269,7 @@ export function useExecutionManager({
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
       agentConfigId: agentConfigId ?? undefined,
-      attachments:
-        attachments && attachments.length > 0 ? attachments : undefined,
+      attachments: attachments && attachments.length > 0 ? attachments : undefined,
     });
     if (result?.sessionId) {
       setShowLogs(true);
@@ -316,17 +281,14 @@ export function useExecutionManager({
 
     setIsGeneratingBranchName(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/developer-mode/generate-branch-name`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: taskTitle,
-            description: taskDescription || undefined,
-          }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/developer-mode/generate-branch-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskDescription || undefined,
+        }),
+      });
 
       const data = await res.json();
       if (res.ok) {
@@ -348,8 +310,7 @@ export function useExecutionManager({
 
   const handleSendResponse = async () => {
     const trimmedResponse = userResponse.trim();
-    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current)
-      return;
+    if (!trimmedResponse || isSendingResponse || sendingResponseRef.current) return;
 
     // Immediately set ref to prevent duplicate submissions
     sendingResponseRef.current = true;
@@ -387,10 +348,7 @@ export function useExecutionManager({
     if (onStopExecution) onStopExecution();
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/${taskId}/stop-execution`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/stop-execution`, { method: 'POST' });
 
       if (!res.ok && sessionId) {
         await fetch(`${API_BASE_URL}/agents/sessions/${sessionId}/stop`, {

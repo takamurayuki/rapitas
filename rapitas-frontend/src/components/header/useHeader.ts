@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
-import { useDarkMode } from '@/hooks/ui/useDarkMode';
+import { useDarkMode } from '@/hooks/useDarkMode';
 import { isTauri } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
@@ -48,10 +48,7 @@ export type UseHeaderReturn = {
   userMenuRef: React.RefObject<HTMLDivElement | null>;
   isRestarting: boolean;
   restartConfirmDialog: { open: boolean; activeExecutions: number };
-  setRestartConfirmDialog: (v: {
-    open: boolean;
-    activeExecutions: number;
-  }) => void;
+  setRestartConfirmDialog: (v: { open: boolean; activeExecutions: number }) => void;
   handleRestartClick: () => Promise<void>;
   executeRestart: () => Promise<void>;
   user: ReturnType<typeof useAuth>['user'];
@@ -83,9 +80,7 @@ export function useHeader(): UseHeaderReturn {
   const showHeader = searchParams.get('showHeader') === 'true';
 
   // NOTE: Also checks window.location.pathname to handle iframe embedding where Next.js pathname may differ.
-  const [isTaskDetailPage, setIsTaskDetailPage] = useState(() =>
-    checkIsTaskDetailPage(pathname),
-  );
+  const [isTaskDetailPage, setIsTaskDetailPage] = useState(() => checkIsTaskDetailPage(pathname));
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMenuPinned, setIsMenuPinned] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -186,8 +181,7 @@ export function useHeader(): UseHeaderReturn {
       const res = await fetch(`${API_BASE_URL}/agents/system-status`);
       if (!res.ok) throw new Error('Failed to fetch system status');
       const status = await res.json();
-      const activeCount =
-        (status.activeExecutions || 0) + (status.runningExecutions || 0);
+      const activeCount = (status.activeExecutions || 0) + (status.runningExecutions || 0);
       if (activeCount > 0) {
         setRestartConfirmDialog({ open: true, activeExecutions: activeCount });
       } else {
@@ -235,8 +229,7 @@ export function useHeader(): UseHeaderReturn {
 
   useEffect(() => {
     const windowPath = window.location.pathname;
-    const isDetail =
-      checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
+    const isDetail = checkIsTaskDetailPage(pathname) || checkIsTaskDetailPage(windowPath);
     setIsTaskDetailPage(isDetail);
   }, [pathname]);
 
@@ -257,11 +250,14 @@ export function useHeader(): UseHeaderReturn {
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
-    if (pathname === '/' || pathname === '/kanban') {
+    if (pathname === '/' || pathname === '/kanban' || pathname === '/ideas') {
       debounceTimerRef.current = setTimeout(() => {
         isUpdatingSearchRef.current = true;
+        // Preserve original behavior: '/' and '/kanban' both write into '/?search=...';
+        // '/ideas' keeps its own URL.
+        const targetPath = pathname === '/ideas' ? '/ideas' : '/';
         if (searchQuery.trim()) {
-          router.push(`/?search=${encodeURIComponent(searchQuery.trim())}`);
+          router.push(`${targetPath}?search=${encodeURIComponent(searchQuery.trim())}`);
         } else {
           const currentSearch = searchParams.get('search');
           if (currentSearch) router.push(pathname);

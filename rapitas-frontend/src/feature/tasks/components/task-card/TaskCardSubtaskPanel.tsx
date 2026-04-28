@@ -2,10 +2,7 @@
 // TaskCardSubtaskPanel
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 
 interface TaskCardSubtaskPanelProps {
   subtasks: Task[];
@@ -30,8 +27,7 @@ export default function TaskCardSubtaskPanel({
     >
       {subtasks.map((subtask, index) => {
         const subtaskStatus =
-          statusConfig[subtask.status as keyof typeof statusConfig] ||
-          statusConfig.todo;
+          statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =

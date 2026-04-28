@@ -8,11 +8,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { useToast } from '@/components/ui/toast/ToastContainer';
-import {
-  searchIcons,
-  getIconComponent,
-  ICON_DATA,
-} from '@/components/category/icon-data';
+import { searchIcons, getIconComponent, ICON_DATA } from '@/components/category/icon-data';
 import { SwatchBook } from 'lucide-react';
 import type { Theme, Category } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
@@ -67,9 +63,7 @@ export function useThemesPage() {
   const [iconSearchQuery, setIconSearchQuery] = useState('');
   const [formData, setFormData] = useState<FormData>(defaultFormData);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(
-    null,
-  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [initialCategorySet, setInitialCategorySet] = useState(false);
 
   // NOTE: Refs used as stable accessors passed to sub-hooks so they always
@@ -201,8 +195,7 @@ export function useThemesPage() {
       setIconSearchQuery('');
     });
 
-  const handleDragEnd = (result: DropResult) =>
-    crud.handleDragEnd(result, items, setItems);
+  const handleDragEnd = (result: DropResult) => crud.handleDragEnd(result, items, setItems);
 
   const debouncedIconSearchQuery = useDebounce(iconSearchQuery, 300);
 
@@ -224,9 +217,7 @@ export function useThemesPage() {
     if (IconComponent) return <IconComponent size={size} />;
 
     const DefaultIcon =
-      getIconComponent('SwatchBook') ??
-      ICON_DATA?.['SwatchBook']?.component ??
-      SwatchBook;
+      getIconComponent('SwatchBook') ?? ICON_DATA?.['SwatchBook']?.component ?? SwatchBook;
 
     return <DefaultIcon size={size} />;
   };

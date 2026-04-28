@@ -67,19 +67,15 @@ export function useMetricsData() {
 
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [agentMetrics, setAgentMetrics] = useState<AgentMetrics[]>([]);
-  const [executionTrends, setExecutionTrends] = useState<ExecutionTrendData[]>(
+  const [executionTrends, setExecutionTrends] = useState<ExecutionTrendData[]>([]);
+  const [performanceComparison, setPerformanceComparison] = useState<AgentPerformanceComparison[]>(
     [],
   );
-  const [performanceComparison, setPerformanceComparison] = useState<
-    AgentPerformanceComparison[]
-  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0],
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     period: 'day',
   });
@@ -96,15 +92,12 @@ export function useMetricsData() {
         period: dateRange.period,
       });
 
-      const [overviewRes, agentMetricsRes, trendsRes, performanceRes] =
-        await Promise.all([
-          fetch(`${API_BASE_URL}/agent-metrics/overview?${queryParams}`),
-          fetch(`${API_BASE_URL}/agent-metrics?${queryParams}`),
-          fetch(
-            `${API_BASE_URL}/agent-metrics/trends?period=${dateRange.period}&days=${trendDays}`,
-          ),
-          fetch(`${API_BASE_URL}/agent-metrics/performance?${queryParams}`),
-        ]);
+      const [overviewRes, agentMetricsRes, trendsRes, performanceRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/agent-metrics/overview?${queryParams}`),
+        fetch(`${API_BASE_URL}/agent-metrics?${queryParams}`),
+        fetch(`${API_BASE_URL}/agent-metrics/trends?period=${dateRange.period}&days=${trendDays}`),
+        fetch(`${API_BASE_URL}/agent-metrics/performance?${queryParams}`),
+      ]);
 
       if (overviewRes.ok) {
         const data = await overviewRes.json();

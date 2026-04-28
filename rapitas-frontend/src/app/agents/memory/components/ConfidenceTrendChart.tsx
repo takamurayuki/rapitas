@@ -1,15 +1,7 @@
 'use client';
 // ConfidenceTrendChart
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Target } from 'lucide-react';
 import type { GrowthTimeline } from '../types';
 
@@ -46,16 +38,11 @@ export function ConfidenceTrendChart({
         <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
           <Target className="w-5 h-5" />
         </div>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-          信頼度の推移
-        </h3>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">信頼度の推移</h3>
       </div>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            className="stroke-zinc-200 dark:stroke-zinc-700"
-          />
+          <CartesianGrid strokeDasharray="3 3" className="stroke-zinc-200 dark:stroke-zinc-700" />
           <XAxis
             dataKey="date"
             tick={{ fontSize: 11 }}
@@ -70,12 +57,7 @@ export function ConfidenceTrendChart({
           />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
-            formatter={
-              ((v: unknown) => [
-                `${(Number(v) * 100).toFixed(1)}%`,
-                '信頼度',
-              ]) as never
-            }
+            formatter={((v: unknown) => [`${(Number(v) * 100).toFixed(1)}%`, '信頼度']) as never}
           />
           <Bar dataKey="avgConfidence" fill="#f59e0b" radius={[4, 4, 0, 0]} />
         </BarChart>

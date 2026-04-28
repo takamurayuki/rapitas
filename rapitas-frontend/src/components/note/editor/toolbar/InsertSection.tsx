@@ -89,11 +89,7 @@ export function InsertSection({
                 disabled={!linkUrl.trim() || isLinkLoading}
                 className="px-2 py-1 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-600 text-white rounded text-xs transition-colors disabled:cursor-not-allowed shrink-0"
               >
-                {isLinkLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  '挿入'
-                )}
+                {isLinkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '挿入'}
               </button>
             </div>
           </div>
@@ -124,9 +120,7 @@ export function InsertSection({
                     className="w-1 h-4 rounded-full shrink-0"
                     style={{ backgroundColor: color.value }}
                   />
-                  <span className="text-xs text-zinc-700 dark:text-zinc-200">
-                    {color.name}
-                  </span>
+                  <span className="text-xs text-zinc-700 dark:text-zinc-200">{color.name}</span>
                 </button>
               ))}
             </div>

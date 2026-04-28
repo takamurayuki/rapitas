@@ -82,12 +82,7 @@ export function useExecutionPolling(taskId: number | null) {
         options,
       );
       if (!taskId || intervalRef.current) {
-        logger.debug(
-          'Skipping - taskId:',
-          taskId,
-          'intervalRef exists:',
-          !!intervalRef.current,
-        );
+        logger.debug('Skipping - taskId:', taskId, 'intervalRef exists:', !!intervalRef.current);
         return;
       }
 
@@ -101,8 +96,7 @@ export function useExecutionPolling(taskId: number | null) {
           : options?.preserveLogs
             ? 2000
             : 0;
-      terminalStatusGraceUntilRef.current =
-        terminalGraceMs > 0 ? Date.now() + terminalGraceMs : 0;
+      terminalStatusGraceUntilRef.current = terminalGraceMs > 0 ? Date.now() + terminalGraceMs : 0;
 
       // Reset final log flag and status tracking
       // NOTE: For preserveLogs (continuation), skip final log since the previous run already added one
@@ -119,9 +113,7 @@ export function useExecutionPolling(taskId: number | null) {
           isConnected: true,
           isRunning: true,
           status: 'running',
-          logs: options.preserveLogs
-            ? prev.logs
-            : [options.initialOutput || ''],
+          logs: options.preserveLogs ? prev.logs : [options.initialOutput || ''],
         }));
       } else if (options?.preserveLogs) {
         // NOTE: Do not reset lastOutputLengthRef.current — only new output is appended.
@@ -142,8 +134,7 @@ export function useExecutionPolling(taskId: number | null) {
         }));
       }
 
-      const poll = () =>
-        executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
+      const poll = () => executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
 
       // Initial poll
       await poll();
@@ -164,10 +155,7 @@ export function useExecutionPolling(taskId: number | null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    if (
-      lastProcessedStatusRef.current === 'cancelled' &&
-      hasAddedFinalLogRef.current
-    ) {
+    if (lastProcessedStatusRef.current === 'cancelled' && hasAddedFinalLogRef.current) {
       return;
     }
     lastProcessedStatusRef.current = 'cancelled';

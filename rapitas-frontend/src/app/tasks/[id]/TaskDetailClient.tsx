@@ -32,10 +32,7 @@ interface TaskDetailClientProps {
   onClose?: () => void;
 }
 
-function TaskDetailClient({
-  taskId: propTaskId,
-  onTaskUpdated,
-}: TaskDetailClientProps) {
+function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,9 +49,7 @@ function TaskDetailClient({
 
   // Priority: propTaskId > params.id > URL extraction
   const resolvedTaskId =
-    propTaskId?.toString() ||
-    (params?.id as string | undefined) ||
-    getTaskIdFromUrl();
+    propTaskId?.toString() || (params?.id as string | undefined) || getTaskIdFromUrl();
 
   logger.debug('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
 
@@ -231,12 +226,7 @@ function TaskDetailClient({
   }
 
   if (error || !task) {
-    return (
-      <TaskDetailErrorState
-        error={error}
-        onBackToHome={() => router.push('/')}
-      />
-    );
+    return <TaskDetailErrorState error={error} onBackToHome={() => router.push('/')} />;
   }
 
   const showAIPanel =

@@ -3,9 +3,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('SetupThemeRoute');
 
-const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
-).replace('localhost', '127.0.0.1');
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(
+  'localhost',
+  '127.0.0.1',
+);
 
 interface SetupThemeRequest {
   appName: string;
@@ -63,8 +64,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'テーマの作成に失敗しました',
+        error: error instanceof Error ? error.message : 'テーマの作成に失敗しました',
       },
       { status: 500 },
     );

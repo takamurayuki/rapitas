@@ -43,9 +43,7 @@ export function WorkflowTabBar({
           const TabIcon = tab.icon;
           // Show badge for plan tab awaiting approval
           const needsAttention =
-            tab.id === 'plan' &&
-            effectiveStatus === 'plan_created' &&
-            hasContent;
+            tab.id === 'plan' && effectiveStatus === 'plan_created' && hasContent;
 
           return (
             <button

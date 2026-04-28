@@ -12,10 +12,8 @@ interface TaskDetailVisibilityState {
 /**
  * Store managing task detail panel visibility
  */
-export const useTaskDetailVisibilityStore = create<TaskDetailVisibilityState>()(
-  (set) => ({
-    isTaskDetailVisible: false,
-    showTaskDetail: () => set({ isTaskDetailVisible: true }),
-    hideTaskDetail: () => set({ isTaskDetailVisible: false }),
-  }),
-);
+export const useTaskDetailVisibilityStore = create<TaskDetailVisibilityState>()((set) => ({
+  isTaskDetailVisible: false,
+  showTaskDetail: () => set({ isTaskDetailVisible: true }),
+  hideTaskDetail: () => set({ isTaskDetailVisible: false }),
+}));

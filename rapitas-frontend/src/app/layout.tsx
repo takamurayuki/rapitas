@@ -57,11 +57,7 @@ export default function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
@@ -88,18 +84,39 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // Service worker policy:
+              //  - production: register /sw.js for offline + asset caching
+              //  - development (localhost / 127.0.0.1): skip registration AND
+              //    proactively unregister any leftover SW + nuke its caches.
+              //    Without this, the cache-first strategy in /sw.js keeps
+              //    serving stale /_next/ chunks across code changes, forcing
+              //    devs to "Clear site data" after every edit.
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function() {});
-                });
+                var isLocalDev =
+                  location.hostname === 'localhost' ||
+                  location.hostname === '127.0.0.1' ||
+                  location.hostname === '0.0.0.0' ||
+                  location.hostname.endsWith('.local');
+                if (isLocalDev) {
+                  navigator.serviceWorker.getRegistrations().then(function (regs) {
+                    regs.forEach(function (r) { r.unregister(); });
+                  });
+                  if (typeof caches !== 'undefined') {
+                    caches.keys().then(function (keys) {
+                      keys.forEach(function (k) { caches.delete(k); });
+                    });
+                  }
+                } else {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').catch(function() {});
+                  });
+                }
               }
             `,
           }}
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <IntlProvider>
           <AuthProvider>
             <PomodoroProvider>

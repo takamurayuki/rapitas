@@ -20,21 +20,25 @@ const MIN_CHAT_LENGTH = 5;
 const EXTRACTION_PROMPT = `あなたはソフトウェア開発のアイデア抽出AIです。
 以下のコンテンツから、ユーザー体験またはコード品質に直接影響する改善アイデアのみを抽出してください。
 
-抽出対象:
-1. 実装中に気づいた設計上の問題
+抽出対象（厳格に判定）:
+1. 実装中に気づいた具体的な設計上の問題（ファイル名や関数名が特定できる）
 2. テストや検証で発見した未対処のエッジケース
-3. パフォーマンスのボトルネック
-4. ユーザー体験を損なう具体的な問題
+3. パフォーマンスのボトルネック（具体的な計測根拠あり）
+4. ユーザー体験を損なう具体的な問題（再現手順が示せる）
 
-除外対象:
+除外対象（必ず除外）:
 - 「あると便利」レベルの曖昧な提案
-- 既に完了した作業の繰り返し
+- 既に完了した作業の繰り返し・サマリー
 - 「検討する」「調査する」系の非実行型
+- 実行ログのエコー、ステータス報告、完了報告
+- 「テストが通った」「コミットした」などの作業報告
+- 一般論・ベストプラクティスの羅列
+- タスクのタイトルや説明文の言い換え
 
 JSON配列で返してください（他のテキスト不要、最大3件）:
 [{"title":"短い具体的タイトル","content":"何を・なぜ・どこで改善すべきかの説明"}]
 
-該当なしは [] を返してください。`;
+該当なしは [] を返してください。アイデアが質を満たさない場合は無理に出さず [] にしてください。`;
 
 const ENRICHMENT_PROMPT = `以下のアイデアを評価してください。
 
@@ -90,6 +94,7 @@ export async function extractIdeasFromExecutionLog(
     .join('\n\n');
 
   try {
+    const themeId = await getTaskThemeId(taskId);
     const ideas = await callLLMForIdeas(context);
     const ids: number[] = [];
 
@@ -98,6 +103,8 @@ export async function extractIdeasFromExecutionLog(
         title: idea.title,
         content: idea.content,
         taskId,
+        themeId: themeId ?? undefined,
+        scope: themeId ? 'project' : 'global',
         source: 'agent_execution',
         confidence: 0.7,
       });
@@ -106,7 +113,7 @@ export async function extractIdeasFromExecutionLog(
       runEnrichAndReview(id, idea.title, idea.content);
     }
 
-    log.info({ taskId, count: ids.length }, 'Ideas extracted from execution');
+    log.info({ taskId, themeId, count: ids.length }, 'Ideas extracted from execution');
     return ids;
   } catch (err) {
     log.warn({ err, taskId }, 'Idea extraction from execution failed');
@@ -129,6 +136,7 @@ export async function extractIdeasFromCopilotChat(
     .join('\n');
 
   try {
+    const themeId = taskId ? await getTaskThemeId(taskId) : null;
     const ideas = await callLLMForIdeas(`## コパイロットの会話\n${context}`);
     const ids: number[] = [];
 
@@ -137,6 +145,8 @@ export async function extractIdeasFromCopilotChat(
         title: idea.title,
         content: idea.content,
         taskId,
+        themeId: themeId ?? undefined,
+        scope: themeId ? 'project' : 'global',
         source: 'copilot',
         confidence: 0.5,
       });
@@ -144,7 +154,7 @@ export async function extractIdeasFromCopilotChat(
       runEnrichAndReview(id, idea.title, idea.content);
     }
 
-    log.info({ taskId, count: ids.length }, 'Ideas extracted from copilot chat');
+    log.info({ taskId, themeId, count: ids.length }, 'Ideas extracted from copilot chat');
     return ids;
   } catch (err) {
     log.warn({ err, taskId }, 'Idea extraction from copilot failed');
@@ -152,23 +162,64 @@ export async function extractIdeasFromCopilotChat(
   }
 }
 
+/**
+ * Look up a task's themeId. Returns null when the task or its theme is missing.
+ */
+async function getTaskThemeId(taskId: number): Promise<number | null> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { themeId: true },
+    });
+    return task?.themeId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Minimum quality thresholds. Ideas below either bar after enrichment, or
+ * flagged infeasible by the reviewer, are deleted from the IdeaBox.
+ */
+const MIN_ACTIONABILITY = 0.4;
+const MIN_SPECIFICITY = 0.4;
+
 /** Run the full enrich → review pipeline as fire-and-forget. */
 function runEnrichAndReview(id: number, title: string, content: string): void {
   enrichIdea(id, title, content)
-    .then(() => reviewIdea(id))
+    .then((enriched) => {
+      if (!enriched.kept) return;
+      return reviewIdea(id);
+    })
     .catch(() => {});
+}
+
+/** Hard-delete an idea that failed quality checks. */
+async function rejectIdea(ideaId: number, reason: string): Promise<void> {
+  try {
+    await prisma.knowledgeEntry.delete({ where: { id: ideaId } });
+    log.info({ ideaId, reason }, 'Idea rejected and removed');
+  } catch (err) {
+    log.warn({ err, ideaId }, 'Failed to delete rejected idea');
+  }
 }
 
 /**
  * Step 1: Enrich — score actionability, specificity, impact via Ollama (free).
+ *
+ * @returns kept=false when the idea was deleted for failing quality bars.
  */
-export async function enrichIdea(ideaId: number, title: string, content: string): Promise<void> {
+export async function enrichIdea(
+  ideaId: number,
+  title: string,
+  content: string,
+): Promise<{ kept: boolean }> {
   try {
     const prompt = ENRICHMENT_PROMPT.replace('{title}', title).replace('{content}', content);
     const response = await callLLM(prompt, 200, 'local');
 
     const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return;
+    if (!jsonMatch) return { kept: true };
 
     const e = JSON.parse(jsonMatch[0]) as {
       actionability?: number;
@@ -180,6 +231,15 @@ export async function enrichIdea(ideaId: number, title: string, content: string)
     const actionability = clamp(e.actionability ?? 0.5);
     const specificity = clamp(e.specificity ?? 0.5);
     const confidence = actionability * 0.6 + specificity * 0.4;
+
+    // Hard-reject ideas that fall below the quality bar.
+    if (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY) {
+      await rejectIdea(
+        ideaId,
+        `enrich-below-threshold actionability=${actionability.toFixed(2)} specificity=${specificity.toFixed(2)}`,
+      );
+      return { kept: false };
+    }
 
     const tags = await getAndFilterTags(ideaId, ['actionability:', 'specificity:', 'impact:']);
     tags.push(
@@ -199,8 +259,10 @@ export async function enrichIdea(ideaId: number, title: string, content: string)
     });
 
     log.debug({ ideaId, actionability, specificity, confidence }, 'Idea enriched');
+    return { kept: true };
   } catch (err) {
     log.warn({ err, ideaId }, 'Idea enrichment failed');
+    return { kept: true };
   }
 }
 
@@ -238,8 +300,11 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       reviewNote?: string;
     };
 
-    // If not feasible, lower confidence significantly
-    const confidenceAdjust = review.feasible === false ? 0.5 : 1.0;
+    // Hard-reject infeasible ideas — they should never make it into the box.
+    if (review.feasible === false) {
+      await rejectIdea(ideaId, `review-infeasible note=${(review.reviewNote ?? '').slice(0, 80)}`);
+      return;
+    }
 
     const tags = await getAndFilterTags(ideaId, ['review:', 'benefits:', 'risks:', 'feasible:']);
     tags.push(`feasible:${review.feasible ?? true}`);
@@ -254,15 +319,6 @@ export async function reviewIdea(ideaId: number): Promise<void> {
     // Apply refined title/content if reviewer suggested improvements
     if (review.refinedTitle) updateData.title = review.refinedTitle;
     if (review.refinedContent) updateData.content = review.refinedContent;
-
-    // Adjust confidence based on feasibility
-    if (confidenceAdjust < 1.0) {
-      const current = await prisma.knowledgeEntry.findUnique({
-        where: { id: ideaId },
-        select: { confidence: true },
-      });
-      updateData.confidence = (current?.confidence ?? 0.5) * confidenceAdjust;
-    }
 
     await prisma.knowledgeEntry.update({
       where: { id: ideaId },

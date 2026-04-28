@@ -104,9 +104,7 @@ function NewFolderForm({
         </button>
       </div>
       {createError && (
-        <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">
-          {createError}
-        </p>
+        <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{createError}</p>
       )}
     </div>
   );
@@ -188,9 +186,7 @@ export function DirectoryList({
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="flex items-center gap-2">
                 <SkeletonBlock className="w-4 h-4 rounded" />
-                <SkeletonBlock
-                  className={`h-4 ${i % 2 === 0 ? 'w-32' : 'w-24'}`}
-                />
+                <SkeletonBlock className={`h-4 ${i % 2 === 0 ? 'w-32' : 'w-24'}`} />
               </div>
             ))}
           </div>

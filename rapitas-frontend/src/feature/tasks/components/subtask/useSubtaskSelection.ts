@@ -18,12 +18,8 @@ export interface SubtaskSelectionState {
   toggleSubtaskSelection: (subtaskId: number) => void;
   selectAllSubtasks: () => void;
   deselectAllSubtasks: () => void;
-  setShowDeleteConfirm: React.Dispatch<
-    React.SetStateAction<'all' | 'selected' | null>
-  >;
-  handleDeleteSelected: (
-    onDeleteSelectedSubtasks?: (ids: number[]) => void,
-  ) => void;
+  setShowDeleteConfirm: React.Dispatch<React.SetStateAction<'all' | 'selected' | null>>;
+  handleDeleteSelected: (onDeleteSelectedSubtasks?: (ids: number[]) => void) => void;
   handleDeleteAll: (onDeleteAllSubtasks?: () => void) => void;
 }
 
@@ -35,12 +31,8 @@ export interface SubtaskSelectionState {
  */
 export function useSubtaskSelection(subtasks: Task[]): SubtaskSelectionState {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
-    new Set(),
-  );
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<
-    'all' | 'selected' | null
-  >(null);
+  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<'all' | 'selected' | null>(null);
 
   const toggleSelectionMode = () => {
     if (isSelectionMode) {
@@ -69,9 +61,7 @@ export function useSubtaskSelection(subtasks: Task[]): SubtaskSelectionState {
     setSelectedSubtaskIds(new Set());
   };
 
-  const handleDeleteSelected = (
-    onDeleteSelectedSubtasks?: (ids: number[]) => void,
-  ) => {
+  const handleDeleteSelected = (onDeleteSelectedSubtasks?: (ids: number[]) => void) => {
     if (selectedSubtaskIds.size > 0 && onDeleteSelectedSubtasks) {
       onDeleteSelectedSubtasks(Array.from(selectedSubtaskIds));
       setSelectedSubtaskIds(new Set());

@@ -12,9 +12,10 @@ import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
 export function useHomeState() {
   // --- Filter state ---
   const [filter, setFilter] = useState<string>('all');
-  const [categoryFilter, setCategoryFilter] = useLocalStorageState<
-    number | null
-  >('selectedCategoryFilter', null);
+  const [categoryFilter, setCategoryFilter] = useLocalStorageState<number | null>(
+    'selectedCategoryFilter',
+    null,
+  );
   const [themeFilter, setThemeFilter] = useLocalStorageState<number | null>(
     'selectedThemeFilter',
     null,
@@ -26,9 +27,7 @@ export function useHomeState() {
   );
 
   // --- Sort state ---
-  const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>(
-    'createdAt',
-  );
+  const [sortBy, setSortBy] = useState<'createdAt' | 'priority' | 'title'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // --- Pagination state ---

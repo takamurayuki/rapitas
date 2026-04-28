@@ -178,11 +178,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
           className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
           title="ログをコピー"
         >
-          {copied ? (
-            <Check className="w-4 h-4 text-green-400" />
-          ) : (
-            <Copy className="w-4 h-4" />
-          )}
+          {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
         </button>
 
         <button
@@ -192,17 +188,9 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
               ? 'text-blue-400 bg-zinc-700'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
           }`}
-          title={
-            viewMode === 'simple'
-              ? '詳細モードに切り替え'
-              : 'シンプルモードに切り替え'
-          }
+          title={viewMode === 'simple' ? '詳細モードに切り替え' : 'シンプルモードに切り替え'}
         >
-          {viewMode === 'simple' ? (
-            <Code className="w-4 h-4" />
-          ) : (
-            <Eye className="w-4 h-4" />
-          )}
+          {viewMode === 'simple' ? <Code className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
 
         <button
@@ -210,11 +198,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
           className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 rounded transition-colors"
           title={isFullscreen ? '縮小' : '拡大'}
         >
-          {isFullscreen ? (
-            <Minimize2 className="w-4 h-4" />
-          ) : (
-            <Maximize2 className="w-4 h-4" />
-          )}
+          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
 
         {collapsible && (
@@ -240,10 +224,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
  * @param isRunning - Whether execution is actively running. / 実行が進行中かどうか。
  * @returns Badge element or `null`. / バッジ要素または `null`。
  */
-function buildStatusBadge(
-  status: ExecutionLogStatus,
-  isRunning: boolean,
-): React.ReactNode {
+function buildStatusBadge(status: ExecutionLogStatus, isRunning: boolean): React.ReactNode {
   if (isRunning || status === 'running') {
     return (
       <span className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs">

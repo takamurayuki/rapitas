@@ -53,12 +53,8 @@ export const ListSkeleton = ({
               <SkeletonBlock className="w-14 h-14 rounded-xl shrink-0" />
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex items-center gap-2">
-                  <SkeletonBlock
-                    className={`h-6 ${i % 2 === 0 ? 'w-40' : 'w-32'}`}
-                  />
-                  {showBadges && (
-                    <SkeletonBlock className="h-5 w-16 rounded-full" />
-                  )}
+                  <SkeletonBlock className={`h-6 ${i % 2 === 0 ? 'w-40' : 'w-32'}`} />
+                  {showBadges && <SkeletonBlock className="h-5 w-16 rounded-full" />}
                 </div>
                 <SkeletonBlock
                   className={`h-4 ${i % 3 === 0 ? 'w-64' : i % 3 === 1 ? 'w-48' : 'w-56'}`}
@@ -93,8 +89,7 @@ interface PageSkeletonProps {
  * @param variant - Height variant for the container / コンテナの高さバリアント
  */
 export const LoadingSpinner = ({ variant = 'default' }: PageSkeletonProps) => {
-  const heightClass =
-    variant === 'compact' ? 'min-h-[50vh]' : 'h-[calc(100vh-5rem)]';
+  const heightClass = variant === 'compact' ? 'min-h-[50vh]' : 'h-[calc(100vh-5rem)]';
 
   return (
     <div className={`${heightClass} overflow-hidden bg-background`}>

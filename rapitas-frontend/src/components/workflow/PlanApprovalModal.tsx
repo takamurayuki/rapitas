@@ -68,10 +68,7 @@ export default function PlanApprovalModal({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Overlay */}
-      <div
-        className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={handleClose}
-      />
+      <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={handleClose} />
 
       {/* Modal content */}
       <div className="flex items-center justify-center min-h-screen p-4">
@@ -97,9 +94,7 @@ export default function PlanApprovalModal({
             <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 p-4 m-6 mb-0">
               <div className="flex">
                 <AlertTriangle className="h-5 w-5 text-red-400 mr-3" />
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {error}
-                </p>
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             </div>
           )}
@@ -113,12 +108,7 @@ export default function PlanApprovalModal({
                   ? new Date(planFile.lastModified).toLocaleString('ja-JP')
                   : '不明'}
               </div>
-              <div>
-                サイズ:{' '}
-                {planFile.size
-                  ? `${Math.round(planFile.size / 1024)}KB`
-                  : '不明'}
-              </div>
+              <div>サイズ: {planFile.size ? `${Math.round(planFile.size / 1024)}KB` : '不明'}</div>
             </div>
           </div>
 
@@ -143,11 +133,7 @@ export default function PlanApprovalModal({
                       }
                       return <input type={type} {...props} />;
                     },
-                    code: ({
-                      className: codeClassName,
-                      children,
-                      ...props
-                    }) => (
+                    code: ({ className: codeClassName, children, ...props }) => (
                       <code
                         className={`${codeClassName || ''} bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-sm`}
                         {...props}

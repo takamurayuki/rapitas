@@ -36,9 +36,7 @@ export function HomeCategoryFilter({
       return;
     }
 
-    const currentThemeInCategory = themesInCategory.find(
-      (t) => t.id === themeFilter,
-    );
+    const currentThemeInCategory = themesInCategory.find((t) => t.id === themeFilter);
     if (currentThemeInCategory) {
       // Keep existing theme if it's in the new category
       onCategoryChange(catId, themeFilter);

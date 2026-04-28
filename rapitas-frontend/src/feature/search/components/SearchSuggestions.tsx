@@ -30,9 +30,7 @@ export default function SearchSuggestions({
   return (
     <div className="absolute z-50 mt-1 w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg dark:shadow-black/40 overflow-hidden">
       {loading ? (
-        <div className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500">
-          検索中...
-        </div>
+        <div className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500">検索中...</div>
       ) : (
         <ul className="max-h-64 overflow-y-auto">
           {suggestions.map((suggestion) => (

@@ -22,12 +22,8 @@ export function ToolSummaryCards({ summary }: ToolSummaryCardsProps) {
             <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              総ツール数
-            </p>
-            <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-              {summary.total}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">総ツール数</p>
+            <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">{summary.total}</p>
           </div>
         </div>
       </div>
@@ -38,9 +34,7 @@ export function ToolSummaryCards({ summary }: ToolSummaryCardsProps) {
             <Download className="w-4 h-4 text-green-600 dark:text-green-400" />
           </div>
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              インストール済み
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">インストール済み</p>
             <p className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
               {summary.installed}
             </p>

@@ -1,12 +1,6 @@
 'use client';
 // TaskDetailViewBody
-import type {
-  Task,
-  Resource,
-  Comment,
-  WorkflowStatus,
-  Priority,
-} from '@/types';
+import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
@@ -14,7 +8,6 @@ import TaskWorkflowSection from './TaskWorkflowSection';
 import SubtaskSection from './SubtaskSection';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
-import { DependencyPicker } from '@/feature/tasks/components/dependency';
 import { CopilotChatPanel } from '@/components/copilot';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
@@ -63,17 +56,10 @@ interface TaskActionsViewSlice {
 
 /** Subset of useCommentSystem return values consumed by the view body. */
 interface CommentSystemSlice {
-  handleAddComment: (
-    content?: string,
-    parentId?: number,
-  ) => Promise<number | null>;
+  handleAddComment: (content?: string, parentId?: number) => Promise<number | null>;
   handleUpdateComment: (id: number, content: string) => Promise<void>;
   handleDeleteComment: (id: number) => Promise<void>;
-  handleCreateCommentLink: (
-    from: number,
-    to: number,
-    label?: string,
-  ) => Promise<void>;
+  handleCreateCommentLink: (from: number, to: number, label?: string) => Promise<void>;
   handleDeleteCommentLink: (linkId: number) => Promise<void>;
 }
 
@@ -93,15 +79,10 @@ export interface TaskDetailViewBodyProps {
 
   /** Whether the AI assistant panel should be shown. */
   showAIPanel: boolean;
-  aiSectionProps: Omit<
-    TaskAISectionProps,
-    'task' | 'taskId' | 'resolvedTaskId'
-  >;
+  aiSectionProps: Omit<TaskAISectionProps, 'task' | 'taskId' | 'resolvedTaskId'>;
 
   currentWorkflowStatus: WorkflowStatus | null;
-  setCurrentWorkflowStatus: React.Dispatch<
-    React.SetStateAction<WorkflowStatus | null>
-  >;
+  setCurrentWorkflowStatus: React.Dispatch<React.SetStateAction<WorkflowStatus | null>>;
   isWorkflowLoading: boolean;
   workflowError: string | null | undefined;
   onPlanApprovalRequest: () => void;
@@ -144,9 +125,7 @@ export default function TaskDetailViewBody({
   isParallelExecutionRunning,
   getSubtaskStatus,
 }: TaskDetailViewBodyProps) {
-  const isTaskStatusLoading = useExecutionStateStore((s) =>
-    s.loadingTaskIds.has(taskId),
-  );
+  const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
   return (
     <>
@@ -157,9 +136,7 @@ export default function TaskDetailViewBody({
           onTaskUpdated={refreshTask}
           resources={resources}
           onResourcesChange={async () => {
-            const res = await fetch(
-              `${API_BASE}/tasks/${resolvedTaskId}/resources`,
-            );
+            const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/resources`);
             if (res.ok) setResources(await res.json());
           }}
           comments={comments}
@@ -194,10 +171,6 @@ export default function TaskDetailViewBody({
             </ErrorBoundary>
           )}
         </CopilotChatPanel>
-      </div>
-
-      <div className="mb-6">
-        <DependencyPicker taskId={taskId} />
       </div>
 
       {task.theme?.isDevelopment === true && (
@@ -237,14 +210,10 @@ export default function TaskDetailViewBody({
         onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
         onStartEditingSubtask={taskActions.startEditingSubtask}
         onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-        onSetEditingSubtaskDescription={
-          taskActions.setEditingSubtaskDescription
-        }
+        onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
         onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
         onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
-        onSetEditingSubtaskEstimatedHours={
-          taskActions.setEditingSubtaskEstimatedHours
-        }
+        onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
         onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
         onCancelEditingSubtask={taskActions.cancelEditingSubtask}
         onUpdateStatus={taskActions.updateStatus}

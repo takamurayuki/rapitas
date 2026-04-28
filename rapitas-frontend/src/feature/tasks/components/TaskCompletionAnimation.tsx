@@ -93,10 +93,7 @@ export function FlyingParticle({
   }, [startX, startY, targetX, targetY, onArrive]);
 
   return createPortal(
-    <div
-      ref={ref}
-      className="fixed top-0 left-0 w-3 h-3 pointer-events-none z-9999"
-    >
+    <div ref={ref} className="fixed top-0 left-0 w-3 h-3 pointer-events-none z-9999">
       <div
         className="w-full h-full rounded-full animate-task-particle-pulse"
         style={{
@@ -293,11 +290,7 @@ export function ProgressRing({
       </div>
 
       {bursts.map((id) => (
-        <RingBurst
-          key={id}
-          color={colors.primary}
-          onDone={() => onBurstDone(id)}
-        />
+        <RingBurst key={id} color={colors.primary} onDone={() => onBurstDone(id)} />
       ))}
 
       {showCelebration && <CompleteCelebration />}
@@ -396,10 +389,7 @@ export function useTaskCompletionAnimation(
   }, []);
 
   const colors = useProgressColors(completedTasks, totalTasks);
-  const nextColors = useProgressColors(
-    Math.min(completedTasks + 1, totalTasks),
-    totalTasks,
-  );
+  const nextColors = useProgressColors(Math.min(completedTasks + 1, totalTasks), totalTasks);
 
   return {
     particles,

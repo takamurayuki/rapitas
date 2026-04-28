@@ -50,8 +50,7 @@ export function isTransientError(error: unknown): boolean {
   // If cause exists, check recursively
   if (err.cause != null) return isTransientError(err.cause);
   // Message contains network-related keywords
-  if (/network|timeout|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i.test(message))
-    return true;
+  if (/network|timeout|ECONNREFUSED|ECONNRESET|ETIMEDOUT/i.test(message)) return true;
   return false;
 }
 

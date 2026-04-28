@@ -1,10 +1,5 @@
 import { useState, useCallback } from 'react';
-import type {
-  GitHubIntegration,
-  GitHubPullRequest,
-  GitHubIssue,
-  FileDiff,
-} from '@/types';
+import type { GitHubIntegration, GitHubPullRequest, GitHubIssue, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
 export type CreateIntegrationInput = {
@@ -27,28 +22,18 @@ export type UseGitHubIntegrationReturn = {
   // Integrations
   getIntegrations: () => Promise<GitHubIntegration[]>;
   getIntegration: (id: number) => Promise<GitHubIntegration>;
-  createIntegration: (
-    input: CreateIntegrationInput,
-  ) => Promise<GitHubIntegration>;
+  createIntegration: (input: CreateIntegrationInput) => Promise<GitHubIntegration>;
   deleteIntegration: (id: number) => Promise<void>;
   // Sync
   syncPullRequests: (integrationId: number) => Promise<{ syncedCount: number }>;
   syncIssues: (integrationId: number) => Promise<{ syncedCount: number }>;
   // Pull Requests
-  getPullRequests: (
-    integrationId: number,
-    state?: string,
-  ) => Promise<GitHubPullRequest[]>;
+  getPullRequests: (integrationId: number, state?: string) => Promise<GitHubPullRequest[]>;
   getPullRequest: (id: number) => Promise<GitHubPullRequest>;
   getPullRequestDiff: (id: number) => Promise<FileDiff[]>;
   approvePullRequest: (id: number, body?: string) => Promise<void>;
   requestChanges: (id: number, body: string) => Promise<void>;
-  commentOnPullRequest: (
-    id: number,
-    body: string,
-    path?: string,
-    line?: number,
-  ) => Promise<void>;
+  commentOnPullRequest: (id: number, body: string, path?: string, line?: number) => Promise<void>;
   // Issues
   getIssues: (integrationId: number, state?: string) => Promise<GitHubIssue[]>;
   getIssue: (id: number) => Promise<GitHubIssue>;
@@ -68,42 +53,37 @@ export function useGitHubIntegration(): UseGitHubIntegrationReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const request = useCallback(
-    async <T>(url: string, options?: RequestInit): Promise<T> => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE_URL}${url}`, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers,
-          },
-        });
+  const request = useCallback(async <T>(url: string, options?: RequestInit): Promise<T> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Request failed');
-        }
-
-        return data;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(data.error || 'Request failed');
       }
-    },
-    [],
-  );
+
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Status
   const checkGitHubStatus = useCallback(() => {
-    return request<{ ghAvailable: boolean; authenticated: boolean }>(
-      '/github/status',
-    );
+    return request<{ ghAvailable: boolean; authenticated: boolean }>('/github/status');
   }, [request]);
 
   // Integrations
@@ -138,20 +118,18 @@ export function useGitHubIntegration(): UseGitHubIntegrationReturn {
   // Sync
   const syncPullRequests = useCallback(
     (integrationId: number) => {
-      return request<{ syncedCount: number }>(
-        `/github/integrations/${integrationId}/sync-prs`,
-        { method: 'POST' },
-      );
+      return request<{ syncedCount: number }>(`/github/integrations/${integrationId}/sync-prs`, {
+        method: 'POST',
+      });
     },
     [request],
   );
 
   const syncIssues = useCallback(
     (integrationId: number) => {
-      return request<{ syncedCount: number }>(
-        `/github/integrations/${integrationId}/sync-issues`,
-        { method: 'POST' },
-      );
+      return request<{ syncedCount: number }>(`/github/integrations/${integrationId}/sync-issues`, {
+        method: 'POST',
+      });
     },
     [request],
   );
@@ -213,9 +191,7 @@ export function useGitHubIntegration(): UseGitHubIntegrationReturn {
   // Issues
   const getIssues = useCallback(
     (integrationId: number, state = 'open') => {
-      return request<GitHubIssue[]>(
-        `/github/integrations/${integrationId}/issues?state=${state}`,
-      );
+      return request<GitHubIssue[]>(`/github/integrations/${integrationId}/issues?state=${state}`);
     },
     [request],
   );
@@ -229,13 +205,10 @@ export function useGitHubIntegration(): UseGitHubIntegrationReturn {
 
   const createTaskFromIssue = useCallback(
     (issueId: number, options?: { projectId?: number; themeId?: number }) => {
-      return request<{ taskId: number; task: unknown }>(
-        `/github/issues/${issueId}/create-task`,
-        {
-          method: 'POST',
-          body: JSON.stringify(options || {}),
-        },
-      );
+      return request<{ taskId: number; task: unknown }>(`/github/issues/${issueId}/create-task`, {
+        method: 'POST',
+        body: JSON.stringify(options || {}),
+      });
     },
     [request],
   );

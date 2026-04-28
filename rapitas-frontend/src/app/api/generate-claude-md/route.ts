@@ -3,9 +3,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateClaudeMdRoute');
 
-const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
-).replace('localhost', '127.0.0.1');
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(
+  'localhost',
+  '127.0.0.1',
+);
 
 interface ClaudeMdRequest {
   genre: string;
@@ -71,18 +72,12 @@ function parseAIResponse(
   content: string,
 ): { tech_rationale: string; score: number; claude_md: string } | null {
   let cleaned = content.trim();
-  cleaned = cleaned
-    .replace(/^```(?:json)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '');
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
   try {
     const parsed = JSON.parse(cleaned);
-    if (
-      parsed.tech_rationale &&
-      typeof parsed.score === 'number' &&
-      parsed.claude_md
-    ) {
+    if (parsed.tech_rationale && typeof parsed.score === 'number' && parsed.claude_md) {
       return parsed;
     }
   } catch {
@@ -99,11 +94,7 @@ function parseAIResponse(
   return null;
 }
 
-function buildFallbackResponse(
-  proposal: ClaudeMdRequest['proposal'],
-  plat: string,
-  scale: string,
-) {
+function buildFallbackResponse(proposal: ClaudeMdRequest['proposal'], plat: string, scale: string) {
   const scaleLabel =
     scale === 'solo'
       ? '個人利用者'
@@ -241,9 +232,7 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             return NextResponse.json(parsed);
           }
-          logger.warn(
-            'AI response could not be parsed as valid CLAUDE.md JSON',
-          );
+          logger.warn('AI response could not be parsed as valid CLAUDE.md JSON');
         }
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -257,9 +246,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(buildFallbackResponse(proposal, plat, scale));
   } catch (error) {
     logger.error('Error generating Claude MD:', error);
-    return NextResponse.json(
-      { error: 'CLAUDE.mdの生成に失敗しました' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: 'CLAUDE.mdの生成に失敗しました' }, { status: 500 });
   }
 }

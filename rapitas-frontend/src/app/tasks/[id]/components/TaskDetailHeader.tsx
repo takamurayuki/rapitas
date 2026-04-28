@@ -1,14 +1,6 @@
 'use client';
 // TaskDetailHeader
-import {
-  Check,
-  Copy,
-  Pencil,
-  X,
-  FileStack,
-  Trash2,
-  ArrowLeft,
-} from 'lucide-react';
+import { Check, Copy, Pencil, X, FileStack, Trash2, ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import DropdownMenu from '@/components/ui/dropdown/DropdownMenu';
 import TaskPomodoroButton from './TaskPomodoroButton';
@@ -80,9 +72,7 @@ export default function TaskDetailHeader({
             taskTitle={task.title}
             isThisTaskTimer={isThisTaskTimer}
             pomodoroState={
-              pomodoroState as Parameters<
-                typeof TaskPomodoroButton
-              >[0]['pomodoroState']
+              pomodoroState as Parameters<typeof TaskPomodoroButton>[0]['pomodoroState']
             }
             onClick={onOpenPomodoro}
           />
@@ -96,9 +86,7 @@ export default function TaskDetailHeader({
               className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
             >
               <Pencil className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {tc('edit')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{tc('edit')}</span>
             </button>
             <DropdownMenu
               items={[
@@ -129,9 +117,7 @@ export default function TaskDetailHeader({
               className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-green-500 dark:hover:border-green-400 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {tc('save')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
             </button>
             <button
               onClick={onCancelEditing}
@@ -139,9 +125,7 @@ export default function TaskDetailHeader({
               className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
             >
               <X className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {tc('cancel')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
             </button>
           </>
         )}

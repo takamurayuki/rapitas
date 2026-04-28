@@ -16,9 +16,7 @@ describe('useDarkMode', () => {
       writable: true,
       configurable: true,
     });
-    window.matchMedia = vi
-      .fn()
-      .mockReturnValue({ matches: false } as MediaQueryList);
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false } as MediaQueryList);
   });
 
   afterEach(() => {
@@ -47,9 +45,7 @@ describe('useDarkMode', () => {
   });
 
   it('should use system preference when no localStorage value', () => {
-    window.matchMedia = vi
-      .fn()
-      .mockReturnValue({ matches: true } as MediaQueryList);
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true } as MediaQueryList);
 
     const { result } = renderHook(() => useDarkMode());
 

@@ -2,12 +2,7 @@
  * Task-specific API optimization functions
  */
 
-import {
-  apiClient,
-  apiFetch,
-  debouncedFetch,
-  parallelFetch,
-} from './api-client';
+import { apiClient, apiFetch, debouncedFetch, parallelFetch } from './api-client';
 import type { Task, Status } from '@/types';
 
 type RequestOptions = {
@@ -35,8 +30,7 @@ export async function fetchTasksByCategories(
     {} as Record<string, { path: string; options?: RequestOptions }>,
   );
 
-  const results =
-    await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
+  const results = await parallelFetch<Record<string, Task[] | { error: unknown }>>(requests);
 
   // Format response
   const tasksByCategory: Record<number, Task[]> = {};
@@ -102,10 +96,7 @@ export async function fetchTaskStatistics(): Promise<{
     });
   } catch (error) {
     // Fallback if endpoint not yet implemented
-    console.warn(
-      'Statistics endpoint not available, using fallback data:',
-      error,
-    );
+    console.warn('Statistics endpoint not available, using fallback data:', error);
 
     // Fetch basic task info and calculate statistics
     try {
@@ -135,10 +126,7 @@ export async function fetchTaskStatistics(): Promise<{
       return { total, byStatus, byCategory };
     } catch (fallbackError) {
       // Return default values if fallback also fails
-      console.error(
-        'Failed to fetch tasks for statistics fallback:',
-        fallbackError,
-      );
+      console.error('Failed to fetch tasks for statistics fallback:', fallbackError);
       return {
         total: 0,
         byStatus: {
@@ -164,9 +152,7 @@ export async function fetchRecentTasks(limit: number = 10): Promise<Task[]> {
 /**
  * Bulk fetch task dependencies
  */
-export async function fetchTaskDependencies(
-  taskIds: number[],
-): Promise<Record<number, number[]>> {
+export async function fetchTaskDependencies(taskIds: number[]): Promise<Record<number, number[]>> {
   if (taskIds.length === 0) return {};
 
   const requests = taskIds.reduce(
@@ -180,10 +166,7 @@ export async function fetchTaskDependencies(
     {} as Record<string, { path: string; options?: RequestOptions }>,
   );
 
-  const results =
-    await parallelFetch<Record<string, number[] | { error: unknown }>>(
-      requests,
-    );
+  const results = await parallelFetch<Record<string, number[] | { error: unknown }>>(requests);
 
   // Format response
   const dependencies: Record<number, number[]> = {};

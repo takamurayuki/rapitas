@@ -60,10 +60,7 @@ export default function LabelSelector({
       <div className={`animate-pulse ${className}`}>
         <div className="flex flex-wrap gap-1.5">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-6 w-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg"
-            />
+            <div key={i} className="h-6 w-16 bg-zinc-200 dark:bg-zinc-700 rounded-lg" />
           ))}
         </div>
       </div>
@@ -74,10 +71,7 @@ export default function LabelSelector({
     return (
       <div className={`text-sm text-zinc-500 dark:text-zinc-400 ${className}`}>
         ラベルがありません。
-        <a
-          href="/labels"
-          className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1"
-        >
+        <a href="/labels" className="text-indigo-600 dark:text-indigo-400 hover:underline ml-1">
           ラベルを作成
         </a>
       </div>
@@ -101,9 +95,7 @@ export default function LabelSelector({
               }`}
               style={
                 {
-                  backgroundColor: isSelected
-                    ? label.color
-                    : `${label.color}20`,
+                  backgroundColor: isSelected ? label.color : `${label.color}20`,
                   color: isSelected ? '#fff' : label.color,
                   ['--tw-ring-color' as keyof React.CSSProperties]: label.color,
                 } as React.CSSProperties
@@ -125,10 +117,7 @@ type SelectedLabelsDisplayProps = {
   className?: string;
 };
 
-export function SelectedLabelsDisplay({
-  labels,
-  className = '',
-}: SelectedLabelsDisplayProps) {
+export function SelectedLabelsDisplay({ labels, className = '' }: SelectedLabelsDisplayProps) {
   const renderIcon = (iconName: string | null | undefined, size = 14) => {
     const IconComponent = getIconComponent(iconName || '');
     if (!IconComponent) {

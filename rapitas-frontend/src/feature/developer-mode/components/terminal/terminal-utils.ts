@@ -24,11 +24,7 @@ export const MAX_TERMINAL_LINES = 1000;
  */
 export function classifyLine(line: string): LogLine['type'] {
   if (line.startsWith('[Tool:') || line.startsWith('[ツール:')) return 'tool';
-  if (
-    line.startsWith('[エラー]') ||
-    line.startsWith('[Error]') ||
-    line.startsWith('[失敗]')
-  )
+  if (line.startsWith('[エラー]') || line.startsWith('[Error]') || line.startsWith('[失敗]'))
     return 'error';
   if (
     line.startsWith('[Question]') ||
@@ -36,8 +32,7 @@ export function classifyLine(line: string): LogLine['type'] {
     line.includes('waitingForInput')
   )
     return 'question';
-  if (line.startsWith('[System') || line.startsWith('[システム'))
-    return 'system';
+  if (line.startsWith('[System') || line.startsWith('[システム')) return 'system';
   return 'agent';
 }
 
@@ -73,7 +68,5 @@ export function lineColor(type: LogLine['type']): string {
  */
 export function appendCapped(prev: LogLine[], newLines: LogLine[]): LogLine[] {
   const combined = [...prev, ...newLines];
-  return combined.length > MAX_TERMINAL_LINES
-    ? combined.slice(-MAX_TERMINAL_LINES)
-    : combined;
+  return combined.length > MAX_TERMINAL_LINES ? combined.slice(-MAX_TERMINAL_LINES) : combined;
 }

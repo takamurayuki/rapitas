@@ -29,17 +29,11 @@ function getCategoryLabel(category: string): string {
 function getCategoryColor(category: string): string {
   const colors: Record<string, string> = {
     scope: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    technical:
-      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    requirements:
-      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    constraints:
-      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+    technical: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    requirements: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    constraints: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   };
-  return (
-    colors[category] ??
-    'bg-zinc-100 text-zinc-700 dark:bg-indigo-dark-800 dark:text-zinc-400'
-  );
+  return colors[category] ?? 'bg-zinc-100 text-zinc-700 dark:bg-indigo-dark-800 dark:text-zinc-400';
 }
 
 /** Returns a text color class based on quality score thresholds. */
@@ -57,9 +51,7 @@ type Props = {
   setPromptError: (v: string | null) => void;
   copied: boolean;
   promptAnswers: Record<string, string>;
-  setPromptAnswers: React.Dispatch<
-    React.SetStateAction<Record<string, string>>
-  >;
+  setPromptAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   isSubmittingAnswers: boolean;
   onGenerate: () => void;
   onSubmitAnswers: () => Promise<void>;
@@ -89,9 +81,7 @@ export function PromptOptimizationTab({
     return (
       <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
         <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
-        <span className="text-sm text-zinc-600 dark:text-zinc-400">
-          プロンプトを最適化中...
-        </span>
+        <span className="text-sm text-zinc-600 dark:text-zinc-400">プロンプトを最適化中...</span>
       </div>
     );
   }
@@ -101,9 +91,7 @@ export function PromptOptimizationTab({
       <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
         <div className="flex items-center gap-3">
           <AlertCircle className="w-5 h-5 text-red-500" />
-          <span className="text-sm text-red-600 dark:text-red-400">
-            {promptError}
-          </span>
+          <span className="text-sm text-red-600 dark:text-red-400">{promptError}</span>
         </div>
         <button
           onClick={() => {
@@ -126,20 +114,13 @@ export function PromptOptimizationTab({
           <span className="text-sm font-medium">追加情報が必要です</span>
         </div>
         {promptResult.clarificationQuestions.map((q) => (
-          <div
-            key={q.id}
-            className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg"
-          >
+          <div key={q.id} className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {q.question}
               </span>
-              {q.isRequired && (
-                <span className="text-xs text-red-500">*必須</span>
-              )}
-              <span
-                className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}
-              >
+              {q.isRequired && <span className="text-xs text-red-500">*必須</span>}
+              <span className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}>
                 {getCategoryLabel(q.category)}
               </span>
             </div>
@@ -148,9 +129,7 @@ export function PromptOptimizationTab({
                 {q.options.map((opt, i) => (
                   <button
                     key={i}
-                    onClick={() =>
-                      setPromptAnswers((prev) => ({ ...prev, [q.id]: opt }))
-                    }
+                    onClick={() => setPromptAnswers((prev) => ({ ...prev, [q.id]: opt }))}
                     className={`px-2 py-1 text-xs rounded border transition-colors ${
                       promptAnswers[q.id] === opt
                         ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
@@ -207,25 +186,14 @@ export function PromptOptimizationTab({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-green-500" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              最適化完了
-            </span>
-            <span
-              className={`text-sm ${getQualityColor(promptResult.promptQuality.score)}`}
-            >
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">最適化完了</span>
+            <span className={`text-sm ${getQualityColor(promptResult.promptQuality.score)}`}>
               (スコア: {promptResult.promptQuality.score}/100)
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={onCopy}
-              className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
-            >
-              {copied ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
+            <button onClick={onCopy} className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded">
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
         </div>

@@ -31,22 +31,17 @@ export function useCommentSystem({
 
       try {
         setIsAddingComment(true);
-        const res = await fetch(
-          `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: commentContent, parentId }),
-          },
-        );
+        const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: commentContent, parentId }),
+        });
 
         if (res.ok) {
           const newCommentData = await res.json();
 
           // Re-fetch comments to update tree structure
-          const commentsRes = await fetch(
-            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          );
+          const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
           if (commentsRes.ok) {
             setComments(await commentsRes.json());
           }
@@ -66,13 +61,7 @@ export function useCommentSystem({
         setIsAddingComment(false);
       }
     },
-    [
-      newComment,
-      resolvedTaskId,
-      setComments,
-      setNewComment,
-      setIsAddingComment,
-    ],
+    [newComment, resolvedTaskId, setComments, setNewComment, setIsAddingComment],
   );
 
   /** Update an existing comment's content */
@@ -86,9 +75,7 @@ export function useCommentSystem({
         });
         if (res.ok) {
           const updatedComment = await res.json();
-          setComments((prev) =>
-            prev.map((c) => (c.id === commentId ? updatedComment : c)),
-          );
+          setComments((prev) => prev.map((c) => (c.id === commentId ? updatedComment : c)));
         }
       } catch (err) {
         logger.error('Failed to update comment:', err);
@@ -126,9 +113,7 @@ export function useCommentSystem({
           body: JSON.stringify({ toCommentId, label }),
         });
         if (res.ok) {
-          const commentsRes = await fetch(
-            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          );
+          const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
           if (commentsRes.ok) {
             setComments(await commentsRes.json());
           }
@@ -148,9 +133,7 @@ export function useCommentSystem({
           method: 'DELETE',
         });
         if (res.ok) {
-          const commentsRes = await fetch(
-            `${API_BASE}/tasks/${resolvedTaskId}/comments`,
-          );
+          const commentsRes = await fetch(`${API_BASE}/tasks/${resolvedTaskId}/comments`);
           if (commentsRes.ok) {
             setComments(await commentsRes.json());
           }

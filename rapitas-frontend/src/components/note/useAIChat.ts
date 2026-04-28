@@ -1,12 +1,7 @@
 'use client';
 
 import { useReducer, useCallback, useRef } from 'react';
-import type {
-  AIChatMessage,
-  AIChatState,
-  AIChatAction,
-  ApiProvider,
-} from '@/types';
+import type { AIChatMessage, AIChatState, AIChatAction, ApiProvider } from '@/types';
 import { sendMessageToAI, sendMessageToAIStream } from './ai-service';
 
 const initialState: AIChatState = {

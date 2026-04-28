@@ -7,22 +7,9 @@
  * Each view is exported independently so the parent can switch between them.
  */
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  Layers,
-  Link2,
-  Unlink,
-  Zap,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Layers, Link2, Unlink, Zap } from 'lucide-react';
 import { TreeNodeItem } from './TreeNodeItem';
-import {
-  getScoreBgColor,
-  getScoreColor,
-  type AnalysisResult,
-  type TreeNode,
-} from './types';
+import { getScoreBgColor, getScoreColor, type AnalysisResult, type TreeNode } from './types';
 
 // ── Summary Stats ─────────────────────────────────────────────────────────────
 
@@ -133,10 +120,7 @@ export function ListView({ analysis }: ListViewProps) {
         .slice()
         .sort((a, b) => b.independenceScore - a.independenceScore)
         .map((item) => (
-          <div
-            key={item.taskId}
-            className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg"
-          >
+          <div key={item.taskId} className="p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 {item.canRunParallel ? (

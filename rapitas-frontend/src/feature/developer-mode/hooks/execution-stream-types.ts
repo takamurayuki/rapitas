@@ -39,13 +39,7 @@ export type ExecutionStreamState = {
   isConnected: boolean;
   isRunning: boolean;
   logs: string[];
-  status:
-    | 'idle'
-    | 'running'
-    | 'completed'
-    | 'failed'
-    | 'cancelled'
-    | 'waiting_for_input';
+  status: 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'waiting_for_input';
   error: string | null;
   result: unknown | null;
   waitingForInput?: boolean;

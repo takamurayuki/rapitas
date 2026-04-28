@@ -62,9 +62,7 @@ export function FontPickerSection({
                     setShowFontPicker(false);
                   }}
                   className={`w-full text-left px-2 py-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-sm ${
-                    currentFont === font.value
-                      ? 'bg-zinc-100 dark:bg-zinc-700'
-                      : ''
+                    currentFont === font.value ? 'bg-zinc-100 dark:bg-zinc-700' : ''
                   }`}
                 >
                   <span style={{ fontFamily: font.value }}>{font.label}</span>
@@ -82,10 +80,7 @@ export function FontPickerSection({
           value={currentFontSize}
           onChange={(e) => {
             const value = e.target.value.replace(/[^0-9]/g, '');
-            if (
-              value === '' ||
-              (parseInt(value) >= 8 && parseInt(value) <= 72)
-            ) {
+            if (value === '' || (parseInt(value) >= 8 && parseInt(value) <= 72)) {
               setCurrentFontSize(value);
             }
           }}
@@ -100,8 +95,7 @@ export function FontPickerSection({
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              const size =
-                currentFontSize === '' ? 16 : parseInt(currentFontSize);
+              const size = currentFontSize === '' ? 16 : parseInt(currentFontSize);
               onApplyFontSize(`${size}px`);
               (e.target as HTMLInputElement).blur();
             }
@@ -130,9 +124,7 @@ export function FontPickerSection({
                     setShowFontSizePicker(false);
                   }}
                   className={`w-full text-left px-2 py-0.5 rounded hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-xs ${
-                    currentFontSize === size.toString()
-                      ? 'bg-zinc-100 dark:bg-zinc-700'
-                      : ''
+                    currentFontSize === size.toString() ? 'bg-zinc-100 dark:bg-zinc-700' : ''
                   }`}
                 >
                   {size}

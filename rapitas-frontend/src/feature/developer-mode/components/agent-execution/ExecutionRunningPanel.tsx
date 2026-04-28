@@ -2,16 +2,7 @@
 // ExecutionRunningPanel
 
 import React from 'react';
-import {
-  Loader2,
-  AlertCircle,
-  Rocket,
-  HelpCircle,
-  Square,
-  Send,
-  Clock,
-  Zap,
-} from 'lucide-react';
+import { Loader2, AlertCircle, Rocket, HelpCircle, Square, Send, Clock, Zap } from 'lucide-react';
 import { formatTokenCount, formatCountdown } from './useAgentExecution';
 
 type Props = {
@@ -102,9 +93,7 @@ export function ExecutionRunningPanel({
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
-                  {showWaitingUI
-                    ? 'Claude Codeからの質問'
-                    : 'AI エージェント実行中'}
+                  {showWaitingUI ? 'Claude Codeからの質問' : 'AI エージェント実行中'}
                 </h3>
                 {showWaitingUI && isConfirmedQuestion && (
                   <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full font-medium">
@@ -229,16 +218,14 @@ export function ExecutionRunningPanel({
               </div>
             )}
 
-            {timeoutCountdown !== null &&
-              timeoutCountdown > 0 &&
-              timeoutCountdown <= 30 && (
-                <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
-                  <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                  <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
-                    まもなく自動的に続行します。
-                  </span>
-                </div>
-              )}
+            {timeoutCountdown !== null && timeoutCountdown > 0 && timeoutCountdown <= 30 && (
+              <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg animate-pulse">
+                <AlertCircle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                  まもなく自動的に続行します。
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <input

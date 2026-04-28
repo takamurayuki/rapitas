@@ -75,11 +75,7 @@ export const Note = memo(function Note({
     <div
       data-note-id={note.id}
       style={{ marginLeft: indent > 0 ? `${indent * 12}px` : 0 }}
-      className={
-        indent > 0
-          ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1'
-          : ''
-      }
+      className={indent > 0 ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1' : ''}
     >
       <div className="group rounded-lg bg-zinc-50/50 dark:bg-zinc-800/30 border border-transparent hover:border-zinc-200 dark:hover:border-zinc-700 px-2.5 py-2 transition-colors">
         <div className="flex items-start gap-2">
@@ -89,11 +85,7 @@ export const Note = memo(function Note({
               onClick={() => setCollapsed(!collapsed)}
               className="shrink-0 p-0.5 mt-0.5 text-zinc-400 hover:text-blue-500 transition-colors rounded"
             >
-              {collapsed ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
+              {collapsed ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </button>
           ) : (
             <div className="w-4 shrink-0" />
@@ -155,12 +147,8 @@ export const Note = memo(function Note({
                           ) : (
                             <ArrowLeft className="w-2.5 h-2.5 shrink-0" />
                           )}
-                          {l.label && (
-                            <span className="font-medium">{l.label}</span>
-                          )}
-                          <span className="max-w-[120px] truncate">
-                            {l.linkedComment.content}
-                          </span>
+                          {l.label && <span className="font-medium">{l.label}</span>}
+                          <span className="max-w-[120px] truncate">{l.linkedComment.content}</span>
                           <span
                             role="button"
                             onClick={(e) => {
@@ -234,10 +222,7 @@ export const Note = memo(function Note({
                       placeholder="返信を入力..."
                       className="flex-1 px-2 py-1 text-xs bg-transparent outline-none placeholder:text-zinc-400"
                       autoFocus
-                      onKeyDown={(e) =>
-                        e.key === 'Enter' &&
-                        (e.preventDefault(), onReplySubmit())
-                      }
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onReplySubmit())}
                     />
                     <button
                       onClick={onReplyCancel}

@@ -50,10 +50,8 @@ describe('DarkModeToggle (unmounted state)', () => {
 
     // Re-import to get the new mock
     vi.resetModules();
-    const { DarkModeToggle: UnmountedToggle } =
-      await import('../common/DarkModeToggle');
-    const { render: renderFresh, screen: screenFresh } =
-      await import('@testing-library/react');
+    const { DarkModeToggle: UnmountedToggle } = await import('../common/DarkModeToggle');
+    const { render: renderFresh, screen: screenFresh } = await import('@testing-library/react');
 
     renderFresh(<UnmountedToggle />);
 

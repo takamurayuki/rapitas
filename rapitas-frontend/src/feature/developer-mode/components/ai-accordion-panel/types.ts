@@ -12,10 +12,7 @@ import type {
   Task,
   AIAgentConfig,
 } from '@/types';
-import type {
-  ExecutionStatus,
-  ExecutionResult,
-} from '../../hooks/useDeveloperMode';
+import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 
 export type PromptClarificationQuestion = {
@@ -107,16 +104,11 @@ export type AIAccordionPanelProps = {
   onExecutionComplete?: () => void;
   // Parallel execution
   subtasks?: Task[];
-  onStartParallelExecution?: (config?: {
-    maxConcurrentAgents?: number;
-  }) => Promise<string | null>;
+  onStartParallelExecution?: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
   isParallelExecutionRunning?: boolean;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   // Parallel execution logs
   parallelSessionId?: string | null;
-  subtaskLogs?: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   onRefreshSubtaskLogs?: (taskId?: number) => void;
 };

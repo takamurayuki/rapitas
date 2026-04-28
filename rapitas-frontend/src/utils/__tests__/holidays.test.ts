@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  getHolidaysForYear,
-  getHolidaysForMonth,
-  getHolidayName,
-} from '../holidays';
+import { getHolidaysForYear, getHolidaysForMonth, getHolidayName } from '../holidays';
 
 describe('getHolidaysForYear', () => {
   it('returns empty for years before 1948', () => {
@@ -28,9 +24,7 @@ describe('getHolidaysForYear', () => {
 
   it('includes Emperor Birthday on Feb 23 for 2026', () => {
     const holidays = getHolidaysForYear(2026);
-    expect(holidays.find((h) => h.date === '2026-02-23')?.name).toBe(
-      '天皇誕生日',
-    );
+    expect(holidays.find((h) => h.date === '2026-02-23')?.name).toBe('天皇誕生日');
   });
 
   it('includes Golden Week holidays', () => {
@@ -62,15 +56,11 @@ describe('getHolidaysForYear', () => {
   });
 
   it('returns Showa Day for years >= 2007', () => {
-    expect(
-      getHolidaysForYear(2026).find((h) => h.date === '2026-04-29')?.name,
-    ).toBe('昭和の日');
+    expect(getHolidaysForYear(2026).find((h) => h.date === '2026-04-29')?.name).toBe('昭和の日');
   });
 
   it('returns Greenery Day for 1989-2006', () => {
-    expect(
-      getHolidaysForYear(2000).find((h) => h.date === '2000-04-29')?.name,
-    ).toBe('みどりの日');
+    expect(getHolidaysForYear(2000).find((h) => h.date === '2000-04-29')?.name).toBe('みどりの日');
   });
 });
 

@@ -70,9 +70,7 @@ export function useTaskEdit({ task, setTask }: UseTaskEditParams) {
           priority: editPriority,
           labels: labelArray.length > 0 ? labelArray : undefined,
           labelIds: editLabelIds,
-          estimatedHours: editEstimatedHours
-            ? parseFloat(editEstimatedHours)
-            : undefined,
+          estimatedHours: editEstimatedHours ? parseFloat(editEstimatedHours) : undefined,
         }),
       });
 

@@ -39,9 +39,7 @@ export function getRemainingTime(state: {
   const settings = state.settings || DEFAULT_SETTINGS;
   if (state.isBreakTime) {
     const breakDuration =
-      state.pomodoroCount % 4 === 0
-        ? settings.longBreakDuration
-        : settings.shortBreakDuration;
+      state.pomodoroCount % 4 === 0 ? settings.longBreakDuration : settings.shortBreakDuration;
     return breakDuration - state.pomodoroSeconds;
   }
   return settings.pomodoroDuration - state.pomodoroSeconds;

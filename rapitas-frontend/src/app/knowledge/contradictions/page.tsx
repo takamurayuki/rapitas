@@ -15,22 +15,15 @@ export default function ContradictionsPage() {
       <div className="mb-6 flex items-center gap-3">
         <AlertTriangle className="h-8 w-8 text-orange-500" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('description')}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">{t('title')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('description')}</p>
         </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-40 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"
-            />
+            <div key={i} className="h-40 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
           ))}
         </div>
       ) : contradictions.length === 0 ? (
@@ -43,11 +36,7 @@ export default function ContradictionsPage() {
       ) : (
         <div className="space-y-4">
           {contradictions.map((c) => (
-            <ContradictionResolver
-              key={c.id}
-              contradiction={c}
-              onResolve={resolve}
-            />
+            <ContradictionResolver key={c.id} contradiction={c} onResolve={resolve} />
           ))}
         </div>
       )}

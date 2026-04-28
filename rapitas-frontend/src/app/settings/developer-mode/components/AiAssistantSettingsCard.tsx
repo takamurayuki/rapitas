@@ -53,9 +53,7 @@ export function AiAssistantSettingsCard({
             }
             disabled={isSaving}
             className={`relative w-11 h-6 rounded-full transition-colors ${
-              settings?.aiTaskAnalysisDefault
-                ? 'bg-violet-500'
-                : 'bg-zinc-300 dark:bg-zinc-600'
+              settings?.aiTaskAnalysisDefault ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
             }`}
           >
             <span

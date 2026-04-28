@@ -79,11 +79,7 @@ export function shouldAutoIndent(line: string, lang: string): boolean {
   }
 
   if (['html', 'xml'].includes(lang)) {
-    if (
-      /<[^>]+>$/.test(trimmed) &&
-      !/<\/[^>]+>$/.test(trimmed) &&
-      !/>\/\s*$/.test(trimmed)
-    ) {
+    if (/<[^>]+>$/.test(trimmed) && !/<\/[^>]+>$/.test(trimmed) && !/>\/\s*$/.test(trimmed)) {
       return true;
     }
   }

@@ -132,9 +132,7 @@ describe('useBackendHealth', () => {
     const onDisconnectAction = vi.fn();
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    renderHook(() =>
-      useBackendHealth({ onDisconnectAction, retryIntervalMs: 1000 }),
-    );
+    renderHook(() => useBackendHealth({ onDisconnectAction, retryIntervalMs: 1000 }));
 
     // Initial check
     await act(async () => {
@@ -155,9 +153,7 @@ describe('useBackendHealth', () => {
   it('should use retryIntervalMs when disconnected', async () => {
     mockFetch.mockRejectedValue(new Error('Connection refused'));
 
-    renderHook(() =>
-      useBackendHealth({ intervalMs: 5000, retryIntervalMs: 1000 }),
-    );
+    renderHook(() => useBackendHealth({ intervalMs: 5000, retryIntervalMs: 1000 }));
 
     // Initial check
     await act(async () => {

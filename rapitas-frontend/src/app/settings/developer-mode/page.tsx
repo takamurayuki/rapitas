@@ -56,9 +56,7 @@ export default function DeveloperModeSettingsPage() {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             {t('devModeTitle')}
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('devModeSubtitle')}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('devModeSubtitle')}</p>
         </div>
       </div>
 
@@ -68,10 +66,7 @@ export default function DeveloperModeSettingsPage() {
             <Bot className="w-4 h-4" />
             {t('devAiSettings')}
           </TabsTrigger>
-          <TabsTrigger
-            value="error-analysis"
-            className="flex items-center gap-2"
-          >
+          <TabsTrigger value="error-analysis" className="flex items-center gap-2">
             <Bug className="w-4 h-4" />
             {t('devErrorAnalysis')}
           </TabsTrigger>

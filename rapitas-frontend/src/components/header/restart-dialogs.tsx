@@ -14,10 +14,7 @@ type RestartDialogsProps = {
   /** State for the confirmation dialog. */
   restartConfirmDialog: { open: boolean; activeExecutions: number };
   /** Closes or resets the confirmation dialog. */
-  setRestartConfirmDialog: (v: {
-    open: boolean;
-    activeExecutions: number;
-  }) => void;
+  setRestartConfirmDialog: (v: { open: boolean; activeExecutions: number }) => void;
   /** Proceeds with the restart even if executions are active. */
   executeRestart: () => Promise<void>;
   /** Whether the restart is currently in progress (shows blocking overlay). */
@@ -54,9 +51,7 @@ export function RestartDialogs({
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() =>
-                  setRestartConfirmDialog({ open: false, activeExecutions: 0 })
-                }
+                onClick={() => setRestartConfirmDialog({ open: false, activeExecutions: 0 })}
                 className="px-4 py-2 text-sm rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
               >
                 {tc('cancel')}
@@ -79,9 +74,7 @@ export function RestartDialogs({
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               {t('restartingOverlay')}
             </p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {t('restartingMessage')}
-            </p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('restartingMessage')}</p>
           </div>
         </div>
       )}

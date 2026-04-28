@@ -2,17 +2,8 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  CheckSquare,
-  MessageSquare,
-  FileText,
-  StickyNote,
-  ExternalLink,
-} from 'lucide-react';
-import type {
-  SearchResult,
-  SearchResultType,
-} from '@/hooks/search/useGlobalSearch';
+import { CheckSquare, MessageSquare, FileText, StickyNote, ExternalLink } from 'lucide-react';
+import type { SearchResult, SearchResultType } from '@/hooks/search/useGlobalSearch';
 
 const typeConfig: Record<
   SearchResultType,
@@ -51,10 +42,7 @@ function highlightExcerpt(excerpt: string, query: string): React.ReactNode {
   const parts = excerpt.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark
-        key={i}
-        className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5"
-      >
+      <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 text-inherit rounded-sm px-0.5">
         {part}
       </mark>
     ) : (
@@ -79,10 +67,7 @@ interface SearchResultCardProps {
   query: string;
 }
 
-export default function SearchResultCard({
-  result,
-  query,
-}: SearchResultCardProps) {
+export default function SearchResultCard({ result, query }: SearchResultCardProps) {
   const router = useRouter();
   const config = typeConfig[result.type];
   const Icon = config.icon;
@@ -91,9 +76,7 @@ export default function SearchResultCard({
   const status = metadata?.status as string | undefined;
   const priority = metadata?.priority as string | undefined;
   const taskTitle = metadata?.taskTitle as string | undefined;
-  const theme = metadata?.theme as
-    | { name?: string; color?: string }
-    | undefined;
+  const theme = metadata?.theme as { name?: string; color?: string } | undefined;
 
   return (
     <button
@@ -103,9 +86,7 @@ export default function SearchResultCard({
     >
       <div className="flex items-start gap-3">
         {/* Type icon */}
-        <div
-          className={`flex-shrink-0 p-2 rounded-lg ${config.color} ${config.darkColor}`}
-        >
+        <div className={`flex-shrink-0 p-2 rounded-lg ${config.color} ${config.darkColor}`}>
           <Icon className="w-4 h-4" />
         </div>
 

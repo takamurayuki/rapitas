@@ -138,10 +138,7 @@ export default function PomodoroStatistics() {
           </h3>
           <div className="flex items-end gap-1 h-24">
             {stats.dailyStats.slice(-14).map((day) => (
-              <div
-                key={day.date}
-                className="flex-1 flex flex-col items-center gap-1"
-              >
+              <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
                 <div
                   className="w-full bg-blue-500 dark:bg-blue-400 rounded-t-sm min-h-[2px] transition-all"
                   style={{

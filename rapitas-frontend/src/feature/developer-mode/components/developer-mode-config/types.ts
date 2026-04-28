@@ -16,16 +16,7 @@ import type {
   ApiProvider,
   ApiKeyStatus,
 } from '@/types';
-import {
-  type Bot,
-  Terminal,
-  Zap,
-  Activity,
-  Search,
-  Play,
-  Shield,
-  Scale,
-} from 'lucide-react';
+import { type Bot, Terminal, Zap, Activity, Search, Play, Shield, Scale } from 'lucide-react';
 
 export type TabId = 'task-analysis' | 'agent-execution';
 
@@ -33,9 +24,7 @@ export type ModalProps = {
   config: DeveloperModeConfig | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (
-    updates: Partial<DeveloperModeConfig>,
-  ) => Promise<DeveloperModeConfig | null>;
+  onSave: (updates: Partial<DeveloperModeConfig>) => Promise<DeveloperModeConfig | null>;
   selectedAgentConfigId?: number | null;
   onAgentConfigChange?: (agentConfigId: number | null) => void;
   taskId?: number;
@@ -43,10 +32,7 @@ export type ModalProps = {
 
 export type ApiKeyStatusMap = Record<ApiProvider, ApiKeyStatus>;
 
-export const AGENT_TYPE_INFO: Record<
-  string,
-  { icon: typeof Bot; color: string; label: string }
-> = {
+export const AGENT_TYPE_INFO: Record<string, { icon: typeof Bot; color: string; label: string }> = {
   'claude-code': {
     icon: Terminal,
     color: 'text-orange-500',

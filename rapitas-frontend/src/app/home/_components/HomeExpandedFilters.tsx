@@ -93,9 +93,7 @@ export function HomeExpandedFilters({
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300 dark:bg-slate-600">
                         <div
                           className={`h-full transition-all duration-500 ${
-                            isActive
-                              ? 'bg-white/50'
-                              : 'bg-slate-400 dark:bg-slate-500'
+                            isActive ? 'bg-white/50' : 'bg-slate-400 dark:bg-slate-500'
                           }`}
                           style={{
                             width: `${statusItem.value === 'all' ? 100 : (statusCounts[statusItem.value] / statusCounts.all) * 100}%`,
@@ -104,9 +102,7 @@ export function HomeExpandedFilters({
                       </div>
                     )}
                   </button>
-                  {idx < 3 && (
-                    <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
-                  )}
+                  {idx < 3 && <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />}
                 </div>
               );
             })}
@@ -154,9 +150,7 @@ export function HomeExpandedFilters({
               <div key={priority.value} className="flex items-center">
                 <button
                   onClick={() =>
-                    onPriorityChange(
-                      priority.value ? (priority.value as Priority) : null,
-                    )
+                    onPriorityChange(priority.value ? (priority.value as Priority) : null)
                   }
                   className={`h-6 px-2.5 font-mono text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
                     (priorityFilter || '') === priority.value
@@ -187,9 +181,7 @@ export function HomeExpandedFilters({
                     {priority.label}
                   </div>
                 </button>
-                {idx < 4 && (
-                  <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
-                )}
+                {idx < 4 && <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />}
               </div>
             ))}
           </div>

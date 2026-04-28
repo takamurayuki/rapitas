@@ -51,9 +51,7 @@ describe('useTaskSearch', () => {
   });
 
   it('should search after debounce delay', async () => {
-    const mockTasks = [
-      { id: 1, title: 'Test task', status: 'todo', createdAt: '2026-01-01' },
-    ];
+    const mockTasks = [{ id: 1, title: 'Test task', status: 'todo', createdAt: '2026-01-01' }];
     mockSearchTasks.mockResolvedValueOnce(mockTasks);
 
     const { result } = renderHook(() => useTaskSearch());
@@ -219,9 +217,7 @@ describe('useAdvancedTaskSearch', () => {
     ];
     mockSearchTasks.mockResolvedValueOnce(mockTasks);
 
-    const { result } = renderHook(() =>
-      useAdvancedTaskSearch({ status: ['todo'] }),
-    );
+    const { result } = renderHook(() => useAdvancedTaskSearch({ status: ['todo'] }));
 
     act(() => {
       result.current.setQuery('Task');
@@ -255,9 +251,7 @@ describe('useAdvancedTaskSearch', () => {
     ];
     mockSearchTasks.mockResolvedValueOnce(mockTasks);
 
-    const { result } = renderHook(() =>
-      useAdvancedTaskSearch({ categoryId: 1 }),
-    );
+    const { result } = renderHook(() => useAdvancedTaskSearch({ categoryId: 1 }));
 
     act(() => {
       result.current.setQuery('Task');
@@ -272,9 +266,7 @@ describe('useAdvancedTaskSearch', () => {
   });
 
   it('should clearAllFilters clear filters and search', () => {
-    const { result } = renderHook(() =>
-      useAdvancedTaskSearch({ status: ['todo'] }),
-    );
+    const { result } = renderHook(() => useAdvancedTaskSearch({ status: ['todo'] }));
 
     act(() => {
       result.current.clearAllFilters();

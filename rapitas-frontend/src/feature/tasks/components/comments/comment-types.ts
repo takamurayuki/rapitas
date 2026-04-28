@@ -37,10 +37,7 @@ export const timeAgo = (d: Date): string => {
   return `${Math.floor(days / 30)}ヶ月前`;
 };
 
-export const LABEL_COLORS: Record<
-  string,
-  { bg: string; text: string; border: string }
-> = {
+export const LABEL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   関連: {
     bg: 'bg-blue-50 dark:bg-blue-900/20',
     text: 'text-blue-600 dark:text-blue-400',

@@ -8,12 +8,7 @@ import { ImplementationSummarySection } from './execution-review/ImplementationS
 import { ScreenshotsSection } from './execution-review/ScreenshotsSection';
 import { FeedbackSection } from './execution-review/FeedbackSection';
 import { CommitApprovalSection } from './execution-review/CommitApprovalSection';
-import type {
-  FileDiff,
-  AgentExecution,
-  ReviewComment,
-  ScreenshotInfo,
-} from '@/types';
+import type { FileDiff, AgentExecution, ReviewComment, ScreenshotInfo } from '@/types';
 
 type ExecutionReviewPanelProps = {
   execution?: AgentExecution;
@@ -22,10 +17,7 @@ type ExecutionReviewPanelProps = {
   status: 'pending' | 'running' | 'completed' | 'failed';
   onApprove: (commitMessage: string, baseBranch: string) => Promise<void>;
   onReject: () => Promise<void>;
-  onRequestChanges?: (
-    feedback: string,
-    comments: ReviewComment[],
-  ) => Promise<void>;
+  onRequestChanges?: (feedback: string, comments: ReviewComment[]) => Promise<void>;
   isProcessing?: boolean;
   error?: string | null;
   defaultBranch?: string;
@@ -92,9 +84,7 @@ export function ExecutionReviewPanel({
               <ChevronRight className="w-4 h-4 text-zinc-400" />
             )}
             <Terminal className="w-4 h-4 text-zinc-400" />
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              実行ログ
-            </span>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">実行ログ</span>
           </button>
           {showLog && (
             <div className="px-6 pb-4">
@@ -114,16 +104,12 @@ export function ExecutionReviewPanel({
 
       {/* Diff Viewer */}
       <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
-          変更内容
-        </h4>
+        <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">変更内容</h4>
         <DiffViewer files={files} />
       </div>
 
       {/* Feedback / Change Request Section */}
-      {isReadyToApprove && (
-        <FeedbackSection files={files} onRequestChanges={onRequestChanges} />
-      )}
+      {isReadyToApprove && <FeedbackSection files={files} onRequestChanges={onRequestChanges} />}
 
       {/* Commit form and action buttons */}
       <CommitApprovalSection

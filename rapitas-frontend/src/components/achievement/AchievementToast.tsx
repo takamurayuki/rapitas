@@ -11,15 +11,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Trophy,
-  Star,
-  Crown,
-  Award,
-  Sparkles,
-  X,
-  CheckCircle,
-} from 'lucide-react';
+import { Trophy, Star, Crown, Award, Sparkles, X, CheckCircle } from 'lucide-react';
 import type { AchievementNotification } from '../../types/achievement';
 import { getRarityColor } from '../../data/achievements';
 
@@ -158,9 +150,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-lg">
-                  {getRarityEmoji(notification.rarity)}
-                </span>
+                <span className="text-lg">{getRarityEmoji(notification.rarity)}</span>
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                   実績解除！
                 </span>
@@ -217,12 +207,8 @@ const SingleToast: React.FC<SingleToastProps> = ({
             >
               <div className="flex items-center space-x-1 text-yellow-500">
                 <Star className="w-4 h-4 fill-current" />
-                <span className="font-semibold">
-                  +{notification.pointsReward}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  ポイント
-                </span>
+                <span className="font-semibold">+{notification.pointsReward}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">ポイント</span>
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500">
@@ -286,10 +272,7 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
   const visibleNotifications = notifications
     .filter((n) => !n.isShown)
     .slice(0, maxVisible)
-    .sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // Position classes
   const positionClasses = {
@@ -332,8 +315,7 @@ export const AchievementToast: React.FC<AchievementToastProps> = ({
         >
           <div className="inline-flex items-center px-3 py-2 bg-gray-800 dark:bg-gray-700 text-white text-sm rounded-lg shadow-lg">
             <Sparkles className="w-4 h-4 mr-2" />+
-            {notifications.filter((n) => !n.isShown).length - maxVisible}{' '}
-            個の実績
+            {notifications.filter((n) => !n.isShown).length - maxVisible} 個の実績
           </div>
         </motion.div>
       )}

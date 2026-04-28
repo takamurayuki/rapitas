@@ -49,9 +49,7 @@ export default function BurnupChart({
   const [data, setData] = useState<BurnupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [themes, setThemes] = useState<Theme[]>([]);
-  const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(
-    themeId,
-  );
+  const [selectedThemeId, setSelectedThemeId] = useState<number | undefined>(themeId);
   const [selectedDays, setSelectedDays] = useState(days);
 
   useEffect(() => {
@@ -71,8 +69,7 @@ export default function BurnupChart({
       setLoading(true);
       try {
         const params = new URLSearchParams({ days: selectedDays.toString() });
-        if (selectedThemeId)
-          params.append('themeId', selectedThemeId.toString());
+        if (selectedThemeId) params.append('themeId', selectedThemeId.toString());
         if (projectId) params.append('projectId', projectId.toString());
 
         // Use the burnup statistics API endpoint
@@ -108,15 +105,11 @@ export default function BurnupChart({
 
     const xScale = (index: number) =>
       padding.left + (index / (data.dailyData.length - 1)) * chartWidth;
-    const yScale = (value: number) =>
-      padding.top + chartHeight - (value / maxValue) * chartHeight;
+    const yScale = (value: number) => padding.top + chartHeight - (value / maxValue) * chartHeight;
 
     // Generate SVG path for cumulative completed (ascending line)
     const completedPath = data.dailyData
-      .map(
-        (d, i) =>
-          `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.cumulativeCompleted)}`,
-      )
+      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.cumulativeCompleted)}`)
       .join(' ');
 
     // Ideal progress line (linear increase accounting for task additions over the period)
@@ -170,9 +163,7 @@ export default function BurnupChart({
   if (!data || !chartConfig) {
     return (
       <div className={`bg-white dark:bg-zinc-900 rounded-xl p-4 ${className}`}>
-        <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">
-          {t('noData')}
-        </p>
+        <p className="text-zinc-500 dark:text-zinc-400 text-center text-sm">{t('noData')}</p>
       </div>
     );
   }
@@ -189,9 +180,7 @@ export default function BurnupChart({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-emerald-500" />
-              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
-                {t('title')}
-              </h2>
+              <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h2>
             </div>
             {/* Inline summary */}
             <div className="hidden sm:flex items-center gap-3 text-xs">
@@ -225,9 +214,7 @@ export default function BurnupChart({
             <select
               value={selectedThemeId || ''}
               onChange={(e) =>
-                setSelectedThemeId(
-                  e.target.value ? parseInt(e.target.value) : undefined,
-                )
+                setSelectedThemeId(e.target.value ? parseInt(e.target.value) : undefined)
               }
               className="px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md"
             >
@@ -280,10 +267,7 @@ export default function BurnupChart({
 
       {/* Chart */}
       <div className="px-3 pt-2 pb-3">
-        <svg
-          viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`}
-          className="w-full h-auto"
-        >
+        <svg viewBox={`0 0 ${chartConfig.width} ${chartConfig.height}`} className="w-full h-auto">
           {/* Grid lines */}
           {chartConfig.yGridLines.map(({ y, value }, index) => (
             <g key={`grid-${index}-${value}`}>
@@ -311,9 +295,7 @@ export default function BurnupChart({
           {/* X-axis labels */}
           {dailyData
             .filter(
-              (_, i) =>
-                i % Math.ceil(dailyData.length / 6) === 0 ||
-                i === dailyData.length - 1,
+              (_, i) => i % Math.ceil(dailyData.length / 6) === 0 || i === dailyData.length - 1,
             )
             .map((d) => {
               const originalIndex = dailyData.indexOf(d);
@@ -358,9 +340,7 @@ export default function BurnupChart({
           {/* Data points (thinned for readability) */}
           {dailyData.map((d, i) => {
             const showDot =
-              i === 0 ||
-              i === dailyData.length - 1 ||
-              i % Math.ceil(dailyData.length / 8) === 0;
+              i === 0 || i === dailyData.length - 1 || i % Math.ceil(dailyData.length / 8) === 0;
             if (!showDot) return null;
             return (
               <circle
@@ -394,9 +374,7 @@ export default function BurnupChart({
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-0.5 bg-zinc-400 rounded border-dashed" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-              {t('idealPace')}
-            </span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">{t('idealPace')}</span>
           </div>
         </div>
       </div>

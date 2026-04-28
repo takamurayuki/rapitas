@@ -53,11 +53,7 @@ export function OfflineIndicator() {
         <CloudOff className="h-3.5 w-3.5" />
       )}
       <span>
-        {!isOnline
-          ? 'オフライン'
-          : isSyncing
-            ? '同期中...'
-            : `${pendingCount}件 同期待ち`}
+        {!isOnline ? 'オフライン' : isSyncing ? '同期中...' : `${pendingCount}件 同期待ち`}
       </span>
     </button>
   );

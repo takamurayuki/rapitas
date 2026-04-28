@@ -25,13 +25,7 @@ export async function warmupApplicationCache(): Promise<void> {
     });
 
     // Pre-cache frequently used categories and labels (24 hours)
-    const coreEndpoints = [
-      '/categories',
-      '/labels',
-      '/themes',
-      '/agents',
-      '/templates',
-    ];
+    const coreEndpoints = ['/categories', '/labels', '/themes', '/agents', '/templates'];
 
     await Promise.allSettled(
       coreEndpoints.map((endpoint) =>
@@ -142,15 +136,16 @@ export function cleanupExpiredCache(): void {
       expiry: number;
     }
 
-    const cleaned = Object.entries(persistentCache).reduce<
-      Record<string, PersistentCacheEntry>
-    >((acc, [key, entry]) => {
-      const cacheEntry = entry as PersistentCacheEntry;
-      if (cacheEntry.expiry > now) {
-        acc[key] = cacheEntry;
-      }
-      return acc;
-    }, {});
+    const cleaned = Object.entries(persistentCache).reduce<Record<string, PersistentCacheEntry>>(
+      (acc, [key, entry]) => {
+        const cacheEntry = entry as PersistentCacheEntry;
+        if (cacheEntry.expiry > now) {
+          acc[key] = cacheEntry;
+        }
+        return acc;
+      },
+      {},
+    );
 
     localStorage.setItem('rapitas-api-cache', JSON.stringify(cleaned));
   } catch (error) {

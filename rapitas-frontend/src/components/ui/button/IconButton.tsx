@@ -52,15 +52,10 @@ export default function IconButton({
 
   const renderIcon = (iconElement: React.ReactNode) => {
     if (React.isValidElement(iconElement)) {
-      const existingClassName =
-        (iconElement.props as { className?: string }).className || '';
-      return React.cloneElement(
-        iconElement as React.ReactElement<{ className?: string }>,
-        {
-          className:
-            `${iconButtonIconSizeStyles[size]} ${existingClassName}`.trim(),
-        },
-      );
+      const existingClassName = (iconElement.props as { className?: string }).className || '';
+      return React.cloneElement(iconElement as React.ReactElement<{ className?: string }>, {
+        className: `${iconButtonIconSizeStyles[size]} ${existingClassName}`.trim(),
+      });
     }
     return iconElement;
   };

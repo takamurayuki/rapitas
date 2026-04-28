@@ -1,10 +1,7 @@
 import { type Task } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { Tag } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -133,9 +130,7 @@ export default function TaskDetail({
         /* View mode */
         <>
           <div className="flex items-start justify-between mb-4">
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-              {task.title}
-            </h1>
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">{task.title}</h1>
             <div className="flex items-center gap-2">
               {(['todo', 'in-progress', 'done'] as const).map((status) => {
                 const config = statusConfig[status];
@@ -156,9 +151,7 @@ export default function TaskDetail({
 
           {task.description && (
             <div className="mb-6">
-              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
-                説明
-              </h2>
+              <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">説明</h2>
               <TaskDescription description={task.description} />
             </div>
           )}
@@ -172,8 +165,7 @@ export default function TaskDetail({
                 <div className="flex flex-wrap gap-2">
                   {task.taskLabels.map((tl) => {
                     if (!tl.label) return null;
-                    const IconComponent =
-                      getIconComponent(tl.label.icon || '') || Tag;
+                    const IconComponent = getIconComponent(tl.label.icon || '') || Tag;
                     return (
                       <span
                         key={tl.id}

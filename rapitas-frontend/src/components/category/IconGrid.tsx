@@ -34,9 +34,7 @@ const IconButton = memo(
       }`}
       title={iconName}
     >
-      <div className="flex items-center justify-center">
-        {renderIcon(iconName, 18)}
-      </div>
+      <div className="flex items-center justify-center">{renderIcon(iconName, 18)}</div>
     </button>
   ),
 );
@@ -45,13 +43,7 @@ IconButton.displayName = 'IconButton';
 
 // Icon grid component
 export const IconGrid = memo(
-  ({
-    icons,
-    selectedIcon,
-    onIconSelect,
-    renderIcon,
-    accentClass,
-  }: IconGridProps) => {
+  ({ icons, selectedIcon, onIconSelect, renderIcon, accentClass }: IconGridProps) => {
     if (icons.length === 0) {
       return (
         <div className="col-span-8 text-center py-6 text-sm text-zinc-500 dark:text-zinc-400">

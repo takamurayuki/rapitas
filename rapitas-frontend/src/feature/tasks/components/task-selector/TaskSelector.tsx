@@ -18,8 +18,7 @@ interface TaskSelectorProps {
   description?: string;
 }
 
-const API_BASE =
-  process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
 
 export function TaskSelector({
   isOpen,
@@ -49,9 +48,7 @@ export function TaskSelector({
       searchParams.append('status', 'in_progress');
       searchParams.append('status', 'completed');
 
-      const response = await fetch(
-        `${API_BASE}/tasks?${searchParams.toString()}`,
-      );
+      const response = await fetch(`${API_BASE}/tasks?${searchParams.toString()}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch tasks: ${response.statusText}`);
       }
@@ -59,14 +56,10 @@ export function TaskSelector({
       const data = await response.json();
       // NOTE: GET /tasks returns a flat array, not { tasks: [...] }.
       const taskList = Array.isArray(data) ? data : (data.tasks ?? []);
-      const filteredTasks = taskList.filter(
-        (task: Task) => !excludeTaskIds.includes(task.id),
-      );
+      const filteredTasks = taskList.filter((task: Task) => !excludeTaskIds.includes(task.id));
       setTasks(filteredTasks);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'タスクの取得に失敗しました',
-      );
+      setError(err instanceof Error ? err.message : 'タスクの取得に失敗しました');
       setTasks([]);
     } finally {
       setIsLoading(false);
@@ -97,12 +90,9 @@ export function TaskSelector({
   const getStatusBadge = (status: string) => {
     const colors = {
       todo: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
-      in_progress:
-        'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
-      completed:
-        'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
-      blocked:
-        'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
+      in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300',
+      completed: 'bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300',
+      blocked: 'bg-orange-100 text-orange-700 dark:bg-orange-800 dark:text-orange-300',
     };
 
     const labels = {
@@ -146,9 +136,7 @@ export function TaskSelector({
               {title}
             </h2>
             {description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {description}
-              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
             )}
           </div>
           <button
@@ -187,9 +175,7 @@ export function TaskSelector({
             ) : tasks.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 dark:text-gray-400">
-                  {searchQuery
-                    ? '検索結果が見つかりません'
-                    : '利用可能なタスクがありません'}
+                  {searchQuery ? '検索結果が見つかりません' : '利用可能なタスクがありません'}
                 </p>
               </div>
             ) : (
@@ -219,10 +205,7 @@ export function TaskSelector({
                           )}
                           {task.dueDate && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              期限:{' '}
-                              {new Date(task.dueDate).toLocaleDateString(
-                                'ja-JP',
-                              )}
+                              期限: {new Date(task.dueDate).toLocaleDateString('ja-JP')}
                             </span>
                           )}
                         </div>

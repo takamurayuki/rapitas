@@ -27,9 +27,7 @@ function TaskDetailContent() {
           <p className="text-red-600 dark:text-red-400 mb-4 font-medium">
             {t('taskIdNotSpecified')}
           </p>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('taskIdUrlHint')}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('taskIdUrlHint')}</p>
         </div>
       </div>
     );

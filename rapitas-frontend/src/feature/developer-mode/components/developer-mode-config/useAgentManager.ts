@@ -33,9 +33,7 @@ export function useAgentManager() {
   const [inlineAgentDefault, setInlineAgentDefault] = useState(false);
   const [isSavingAgent, setIsSavingAgent] = useState(false);
   const [inlineAgentError, setInlineAgentError] = useState<string | null>(null);
-  const [inlineAgentNameError, setInlineAgentNameError] = useState<
-    string | null
-  >(null);
+  const [inlineAgentNameError, setInlineAgentNameError] = useState<string | null>(null);
 
   /**
    * Fetches the full agent list from the backend and returns it.
@@ -62,8 +60,7 @@ export function useAgentManager() {
         const defaultAgent = data.find((a) => a.isDefault);
         if (defaultAgent) {
           if (!analysisAgentConfigId) setAnalysisAgentConfigId(defaultAgent.id);
-          if (!executionAgentConfigId)
-            setExecutionAgentConfigId(defaultAgent.id);
+          if (!executionAgentConfigId) setExecutionAgentConfigId(defaultAgent.id);
         }
       }
     } catch (err) {
@@ -178,19 +175,16 @@ export function useAgentManager() {
    * @param apiKeyStatuses - Current map of provider → status. / プロバイダーごとのAPI設定状況
    * @returns Filtered agent list. / 使用可能なエージェント一覧
    */
-  const getAvailableAgents = (
-    apiKeyStatuses: ApiKeyStatusMap,
-  ): AIAgentConfig[] => {
-    const configuredProviders = (
-      Object.keys(apiKeyStatuses) as ApiProvider[]
-    ).filter((provider) => apiKeyStatuses[provider].configured);
+  const getAvailableAgents = (apiKeyStatuses: ApiKeyStatusMap): AIAgentConfig[] => {
+    const configuredProviders = (Object.keys(apiKeyStatuses) as ApiProvider[]).filter(
+      (provider) => apiKeyStatuses[provider].configured,
+    );
     const allowedAgentTypes = configuredProviders.flatMap(
       (provider) => PROVIDER_TO_AGENT_TYPES[provider],
     );
     return agents.filter(
       (agent) =>
-        CLI_AGENT_TYPES.includes(agent.agentType) ||
-        allowedAgentTypes.includes(agent.agentType),
+        CLI_AGENT_TYPES.includes(agent.agentType) || allowedAgentTypes.includes(agent.agentType),
     );
   };
 

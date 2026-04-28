@@ -2,10 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Activity, Sun, Moon, Clock, X } from 'lucide-react';
-import {
-  useProductivityHeatmap,
-  type HeatmapCellTask,
-} from '../hooks/useIntelligence';
+import { useProductivityHeatmap, type HeatmapCellTask } from '../hooks/useIntelligence';
 import Link from 'next/link';
 
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -118,9 +115,7 @@ export function ProductivityHeatmap() {
         {data.peakHours.length > 0 && (
           <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
             <Sun className="w-3.5 h-3.5" />
-            <span>
-              ピーク: {data.peakHours.map((h) => `${h}時`).join(', ')}
-            </span>
+            <span>ピーク: {data.peakHours.map((h) => `${h}時`).join(', ')}</span>
           </div>
         )}
         {data.lowHours.length > 0 && (
@@ -154,9 +149,7 @@ export function ProductivityHeatmap() {
               </div>
               <div className="flex flex-1 gap-0.5">
                 {HOUR_LABELS.map((_, hourIndex) => {
-                  const cell = data.heatmap.find(
-                    (c) => c.day === dayIndex && c.hour === hourIndex,
-                  );
+                  const cell = data.heatmap.find((c) => c.day === dayIndex && c.hour === hourIndex);
                   const completions = cell?.completions || 0;
                   return (
                     <div
@@ -199,8 +192,7 @@ export function ProductivityHeatmap() {
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-indigo-500" />
                 <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                  {popover &&
-                    `${DAY_LABELS[popover.day]} ${popover.hour}時の完了タスク`}
+                  {popover && `${DAY_LABELS[popover.day]} ${popover.hour}時の完了タスク`}
                 </span>
               </div>
               <button
@@ -214,10 +206,7 @@ export function ProductivityHeatmap() {
             {loadingPopover ? (
               <div className="animate-pulse space-y-2">
                 {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-12 bg-zinc-200 dark:bg-zinc-700 rounded"
-                  />
+                  <div key={i} className="h-12 bg-zinc-200 dark:bg-zinc-700 rounded" />
                 ))}
               </div>
             ) : popover && popover.tasks.length > 0 ? (
@@ -234,13 +223,10 @@ export function ProductivityHeatmap() {
                       </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         完了:{' '}
-                        {new Date(task.completedAt).toLocaleTimeString(
-                          'ja-JP',
-                          {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          },
-                        )}
+                        {new Date(task.completedAt).toLocaleTimeString('ja-JP', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </p>
                     </div>
                   </Link>

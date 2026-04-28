@@ -2,14 +2,8 @@
 // AgentExecutionPanel
 
 import React from 'react';
-import type {
-  ExecutionStatus,
-  ExecutionResult,
-} from '../../hooks/useDeveloperMode';
-import {
-  ExecutionLogViewer,
-  type ExecutionLogStatus,
-} from '../ExecutionLogViewer';
+import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
+import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
@@ -56,10 +50,7 @@ export type Props = {
   onExecutionComplete?: () => void;
   // Subtask-related props (for tab display)
   subtasks?: Task[];
-  subtaskLogs?: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   parallelSessionId?: string | null;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   onRefreshSubtaskLogs?: (taskId?: number) => void;
@@ -139,10 +130,7 @@ export function AgentExecutionPanel(props: Props) {
    * @param running - Whether execution is currently in progress
    * @param maxHeight - Maximum pixel height of the log area
    */
-  const buildLogsNode = (
-    running: boolean,
-    maxHeight = 256,
-  ): React.ReactNode => {
+  const buildLogsNode = (running: boolean, maxHeight = 256): React.ReactNode => {
     if (hasSubtaskTabs) {
       return (
         <SubtaskLogTabs
@@ -247,9 +235,7 @@ export function AgentExecutionPanel(props: Props) {
   if (isFailed) {
     return (
       <ExecutionFailedPanel
-        errorMessage={
-          error || executionResult?.error || '不明なErrorが発生しました'
-        }
+        errorMessage={error || executionResult?.error || '不明なErrorが発生しました'}
         pollingTokensUsed={pollingTokensUsed}
         isExecuting={isExecuting}
         logsNode={buildLogsNode(false)}

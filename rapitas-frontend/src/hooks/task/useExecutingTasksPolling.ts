@@ -49,17 +49,13 @@ export function useExecutingTasksPolling(options?: {
         // Short interval when tasks are running (keep default)
         newInterval = interval;
         if (currentIntervalRef.current !== interval) {
-          logger.debug(
-            `Tasks executing, resetting interval to ${newInterval}ms`,
-          );
+          logger.debug(`Tasks executing, resetting interval to ${newInterval}ms`);
         }
       } else {
         // Longer interval when no tasks running (max 15s)
         newInterval = Math.min(interval * 2, 15000);
         if (currentIntervalRef.current !== newInterval) {
-          logger.debug(
-            `No tasks executing, increasing interval to ${newInterval}ms`,
-          );
+          logger.debug(`No tasks executing, increasing interval to ${newInterval}ms`);
         }
       }
 
@@ -100,10 +96,7 @@ export function useExecutingTasksPolling(options?: {
       const currentExecutingIds = new Set<number>();
 
       for (const item of data) {
-        if (
-          item.executionStatus === 'running' ||
-          item.executionStatus === 'waiting_for_input'
-        ) {
+        if (item.executionStatus === 'running' || item.executionStatus === 'waiting_for_input') {
           currentExecutingIds.add(item.taskId);
           setExecutingTask({
             taskId: item.taskId,
@@ -112,10 +105,7 @@ export function useExecutingTasksPolling(options?: {
           });
 
           // Only callback for newly detected tasks
-          if (
-            !knownTaskIdsRef.current.has(item.taskId) &&
-            onExecutingTaskFoundRef.current
-          ) {
+          if (!knownTaskIdsRef.current.has(item.taskId) && onExecutingTaskFoundRef.current) {
             onExecutingTaskFoundRef.current(item.taskId);
           }
         }
@@ -158,12 +148,7 @@ export function useExecutingTasksPolling(options?: {
         knownTaskIdsRef.current.clear();
       }
     }
-  }, [
-    setExecutingTask,
-    removeExecutingTask,
-    fetchTaskUpdates,
-    adjustPollingInterval,
-  ]);
+  }, [setExecutingTask, removeExecutingTask, fetchTaskUpdates, adjustPollingInterval]);
 
   useEffect(() => {
     currentIntervalRef.current = interval;

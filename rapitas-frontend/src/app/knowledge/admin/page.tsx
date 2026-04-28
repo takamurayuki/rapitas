@@ -48,9 +48,7 @@ export default function MemoryAdminPage() {
     if (!ragQuery.trim()) return;
     setIsTestingRag(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/memory/rag/test?q=${encodeURIComponent(ragQuery)}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/memory/rag/test?q=${encodeURIComponent(ragQuery)}`);
       if (res.ok) {
         const data = await res.json();
         setRagResult(data.contextText || 'No results');
@@ -65,12 +63,8 @@ export default function MemoryAdminPage() {
       <div className="mb-6 flex items-center gap-3">
         <Settings className="h-8 w-8 text-indigo-500" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('description')}
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">{t('title')}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('description')}</p>
         </div>
       </div>
 
@@ -108,9 +102,7 @@ export default function MemoryAdminPage() {
           {t('consolidationHistory')}
         </h2>
         {consolidationRuns.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No runs yet
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">No runs yet</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -119,9 +111,7 @@ export default function MemoryAdminPage() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
                     {t('runDate')}
                   </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">
-                    Status
-                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Status</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">
                     {t('processed')}
                   </th>
@@ -138,10 +128,7 @@ export default function MemoryAdminPage() {
               </thead>
               <tbody>
                 {consolidationRuns.map((run) => (
-                  <tr
-                    key={run.id}
-                    className="border-b border-gray-100 dark:border-gray-800"
-                  >
+                  <tr key={run.id} className="border-b border-gray-100 dark:border-gray-800">
                     <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
                       {new Date(run.runDate).toLocaleString()}
                     </td>
@@ -168,9 +155,7 @@ export default function MemoryAdminPage() {
                       {run.entriesCreated}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
-                      {run.durationMs
-                        ? `${(run.durationMs / 1000).toFixed(1)}s`
-                        : '-'}
+                      {run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : '-'}
                     </td>
                   </tr>
                 ))}
@@ -212,9 +197,7 @@ export default function MemoryAdminPage() {
 
       {/* Timeline */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Timeline
-        </h2>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Timeline</h2>
         <KnowledgeTimeline limit={20} />
       </section>
     </div>

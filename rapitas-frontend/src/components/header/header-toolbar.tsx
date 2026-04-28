@@ -25,8 +25,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
-import NotificationBell from '@/components/notifications/NotificationBell';
-import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import NotificationBell from '@/components/NotificationBell';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import type { UseHeaderReturn } from './useHeader';
@@ -146,9 +146,7 @@ export function HeaderToolbar({
                 <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                   {user.username}
                 </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {user.email}
-                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</p>
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
                   {user.role === 'admin' ? t('admin') : t('user')}
                 </p>
@@ -192,9 +190,7 @@ export function HeaderToolbar({
               ) : (
                 <NotebookTabs className="w-4 h-4" />
               )}
-              <span>
-                {modalState.isOpen ? t('closeNoteAI') : t('openNoteAI')}
-              </span>
+              <span>{modalState.isOpen ? t('closeNoteAI') : t('openNoteAI')}</span>
             </button>
             <button
               onClick={() => {
@@ -207,11 +203,7 @@ export function HeaderToolbar({
               ) : (
                 <Moon className="w-4 h-4" />
               )}
-              <span>
-                {darkModeMounted && isDarkMode
-                  ? t('switchToLight')
-                  : t('switchToDark')}
-              </span>
+              <span>{darkModeMounted && isDarkMode ? t('switchToLight') : t('switchToDark')}</span>
             </button>
             <Link
               href="/settings/general"

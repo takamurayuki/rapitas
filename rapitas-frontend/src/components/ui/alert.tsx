@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 
 interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'destructive' | 'success' | 'warning';
@@ -55,23 +50,13 @@ export const AlertDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className = '', ...props }, ref) => (
-  <div
-    ref={ref}
-    className={`text-sm [&_p]:leading-relaxed ${className}`}
-    {...props}
-  />
+  <div ref={ref} className={`text-sm [&_p]:leading-relaxed ${className}`} {...props} />
 ));
 
 AlertDescription.displayName = 'AlertDescription';
 
 // Convenience component for common alert patterns
-export const AlertInfo = ({
-  title,
-  children,
-}: {
-  title?: string;
-  children: React.ReactNode;
-}) => (
+export const AlertInfo = ({ title, children }: { title?: string; children: React.ReactNode }) => (
   <Alert>
     <AlertCircle className="h-4 w-4" />
     {title && <AlertTitle>{title}</AlertTitle>}
@@ -79,13 +64,7 @@ export const AlertInfo = ({
   </Alert>
 );
 
-export const AlertError = ({
-  title,
-  children,
-}: {
-  title?: string;
-  children: React.ReactNode;
-}) => (
+export const AlertError = ({ title, children }: { title?: string; children: React.ReactNode }) => (
   <Alert variant="destructive">
     <XCircle className="h-4 w-4" />
     {title && <AlertTitle>{title}</AlertTitle>}

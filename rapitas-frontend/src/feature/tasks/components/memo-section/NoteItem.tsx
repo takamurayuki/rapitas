@@ -97,8 +97,7 @@ export const NoteItem = memo(function NoteItem({
   };
 
   const handleTogglePin = () => persistMemoData({ isPinned: !isPinned });
-  const handleToggleAnalysis = () =>
-    persistMemoData({ showAnalysis: !showAnalysis });
+  const handleToggleAnalysis = () => persistMemoData({ showAnalysis: !showAnalysis });
 
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
@@ -116,11 +115,7 @@ export const NoteItem = memo(function NoteItem({
     <div
       data-note-id={note.id}
       style={{ marginLeft: indent > 0 ? `${indent * 12}px` : 0 }}
-      className={
-        indent > 0
-          ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1'
-          : ''
-      }
+      className={indent > 0 ? 'border-l-2 border-zinc-200 dark:border-zinc-700 pl-2.5 mt-1' : ''}
     >
       <div
         className={`group rounded-lg px-2.5 py-2 transition-all duration-200

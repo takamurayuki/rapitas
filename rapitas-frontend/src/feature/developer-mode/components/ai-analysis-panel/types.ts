@@ -73,9 +73,4 @@ export type PromptsData = {
   prompts: SavedPrompt[];
 };
 
-export type TabType =
-  | 'analysis'
-  | 'prompt'
-  | 'prompts'
-  | 'dependency'
-  | 'settings';
+export type TabType = 'analysis' | 'prompt' | 'prompts' | 'dependency' | 'settings';

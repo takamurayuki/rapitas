@@ -2,12 +2,7 @@
 // useWorkflowViewer
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type {
-  WorkflowFileType,
-  WorkflowStatus,
-  WorkflowRole,
-  WorkflowRoleConfig,
-} from '@/types';
+import type { WorkflowFileType, WorkflowStatus, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/locale-store';
 import { API_BASE_URL } from '@/utils/api';
@@ -71,9 +66,7 @@ export function useWorkflowViewer({
   const [autoComplexityAnalysis, setAutoComplexityAnalysis] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevStatusRef = useRef<WorkflowStatus | null>(null);
-  const prevWorkflowStatusPropRef = useRef<WorkflowStatus | null | undefined>(
-    workflowStatus,
-  );
+  const prevWorkflowStatusPropRef = useRef<WorkflowStatus | null | undefined>(workflowStatus);
   const prevFetchedStatusRef = useRef<WorkflowStatus | null>(null);
 
   // Effective status: reflects prop updates immediately without waiting for fetch to catch up
@@ -99,10 +92,7 @@ export function useWorkflowViewer({
 
   // Refetch when parent workflowStatus prop is updated
   useEffect(() => {
-    if (
-      workflowStatus &&
-      workflowStatus !== prevWorkflowStatusPropRef.current
-    ) {
+    if (workflowStatus && workflowStatus !== prevWorkflowStatusPropRef.current) {
       prevWorkflowStatusPropRef.current = workflowStatus;
       refetch();
     }
@@ -175,14 +165,11 @@ export function useWorkflowViewer({
     setIsAdvancing(true);
     setAdvanceError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/workflow/tasks/${taskId}/advance`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language: locale }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: locale }),
+      });
       const data = await res.json();
       if (!res.ok || !data.success) {
         setAdvanceError(data.error || 'フェーズの実行に失敗しました');
@@ -194,9 +181,7 @@ export function useWorkflowViewer({
         await refetch();
       }
     } catch (err) {
-      setAdvanceError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
-      );
+      setAdvanceError(err instanceof Error ? err.message : 'エラーが発生しました');
     } finally {
       setIsAdvancing(false);
     }
@@ -204,11 +189,7 @@ export function useWorkflowViewer({
 
   // Stop polling and refetch when status reaches final state
   useEffect(() => {
-    if (
-      fetchedStatus &&
-      fetchedStatus !== prevFetchedStatusRef.current &&
-      pollingRef.current
-    ) {
+    if (fetchedStatus && fetchedStatus !== prevFetchedStatusRef.current && pollingRef.current) {
       prevFetchedStatusRef.current = fetchedStatus;
       // Stop polling when reaching final states (completed, verify_done)
       if (fetchedStatus === 'completed' || fetchedStatus === 'verify_done') {
@@ -234,8 +215,7 @@ export function useWorkflowViewer({
   }, [files, activeTab]);
 
   const tabStatus = useMemo(() => {
-    if (!files)
-      return { research: false, question: false, plan: false, verify: false };
+    if (!files) return { research: false, question: false, plan: false, verify: false };
     return {
       research: files.research.exists,
       question: files.question.exists,

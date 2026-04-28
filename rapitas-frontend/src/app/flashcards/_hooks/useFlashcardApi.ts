@@ -179,14 +179,11 @@ export function useFlashcardApi(
       e.preventDefault();
       if (!cardFront.trim() || !cardBack.trim() || !selectedDeck) return;
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/cards`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ front: cardFront, back: cardBack }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/cards`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ front: cardFront, back: cardBack }),
+        });
         if (res.ok) {
           await fetchDeck(selectedDeck.id);
           setIsCardModalOpen(false);
@@ -197,15 +194,7 @@ export function useFlashcardApi(
         logger.error('Failed to add card:', e);
       }
     },
-    [
-      cardFront,
-      cardBack,
-      selectedDeck,
-      fetchDeck,
-      setIsCardModalOpen,
-      setCardFront,
-      setCardBack,
-    ],
+    [cardFront, cardBack, selectedDeck, fetchDeck, setIsCardModalOpen, setCardFront, setCardBack],
   );
 
   /** Delete a card by ID after browser confirmation. */
@@ -264,9 +253,7 @@ export function useFlashcardApi(
   const fetchSchedulePreview = useCallback(
     async (cardId: number) => {
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/flashcards/${cardId}/schedule-preview`,
-        );
+        const res = await fetch(`${API_BASE_URL}/flashcards/${cardId}/schedule-preview`);
         if (res.ok) {
           setSchedulePreview(await res.json());
         }
@@ -285,19 +272,16 @@ export function useFlashcardApi(
       if (!generateTopic.trim() || !selectedDeck) return;
       setIsGenerating(true);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/generate`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic: generateTopic,
-              count: generateCount,
-              difficulty: generateDifficulty,
-              language: generateLanguage,
-            }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/flashcard-decks/${selectedDeck.id}/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: generateTopic,
+            count: generateCount,
+            difficulty: generateDifficulty,
+            language: generateLanguage,
+          }),
+        });
         const data = await res.json();
         if (res.ok && data.success) {
           await fetchDeck(selectedDeck.id);

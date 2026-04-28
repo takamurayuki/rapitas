@@ -74,9 +74,7 @@ export function GoalDetailPanel({
             )}
           </h2>
           {goal.description && (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              {goal.description}
-            </p>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{goal.description}</p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-4">
@@ -130,9 +128,7 @@ export function GoalDetailPanel({
         {goal.deadline && (
           <div className="flex items-center gap-1.5">
             <Calendar className="w-4 h-4" />
-            <span>
-              〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}
-            </span>
+            <span>〜{new Date(goal.deadline).toLocaleDateString(dateLocale)}</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
@@ -153,8 +149,7 @@ export function GoalDetailPanel({
                 {t('phaseProgress')}
               </span>
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {progress.completed}/{progress.total} (
-                {Math.round(progress.rate * 100)}%)
+                {progress.completed}/{progress.total} ({Math.round(progress.rate * 100)}%)
               </span>
             </div>
             <div className="w-full h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -207,9 +202,7 @@ export function GoalDetailPanel({
                     {index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">
-                      {phase.name}
-                    </h3>
+                    <h3 className="font-semibold text-zinc-800 dark:text-zinc-200">{phase.name}</h3>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {phase.days}
                       {t('daysCount')} ・ {phase.tasks.length}
@@ -298,63 +291,62 @@ export function GoalDetailPanel({
           </div>
 
           {/* Recommended resources */}
-          {plan.recommendedResources &&
-            plan.recommendedResources.length > 0 && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
-                <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4" />
-                  {t('recommendedResources')}
-                </h3>
-                <div className="space-y-2">
-                  {plan.recommendedResources.map((resource, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-sm">
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
-                          resource.type === 'book'
-                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                            : resource.type === 'course'
-                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                              : resource.type === 'video'
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                                : resource.type === 'practice'
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                        }`}
-                      >
-                        {resource.type === 'book'
-                          ? t('resourceBook')
+          {plan.recommendedResources && plan.recommendedResources.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
+              <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                {t('recommendedResources')}
+              </h3>
+              <div className="space-y-2">
+                {plan.recommendedResources.map((resource, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-sm">
+                    <span
+                      className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 mt-0.5 ${
+                        resource.type === 'book'
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                           : resource.type === 'course'
-                            ? t('resourceCourse')
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                             : resource.type === 'video'
-                              ? t('resourceVideo')
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                               : resource.type === 'practice'
-                                ? t('resourcePractice')
-                                : t('resourceWeb')}
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      }`}
+                    >
+                      {resource.type === 'book'
+                        ? t('resourceBook')
+                        : resource.type === 'course'
+                          ? t('resourceCourse')
+                          : resource.type === 'video'
+                            ? t('resourceVideo')
+                            : resource.type === 'practice'
+                              ? t('resourcePractice')
+                              : t('resourceWeb')}
+                    </span>
+                    <div>
+                      <span className="font-medium text-blue-800 dark:text-blue-200">
+                        {resource.title}
                       </span>
-                      <div>
-                        <span className="font-medium text-blue-800 dark:text-blue-200">
-                          {resource.title}
-                        </span>
-                        <span className="text-blue-600 dark:text-blue-300">
-                          {' '}
-                          - {resource.description}
-                        </span>
-                        {resource.url && (
-                          <a
-                            href={resource.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-0.5 ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
+                      <span className="text-blue-600 dark:text-blue-300">
+                        {' '}
+                        - {resource.description}
+                      </span>
+                      {resource.url && (
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
           {/* Tips */}
           {plan.tips && plan.tips.length > 0 && (
@@ -365,10 +357,7 @@ export function GoalDetailPanel({
               </h3>
               <ul className="space-y-1">
                 {plan.tips.map((tip, index) => (
-                  <li
-                    key={index}
-                    className="text-sm text-amber-700 dark:text-amber-300"
-                  >
+                  <li key={index} className="text-sm text-amber-700 dark:text-amber-300">
                     • {tip}
                   </li>
                 ))}
@@ -388,9 +377,7 @@ export function GoalDetailPanel({
       ) : (
         <div className="text-center py-8">
           <Sparkles className="w-10 h-10 mx-auto text-zinc-300 dark:text-zinc-600 mb-3" />
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('noPlanYet')}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('noPlanYet')}</p>
           <button
             onClick={onRegenerate}
             className="mt-3 flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors mx-auto"

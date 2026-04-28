@@ -42,8 +42,7 @@ export function WorkflowSection({
       />
       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <p className="text-xs text-blue-700 dark:text-blue-300">
-          <strong>{t('workflowModeAbout')}</strong>{' '}
-          {t('workflowModeExplanation')}
+          <strong>{t('workflowModeAbout')}</strong> {t('workflowModeExplanation')}
         </p>
       </div>
     </div>

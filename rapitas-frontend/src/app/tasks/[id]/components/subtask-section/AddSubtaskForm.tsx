@@ -117,18 +117,14 @@ export function AddSubtaskForm({
             }`}
           >
             <Check className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">
-              {tc('save')}
-            </span>
+            <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
           </button>
           <button
             onClick={onCancelAddSubtask}
             className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
           >
             <X className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">
-              {tc('cancel')}
-            </span>
+            <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
           </button>
         </div>
       </div>

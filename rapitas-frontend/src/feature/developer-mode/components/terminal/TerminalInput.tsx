@@ -48,9 +48,7 @@ export const TerminalInput = memo(function TerminalInput({
 
   return (
     <div className="flex items-end gap-2 px-3 py-2 bg-zinc-800/50 border-t border-zinc-700">
-      <span className="text-green-400 text-[11px] font-mono pt-1.5 select-none">
-        ❯
-      </span>
+      <span className="text-green-400 text-[11px] font-mono pt-1.5 select-none">❯</span>
       <textarea
         ref={inputRef}
         value={value}

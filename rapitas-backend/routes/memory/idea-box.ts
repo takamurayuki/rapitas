@@ -7,7 +7,12 @@
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../config/logger';
 import { prisma } from '../../config/database';
-import { listIdeas, submitIdea, getIdeaStats } from '../../services/memory/idea-box-service';
+import {
+  listIdeas,
+  submitIdea,
+  updateIdea,
+  getIdeaStats,
+} from '../../services/memory/idea-box-service';
 import { runInnovationSession } from '../../services/memory/innovation-session';
 
 const log = createLogger('routes:idea-box');
@@ -101,6 +106,51 @@ export const ideaBoxRoutes = new Elysia()
       return { success: false, error: 'イノベーションセッションに失敗しました' };
     }
   })
+
+  /** Update an existing idea. Only provided fields are changed. */
+  .patch(
+    '/idea-box/:id',
+    async ({ params, body, set }) => {
+      const id = parseInt(params.id);
+      if (isNaN(id)) {
+        set.status = 400;
+        return { error: 'Invalid ID' };
+      }
+
+      try {
+        const ok = await updateIdea(id, {
+          title: body.title,
+          content: body.content,
+          category: body.category,
+          scope: body.scope as 'global' | 'project' | undefined,
+          // null clears themeId, undefined leaves it as-is
+          themeId:
+            body.themeId === undefined ? undefined : body.themeId === null ? null : body.themeId,
+          tags: body.tags,
+        });
+
+        if (!ok) {
+          set.status = 404;
+          return { error: 'アイデアが見つかりません' };
+        }
+        return { success: true };
+      } catch (err) {
+        log.error({ err, id }, 'Failed to update idea');
+        set.status = 400;
+        return { error: err instanceof Error ? err.message : 'アイデアの更新に失敗しました' };
+      }
+    },
+    {
+      body: t.Object({
+        title: t.Optional(t.String()),
+        content: t.Optional(t.String()),
+        category: t.Optional(t.String()),
+        scope: t.Optional(t.String()),
+        themeId: t.Optional(t.Union([t.Number(), t.Null()])),
+        tags: t.Optional(t.Array(t.String())),
+      }),
+    },
+  )
 
   /** Delete an idea by ID. */
   .delete('/idea-box/:id', async ({ params, set }) => {

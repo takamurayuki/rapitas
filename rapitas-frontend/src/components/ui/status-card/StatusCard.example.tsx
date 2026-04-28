@@ -19,9 +19,7 @@ const logger = createLogger('StatusCardExample');
 export const BasicExample: React.FC = () => {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        基本的な使用例
-      </h3>
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">基本的な使用例</h3>
       <div className="flex flex-wrap gap-4">
         <StatusCard status="processing" />
         <StatusCard status="waiting_for_input" />
@@ -38,15 +36,10 @@ export const BasicExample: React.FC = () => {
 export const WithMessageExample: React.FC = () => {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        メッセージ付き
-      </h3>
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">メッセージ付き</h3>
       <div className="flex flex-col gap-3">
         <StatusCard status="processing" message="ファイルを分析しています..." />
-        <StatusCard
-          status="waiting_for_input"
-          message="続行するには承認が必要です"
-        />
+        <StatusCard status="waiting_for_input" message="続行するには承認が必要です" />
         <StatusCard status="error" message="API接続に失敗しました" />
         <StatusCard status="completed" message="タスクが正常に完了しました" />
       </div>
@@ -69,9 +62,7 @@ export const SizeVariantsExample: React.FC = () => {
           <StatusCard status="processing" size="sm" message="処理中" />
         </div>
         <div>
-          <span className="text-sm text-zinc-500 mb-1 block">
-            Medium (md) - デフォルト
-          </span>
+          <span className="text-sm text-zinc-500 mb-1 block">Medium (md) - デフォルト</span>
           <StatusCard status="processing" size="md" message="処理中" />
         </div>
         <div>
@@ -89,9 +80,7 @@ export const SizeVariantsExample: React.FC = () => {
 export const CustomIconExample: React.FC = () => {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">
-        カスタムアイコン
-      </h3>
+      <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200">カスタムアイコン</h3>
       <div className="flex flex-wrap gap-4">
         <StatusCard
           status="processing"
@@ -112,8 +101,7 @@ export const CustomIconExample: React.FC = () => {
  * インタラクティブデモ
  */
 export const InteractiveDemo: React.FC = () => {
-  const [currentStatus, setCurrentStatus] =
-    useState<AgentStatusType>('processing');
+  const [currentStatus, setCurrentStatus] = useState<AgentStatusType>('processing');
 
   const statusMessages: Record<AgentStatusType, string> = {
     processing: 'タスクを実行中です...',
@@ -133,18 +121,12 @@ export const InteractiveDemo: React.FC = () => {
       </h3>
 
       <div className="flex flex-wrap gap-2">
-        {(
-          [
-            'processing',
-            'waiting_for_input',
-            'error',
-            'completed',
-          ] as AgentStatusType[]
-        ).map((status) => (
-          <button
-            key={status}
-            onClick={() => setCurrentStatus(status)}
-            className={`
+        {(['processing', 'waiting_for_input', 'error', 'completed'] as AgentStatusType[]).map(
+          (status) => (
+            <button
+              key={status}
+              onClick={() => setCurrentStatus(status)}
+              className={`
                 px-3 py-1.5 text-sm rounded-md transition-colors
                 ${
                   currentStatus === status
@@ -152,10 +134,11 @@ export const InteractiveDemo: React.FC = () => {
                     : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
                 }
               `}
-          >
-            {status}
-          </button>
-        ))}
+            >
+              {status}
+            </button>
+          ),
+        )}
       </div>
 
       <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg">

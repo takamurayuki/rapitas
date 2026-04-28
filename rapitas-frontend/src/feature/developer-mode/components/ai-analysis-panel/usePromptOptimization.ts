@@ -13,13 +13,9 @@ export type UsePromptOptimizationReturn = {
   setPromptError: (v: string | null) => void;
   copied: boolean;
   promptAnswers: Record<string, string>;
-  setPromptAnswers: React.Dispatch<
-    React.SetStateAction<Record<string, string>>
-  >;
+  setPromptAnswers: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   isSubmittingAnswers: boolean;
-  generatePrompt: (
-    clarificationAnswers?: Record<string, string>,
-  ) => Promise<void>;
+  generatePrompt: (clarificationAnswers?: Record<string, string>) => Promise<void>;
   handleSubmitAnswers: () => Promise<void>;
   handleCopyPrompt: () => void;
   handleUsePrompt: () => void;
@@ -37,13 +33,10 @@ export function usePromptOptimization(
   onPromptGenerated?: (prompt: string) => void,
 ): UsePromptOptimizationReturn {
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
-  const [promptResult, setPromptResult] =
-    useState<OptimizedPromptResult | null>(null);
+  const [promptResult, setPromptResult] = useState<OptimizedPromptResult | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [promptAnswers, setPromptAnswers] = useState<Record<string, string>>(
-    {},
-  );
+  const [promptAnswers, setPromptAnswers] = useState<Record<string, string>>({});
   const [isSubmittingAnswers, setIsSubmittingAnswers] = useState(false);
 
   const generatePrompt = useCallback(
@@ -52,16 +45,11 @@ export function usePromptOptimization(
       setPromptError(null);
 
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(
-              clarificationAnswers ? { clarificationAnswers } : {},
-            ),
-          },
-        );
+        const response = await fetch(`${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clarificationAnswers ? { clarificationAnswers } : {}),
+        });
 
         if (!response.ok) {
           const errData = await response.json();
@@ -78,9 +66,7 @@ export function usePromptOptimization(
           onPromptGenerated(data.optimizedPrompt);
         }
       } catch (err) {
-        setPromptError(
-          err instanceof Error ? err.message : 'Errorが発生しました',
-        );
+        setPromptError(err instanceof Error ? err.message : 'Errorが発生しました');
       } finally {
         setIsGeneratingPrompt(false);
       }
@@ -91,12 +77,8 @@ export function usePromptOptimization(
   const handleSubmitAnswers = useCallback(async () => {
     if (!promptResult?.clarificationQuestions) return;
 
-    const requiredQuestions = promptResult.clarificationQuestions.filter(
-      (q) => q.isRequired,
-    );
-    const unansweredRequired = requiredQuestions.filter(
-      (q) => !promptAnswers[q.id]?.trim(),
-    );
+    const requiredQuestions = promptResult.clarificationQuestions.filter((q) => q.isRequired);
+    const unansweredRequired = requiredQuestions.filter((q) => !promptAnswers[q.id]?.trim());
     if (unansweredRequired.length > 0) {
       setPromptError('必須の質問に回答してください');
       return;

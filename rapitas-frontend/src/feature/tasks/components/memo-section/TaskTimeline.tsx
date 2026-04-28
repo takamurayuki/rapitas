@@ -21,10 +21,7 @@ export const TaskTimeline = memo(function TaskTimeline({
   taskId: number;
   notes: NoteData[];
 }) {
-  const activities = useMemo(
-    () => generateMockTaskActivities(taskId),
-    [taskId],
-  );
+  const activities = useMemo(() => generateMockTaskActivities(taskId), [taskId]);
 
   const timelineItems = useMemo(() => {
     const items: Array<
@@ -48,10 +45,7 @@ export const TaskTimeline = memo(function TaskTimeline({
       });
     });
 
-    return items.sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
+    return items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [activities, notes]);
 
   if (timelineItems.length === 0) {
@@ -89,11 +83,7 @@ export const TaskTimeline = memo(function TaskTimeline({
                     <span
                       className={`px-1.5 py-0.5 text-[9px] rounded-full ${MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].color.badge}`}
                     >
-                      {
-                        MEMO_TYPE_CONFIG[
-                          (item.data as NoteData).memoType || 'general'
-                        ].label
-                      }
+                      {MEMO_TYPE_CONFIG[(item.data as NoteData).memoType || 'general'].label}
                     </span>
                     {(item.data as NoteData).isPinned && (
                       <Pin className="w-2.5 h-2.5 text-blue-500" />

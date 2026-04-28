@@ -131,10 +131,7 @@ const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean }> = ({
     : PHASE_COLORS.research;
 
   return (
-    <div
-      className="my-2"
-      style={{ animation: isNew ? 'fadeInSlide 0.3s ease-out' : undefined }}
-    >
+    <div className="my-2" style={{ animation: isNew ? 'fadeInSlide 0.3s ease-out' : undefined }}>
       <div className="flex items-center gap-2">
         <div className="h-px flex-1 bg-zinc-700/60" />
         <div
@@ -153,9 +150,7 @@ const PhaseEntry: React.FC<{ entry: UserFriendlyLogEntry; isNew: boolean }> = ({
 
 // ── Tool result (inline) ───────────────────────────────
 
-const ToolResultRow: React.FC<{ entry: UserFriendlyLogEntry }> = ({
-  entry,
-}) => (
+const ToolResultRow: React.FC<{ entry: UserFriendlyLogEntry }> = ({ entry }) => (
   <div className="flex items-center gap-1.5 pl-8 pr-3 py-px text-xs text-zinc-600">
     <Check className="w-3 h-3 flex-shrink-0" />
     <span className="truncate">{entry.message}</span>
@@ -183,11 +178,7 @@ const AgentTextRow: React.FC<{
         {hasMore && (
           <>
             <button className="flex items-center gap-0.5 mt-0.5 text-xs text-zinc-600 hover:text-zinc-400">
-              {open ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
+              {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               {open ? '閉じる' : '全文'}
             </button>
             {open && (
@@ -217,11 +208,9 @@ export const SimpleLogEntry: React.FC<SimpleLogEntryProps> = ({
 }) => {
   const [showDetail, setShowDetail] = useState(false);
 
-  if (entry.category === 'phase-transition')
-    return <PhaseEntry entry={entry} isNew={isNewEntry} />;
+  if (entry.category === 'phase-transition') return <PhaseEntry entry={entry} isNew={isNewEntry} />;
   if (entry.category === 'tool-result') return <ToolResultRow entry={entry} />;
-  if (entry.category === 'agent-text')
-    return <AgentTextRow entry={entry} isNew={isNewEntry} />;
+  if (entry.category === 'agent-text') return <AgentTextRow entry={entry} isNew={isNewEntry} />;
 
   const s = getStyles(entry.category);
 

@@ -41,9 +41,7 @@ export function StatusBadge({ status }: { status: string }) {
   };
   const c = config[status] || config.queued;
   return (
-    <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text}`}
-    >
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.bg} ${c.text}`}>
       {c.label}
     </span>
   );

@@ -58,8 +58,7 @@ export default function GlobalPomodoroWidget() {
 
   // NOTE: All hooks must be placed before conditional returns
   useEffect(() => {
-    if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId)
-      return;
+    if (!state?._hasHydrated || !state?.isTimerRunning || !state?.taskId) return;
 
     const controller = new AbortController();
 
@@ -114,15 +113,12 @@ export default function GlobalPomodoroWidget() {
 
   // Calculate remaining time
   const getRemainingTimeLocal = () => {
-    const pomodoroDuration =
-      settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
-    const shortBreakDuration =
-      settings?.shortBreakDuration || DEFAULT_SHORT_BREAK;
+    const pomodoroDuration = settings?.pomodoroDuration || DEFAULT_POMODORO_DURATION;
+    const shortBreakDuration = settings?.shortBreakDuration || DEFAULT_SHORT_BREAK;
     const longBreakDuration = settings?.longBreakDuration || DEFAULT_LONG_BREAK;
 
     if (isBreakTime) {
-      const breakDuration =
-        (pomodoroCount || 0) % 4 === 0 ? longBreakDuration : shortBreakDuration;
+      const breakDuration = (pomodoroCount || 0) % 4 === 0 ? longBreakDuration : shortBreakDuration;
       return breakDuration - (pomodoroSeconds || 0);
     }
     return pomodoroDuration - (pomodoroSeconds || 0);
@@ -160,14 +156,9 @@ export default function GlobalPomodoroWidget() {
       >
         {getIcon()}
         <span>{t('timeManagement')}</span>
-        <span className="text-xs font-mono tabular-nums">
-          {formatTime(remainingTime)}
-        </span>
+        <span className="text-xs font-mono tabular-nums">{formatTime(remainingTime)}</span>
       </button>
-      <GlobalPomodoroModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
+      <GlobalPomodoroModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </>
   );
 }

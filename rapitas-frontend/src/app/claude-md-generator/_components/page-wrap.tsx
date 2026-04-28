@@ -56,11 +56,7 @@ export function PageWrap({
       }}
     >
       <style>{GLOBAL_CSS}</style>
-      <div
-        style={{ maxWidth: 680, margin: '0 auto' }}
-        className="fade"
-        ref={topRef}
-      >
+      <div style={{ maxWidth: 680, margin: '0 auto' }} className="fade" ref={topRef}>
         {/* Progress */}
         <div style={{ marginBottom: 36 }}>
           <div
@@ -96,11 +92,7 @@ export function PageWrap({
         >
           {title}
         </h2>
-        {sub && (
-          <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 24 }}>
-            {sub}
-          </p>
-        )}
+        {sub && <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 24 }}>{sub}</p>}
 
         {children}
 

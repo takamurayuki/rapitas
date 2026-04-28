@@ -1,22 +1,10 @@
 'use client';
 // NewTaskClient
-import {
-  Layers,
-  Flag,
-  FileText,
-  Settings2,
-  CheckCircle2,
-  Sparkles,
-  Loader2,
-} from 'lucide-react';
+import { Layers, Flag, FileText, Settings2, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskTitleAutocomplete from '@/feature/tasks/components/TaskTitleAutocomplete';
-import {
-  CompactAccordionGroup,
-  InlineFieldGroup,
-  FieldItem,
-} from '@/components/ui/accordion';
+import { CompactAccordionGroup, InlineFieldGroup, FieldItem } from '@/components/ui/accordion';
 import ApplyTemplateDialog from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
 import TaskSuggestions from '@/feature/tasks/components/TaskSuggestions';
 import { RelatedKnowledgePanel } from '@/feature/intelligence/components/RelatedKnowledgePanel';
@@ -89,10 +77,7 @@ function NewTaskClient() {
             onSubmit={form.handleSubmit}
           />
 
-          <form
-            onSubmit={(e) => form.handleSubmit(e)}
-            className="max-w-2xl mx-auto px-4 pb-8"
-          >
+          <form onSubmit={(e) => form.handleSubmit(e)} className="max-w-2xl mx-auto px-4 pb-8">
             <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
               {/* Task title */}
               <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -135,10 +120,7 @@ function NewTaskClient() {
               </div>
 
               {/* Task suggestions */}
-              <TaskSuggestions
-                themeId={form.themeId}
-                onApply={form.handleApplySuggestion}
-              />
+              <TaskSuggestions themeId={form.themeId} onApply={form.handleApplySuggestion} />
 
               {/* Description accordion */}
               <CompactAccordionGroup
@@ -149,9 +131,7 @@ function NewTaskClient() {
                   <button
                     type="button"
                     onClick={() => form.handleGenerateTitle(false)}
-                    disabled={
-                      !form.description.trim() || form.isGeneratingTitle
-                    }
+                    disabled={!form.description.trim() || form.isGeneratingTitle}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-900 disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t('titleGenerateTooltip')}
                   >
@@ -215,12 +195,9 @@ function NewTaskClient() {
                         {form.dueDate && (
                           <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
                             (
-                            {new Date(form.dueDate).toLocaleDateString(
-                              form.dateLocale,
-                              {
-                                weekday: 'short',
-                              },
-                            )}
+                            {new Date(form.dueDate).toLocaleDateString(form.dateLocale, {
+                              weekday: 'short',
+                            })}
                             )
                           </span>
                         )}
@@ -238,9 +215,7 @@ function NewTaskClient() {
                           step="0.5"
                           min="0"
                           value={form.estimatedHours}
-                          onChange={(e) =>
-                            form.setEstimatedHours(e.target.value)
-                          }
+                          onChange={(e) => form.setEstimatedHours(e.target.value)}
                           placeholder="0"
                           className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                         />
@@ -251,11 +226,7 @@ function NewTaskClient() {
                     </FieldItem>
                   </InlineFieldGroup>
 
-                  <FieldItem
-                    label={t('labels')}
-                    icon={<Tag className="w-3.5 h-3.5" />}
-                    fullWidth
-                  >
+                  <FieldItem label={t('labels')} icon={<Tag className="w-3.5 h-3.5" />} fullWidth>
                     <LabelSelector
                       selectedLabelIds={form.selectedLabelIds}
                       onChange={form.setSelectedLabelIds}
@@ -308,9 +279,7 @@ function NewTaskClient() {
                 <WorkflowSection
                   workflowMode={form.workflowMode}
                   isWorkflowModeOverride={form.isWorkflowModeOverride}
-                  autoComplexityAnalysis={
-                    form.globalSettings?.autoComplexityAnalysis ?? false
-                  }
+                  autoComplexityAnalysis={form.globalSettings?.autoComplexityAnalysis ?? false}
                   onModeChange={(mode, isOverride) => {
                     form.setWorkflowMode(mode);
                     form.setIsWorkflowModeOverride(isOverride);

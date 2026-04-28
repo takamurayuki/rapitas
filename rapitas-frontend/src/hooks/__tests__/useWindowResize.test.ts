@@ -69,17 +69,13 @@ describe('useWindowResize', () => {
   it('should add window-resizing class on resize start', () => {
     renderHook(() => useWindowResize());
 
-    expect(document.documentElement.classList.contains('window-resizing')).toBe(
-      false,
-    );
+    expect(document.documentElement.classList.contains('window-resizing')).toBe(false);
 
     act(() => {
       fireEvent.resize(window);
     });
 
-    expect(document.documentElement.classList.contains('window-resizing')).toBe(
-      true,
-    );
+    expect(document.documentElement.classList.contains('window-resizing')).toBe(true);
   });
 
   it('should remove window-resizing class after debounce timeout', () => {
@@ -89,17 +85,13 @@ describe('useWindowResize', () => {
       fireEvent.resize(window);
     });
 
-    expect(document.documentElement.classList.contains('window-resizing')).toBe(
-      true,
-    );
+    expect(document.documentElement.classList.contains('window-resizing')).toBe(true);
 
     act(() => {
       vi.advanceTimersByTime(100);
     });
 
-    expect(document.documentElement.classList.contains('window-resizing')).toBe(
-      false,
-    );
+    expect(document.documentElement.classList.contains('window-resizing')).toBe(false);
   });
 
   it('should clean up event listener on unmount', () => {
@@ -108,10 +100,7 @@ describe('useWindowResize', () => {
 
     unmount();
 
-    expect(removeEventListenerSpy).toHaveBeenCalledWith(
-      'resize',
-      expect.any(Function),
-    );
+    expect(removeEventListenerSpy).toHaveBeenCalledWith('resize', expect.any(Function));
     removeEventListenerSpy.mockRestore();
   });
 
@@ -166,9 +155,7 @@ describe('useWindowResize', () => {
   it('should allow a new resize cycle after debounce completes', () => {
     const onResizeStart = vi.fn();
     const onResizeEnd = vi.fn();
-    renderHook(() =>
-      useWindowResize({ onResizeStart, onResizeEnd, debounceMs: 100 }),
-    );
+    renderHook(() => useWindowResize({ onResizeStart, onResizeEnd, debounceMs: 100 }));
 
     // First cycle
     act(() => {

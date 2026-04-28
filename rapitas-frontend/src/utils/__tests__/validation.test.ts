@@ -90,12 +90,8 @@ describe('validateApiKey', () => {
   });
 
   it('validates Anthropic API key prefix', () => {
-    expect(
-      validateApiKey('sk-ant-api-test1234567890', 'anthropic-api').valid,
-    ).toBe(true);
-    expect(
-      validateApiKey('wrong-prefix-1234567890', 'anthropic-api').valid,
-    ).toBe(false);
+    expect(validateApiKey('sk-ant-api-test1234567890', 'anthropic-api').valid).toBe(true);
+    expect(validateApiKey('wrong-prefix-1234567890', 'anthropic-api').valid).toBe(false);
   });
 
   it('validates OpenAI API key prefix', () => {
@@ -108,9 +104,7 @@ describe('validateApiKey', () => {
   });
 
   it('accepts any key for azure-openai (no prefix)', () => {
-    expect(
-      validateApiKey('any-valid-key-here-1234', 'azure-openai').valid,
-    ).toBe(true);
+    expect(validateApiKey('any-valid-key-here-1234', 'azure-openai').valid).toBe(true);
   });
 });
 

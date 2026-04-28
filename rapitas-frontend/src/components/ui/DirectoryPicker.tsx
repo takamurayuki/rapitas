@@ -14,11 +14,7 @@ import { useDirectoryPicker } from './directory-picker/useDirectoryPicker';
 import { BrowserModal } from './directory-picker/BrowserModal';
 
 // Re-export shared types so existing importers don't need to change their import paths.
-export type {
-  FavoriteDirectory,
-  DirectoryEntry,
-  BrowseResult,
-} from './directory-picker/types';
+export type { FavoriteDirectory, DirectoryEntry, BrowseResult } from './directory-picker/types';
 import type { DirectoryPickerProps } from './directory-picker/types';
 
 /**
@@ -90,9 +86,7 @@ export function DirectoryPicker({
                     </span>
                   </>
                 ) : (
-                  <span className="text-sm text-zinc-400 dark:text-zinc-500">
-                    {placeholder}
-                  </span>
+                  <span className="text-sm text-zinc-400 dark:text-zinc-500">{placeholder}</span>
                 )}
               </div>
               <button

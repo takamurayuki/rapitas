@@ -142,19 +142,13 @@ function TaskCardSkeletonRow({ card }: { card: TaskCardVariation }) {
               shimmer={true}
             />
             {/* Priority icon */}
-            <EnhancedSkeletonBlock
-              className="w-4 h-4 rounded shrink-0"
-              delay={card.delay + 200}
-            />
+            <EnhancedSkeletonBlock className="w-4 h-4 rounded shrink-0" delay={card.delay + 200} />
           </div>
 
           {/* Meta info row (order: created date, subtask progress, estimated time, labels) */}
           <div className="flex items-center gap-2 text-xs mb-1.5">
             {/* Created date (always shown) */}
-            <EnhancedSkeletonBlock
-              className="h-3 w-12 rounded shrink-0"
-              delay={card.delay + 250}
-            />
+            <EnhancedSkeletonBlock className="h-3 w-12 rounded shrink-0" delay={card.delay + 250} />
 
             {/* Subtask progress (conditional) */}
             {card.hasSubtasks && (
@@ -220,10 +214,7 @@ function TaskCardSkeletonRow({ card }: { card: TaskCardVariation }) {
           ))}
           {/* Open in page button (conditional) */}
           {card.hasOpenButton && (
-            <EnhancedSkeletonBlock
-              className="h-7 w-7 rounded-md"
-              delay={card.delay + 750}
-            />
+            <EnhancedSkeletonBlock className="h-7 w-7 rounded-md" delay={card.delay + 750} />
           )}
         </div>
       </div>
@@ -275,9 +266,7 @@ interface TaskListSkeletonProps {
  *
  * @param showFilter - Whether to render the filter bar skeleton / フィルターバーのスケルトンを表示するか
  */
-export const TaskListSkeleton = ({
-  showFilter = true,
-}: TaskListSkeletonProps) => {
+export const TaskListSkeleton = ({ showFilter = true }: TaskListSkeletonProps) => {
   const cardVariations = generateTaskCardVariations();
 
   return (
@@ -298,11 +287,7 @@ export const TaskListSkeleton = ({
             <EnhancedSkeletonBlock className="w-32 h-4" delay={1000} />
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map((i) => (
-                <EnhancedSkeletonBlock
-                  key={i}
-                  className="w-8 h-8 rounded"
-                  delay={1100 + i * 50}
-                />
+                <EnhancedSkeletonBlock key={i} className="w-8 h-8 rounded" delay={1100 + i * 50} />
               ))}
             </div>
             <EnhancedSkeletonBlock className="w-24 h-4" delay={1400} />

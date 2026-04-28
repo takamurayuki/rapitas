@@ -50,9 +50,7 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            {t('addTask')}
-          </h3>
+          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('addTask')}</h3>
           <button
             onClick={onClose}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg"

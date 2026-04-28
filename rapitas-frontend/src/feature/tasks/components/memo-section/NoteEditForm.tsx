@@ -16,12 +16,7 @@ type NoteEditFormProps = {
  * @param onSave - Submits the edit / 保存コールバック
  * @param onCancel - Discards the edit / キャンセルコールバック
  */
-export function NoteEditForm({
-  editText,
-  onEditText,
-  onSave,
-  onCancel,
-}: NoteEditFormProps) {
+export function NoteEditForm({ editText, onEditText, onSave, onCancel }: NoteEditFormProps) {
   return (
     <div className="space-y-1.5">
       <textarea

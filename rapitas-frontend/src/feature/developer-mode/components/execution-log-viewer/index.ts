@@ -9,11 +9,7 @@
 export { ExecutionLogViewer } from './ExecutionLogViewer';
 export { default } from './ExecutionLogViewer';
 
-export type {
-  ExecutionLogStatus,
-  ExecutionLogViewMode,
-  ExecutionLogViewerProps,
-} from './types';
+export type { ExecutionLogStatus, ExecutionLogViewMode, ExecutionLogViewerProps } from './types';
 
 // Named sub-components exposed for advanced composition use-cases
 export { LogEntry } from './LogEntry';
@@ -24,9 +20,5 @@ export { useLogViewer } from './useLogViewer';
 export { useLogSearch } from './useLogSearch';
 
 // Utility functions exposed for reuse in other log-related components
-export {
-  formatLogLine,
-  formatNestedValue,
-  isFilePath,
-} from './log-format-utils';
+export { formatLogLine, formatNestedValue, isFilePath } from './log-format-utils';
 export type { FormattedLogLine } from './log-format-utils';

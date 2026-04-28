@@ -14,10 +14,7 @@ interface TextColorCallbacks {
 }
 
 /** Place cursor at the end of the editor content */
-function setCursorToEnd(
-  sel: Selection,
-  contentEl: HTMLDivElement | null,
-): void {
+function setCursorToEnd(sel: Selection, contentEl: HTMLDivElement | null): void {
   const newRange = document.createRange();
   const lastChild = contentEl?.lastChild;
   if (lastChild) {
@@ -51,10 +48,7 @@ function applyTextColorNoSelection(
     savedRange = currentSelection.getRangeAt(0).cloneRange();
   }
 
-  if (
-    contentRef.current &&
-    !contentRef.current.contains(document.activeElement)
-  ) {
+  if (contentRef.current && !contentRef.current.contains(document.activeElement)) {
     shouldFocus = true;
   }
 
@@ -98,14 +92,10 @@ function applyTextColorNoSelection(
       const currentContainer = range.startContainer;
       const currentOffset = range.startOffset;
 
-      if (
-        currentContainer.nodeType === Node.TEXT_NODE &&
-        currentContainer.parentNode
-      ) {
+      if (currentContainer.nodeType === Node.TEXT_NODE && currentContainer.parentNode) {
         const textNode = currentContainer as Text;
         const parent = textNode.parentNode;
-        const beforeText =
-          textNode.textContent?.substring(0, currentOffset) || '';
+        const beforeText = textNode.textContent?.substring(0, currentOffset) || '';
         const afterText = textNode.textContent?.substring(currentOffset) || '';
 
         textNode.textContent = beforeText;
@@ -160,8 +150,7 @@ export function applyTextColor(
   callbacks: TextColorCallbacks,
 ): void {
   const { contentRef, activeColorSpanRef, selectedTextColorRef } = refs;
-  const { setCurrentTextColor, setShowTextColorPicker, handleContentChange } =
-    callbacks;
+  const { setCurrentTextColor, setShowTextColorPicker, handleContentChange } = callbacks;
 
   if (isInTitleInput()) {
     setShowTextColorPicker(false);

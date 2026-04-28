@@ -1,14 +1,7 @@
 'use client';
 // AITabContent
 import { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  Send,
-  Loader2,
-  Trash2,
-  Settings,
-  AlertCircle,
-  MessageCircle,
-} from 'lucide-react';
+import { Send, Loader2, Trash2, Settings, AlertCircle, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAIChat } from './useAIChat';
 import { fetchConfiguredProviders, fetchAvailableModels } from './ai-service';
@@ -43,12 +36,9 @@ export default function AITabContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const [selectedProvider, setSelectedProvider] =
-    useState<ApiProvider>('claude');
+  const [selectedProvider, setSelectedProvider] = useState<ApiProvider>('claude');
   const [selectedModel, setSelectedModel] = useState<string>('');
-  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>(
-    [],
-  );
+  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>([]);
   const [availableModels, setAvailableModels] = useState<
     Record<string, { value: string; label: string }[]>
   >({});
@@ -97,14 +87,11 @@ export default function AITabContent() {
     [handleSendMessage],
   );
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInputValue(e.target.value);
-      e.target.style.height = 'auto';
-      e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-    },
-    [],
-  );
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+  }, []);
 
   const currentModels = availableModels[selectedProvider] || [];
 
@@ -174,9 +161,7 @@ export default function AITabContent() {
                   >
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${
-                        isConfigured
-                          ? PROVIDER_COLORS[p]
-                          : 'bg-zinc-300 dark:bg-zinc-600'
+                        isConfigured ? PROVIDER_COLORS[p] : 'bg-zinc-300 dark:bg-zinc-600'
                       }`}
                     />
                     {PROVIDER_LABELS[p]}
@@ -242,9 +227,7 @@ export default function AITabContent() {
                 <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl rounded-bl-md px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      考え中...
-                    </span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">考え中...</span>
                   </div>
                 </div>
               </div>

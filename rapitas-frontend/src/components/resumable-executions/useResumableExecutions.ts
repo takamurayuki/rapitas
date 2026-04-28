@@ -55,20 +55,13 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
 
   const autoResumeCheckedRef = useRef(false);
   const disconnectTimerRef = useRef<number | null>(null);
-  const executingTasksSize = useExecutionStateStore(
-    (state) => state.executingTasks.size,
-  );
+  const executingTasksSize = useExecutionStateStore((state) => state.executingTasks.size);
 
   const fetchAutoResumeSetting = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(
-        `${API_BASE_URL}/settings`,
-        undefined,
-        2,
-        500,
-        10000,
-        { silent: true },
-      );
+      const res = await fetchWithRetry(`${API_BASE_URL}/settings`, undefined, 2, 500, 10000, {
+        silent: true,
+      });
       if (res.ok) {
         const data = await res.json();
         setAutoResume(data.autoResumeInterruptedTasks ?? false);
@@ -94,23 +87,18 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
         setExecutions((prev) => {
           const prevIds = new Set(prev.map((e) => e.id));
           // Reset dismissed only when genuinely new executions arrive
-          if (data.some((e) => !prevIds.has(e.id)) && data.length > 0)
-            setIsDismissed(false);
+          if (data.some((e) => !prevIds.has(e.id)) && data.length > 0) setIsDismissed(false);
           return data;
         });
         return data;
       } else {
-        logger.warn(
-          `Failed to fetch resumable executions: ${res.status} ${res.statusText}`,
-        );
+        logger.warn(`Failed to fetch resumable executions: ${res.status} ${res.statusText}`);
         setExecutions([]);
       }
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       logger.warn(`Failed to fetch resumable executions: ${errMsg}`);
-      setConnectionError(
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      setConnectionError(error instanceof Error ? error : new Error(String(error)));
       setExecutions([]);
     } finally {
       setIsLoading(false);
@@ -195,10 +183,10 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   const handleResume = async (executionId: number, isAutoResume = false) => {
     setResumingIds((prev) => new Set(prev).add(executionId));
     try {
-      const res = await fetchWithRetry(
-        `${API_BASE_URL}/agents/executions/${executionId}/resume`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' } },
-      );
+      const res = await fetchWithRetry(`${API_BASE_URL}/agents/executions/${executionId}/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
       if (res.ok) {
         const data = await res.json();
         setExecutions((prev) => prev.filter((e) => e.id !== executionId));
@@ -208,9 +196,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
           window.location.href = `/tasks/${data.taskId}?showHeader=true`;
         }
       } else {
-        logger.error(
-          `Failed to resume execution: ${res.status} ${res.statusText}`,
-        );
+        logger.error(`Failed to resume execution: ${res.status} ${res.statusText}`);
         if (!isAutoResume) alert(`${tc('errorOccurred')}: ${res.status}`);
       }
     } catch (error) {
@@ -226,10 +212,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
 
   const handleDismiss = async (executionId: number) => {
     const exec = executions.find((e) => e.id === executionId);
-    if (
-      exec &&
-      (exec.status === 'running' || exec.status === 'waiting_for_input')
-    ) {
+    if (exec && (exec.status === 'running' || exec.status === 'waiting_for_input')) {
       // Running tasks are removed client-side only — do not acknowledge on the backend
       setExecutions((prev) => prev.filter((e) => e.id !== executionId));
       return;
@@ -240,12 +223,8 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
         `${API_BASE_URL}/agents/executions/${executionId}/acknowledge`,
         { method: 'POST' },
       );
-      if (res.ok)
-        setExecutions((prev) => prev.filter((e) => e.id !== executionId));
-      else
-        logger.error(
-          `Failed to dismiss execution: ${res.status} ${res.statusText}`,
-        );
+      if (res.ok) setExecutions((prev) => prev.filter((e) => e.id !== executionId));
+      else logger.error(`Failed to dismiss execution: ${res.status} ${res.statusText}`);
     } catch (error) {
       logger.warn('Error dismissing execution:', error);
     } finally {
@@ -263,8 +242,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   };
 
   const handleResumeAll = async () => {
-    for (const exec of executions)
-      if (exec.canResume) await handleResume(exec.id, true);
+    for (const exec of executions) if (exec.canResume) await handleResume(exec.id, true);
   };
 
   /**
@@ -287,9 +265,7 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   const runningCount = executions.filter(
     (e) => e.status === 'running' || e.status === 'waiting_for_input',
   ).length;
-  const interruptedCount = executions.filter(
-    (e) => e.status === 'interrupted',
-  ).length;
+  const interruptedCount = executions.filter((e) => e.status === 'interrupted').length;
 
   return {
     executions,

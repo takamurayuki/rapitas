@@ -45,9 +45,7 @@ export interface ExecutionStatusFlags {
  * Pure function — no React, no refs, no side effects. Safe to memoize at
  * the call site.
  */
-export function deriveExecutionStatusFlags(
-  input: ExecutionStatusFlagInput,
-): ExecutionStatusFlags {
+export function deriveExecutionStatusFlags(input: ExecutionStatusFlagInput): ExecutionStatusFlags {
   const {
     pollingStatus,
     sseStatus,
@@ -74,15 +72,10 @@ export function deriveExecutionStatusFlags(
 
   // NOTE: Only uses explicit DB status (waitingForInput). Legacy pattern-matching removed.
   const isWaitingForInput =
-    !isTerminalStatus &&
-    (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
+    !isTerminalStatus && (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
   const finalStatus =
-    sseStatus !== 'idle'
-      ? sseStatus
-      : pollingStatus !== 'idle'
-        ? pollingStatus
-        : 'idle';
+    sseStatus !== 'idle' ? sseStatus : pollingStatus !== 'idle' ? pollingStatus : 'idle';
 
   // NOTE: For restored terminal executions, derive status from executionResult immediately
   // rather than waiting for polling, to avoid the blank/idle flash.
@@ -91,11 +84,7 @@ export function deriveExecutionStatusFlags(
     (isRestoredTerminal && executionResult?.success === true);
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
-    (!isCompleted &&
-      (finalStatus === 'failed' ||
-        executionError ||
-        pollingError ||
-        sseError)) ||
+    (!isCompleted && (finalStatus === 'failed' || executionError || pollingError || sseError)) ||
     (isRestoredTerminal && executionResult?.success === false);
   const isInterrupted =
     !isCompleted &&
@@ -133,10 +122,7 @@ export function deriveExecutionStatusFlags(
 
 /** Map the boolean flag bundle into a single ExecutionLogStatus. */
 export function deriveLogViewerStatus(
-  flags: Pick<
-    ExecutionStatusFlags,
-    'isRunning' | 'isCancelled' | 'isCompleted' | 'isFailed'
-  >,
+  flags: Pick<ExecutionStatusFlags, 'isRunning' | 'isCancelled' | 'isCompleted' | 'isFailed'>,
 ): ExecutionLogStatus {
   if (flags.isRunning) return 'running';
   if (flags.isCancelled) return 'cancelled';

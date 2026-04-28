@@ -55,8 +55,7 @@ vi.mock('@/stores/shortcutStore', () => ({
 }));
 
 vi.mock('@/stores/app-mode-store', () => ({
-  useAppModeStore: (selector: (state: { mode: string }) => unknown) =>
-    selector({ mode: 'normal' }),
+  useAppModeStore: (selector: (state: { mode: string }) => unknown) => selector({ mode: 'normal' }),
 }));
 
 vi.mock('@/stores/note-store', () => ({
@@ -254,9 +253,7 @@ describe('Header', () => {
 
     it('accepts search query input', () => {
       render(<Header />);
-      const searchInput = screen.getByPlaceholderText(
-        'searchPlaceholder',
-      ) as HTMLInputElement;
+      const searchInput = screen.getByPlaceholderText('searchPlaceholder') as HTMLInputElement;
       fireEvent.change(searchInput, { target: { value: 'test query' } });
       expect(searchInput).toHaveValue('test query');
     });

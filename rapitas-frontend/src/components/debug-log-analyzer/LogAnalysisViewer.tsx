@@ -27,10 +27,7 @@ interface LogAnalysisViewerProps {
  * @param analysis - The full log analysis result to display / 表示するログ解析結果
  * @param onExport - Optional callback invoked when the user clicks export / エクスポートボタン押下時のコールバック（省略可）
  */
-export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({
-  analysis,
-  onExport,
-}) => {
+export const LogAnalysisViewer: React.FC<LogAnalysisViewerProps> = ({ analysis, onExport }) => {
   const [selectedTab, setSelectedTab] = useState('overview');
 
   return (

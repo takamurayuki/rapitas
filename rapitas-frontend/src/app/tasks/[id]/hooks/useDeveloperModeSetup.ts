@@ -53,9 +53,7 @@ export interface UseDeveloperModeSetupResult {
  * @param taskId - Numeric task ID passed to useDeveloperMode.
  * @returns All developer mode and approval state plus action callbacks.
  */
-export function useDeveloperModeSetup(
-  taskId: number,
-): UseDeveloperModeSetupResult {
+export function useDeveloperModeSetup(taskId: number): UseDeveloperModeSetupResult {
   const {
     config: devModeConfig,
     isLoading: devModeLoading,
@@ -109,9 +107,7 @@ export function useDeveloperModeSetup(
     executeAgent: executeAgent as (options?: unknown) => Promise<unknown>,
     resetExecutionState,
     restoreExecutionState,
-    approveSubtaskCreation: approveSubtaskCreation as (
-      ...args: unknown[]
-    ) => unknown,
+    approveSubtaskCreation: approveSubtaskCreation as (...args: unknown[]) => unknown,
     setExecutionCancelled,
     agentConfigId,
     setAgentConfigId,

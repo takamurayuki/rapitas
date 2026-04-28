@@ -161,14 +161,10 @@ export function KanbanFilterBar({
                       key={label.id}
                       onClick={() => onToggleLabel(label.id)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        isSelected
-                          ? 'ring-1 ring-offset-1'
-                          : 'opacity-70 hover:opacity-100'
+                        isSelected ? 'ring-1 ring-offset-1' : 'opacity-70 hover:opacity-100'
                       }`}
                       style={{
-                        backgroundColor: isSelected
-                          ? label.color
-                          : `${label.color}20`,
+                        backgroundColor: isSelected ? label.color : `${label.color}20`,
                         color: isSelected ? '#fff' : label.color,
                         ['--tw-ring-color' as string]: label.color,
                       }}

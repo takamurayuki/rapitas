@@ -72,10 +72,7 @@ export function useDirectoryStatus(
       if (res.ok && data.success) {
         setBranches(data.branches || []);
         // Auto-select first branch if current defaultBranch is not in the list
-        if (
-          data.branches.length > 0 &&
-          !data.branches.includes(getFormData().defaultBranch)
-        ) {
+        if (data.branches.length > 0 && !data.branches.includes(getFormData().defaultBranch)) {
           setFormData((prev) => ({ ...prev, defaultBranch: data.branches[0] }));
         }
       } else {
@@ -119,12 +116,7 @@ export function useDirectoryStatus(
       });
 
       // Auto-fill repository URL if detected and form is empty (new theme creation)
-      if (
-        data.valid &&
-        data.remoteUrl &&
-        !getFormData().repositoryUrl &&
-        !getEditingId()
-      ) {
+      if (data.valid && data.remoteUrl && !getFormData().repositoryUrl && !getEditingId()) {
         setFormData((prev) => ({ ...prev, repositoryUrl: data.remoteUrl }));
         fetchBranches(data.remoteUrl);
       }

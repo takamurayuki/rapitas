@@ -13,10 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import type { DeveloperModeConfig, TaskAnalysisResult, Task } from '@/types';
-import type {
-  ExecutionStatus,
-  ExecutionResult,
-} from '../hooks/useDeveloperMode';
+import type { ExecutionStatus, ExecutionResult } from '../hooks/useDeveloperMode';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { AIAnalysisPanel } from './AIAnalysisPanel';
 import { AgentExecutionPanel } from './AgentExecutionPanel';
@@ -70,10 +67,7 @@ type Props = {
   onStopExecution?: () => void;
 
   subtasks?: Task[];
-  subtaskLogs?: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   parallelSessionId?: string | null;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
   onRefreshSubtaskLogs?: (taskId?: number) => void;
@@ -124,9 +118,9 @@ export function AIAssistantAccordion({
   onRefreshSubtaskLogs,
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<
-    string | null
-  >(optimizedPrompt || null);
+  const [localOptimizedPrompt, setLocalOptimizedPrompt] = useState<string | null>(
+    optimizedPrompt || null,
+  );
 
   // Resize state
   const [contentHeight, setContentHeight] = useState<number>(() => {
@@ -166,10 +160,7 @@ export function AIAssistantAccordion({
       e.stopPropagation();
 
       const deltaY = e.clientY - startYRef.current;
-      const newHeight = Math.min(
-        MAX_HEIGHT,
-        Math.max(MIN_HEIGHT, startHeightRef.current + deltaY),
-      );
+      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, startHeightRef.current + deltaY));
 
       requestAnimationFrame(() => {
         setContentHeight(newHeight);
@@ -185,10 +176,7 @@ export function AIAssistantAccordion({
       // Save to localStorage on resize completion
       const finalHeight = Math.min(
         MAX_HEIGHT,
-        Math.max(
-          MIN_HEIGHT,
-          startHeightRef.current + (e.clientY - startYRef.current),
-        ),
+        Math.max(MIN_HEIGHT, startHeightRef.current + (e.clientY - startYRef.current)),
       );
       localStorage.setItem(STORAGE_KEY, String(finalHeight));
     };
@@ -234,9 +222,7 @@ export function AIAssistantAccordion({
               <BrainCircuit className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">
-                AI アシスタント
-              </h2>
+              <h2 className="font-bold text-lg text-zinc-900 dark:text-zinc-50">AI アシスタント</h2>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 タスク分析・プロンプト最適化・自動実装
               </p>

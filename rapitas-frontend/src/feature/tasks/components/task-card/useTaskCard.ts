@@ -41,9 +41,7 @@ export interface TaskCardHook {
   contextMenuRef: React.RefObject<HTMLDivElement | null>;
   showContextMenu: boolean;
   contextMenuPosition: { x: number; y: number };
-  setContextMenuPosition: React.Dispatch<
-    React.SetStateAction<{ x: number; y: number }>
-  >;
+  setContextMenuPosition: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
   setShowContextMenu: React.Dispatch<React.SetStateAction<boolean>>;
   expandedSubtasks: boolean;
   setExpandedSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
@@ -74,11 +72,7 @@ export interface TaskCardHook {
  */
 export function useTaskCard(
   task: Task,
-  onStatusChange: (
-    taskId: number,
-    status: Status,
-    cardElement?: HTMLElement,
-  ) => void,
+  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void,
   onTaskUpdated?: () => void,
   onTaskClick?: (taskId: number) => void,
 ): TaskCardHook {
@@ -100,9 +94,7 @@ export function useTaskCard(
 
   const { showToast } = useToast();
 
-  const executionStatus = useExecutionStateStore((state) =>
-    state.getExecutingTaskStatus(task.id),
-  );
+  const executionStatus = useExecutionStateStore((state) => state.getExecutingTaskStatus(task.id));
 
   // Sync localSubtasks when the prop changes
   useEffect(() => {
@@ -112,10 +104,7 @@ export function useTaskCard(
   // Close context menu on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        contextMenuRef.current &&
-        !contextMenuRef.current.contains(e.target as Node)
-      ) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
         setShowContextMenu(false);
       }
     };
@@ -130,21 +119,16 @@ export function useTaskCard(
   const handleSubtaskStatusChange = (subtaskId: number, newStatus: string) => {
     // Optimistic update
     setLocalSubtasks((prev) =>
-      prev.map((s) =>
-        s.id === subtaskId ? { ...s, status: newStatus as Status } : s,
-      ),
+      prev.map((s) => (s.id === subtaskId ? { ...s, status: newStatus as Status } : s)),
     );
     onStatusChange(subtaskId, newStatus as Status);
   };
 
-  const currentStatus =
-    statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+  const currentStatus = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
 
   const completionRate = localSubtasks.length
     ? Math.round(
-        (localSubtasks.filter((s) => s.status === 'done').length /
-          localSubtasks.length) *
-          100,
+        (localSubtasks.filter((s) => s.status === 'done').length / localSubtasks.length) * 100,
       )
     : null;
 
@@ -160,16 +144,14 @@ export function useTaskCard(
       case 'running':
         return {
           borderColor: 'blue',
-          badgeClass:
-            'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
           dotClass: 'bg-blue-500',
           label: t('running'),
         };
       case 'waiting_for_input':
         return {
           borderColor: 'amber',
-          badgeClass:
-            'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
+          badgeClass: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
           dotClass: 'bg-amber-500',
           label: t('waitingForInput'),
         };

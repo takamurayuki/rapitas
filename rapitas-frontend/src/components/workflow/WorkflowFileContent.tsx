@@ -55,9 +55,7 @@ export function WorkflowFileContent({
     return (
       <div className="flex items-center justify-center h-32">
         <Loader2 className="h-5 w-5 text-zinc-400 animate-spin mr-2" />
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          読み込み中...
-        </span>
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">読み込み中...</span>
       </div>
     );
   }
@@ -68,9 +66,7 @@ export function WorkflowFileContent({
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-3">
           <activeTabConfig.icon className="h-6 w-6 text-zinc-400" />
         </div>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {activeTabConfig.emptyText}
-        </p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{activeTabConfig.emptyText}</p>
       </div>
     );
   }
@@ -86,18 +82,14 @@ export function WorkflowFileContent({
             : '不明'}
         </span>
         <div className="flex items-center gap-3">
-          <span>
-            {activeFile.size ? `${(activeFile.size / 1024).toFixed(1)}KB` : ''}
-          </span>
+          <span>{activeFile.size ? `${(activeFile.size / 1024).toFixed(1)}KB` : ''}</span>
           <button
             onClick={onRefetch}
             disabled={isRefetching}
             className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             title="再読み込み"
           >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`}
-            />
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>

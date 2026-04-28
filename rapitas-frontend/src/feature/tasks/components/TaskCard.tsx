@@ -4,10 +4,7 @@ import React, { useState, memo } from 'react';
 import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { ExternalLink, Tag, Repeat } from 'lucide-react';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
@@ -18,18 +15,13 @@ import { useLocaleStore as _useLocaleStore } from '@/stores/locale-store';
 import { useTaskCard } from './task-card/useTaskCard';
 import TaskCardContextMenu from './task-card/TaskCardContextMenu';
 import TaskCardSubtaskPanel from './task-card/TaskCardSubtaskPanel';
-import { DependencyBadge } from './dependency';
 
 interface TaskCardProps {
   task: Task;
   isSelected?: boolean;
   isSelectionMode?: boolean;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (
-    taskId: number,
-    status: Status,
-    cardElement?: HTMLElement,
-  ) => void;
+  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void;
   onToggleSelect?: (taskId: number) => void;
   onTaskUpdated?: () => void;
   onOpenInPage?: (taskId: number) => void;
@@ -83,10 +75,7 @@ const TaskCard = memo(function TaskCard({
             : ''
       }`}
     >
-      <CardLightSweep
-        active={sweepingTaskId === task.id}
-        colors={tc.sweepColors}
-      />
+      <CardLightSweep active={sweepingTaskId === task.id} colors={tc.sweepColors} />
 
       {/* Main row */}
       <div
@@ -118,14 +107,8 @@ const TaskCard = memo(function TaskCard({
         ) : (
           <div
             className={`relative flex items-center justify-center w-7 h-7 rounded-md ${
-              tc.isWaitingForInput
-                ? tc.waitingAmberConfig.color
-                : tc.currentStatus.color
-            } ${
-              tc.isWaitingForInput
-                ? tc.waitingAmberConfig.bgColor
-                : tc.currentStatus.bgColor
-            } ${
+              tc.isWaitingForInput ? tc.waitingAmberConfig.color : tc.currentStatus.color
+            } ${tc.isWaitingForInput ? tc.waitingAmberConfig.bgColor : tc.currentStatus.bgColor} ${
               tc.executionStatus
                 ? ''
                 : `border-2 ${(tc.isWaitingForInput
@@ -133,14 +116,9 @@ const TaskCard = memo(function TaskCard({
                     : tc.currentStatus.borderColor
                   ).replace('border-l-', 'border-')}`
             } shrink-0`}
-            aria-label={
-              tc.isWaitingForInput
-                ? tc.waitingAmberConfig.label
-                : tc.currentStatus.label
-            }
+            aria-label={tc.isWaitingForInput ? tc.waitingAmberConfig.label : tc.currentStatus.label}
           >
-            {(tc.executionStatus === 'running' ||
-              tc.executionStatus === 'waiting_for_input') && (
+            {(tc.executionStatus === 'running' || tc.executionStatus === 'waiting_for_input') && (
               <svg
                 className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
                 viewBox="0 0 32 32"
@@ -152,11 +130,7 @@ const TaskCard = memo(function TaskCard({
                   width="30"
                   height="30"
                   rx="7"
-                  stroke={
-                    tc.executionStatus === 'waiting_for_input'
-                      ? '#f59e0b'
-                      : '#3b82f6'
-                  }
+                  stroke={tc.executionStatus === 'waiting_for_input' ? '#f59e0b' : '#3b82f6'}
                   strokeWidth="2"
                   strokeDasharray="20 87.96"
                   strokeLinecap="round"
@@ -170,9 +144,7 @@ const TaskCard = memo(function TaskCard({
                 />
               </svg>
             )}
-            {renderStatusIcon(
-              tc.isWaitingForInput ? 'in-progress' : task.status,
-            )}
+            {renderStatusIcon(tc.isWaitingForInput ? 'in-progress' : task.status)}
           </div>
         )}
 
@@ -187,10 +159,7 @@ const TaskCard = memo(function TaskCard({
 
               {task.isRecurring && (
                 <span title="繰り返しタスク">
-                  <Repeat
-                    size={14}
-                    className="text-indigo-500 dark:text-indigo-400 shrink-0"
-                  />
+                  <Repeat size={14} className="text-indigo-500 dark:text-indigo-400 shrink-0" />
                 </span>
               )}
 
@@ -215,9 +184,6 @@ const TaskCard = memo(function TaskCard({
                   <span>{tc.executionClasses.label}</span>
                 </div>
               )}
-
-              {/* Dependency Badge */}
-              <DependencyBadge taskId={task.id} compact />
             </div>
           </div>
 
@@ -251,8 +217,8 @@ const TaskCard = memo(function TaskCard({
                         d="M9 5l7 7-7 7"
                       />
                     </svg>
-                    {tc.localSubtasks.filter((s) => s.status === 'done').length}
-                    /{tc.localSubtasks.length}
+                    {tc.localSubtasks.filter((s) => s.status === 'done').length}/
+                    {tc.localSubtasks.length}
                   </button>
                   {tc.completionRate !== null && (
                     <div className="w-75 h-1 ml-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
@@ -273,14 +239,25 @@ const TaskCard = memo(function TaskCard({
               </>
             )}
 
+            {task.createdAt && (
+              <>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                <span className="shrink-0">
+                  {new Date(task.createdAt).toLocaleDateString('ja-JP', {
+                    month: 'numeric',
+                    day: 'numeric',
+                  })}
+                </span>
+              </>
+            )}
+
             {task.taskLabels && task.taskLabels.length > 0 ? (
               <>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
                 <span className="flex items-center gap-1 shrink-0 flex-wrap">
                   {task.taskLabels.slice(0, 3).map((tl) => {
                     if (!tl.label) return null;
-                    const IconComponent =
-                      getIconComponent(tl.label.icon || '') || Tag;
+                    const IconComponent = getIconComponent(tl.label.icon || '') || Tag;
                     return (
                       <span
                         key={tl.id}
@@ -326,8 +303,7 @@ const TaskCard = memo(function TaskCard({
           >
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
-              const baseConfig =
-                statusConfig[status as keyof typeof statusConfig];
+              const baseConfig = statusConfig[status as keyof typeof statusConfig];
               const config =
                 tc.isWaitingForInput && status === 'in-progress'
                   ? { ...baseConfig, ...tc.waitingAmberConfig }
@@ -340,11 +316,7 @@ const TaskCard = memo(function TaskCard({
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(s: string) =>
-                    onStatusChange(
-                      task.id,
-                      s as Status,
-                      tc.cardRef.current || undefined,
-                    )
+                    onStatusChange(task.id, s as Status, tc.cardRef.current || undefined)
                   }
                   size="md"
                 />

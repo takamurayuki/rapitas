@@ -68,9 +68,7 @@ export default function NotificationList({
             <li
               key={item.id}
               className={`flex items-start gap-3 px-4 py-3 transition-colors ${
-                item.isRead
-                  ? 'bg-white dark:bg-zinc-800'
-                  : 'bg-indigo-50/50 dark:bg-indigo-900/10'
+                item.isRead ? 'bg-white dark:bg-zinc-800' : 'bg-indigo-50/50 dark:bg-indigo-900/10'
               }`}
             >
               <span className="mt-1 flex-shrink-0">

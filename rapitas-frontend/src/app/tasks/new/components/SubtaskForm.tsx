@@ -145,9 +145,7 @@ export function SubtaskForm({
               }`}
             >
               <Check className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {tc('save')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
             </button>
           </div>
 
@@ -158,9 +156,7 @@ export function SubtaskForm({
               className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
-              <span className="font-mono text-xs font-black tracking-tight">
-                {tc('cancel')}
-              </span>
+              <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
             </button>
           </div>
         </div>

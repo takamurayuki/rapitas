@@ -57,9 +57,7 @@ export function useAutoExecute({
       autoExecuteTriggered.current = true;
 
       if (!task.theme?.isDevelopment) {
-        logger.warn(
-          `Skipping auto-execute for task ${taskId}: theme is not a development project`,
-        );
+        logger.warn(`Skipping auto-execute for task ${taskId}: theme is not a development project`);
       } else if (!isExecuting) {
         setShowAIAssistant(true);
         if (task.status !== 'in-progress') {
@@ -70,9 +68,7 @@ export function useAutoExecute({
         }
         executeAgent();
       } else {
-        logger.warn(
-          `Skipping auto-execute for task ${taskId}: already executing`,
-        );
+        logger.warn(`Skipping auto-execute for task ${taskId}: already executing`);
       }
 
       // NOTE: Remove autoExecute param immediately so page refresh won't re-trigger.

@@ -19,11 +19,7 @@ interface InlineMicButtonProps {
   className?: string;
 }
 
-export default function InlineMicButton({
-  inputRef,
-  onText,
-  className,
-}: InlineMicButtonProps) {
+export default function InlineMicButton({ inputRef, onText, className }: InlineMicButtonProps) {
   const { openVoiceInput } = useVoiceInput();
 
   const handleClick = useCallback(() => {

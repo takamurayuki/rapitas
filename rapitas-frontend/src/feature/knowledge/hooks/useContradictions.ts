@@ -5,9 +5,7 @@ import { API_BASE_URL } from '@/utils/api';
 import type { KnowledgeContradiction, ContradictionResolution } from '../types';
 
 export function useContradictions(limit = 20) {
-  const [contradictions, setContradictions] = useState<
-    KnowledgeContradiction[]
-  >([]);
+  const [contradictions, setContradictions] = useState<KnowledgeContradiction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,9 +13,7 @@ export function useContradictions(limit = 20) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/memory/contradictions?limit=${limit}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/memory/contradictions?limit=${limit}`);
       if (!res.ok) throw new Error('Failed to fetch contradictions');
       const json = await res.json();
       setContradictions(json);
@@ -34,14 +30,11 @@ export function useContradictions(limit = 20) {
 
   const resolve = useCallback(
     async (id: number, resolution: ContradictionResolution) => {
-      const res = await fetch(
-        `${API_BASE_URL}/memory/contradictions/${id}/resolve`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resolution }),
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/memory/contradictions/${id}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolution }),
+      });
       if (!res.ok) throw new Error('Failed to resolve contradiction');
       await fetchContradictions();
     },

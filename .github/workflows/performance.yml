@@ -1,0 +1,192 @@
+# Performance measurement workflow
+# Runs performance tests and reports results
+
+name: Performance
+
+on:
+  push:
+    branches: [master, main, develop]
+    paths:
+      - 'rapitas-backend/**'
+      - 'rapitas-frontend/**'
+      - 'scripts/measure-performance.cjs'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'rapitas-backend/**'
+      - 'rapitas-frontend/**'
+  schedule:
+    # Run weekly on Monday at 9:00 UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  backend-performance:
+    name: Backend Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: rapitas
+          POSTGRES_PASSWORD: rapitas
+          POSTGRES_DB: rapitas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Setup database
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bun run db:generate
+
+      - name: Start backend
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_test
+          PORT: 3001
+          NODE_ENV: test
+        run: |
+          bun run index.ts &
+          sleep 5
+
+      - name: Health check
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:3001/health > /dev/null; then
+              echo "Backend is ready"
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 1
+          done
+
+      - name: Measure API latency
+        id: api-perf
+        run: |
+          echo "## API Performance Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Endpoint | Cold Start | P50 | P95 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------------|-----|-----|" >> $GITHUB_STEP_SUMMARY
+
+          # Health endpoint
+          COLD=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/health)
+          COLD_MS=$(echo "$COLD * 1000" | bc)
+
+          TIMES=""
+          for i in {1..10}; do
+            T=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/health)
+            TIMES="$TIMES $T"
+          done
+          P50=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==5{print $1 * 1000}')
+          P95=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==10{print $1 * 1000}')
+          echo "| /health | ${COLD_MS}ms | ${P50}ms | ${P95}ms |" >> $GITHUB_STEP_SUMMARY
+
+          # Tasks endpoint
+          COLD=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/tasks)
+          COLD_MS=$(echo "$COLD * 1000" | bc)
+
+          TIMES=""
+          for i in {1..10}; do
+            T=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/tasks)
+            TIMES="$TIMES $T"
+          done
+          P50=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==5{print $1 * 1000}')
+          P95=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==10{print $1 * 1000}')
+          echo "| /tasks | ${COLD_MS}ms | ${P50}ms | ${P95}ms |" >> $GITHUB_STEP_SUMMARY
+
+          # Settings endpoint
+          COLD=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/settings)
+          COLD_MS=$(echo "$COLD * 1000" | bc)
+
+          TIMES=""
+          for i in {1..10}; do
+            T=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:3001/settings)
+            TIMES="$TIMES $T"
+          done
+          P50=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==5{print $1 * 1000}')
+          P95=$(echo $TIMES | tr ' ' '\n' | sort -n | awk 'NR==10{print $1 * 1000}')
+          echo "| /settings | ${COLD_MS}ms | ${P50}ms | ${P95}ms |" >> $GITHUB_STEP_SUMMARY
+
+  frontend-bundle:
+    name: Frontend Bundle Size
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: rapitas-frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: rapitas-frontend
+        run: pnpm install
+
+      - name: Build frontend
+        working-directory: rapitas-frontend
+        run: pnpm build
+        env:
+          SKIP_ENV_VALIDATION: true
+
+      - name: Analyze bundle size
+        working-directory: rapitas-frontend
+        run: |
+          echo "## Frontend Bundle Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Calculate JS size
+          JS_SIZE=$(find .next/static -name "*.js" -exec stat -c%s {} \; | awk '{sum+=$1} END {print sum}')
+          JS_SIZE_KB=$(echo "scale=2; $JS_SIZE / 1024" | bc)
+
+          # Calculate CSS size
+          CSS_SIZE=$(find .next/static -name "*.css" -exec stat -c%s {} \; 2>/dev/null | awk '{sum+=$1} END {print sum}')
+          CSS_SIZE_KB=$(echo "scale=2; ${CSS_SIZE:-0} / 1024" | bc)
+
+          # Total
+          TOTAL_KB=$(echo "scale=2; $JS_SIZE_KB + $CSS_SIZE_KB" | bc)
+
+          echo "| Asset Type | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| JavaScript | ${JS_SIZE_KB} KB |" >> $GITHUB_STEP_SUMMARY
+          echo "| CSS | ${CSS_SIZE_KB} KB |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total** | **${TOTAL_KB} KB** |" >> $GITHUB_STEP_SUMMARY
+
+          # Check threshold (500KB)
+          if (( $(echo "$TOTAL_KB > 500" | bc -l) )); then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Warning**: Bundle size exceeds 500KB threshold" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Bundle size is within threshold" >> $GITHUB_STEP_SUMMARY
+          fi

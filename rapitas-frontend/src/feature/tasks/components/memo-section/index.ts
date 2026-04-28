@@ -20,13 +20,6 @@ export { TaskTimeline } from './TaskTimeline';
 export { TemplateSelector } from './TemplateSelector';
 export { useMemoSection } from './useMemoSection';
 
-export type {
-  MemoType,
-  TaskActivity,
-  MemoAnalysis,
-  NoteData,
-  MemoTemplate,
-  Props,
-} from './types';
+export type { MemoType, TaskActivity, MemoAnalysis, NoteData, MemoTemplate, Props } from './types';
 export { MEMO_TEMPLATES, MEMO_TYPE_CONFIG } from './types';
 export { timeAgo, analyzeMemo, generateMockTaskActivities } from './memo-utils';

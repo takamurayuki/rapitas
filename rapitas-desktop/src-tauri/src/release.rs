@@ -120,13 +120,15 @@ pub fn setup_sidecar(app: &tauri::App) {
         while let Some(event) = rx.recv().await {
             match event {
                 CommandEvent::Stdout(line) => {
-                    println!("[Backend] {}", String::from_utf8_lossy(&line));
+                    let line = String::from_utf8_lossy(&line);
+                    println!("[Backend] {line}");
                 }
                 CommandEvent::Stderr(line) => {
-                    eprintln!("[Backend Error] {}", String::from_utf8_lossy(&line));
+                    let line = String::from_utf8_lossy(&line);
+                    eprintln!("[Backend Error] {line}");
                 }
                 CommandEvent::Error(err) => {
-                    eprintln!("[Backend] Error: {}", err);
+                    eprintln!("[Backend] Error: {err}");
                 }
                 CommandEvent::Terminated(payload) => {
                     println!("[Backend] Terminated with code: {:?}", payload.code);

@@ -42,10 +42,9 @@ export const syncPomodoroToBackend = {
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
-          return fetch(
-            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`,
-            { method: 'POST' },
-          );
+          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/complete`, {
+            method: 'POST',
+          });
         }
       })
       .catch(() => {});
@@ -61,10 +60,9 @@ export const syncPomodoroToBackend = {
       .then((res) => res.json())
       .then((data: { session?: { id: number } }) => {
         if (data.session?.id) {
-          return fetch(
-            `${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`,
-            { method: 'POST' },
-          );
+          return fetch(`${API_BASE_URL}/pomodoro/sessions/${data.session.id}/cancel`, {
+            method: 'POST',
+          });
         }
       })
       .catch(() => {});

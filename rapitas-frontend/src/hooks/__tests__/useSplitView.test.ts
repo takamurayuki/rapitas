@@ -7,8 +7,7 @@ const mockIsSplitViewActive = vi.fn().mockReturnValue(false);
 
 vi.mock('@/utils/tauri', () => ({
   isTauri: (...args: unknown[]) => mockIsTauri(...args),
-  openExternalUrlInSplitView: (...args: unknown[]) =>
-    mockOpenExternalUrlInSplitView(...args),
+  openExternalUrlInSplitView: (...args: unknown[]) => mockOpenExternalUrlInSplitView(...args),
   isSplitViewActive: (...args: unknown[]) => mockIsSplitViewActive(...args),
 }));
 
@@ -87,9 +86,7 @@ describe('useSplitView', () => {
       await result.current.openSplitView('https://example.com');
     });
 
-    expect(mockOpenExternalUrlInSplitView).toHaveBeenCalledWith(
-      'https://example.com',
-    );
+    expect(mockOpenExternalUrlInSplitView).toHaveBeenCalledWith('https://example.com');
   });
 
   it('should handle openSplitView error gracefully', async () => {

@@ -28,9 +28,7 @@ export function MetricsFilters({
     <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center gap-3 mb-4">
         <Filter className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
-          {t('filterSettings')}
-        </h3>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{t('filterSettings')}</h3>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -58,9 +56,7 @@ export function MetricsFilters({
           <input
             type="date"
             value={dateRange.endDate}
-            onChange={(e) =>
-              setDateRange((prev) => ({ ...prev, endDate: e.target.value }))
-            }
+            onChange={(e) => setDateRange((prev) => ({ ...prev, endDate: e.target.value }))}
             className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
           />
         </div>

@@ -64,9 +64,7 @@ export function PaidLeaveHeader({
                 </span>
               </p>
             ) : (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                有給休暇を申請
-              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">有給休暇を申請</p>
             )}
           </div>
         </div>

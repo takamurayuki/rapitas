@@ -30,10 +30,7 @@ interface LogSettingsTabProps {
  *
  * @param props - LogSettingsTabProps
  */
-export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({
-  filter,
-  onFilterChange,
-}) => {
+export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({ filter, onFilterChange }) => {
   return (
     <div className="space-y-4">
       <Card>
@@ -81,17 +78,11 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({
               <Label>開始時刻</Label>
               <Input
                 type="datetime-local"
-                value={
-                  filter.startTime
-                    ? filter.startTime.toISOString().slice(0, 16)
-                    : ''
-                }
+                value={filter.startTime ? filter.startTime.toISOString().slice(0, 16) : ''}
                 onChange={(e) =>
                   onFilterChange({
                     ...filter,
-                    startTime: e.target.value
-                      ? new Date(e.target.value)
-                      : undefined,
+                    startTime: e.target.value ? new Date(e.target.value) : undefined,
                   })
                 }
               />
@@ -101,17 +92,11 @@ export const LogSettingsTab: React.FC<LogSettingsTabProps> = ({
               <Label>終了時刻</Label>
               <Input
                 type="datetime-local"
-                value={
-                  filter.endTime
-                    ? filter.endTime.toISOString().slice(0, 16)
-                    : ''
-                }
+                value={filter.endTime ? filter.endTime.toISOString().slice(0, 16) : ''}
                 onChange={(e) =>
                   onFilterChange({
                     ...filter,
-                    endTime: e.target.value
-                      ? new Date(e.target.value)
-                      : undefined,
+                    endTime: e.target.value ? new Date(e.target.value) : undefined,
                   })
                 }
               />

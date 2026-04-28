@@ -38,10 +38,8 @@ export function useKnowledge(options: UseKnowledgeOptions = {}) {
       if (options.limit) params.set('limit', String(options.limit));
       if (options.sourceType) params.set('sourceType', options.sourceType);
       if (options.category) params.set('category', options.category);
-      if (options.forgettingStage)
-        params.set('forgettingStage', options.forgettingStage);
-      if (options.validationStatus)
-        params.set('validationStatus', options.validationStatus);
+      if (options.forgettingStage) params.set('forgettingStage', options.forgettingStage);
+      if (options.validationStatus) params.set('validationStatus', options.validationStatus);
       if (options.themeId) params.set('themeId', String(options.themeId));
       if (options.search) params.set('search', options.search);
       if (options.sortBy) params.set('sortBy', options.sortBy);

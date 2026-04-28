@@ -4,11 +4,13 @@
  * Low-level filesystem helpers for reading, writing, and cleaning up workflow
  * Markdown files. Does not contain any business logic or DB access.
  */
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, stat } from 'fs/promises';
+import { createHash } from 'crypto';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 import { createLogger } from '../../config/logger';
+import { getTaskWorkflowDir, getArchiveDir } from './workflow-paths';
 
 const log = createLogger('workflow-file-utils');
 
@@ -32,9 +34,13 @@ export async function resolveWorkflowDir(taskId: number) {
   const categoryDir = categoryId !== null ? String(categoryId) : '0';
   const themeDir = themeId !== null ? String(themeId) : '0';
 
+  // Suppress unused-variable lint while keeping the previously-computed
+  // legacy `<cwd>/tasks/...` constants available for read-time fallback.
+  void categoryDir;
+  void themeDir;
   return {
     task,
-    dir: join(process.cwd(), 'tasks', categoryDir, themeDir, String(taskId)),
+    dir: getTaskWorkflowDir(categoryId, themeId, taskId),
     categoryId,
     themeId,
   };
@@ -61,16 +67,22 @@ export async function readWorkflowFile(
 
 /**
  * Write to a workflow file, applying mojibake correction before saving.
+ * Existing content (if any) is archived under `_archive/<timestamp>/` so a
+ * regenerated plan never silently destroys the previous version, and a
+ * matching `WorkflowFile` metadata row is upserted for DB-level queries.
  *
  * @param dir - Absolute path to the workflow directory. / ワークフローディレクトリの絶対パス
  * @param fileType - The workflow file type to write. / 書き込むワークフローファイルの種類
  * @param content - Markdown content to write. / 書き込むMarkdownコンテンツ
+ * @param taskId - Optional task id; when provided, metadata is recorded in the
+ *                 `WorkflowFile` table for indexing. / タスクID（メタ記録用）
  */
 export async function writeWorkflowFile(
   dir: string,
   fileType: WorkflowFileType,
   content: string,
-): Promise<void> {
+  taskId?: number,
+): Promise<string> {
   await mkdir(dir, { recursive: true });
 
   // Mojibake detection and correction
@@ -83,7 +95,74 @@ export async function writeWorkflowFile(
   }
 
   const filePath = join(dir, `${fileType}.md`);
+
+  // Archive the previous version when present so users can compare iterations.
+  try {
+    await stat(filePath);
+    const archiveDir = getArchiveDir(dir, new Date().toISOString());
+    await mkdir(archiveDir, { recursive: true });
+    await rename(filePath, join(archiveDir, `${fileType}.md`));
+  } catch {
+    // No prior file — skip archiving silently.
+  }
+
   await writeFile(filePath, sanitizeResult.content, 'utf-8');
+
+  if (taskId !== undefined) {
+    await recordWorkflowFileMetadata(taskId, fileType, sanitizeResult.content, filePath);
+  }
+
+  return sanitizeResult.content;
+}
+
+/**
+ * Upsert a row in the `WorkflowFile` metadata table so consumers can query
+ * "which tasks have a stale plan?" without touching the filesystem.
+ * Best-effort — failures are logged and swallowed.
+ */
+async function recordWorkflowFileMetadata(
+  taskId: number,
+  fileType: WorkflowFileType,
+  content: string,
+  absolutePath: string,
+): Promise<void> {
+  try {
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const sizeBytes = Buffer.byteLength(content, 'utf-8');
+    // Use a dynamic accessor so older builds without the `workflowFile` model
+    // (pre-migration) do not crash here — the metadata is best-effort.
+    const wf = (prisma as unknown as { workflowFile?: WorkflowFileDelegate }).workflowFile;
+    if (!wf) return;
+    await wf.upsert({
+      where: { taskId_fileType: { taskId, fileType } },
+      create: { taskId, fileType, sha256, sizeBytes, absolutePath },
+      update: { sha256, sizeBytes, absolutePath, updatedAt: new Date() },
+    });
+  } catch (err) {
+    log.warn(
+      { err: err instanceof Error ? err.message : err },
+      'WorkflowFile metadata write failed',
+    );
+  }
+}
+
+interface WorkflowFileDelegate {
+  upsert(args: {
+    where: { taskId_fileType: { taskId: number; fileType: string } };
+    create: {
+      taskId: number;
+      fileType: string;
+      sha256: string;
+      sizeBytes: number;
+      absolutePath: string;
+    };
+    update: {
+      sha256: string;
+      sizeBytes: number;
+      absolutePath: string;
+      updatedAt: Date;
+    };
+  }): Promise<unknown>;
 }
 
 /**

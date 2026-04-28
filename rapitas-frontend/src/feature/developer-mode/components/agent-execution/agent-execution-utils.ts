@@ -70,9 +70,7 @@ function containsJpQuestionKeyword(line: string): boolean {
  * Handles: explicit option lists, numbered lists, Japanese yes/no questions,
  * and multi-line question format with trailing punctuation.
  */
-export function parseQuestionOptions(
-  questionText: string,
-): ParsedQuestion | null {
+export function parseQuestionOptions(questionText: string): ParsedQuestion | null {
   if (!questionText) return null;
 
   // 1. Explicit option list: "Options:\nA) ...\nB) ..."
@@ -103,9 +101,7 @@ export function parseQuestionOptions(
   }
 
   // 3. Multiple Japanese yes/no questions
-  const jpQuestionLines = lines.filter(
-    (l) => isJpQuestionLine(l) || containsJpQuestionKeyword(l),
-  );
+  const jpQuestionLines = lines.filter((l) => isJpQuestionLine(l) || containsJpQuestionKeyword(l));
   if (jpQuestionLines.length >= 2) {
     const contextLines = lines.filter((l) => !jpQuestionLines.includes(l));
     return {
@@ -132,11 +128,7 @@ export function parseQuestionOptions(
   }
 
   // 5. English yes/no / confirm patterns
-  if (
-    /\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(
-      questionText,
-    )
-  ) {
+  if (/\b(yes|no|confirm|would you like|do you want|should I)\b/i.test(questionText)) {
     return {
       text: questionText,
       options: ['Yes', 'No'],

@@ -16,11 +16,7 @@ import {
   SettingsActionBar,
 } from './AgentSettingsSections';
 
-export default function AgentSettingsClient({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function AgentSettingsClient({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const t = useTranslations('agents');
 
@@ -57,21 +53,15 @@ export default function AgentSettingsClient({
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)] bg-background">
         <XCircle className="w-12 h-12 text-red-500 mb-4" />
-        <p className="text-zinc-600 dark:text-zinc-400">
-          {error || t('agentNotFound')}
-        </p>
-        <Link
-          href="/agents"
-          className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline"
-        >
+        <p className="text-zinc-600 dark:text-zinc-400">{error || t('agentNotFound')}</p>
+        <Link href="/agents" className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline">
           {t('backToAgentList')}
         </Link>
       </div>
     );
   }
 
-  const providerConfig =
-    PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS['custom'];
+  const providerConfig = PROVIDER_CONFIGS[agent.agentType] || PROVIDER_CONFIGS['custom'];
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
@@ -85,21 +75,15 @@ export default function AgentSettingsClient({
             <ArrowLeft className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
           </Link>
           <div className="flex items-center gap-3">
-            <div
-              className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${providerConfig.color}`}
-            >
+            <div className={`p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 ${providerConfig.color}`}>
               {providerConfig.icon}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                {agent.name}
-              </h1>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{agent.name}</h1>
               <p className="text-zinc-500 dark:text-zinc-400">
                 {t('settingsFor', {
                   name:
-                    providerConfig.name === 'customProvider'
-                      ? t('custom')
-                      : providerConfig.name,
+                    providerConfig.name === 'customProvider' ? t('custom') : providerConfig.name,
                 })}
               </p>
             </div>
@@ -117,9 +101,7 @@ export default function AgentSettingsClient({
         {successMessage && (
           <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
-            <p className="text-green-600 dark:text-green-400">
-              {successMessage}
-            </p>
+            <p className="text-green-600 dark:text-green-400">{successMessage}</p>
           </div>
         )}
 
@@ -153,11 +135,7 @@ export default function AgentSettingsClient({
           onTest={handleTestConnection}
         />
 
-        <SettingsActionBar
-          saving={saving}
-          onSave={handleSave}
-          onDelete={handleDelete}
-        />
+        <SettingsActionBar saving={saving} onSave={handleSave} onDelete={handleDelete} />
       </div>
     </div>
   );

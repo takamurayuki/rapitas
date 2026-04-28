@@ -7,13 +7,7 @@
 
 export type { Priority, Status } from './common.types';
 
-export type {
-  CategoryMode,
-  Category,
-  Theme,
-  Project,
-  Milestone,
-} from './project.types';
+export type { CategoryMode, Category, Theme, Project, Milestone } from './project.types';
 
 export type {
   WorkflowStatus,
@@ -107,19 +101,9 @@ export type {
   GitHubEventData,
 } from './realtime.types';
 
-export type {
-  AIChatMessage,
-  AIChatState,
-  AIChatAction,
-  AIServiceResponse,
-} from './ai-chat.types';
+export type { AIChatMessage, AIChatState, AIChatAction, AIServiceResponse } from './ai-chat.types';
 
-export type {
-  ApiProvider,
-  ApiKeyStatus,
-  ActiveMode,
-  UserSettings,
-} from './settings.types';
+export type { ApiProvider, ApiKeyStatus, ActiveMode, UserSettings } from './settings.types';
 
 export type {
   ScheduleEventType,
@@ -128,3 +112,16 @@ export type {
   PaidLeaveBalance,
   DailyScheduleBlock,
 } from './schedule.types';
+
+export type {
+  TaskExportFilters,
+  TaskJsonExportResponse,
+  ExportedTask,
+  BackupResponse,
+  ICalExportFilters,
+  TaskImportRequest,
+  ImportResult,
+  RestoreMode,
+  RestoreResponse,
+  CsvImportRequest,
+} from './export-import.types';

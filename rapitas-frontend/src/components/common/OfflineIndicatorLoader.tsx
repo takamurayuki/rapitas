@@ -3,10 +3,7 @@
 import dynamic from 'next/dynamic';
 
 const OfflineIndicator = dynamic(
-  () =>
-    import('@/components/common/OfflineIndicator').then(
-      (m) => m.OfflineIndicator,
-    ),
+  () => import('@/components/common/OfflineIndicator').then((m) => m.OfflineIndicator),
   { ssr: false },
 );
 

@@ -1,19 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  Terminal,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Square,
-  Clock,
-  Layers,
-} from 'lucide-react';
-import {
-  ExecutionLogViewer,
-  type ExecutionLogStatus,
-} from './ExecutionLogViewer';
+import { Terminal, Loader2, CheckCircle2, AlertCircle, Square, Clock, Layers } from 'lucide-react';
+import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -98,9 +87,7 @@ function toLogStatus(status: ParallelExecutionStatus): ExecutionLogStatus {
  *
  * Displays logs for each subtask with tab switching during parallel execution.
  */
-export const TabbedExecutionLogViewer: React.FC<
-  TabbedExecutionLogViewerProps
-> = ({
+export const TabbedExecutionLogViewer: React.FC<TabbedExecutionLogViewerProps> = ({
   sessionId,
   subtasks,
   overallLogs,

@@ -11,33 +11,26 @@ type ExamCountdownProps = {
   compact?: boolean;
 };
 
-export function ExamCountdown({
-  examDate,
-  color,
-  compact = false,
-}: ExamCountdownProps) {
+export function ExamCountdown({ examDate, color, compact = false }: ExamCountdownProps) {
   const t = useTranslations('examCountdown');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
-  const { daysRemaining, examDateObj, isUrgent, isNear, isPast, isToday } =
-    useMemo(() => {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      const exam = new Date(examDate);
-      exam.setHours(0, 0, 0, 0);
-      const diff = Math.ceil(
-        (exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      return {
-        daysRemaining: diff,
-        examDateObj: exam,
-        isUrgent: diff > 0 && diff <= 7,
-        isNear: diff > 7 && diff <= 30,
-        isPast: diff < 0,
-        isToday: diff === 0,
-      };
-    }, [examDate]);
+  const { daysRemaining, examDateObj, isUrgent, isNear, isPast, isToday } = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const exam = new Date(examDate);
+    exam.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((exam.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      daysRemaining: diff,
+      examDateObj: exam,
+      isUrgent: diff > 0 && diff <= 7,
+      isNear: diff > 7 && diff <= 30,
+      isPast: diff < 0,
+      isToday: diff === 0,
+    };
+  }, [examDate]);
 
   const month = examDateObj.getMonth() + 1;
   const day = examDateObj.getDate();
@@ -76,9 +69,7 @@ export function ExamCountdown({
             <span className="text-lg font-bold text-zinc-900 dark:text-zinc-50 leading-none">
               {day}
             </span>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 ml-0.5">
-              ({weekday})
-            </span>
+            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 ml-0.5">({weekday})</span>
           </div>
         </div>
         {/* Days remaining */}
@@ -132,21 +123,14 @@ export function ExamCountdown({
       <div className="flex flex-col items-start">
         {isToday ? (
           <div className="flex items-baseline gap-1">
-            <span
-              className="text-3xl font-extrabold"
-              style={{ color: statusColor }}
-            >
+            <span className="text-3xl font-extrabold" style={{ color: statusColor }}>
               {t('examDay')}
             </span>
           </div>
         ) : isPast ? (
           <div className="flex items-baseline gap-1">
-            <span className="text-3xl font-extrabold text-zinc-400">
-              {Math.abs(daysRemaining)}
-            </span>
-            <span className="text-sm font-medium text-zinc-400">
-              {t('daysElapsedUnit')}
-            </span>
+            <span className="text-3xl font-extrabold text-zinc-400">{Math.abs(daysRemaining)}</span>
+            <span className="text-sm font-medium text-zinc-400">{t('daysElapsedUnit')}</span>
           </div>
         ) : (
           <>
@@ -154,16 +138,10 @@ export function ExamCountdown({
               {t('remaining')}
             </div>
             <div className="flex items-baseline gap-1">
-              <span
-                className="text-3xl font-extrabold tabular-nums"
-                style={{ color: statusColor }}
-              >
+              <span className="text-3xl font-extrabold tabular-nums" style={{ color: statusColor }}>
                 {daysRemaining}
               </span>
-              <span
-                className="text-sm font-medium"
-                style={{ color: statusColor }}
-              >
+              <span className="text-sm font-medium" style={{ color: statusColor }}>
                 {t('dayUnit')}
               </span>
             </div>

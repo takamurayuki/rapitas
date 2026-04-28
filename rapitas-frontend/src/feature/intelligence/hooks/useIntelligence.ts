@@ -97,22 +97,19 @@ export function useSuggestedTasks() {
     }
   }, []);
 
-  const updateTaskStatus = useCallback(
-    async (taskId: number, status: string) => {
-      try {
-        const res = await globalThis.fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
-        });
-        return res.ok;
-      } catch (e) {
-        logger.warn('Failed to update task status:', e);
-        return false;
-      }
-    },
-    [],
-  );
+  const updateTaskStatus = useCallback(async (taskId: number, status: string) => {
+    try {
+      const res = await globalThis.fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch (e) {
+      logger.warn('Failed to update task status:', e);
+      return false;
+    }
+  }, []);
 
   const startPomodoro = useCallback(async (taskId: number) => {
     try {
@@ -151,23 +148,20 @@ export function useProductivityHeatmap() {
     }
   }, []);
 
-  const fetchCellTasks = useCallback(
-    async (day: number, hour: number, days: number = 90) => {
-      try {
-        const res = await globalThis.fetch(
-          `${API_BASE_URL}/intelligence/productivity-heatmap/tasks?day=${day}&hour=${hour}&days=${days}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          return data.tasks || [];
-        }
-      } catch (e) {
-        logger.warn('Failed to fetch cell tasks:', e);
+  const fetchCellTasks = useCallback(async (day: number, hour: number, days: number = 90) => {
+    try {
+      const res = await globalThis.fetch(
+        `${API_BASE_URL}/intelligence/productivity-heatmap/tasks?day=${day}&hour=${hour}&days=${days}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return data.tasks || [];
       }
-      return [];
-    },
-    [],
-  );
+    } catch (e) {
+      logger.warn('Failed to fetch cell tasks:', e);
+    }
+    return [];
+  }, []);
 
   return { data, loading, fetch, fetchCellTasks };
 }
@@ -218,17 +212,12 @@ export function useKnowledgeReminders() {
 
   const snooze = useCallback(async (entryId: number, hours: number = 24) => {
     try {
-      const pinnedUntil = new Date(
-        Date.now() + hours * 60 * 60 * 1000,
-      ).toISOString();
-      const res = await globalThis.fetch(
-        `${API_BASE_URL}/knowledge/${entryId}/pin`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pinnedUntil }),
-        },
-      );
+      const pinnedUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      const res = await globalThis.fetch(`${API_BASE_URL}/knowledge/${entryId}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinnedUntil }),
+      });
       if (res.ok) {
         setSummary((prev) => {
           if (!prev) return prev;
@@ -248,9 +237,7 @@ export function useKnowledgeReminders() {
 
   const fetchContent = useCallback(async (entryId: number) => {
     try {
-      const res = await globalThis.fetch(
-        `${API_BASE_URL}/knowledge/${entryId}`,
-      );
+      const res = await globalThis.fetch(`${API_BASE_URL}/knowledge/${entryId}`);
       if (res.ok) {
         const data = await res.json();
         return data.content || '';
@@ -276,11 +263,7 @@ export function useRelatedKnowledge() {
   const [loading, setLoading] = useState(false);
 
   const search = useCallback(
-    async (
-      title: string,
-      description?: string | null,
-      themeId?: number | null,
-    ) => {
+    async (title: string, description?: string | null, themeId?: number | null) => {
       if (!title || title.length < 3) {
         setEntries([]);
         return;

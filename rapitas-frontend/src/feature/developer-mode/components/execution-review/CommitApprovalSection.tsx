@@ -2,13 +2,7 @@
 // CommitApprovalSection
 
 import { useState } from 'react';
-import {
-  Check,
-  GitBranch,
-  GitPullRequest,
-  XCircle,
-  Loader2,
-} from 'lucide-react';
+import { Check, GitBranch, GitPullRequest, XCircle, Loader2 } from 'lucide-react';
 
 type CommitApprovalSectionProps = {
   /** Whether the execution has completed with file changes — shows full commit form when true */
@@ -120,12 +114,7 @@ export function CommitApprovalSection({
         {isReadyToApprove && (
           <button
             onClick={handleApprove}
-            disabled={
-              isProcessing ||
-              isApproving ||
-              isRejecting ||
-              !commitMessage.trim()
-            }
+            disabled={isProcessing || isApproving || isRejecting || !commitMessage.trim()}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isApproving ? (

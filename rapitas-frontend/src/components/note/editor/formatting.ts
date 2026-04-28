@@ -74,10 +74,7 @@ export function applyHighlight(
  * Wrap the current selection in a left-border span.
  * @returns true if successfully applied
  */
-export function applyBorderLine(
-  contentEl: HTMLDivElement | null,
-  color: string,
-): boolean {
+export function applyBorderLine(contentEl: HTMLDivElement | null, color: string): boolean {
   if (isInTitleInput()) return false;
 
   const selection = window.getSelection();
@@ -104,10 +101,7 @@ export function applyBorderLine(
  * Wrap the current selection in a font-size span.
  * @returns true if successfully applied
  */
-export function applyFontSize(
-  contentEl: HTMLDivElement | null,
-  size: string,
-): boolean {
+export function applyFontSize(contentEl: HTMLDivElement | null, size: string): boolean {
   if (isInTitleInput()) return false;
 
   const selection = window.getSelection();
@@ -133,10 +127,7 @@ export function applyFontSize(
  * Wrap the current selection in a font-family span.
  * @returns true if successfully applied
  */
-export function applyFont(
-  contentEl: HTMLDivElement | null,
-  font: string,
-): boolean {
+export function applyFont(contentEl: HTMLDivElement | null, font: string): boolean {
   if (isInTitleInput()) return false;
 
   const selection = window.getSelection();

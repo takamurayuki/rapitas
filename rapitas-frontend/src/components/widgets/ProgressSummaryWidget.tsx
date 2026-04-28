@@ -7,13 +7,7 @@
  * Fetches data from /progress/summary API and shows highlights.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Sparkles,
-  TrendingUp,
-  RefreshCw,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react';
+import { Sparkles, TrendingUp, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 type ProgressSummary = {
@@ -85,16 +79,12 @@ export function ProgressSummaryWidget() {
               disabled={refreshing}
               className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
             >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
-              />
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </div>
 
-        <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-          {data.summary}
-        </p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{data.summary}</p>
 
         {data.highlights.length > 0 && (
           <div className="mt-3 space-y-1.5">
@@ -115,11 +105,7 @@ export function ProgressSummaryWidget() {
             onClick={() => setExpanded(!expanded)}
             className="mt-3 flex items-center gap-1 text-xs text-violet-500 hover:text-violet-600 transition-colors"
           >
-            {expanded ? (
-              <ChevronUp className="w-3 h-3" />
-            ) : (
-              <ChevronDown className="w-3 h-3" />
-            )}
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             {expanded ? '閉じる' : `${data.tasksById.length}件のタスクを表示`}
           </button>
         )}

@@ -25,8 +25,7 @@ const WORKFLOW_PHASE_LABELS: Record<string, string> = {
     '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
   'workflow-reviewer':
     '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
-  'workflow-implementer':
-    '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
+  'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
   'workflow-verifier':
     '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
 };
@@ -52,8 +51,7 @@ export function handleCompleted(
   data: Record<string, unknown>,
   refs: PollRefs,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
-  const isStatusChanged =
-    refs.lastProcessedStatusRef.current !== data.executionStatus;
+  const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
   if (!isStatusChanged && refs.hasAddedFinalLogRef.current) {
     return null;
@@ -71,8 +69,7 @@ export function handleCompleted(
   if (sessionMode?.startsWith('workflow-')) {
     completionMessage =
       '\n' +
-      (WORKFLOW_PHASE_LABELS[sessionMode] ||
-        `[フェーズ完了] ${sessionMode}が完了しました。`) +
+      (WORKFLOW_PHASE_LABELS[sessionMode] || `[フェーズ完了] ${sessionMode}が完了しました。`) +
       '\n';
   }
 
@@ -104,8 +101,7 @@ export function handleFailed(
   data: Record<string, unknown>,
   refs: PollRefs,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
-  const isStatusChanged =
-    refs.lastProcessedStatusRef.current !== data.executionStatus;
+  const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
   if (!isStatusChanged && refs.hasAddedFinalLogRef.current) {
     return null;
@@ -114,10 +110,7 @@ export function handleFailed(
   // NOTE: During grace period after answer submission, a transient failure may
   // occur during session resume fallback, so don't treat as failed immediately
   const isInFailedGracePeriod = Date.now() < refs.responseGraceUntilRef.current;
-  if (
-    isInFailedGracePeriod &&
-    refs.lastProcessedStatusRef.current === 'responding'
-  ) {
+  if (isInFailedGracePeriod && refs.lastProcessedStatusRef.current === 'responding') {
     logger.debug(
       'Ignoring failed status during grace period (session fallback may be in progress)',
     );
@@ -162,8 +155,7 @@ export function handleCancelled(
   data: Record<string, unknown>,
   refs: PollRefs,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
-  const isStatusChanged =
-    refs.lastProcessedStatusRef.current !== data.executionStatus;
+  const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
   if (!isStatusChanged && refs.hasAddedFinalLogRef.current) {
     return null;
@@ -203,20 +195,15 @@ export function handleInterrupted(
   data: Record<string, unknown>,
   refs: PollRefs,
 ): ((prev: ExecutionStreamState) => ExecutionStreamState) | null {
-  const isStatusChanged =
-    refs.lastProcessedStatusRef.current !== data.executionStatus;
+  const isStatusChanged = refs.lastProcessedStatusRef.current !== data.executionStatus;
 
   if (!isStatusChanged && refs.hasAddedFinalLogRef.current) {
     return null;
   }
 
   // Skip during grace period after answer submission
-  const isInInterruptedGracePeriod =
-    Date.now() < refs.responseGraceUntilRef.current;
-  if (
-    isInInterruptedGracePeriod &&
-    refs.lastProcessedStatusRef.current === 'responding'
-  ) {
+  const isInInterruptedGracePeriod = Date.now() < refs.responseGraceUntilRef.current;
+  if (isInInterruptedGracePeriod && refs.lastProcessedStatusRef.current === 'responding') {
     logger.debug('Ignoring interrupted status during grace period');
     return null;
   }
@@ -247,9 +234,7 @@ export function handleInterrupted(
 // ─── Poll loop body ────────────────────────────────────────────────────────
 
 type SetState = (
-  updater:
-    | ExecutionStreamState
-    | ((prev: ExecutionStreamState) => ExecutionStreamState),
+  updater: ExecutionStreamState | ((prev: ExecutionStreamState) => ExecutionStreamState),
 ) => void;
 
 /**
@@ -278,10 +263,9 @@ export async function executePoll(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const res = await fetch(
-      `${API_BASE_URL}/tasks/${taskId}/execution-status`,
-      { signal: controller.signal },
-    );
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`, {
+      signal: controller.signal,
+    });
     clearTimeout(timeoutId);
 
     if (refs.lastProcessedStatusRef.current === 'cancelled') {
@@ -303,9 +287,7 @@ export async function executePoll(
 
     // Always update token usage
     const polledTokensUsed = data.tokensUsed as number | undefined;
-    const polledTotalSessionTokens = data.totalSessionTokens as
-      | number
-      | undefined;
+    const polledTotalSessionTokens = data.totalSessionTokens as number | undefined;
     if (polledTokensUsed || polledTotalSessionTokens) {
       setState((prev) => ({
         ...prev,
@@ -375,10 +357,7 @@ export async function executePoll(
         setState(updater);
         stopPolling();
       }
-    } else if (
-      data.executionStatus === 'waiting_for_input' ||
-      data.waitingForInput
-    ) {
+    } else if (data.executionStatus === 'waiting_for_input' || data.waitingForInput) {
       if (refs.lastProcessedStatusRef.current === 'cancelled') return;
 
       // NOTE: Ignore waiting_for_input during grace period after answer submission
@@ -389,16 +368,11 @@ export async function executePoll(
         (refs.lastProcessedStatusRef.current === 'responding' ||
           refs.lastProcessedStatusRef.current === 'running')
       ) {
-        if (
-          !currentQuestion ||
-          refs.clearedQuestionRef.current === currentQuestion
-        ) {
+        if (!currentQuestion || refs.clearedQuestionRef.current === currentQuestion) {
           logger.debug('Ignoring stale waiting_for_input during grace period');
           return;
         }
-        logger.debug(
-          'New question detected during grace period, allowing through',
-        );
+        logger.debug('New question detected during grace period, allowing through');
       }
 
       const isNewQuestion =
@@ -407,12 +381,10 @@ export async function executePoll(
 
       const timeoutInfo: QuestionTimeoutInfo | undefined = data.questionTimeout
         ? {
-            remainingSeconds: (
-              data.questionTimeout as { remainingSeconds: number }
-            ).remainingSeconds,
+            remainingSeconds: (data.questionTimeout as { remainingSeconds: number })
+              .remainingSeconds,
             deadline: (data.questionTimeout as { deadline: string }).deadline,
-            totalSeconds: (data.questionTimeout as { totalSeconds: number })
-              .totalSeconds,
+            totalSeconds: (data.questionTimeout as { totalSeconds: number }).totalSeconds,
           }
         : undefined;
 
@@ -440,9 +412,7 @@ export async function executePoll(
         // NOTE: questionType uses API value only (pattern_match fallback removed)
         questionType: data.questionType === 'tool_call' ? 'tool_call' : 'none',
         questionTimeout: timeoutInfo,
-        questionDetails:
-          (data.questionDetails as ExecutionStreamState['questionDetails']) ||
-          null,
+        questionDetails: (data.questionDetails as ExecutionStreamState['questionDetails']) || null,
       }));
     } else if (data.executionStatus === 'running') {
       if (refs.lastProcessedStatusRef.current === 'cancelled') return;
@@ -461,10 +431,7 @@ export async function executePoll(
       logger.debug('Request timed out, will retry');
       return;
     }
-    if (
-      error instanceof TypeError &&
-      error.message.includes('Failed to fetch')
-    ) {
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       logger.warn('Network error - backend may be unresponsive');
       return;
     }

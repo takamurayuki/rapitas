@@ -17,36 +17,36 @@ pub fn launch_browser_with_size(
         if browser_name.contains("chrome") || browser_name.contains("msedge") {
             // Chrome/Edge: --new-tab opens within the existing browser instance
             Command::new(&browser_path)
-                .args(&[
-                    "--new-tab",
-                    &format!("--window-position={},{}", x, y),
-                    &format!("--window-size={},{}", width, height),
-                    "--force-device-scale-factor=1",
-                    url,
+                .args([
+                    "--new-tab".to_string(),
+                    format!("--window-position={x},{y}"),
+                    format!("--window-size={width},{height}"),
+                    "--force-device-scale-factor=1".to_string(),
+                    url.to_string(),
                 ])
                 .spawn()
-                .map_err(|e| format!("Failed to launch browser: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {e}"))?;
         } else if browser_name.contains("firefox") {
             Command::new(&browser_path)
-                .args(&[
-                    "-new-tab",
-                    "-width",
-                    &width.to_string(),
-                    "-height",
-                    &height.to_string(),
-                    url,
+                .args([
+                    "-new-tab".to_string(),
+                    "-width".to_string(),
+                    width.to_string(),
+                    "-height".to_string(),
+                    height.to_string(),
+                    url.to_string(),
                 ])
                 .spawn()
-                .map_err(|e| format!("Failed to launch browser: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {e}"))?;
         } else {
             Command::new(&browser_path)
                 .arg(url)
                 .spawn()
-                .map_err(|e| format!("Failed to launch browser: {}", e))?;
+                .map_err(|e| format!("Failed to launch browser: {e}"))?;
         }
     } else {
         // Fall back to OS default open handler
-        open::that(url).map_err(|e| format!("Failed to launch browser: {}", e))?;
+        open::that(url).map_err(|e| format!("Failed to launch browser: {e}"))?;
     }
 
     Ok(())
@@ -162,5 +162,5 @@ pub fn launch_browser_with_size(
     _width: i32,
     _height: i32,
 ) -> Result<(), String> {
-    open::that(url).map_err(|e| format!("Failed to launch browser: {}", e))
+    open::that(url).map_err(|e| format!("Failed to launch browser: {e}"))
 }

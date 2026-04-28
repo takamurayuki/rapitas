@@ -23,11 +23,7 @@ interface RetryPanelProps {
  *
  * @param props - RetryPanelProps
  */
-export function RetryPanel({
-  retryCount,
-  maxRetries,
-  reason,
-}: RetryPanelProps) {
+export function RetryPanel({ retryCount, maxRetries, reason }: RetryPanelProps) {
   return (
     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
       <div className="flex items-center gap-3 mb-3">
@@ -74,17 +70,11 @@ export function RollbackPanel({
       <div className="flex items-center gap-3 mb-3">
         <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
         <div>
-          <p className="text-sm font-medium text-red-800 dark:text-red-200">
-            Processing failed
-          </p>
-          <p className="text-xs text-red-600 dark:text-red-400">
-            {rollbackReason}
-          </p>
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">Processing failed</p>
+          <p className="text-xs text-red-600 dark:text-red-400">{rollbackReason}</p>
         </div>
       </div>
-      <p className="text-xs text-red-600 dark:text-red-400 mb-3">
-        Error details: {errorDetails}
-      </p>
+      <p className="text-xs text-red-600 dark:text-red-400 mb-3">Error details: {errorDetails}</p>
       <div className="flex gap-2">
         <button
           onClick={onRetry}
@@ -162,9 +152,7 @@ export function ErrorPanel({
         <AlertTriangle className="w-4 h-4" />
         <span className="text-sm font-medium">An error occurred</span>
       </div>
-      <p className="text-sm text-red-600 dark:text-red-400 mb-3">
-        {errorMessage}
-      </p>
+      <p className="text-sm text-red-600 dark:text-red-400 mb-3">{errorMessage}</p>
       <div className="flex gap-2">
         <button
           onClick={onRetry}

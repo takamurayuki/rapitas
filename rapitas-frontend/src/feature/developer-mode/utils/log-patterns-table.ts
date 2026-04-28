@@ -13,6 +13,98 @@ interface LogPatternRule {
 }
 
 export const LOG_PATTERNS: LogPatternRule[] = [
+  // ── Legacy plain log formats used by existing tests ─────────────────
+  {
+    pattern: /\[(research)\]/i,
+    transform: () => ({
+      category: 'progress',
+      message: '📊 調査フェーズを開始しました',
+      iconName: 'Search',
+      phase: 'research' as const,
+    }),
+  },
+  {
+    pattern: /\[(plan)\]/i,
+    transform: () => ({
+      category: 'progress',
+      message: '📋 計画フェーズを開始しました',
+      iconName: 'ClipboardList',
+      phase: 'plan' as const,
+    }),
+  },
+  {
+    pattern: /\[(implement)\]/i,
+    transform: () => ({
+      category: 'progress',
+      message: '💻 実装フェーズを開始しました',
+      iconName: 'Code',
+      phase: 'implement' as const,
+    }),
+  },
+  {
+    pattern: /\[(verify)\]/i,
+    transform: () => ({
+      category: 'progress',
+      message: '🧪 検証フェーズを開始しました',
+      iconName: 'ShieldCheck',
+      phase: 'verify' as const,
+    }),
+  },
+  {
+    pattern: /^file_edit\s+(.+)/,
+    transform: (_l, m) => {
+      const file = m[1];
+      const basename = file.split(/[\\/]/).pop() || file;
+      return {
+        category: 'info',
+        message: `📝 ${basename} を編集しました`,
+        detail: file,
+        iconName: 'FileEdit',
+      };
+    },
+  },
+  {
+    pattern: /^file_create\s+(.+)/,
+    transform: (_l, m) => ({
+      category: 'success',
+      message: `✨ 新しいファイル ${m[1]} を作成しました`,
+      iconName: 'FileEdit',
+    }),
+  },
+  {
+    pattern: /^error:/i,
+    transform: (log) => ({
+      category: 'error',
+      message: '❌ エラーが発生しました',
+      detail: log,
+      iconName: 'AlertCircle',
+    }),
+  },
+  {
+    pattern: /test passed|all tests completed successfully|✓/i,
+    transform: () => ({
+      category: 'success',
+      message: '✅ テストが正常に完了しました',
+      iconName: 'TestTube',
+    }),
+  },
+  {
+    pattern: /^git\s+commit\b/i,
+    transform: () => ({
+      category: 'success',
+      message: '💾 変更をコミットしました',
+      iconName: 'GitBranch',
+    }),
+  },
+  {
+    pattern: /^(processing|waiting for response)/i,
+    transform: (log) => ({
+      category: 'progress',
+      message: '⏳ 処理中です',
+      detail: log,
+      iconName: 'Loader',
+    }),
+  },
   // ── Execution lifecycle ──────────────────────────────────────────────
   {
     pattern: /^\[実行開始\]\s*(.+)/,
@@ -69,44 +161,6 @@ export const LOG_PATTERNS: LogPatternRule[] = [
         iconName: isOk ? 'CheckCircle' : 'XCircle',
       };
     },
-  },
-
-  // ── Workflow phases ───────────────────────────────────────────────────
-  {
-    pattern: /\[(research)\]/i,
-    transform: () => ({
-      category: 'phase-transition',
-      message: '調査フェーズ',
-      iconName: 'Search',
-      phase: 'research' as const,
-    }),
-  },
-  {
-    pattern: /\[(plan)\]/i,
-    transform: () => ({
-      category: 'phase-transition',
-      message: '計画フェーズ',
-      iconName: 'ClipboardList',
-      phase: 'plan' as const,
-    }),
-  },
-  {
-    pattern: /\[(implement)\]/i,
-    transform: () => ({
-      category: 'phase-transition',
-      message: '実装フェーズ',
-      iconName: 'Code',
-      phase: 'implement' as const,
-    }),
-  },
-  {
-    pattern: /\[(verify)\]/i,
-    transform: () => ({
-      category: 'phase-transition',
-      message: '検証フェーズ',
-      iconName: 'ShieldCheck',
-      phase: 'verify' as const,
-    }),
   },
 
   // ── Tool calls — file operations ──────────────────────────────────────

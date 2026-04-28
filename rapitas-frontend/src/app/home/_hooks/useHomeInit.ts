@@ -65,10 +65,7 @@ export function useHomeInit({
         results = (await Promise.race([
           Promise.allSettled(Object.values(requests)),
           new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error('timeout')),
-              INITIAL_LOAD_TIMEOUT,
-            ),
+            setTimeout(() => reject(new Error('timeout')), INITIAL_LOAD_TIMEOUT),
           ),
         ])) as PromiseSettledResult<unknown>[];
       } catch {
@@ -81,9 +78,7 @@ export function useHomeInit({
 
       const [, , settingsResult] = results;
       const settings =
-        settingsResult.status === 'fulfilled'
-          ? (settingsResult.value as UserSettings)
-          : null;
+        settingsResult.status === 'fulfilled' ? (settingsResult.value as UserSettings) : null;
 
       if (categoryFilter === null) {
         if (settings?.defaultCategoryId) {

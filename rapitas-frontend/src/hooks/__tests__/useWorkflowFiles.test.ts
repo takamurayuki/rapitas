@@ -53,9 +53,7 @@ describe('useWorkflowFiles', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(fetch).toHaveBeenCalledWith(
-      'http://test:3001/workflow/tasks/1/files',
-    );
+    expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/1/files');
     expect(result.current.files).toEqual({
       research: mockFilesResponse.research,
       question: mockFilesResponse.question,
@@ -126,10 +124,7 @@ describe('useWorkflowFiles', () => {
   });
 
   it('should handle network error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('Network error')),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
     const { result } = renderHook(() => useWorkflowFiles(1));
 
@@ -141,10 +136,9 @@ describe('useWorkflowFiles', () => {
   });
 
   it('should reset state when taskId changes', async () => {
-    const { result, rerender } = renderHook(
-      ({ taskId }) => useWorkflowFiles(taskId),
-      { initialProps: { taskId: 1 as number | null } },
-    );
+    const { result, rerender } = renderHook(({ taskId }) => useWorkflowFiles(taskId), {
+      initialProps: { taskId: 1 as number | null },
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -157,9 +151,7 @@ describe('useWorkflowFiles', () => {
     // files should be reset immediately on taskId change
     // (they get set to null in the useEffect)
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith(
-        'http://test:3001/workflow/tasks/2/files',
-      );
+      expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/2/files');
     });
   });
 });

@@ -16,14 +16,12 @@ describe('tauri utilities', () => {
   beforeEach(() => {
     // Store original values
     originalTauri = (window as unknown as { __TAURI__?: unknown }).__TAURI__;
-    originalSplitView = (
-      window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }
-    ).__RAPITAS_SPLIT_VIEW__;
+    originalSplitView = (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown })
+      .__RAPITAS_SPLIT_VIEW__;
 
     // Clean up window state
     delete (window as unknown as { __TAURI__?: unknown }).__TAURI__;
-    delete (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown })
-      .__RAPITAS_SPLIT_VIEW__;
+    delete (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__;
   });
 
   afterEach(() => {
@@ -35,12 +33,10 @@ describe('tauri utilities', () => {
     }
 
     if (originalSplitView !== undefined) {
-      (
-        window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }
-      ).__RAPITAS_SPLIT_VIEW__ = originalSplitView;
+      (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__ =
+        originalSplitView;
     } else {
-      delete (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown })
-        .__RAPITAS_SPLIT_VIEW__;
+      delete (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__;
     }
   });
 
@@ -94,9 +90,7 @@ describe('tauri utilities', () => {
     });
 
     it('文字列IDを正しく処理する', () => {
-      expect(getApprovalDetailPath('approval-abc')).toBe(
-        '/approvals/approval-abc',
-      );
+      expect(getApprovalDetailPath('approval-abc')).toBe('/approvals/approval-abc');
     });
   });
 
@@ -108,17 +102,13 @@ describe('tauri utilities', () => {
     it('Tauri環境で正しいパスを返す', () => {
       (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
 
-      expect(getGitHubPRDetailPath(42)).toBe(
-        '/github/pull-requests/detail?id=42',
-      );
+      expect(getGitHubPRDetailPath(42)).toBe('/github/pull-requests/detail?id=42');
     });
 
     it('文字列IDを正しく処理する', () => {
       (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
 
-      expect(getGitHubPRDetailPath('pr-123')).toBe(
-        '/github/pull-requests/detail?id=pr-123',
-      );
+      expect(getGitHubPRDetailPath('pr-123')).toBe('/github/pull-requests/detail?id=pr-123');
     });
   });
 
@@ -127,12 +117,19 @@ describe('tauri utilities', () => {
 
     beforeEach(() => {
       // Mock window.location
-      delete (window as { location?: Location }).location;
-      window.location = { ...originalLocation };
+      Object.defineProperty(window, 'location', {
+        value: { ...originalLocation },
+        writable: true,
+        configurable: true,
+      });
     });
 
     afterEach(() => {
-      window.location = originalLocation;
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
     });
 
     it('URLに存在するパラメータを取得する', () => {
@@ -196,9 +193,7 @@ describe('tauri utilities', () => {
 
     it('Tauri環境でスプリットビュー状態がある場合、trueを返す', () => {
       (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
-      (
-        window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }
-      ).__RAPITAS_SPLIT_VIEW__ = {
+      (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__ = {
         originalSize: { width: 1200, height: 800 },
         originalPosition: { x: 100, y: 100 },
         wasMaximized: false,
@@ -212,9 +207,7 @@ describe('tauri utilities', () => {
 
     it('スプリットビュー状態がnullの場合、falseを返す', () => {
       (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
-      (
-        window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }
-      ).__RAPITAS_SPLIT_VIEW__ = null;
+      (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__ = null;
 
       expect(isSplitViewActive()).toBe(false);
     });

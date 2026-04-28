@@ -16,10 +16,7 @@ import { VersionList } from './VersionList';
 import { statusStyles } from './types';
 import type { AgentConfig, AgentVersion } from './types';
 
-const statusIcons: Record<
-  AgentConfig['installationStatus'],
-  React.ElementType
-> = {
+const statusIcons: Record<AgentConfig['installationStatus'], React.ElementType> = {
   not_installed: Package,
   installing: RefreshCw,
   installed: CheckCircle2,
@@ -75,20 +72,16 @@ export function AgentCard({
               <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                 {agent.name}
               </h3>
-              <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-                {agent.description}
-              </p>
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm">{agent.description}</p>
               <div className="flex items-center gap-4 mt-2">
                 <span
                   className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusStyles[agent.installationStatus]}`}
                 >
                   <StatusIcon className="w-3 h-3 mr-1" />
-                  {agent.installationStatus === 'not_installed' &&
-                    t('notInstalled')}
+                  {agent.installationStatus === 'not_installed' && t('notInstalled')}
                   {agent.installationStatus === 'installing' && t('installing')}
                   {agent.installationStatus === 'installed' && t('installed')}
-                  {agent.installationStatus === 'update_available' &&
-                    t('updateAvailable')}
+                  {agent.installationStatus === 'update_available' && t('updateAvailable')}
                   {agent.installationStatus === 'error' && t('error')}
                 </span>
                 {agent.currentVersion && (
@@ -169,11 +162,7 @@ export function AgentCard({
               onClick={() => onToggleExpand(agent.id)}
               className="p-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
             >
-              {isExpanded ? (
-                <ChevronUp className="w-5 h-5" />
-              ) : (
-                <ChevronDown className="w-5 h-5" />
-              )}
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
           </div>
         </div>

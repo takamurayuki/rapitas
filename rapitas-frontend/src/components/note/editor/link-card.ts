@@ -1,11 +1,7 @@
 /**
  * Create a styled link-card anchor element.
  */
-export function createLinkNode(
-  url: string,
-  title: string,
-  favicon: string,
-): HTMLAnchorElement {
+export function createLinkNode(url: string, title: string, favicon: string): HTMLAnchorElement {
   const a = document.createElement('a');
   a.href = url;
   a.target = '_blank';
@@ -62,10 +58,7 @@ export function createLinkNode(
  * @param root          The container element (contentEditable div)
  * @param onContentChange  Callback for dirty-flag (used to wire code-block event handlers)
  */
-export function normalizeLinkCards(
-  root: HTMLElement,
-  onContentChange: () => void,
-): void {
+export function normalizeLinkCards(root: HTMLElement, onContentChange: () => void): void {
   const anchors = Array.from(root.querySelectorAll('a'));
 
   for (const a of anchors) {
@@ -103,9 +96,7 @@ export function normalizeLinkCards(
   }
 
   // Re-attach event handlers for code blocks
-  const codeBlocks = Array.from(
-    root.querySelectorAll("[data-rapitas-code-block='1']"),
-  );
+  const codeBlocks = Array.from(root.querySelectorAll("[data-rapitas-code-block='1']"));
   for (const block of codeBlocks) {
     const codeElement = block.querySelector('code[contenteditable]');
     const buttons = block.querySelectorAll('button');
@@ -117,10 +108,7 @@ export function normalizeLinkCards(
 
       codeElement.addEventListener('keydown', (e) => {
         const keyboardEvent = e as KeyboardEvent;
-        if (
-          keyboardEvent.key === 'Backspace' ||
-          keyboardEvent.key === 'Delete'
-        ) {
+        if (keyboardEvent.key === 'Backspace' || keyboardEvent.key === 'Delete') {
           const selection = window.getSelection();
           if (selection && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
@@ -128,8 +116,7 @@ export function normalizeLinkCards(
               const container = range.startContainer;
               if (
                 container === codeElement ||
-                (container.parentNode === codeElement &&
-                  container.previousSibling === null)
+                (container.parentNode === codeElement && container.previousSibling === null)
               ) {
                 e.preventDefault();
                 return;

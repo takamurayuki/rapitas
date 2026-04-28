@@ -59,9 +59,7 @@ export function LocalLlmSection({
         <div className="flex items-center gap-3">
           <Terminal className="w-5 h-5 text-emerald-500" />
           <div>
-            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              {t('localLlmConfig')}
-            </h2>
+            <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('localLlmConfig')}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
               {t('localLlmDescription')}
             </p>
@@ -114,9 +112,7 @@ export function LocalLlmSection({
               className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
             />
             <button
-              onClick={() =>
-                onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })
-              }
+              onClick={() => onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })}
               className="px-3 py-2 text-sm font-medium rounded-lg bg-violet-500 text-white hover:bg-violet-600 transition-colors"
             >
               <Save className="w-4 h-4" />
@@ -189,9 +185,7 @@ export function LocalLlmSection({
             {!localLlmStatus?.modelDownloaded && (
               <button
                 onClick={onDownloadModel}
-                disabled={
-                  localLlmLoading || downloadProgress?.status === 'downloading'
-                }
+                disabled={localLlmLoading || downloadProgress?.status === 'downloading'}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
               >
                 {downloadProgress?.status === 'downloading'
@@ -218,12 +212,9 @@ export function LocalLlmSection({
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
-              onClick={() =>
-                onSaveLocalLlmSettings({ titleGenerationProvider: 'ollama' })
-              }
+              onClick={() => onSaveLocalLlmSettings({ titleGenerationProvider: 'ollama' })}
               className={`p-3 rounded-xl border-2 text-left transition-all ${
-                !settings?.titleGenerationProvider ||
-                settings.titleGenerationProvider === 'ollama'
+                !settings?.titleGenerationProvider || settings.titleGenerationProvider === 'ollama'
                   ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
                   : 'border-zinc-200 dark:border-zinc-700 hover:border-emerald-300 dark:hover:border-emerald-700 bg-white dark:bg-zinc-800'
               }`}
@@ -239,9 +230,7 @@ export function LocalLlmSection({
               </div>
             </button>
             <button
-              onClick={() =>
-                onSaveLocalLlmSettings({ titleGenerationProvider: 'default' })
-              }
+              onClick={() => onSaveLocalLlmSettings({ titleGenerationProvider: 'default' })}
               className={`p-3 rounded-xl border-2 text-left transition-all ${
                 settings?.titleGenerationProvider === 'default'
                   ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'

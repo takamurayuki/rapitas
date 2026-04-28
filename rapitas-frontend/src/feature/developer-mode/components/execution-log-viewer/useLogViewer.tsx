@@ -10,13 +10,7 @@
  * derived values so the component itself stays thin and focused on rendering.
  */
 
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-} from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   transformLogsToSimple,
   detectCurrentPhase,
@@ -89,8 +83,7 @@ export function useLogViewer({
 }: UseLogViewerOptions): UseLogViewerReturn {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isFullscreen, setIsFullscreen] = useState(defaultFullscreen);
-  const [viewMode, setViewMode] =
-    useState<ExecutionLogViewMode>(defaultViewMode);
+  const [viewMode, setViewMode] = useState<ExecutionLogViewMode>(defaultViewMode);
   const [copied, setCopied] = useState(false);
 
   const search = useLogSearch({ logs });
@@ -128,11 +121,7 @@ export function useLogViewer({
   // Auto-scroll on log update (with 100ms buffering to batch rapid updates)
   useEffect(() => {
     if (logs.length > prevLogsLengthRef.current) {
-      if (
-        logContainerRef.current &&
-        autoScroll &&
-        !isUserScrollingRef.current
-      ) {
+      if (logContainerRef.current && autoScroll && !isUserScrollingRef.current) {
         if (scrollTimerRef.current) {
           clearTimeout(scrollTimerRef.current);
         }
@@ -179,10 +168,7 @@ export function useLogViewer({
 
       if (logContainerRef.current) {
         const estimatedLineHeight = 20;
-        const scrollPosition = Math.max(
-          0,
-          (lineNumber - 3) * estimatedLineHeight,
-        );
+        const scrollPosition = Math.max(0, (lineNumber - 3) * estimatedLineHeight);
         logContainerRef.current.scrollTo({
           top: scrollPosition,
           behavior: 'smooth',
@@ -198,26 +184,16 @@ export function useLogViewer({
 
   const goToNextMatch = useCallback(() => {
     if (search.searchMatches.length === 0) return;
-    const nextIndex =
-      (search.currentMatchIndex + 1) % search.searchMatches.length;
+    const nextIndex = (search.currentMatchIndex + 1) % search.searchMatches.length;
     jumpToMatchInContainer(nextIndex);
-  }, [
-    search.currentMatchIndex,
-    search.searchMatches.length,
-    jumpToMatchInContainer,
-  ]);
+  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
 
   const goToPreviousMatch = useCallback(() => {
     if (search.searchMatches.length === 0) return;
     const prevIndex =
-      (search.currentMatchIndex - 1 + search.searchMatches.length) %
-      search.searchMatches.length;
+      (search.currentMatchIndex - 1 + search.searchMatches.length) % search.searchMatches.length;
     jumpToMatchInContainer(prevIndex);
-  }, [
-    search.currentMatchIndex,
-    search.searchMatches.length,
-    jumpToMatchInContainer,
-  ]);
+  }, [search.currentMatchIndex, search.searchMatches.length, jumpToMatchInContainer]);
 
   const handleSearchKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -263,30 +239,22 @@ export function useLogViewer({
   }, []);
 
   // Helper to highlight matching text
-  const highlightText = useCallback(
-    (text: string, query: string): React.ReactNode => {
-      if (!query.trim()) return text;
+  const highlightText = useCallback((text: string, query: string): React.ReactNode => {
+    if (!query.trim()) return text;
 
-      const parts = text.split(
-        new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
-      );
+    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
 
-      return parts.map((part, i) => {
-        if (part.toLowerCase() === query.toLowerCase()) {
-          return (
-            <mark
-              key={i}
-              className="bg-yellow-600/50 text-yellow-200 rounded px-0.5"
-            >
-              {part}
-            </mark>
-          );
-        }
-        return part;
-      });
-    },
-    [],
-  );
+    return parts.map((part, i) => {
+      if (part.toLowerCase() === query.toLowerCase()) {
+        return (
+          <mark key={i} className="bg-yellow-600/50 text-yellow-200 rounded px-0.5">
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
+  }, []);
 
   // Track previous log count to identify new entries for animation
   const [displayedLogsCount, setDisplayedLogsCount] = useState(0);

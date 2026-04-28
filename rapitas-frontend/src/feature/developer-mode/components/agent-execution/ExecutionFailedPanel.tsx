@@ -45,9 +45,7 @@ export function ExecutionFailedPanel({
               <h3 className="font-bold text-lg text-red-700 dark:text-red-300">
                 実行に失敗しました
               </h3>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                {errorMessage}
-              </p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errorMessage}</p>
               {(pollingTokensUsed ?? 0) > 0 && (
                 <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                   <Zap className="w-3.5 h-3.5" />

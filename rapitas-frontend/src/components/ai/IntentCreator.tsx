@@ -7,14 +7,7 @@
  * Provides a template editor with preview of the compiled output.
  */
 import React, { useState, useCallback } from 'react';
-import {
-  FileText,
-  Play,
-  Eye,
-  AlertCircle,
-  CheckCircle,
-  Sparkles,
-} from 'lucide-react';
+import { FileText, Play, Eye, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 const INTENT_TEMPLATE = `title:
@@ -118,9 +111,7 @@ export function IntentCreator({ themeId, onCreated }: Props) {
         <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
           Intent-Driven Development
         </span>
-        <span className="ml-auto text-xs text-zinc-400">
-          宣言的にタスクを定義
-        </span>
+        <span className="ml-auto text-xs text-zinc-400">宣言的にタスクを定義</span>
       </div>
 
       {created ? (
@@ -181,13 +172,10 @@ export function IntentCreator({ themeId, onCreated }: Props) {
                   <strong>Goals:</strong> {preview.intent.goals.length}件
                 </p>
                 <p>
-                  <strong>Constraints:</strong>{' '}
-                  {preview.intent.constraints.length}件
+                  <strong>Constraints:</strong> {preview.intent.constraints.length}件
                 </p>
                 {preview.warnings.length > 0 && (
-                  <p className="text-amber-600">
-                    ⚠️ {preview.warnings.join(', ')}
-                  </p>
+                  <p className="text-amber-600">⚠️ {preview.warnings.join(', ')}</p>
                 )}
               </div>
             </div>

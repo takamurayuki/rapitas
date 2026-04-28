@@ -3,11 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { isTauri } from '@/utils/tauri';
-import {
-  useShortcutStore,
-  type ShortcutId,
-  type ShortcutBinding,
-} from '@/stores/shortcut-store';
+import { useShortcutStore, type ShortcutId, type ShortcutBinding } from '@/stores/shortcut-store';
 import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
 import {
@@ -42,13 +38,8 @@ export function useShortcutSettings() {
   const t = useTranslations('shortcuts');
   const tc = useTranslations('common');
 
-  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(
-    DEFAULT_GLOBAL_SHORTCUT,
-  );
-  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>([
-    'Ctrl',
-    'Alt',
-  ]);
+  const [currentGlobalShortcut, setCurrentGlobalShortcut] = useState(DEFAULT_GLOBAL_SHORTCUT);
+  const [globalModifiers, setGlobalModifiers] = useState<ModifierKey[]>(['Ctrl', 'Alt']);
   const [globalKey, setGlobalKey] = useState('R');
   const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
@@ -58,14 +49,8 @@ export function useShortcutSettings() {
   } | null>(null);
   const [isRecordingGlobal, setIsRecordingGlobal] = useState(false);
 
-  const {
-    shortcuts,
-    updateShortcut,
-    resetShortcut,
-    resetAll,
-    findDuplicate,
-    getDefault,
-  } = useShortcutStore();
+  const { shortcuts, updateShortcut, resetShortcut, resetAll, findDuplicate, getDefault } =
+    useShortcutStore();
   const [editingId, setEditingId] = useState<ShortcutId | null>(null);
   const [editBinding, setEditBinding] = useState<Pick<
     ShortcutBinding,
@@ -155,21 +140,18 @@ export function useShortcutSettings() {
       const key = resolveKeyFromEvent(e);
       if (!key) return;
 
-      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> =
-        {
-          key,
-          meta: e.ctrlKey || e.metaKey,
-          shift: e.shiftKey,
-          ctrl: false,
-        };
+      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
+        key,
+        meta: e.ctrlKey || e.metaKey,
+        shift: e.shiftKey,
+        ctrl: false,
+      };
 
       setEditBinding(binding);
       setIsRecordingInApp(false);
 
       const dup = findDuplicate(editingId, binding);
-      setDuplicateWarning(
-        dup ? t('duplicateWith', { label: dup.label }) : null,
-      );
+      setDuplicateWarning(dup ? t('duplicateWith', { label: dup.label }) : null);
     };
 
     window.addEventListener('keydown', handleKeyDown, true);

@@ -185,6 +185,77 @@ export async function getUnusedIdeasForContext(
   return entries.map(toIdeaBoxEntry);
 }
 
+export interface UpdateIdeaInput {
+  title?: string;
+  content?: string;
+  category?: string;
+  scope?: IdeaScope;
+  /** Pass null to clear the existing themeId; undefined to leave unchanged. */
+  themeId?: number | null;
+  tags?: string[];
+}
+
+/**
+ * Update an existing idea. Recomputes contentHash so dedup stays consistent.
+ *
+ * @param ideaId - KnowledgeEntry ID / アイデアID
+ * @param input - Fields to update / 更新フィールド
+ * @returns true on success, false if the idea was not found / 成否
+ * @throws Error when title/content would become empty / タイトル・内容が空になる場合
+ */
+export async function updateIdea(ideaId: number, input: UpdateIdeaInput): Promise<boolean> {
+  const existing = await prisma.knowledgeEntry.findUnique({
+    where: { id: ideaId },
+    select: {
+      id: true,
+      sourceType: true,
+      title: true,
+      content: true,
+      category: true,
+      tags: true,
+      themeId: true,
+    },
+  });
+
+  if (!existing || existing.sourceType !== 'idea_box') return false;
+
+  const nextTitle = input.title?.trim() ?? existing.title;
+  const nextContent = input.content?.trim() ?? existing.content;
+  if (!nextTitle || !nextContent) {
+    throw new Error('タイトルと内容は必須です');
+  }
+
+  // Determine themeId: undefined keeps current, explicit null clears.
+  let nextThemeId: number | null;
+  if (input.themeId === undefined) nextThemeId = existing.themeId;
+  else nextThemeId = input.themeId;
+
+  // Reconcile scope tag with the new themeId. Explicit scope wins, otherwise
+  // derive from themeId presence.
+  const existingTags = JSON.parse(existing.tags || '[]') as string[];
+  const userTags = (input.tags ?? existingTags).filter((t) => !t.startsWith('scope:'));
+  const nextScope: IdeaScope =
+    input.scope ?? (nextThemeId !== null && nextThemeId !== undefined ? 'project' : 'global');
+  const nextTags = [...userTags, `scope:${nextScope}`];
+
+  const nextHash = createContentHash(`${nextTitle}:${nextContent}`);
+
+  await prisma.knowledgeEntry.update({
+    where: { id: ideaId },
+    data: {
+      title: nextTitle,
+      content: nextContent,
+      contentHash: nextHash,
+      category: input.category ?? existing.category,
+      tags: JSON.stringify(nextTags),
+      themeId: nextThemeId ?? null,
+    },
+  });
+
+  log.info({ ideaId }, 'Idea updated');
+  return true;
+}
+
 /**
  * Mark an idea as used in a generated task.
  *

@@ -26,14 +26,8 @@ const formatMinutes = (m: number): string => {
 };
 
 export function WeeklyReviewCard() {
-  const {
-    review,
-    isLoading,
-    error,
-    isRegenerating,
-    regenerateError,
-    regenerate,
-  } = useWeeklyReview();
+  const { review, isLoading, error, isRegenerating, regenerateError, regenerate } =
+    useWeeklyReview();
 
   // Decode the stats JSON for display. Falls back to null on parse failure.
   const stats: WeeklyReviewStats | null = useMemo(() => {

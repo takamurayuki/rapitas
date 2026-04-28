@@ -180,10 +180,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white dark:bg-indigo-dark-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
@@ -205,10 +202,7 @@ export function DeveloperModeConfigModal(props: ModalProps) {
 
         {/* Tab bar */}
         <div className="px-6 pt-4">
-          <div
-            className="flex border-b border-zinc-200 dark:border-zinc-700"
-            role="tablist"
-          >
+          <div className="flex border-b border-zinc-200 dark:border-zinc-700" role="tablist">
             {TABS.map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;

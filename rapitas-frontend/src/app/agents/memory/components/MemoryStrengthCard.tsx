@@ -14,11 +14,8 @@ interface MemoryStrengthCardProps {
  *
  * @param memoryOverview - Full overview data including strength score and level.
  */
-export function MemoryStrengthCard({
-  memoryOverview,
-}: MemoryStrengthCardProps) {
-  const levelCfg =
-    LEVEL_CONFIG[memoryOverview.memoryStrength.level] ?? LEVEL_CONFIG.beginner;
+export function MemoryStrengthCard({ memoryOverview }: MemoryStrengthCardProps) {
+  const levelCfg = LEVEL_CONFIG[memoryOverview.memoryStrength.level] ?? LEVEL_CONFIG.beginner;
 
   return (
     <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm dark:shadow-2xl dark:shadow-black/50">
@@ -28,9 +25,7 @@ export function MemoryStrengthCard({
             <Brain className={`w-8 h-8 ${levelCfg.color}`} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-              記憶強度
-            </h2>
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">記憶強度</h2>
             <span className={`text-sm font-semibold ${levelCfg.color}`}>
               {LEVEL_LABELS[memoryOverview.memoryStrength.level] ??
                 memoryOverview.memoryStrength.level}

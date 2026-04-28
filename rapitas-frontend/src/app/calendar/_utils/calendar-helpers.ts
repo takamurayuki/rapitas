@@ -75,10 +75,7 @@ export function formatDateStr(currentDate: Date, day: number): string {
  * @param dateStr - Target date as YYYY-MM-DD.
  * @returns Events that cover the given date.
  */
-export function getEventsForDateStr(
-  events: CalendarEvent[],
-  dateStr: string,
-): CalendarEvent[] {
+export function getEventsForDateStr(events: CalendarEvent[], dateStr: string): CalendarEvent[] {
   return events.filter((e) => {
     if (e.date === dateStr) return true;
     if (e.endDate && e.date <= dateStr && e.endDate >= dateStr) return true;
@@ -94,13 +91,8 @@ export function getEventsForDateStr(
  * @param currentDate - Reference month date.
  * @returns Array of bar segments sorted by week row and lane.
  */
-export function getMultiDayBars(
-  events: CalendarEvent[],
-  currentDate: Date,
-): BarSegment[] {
-  const multiDayEvents = events.filter(
-    (e) => e.endDate && e.type === 'schedule',
-  );
+export function getMultiDayBars(events: CalendarEvent[], currentDate: Date): BarSegment[] {
+  const multiDayEvents = events.filter((e) => e.endDate && e.type === 'schedule');
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -120,8 +112,7 @@ export function getMultiDayBars(
     const eventStart = new Date(event.date + 'T00:00:00');
     const eventEnd = new Date(event.endDate! + 'T00:00:00');
 
-    const visibleStart =
-      eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
+    const visibleStart = eventStart < firstDayOfMonth ? firstDayOfMonth : eventStart;
     const visibleEnd = eventEnd > lastDayOfMonth ? lastDayOfMonth : eventEnd;
 
     if (visibleStart > lastDayOfMonth || visibleEnd < firstDayOfMonth) continue;
@@ -158,11 +149,9 @@ export function getMultiDayBars(
         cellLanes.get(key)!.add(lane);
       }
 
-      const isEventStart =
-        eventStart.getMonth() === month && currentDay === eventStart.getDate();
+      const isEventStart = eventStart.getMonth() === month && currentDay === eventStart.getDate();
       const isEventEnd =
-        eventEnd.getMonth() === month &&
-        currentDay + span - 1 === eventEnd.getDate();
+        eventEnd.getMonth() === month && currentDay + span - 1 === eventEnd.getDate();
 
       bars.push({
         event,

@@ -128,23 +128,14 @@ const ROLE_CONFIG: Record<
   },
 };
 
-const ROLE_ORDER: WorkflowRole[] = [
-  'researcher',
-  'planner',
-  'reviewer',
-  'implementer',
-  'verifier',
-];
+const ROLE_ORDER: WorkflowRole[] = ['researcher', 'planner', 'reviewer', 'implementer', 'verifier'];
 
 interface WorkflowRolesConfigProps {
   agents: AIAgentConfig[];
   availableModels: Record<string, ModelOption[]>;
 }
 
-export default function WorkflowRolesConfig({
-  agents,
-  availableModels,
-}: WorkflowRolesConfigProps) {
+export default function WorkflowRolesConfig({ agents, availableModels }: WorkflowRolesConfigProps) {
   const { roles, isLoading, error, updateRole } = useWorkflowRoles();
   const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
   const [savingRole, setSavingRole] = useState<WorkflowRole | null>(null);
@@ -154,9 +145,7 @@ export default function WorkflowRolesConfig({
   useEffect(() => {
     const fetchPrompts = async () => {
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/system-prompts?category=workflow`,
-        );
+        const res = await fetch(`${API_BASE_URL}/system-prompts?category=workflow`);
         if (res.ok) {
           const data = await res.json();
           setSystemPrompts(data);
@@ -168,15 +157,9 @@ export default function WorkflowRolesConfig({
     fetchPrompts();
   }, []);
 
-  const activeAgents = useMemo(
-    () => agents.filter((a) => a.isActive),
-    [agents],
-  );
+  const activeAgents = useMemo(() => agents.filter((a) => a.isActive), [agents]);
 
-  const handleAgentChange = async (
-    role: WorkflowRole,
-    agentConfigId: number | null,
-  ) => {
+  const handleAgentChange = async (role: WorkflowRole, agentConfigId: number | null) => {
     setSavingRole(role);
     const currentRole = roles.find((r) => r.role === role);
     // NOTE: Preserve the existing auto/manual mode. If the user is in manual mode
@@ -186,14 +169,8 @@ export default function WorkflowRolesConfig({
     let nextModelId: string | null = null;
     if (!wasAutoMode) {
       const newAgent = activeAgents.find((a) => a.id === agentConfigId);
-      const newAgentModels = newAgent
-        ? (availableModels[newAgent.agentType] ?? [])
-        : [];
-      nextModelId =
-        newAgent?.modelId ||
-        newAgentModels[0]?.value ||
-        currentRole?.modelId ||
-        null;
+      const newAgentModels = newAgent ? (availableModels[newAgent.agentType] ?? []) : [];
+      nextModelId = newAgent?.modelId || newAgentModels[0]?.value || currentRole?.modelId || null;
     }
     const result = await updateRole(role, {
       agentConfigId,
@@ -211,11 +188,7 @@ export default function WorkflowRolesConfig({
    * while no agent is selected — we need to seed both fields atomically so the
    * checkbox flips and the manual config block becomes editable.
    */
-  const handleManualSetup = async (
-    role: WorkflowRole,
-    agentConfigId: number,
-    modelId: string,
-  ) => {
+  const handleManualSetup = async (role: WorkflowRole, agentConfigId: number, modelId: string) => {
     setSavingRole(role);
     const result = await updateRole(role, { agentConfigId, modelId });
     setSavingRole(null);
@@ -225,10 +198,7 @@ export default function WorkflowRolesConfig({
     }
   };
 
-  const handleModelChange = async (
-    role: WorkflowRole,
-    modelId: string | null,
-  ) => {
+  const handleModelChange = async (role: WorkflowRole, modelId: string | null) => {
     setSavingRole(role);
     const result = await updateRole(role, { modelId });
     setSavingRole(null);
@@ -251,19 +221,13 @@ export default function WorkflowRolesConfig({
     }
   };
 
-  const handlePromptChange = async (
-    role: WorkflowRole,
-    systemPromptKey: string | null,
-  ) => {
+  const handlePromptChange = async (role: WorkflowRole, systemPromptKey: string | null) => {
     setSavingRole(role);
     await updateRole(role, { systemPromptKey });
     setSavingRole(null);
   };
 
-  const handleToggleEnabled = async (
-    role: WorkflowRole,
-    isEnabled: boolean,
-  ) => {
+  const handleToggleEnabled = async (role: WorkflowRole, isEnabled: boolean) => {
     setSavingRole(role);
     await updateRole(role, { isEnabled });
     setSavingRole(null);
@@ -291,9 +255,7 @@ export default function WorkflowRolesConfig({
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
         <div className="flex items-center">
           <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-          <span className="text-sm text-red-700 dark:text-red-300">
-            {error}
-          </span>
+          <span className="text-sm text-red-700 dark:text-red-300">{error}</span>
         </div>
       </div>
     );
@@ -311,8 +273,7 @@ export default function WorkflowRolesConfig({
         const models = getModelsForRole(roleKey);
         const isEnabled = roleData?.isEnabled !== false;
         const selectedAgent = roleData?.agentConfig;
-        const effectiveModelId =
-          roleData?.modelId || selectedAgent?.modelId || null;
+        const effectiveModelId = roleData?.modelId || selectedAgent?.modelId || null;
 
         return (
           <div key={roleKey}>
@@ -337,9 +298,7 @@ export default function WorkflowRolesConfig({
                     </div>
                     <Icon className={`h-5 w-5 ${config.color}`} />
                     <div>
-                      <span className={`font-semibold ${config.color}`}>
-                        {config.label}
-                      </span>
+                      <span className={`font-semibold ${config.color}`}>{config.label}</span>
                       <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-2 hidden sm:inline">
                         {config.description}
                       </span>
@@ -351,9 +310,7 @@ export default function WorkflowRolesConfig({
                     {!isExpanded && (
                       <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 bg-white/60 dark:bg-zinc-700/60 px-2.5 py-1 rounded-lg">
                         {!roleData?.modelId || roleData.modelId === 'auto' ? (
-                          <span className="text-indigo-600 dark:text-indigo-400">
-                            🤖 自動選択
-                          </span>
+                          <span className="text-indigo-600 dark:text-indigo-400">🤖 自動選択</span>
                         ) : (
                           <>
                             <Cpu className="h-3 w-3" />
@@ -367,17 +324,13 @@ export default function WorkflowRolesConfig({
                     )}
 
                     {/* Saving/saved indicator */}
-                    {isSaving && (
-                      <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-                    )}
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
                     {isSaved && <Save className="h-4 w-4 text-green-500" />}
 
                     {/* Enable/disable toggle */}
                     <Toggle
                       checked={isEnabled}
-                      onChange={(checked) =>
-                        handleToggleEnabled(roleKey, checked)
-                      }
+                      onChange={(checked) => handleToggleEnabled(roleKey, checked)}
                       srLabel={`${config.label}を有効化`}
                       stopPropagation
                     />
@@ -409,9 +362,7 @@ export default function WorkflowRolesConfig({
                       </div>
                     </div>
                     <Toggle
-                      checked={
-                        !roleData?.modelId || roleData.modelId === 'auto'
-                      }
+                      checked={!roleData?.modelId || roleData.modelId === 'auto'}
                       onChange={(checked) => {
                         if (checked) {
                           handleModelChange(roleKey, null);
@@ -419,22 +370,15 @@ export default function WorkflowRolesConfig({
                         }
                         // Toggle OFF: must seed a real modelId, otherwise
                         // `!modelId` keeps the checkbox stuck ON.
-                        const targetAgent =
-                          selectedAgent ?? activeAgents[0] ?? null;
+                        const targetAgent = selectedAgent ?? activeAgents[0] ?? null;
                         const targetAgentModels = targetAgent
                           ? (availableModels[targetAgent.agentType] ?? [])
                           : [];
                         const targetModelId =
-                          targetAgent?.modelId ||
-                          targetAgentModels[0]?.value ||
-                          null;
+                          targetAgent?.modelId || targetAgentModels[0]?.value || null;
                         if (!targetModelId || !targetAgent) return;
                         if (!selectedAgent) {
-                          handleManualSetup(
-                            roleKey,
-                            targetAgent.id,
-                            targetModelId,
-                          );
+                          handleManualSetup(roleKey, targetAgent.id, targetModelId);
                         } else {
                           handleModelChange(roleKey, targetModelId);
                         }
@@ -454,10 +398,7 @@ export default function WorkflowRolesConfig({
                         <select
                           value={roleData?.preferredProviderOverride ?? ''}
                           onChange={(e) =>
-                            handlePreferredProviderChange(
-                              roleKey,
-                              e.target.value || null,
-                            )
+                            handlePreferredProviderChange(roleKey, e.target.value || null)
                           }
                           disabled={isSaving}
                           className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -495,10 +436,7 @@ export default function WorkflowRolesConfig({
                             value={roleData?.agentConfigId ?? ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              handleAgentChange(
-                                roleKey,
-                                val ? parseInt(val) : null,
-                              );
+                              handleAgentChange(roleKey, val ? parseInt(val) : null);
                             }}
                             disabled={isSaving}
                             className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -526,9 +464,7 @@ export default function WorkflowRolesConfig({
                               const val = e.target.value;
                               handleModelChange(roleKey, val || null);
                             }}
-                            disabled={
-                              isSaving || !selectedAgent || models.length === 0
-                            }
+                            disabled={isSaving || !selectedAgent || models.length === 0}
                             className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                           >
                             <option value="" disabled>
@@ -541,9 +477,7 @@ export default function WorkflowRolesConfig({
                             {models.map((model) => (
                               <option key={model.value} value={model.value}>
                                 {model.label}
-                                {model.description
-                                  ? ` - ${model.description}`
-                                  : ''}
+                                {model.description ? ` - ${model.description}` : ''}
                               </option>
                             ))}
                           </select>

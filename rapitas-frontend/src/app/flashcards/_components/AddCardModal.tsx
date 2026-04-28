@@ -67,10 +67,7 @@ export function AddCardModal({
             >
               {tc('cancel')}
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg"
-            >
+            <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg">
               {tc('add')}
             </button>
           </div>

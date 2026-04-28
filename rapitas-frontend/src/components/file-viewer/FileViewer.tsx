@@ -118,17 +118,14 @@ export default function FileViewer({
         const res = await fetch(url, {
           method: 'GET',
           headers: {
-            Accept:
-              'text/plain, text/markdown, text/html, application/json, text/*',
+            Accept: 'text/plain, text/markdown, text/html, application/json, text/*',
           },
           mode: 'cors',
           credentials: 'omit', // Do not send credentials for static file requests
         });
 
         if (!res.ok) {
-          throw new Error(
-            `ファイルの読み込みに失敗しました: ${res.status} ${res.statusText}`,
-          );
+          throw new Error(`ファイルの読み込みに失敗しました: ${res.status} ${res.statusText}`);
         }
 
         const text = await res.text();
@@ -227,9 +224,7 @@ export default function FileViewer({
               <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                 {resource.title || resource.fileName}
               </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {resource.mimeType}
-              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{resource.mimeType}</p>
             </div>
           </div>
 
@@ -271,9 +266,7 @@ export default function FileViewer({
                   <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
                 <button
-                  onClick={() =>
-                    setImageScale(Math.max(imageScale - 0.25, 0.5))
-                  }
+                  onClick={() => setImageScale(Math.max(imageScale - 0.25, 0.5))}
                   className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                   title="縮小"
                 >
@@ -340,9 +333,7 @@ export default function FileViewer({
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-lg">
                 <div>{error}</div>
-                <div className="mt-2 text-xs font-mono">
-                  URL: {getFileUrl(resource)}
-                </div>
+                <div className="mt-2 text-xs font-mono">URL: {getFileUrl(resource)}</div>
               </div>
               <div className="flex gap-2">
                 <a

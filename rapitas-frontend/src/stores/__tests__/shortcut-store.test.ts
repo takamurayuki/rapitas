@@ -1,8 +1,4 @@
-import {
-  useShortcutStore,
-  DEFAULT_SHORTCUTS,
-  formatBindingKey,
-} from '../shortcut-store';
+import { useShortcutStore, DEFAULT_SHORTCUTS, formatBindingKey } from '../shortcut-store';
 
 describe('shortcutStore', () => {
   beforeEach(() => {
@@ -20,17 +16,13 @@ describe('shortcutStore', () => {
   describe('updateShortcut', () => {
     it('should update a shortcut key', () => {
       useShortcutStore.getState().updateShortcut('newTask', { key: 'M' });
-      const updated = useShortcutStore
-        .getState()
-        .shortcuts.find((s) => s.id === 'newTask');
+      const updated = useShortcutStore.getState().shortcuts.find((s) => s.id === 'newTask');
       expect(updated?.key).toBe('M');
     });
 
     it('should not modify other shortcuts', () => {
       useShortcutStore.getState().updateShortcut('newTask', { key: 'M' });
-      const dashboard = useShortcutStore
-        .getState()
-        .shortcuts.find((s) => s.id === 'dashboard');
+      const dashboard = useShortcutStore.getState().shortcuts.find((s) => s.id === 'dashboard');
       expect(dashboard?.key).toBe('D');
     });
 
@@ -41,9 +33,7 @@ describe('shortcutStore', () => {
         meta: false,
         ctrl: true,
       });
-      const updated = useShortcutStore
-        .getState()
-        .shortcuts.find((s) => s.id === 'newTask');
+      const updated = useShortcutStore.getState().shortcuts.find((s) => s.id === 'newTask');
       expect(updated?.key).toBe('X');
       expect(updated?.shift).toBe(true);
       expect(updated?.meta).toBe(false);
@@ -55,9 +45,7 @@ describe('shortcutStore', () => {
     it('should reset a single shortcut to default', () => {
       useShortcutStore.getState().updateShortcut('newTask', { key: 'Z' });
       useShortcutStore.getState().resetShortcut('newTask');
-      const reset = useShortcutStore
-        .getState()
-        .shortcuts.find((s) => s.id === 'newTask');
+      const reset = useShortcutStore.getState().shortcuts.find((s) => s.id === 'newTask');
       expect(reset?.key).toBe('N');
     });
 
@@ -91,9 +79,7 @@ describe('shortcutStore', () => {
     });
 
     it('should return undefined for non-existent id', () => {
-      const def = useShortcutStore
-        .getState()
-        .getDefault('nonExistent' as never);
+      const def = useShortcutStore.getState().getDefault('nonExistent' as never);
       expect(def).toBeUndefined();
     });
   });
@@ -134,21 +120,17 @@ describe('shortcutStore', () => {
 
   describe('formatBindingKey', () => {
     it('should format a meta+key binding', () => {
-      expect(
-        formatBindingKey({ key: 'N', meta: true, shift: false, ctrl: false }),
-      ).toBe('meta+N');
+      expect(formatBindingKey({ key: 'N', meta: true, shift: false, ctrl: false })).toBe('meta+N');
     });
 
     it('should format a ctrl+shift+key binding', () => {
-      expect(
-        formatBindingKey({ key: 'F', meta: false, shift: true, ctrl: true }),
-      ).toBe('ctrl+shift+F');
+      expect(formatBindingKey({ key: 'F', meta: false, shift: true, ctrl: true })).toBe(
+        'ctrl+shift+F',
+      );
     });
 
     it('should format a key-only binding', () => {
-      expect(
-        formatBindingKey({ key: 'a', meta: false, shift: false, ctrl: false }),
-      ).toBe('A');
+      expect(formatBindingKey({ key: 'a', meta: false, shift: false, ctrl: false })).toBe('A');
     });
   });
 });

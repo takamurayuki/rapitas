@@ -57,8 +57,7 @@ export function useEditorInsertion(
   closeOtherPopups: (except: 'link' | 'code') => void,
 ): EditorInsertionHandlers {
   const { contentRef, savedSelectionRef } = refs;
-  const { setIsLinkLoading, setShowLinkInput, setLinkUrl, setShowCodeInput } =
-    setters;
+  const { setIsLinkLoading, setShowLinkInput, setLinkUrl, setShowCodeInput } = setters;
 
   const insertNodeAtCursor = useCallback(
     (node: Node) => {
@@ -93,13 +92,7 @@ export function useEditorInsertion(
     closeOtherPopups('link');
     setShowLinkInput(true);
     setLinkUrl('');
-  }, [
-    contentRef,
-    savedSelectionRef,
-    setShowLinkInput,
-    setLinkUrl,
-    closeOtherPopups,
-  ]);
+  }, [contentRef, savedSelectionRef, setShowLinkInput, setLinkUrl, closeOtherPopups]);
 
   const openCodeInput = useCallback(() => {
     if (isInTitleInput()) return;
@@ -127,11 +120,7 @@ export function useEditorInsertion(
         body: JSON.stringify({ url }),
       });
       const meta = await res.json();
-      const linkNode = createLinkNode(
-        url,
-        meta.title || url,
-        meta.favicon || '',
-      );
+      const linkNode = createLinkNode(url, meta.title || url, meta.favicon || '');
       insertNodeAtCursor(linkNode);
       handleContentChange();
     } catch {
@@ -209,9 +198,7 @@ export function useEditorInsertion(
     }
 
     if (contentRef.current) {
-      const newBlocks = contentRef.current.querySelectorAll(
-        '[data-needs-delete-handler="1"]',
-      );
+      const newBlocks = contentRef.current.querySelectorAll('[data-needs-delete-handler="1"]');
       newBlocks.forEach((block) => {
         const deleteButton = block.querySelector('[data-delete-handler="1"]');
         if (deleteButton) {
@@ -229,13 +216,7 @@ export function useEditorInsertion(
     handleContentChange();
     setShowCodeInput(false);
     savedSelectionRef.current = null;
-  }, [
-    codeLanguage,
-    contentRef,
-    savedSelectionRef,
-    handleContentChange,
-    setShowCodeInput,
-  ]);
+  }, [codeLanguage, contentRef, savedSelectionRef, handleContentChange, setShowCodeInput]);
 
   return {
     insertNodeAtCursor,

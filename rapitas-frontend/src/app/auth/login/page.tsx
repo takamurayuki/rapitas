@@ -158,9 +158,7 @@ export default function LoginPage() {
                 <div className="flex">
                   <AlertCircle className="h-5 w-5 text-red-400" />
                   <div className="ml-3">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                      {error}
-                    </p>
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200">{error}</p>
                   </div>
                 </div>
               </div>

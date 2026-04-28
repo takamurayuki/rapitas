@@ -15,8 +15,6 @@ export { templatesRoutes } from './organization/templates';
 export { tasksRoutes } from './tasks/tasks';
 export { taskStatisticsRoutes } from './tasks/task-statistics';
 export { tempStatisticsRoutes } from './tasks/temp-statistics';
-export { taskDependencyRoutes } from './tasks/task-dependency';
-export { taskDependencyGraphRoutes } from './tasks/task-dependency-graph';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';
 export { recurringTaskRoutes } from './tasks/recurring-tasks';
@@ -73,6 +71,8 @@ export { localLLMRouter } from './system/local-llm';
 export { transcribeRouter } from './system/transcribe';
 export { mcpRoutes } from './system/mcp';
 export { gitCleanupRoutes } from './system/git-cleanup';
+export { exportRoutes } from './system/export';
+export { importRoutes } from './system/import';
 // System > Monitoring (extracted per FOLDER_ORGANIZATION_POLICY)
 export { rateLimitRoutes } from './system/monitoring/rate-limits';
 export { progressSummaryRoutes } from './system/monitoring/progress-summary';

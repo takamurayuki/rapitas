@@ -40,6 +40,12 @@ export type UserSettings = {
   ollamaUrl?: string | null;
   ollamaDefaultModel?: string | null;
   titleGenerationProvider?: string | null;
+  /**
+   * When true, CLI agents are spawned with their permission-bypass flags
+   * (`--dangerously-skip-permissions` for Claude Code, `--yolo` for Codex /
+   * Gemini) so they never stop mid-execution to ask the user. Default true.
+   */
+  skipAgentPermissionPrompts?: boolean;
   createdAt: string;
   updatedAt: string;
 };

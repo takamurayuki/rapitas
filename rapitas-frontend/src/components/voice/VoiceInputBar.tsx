@@ -14,22 +14,11 @@
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Mic,
-  MicOff,
-  X,
-  Send,
-  Wand2,
-  Loader2,
-  Navigation,
-  Plus,
-  Search,
-} from 'lucide-react';
+import { Mic, MicOff, X, Send, Wand2, Loader2, Navigation, Plus, Search } from 'lucide-react';
 import AudioWaveform from '../smart-command-bar/AudioWaveform';
 import { encodeWav, resamplePcm } from '@/lib/audio/wav-codec';
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /** Voice command from backend. */
 interface VoiceCommandResponse {
@@ -56,17 +45,11 @@ interface VoiceInputBarProps {
   target?: VoiceTarget;
 }
 
-export default function VoiceInputBar({
-  isOpen,
-  onClose,
-  target,
-}: VoiceInputBarProps) {
+export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBarProps) {
   const router = useRouter();
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [lastCommand, setLastCommand] = useState<VoiceCommandResponse | null>(
-    null,
-  );
+  const [lastCommand, setLastCommand] = useState<VoiceCommandResponse | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [transcript, setTranscript] = useState('');
   const [interimInfo, setInterimInfo] = useState('');
@@ -123,8 +106,7 @@ export default function VoiceInputBar({
         const timeData = new Float32Array(analyser.fftSize);
         analyser.getFloatTimeDomainData(timeData);
         let rms = 0;
-        for (let i = 0; i < timeData.length; i++)
-          rms += timeData[i] * timeData[i];
+        for (let i = 0; i < timeData.length; i++) rms += timeData[i] * timeData[i];
         rms = Math.sqrt(rms / timeData.length);
 
         const hasSound = avg > SILENCE_THRESHOLD || rms > 0.005;
@@ -170,9 +152,7 @@ export default function VoiceInputBar({
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'マイクの起動に失敗しました',
-      );
+      setError(err instanceof Error ? err.message : 'マイクの起動に失敗しました');
     }
   }, []);
 
@@ -203,9 +183,7 @@ export default function VoiceInputBar({
       const rate = audioBuffer.sampleRate;
       const resampled = rate === 16000 ? pcm : resamplePcm(pcm, rate, 16000);
       const wavBlob = encodeWav(
-        resampled instanceof Float32Array
-          ? resampled
-          : new Float32Array(resampled),
+        resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
         16000,
       );
 
@@ -240,9 +218,7 @@ export default function VoiceInputBar({
         }
       } else {
         const data = await response.json().catch(() => ({ error: 'エラー' }));
-        setError(
-          (data as { error?: string }).error || '文字起こしに失敗しました',
-        );
+        setError((data as { error?: string }).error || '文字起こしに失敗しました');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : '文字起こしエラー');
@@ -308,19 +284,12 @@ export default function VoiceInputBar({
         const currentValue = el.value;
         const start = el.selectionStart ?? currentValue.length;
         const end = el.selectionEnd ?? currentValue.length;
-        const newValue =
-          currentValue.slice(0, start) + text + currentValue.slice(end);
+        const newValue = currentValue.slice(0, start) + text + currentValue.slice(end);
 
         // Set value and trigger React change event
         const nativeSetter =
-          Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype,
-            'value',
-          )?.set ??
-          Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype,
-            'value',
-          )?.set;
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ??
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
 
         nativeSetter?.call(el, newValue);
         el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -411,9 +380,7 @@ export default function VoiceInputBar({
             </button>
 
             <div className="flex-1 min-w-0">
-              {stream && (
-                <AudioWaveform stream={stream} width={300} height={32} />
-              )}
+              {stream && <AudioWaveform stream={stream} width={300} height={32} />}
               {!stream && interimInfo && (
                 <span className="text-sm text-zinc-400">{interimInfo}</span>
               )}
@@ -437,19 +404,12 @@ export default function VoiceInputBar({
               {lastCommand.type === 'navigate' && (
                 <Navigation className="w-4 h-4 text-indigo-400" />
               )}
-              {lastCommand.type === 'create_task' && (
-                <Plus className="w-4 h-4 text-green-400" />
-              )}
-              {lastCommand.type === 'search' && (
-                <Search className="w-4 h-4 text-amber-400" />
-              )}
+              {lastCommand.type === 'create_task' && <Plus className="w-4 h-4 text-green-400" />}
+              {lastCommand.type === 'search' && <Search className="w-4 h-4 text-amber-400" />}
               <span className="text-sm text-zinc-300">
-                {lastCommand.type === 'navigate' &&
-                  `${lastCommand.label} に移動`}
-                {lastCommand.type === 'create_task' &&
-                  `タスク「${lastCommand.title}」を作成`}
-                {lastCommand.type === 'search' &&
-                  `「${lastCommand.query}」を検索`}
+                {lastCommand.type === 'navigate' && `${lastCommand.label} に移動`}
+                {lastCommand.type === 'create_task' && `タスク「${lastCommand.title}」を作成`}
+                {lastCommand.type === 'search' && `「${lastCommand.query}」を検索`}
               </span>
             </div>
           )}

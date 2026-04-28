@@ -24,21 +24,14 @@ type Props = {
   onApply: (template: TaskTemplate) => void;
 };
 
-export default function ApplyTemplateDialog({
-  isOpen,
-  onClose,
-  selectedTheme,
-  onApply,
-}: Props) {
+export default function ApplyTemplateDialog({ isOpen, onClose, selectedTheme, onApply }: Props) {
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(
-    null,
-  );
+  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -53,9 +46,7 @@ export default function ApplyTemplateDialog({
           params.append('themeId', selectedTheme.id.toString());
         }
 
-        const res = await fetch(
-          `${API_BASE_URL}/templates?${params.toString()}`,
-        );
+        const res = await fetch(`${API_BASE_URL}/templates?${params.toString()}`);
         if (!res.ok) {
           throw new Error('テンプレートの取得に失敗しました');
         }
@@ -88,8 +79,7 @@ export default function ApplyTemplateDialog({
 
   const filteredTemplates = useMemo(() => {
     return templates.filter((template) => {
-      const matchesCategory =
-        !selectedCategory || template.category === selectedCategory;
+      const matchesCategory = !selectedCategory || template.category === selectedCategory;
       const matchesSearch =
         !searchQuery ||
         template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -131,18 +121,14 @@ export default function ApplyTemplateDialog({
             {selectedTheme && (
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1.5">
                 {(() => {
-                  const ThemeIcon =
-                    getIconComponent(selectedTheme.icon || '') || SwatchBook;
+                  const ThemeIcon = getIconComponent(selectedTheme.icon || '') || SwatchBook;
                   return (
                     <>
                       <span
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: selectedTheme.color }}
                       />
-                      <ThemeIcon
-                        className="w-3.5 h-3.5"
-                        style={{ color: selectedTheme.color }}
-                      />
+                      <ThemeIcon className="w-3.5 h-3.5" style={{ color: selectedTheme.color }} />
                       {selectedTheme.name}のテンプレート
                     </>
                   );
@@ -294,8 +280,7 @@ export default function ApplyTemplateDialog({
                           template.templateData.subtasks.length > 0 && (
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              サブタスク{template.templateData.subtasks.length}
-                              件
+                              サブタスク{template.templateData.subtasks.length}件
                             </span>
                           )}
                         {template.templateData.labels &&
@@ -340,28 +325,20 @@ export default function ApplyTemplateDialog({
               {selectedTemplate.templateData.subtasks &&
                 selectedTemplate.templateData.subtasks.length > 0 && (
                   <li>
-                    • サブタスク:{' '}
-                    {selectedTemplate.templateData.subtasks.length}件
+                    • サブタスク: {selectedTemplate.templateData.subtasks.length}件
                     <ul className="ml-4 mt-1 space-y-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                      {selectedTemplate.templateData.subtasks
-                        .slice(0, 3)
-                        .map((st, idx) => (
-                          <li key={idx}>- {st.title}</li>
-                        ))}
+                      {selectedTemplate.templateData.subtasks.slice(0, 3).map((st, idx) => (
+                        <li key={idx}>- {st.title}</li>
+                      ))}
                       {selectedTemplate.templateData.subtasks.length > 3 && (
-                        <li>
-                          ...他{' '}
-                          {selectedTemplate.templateData.subtasks.length - 3}件
-                        </li>
+                        <li>...他 {selectedTemplate.templateData.subtasks.length - 3}件</li>
                       )}
                     </ul>
                   </li>
                 )}
               {selectedTemplate.templateData.labels &&
                 selectedTemplate.templateData.labels.length > 0 && (
-                  <li>
-                    • ラベル: {selectedTemplate.templateData.labels.join(', ')}
-                  </li>
+                  <li>• ラベル: {selectedTemplate.templateData.labels.join(', ')}</li>
                 )}
             </ul>
           </div>

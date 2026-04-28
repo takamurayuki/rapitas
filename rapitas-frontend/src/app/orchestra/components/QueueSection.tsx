@@ -47,9 +47,7 @@ export function QueueSection({
       >
         <div className="flex items-center gap-2">
           {icon}
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {title}
-          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-4 h-4 text-gray-400" />
@@ -91,22 +89,19 @@ export function QueueSection({
                     </span>
                   )}
                   {item.errorMessage && (
-                    <span className="text-red-500 truncate max-w-xs">
-                      {item.errorMessage}
-                    </span>
+                    <span className="text-red-500 truncate max-w-xs">{item.errorMessage}</span>
                   )}
                 </div>
               </div>
-              {onCancel &&
-                (item.status === 'queued' || item.status === 'running') && (
-                  <button
-                    onClick={() => onCancel(item.id)}
-                    disabled={actionLoading === `cancel-${item.id}`}
-                    className="ml-2 p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+              {onCancel && (item.status === 'queued' || item.status === 'running') && (
+                <button
+                  onClick={() => onCancel(item.id)}
+                  disabled={actionLoading === `cancel-${item.id}`}
+                  className="ml-2 p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -28,19 +28,12 @@ type Props = {
  *
  * @param props - See Props type
  */
-export function PrMergeSection({
-  prState,
-  resetPrState,
-  onCreatePR,
-  onApproveMerge,
-}: Props) {
+export function PrMergeSection({ prState, resetPrState, onCreatePR, onApproveMerge }: Props) {
   return (
     <div className="px-6 py-4 border-t border-emerald-200 dark:border-emerald-800 bg-white/30 dark:bg-indigo-dark-900/20">
       <div className="flex items-center gap-2 mb-3">
         <GitPullRequest className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          PR & マージ
-        </span>
+        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">PR & マージ</span>
       </div>
 
       {prState.status === 'idle' && (
@@ -97,8 +90,7 @@ export function PrMergeSection({
       {prState.status === 'merged' && (
         <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
           <GitMerge className="w-4 h-4" />
-          PR #{prState.prNumber}{' '}
-          がマージされました。ローカルのdevelopは最新です。
+          PR #{prState.prNumber} がマージされました。ローカルのdevelopは最新です。
         </div>
       )}
 

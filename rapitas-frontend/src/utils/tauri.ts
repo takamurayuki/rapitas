@@ -50,10 +50,7 @@ interface WebviewWindowOptions {
 
 interface TauriAPI {
   event: {
-    listen: (
-      event: string,
-      handler: (event: { payload: unknown }) => void,
-    ) => Promise<() => void>;
+    listen: (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>;
     emit: (event: string, payload?: unknown) => Promise<void>;
   };
   window: {
@@ -302,11 +299,8 @@ export async function restoreFromSplitView(): Promise<void> {
 
   try {
     const windowModule = await import('@tauri-apps/api/window');
-    const { LogicalSize, LogicalPosition } =
-      await import('@tauri-apps/api/dpi');
-    const win = windowModule.getCurrentWindow() as ReturnType<
-      typeof windowModule.getCurrentWindow
-    >;
+    const { LogicalSize, LogicalPosition } = await import('@tauri-apps/api/dpi');
+    const win = windowModule.getCurrentWindow() as ReturnType<typeof windowModule.getCurrentWindow>;
 
     // Remove listeners
     if (splitViewData.unlisten) {
@@ -316,16 +310,10 @@ export async function restoreFromSplitView(): Promise<void> {
     // Restore original size and position
     if (splitViewData.originalSize && splitViewData.originalPosition) {
       await win.setSize(
-        new LogicalSize(
-          splitViewData.originalSize.width,
-          splitViewData.originalSize.height,
-        ),
+        new LogicalSize(splitViewData.originalSize.width, splitViewData.originalSize.height),
       );
       await win.setPosition(
-        new LogicalPosition(
-          splitViewData.originalPosition.x,
-          splitViewData.originalPosition.y,
-        ),
+        new LogicalPosition(splitViewData.originalPosition.x, splitViewData.originalPosition.y),
       );
     }
 

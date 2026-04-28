@@ -40,44 +40,28 @@ describe('useTaskSorting', () => {
     const { result } = renderHook(() =>
       useTaskSorting({ tasks, sortBy: 'title', sortOrder: 'asc' }),
     );
-    expect(result.current.map((t) => t.title)).toEqual([
-      'Alpha',
-      'Beta',
-      'Gamma',
-    ]);
+    expect(result.current.map((t) => t.title)).toEqual(['Alpha', 'Beta', 'Gamma']);
   });
 
   it('should sort by title descending', () => {
     const { result } = renderHook(() =>
       useTaskSorting({ tasks, sortBy: 'title', sortOrder: 'desc' }),
     );
-    expect(result.current.map((t) => t.title)).toEqual([
-      'Gamma',
-      'Beta',
-      'Alpha',
-    ]);
+    expect(result.current.map((t) => t.title)).toEqual(['Gamma', 'Beta', 'Alpha']);
   });
 
   it('should sort by priority ascending', () => {
     const { result } = renderHook(() =>
       useTaskSorting({ tasks, sortBy: 'priority', sortOrder: 'asc' }),
     );
-    expect(result.current.map((t) => t.priority)).toEqual([
-      'low',
-      'high',
-      'urgent',
-    ]);
+    expect(result.current.map((t) => t.priority)).toEqual(['low', 'high', 'urgent']);
   });
 
   it('should sort by priority descending', () => {
     const { result } = renderHook(() =>
       useTaskSorting({ tasks, sortBy: 'priority', sortOrder: 'desc' }),
     );
-    expect(result.current.map((t) => t.priority)).toEqual([
-      'urgent',
-      'high',
-      'low',
-    ]);
+    expect(result.current.map((t) => t.priority)).toEqual(['urgent', 'high', 'low']);
   });
 
   it('should sort by createdAt ascending', () => {
@@ -96,9 +80,7 @@ describe('useTaskSorting', () => {
 
   it('should not mutate the original array', () => {
     const original = [...tasks];
-    renderHook(() =>
-      useTaskSorting({ tasks, sortBy: 'title', sortOrder: 'asc' }),
-    );
+    renderHook(() => useTaskSorting({ tasks, sortBy: 'title', sortOrder: 'asc' }));
     expect(tasks).toEqual(original);
   });
 

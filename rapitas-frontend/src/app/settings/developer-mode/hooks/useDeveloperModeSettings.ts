@@ -85,17 +85,13 @@ export function useDeveloperModeSettings(): UseDeveloperModeSettingsReturn {
           setSettings((prev) => (prev ? { ...prev, ...data } : data));
         } else {
           const errorData = await res.json().catch(() => null);
-          const errorMsg =
-            errorData?.message || errorData?.error || t('devUpdateFailed');
+          const errorMsg = errorData?.message || errorData?.error || t('devUpdateFailed');
           throw new Error(errorMsg);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : t('devErrorOccurred');
         setError(msg);
-        showToast(
-          err instanceof Error ? err.message : t('devSaveFailed'),
-          'error',
-        );
+        showToast(err instanceof Error ? err.message : t('devSaveFailed'), 'error');
       } finally {
         setIsSaving(false);
       }
@@ -151,13 +147,10 @@ export function useDeveloperModeSettings(): UseDeveloperModeSettingsReturn {
         body: JSON.stringify({ autoResumeInterruptedTasks: newValue }),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, autoResumeInterruptedTasks: newValue } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, autoResumeInterruptedTasks: newValue } : prev));
       } else {
         const errorData = await res.json().catch(() => null);
-        const errorMsg =
-          errorData?.message || errorData?.error || t('devSaveFailed');
+        const errorMsg = errorData?.message || errorData?.error || t('devSaveFailed');
         setError(errorMsg);
       }
     } catch (err) {

@@ -14,9 +14,7 @@ interface ExternalLinksProviderProps {
  * Sets up external link handlers on page load and dynamic content changes.
  * Also provides Esc key to exit split view.
  */
-export default function ExternalLinksProvider({
-  children,
-}: ExternalLinksProviderProps) {
+export default function ExternalLinksProvider({ children }: ExternalLinksProviderProps) {
   // Enable split view exit functionality
   useSplitViewExit();
 

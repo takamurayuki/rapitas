@@ -60,12 +60,7 @@ export async function proposeApps(
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
 ) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
-    t,
-    answers,
-    dynSubs,
-    dynElems,
-  );
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers, dynSubs, dynElems);
 
   const response = await fetch('/api/generate-proposals', {
     method: 'POST',
@@ -75,10 +70,7 @@ export async function proposeApps(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.error ||
-        `HTTP ${response.status}: プロポーザル生成に失敗しました`,
-    );
+    throw new Error(errorData.error || `HTTP ${response.status}: プロポーザル生成に失敗しました`);
   }
 
   const data = await response.json();
@@ -107,12 +99,7 @@ export async function generateClaudeMd(
   dynSubs?: DynamicItem[],
   dynElems?: DynamicItem[],
 ) {
-  const { genre, subs, elems, plat, scale, prio } = resolveLabels(
-    t,
-    answers,
-    dynSubs,
-    dynElems,
-  );
+  const { genre, subs, elems, plat, scale, prio } = resolveLabels(t, answers, dynSubs, dynElems);
 
   const response = await fetch('/api/generate-claude-md', {
     method: 'POST',
@@ -122,9 +109,7 @@ export async function generateClaudeMd(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`,
-    );
+    throw new Error(errorData.error || `HTTP ${response.status}: CLAUDE.md生成に失敗しました`);
   }
 
   const data = await response.json();

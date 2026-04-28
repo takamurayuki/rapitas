@@ -89,9 +89,7 @@ export function SubtaskEditForm({
                         : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500'
                     }`}
                   >
-                    <span className={isActive ? opt.color : ''}>
-                      {opt.icon}
-                    </span>
+                    <span className={isActive ? opt.color : ''}>{opt.icon}</span>
                     {t(
                       `priority${opt.value.charAt(0).toUpperCase() + opt.value.slice(1)}` as
                         | 'priorityLow'
@@ -148,18 +146,14 @@ export function SubtaskEditForm({
             }`}
           >
             <Check className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">
-              {tc('save')}
-            </span>
+            <span className="font-mono text-xs font-black tracking-tight">{tc('save')}</span>
           </button>
           <button
             onClick={onCancelEdit}
             className="flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm transition-all duration-300 hover:border-gray-500 dark:hover:border-gray-400 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 cursor-pointer"
           >
             <X className="w-4 h-4" />
-            <span className="font-mono text-xs font-black tracking-tight">
-              {tc('cancel')}
-            </span>
+            <span className="font-mono text-xs font-black tracking-tight">{tc('cancel')}</span>
           </button>
         </div>
       </div>

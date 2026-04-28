@@ -27,11 +27,7 @@ interface ProposalsPhaseProps {
  * @returns CSS custom property string / CSSカスタムプロパティ文字列
  */
 function diffColor(d: string): string {
-  return d === 'easy'
-    ? 'var(--green)'
-    : d === 'medium'
-      ? 'var(--amber)'
-      : 'var(--red)';
+  return d === 'easy' ? 'var(--green)' : d === 'medium' ? 'var(--amber)' : 'var(--red)';
 }
 
 /**
@@ -60,11 +56,7 @@ export function ProposalsPhase({
       }}
     >
       <style>{GLOBAL_CSS}</style>
-      <div
-        style={{ maxWidth: 680, margin: '0 auto' }}
-        className="fade"
-        ref={topRef}
-      >
+      <div style={{ maxWidth: 680, margin: '0 auto' }} className="fade" ref={topRef}>
         <div style={{ marginBottom: 32 }}>
           <div
             style={{
@@ -86,9 +78,7 @@ export function ProposalsPhase({
           >
             {t('proposalsTitle')}
           </h2>
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-            {t('proposalsDescription')}
-          </p>
+          <p style={{ color: 'var(--muted)', fontSize: 13 }}>{t('proposalsDescription')}</p>
         </div>
 
         {proposals.length === 0 && (
@@ -102,9 +92,7 @@ export function ProposalsPhase({
               background: 'var(--s1)',
             }}
           >
-            <div style={{ fontSize: 32, marginBottom: 12 }}>
-              &#x26A0;&#xFE0F;
-            </div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>&#x26A0;&#xFE0F;</div>
             {aiErrorMessage ? (
               <p
                 style={{
@@ -115,8 +103,7 @@ export function ProposalsPhase({
                   padding: '12px 16px',
                   background: 'var(--danger-bg, rgba(239, 68, 68, 0.1))',
                   borderRadius: 8,
-                  border:
-                    '1px solid var(--danger-border, rgba(239, 68, 68, 0.2))',
+                  border: '1px solid var(--danger-border, rgba(239, 68, 68, 0.2))',
                 }}
               >
                 {aiErrorMessage}
@@ -163,9 +150,7 @@ export function ProposalsPhase({
                     marginBottom: 10,
                   }}
                 >
-                  <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                  >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
                       style={{
                         width: 36,
@@ -185,9 +170,7 @@ export function ProposalsPhase({
                       {p.id}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 17 }}>
-                        {p.name}
-                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 17 }}>{p.name}</div>
                       <div
                         style={{
                           fontSize: 12,
@@ -239,11 +222,7 @@ export function ProposalsPhase({
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {(p.tech_hint || []).map((hint) => (
-                    <span
-                      key={hint}
-                      className="tag tag-accent"
-                      style={{ fontSize: 10 }}
-                    >
+                    <span key={hint} className="tag tag-accent" style={{ fontSize: 10 }}>
                       {hint}
                     </span>
                   ))}
@@ -283,11 +262,7 @@ export function ProposalsPhase({
           <button className="btn btn-g" onClick={onRegenerate}>
             {t('otherProposals')}
           </button>
-          <button
-            className="btn btn-p"
-            disabled={!pickedProp}
-            onClick={onGenerate}
-          >
+          <button className="btn btn-p" disabled={!pickedProp} onClick={onGenerate}>
             {t('generateClaudeMd')}
           </button>
         </div>

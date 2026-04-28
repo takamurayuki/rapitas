@@ -15,10 +15,7 @@ import type { FileDiff, ReviewComment } from '@/types';
 
 type FeedbackSectionProps = {
   files: FileDiff[];
-  onRequestChanges?: (
-    feedback: string,
-    comments: ReviewComment[],
-  ) => Promise<void>;
+  onRequestChanges?: (feedback: string, comments: ReviewComment[]) => Promise<void>;
 };
 
 /**
@@ -61,17 +58,13 @@ function getCommentTypeColor(type: ReviewComment['type']): string {
  * @param files - Changed files for the per-file comment target selector / コメント対象ファイルリスト
  * @param onRequestChanges - Callback to submit feedback and re-run the agent / フィードバック送信コールバック
  */
-export function FeedbackSection({
-  files,
-  onRequestChanges,
-}: FeedbackSectionProps) {
+export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProps) {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
   const [newCommentFile, setNewCommentFile] = useState('');
   const [newCommentContent, setNewCommentContent] = useState('');
-  const [newCommentType, setNewCommentType] =
-    useState<ReviewComment['type']>('change_request');
+  const [newCommentType, setNewCommentType] = useState<ReviewComment['type']>('change_request');
   const [isRequestingChanges, setIsRequestingChanges] = useState(false);
 
   const handleRequestChanges = async () => {
@@ -153,9 +146,7 @@ export function FeedbackSection({
                         {comment.file}
                       </p>
                     )}
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                      {comment.content}
-                    </p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">{comment.content}</p>
                   </div>
                   <button
                     onClick={() => removeComment(comment.id)}
@@ -172,9 +163,7 @@ export function FeedbackSection({
             <div className="flex items-center gap-2">
               <select
                 value={newCommentType}
-                onChange={(e) =>
-                  setNewCommentType(e.target.value as ReviewComment['type'])
-                }
+                onChange={(e) => setNewCommentType(e.target.value as ReviewComment['type'])}
                 className="px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
               >
                 <option value="change_request">修正依頼</option>
@@ -230,8 +219,7 @@ export function FeedbackSection({
             <button
               onClick={handleRequestChanges}
               disabled={
-                isRequestingChanges ||
-                (!feedbackText.trim() && reviewComments.length === 0)
+                isRequestingChanges || (!feedbackText.trim() && reviewComments.length === 0)
               }
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

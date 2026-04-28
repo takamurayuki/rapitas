@@ -1,20 +1,9 @@
 'use client';
 // global-shortcut-section
 
-import {
-  Keyboard,
-  Save,
-  RotateCcw,
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-} from 'lucide-react';
+import { Keyboard, Save, RotateCcw, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import {
-  MODIFIER_KEYS,
-  AVAILABLE_KEYS,
-  type ModifierKey,
-} from '../hooks/useShortcutSettings';
+import { MODIFIER_KEYS, AVAILABLE_KEYS, type ModifierKey } from '../hooks/useShortcutSettings';
 
 /** Props for GlobalShortcutSection. */
 interface GlobalShortcutSectionProps {
@@ -73,16 +62,12 @@ export function GlobalShortcutSection({
       <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
         {t('globalShortcuts')}
       </h2>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
-        {t('globalDescription')}
-      </p>
+      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">{t('globalDescription')}</p>
 
       {/* Current value display */}
       <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('currentSetting')}
-          </span>
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('currentSetting')}</span>
           <kbd className="px-4 py-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg text-lg font-mono font-semibold text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600 shadow-sm">
             {currentGlobalShortcut}
           </kbd>
@@ -109,9 +94,7 @@ export function GlobalShortcutSection({
       {/* Divider */}
       <div className="flex items-center gap-4 mb-4">
         <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">
-          {t('orSelectManually')}
-        </span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('orSelectManually')}</span>
         <div className="flex-1 border-t border-zinc-200 dark:border-zinc-700" />
       </div>
 
@@ -159,9 +142,7 @@ export function GlobalShortcutSection({
       {hasGlobalChanges && (
         <div className="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {t('newShortcut')}
-            </span>
+            <span className="text-sm text-zinc-600 dark:text-zinc-400">{t('newShortcut')}</span>
             <kbd className="px-4 py-2 rounded-lg text-lg font-mono font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
               {newGlobalShortcut}
             </kbd>
@@ -191,9 +172,7 @@ export function GlobalShortcutSection({
       <div className="flex items-center gap-3">
         <button
           onClick={onSave}
-          disabled={
-            !hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0
-          }
+          disabled={!hasGlobalChanges || isSavingGlobal || globalModifiers.length === 0}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white disabled:text-zinc-500 dark:disabled:text-zinc-400 rounded-lg text-sm font-medium transition-colors"
         >
           {isSavingGlobal ? (

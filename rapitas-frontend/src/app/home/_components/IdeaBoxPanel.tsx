@@ -19,29 +19,24 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   },
   tech_debt: {
     label: '技術的負債',
-    color:
-      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
   },
   ux: {
     label: 'UX',
-    color:
-      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+    color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   },
   feature: {
     label: '新機能',
-    color:
-      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   },
   performance: {
     label: '性能',
-    color:
-      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+    color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
   },
 };
 
 export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
-  const { ideas, stats, isLoading, isSubmitting, submitIdea } =
-    useIdeaBox(categoryId);
+  const { ideas, stats, isLoading, isSubmitting, submitIdea } = useIdeaBox(categoryId);
   const [isOpen, setIsOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -215,9 +210,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                     </button>
                     <button
                       onClick={handleSubmit}
-                      disabled={
-                        isSubmitting || !newTitle.trim() || !newContent.trim()
-                      }
+                      disabled={isSubmitting || !newTitle.trim() || !newContent.trim()}
                       className="flex items-center gap-1 rounded bg-amber-600 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                     >
                       {isSubmitting ? (

@@ -26,11 +26,7 @@ const PRIORITY_STYLES: Record<Priority, { color: string; bg: string }> = {
   urgent: { color: 'text-rose-600', bg: 'bg-rose-100 dark:bg-rose-900' },
 };
 
-const COLUMN_DEFS = [
-  { id: 'todo' },
-  { id: 'in-progress' },
-  { id: 'done' },
-] as const;
+const COLUMN_DEFS = [{ id: 'todo' }, { id: 'in-progress' }, { id: 'done' }] as const;
 
 /**
  * Calculates start and end dates for a week offset from today.
@@ -58,10 +54,7 @@ export default function KanbanPage() {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
-  const priorityConfig: Record<
-    Priority,
-    { label: string; color: string; bg: string }
-  > = {
+  const priorityConfig: Record<Priority, { label: string; color: string; bg: string }> = {
     low: { label: tt('priorityLow'), ...PRIORITY_STYLES.low },
     medium: { label: tt('priorityMedium'), ...PRIORITY_STYLES.medium },
     high: { label: tt('priorityHigh'), ...PRIORITY_STYLES.high },
@@ -81,10 +74,7 @@ export default function KanbanPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(0);
 
-  const currentWeekRange = useMemo(
-    () => getWeekDateRange(currentWeek),
-    [currentWeek],
-  );
+  const currentWeekRange = useMemo(() => getWeekDateRange(currentWeek), [currentWeek]);
 
   const {
     tasks,
@@ -131,13 +121,11 @@ export default function KanbanPage() {
   }, [setLabels]);
 
   const getWeekDisplayText = () => {
-    const fmt = (d: Date) =>
-      d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
+    const fmt = (d: Date) => d.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
     const start = fmt(currentWeekRange.start);
     const end = fmt(currentWeekRange.end);
     if (currentWeek === 0) return t('thisWeek', { start, end });
-    if (currentWeek < 0)
-      return t('weeksAgo', { count: Math.abs(currentWeek), start, end });
+    if (currentWeek < 0) return t('weeksAgo', { count: Math.abs(currentWeek), start, end });
     return t('weeksLater', { count: currentWeek, start, end });
   };
 
@@ -203,12 +191,7 @@ export default function KanbanPage() {
                   dateLocale={dateLocale}
                   onOpenTask={openTaskPanel}
                   onOpenTaskInPage={openTaskInPage}
-                  t={
-                    t as (
-                      key: string,
-                      values?: Record<string, unknown>,
-                    ) => string
-                  }
+                  t={t as (key: string, values?: Record<string, unknown>) => string}
                 />
               ))}
             </div>

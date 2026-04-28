@@ -13,10 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import {
-  ExecutionLogViewer,
-  type ExecutionLogStatus,
-} from '../ExecutionLogViewer';
+import { ExecutionLogViewer, type ExecutionLogStatus } from '../ExecutionLogViewer';
 import { SubtaskLogTabs } from '../SubtaskLogTabs';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
@@ -50,10 +47,7 @@ export type ExecutionBodyProps = {
   onSendResponse: () => Promise<void>;
   // Subtask logs
   subtasks?: Task[];
-  subtaskLogs?: Map<
-    number,
-    { logs: Array<{ timestamp: string; message: string; level: string }> }
-  >;
+  subtaskLogs?: Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>;
   parallelSessionId?: string | null;
   hasSubtasks: boolean;
   getSubtaskStatus?: (subtaskId: number) => ParallelExecutionStatus | undefined;
@@ -328,9 +322,7 @@ function IdleExecutionForm({
             <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
               <GitBranch className="w-2.5 h-2.5" />
               ブランチ名
-              <span className="text-zinc-400 dark:text-zinc-500">
-                （空欄で自動生成）
-              </span>
+              <span className="text-zinc-400 dark:text-zinc-500">（空欄で自動生成）</span>
             </label>
             <input
               type="text"

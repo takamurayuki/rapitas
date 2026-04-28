@@ -19,11 +19,7 @@ type Props = {
  *
  * @param props - See Props type
  */
-export function ExecutionCancelledPanel({
-  pollingTokensUsed,
-  logsNode,
-  onReset,
-}: Props) {
+export function ExecutionCancelledPanel({ pollingTokensUsed, logsNode, onReset }: Props) {
   return (
     <>
       <div className="bg-linear-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 rounded-xl border border-yellow-200 dark:border-yellow-800 overflow-hidden">

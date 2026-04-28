@@ -94,10 +94,7 @@ export function parseGlobalShortcut(shortcut: string): {
  * @param key - Main key / メインキー
  * @returns Formatted shortcut string e.g. "Ctrl+Alt+R"
  */
-export function buildGlobalShortcut(
-  modifiers: ModifierKey[],
-  key: string,
-): string {
+export function buildGlobalShortcut(modifiers: ModifierKey[], key: string): string {
   return [...modifiers, key].join('+');
 }
 

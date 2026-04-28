@@ -151,8 +151,7 @@ export function useAdvancedTaskSearch(
   options: UseTaskSearchOptions = {},
 ) {
   const [filters, setFilters] = useState<SearchFilters>(initialFilters);
-  const { query, setQuery, results, loading, error, clearSearch } =
-    useTaskSearch(options);
+  const { query, setQuery, results, loading, error, clearSearch } = useTaskSearch(options);
 
   // Results with filters applied
   const filteredResults = results.filter((task) => {
@@ -169,10 +168,7 @@ export function useAdvancedTaskSearch(
     // Date range filter
     if (filters.dateRange) {
       const taskDate = new Date(task.createdAt);
-      if (
-        taskDate < filters.dateRange.from ||
-        taskDate > filters.dateRange.to
-      ) {
+      if (taskDate < filters.dateRange.from || taskDate > filters.dateRange.to) {
         return false;
       }
     }

@@ -63,9 +63,7 @@ export default function OrchestraPage() {
             <Activity className="w-6 h-6 text-indigo-500" />
             {t('title')}
           </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {t('description')}
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('description')}</p>
         </div>
 
         {/* Control buttons */}
@@ -120,9 +118,7 @@ export default function OrchestraPage() {
           color="yellow"
         />
         <StatCard
-          icon={
-            <Loader2 className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />
-          }
+          icon={<Loader2 className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />}
           label={t('stats.running')}
           value={state?.queue?.running || 0}
           color="blue"
@@ -172,8 +168,7 @@ export default function OrchestraPage() {
                   className="bg-indigo-500 h-2 rounded-full transition-all duration-500"
                   style={{
                     width: `${Math.round(
-                      ((state.session.completedTasks +
-                        state.session.failedTasks) /
+                      ((state.session.completedTasks + state.session.failedTasks) /
                         state.session.totalTasks) *
                         100,
                     )}%`,
@@ -187,8 +182,7 @@ export default function OrchestraPage() {
                 </span>
                 <span>
                   {Math.round(
-                    ((state.session.completedTasks +
-                      state.session.failedTasks) /
+                    ((state.session.completedTasks + state.session.failedTasks) /
                       state.session.totalTasks) *
                       100,
                   )}

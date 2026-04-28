@@ -140,24 +140,8 @@ model Task {
   @@index([dueDate])
   @@index([isRecurring, nextOccurrence])
 
-  // Task dependencies for Gantt chart and blocking relationships
-  outgoingDependencies TaskDependency[] @relation("DependencyFromTask")
-  incomingDependencies TaskDependency[] @relation("DependencyToTask")
-}
-
-model TaskDependency {
-  id          Int      @id @default(autoincrement())
-  fromTaskId  Int      // Prerequisites task (must complete first)
-  toTaskId    Int      // Dependent task (blocked until fromTask completes)
-  type        String   @default("FS") // "FS" (Finish-to-Start) for MVP, SS/FF/SF in v2
-  lagDays     Int      @default(0)    // Days to wait after fromTask completion (0 for MVP)
-  fromTask    Task     @relation("DependencyFromTask", fields: [fromTaskId], references: [id], onDelete: Cascade)
-  toTask      Task     @relation("DependencyToTask", fields: [toTaskId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-
-  @@unique([fromTaskId, toTaskId])
-  @@index([toTaskId])
-  @@index([fromTaskId])
+  // Workflow markdown file index (research/plan/question/verify metadata).
+  workflowFiles        WorkflowFile[]
 }
 
 model Comment {

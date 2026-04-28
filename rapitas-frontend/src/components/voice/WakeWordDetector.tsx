@@ -44,10 +44,7 @@ interface WakeWordDetectorProps {
 // avoids the TS2717 "subsequent property declarations" conflict.
 import type { SpeechRecognition } from '@/hooks/common/speech-recognition.types';
 
-export default function WakeWordDetector({
-  config,
-  onWakeWordDetected,
-}: WakeWordDetectorProps) {
+export default function WakeWordDetector({ config, onWakeWordDetected }: WakeWordDetectorProps) {
   const { openVoiceInput, isVoiceOpen } = useVoiceInput();
   const [isListening, setIsListening] = useState(false);
   const [lastHeard, setLastHeard] = useState('');
@@ -199,9 +196,7 @@ export default function WakeWordDetector({
           isListening ? 'bg-green-500 animate-pulse' : 'bg-zinc-600'
         }`}
       />
-      <span className="text-[9px] text-zinc-500">
-        {isListening ? '「ラピタス」で起動' : ''}
-      </span>
+      <span className="text-[9px] text-zinc-500">{isListening ? '「ラピタス」で起動' : ''}</span>
     </div>
   );
 }

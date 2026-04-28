@@ -11,20 +11,16 @@ interface KnowledgeEntryCardProps {
 }
 
 const stageColors: Record<string, string> = {
-  active:
-    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  dormant:
-    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  dormant: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   archived: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
 };
 
 const validationColors: Record<string, string> = {
   pending: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  validated:
-    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  validated: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  conflict:
-    'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  conflict: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
 };
 
 export function KnowledgeEntryCard({
@@ -101,16 +97,12 @@ export function KnowledgeEntryCard({
               </span>
             ))}
             {entry.tags.length > 3 && (
-              <span className="text-xs text-gray-400">
-                +{entry.tags.length - 3}
-              </span>
+              <span className="text-xs text-gray-400">+{entry.tags.length - 3}</span>
             )}
           </div>
         )}
         {entry.pinnedUntil && new Date(entry.pinnedUntil) > new Date() && (
-          <span className="text-xs text-amber-600 dark:text-amber-400">
-            Pinned
-          </span>
+          <span className="text-xs text-amber-600 dark:text-amber-400">Pinned</span>
         )}
       </div>
     </div>

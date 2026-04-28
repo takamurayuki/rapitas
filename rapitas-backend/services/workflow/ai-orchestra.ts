@@ -312,8 +312,8 @@ export class AIOrchestra {
         deps.push(task.parentId);
       }
 
-      // TODO: Implement DB-based dependency fetching when TaskDependency model is added.
-      // Currently manages dependencies via parent-child and same-theme ordering only.
+      // Dependencies are inferred from parent-child links + same-theme ordering only;
+      // explicit TaskDependency rows were removed as a feature.
 
       // Same-theme preceding tasks (sequential to avoid git conflicts)
       if (task.themeId) {

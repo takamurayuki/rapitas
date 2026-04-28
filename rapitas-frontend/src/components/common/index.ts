@@ -5,10 +5,7 @@
  */
 
 export { ErrorBoundary } from './ErrorBoundary';
-export {
-  default as KeyboardShortcuts,
-  OPEN_SHORTCUTS_EVENT,
-} from './KeyboardShortcuts';
+export { default as KeyboardShortcuts, OPEN_SHORTCUTS_EVENT } from './KeyboardShortcuts';
 export { default as WindowResizeOptimizer } from './WindowResizeOptimizer';
 export { default as CacheWarmupInitializer } from './CacheWarmupInitializer';
 export { default as HtmlLangUpdater } from './HtmlLangUpdater';

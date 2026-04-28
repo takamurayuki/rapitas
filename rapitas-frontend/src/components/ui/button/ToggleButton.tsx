@@ -1,13 +1,7 @@
 'use client';
 import React from 'react';
 
-export type ToggleButtonColor =
-  | 'violet'
-  | 'blue'
-  | 'emerald'
-  | 'red'
-  | 'amber'
-  | 'zinc';
+export type ToggleButtonColor = 'violet' | 'blue' | 'emerald' | 'red' | 'amber' | 'zinc';
 
 type ToggleButtonProps = {
   label: string;
@@ -41,11 +35,9 @@ const enabledIconStyles: Record<ToggleButtonColor, string> = {
 };
 
 const enabledBadgeStyles: Record<ToggleButtonColor, string> = {
-  violet:
-    'bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-200',
+  violet: 'bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-200',
   blue: 'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-200',
-  emerald:
-    'bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200',
+  emerald: 'bg-emerald-200 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200',
   red: 'bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-200',
   amber: 'bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-200',
   zinc: 'bg-zinc-300 dark:bg-zinc-600 text-zinc-700 dark:text-zinc-200',
@@ -63,8 +55,7 @@ export function ToggleButton({
   const disabledStyles =
     'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700';
 
-  const disabledBadgeStyles =
-    'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400';
+  const disabledBadgeStyles = 'bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400';
 
   return (
     <button
@@ -75,9 +66,7 @@ export function ToggleButton({
       } disabled:opacity-50 disabled:cursor-not-allowed`}
       title={description}
     >
-      <Icon
-        className={`w-4 h-4 ${isEnabled ? enabledIconStyles[color] : ''}`}
-      />
+      <Icon className={`w-4 h-4 ${isEnabled ? enabledIconStyles[color] : ''}`} />
       <span>{label}</span>
       <span
         className={`px-1.5 py-0.5 rounded text-xs ${

@@ -148,9 +148,7 @@ describe('wav-codec', () => {
 
     it('ダウンサンプル（48kHz→16kHz）で長さが1/3になる', () => {
       // 48000 / 16000 = 3.0の比率
-      const samples = new Float32Array([
-        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
-      ]);
+      const samples = new Float32Array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
       const result = resamplePcm(samples, 48000, 16000);
 
       const expectedLength = Math.floor(samples.length / 3); // 9/3 = 3

@@ -57,15 +57,12 @@ export default function RecurrenceSelector({
   const [showCustom, setShowCustom] = useState(false);
 
   // Custom rule state
-  const [customFreq, setCustomFreq] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>(
-    'WEEKLY',
-  );
+  const [customFreq, setCustomFreq] = useState<'DAILY' | 'WEEKLY' | 'MONTHLY'>('WEEKLY');
   const [customInterval, setCustomInterval] = useState(1);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [endDate, setEndDate] = useState<string>('');
   const [recurrenceTime, setRecurrenceTime] = useState<string>('00:00');
-  const [inheritWorkflowFiles, setInheritWorkflowFiles] =
-    useState<boolean>(true);
+  const [inheritWorkflowFiles, setInheritWorkflowFiles] = useState<boolean>(true);
   const [previewDates, setPreviewDates] = useState<string[]>([]);
 
   // Fetch presets on mount
@@ -120,12 +117,7 @@ export default function RecurrenceSelector({
    * @param inheritFiles - Inherit previous workflow files / 前回ファイルを継承するか
    */
   const applyRecurrence = useCallback(
-    async (
-      rule: string,
-      end?: string | null,
-      time?: string,
-      inheritFiles?: boolean,
-    ) => {
+    async (rule: string, end?: string | null, time?: string, inheritFiles?: boolean) => {
       setLoading(true);
       try {
         const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/recurrence`, {
@@ -182,12 +174,7 @@ export default function RecurrenceSelector({
 
   const applyCustomRule = () => {
     const rule = buildCustomRule(customFreq, customInterval, selectedDays);
-    applyRecurrence(
-      rule,
-      endDate || null,
-      recurrenceTime,
-      inheritWorkflowFiles,
-    );
+    applyRecurrence(rule, endDate || null, recurrenceTime, inheritWorkflowFiles);
   };
 
   return (

@@ -173,10 +173,7 @@ describe('useLoginForm', () => {
   });
 
   it('should handle network error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('Network error')),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
     const { result } = renderHook(() => useLoginForm());
 

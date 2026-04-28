@@ -1,14 +1,7 @@
 'use client';
 // OverviewCards
 
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  Database,
-  Network,
-  Sparkles,
-  Target,
-} from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Database, Network, Sparkles, Target } from 'lucide-react';
 import type { MemoryOverview } from '../types';
 
 interface OverviewCardsProps {

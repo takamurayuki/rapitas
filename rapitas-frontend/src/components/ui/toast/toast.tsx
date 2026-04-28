@@ -10,12 +10,7 @@ interface ToastProps {
   onClose: () => void;
 }
 
-export default function Toast({
-  message,
-  type = 'info',
-  duration = 3000,
-  onClose,
-}: ToastProps) {
+export default function Toast({ message, type = 'info', duration = 3000, onClose }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
@@ -77,10 +72,7 @@ export default function Toast({
     >
       {icons[type]}
       <p className="flex-1 font-medium">{message}</p>
-      <button
-        onClick={onClose}
-        className="hover:bg-white/20 rounded p-1 transition-colors"
-      >
+      <button onClick={onClose} className="hover:bg-white/20 rounded p-1 transition-colors">
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path
             fillRule="evenodd"

@@ -70,8 +70,7 @@ export function BasicSettingsSection({
               <option value="">{t('selectModel')}</option>
               {availableModels.map((model) => (
                 <option key={model.value} value={model.value}>
-                  {model.label}{' '}
-                  {model.description ? `- ${model.description}` : ''}
+                  {model.label} {model.description ? `- ${model.description}` : ''}
                 </option>
               ))}
             </select>
@@ -92,19 +91,14 @@ export function BasicSettingsSection({
                   ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
                   : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
               }`}
-              placeholder={
-                providerConfig.defaultEndpoint || 'https://api.example.com/v1'
-              }
+              placeholder={providerConfig.defaultEndpoint || 'https://api.example.com/v1'}
             />
             {fieldErrors.endpoint && (
-              <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-                {fieldErrors.endpoint}
-              </p>
+              <p className="text-xs text-red-500 dark:text-red-400 mt-1">{fieldErrors.endpoint}</p>
             )}
             {!fieldErrors.endpoint && agent.agentType === 'azure-openai' && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                例:
-                https://your-resource.openai.azure.com/openai/deployments/your-deployment
+                例: https://your-resource.openai.azure.com/openai/deployments/your-deployment
               </p>
             )}
           </div>
@@ -125,9 +119,7 @@ type ClaudeCodeInfoSectionProps = {
  *
  * @param props - ClaudeCodeInfoSectionProps
  */
-export function ClaudeCodeInfoSection({
-  agentType,
-}: ClaudeCodeInfoSectionProps) {
+export function ClaudeCodeInfoSection({ agentType }: ClaudeCodeInfoSectionProps) {
   const t = useTranslations('agents');
 
   if (agentType !== 'claude-code') return null;
@@ -164,11 +156,7 @@ type ConnectionTestSectionProps = {
  *
  * @param props - ConnectionTestSectionProps
  */
-export function ConnectionTestSection({
-  testing,
-  testResult,
-  onTest,
-}: ConnectionTestSectionProps) {
+export function ConnectionTestSection({ testing, testResult, onTest }: ConnectionTestSectionProps) {
   const t = useTranslations('agents');
 
   return (
@@ -222,11 +210,7 @@ type SettingsActionBarProps = {
  *
  * @param props - SettingsActionBarProps
  */
-export function SettingsActionBar({
-  saving,
-  onSave,
-  onDelete,
-}: SettingsActionBarProps) {
+export function SettingsActionBar({ saving, onSave, onDelete }: SettingsActionBarProps) {
   const tc = useTranslations('common');
 
   return (
@@ -244,11 +228,7 @@ export function SettingsActionBar({
         disabled={saving}
         className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
       >
-        {saving ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Save className="w-4 h-4" />
-        )}
+        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
         {tc('save')}
       </button>
     </div>

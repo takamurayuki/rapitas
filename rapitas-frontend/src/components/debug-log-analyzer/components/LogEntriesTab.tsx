@@ -12,11 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TabsContent } from '@/components/ui/tabs';
 import { AlertCircle, AlertTriangle, Info, Bug, Search } from 'lucide-react';
-import type {
-  LogAnalysisResult,
-  LogLevel,
-  ParsedLogEntry,
-} from '@/types/debug-log';
+import type { LogAnalysisResult, LogLevel, ParsedLogEntry } from '@/types/debug-log';
 
 const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
   trace: '#9CA3AF',
@@ -88,11 +84,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
               </Badge>
             )}
             {entry.level && (
-              <Badge
-                variant="outline"
-                className="text-xs"
-                style={{ borderColor: color, color }}
-              >
+              <Badge variant="outline" className="text-xs" style={{ borderColor: color, color }}>
                 {entry.level.toUpperCase()}
               </Badge>
             )}
@@ -131,9 +123,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
                   size="sm"
                   variant={selectedLevel === level ? 'secondary' : 'outline'}
                   onClickAction={() =>
-                    setSelectedLevel(
-                      selectedLevel === level ? null : (level as LogLevel),
-                    )
+                    setSelectedLevel(selectedLevel === level ? null : (level as LogLevel))
                   }
                 >
                   {level.toUpperCase()}
@@ -156,9 +146,7 @@ export const LogEntriesTab: React.FC<LogEntriesTabProps> = ({ entries }) => {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-y-auto">
-            {filteredEntries
-              .slice(0, 1000)
-              .map((entry, index) => renderLogEntry(entry, index))}
+            {filteredEntries.slice(0, 1000).map((entry, index) => renderLogEntry(entry, index))}
             {filteredEntries.length > 1000 && (
               <div className="p-4 text-center text-gray-500">
                 表示上限（1000件）を超えています。フィルターを使用して絞り込んでください。

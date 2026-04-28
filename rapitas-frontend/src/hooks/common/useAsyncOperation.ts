@@ -61,12 +61,9 @@ export function useAsyncOperation<T, Args extends unknown[] = []>(
         options?.onSuccess?.(result);
         return result;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'An error occurred';
+        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
         setError(errorMessage);
-        options?.onError?.(
-          err instanceof Error ? err : new Error(errorMessage),
-        );
+        options?.onError?.(err instanceof Error ? err : new Error(errorMessage));
         return null;
       } finally {
         setIsLoading(false);
@@ -101,9 +98,7 @@ export function useMultiAsyncOperation<
 >(operations: Operations) {
   type OperationKeys = keyof Operations;
   type OperationStates = {
-    [K in OperationKeys]: AsyncOperationState<
-      Awaited<ReturnType<Operations[K]>>
-    >;
+    [K in OperationKeys]: AsyncOperationState<Awaited<ReturnType<Operations[K]>>>;
   };
 
   const [states, setStates] = useState<OperationStates>(() => {
@@ -129,17 +124,14 @@ export function useMultiAsyncOperation<
       }));
 
       try {
-        const result = await (
-          operations[key] as (...args: unknown[]) => Promise<unknown>
-        )(...args);
+        const result = await (operations[key] as (...args: unknown[]) => Promise<unknown>)(...args);
         setStates((prev) => ({
           ...prev,
           [key]: { data: result, isLoading: false, error: null },
         }));
         return result as Awaited<ReturnType<Operations[K]>>;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'An error occurred';
+        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
         setStates((prev) => ({
           ...prev,
           [key]: { ...prev[key], isLoading: false, error: errorMessage },

@@ -4,10 +4,7 @@ import { useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Search, SearchX } from 'lucide-react';
-import {
-  useGlobalSearch,
-  type SearchResultType,
-} from '@/hooks/search/useGlobalSearch';
+import { useGlobalSearch, type SearchResultType } from '@/hooks/search/useGlobalSearch';
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
 
@@ -24,19 +21,14 @@ export default function SearchClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialQuery = searchParams.get('q') || '';
-  const initialType = searchParams.get('type') as
-    | SearchResultType
-    | 'all'
-    | null;
+  const initialType = searchParams.get('type') as SearchResultType | 'all' | null;
   const initialPage = parseInt(searchParams.get('page') || '1', 10);
 
   const initialLimit = parseInt(searchParams.get('limit') || '10', 10);
 
   const initialTypes = useMemo(
     () =>
-      initialType === null || initialType === 'all'
-        ? undefined
-        : [initialType as SearchResultType],
+      initialType === null || initialType === 'all' ? undefined : [initialType as SearchResultType],
     [initialType],
   );
 
@@ -65,9 +57,7 @@ export default function SearchClient() {
     setTypes,
   } = useGlobalSearch(searchOptions);
 
-  const activeType = currentTypes
-    ? currentTypes[0] || 'all'
-    : initialType || 'all';
+  const activeType = currentTypes ? currentTypes[0] || 'all' : initialType || 'all';
 
   // Sync offset with page param
   useEffect(() => {
@@ -200,18 +190,14 @@ export default function SearchClient() {
             <p className="text-zinc-500 dark:text-zinc-400 mb-2">
               {t('noMatchResults', { query })}
             </p>
-            <p className="text-sm text-zinc-400 dark:text-zinc-500">
-              {t('tryDifferentKeyword')}
-            </p>
+            <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('tryDifferentKeyword')}</p>
           </div>
         )}
 
         {!loading && !query && (
           <div className="text-center py-16 animate-in fade-in-0 duration-300">
             <Search className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400">
-              {t('enterKeywordToSearch')}
-            </p>
+            <p className="text-zinc-500 dark:text-zinc-400">{t('enterKeywordToSearch')}</p>
           </div>
         )}
       </div>

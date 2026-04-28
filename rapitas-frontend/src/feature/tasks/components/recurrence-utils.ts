@@ -52,9 +52,7 @@ export function describeRule(rule: string | null): string {
 
   const parts = rule.split(';');
   const freq = parts.find((p) => p.startsWith('FREQ='))?.split('=')[1];
-  const interval = parseInt(
-    parts.find((p) => p.startsWith('INTERVAL='))?.split('=')[1] ?? '1',
-  );
+  const interval = parseInt(parts.find((p) => p.startsWith('INTERVAL='))?.split('=')[1] ?? '1');
   const byday = parts.find((p) => p.startsWith('BYDAY='))?.split('=')[1];
 
   switch (freq) {
@@ -67,9 +65,7 @@ export function describeRule(rule: string | null): string {
         if (days.length === 5 && WEEKDAY_KEYS.every((d) => days.includes(d))) {
           return '平日';
         }
-        const dayLabels = days
-          .map((d) => WEEKDAYS.find((w) => w.key === d)?.label)
-          .filter(Boolean);
+        const dayLabels = days.map((d) => WEEKDAYS.find((w) => w.key === d)?.label).filter(Boolean);
         return interval > 1
           ? `${interval}週ごと (${dayLabels.join(', ')})`
           : `毎週 ${dayLabels.join(', ')}`;

@@ -19,9 +19,5 @@ export function CheckIcon() {
 
 /** Renders a small white filled circle used as a radio-button indicator. */
 export function DotIcon() {
-  return (
-    <div
-      style={{ width: 7, height: 7, borderRadius: '50%', background: 'white' }}
-    />
-  );
+  return <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'white' }} />;
 }

@@ -14,31 +14,18 @@ import { useKnowledgeReminders } from '../hooks/useIntelligence';
 
 const categoryColors: Record<string, string> = {
   procedure: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  pattern:
-    'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  insight:
-    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  pattern: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  insight: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   fact: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  preference:
-    'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
+  preference: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
   general: 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400',
 };
 
 export function KnowledgeReminderWidget() {
-  const {
-    summary,
-    loading,
-    fetchSummary,
-    markAsReviewed,
-    snooze,
-    fetchContent,
-  } = useKnowledgeReminders();
-  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(
-    new Set(),
-  );
-  const [entryContents, setEntryContents] = useState<Map<number, string>>(
-    new Map(),
-  );
+  const { summary, loading, fetchSummary, markAsReviewed, snooze, fetchContent } =
+    useKnowledgeReminders();
+  const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set());
+  const [entryContents, setEntryContents] = useState<Map<number, string>>(new Map());
   const [loadingContent, setLoadingContent] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -123,25 +110,19 @@ export function KnowledgeReminderWidget() {
           >
             {summary.atRiskCount}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            忘却リスク
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">忘却リスク</div>
         </div>
         <div className="text-center p-2 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-lg font-bold text-zinc-800 dark:text-zinc-200">
             {summary.dormantCount}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            休眠中
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">休眠中</div>
         </div>
         <div className="text-center p-2 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
           <div className="text-lg font-bold text-green-600 dark:text-green-400">
             {summary.recentlyReviewed}
           </div>
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-            復習済み
-          </div>
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400">復習済み</div>
         </div>
       </div>
 
@@ -225,9 +206,7 @@ export function KnowledgeReminderWidget() {
                         {content}
                       </p>
                     ) : (
-                      <p className="text-xs text-zinc-400 italic">
-                        コンテンツなし
-                      </p>
+                      <p className="text-xs text-zinc-400 italic">コンテンツなし</p>
                     )}
                   </div>
                 )}

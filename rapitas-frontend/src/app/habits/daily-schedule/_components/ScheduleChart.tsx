@@ -124,9 +124,7 @@ export function ScheduleChart({
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          {t('chart24h')}
-        </h2>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('chart24h')}</h2>
         <div className="text-sm text-zinc-500 dark:text-zinc-400">
           {t('coveragePercent', {
             percent: coveragePercent,
@@ -211,10 +209,7 @@ export function ScheduleChart({
           return (
             <div className="mt-3 text-center">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-lg">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: block.color }}
-                />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: block.color }} />
                 <Icon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
                 <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                   {block.label}

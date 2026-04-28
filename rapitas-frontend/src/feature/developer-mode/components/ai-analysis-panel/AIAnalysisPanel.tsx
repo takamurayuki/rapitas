@@ -113,8 +113,7 @@ export function AIAnalysisPanel({
   };
 
   const handleSelectAll = () => {
-    const allIndices =
-      analysisResult?.suggestedSubtasks?.map((_, i) => i) ?? [];
+    const allIndices = analysisResult?.suggestedSubtasks?.map((_, i) => i) ?? [];
     if (selectedSubtasks.length === allIndices.length) {
       setSelectedSubtasks([]);
     } else {
@@ -159,9 +158,7 @@ export function AIAnalysisPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BrainCircuit className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              AIアシスタント
-            </span>
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">AIアシスタント</span>
             <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs">
               <CheckCircle2 className="w-3 h-3" />
               準備完了
@@ -179,31 +176,19 @@ export function AIAnalysisPanel({
         <>
           {/* Tab bar */}
           <div className="flex border-b border-zinc-200 dark:border-zinc-700">
-            <button
-              onClick={() => setActiveTab('analysis')}
-              className={tabClass('analysis')}
-            >
+            <button onClick={() => setActiveTab('analysis')} className={tabClass('analysis')}>
               <Bot className="w-4 h-4" />
               分析
             </button>
-            <button
-              onClick={() => setActiveTab('prompt')}
-              className={tabClass('prompt')}
-            >
+            <button onClick={() => setActiveTab('prompt')} className={tabClass('prompt')}>
               <Wand2 className="w-4 h-4" />
               最適化
             </button>
-            <button
-              onClick={() => setActiveTab('prompts')}
-              className={tabClass('prompts')}
-            >
+            <button onClick={() => setActiveTab('prompts')} className={tabClass('prompts')}>
               <List className="w-4 h-4" />
               管理
             </button>
-            <button
-              onClick={() => setActiveTab('dependency')}
-              className={tabClass('dependency')}
-            >
+            <button onClick={() => setActiveTab('dependency')} className={tabClass('dependency')}>
               <GitBranch className="w-4 h-4" />
               依存度
             </button>
@@ -286,9 +271,7 @@ export function AIAnalysisPanel({
                 apiKeyInput={apiKey.apiKeyInput}
                 onApiKeyInputChange={apiKey.setApiKeyInput}
                 showApiKey={apiKey.showApiKey}
-                onToggleShowApiKey={() =>
-                  apiKey.setShowApiKey(!apiKey.showApiKey)
-                }
+                onToggleShowApiKey={() => apiKey.setShowApiKey(!apiKey.showApiKey)}
                 isSavingApiKey={apiKey.isSavingApiKey}
                 apiKeyError={apiKey.apiKeyError}
                 apiKeySuccess={apiKey.apiKeySuccess}

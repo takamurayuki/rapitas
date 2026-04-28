@@ -20,12 +20,8 @@ export function DevToolsSection() {
           <div className="flex items-center gap-3">
             <Terminal className="w-5 h-5 text-zinc-400" />
             <div>
-              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                {t('devTools')}
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                {t('cliSetup')}
-              </p>
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('devTools')}</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">{t('cliSetup')}</p>
             </div>
           </div>
         </div>
@@ -57,9 +53,7 @@ export function DevToolsSection() {
       {/* Integrations panel */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs dark:shadow-2xl dark:shadow-black/50 overflow-hidden">
         <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-            外部連携
-          </h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">外部連携</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             Webhook通知とIDE統合の設定
           </p>

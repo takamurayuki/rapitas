@@ -133,10 +133,9 @@ export function useCategoryManager(config: CategoryManagerConfig) {
 
   const setDefault = async (id: number) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/${config.endpoint}/${id}/set-default`,
-        { method: 'PATCH' },
-      );
+      const res = await fetch(`${API_BASE_URL}/${config.endpoint}/${id}/set-default`, {
+        method: 'PATCH',
+      });
 
       if (!res.ok) throw new Error(t('setDefaultFailed'));
 
@@ -176,8 +175,7 @@ export function useCategoryManager(config: CategoryManagerConfig) {
   };
 
   const handleDragEnd = async (result: DropResult) => {
-    if (!result.destination || result.source.index === result.destination.index)
-      return;
+    if (!result.destination || result.source.index === result.destination.index) return;
 
     const reordered = Array.from(items);
     const [moved] = reordered.splice(result.source.index, 1);

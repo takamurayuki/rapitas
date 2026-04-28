@@ -2,14 +2,7 @@
 // DeckView
 
 import { useTranslations } from 'next-intl';
-import {
-  Plus,
-  Trash2,
-  ChevronLeft,
-  Brain,
-  Layers,
-  Sparkles,
-} from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, Brain, Layers, Sparkles } from 'lucide-react';
 import type { FlashcardDeck } from '@/types';
 import { AddCardModal } from './AddCardModal';
 import { GenerateCardsModal } from './GenerateCardsModal';
@@ -36,9 +29,7 @@ interface DeckViewProps {
   onCardBackChange: (v: string) => void;
   onGenerateTopicChange: (v: string) => void;
   onGenerateCountChange: (n: number) => void;
-  onGenerateDifficultyChange: (
-    d: 'beginner' | 'intermediate' | 'advanced',
-  ) => void;
+  onGenerateDifficultyChange: (d: 'beginner' | 'intermediate' | 'advanced') => void;
   onGenerateLanguageChange: (lang: 'ja' | 'en') => void;
   onAddCard: (e: React.FormEvent) => void;
   onGenerateCards: (e: React.FormEvent) => void;
@@ -101,9 +92,7 @@ export function DeckView({
             <Layers className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
-              {deck.name}
-            </h1>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">{deck.name}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {deck.cards?.length || 0} {t('cardsCount')}
             </p>
@@ -148,15 +137,11 @@ export function DeckView({
             </span>
             <div className="flex-1 grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                  {t('question')}
-                </p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">{t('question')}</p>
                 <p className="text-zinc-900 dark:text-zinc-100">{card.front}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">
-                  {t('answer')}
-                </p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-1">{t('answer')}</p>
                 <p className="text-zinc-900 dark:text-zinc-100">{card.back}</p>
               </div>
             </div>
@@ -174,9 +159,7 @@ export function DeckView({
       {!hasCards && (
         <div className="text-center py-12">
           <Layers className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-          <p className="text-zinc-500 dark:text-zinc-400 mb-4">
-            {t('noCards')}
-          </p>
+          <p className="text-zinc-500 dark:text-zinc-400 mb-4">{t('noCards')}</p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={onOpenGenerateModal}

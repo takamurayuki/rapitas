@@ -18,10 +18,7 @@ type ScreenshotGridProps = {
  * @param screenshots - Screenshot list to display / 表示するスクリーンショットリスト
  * @param hidePlaceholder - Suppress empty-state message when capture form is open / キャプチャフォーム表示中は空状態メッセージを非表示
  */
-export function ScreenshotGrid({
-  screenshots,
-  hidePlaceholder,
-}: ScreenshotGridProps) {
+export function ScreenshotGrid({ screenshots, hidePlaceholder }: ScreenshotGridProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   if (screenshots.length === 0) {
@@ -51,9 +48,7 @@ export function ScreenshotGrid({
             </div>
             <div
               className="relative cursor-pointer"
-              onClick={() =>
-                setLightboxImage(`${API_BASE_URL}${screenshot.url}`)
-              }
+              onClick={() => setLightboxImage(`${API_BASE_URL}${screenshot.url}`)}
             >
               <img
                 src={`${API_BASE_URL}${screenshot.url}`}
@@ -63,10 +58,8 @@ export function ScreenshotGrid({
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = 'none';
-                  const fallback =
-                    target.parentElement?.querySelector('.screenshot-error');
-                  if (fallback instanceof HTMLElement)
-                    fallback.style.display = 'flex';
+                  const fallback = target.parentElement?.querySelector('.screenshot-error');
+                  if (fallback instanceof HTMLElement) fallback.style.display = 'flex';
                 }}
               />
               <div className="screenshot-error hidden items-center justify-center gap-2 py-8 text-zinc-400 dark:text-zinc-500 text-sm">

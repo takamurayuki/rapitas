@@ -1,15 +1,7 @@
 'use client';
 // AutoExecutionMode — category-scoped auto task generation with IdeaBox integration.
 import { useState, useCallback } from 'react';
-import {
-  Bot,
-  Loader2,
-  Sparkles,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  X,
-} from 'lucide-react';
+import { Bot, Loader2, Sparkles, CheckCircle2, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 interface GeneratedTask {
@@ -78,9 +70,7 @@ export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
         setIdeasUsed(data.ideasUsed ?? 0);
         setInnovationTriggered(data.innovationTriggered ?? false);
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'タスク自動生成に失敗しました',
-        );
+        setError(err instanceof Error ? err.message : 'タスク自動生成に失敗しました');
       } finally {
         setIsGenerating(false);
       }
@@ -98,11 +88,7 @@ export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
         disabled={isGenerating}
         className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
       >
-        {isGenerating ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Bot className="h-4 w-4" />
-        )}
+        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
         {isGenerating ? 'AIがタスクを分析中...' : '自動実行モード'}
         <Sparkles className="h-3 w-3 text-indigo-400" />
       </button>
@@ -173,9 +159,7 @@ export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="h-5 w-5" />
-                <h3 className="text-base font-semibold">
-                  学習データが不足しています
-                </h3>
+                <h3 className="text-base font-semibold">学習データが不足しています</h3>
               </div>
               <button
                 onClick={() => setShowThresholdModal(false)}
@@ -189,9 +173,7 @@ export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
             </p>
             <p className="mb-6 text-sm font-medium text-zinc-700 dark:text-zinc-300">
               現在の完了タスク数:{' '}
-              <span className="text-amber-600 dark:text-amber-400">
-                {completedCount}件
-              </span>
+              <span className="text-amber-600 dark:text-amber-400">{completedCount}件</span>
               <span className="text-zinc-500"> / 10件</span>
             </p>
             <div className="flex gap-2">

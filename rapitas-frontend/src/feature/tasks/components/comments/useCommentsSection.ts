@@ -65,10 +65,7 @@ export function useCommentsSection(
 
   const count = comments.filter((c) => !c.parentId).length;
   const replyCount = comments.filter((c) => c.parentId).length;
-  const linkCount = comments.reduce(
-    (sum, c) => sum + (c.linksFrom?.length || 0),
-    0,
-  );
+  const linkCount = comments.reduce((sum, c) => sum + (c.linksFrom?.length || 0), 0);
 
   const handleEdit = useCallback((n: NoteData) => {
     setEditId(n.id);

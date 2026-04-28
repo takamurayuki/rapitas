@@ -101,10 +101,7 @@ export default function LearningDashboardPage() {
         <div className="h-8 w-48 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
-            />
+            <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
           ))}
         </div>
       </div>
@@ -130,36 +127,26 @@ export default function LearningDashboardPage() {
           <div className="flex items-center gap-3">
             <Flame className="w-10 h-10" />
             <div>
-              <div className="text-3xl font-bold">
-                {studyStreak.currentStreak}
-              </div>
+              <div className="text-3xl font-bold">{studyStreak.currentStreak}</div>
               <div className="text-sm opacity-90">day streak</div>
             </div>
           </div>
           <div className="h-12 w-px bg-white/30 hidden sm:block" />
           <div className="flex gap-6 text-sm">
             <div>
-              <div className="font-semibold text-lg">
-                {studyStreak.todayMinutes}min
-              </div>
+              <div className="font-semibold text-lg">{studyStreak.todayMinutes}min</div>
               <div className="opacity-80">today</div>
             </div>
             <div>
-              <div className="font-semibold text-lg">
-                {studyStreak.todayTasksCompleted}
-              </div>
+              <div className="font-semibold text-lg">{studyStreak.todayTasksCompleted}</div>
               <div className="opacity-80">tasks done</div>
             </div>
             <div>
-              <div className="font-semibold text-lg">
-                {studyStreak.weeklyMinutes}min
-              </div>
+              <div className="font-semibold text-lg">{studyStreak.weeklyMinutes}min</div>
               <div className="opacity-80">this week</div>
             </div>
             <div>
-              <div className="font-semibold text-lg">
-                {studyStreak.longestStreak}
-              </div>
+              <div className="font-semibold text-lg">{studyStreak.longestStreak}</div>
               <div className="opacity-80">best streak</div>
             </div>
           </div>
@@ -227,9 +214,7 @@ export default function LearningDashboardPage() {
                   className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {goal.name}
-                    </h3>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{goal.name}</h3>
                     <span
                       className="text-xs px-2 py-1 rounded-full font-medium"
                       style={{
@@ -241,9 +226,7 @@ export default function LearningDashboardPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400 mb-3">
-                    {goal.targetScore && (
-                      <span>Target: {goal.targetScore}</span>
-                    )}
+                    {goal.targetScore && <span>Target: {goal.targetScore}</span>}
                     <span>
                       {goal.completedTaskCount}/{goal.taskCount} tasks
                     </span>
@@ -279,9 +262,7 @@ export default function LearningDashboardPage() {
                   className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {goal.title}
-                    </h3>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{goal.title}</h3>
                     <div className="flex items-center gap-2 text-xs text-zinc-500">
                       <Clock className="w-3.5 h-3.5" />
                       {goal.dailyHours}h/day
@@ -323,13 +304,9 @@ function StatCard({
     <div className="bg-white dark:bg-zinc-800 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          {label}
-        </span>
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
       </div>
-      <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-        {value}
-      </div>
+      <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</div>
       <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{sub}</div>
     </div>
   );

@@ -62,19 +62,14 @@ export function AIAccordionPanelInner({
   const [subtaskCreationSuccess, setSubtaskCreationSuccess] = useState(false);
 
   // Accordion / tab state
-  const {
-    expandedSection,
-    setExpandedSection,
-    toggleSection,
-    analysisTab,
-    setAnalysisTab,
-  } = useAccordionState({
-    taskId,
-    onTaskChange: () => {
-      setSelectedSubtasks([]);
-      setSubtaskCreationSuccess(false);
-    },
-  });
+  const { expandedSection, setExpandedSection, toggleSection, analysisTab, setAnalysisTab } =
+    useAccordionState({
+      taskId,
+      onTaskChange: () => {
+        setSelectedSubtasks([]);
+        setSubtaskCreationSuccess(false);
+      },
+    });
 
   // Prompt optimization
   const {
@@ -156,9 +151,7 @@ export function AIAccordionPanelInner({
   const handleSelectAll = useCallback(() => {
     if (!analysisResult?.suggestedSubtasks) return;
     const allIndices = analysisResult.suggestedSubtasks.map((_, i) => i);
-    setSelectedSubtasks((prev) =>
-      prev.length === allIndices.length ? [] : allIndices,
-    );
+    setSelectedSubtasks((prev) => (prev.length === allIndices.length ? [] : allIndices));
   }, [analysisResult]);
 
   const handleApproveSubtasks = useCallback(async () => {

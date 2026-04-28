@@ -104,10 +104,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
 
         return result;
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'ログ解析中にエラーが発生しました';
+        const message = err instanceof Error ? err.message : 'ログ解析中にエラーが発生しました';
         setError(message);
         logger.error('Log analysis error:', err);
         return null;
@@ -148,9 +145,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
   // Get supported log types
   const getSupportedTypes = useCallback(async (): Promise<LogTypeInfo[]> => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/debug-logs/supported-types`,
-      );
+      const response = await fetch(`${API_BASE_URL}/debug-logs/supported-types`);
       const data = await response.json();
 
       if (!data.success) {
@@ -175,31 +170,28 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
       setError(null);
 
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/debug-logs/analyze-stream`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              url,
-              type,
-              options: options
-                ? {
-                    ...options,
-                    filter: options.filter
-                      ? {
-                          ...options.filter,
-                          startTime: options.filter.startTime?.toISOString(),
-                          endTime: options.filter.endTime?.toISOString(),
-                        }
-                      : undefined,
-                  }
-                : undefined,
-            }),
+        const response = await fetch(`${API_BASE_URL}/debug-logs/analyze-stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        );
+          body: JSON.stringify({
+            url,
+            type,
+            options: options
+              ? {
+                  ...options,
+                  filter: options.filter
+                    ? {
+                        ...options.filter,
+                        startTime: options.filter.startTime?.toISOString(),
+                        endTime: options.filter.endTime?.toISOString(),
+                      }
+                    : undefined,
+                }
+              : undefined,
+          }),
+        });
 
         const data = await response.json();
 
@@ -228,9 +220,7 @@ export function useDebugLogAnalyzer(): UseDebugLogAnalyzerResult {
         return result;
       } catch (err) {
         const message =
-          err instanceof Error
-            ? err.message
-            : 'ストリーム解析中にエラーが発生しました';
+          err instanceof Error ? err.message : 'ストリーム解析中にエラーが発生しました';
         setError(message);
         logger.error('Stream analysis error:', err);
         return null;

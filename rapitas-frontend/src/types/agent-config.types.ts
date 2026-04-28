@@ -28,10 +28,7 @@ export type TaskAnalysisConfig = {
 
   // Model/provider settings
   agentConfigId?: number | null;
-  agentConfig?: Pick<
-    AIAgentConfig,
-    'id' | 'agentType' | 'name' | 'modelId' | 'isActive'
-  > | null;
+  agentConfig?: Pick<AIAgentConfig, 'id' | 'agentType' | 'name' | 'modelId' | 'isActive'> | null;
   modelOverride?: string | null;
   maxTokens?: number | null;
   temperature?: number | null;
@@ -62,10 +59,7 @@ export type AgentExecutionConfig = {
 
   // Agent selection
   agentConfigId?: number | null;
-  agentConfig?: Pick<
-    AIAgentConfig,
-    'id' | 'agentType' | 'name' | 'modelId' | 'isActive'
-  > | null;
+  agentConfig?: Pick<AIAgentConfig, 'id' | 'agentType' | 'name' | 'modelId' | 'isActive'> | null;
 
   // Execution environment settings
   workingDirectory?: string | null;

@@ -1,6 +1,5 @@
 'use client';
 
-import { Globe } from 'lucide-react';
 import { useLocaleStore } from '@/stores/locale-store';
 import type { Locale } from '@/i18n/config';
 
@@ -19,10 +18,7 @@ export default function LanguageSwitcher() {
       aria-label={locale === 'ja' ? 'Switch to English' : '日本語に切替'}
       title={locale === 'ja' ? 'Switch to English' : '日本語に切替'}
     >
-      <Globe className="w-4 h-4" />
-      <span className="text-xs font-medium uppercase">
-        {locale === 'ja' ? 'EN' : 'JA'}
-      </span>
+      <span className="text-xs font-medium uppercase">{locale === 'ja' ? 'EN' : 'JA'}</span>
     </button>
   );
 }

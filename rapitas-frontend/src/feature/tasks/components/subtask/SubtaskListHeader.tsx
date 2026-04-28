@@ -6,13 +6,7 @@
  * All state is received via props; no local state owned here.
  */
 import { useTranslations } from 'next-intl';
-import {
-  Pencil as _Pencil,
-  X,
-  Trash2,
-  CheckSquare,
-  Square as _Square,
-} from 'lucide-react';
+import { Pencil as _Pencil, X, Trash2, CheckSquare, Square as _Square } from 'lucide-react';
 
 interface SubtaskListHeaderProps {
   totalSubtasks: number;
@@ -99,16 +93,10 @@ export default function SubtaskListHeader({
             {isSelectionMode && (
               <>
                 <button
-                  onClick={
-                    selectedCount === totalSubtasks
-                      ? onDeselectAll
-                      : onSelectAll
-                  }
+                  onClick={selectedCount === totalSubtasks ? onDeselectAll : onSelectAll}
                   className="px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                 >
-                  {selectedCount === totalSubtasks
-                    ? t('deselectAll')
-                    : t('selectAll')}
+                  {selectedCount === totalSubtasks ? t('deselectAll') : t('selectAll')}
                 </button>
                 {selectedCount > 0 && (
                   <button

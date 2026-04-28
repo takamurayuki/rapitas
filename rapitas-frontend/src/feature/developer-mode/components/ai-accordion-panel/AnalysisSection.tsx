@@ -102,18 +102,10 @@ export function AnalysisSection({
       >
         <div className="flex items-center gap-2">
           <BrainCircuit className="w-4 h-4 text-violet-500" />
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            タスク分析
-          </span>
-          {analysisStatusIcon === 'loading' && (
-            <SkeletonBlock className="w-3 h-3 rounded" />
-          )}
-          {analysisStatusIcon === 'success' && (
-            <CheckCircle2 className="w-3 h-3 text-green-500" />
-          )}
-          {analysisStatusIcon === 'error' && (
-            <AlertCircle className="w-3 h-3 text-red-500" />
-          )}
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">タスク分析</span>
+          {analysisStatusIcon === 'loading' && <SkeletonBlock className="w-3 h-3 rounded" />}
+          {analysisStatusIcon === 'success' && <CheckCircle2 className="w-3 h-3 text-green-500" />}
+          {analysisStatusIcon === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
         </div>
         {isExpanded ? (
           <ChevronUp className="w-4 h-4 text-zinc-400" />
@@ -125,10 +117,7 @@ export function AnalysisSection({
       {isExpanded && (
         <div id="analysis-section-content" className="px-4 pb-3 space-y-3">
           {/* Tab bar */}
-          <div
-            className="flex border-b border-zinc-200 dark:border-zinc-700"
-            role="tablist"
-          >
+          <div className="flex border-b border-zinc-200 dark:border-zinc-700" role="tablist">
             <button
               role="tab"
               aria-selected={analysisTab === 'subtasks'}

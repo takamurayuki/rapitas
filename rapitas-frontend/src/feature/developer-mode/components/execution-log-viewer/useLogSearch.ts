@@ -37,9 +37,7 @@ type UseLogSearchReturn = {
  * @param options.logs - Current log array; search is re-run when this changes. / 検索対象のログ配列。変化すると再検索される。
  * @returns Search state and stable callbacks for the view layer. / ビュー層が使う検索ステートと安定したコールバック。
  */
-export function useLogSearch({
-  logs,
-}: UseLogSearchOptions): UseLogSearchReturn {
+export function useLogSearch({ logs }: UseLogSearchOptions): UseLogSearchReturn {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatches, setSearchMatches] = useState<number[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
@@ -89,11 +87,7 @@ export function useLogSearch({
 
   const jumpToMatch = useCallback(
     (matchIndex: number) => {
-      if (
-        searchMatches.length === 0 ||
-        matchIndex < 0 ||
-        matchIndex >= searchMatches.length
-      )
+      if (searchMatches.length === 0 || matchIndex < 0 || matchIndex >= searchMatches.length)
         return;
       setCurrentMatchIndex(matchIndex);
     },
@@ -108,8 +102,7 @@ export function useLogSearch({
 
   const goToPreviousMatch = useCallback(() => {
     if (searchMatches.length === 0) return;
-    const prevIndex =
-      (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    const prevIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
     jumpToMatch(prevIndex);
   }, [currentMatchIndex, searchMatches.length, jumpToMatch]);
 
@@ -134,12 +127,9 @@ export function useLogSearch({
     searchInputRef.current?.focus();
   }, []);
 
-  const handleSearchQueryChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSearchQuery(e.target.value);
-    },
-    [],
-  );
+  const handleSearchQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
 
   return {
     searchQuery,

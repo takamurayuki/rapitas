@@ -29,8 +29,7 @@ export function useAccordionState({
   taskId,
   onTaskChange,
 }: UseAccordionStateOptions): UseAccordionStateResult {
-  const [expandedSection, setExpandedSection] =
-    useState<AccordionSection | null>(null);
+  const [expandedSection, setExpandedSection] = useState<AccordionSection | null>(null);
   const [analysisTab, setAnalysisTab] = useState<AnalysisTabType>('subtasks');
   const prevTaskIdRef = useRef(taskId);
 

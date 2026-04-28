@@ -8,10 +8,7 @@
  * The hook itself, the helpers, and any consumer all import from here so
  * there is exactly one source of truth for the surface.
  */
-import type {
-  ExecutionResult,
-  ExecutionStatus,
-} from '../../hooks/useDeveloperMode';
+import type { ExecutionResult, ExecutionStatus } from '../../hooks/useDeveloperMode';
 import type { Resource } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { AccordionSection } from './types';
@@ -58,9 +55,7 @@ export type UseExecutionManagerOptions = {
   } | null>;
   onStopExecution?: () => void;
   onExecutionComplete?: () => void;
-  onStartParallelExecution?: (config?: {
-    maxConcurrentAgents?: number;
-  }) => Promise<string | null>;
+  onStartParallelExecution?: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
   setExpandedSection: (section: AccordionSection | null) => void;
 };
 

@@ -14,10 +14,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { useAIChat } from '../note/useAIChat';
-import {
-  fetchConfiguredProviders,
-  fetchAvailableModels,
-} from '../note/ai-service';
+import { fetchConfiguredProviders, fetchAvailableModels } from '../note/ai-service';
 import Link from 'next/link';
 import type { AIChatMessage, ApiProvider } from '@/types';
 import { useUIModeStore } from '@/stores/ui-mode-store';
@@ -48,9 +45,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
             : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md shadow-md'
         }`}
       >
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
-        </p>
+        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         <span
           className={`text-xs mt-1 block ${
             isUser ? 'text-blue-100' : 'text-zinc-400 dark:text-zinc-500'
@@ -75,12 +70,9 @@ export default function AIAssistantPanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Provider/model selection
-  const [selectedProvider, setSelectedProvider] =
-    useState<ApiProvider>('claude');
+  const [selectedProvider, setSelectedProvider] = useState<ApiProvider>('claude');
   const [selectedModel, setSelectedModel] = useState<string>('');
-  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>(
-    [],
-  );
+  const [configuredProviders, setConfiguredProviders] = useState<ApiProvider[]>([]);
   const [availableModels, setAvailableModels] = useState<
     Record<string, { value: string; label: string }[]>
   >({});
@@ -135,14 +127,11 @@ export default function AIAssistantPanel() {
     [handleSendMessage],
   );
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInputValue(e.target.value);
-      e.target.style.height = 'auto';
-      e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-    },
-    [],
-  );
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+  }, []);
 
   const currentModels = availableModels[selectedProvider] || [];
 
@@ -218,45 +207,39 @@ export default function AIAssistantPanel() {
                     AIプロバイダー
                   </label>
                   <div className="flex gap-2">
-                    {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map(
-                      (p) => {
-                        const isConfigured = configuredProviders.includes(p);
-                        const isSelected = selectedProvider === p;
-                        return (
-                          <button
-                            key={p}
-                            onClick={() => {
-                              if (isConfigured) {
-                                setSelectedProvider(p);
-                                setSelectedModel('');
-                              }
-                            }}
-                            disabled={!isConfigured}
-                            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                              isSelected
-                                ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
-                                : isConfigured
-                                  ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
-                                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
-                            }`}
-                            title={
-                              isConfigured
-                                ? PROVIDER_LABELS[p]
-                                : `${PROVIDER_LABELS[p]}（未設定）`
+                    {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
+                      const isConfigured = configuredProviders.includes(p);
+                      const isSelected = selectedProvider === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            if (isConfigured) {
+                              setSelectedProvider(p);
+                              setSelectedModel('');
                             }
-                          >
-                            <span
-                              className={`inline-block w-2 h-2 rounded-full mr-2 ${
-                                isConfigured
-                                  ? PROVIDER_COLORS[p]
-                                  : 'bg-zinc-300 dark:bg-zinc-600'
-                              }`}
-                            />
-                            {PROVIDER_LABELS[p]}
-                          </button>
-                        );
-                      },
-                    )}
+                          }}
+                          disabled={!isConfigured}
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+                              : isConfigured
+                                ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
+                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
+                          }`}
+                          title={
+                            isConfigured ? PROVIDER_LABELS[p] : `${PROVIDER_LABELS[p]}（未設定）`
+                          }
+                        >
+                          <span
+                            className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                              isConfigured ? PROVIDER_COLORS[p] : 'bg-zinc-300 dark:bg-zinc-600'
+                            }`}
+                          />
+                          {PROVIDER_LABELS[p]}
+                        </button>
+                      );
+                    })}
                   </div>
                   {configuredProviders.length === 0 && (
                     <Link
@@ -324,9 +307,7 @@ export default function AIAssistantPanel() {
                     <div className="bg-white dark:bg-zinc-800 rounded-2xl rounded-bl-md px-4 py-3 shadow-md">
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                          考え中...
-                        </span>
+                        <span className="text-sm text-zinc-500 dark:text-zinc-400">考え中...</span>
                       </div>
                     </div>
                   </div>

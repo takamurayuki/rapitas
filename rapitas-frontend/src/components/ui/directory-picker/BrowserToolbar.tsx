@@ -9,15 +9,7 @@
  * Not responsible for any data fetching.
  */
 
-import {
-  FolderPlus,
-  ArrowUp,
-  Monitor,
-  HardDrive,
-  GitBranch,
-  Star,
-  StarOff,
-} from 'lucide-react';
+import { FolderPlus, ArrowUp, Monitor, HardDrive, GitBranch, Star, StarOff } from 'lucide-react';
 import type { FavoriteDirectory } from './types';
 
 type BrowserToolbarProps = {
@@ -130,9 +122,7 @@ export function BrowserToolbar({
           }`}
           title={showFavorites ? 'お気に入りを非表示' : 'お気に入りを表示'}
         >
-          <Star
-            className={`w-3.5 h-3.5 ${showFavorites ? 'fill-current' : ''}`}
-          />
+          <Star className={`w-3.5 h-3.5 ${showFavorites ? 'fill-current' : ''}`} />
           <span className="hidden sm:inline">{favorites.length}</span>
         </button>
 
@@ -151,11 +141,7 @@ export function BrowserToolbar({
                 ? 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400'
                 : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
             }`}
-            title={
-              isFavorite(currentPath)
-                ? 'お気に入りから削除'
-                : 'お気に入りに追加'
-            }
+            title={isFavorite(currentPath) ? 'お気に入りから削除' : 'お気に入りに追加'}
           >
             {isFavorite(currentPath) ? (
               <>

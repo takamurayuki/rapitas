@@ -20,7 +20,6 @@ import {
   FolderKanban,
   Target,
   BarChart3,
-  CalendarClock,
   Flame,
   Brain,
   FileText,
@@ -36,13 +35,11 @@ import {
   Key,
   MessageSquare,
   Sparkles,
+  Lightbulb,
   NotebookTabs,
   Package,
-  Activity,
   BookMarked,
   Keyboard,
-  GanttChart,
-  Lightbulb,
 } from 'lucide-react';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -85,7 +82,7 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
-        { href: '/gantt', label: 'ガントチャート', icon: GanttChart },
+        { href: '/gantt', label: 'ガントチャート', icon: BarChart3 },
         {
           href: '#',
           label: t('category'),
@@ -109,7 +106,7 @@ export default function Header() {
     },
     {
       href: '/ideas',
-      label: 'アイデア',
+      label: 'アイデアボックス',
       icon: Lightbulb,
     },
     {
@@ -136,7 +133,7 @@ export default function Header() {
     {
       href: '#',
       label: t('habitsAchievements'),
-      icon: CalendarClock,
+      icon: Calendar,
       children: [
         {
           href: '/calendar',
@@ -214,7 +211,7 @@ export default function Header() {
             },
           ],
         },
-        { href: '/orchestra', label: t('orchestra'), icon: Activity },
+        { href: '/orchestra', label: t('orchestra'), icon: Bot },
         { href: '/approvals', label: t('approvals'), icon: CheckCircle },
         {
           href: '/system-prompts',
@@ -262,11 +259,7 @@ export default function Header() {
                 className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 aria-label={t('openMenu')}
               >
-                {h.isMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
+                {h.isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
 
               <Link href="/" className="flex items-center gap-2 group">
@@ -345,11 +338,8 @@ export default function Header() {
         .line-animate-horizontal {
           transform-origin: left;
           transform: scaleX(0);
-          animation: draw-horizontal var(--line-duration, 0.22s) ease-out
-            forwards;
-          animation-delay: calc(
-            var(--line-delay, 0s) + var(--line-stagger, 0.12s)
-          );
+          animation: draw-horizontal var(--line-duration, 0.22s) ease-out forwards;
+          animation-delay: calc(var(--line-delay, 0s) + var(--line-stagger, 0.12s));
           will-change: transform;
         }
 

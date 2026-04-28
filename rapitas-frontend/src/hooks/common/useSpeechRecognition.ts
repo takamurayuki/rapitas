@@ -18,8 +18,7 @@ import type {
   SpeechRecognitionErrorEvent,
 } from './speech-recognition.types';
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /** Hook return type. */
 interface UseSpeechRecognitionReturn {
@@ -68,9 +67,7 @@ export function useSpeechRecognition(
   const audioCtxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
-  const sendForTranscriptionRef = useRef<
-    (chunks: Float32Array[], rate: number) => void
-  >(() => {});
+  const sendForTranscriptionRef = useRef<(chunks: Float32Array[], rate: number) => void>(() => {});
 
   useEffect(() => {
     onResultRef.current = onResult;
@@ -78,10 +75,8 @@ export function useSpeechRecognition(
 
   // NOTE: Check support after mount. getUserMedia is always available (Whisper fallback).
   useEffect(() => {
-    const hasWebSpeech =
-      'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
-    const hasMediaDevices =
-      'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices;
+    const hasWebSpeech = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+    const hasMediaDevices = 'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices;
     setIsSupported(hasWebSpeech || hasMediaDevices);
   }, []);
 
@@ -103,9 +98,7 @@ export function useSpeechRecognition(
       }
 
       const resampled =
-        nativeSampleRate === 16000
-          ? merged
-          : resamplePcm(merged, nativeSampleRate, 16000);
+        nativeSampleRate === 16000 ? merged : resamplePcm(merged, nativeSampleRate, 16000);
       const wavBlob = encodeWav(resampled, 16000);
 
       setIsTranscribing(true);
@@ -122,12 +115,8 @@ export function useSpeechRecognition(
         });
 
         if (!response.ok) {
-          const data = await response
-            .json()
-            .catch(() => ({ error: 'Unknown error' }));
-          setError(
-            (data as { error?: string }).error || '文字起こしに失敗しました',
-          );
+          const data = await response.json().catch(() => ({ error: 'Unknown error' }));
+          setError((data as { error?: string }).error || '文字起こしに失敗しました');
           return;
         }
 
@@ -207,8 +196,7 @@ export function useSpeechRecognition(
         const timeData = new Float32Array(analyser.fftSize);
         analyser.getFloatTimeDomainData(timeData);
         let rms = 0;
-        for (let i = 0; i < timeData.length; i++)
-          rms += timeData[i] * timeData[i];
+        for (let i = 0; i < timeData.length; i++) rms += timeData[i] * timeData[i];
         rms = Math.sqrt(rms / timeData.length);
 
         const hasSound = avg > SILENCE_THRESHOLD || rms > 0.005;
@@ -221,8 +209,7 @@ export function useSpeechRecognition(
         }
 
         // Always show current audio level for debugging
-        const silenceMs =
-          state.lastSoundTime > 0 ? Date.now() - state.lastSoundTime : 0;
+        const silenceMs = state.lastSoundTime > 0 ? Date.now() - state.lastSoundTime : 0;
         setInterimTranscript(
           state.hasSpoken
             ? `録音中... (音量:${avg.toFixed(0)} rms:${(rms * 1000).toFixed(0)} 無音:${(silenceMs / 1000).toFixed(1)}s)`
@@ -270,13 +257,9 @@ export function useSpeechRecognition(
           const pcmData = audioBuffer.getChannelData(0);
           const nativeRate = audioBuffer.sampleRate;
           const resampled =
-            nativeRate === 16000
-              ? pcmData
-              : resamplePcm(pcmData, nativeRate, 16000);
+            nativeRate === 16000 ? pcmData : resamplePcm(pcmData, nativeRate, 16000);
           const wavBlob = encodeWav(
-            resampled instanceof Float32Array
-              ? resampled
-              : new Float32Array(resampled),
+            resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
             16000,
           );
 
@@ -300,17 +283,11 @@ export function useSpeechRecognition(
               onResultRef.current?.(result.text);
             }
           } else {
-            const data = await response
-              .json()
-              .catch(() => ({ error: 'Unknown error' }));
-            setError(
-              (data as { error?: string }).error || '文字起こしに失敗しました',
-            );
+            const data = await response.json().catch(() => ({ error: 'Unknown error' }));
+            setError((data as { error?: string }).error || '文字起こしに失敗しました');
           }
         } catch (decodeErr) {
-          setError(
-            `音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`,
-          );
+          setError(`音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`);
         } finally {
           setIsTranscribing(false);
           setInterimTranscript('');
@@ -338,8 +315,7 @@ export function useSpeechRecognition(
    * Try Web Speech API first. If it fails with no-speech, switch to Whisper.
    */
   const startWebSpeechAPI = useCallback(() => {
-    const SpeechRecognitionAPI =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       // No Web Speech API — go directly to Whisper
       setUseWhisperFallback(true);
@@ -380,11 +356,7 @@ export function useSpeechRecognition(
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       const code = event.error || 'unknown';
-      if (
-        code === 'no-speech' ||
-        code === 'audio-capture' ||
-        code === 'aborted'
-      ) {
+      if (code === 'no-speech' || code === 'audio-capture' || code === 'aborted') {
         // NOTE: Web Speech API failed — switch to Whisper fallback for this session.
         recognition.stop();
         setUseWhisperFallback(true);
@@ -419,10 +391,7 @@ export function useSpeechRecognition(
 
   const stopListening = useCallback(() => {
     // Stop MediaRecorder — onstop handler will process and send audio
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === 'recording'
-    ) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       return;
     }
@@ -446,10 +415,7 @@ export function useSpeechRecognition(
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (
-        mediaRecorderRef.current &&
-        mediaRecorderRef.current.state !== 'inactive'
-      ) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
       if (streamRef.current) {

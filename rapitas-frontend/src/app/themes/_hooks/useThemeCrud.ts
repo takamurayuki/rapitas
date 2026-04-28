@@ -25,9 +25,7 @@ const addWorkingDirectoryToFavorites = async (path: string) => {
 
     if (!Array.isArray(favorites)) return;
 
-    const isAlreadyFavorite = favorites.some(
-      (f: { path: string }) => f.path === path,
-    );
+    const isAlreadyFavorite = favorites.some((f: { path: string }) => f.path === path);
     if (isAlreadyFavorite) return;
 
     await fetch(`${API_BASE_URL}/directories/favorites`, {
@@ -213,8 +211,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     items: Theme[],
     setItems: (items: Theme[]) => void,
   ) => {
-    if (!result.destination || result.source.index === result.destination.index)
-      return;
+    if (!result.destination || result.source.index === result.destination.index) return;
 
     const droppableId = result.source.droppableId;
     const categoryId = droppableId.startsWith('themes-category-')
@@ -231,9 +228,7 @@ export function useThemeCrud({ getFormData, fetchItems }: Options) {
     const [moved] = reordered.splice(result.source.index, 1);
     reordered.splice(result.destination.index, 0, moved);
 
-    const reorderedMap = new Map(
-      reordered.map((item, index) => [item.id, index]),
-    );
+    const reorderedMap = new Map(reordered.map((item, index) => [item.id, index]));
     const newItems = items.map((item) => {
       if (reorderedMap.has(item.id)) {
         return { ...item, sortOrder: reorderedMap.get(item.id)! };

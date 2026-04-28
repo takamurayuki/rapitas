@@ -30,14 +30,11 @@ export function usePromptOptimization(
       setError(null);
 
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clarificationAnswers }),
-          },
-        );
+        const response = await fetch(`${API_BASE_URL}/developer-mode/optimize-prompt/${taskId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clarificationAnswers }),
+        });
 
         if (!response.ok) {
           const errData = await response.json();
@@ -63,12 +60,8 @@ export function usePromptOptimization(
   const handleSubmitAnswers = useCallback(async () => {
     if (!result?.clarificationQuestions) return;
 
-    const requiredQuestions = result.clarificationQuestions.filter(
-      (q) => q.isRequired,
-    );
-    const unansweredRequired = requiredQuestions.filter(
-      (q) => !answers[q.id]?.trim(),
-    );
+    const requiredQuestions = result.clarificationQuestions.filter((q) => q.isRequired);
+    const unansweredRequired = requiredQuestions.filter((q) => !answers[q.id]?.trim());
     if (unansweredRequired.length > 0) {
       setError('必須の質問に回答してください');
       return;

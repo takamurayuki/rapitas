@@ -299,10 +299,7 @@ export async function offlineFetch(
     return response;
   } catch (error) {
     // Network error — queue the mutation
-    if (
-      !navigator.onLine ||
-      (error instanceof TypeError && error.message.includes('fetch'))
-    ) {
+    if (!navigator.onLine || (error instanceof TypeError && error.message.includes('fetch'))) {
       const headers: Record<string, string> = {};
       if (init?.headers) {
         const h = init.headers;

@@ -6,8 +6,7 @@ const logger = createLogger('Api');
  * API Base URL
  * Retrieved from environment variable, falls back to default value
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 
 /**
  * Helper function to construct API endpoints
@@ -53,18 +52,11 @@ export async function fetchWithRetry(
   options?: FetchWithRetryOptions,
 ): Promise<Response> {
   let lastError: Error | undefined;
-  const url =
-    typeof input === 'string'
-      ? input
-      : input instanceof URL
-        ? input.href
-        : 'unknown';
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : 'unknown';
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      logger.debug(
-        `[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`,
-      );
+      logger.debug(`[fetchWithRetry] Attempting ${attempt + 1}/${maxRetries} for ${url}`);
 
       // Throw immediately if caller's signal is already aborted
       if (init?.signal?.aborted) {
@@ -80,8 +72,7 @@ export async function fetchWithRetry(
       if (init?.signal) {
         signals.push(init.signal);
       }
-      const combinedSignal =
-        signals.length > 1 ? AbortSignal.any(signals) : controller.signal;
+      const combinedSignal = signals.length > 1 ? AbortSignal.any(signals) : controller.signal;
 
       const response = await fetch(input, {
         ...init,
@@ -96,9 +87,7 @@ export async function fetchWithRetry(
           throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
         // Throw for 5xx/429 as retryable errors
-        const retryError = new Error(
-          `HTTP ${response.status} ${response.statusText}`,
-        );
+        const retryError = new Error(`HTTP ${response.status} ${response.statusText}`);
         (retryError as Error & { retryable: boolean }).retryable = true;
         throw retryError;
       }
@@ -109,15 +98,12 @@ export async function fetchWithRetry(
       lastError = error instanceof Error ? error : new Error(String(error));
 
       // Identify error type
-      const isCallerAbort =
-        lastError.name === 'AbortError' && init?.signal?.aborted;
+      const isCallerAbort = lastError.name === 'AbortError' && init?.signal?.aborted;
       const isTimeoutError =
         !isCallerAbort &&
-        (lastError.name === 'AbortError' ||
-          lastError.message.includes('aborted'));
+        (lastError.name === 'AbortError' || lastError.message.includes('aborted'));
       const isNetworkError =
-        lastError.name === 'TypeError' &&
-        lastError.message.includes('Failed to fetch');
+        lastError.name === 'TypeError' && lastError.message.includes('Failed to fetch');
       const isRetryableError =
         isNetworkError ||
         isTimeoutError ||
@@ -129,9 +115,7 @@ export async function fetchWithRetry(
         logFn(
           `[fetchWithRetry] Non-retryable error for ${url}: [${lastError.name}] ${lastError.message}`,
         );
-        const enhancedError = new Error(
-          `Failed to fetch from ${url}: ${lastError.message}`,
-        );
+        const enhancedError = new Error(`Failed to fetch from ${url}: ${lastError.message}`);
         enhancedError.cause = lastError;
         throw enhancedError;
       }

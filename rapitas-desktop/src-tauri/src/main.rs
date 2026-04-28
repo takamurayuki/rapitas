@@ -61,22 +61,22 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
     let new_shortcut = parse_shortcut_from_config(&shortcut)
-        .ok_or_else(|| format!("Invalid shortcut: {}", shortcut))?;
+        .ok_or_else(|| format!("Invalid shortcut: {shortcut}"))?;
 
     app.global_shortcut()
         .unregister_all()
-        .map_err(|e| format!("Failed to unregister shortcuts: {}", e))?;
+        .map_err(|e| format!("Failed to unregister shortcuts: {e}"))?;
 
     app.global_shortcut()
         .register(new_shortcut)
-        .map_err(|e| format!("Failed to register shortcut: {}", e))?;
+        .map_err(|e| format!("Failed to register shortcut: {e}"))?;
 
     let path = shortcut_config_path(&app);
     let json = serde_json::json!({ "shortcut": shortcut });
     std::fs::write(&path, serde_json::to_string_pretty(&json).unwrap())
-        .map_err(|e| format!("Failed to save config: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {e}"))?;
 
-    println!("[Shortcut] Global shortcut changed to: {}", shortcut);
+    println!("[Shortcut] Global shortcut changed to: {shortcut}");
     Ok(shortcut)
 }
 
@@ -85,7 +85,7 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
 async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let monitor = app
         .primary_monitor()
-        .map_err(|e| format!("Failed to get monitor: {}", e))?
+        .map_err(|e| format!("Failed to get monitor: {e}"))?
         .ok_or("No monitor found")?;
 
     let screen_size = monitor.size();
@@ -116,7 +116,7 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
             main_window.show().ok();
         }
 
-        open::that(&url).map_err(|e| format!("Failed to launch browser: {}", e))?;
+        open::that(&url).map_err(|e| format!("Failed to launch browser: {e}"))?;
 
         // Return focus to the main window after the browser opens
         std::thread::sleep(std::time::Duration::from_millis(1000));
@@ -145,7 +145,7 @@ async fn voice_start_recording() -> Result<String, String> {
     voice_recognition::start_recording()?;
 
     // Run audio capture in a blocking thread (cpal requires it)
-    let wav_path = tokio::task::spawn_blocking(|| voice_recognition::capture_audio())
+    let wav_path = tokio::task::spawn_blocking(voice_recognition::capture_audio)
         .await
         .map_err(|e| format!("Recording task failed: {e}"))??;
 
@@ -258,7 +258,7 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     // Unregister first in case the OS still holds a stale registration from a previous crash
     let _ = app.global_shortcut().unregister(shortcut);
     app.global_shortcut().register(shortcut)?;
-    println!("Global shortcut registered: {}", shortcut_config);
+    println!("Global shortcut registered: {shortcut_config}");
 
     Ok(())
 }

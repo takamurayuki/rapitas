@@ -43,9 +43,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   fetchAll: async () => {
     // If already initialized, use fetchUpdates
     if (get().initialized) {
-      logger.debug(
-        '[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead',
-      );
+      logger.debug('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
       return get().fetchUpdates();
     }
 
@@ -87,9 +85,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
     const { lastFetchedAt, tasks } = get();
     if (!lastFetchedAt) {
       // No previous fetch — do full fetch instead
-      logger.debug(
-        '[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll',
-      );
+      logger.debug('[taskCacheStore] fetchUpdates: No lastFetchedAt, calling fetchAll');
       return get().fetchAll();
     }
 
@@ -98,9 +94,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
       logger.debug('[taskCacheStore] fetchUpdates: Attempting reconnection');
       set({ connectionStatus: 'reconnecting' });
     } else {
-      logger.debug(
-        `[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`,
-      );
+      logger.debug(`[taskCacheStore] fetchUpdates: Starting incremental fetch (silent: ${silent})`);
     }
 
     // Only show loading indicator if not silent
@@ -168,9 +162,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
 
           const deletedCount = beforeCount - taskMap.size;
           if (deletedCount > 0) {
-            logger.info(
-              `[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`,
-            );
+            logger.info(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
           }
         } else if (taskMap.size > serverTotalCount) {
           // If activeIds not available, use traditional method (refetch all)
@@ -193,9 +185,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         });
       } else {
         // Fallback: server returned plain array (shouldn't happen with since param, but handle gracefully)
-        logger.debug(
-          '[taskCacheStore] fetchUpdates: Received non-incremental response',
-        );
+        logger.debug('[taskCacheStore] fetchUpdates: Received non-incremental response');
         set({
           tasks: data,
           lastFetchedAt: new Date().toISOString(),
@@ -210,9 +200,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
       if (newFailures <= MAX_LOGGED_FAILURES) {
         logger.error('[taskCacheStore] fetchUpdates error:', e);
       } else if (newFailures === MAX_LOGGED_FAILURES + 1) {
-        logger.warn(
-          '[taskCacheStore] fetchUpdates: Suppressing further error logs until recovery',
-        );
+        logger.warn('[taskCacheStore] fetchUpdates: Suppressing further error logs until recovery');
       }
 
       set({

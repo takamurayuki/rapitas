@@ -14,16 +14,8 @@ export type SendMessageOptions = {
 /**
  * AIにメッセージを送信し、応答を取得する（マルチプロバイダー対応）
  */
-export async function sendMessageToAI(
-  options: SendMessageOptions,
-): Promise<AIServiceResponse> {
-  const {
-    message,
-    conversationHistory = [],
-    systemPrompt,
-    provider,
-    model,
-  } = options;
+export async function sendMessageToAI(options: SendMessageOptions): Promise<AIServiceResponse> {
+  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat`, {
@@ -45,10 +37,7 @@ export async function sendMessageToAI(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error ||
-          `APIエラー: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(errorData.error || `APIエラー: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -60,10 +49,7 @@ export async function sendMessageToAI(
     logger.error('AI API Error:', error);
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'AIとの通信中にエラーが発生しました',
+      error: error instanceof Error ? error.message : 'AIとの通信中にエラーが発生しました',
     };
   }
 }
@@ -77,13 +63,7 @@ export async function sendMessageToAIStream(
   onComplete: () => void,
   onError: (error: string) => void,
 ): Promise<void> {
-  const {
-    message,
-    conversationHistory = [],
-    systemPrompt,
-    provider,
-    model,
-  } = options;
+  const { message, conversationHistory = [], systemPrompt, provider, model } = options;
 
   try {
     const response = await fetch(`${API_BASE}/ai/chat/stream`, {
@@ -105,10 +85,7 @@ export async function sendMessageToAIStream(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error ||
-          `APIエラー: ${response.status} ${response.statusText}`,
-      );
+      throw new Error(errorData.error || `APIエラー: ${response.status} ${response.statusText}`);
     }
 
     const reader = response.body?.getReader();
@@ -153,11 +130,7 @@ export async function sendMessageToAIStream(
     onComplete();
   } catch (error) {
     logger.error('AI Stream Error:', error);
-    onError(
-      error instanceof Error
-        ? error.message
-        : 'AIとの通信中にエラーが発生しました',
-    );
+    onError(error instanceof Error ? error.message : 'AIとの通信中にエラーが発生しました');
   }
 }
 

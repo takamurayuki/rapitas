@@ -23,9 +23,7 @@ import {
 import { ACHIEVEMENTS, BADGES } from '../../data/achievements';
 
 // Mock player stats for testing
-const createMockPlayerStats = (
-  overrides: Partial<PlayerStats> = {},
-): PlayerStats => ({
+const createMockPlayerStats = (overrides: Partial<PlayerStats> = {}): PlayerStats => ({
   userId: 1,
   totalPoints: 0,
   unlockedAchievements: 0,
@@ -109,9 +107,7 @@ describe('Achievement Logic', () => {
 
     it('should unlock consistency_champion achievement with 30-day task streak', () => {
       const stats = createMockPlayerStats({ currentTaskStreak: 30 });
-      const achievement = ACHIEVEMENTS.find(
-        (a) => a.id === 'consistency_champion',
-      )!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'consistency_champion')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);
@@ -166,9 +162,7 @@ describe('Achievement Logic', () => {
 
       expect(allProgress).toHaveLength(ACHIEVEMENTS.length);
       expect(allProgress.every((p) => p.achievementId)).toBe(true);
-      expect(
-        allProgress.every((p) => typeof p.progressPercentage === 'number'),
-      ).toBe(true);
+      expect(allProgress.every((p) => typeof p.progressPercentage === 'number')).toBe(true);
     });
   });
 
@@ -178,11 +172,7 @@ describe('Achievement Logic', () => {
       const newStats = createMockPlayerStats({ totalTasksCompleted: 1 });
       const currentlyUnlocked: string[] = [];
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(
-        oldStats,
-        newStats,
-        currentlyUnlocked,
-      );
+      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, currentlyUnlocked);
 
       expect(newlyUnlocked).toHaveLength(1);
       expect(newlyUnlocked[0].id).toBe('first_steps');
@@ -193,11 +183,7 @@ describe('Achievement Logic', () => {
       const newStats = createMockPlayerStats({ totalTasksCompleted: 1 });
       const currentlyUnlocked = ['first_steps'];
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(
-        oldStats,
-        newStats,
-        currentlyUnlocked,
-      );
+      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, currentlyUnlocked);
 
       expect(newlyUnlocked).toHaveLength(0);
     });
@@ -212,11 +198,7 @@ describe('Achievement Logic', () => {
         totalAgentExecutions: 1,
       });
 
-      const newlyUnlocked = checkNewlyUnlockedAchievements(
-        oldStats,
-        newStats,
-        [],
-      );
+      const newlyUnlocked = checkNewlyUnlockedAchievements(oldStats, newStats, []);
 
       expect(newlyUnlocked).toHaveLength(2);
       expect(newlyUnlocked.map((a) => a.id)).toContain('first_steps');
@@ -317,10 +299,7 @@ describe('Achievement Logic', () => {
         const unlockedAchievements = ['first_steps', 'task_master'];
         const badge = BADGES.find((b) => b.id === 'task_novice')!;
 
-        const isEligible = checkBadgeEligibility(
-          unlockedAchievements,
-          badge.id,
-        );
+        const isEligible = checkBadgeEligibility(unlockedAchievements, badge.id);
         expect(isEligible).toBe(true);
       });
 
@@ -328,10 +307,7 @@ describe('Achievement Logic', () => {
         const unlockedAchievements = ['first_steps'];
         const badge = BADGES.find((b) => b.id === 'task_novice')!;
 
-        const isEligible = checkBadgeEligibility(
-          unlockedAchievements,
-          badge.id,
-        );
+        const isEligible = checkBadgeEligibility(unlockedAchievements, badge.id);
         expect(isEligible).toBe(false);
       });
     });
@@ -369,9 +345,10 @@ describe('Achievement Logic', () => {
 
       const totalPoints = calculateTotalPoints(unlockedAchievements);
 
-      const expectedPoints = ACHIEVEMENTS.filter((a) =>
-        unlockedAchievements.includes(a.id),
-      ).reduce((sum, a) => sum + a.pointsReward, 0);
+      const expectedPoints = ACHIEVEMENTS.filter((a) => unlockedAchievements.includes(a.id)).reduce(
+        (sum, a) => sum + a.pointsReward,
+        0,
+      );
 
       expect(totalPoints).toBe(expectedPoints);
     });
@@ -409,9 +386,7 @@ describe('Achievement Logic', () => {
       const stats = createMockPlayerStats({
         totalTasksCompleted: 1000000,
       });
-      const achievement = ACHIEVEMENTS.find(
-        (a) => a.id === 'productivity_beast',
-      )!;
+      const achievement = ACHIEVEMENTS.find((a) => a.id === 'productivity_beast')!;
 
       const isUnlocked = checkAchievementUnlocked(achievement, stats);
       expect(isUnlocked).toBe(true);

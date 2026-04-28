@@ -1,15 +1,7 @@
 'use client';
 // ApiKeySection
 
-import {
-  Key,
-  Eye,
-  EyeOff,
-  CheckCircle2,
-  XCircle,
-  Trash2,
-  Info,
-} from 'lucide-react';
+import { Key, Eye, EyeOff, CheckCircle2, XCircle, Trash2, Info } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { AgentConfig } from './agent-settings-types';
 import type { ProviderConfig } from './ProviderConfigs';
@@ -105,12 +97,9 @@ export function ApiKeySection({
                 : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
             }`}
             placeholder={
-              [
-                'claudeCodeLocalCli',
-                'codexLocalCli',
-                'geminiLocalCli',
-                'apiKeyGeneric',
-              ].includes(providerConfig.apiKeyPlaceholder)
+              ['claudeCodeLocalCli', 'codexLocalCli', 'geminiLocalCli', 'apiKeyGeneric'].includes(
+                providerConfig.apiKeyPlaceholder,
+              )
                 ? t(providerConfig.apiKeyPlaceholder as 'claudeCodeLocalCli')
                 : providerConfig.apiKeyPlaceholder
             }
@@ -120,17 +109,11 @@ export function ApiKeySection({
             onClick={onToggleShow}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
-            {showApiKey ? (
-              <EyeOff className="w-5 h-5" />
-            ) : (
-              <Eye className="w-5 h-5" />
-            )}
+            {showApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
         {fieldErrors.apiKey && (
-          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-            {fieldErrors.apiKey}
-          </p>
+          <p className="text-xs text-red-500 dark:text-red-400 mt-1">{fieldErrors.apiKey}</p>
         )}
         {!fieldErrors.apiKey && providerConfig.apiKeyHelpUrl && (
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
@@ -150,9 +133,7 @@ export function ApiKeySection({
       <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div className="flex gap-2">
           <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-600 dark:text-blue-400">
-            {t('apiKeyEncryptionInfo')}
-          </p>
+          <p className="text-xs text-blue-600 dark:text-blue-400">{t('apiKeyEncryptionInfo')}</p>
         </div>
       </div>
     </div>

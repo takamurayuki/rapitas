@@ -13,10 +13,8 @@ import {
   taskSuggestionRoutes,
   taskQuickCreateRoutes,
   taskAutoGenerateRoutes,
-  taskDependencyGraphRoutes,
   taskStatisticsRoutes,
   tempStatisticsRoutes,
-  taskDependencyRoutes,
   taskAnalysisConfigRoutes,
   batchRoutes,
   recurringTaskRoutes,
@@ -85,6 +83,8 @@ import {
   promptsRoutes,
   systemPromptsRoutes,
   ideaBoxRoutes,
+  exportRoutes,
+  importRoutes,
 } from './routes';
 
 /**
@@ -103,10 +103,8 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(taskSuggestionRoutes);
   app.use(taskQuickCreateRoutes);
   app.use(taskAutoGenerateRoutes);
-  app.use(taskDependencyGraphRoutes);
   app.use(taskStatisticsRoutes);
   app.use(tempStatisticsRoutes);
-  app.use(taskDependencyRoutes);
   app.use(taskAnalysisConfigRoutes);
   app.use(batchRoutes);
   app.use(recurringTaskRoutes);
@@ -176,6 +174,8 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(mcpRoutes);
   app.use(directoriesRoutes);
   app.use(intentRoutes);
+  app.use(exportRoutes);
+  app.use(importRoutes);
 
   // AI
   app.use(aiChatRoutes);

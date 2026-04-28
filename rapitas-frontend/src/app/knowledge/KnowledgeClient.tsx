@@ -22,10 +22,7 @@ import type {
 function isKnowledgeSearchResult(
   entry: KnowledgeEntry | KnowledgeSearchResult,
 ): entry is KnowledgeSearchResult {
-  return (
-    'similarity' in entry &&
-    typeof (entry as KnowledgeSearchResult).similarity === 'number'
-  );
+  return 'similarity' in entry && typeof (entry as KnowledgeSearchResult).similarity === 'number';
 }
 
 export default function KnowledgeClient() {
@@ -93,12 +90,8 @@ export default function KnowledgeClient() {
         <div className="flex items-center gap-3">
           <Brain className="h-8 w-8 text-indigo-500" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t('description')}
-            </p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">{t('title')}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('description')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -151,19 +144,14 @@ export default function KnowledgeClient() {
 
       {/* Results count */}
       <div className="mb-3 text-sm text-gray-500 dark:text-gray-400">
-        {searchMode
-          ? `${searchResults.length} ${t('entries')}`
-          : `${total} ${t('entries')}`}
+        {searchMode ? `${searchResults.length} ${t('entries')}` : `${total} ${t('entries')}`}
       </div>
 
       {/* Entry list */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-28 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"
-            />
+            <div key={i} className="h-28 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
           ))}
         </div>
       ) : displayEntries.length === 0 ? (
@@ -182,9 +170,7 @@ export default function KnowledgeClient() {
             <KnowledgeEntryCard
               key={entry.id}
               entry={entry}
-              similarity={
-                isKnowledgeSearchResult(entry) ? entry.similarity : undefined
-              }
+              similarity={isKnowledgeSearchResult(entry) ? entry.similarity : undefined}
             />
           ))}
         </div>
@@ -249,9 +235,7 @@ export default function KnowledgeClient() {
                 </label>
                 <select
                   value={newCategory}
-                  onChange={(e) =>
-                    setNewCategory(e.target.value as KnowledgeCategory)
-                  }
+                  onChange={(e) => setNewCategory(e.target.value as KnowledgeCategory)}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 >
                   {(

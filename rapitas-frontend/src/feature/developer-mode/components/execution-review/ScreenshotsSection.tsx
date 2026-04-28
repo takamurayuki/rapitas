@@ -33,15 +33,10 @@ export function ScreenshotsSection({
 }: ScreenshotsSectionProps) {
   const [showScreenshots, setShowScreenshots] = useState(true);
   const [showCaptureForm, setShowCaptureForm] = useState(false);
-  const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(
-    initialScreenshots || [],
-  );
+  const [screenshots, setScreenshots] = useState<ScreenshotInfo[]>(initialScreenshots || []);
   const [captureBaseUrl, setCaptureBaseUrl] = useState('');
-  const [capturePages, setCapturePages] = useState<CapturePage[]>([
-    { path: '/', label: 'home' },
-  ]);
-  const [detectedProject, setDetectedProject] =
-    useState<DetectedProject | null>(null);
+  const [capturePages, setCapturePages] = useState<CapturePage[]>([{ path: '/', label: 'home' }]);
+  const [detectedProject, setDetectedProject] = useState<DetectedProject | null>(null);
 
   // NOTE: Also reflect changes when initialScreenshots updates later
   useEffect(() => {
@@ -135,10 +130,7 @@ export function ScreenshotsSection({
               onCaptureComplete={handleCaptureComplete}
             />
           )}
-          <ScreenshotGrid
-            screenshots={screenshots}
-            hidePlaceholder={showCaptureForm}
-          />
+          <ScreenshotGrid screenshots={screenshots} hidePlaceholder={showCaptureForm} />
         </div>
       )}
     </div>

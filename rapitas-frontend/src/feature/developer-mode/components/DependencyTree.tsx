@@ -8,12 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  GitBranch,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
-} from 'lucide-react';
+import { GitBranch, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useSSE } from '@/hooks/common/useSse';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
@@ -23,12 +18,7 @@ import {
   LoadingPanel,
   ErrorPanel,
 } from './dependency-tree/DependencyStatusPanels';
-import {
-  TreeView,
-  ListView,
-  GroupsView,
-  SummaryStats,
-} from './dependency-tree/DependencyViews';
+import { TreeView, ListView, GroupsView, SummaryStats } from './dependency-tree/DependencyViews';
 import type { AnalysisResult } from './dependency-tree/types';
 
 const logger = createLogger('DependencyTree');
@@ -80,9 +70,7 @@ export function DependencyTree({ taskId }: Props) {
     setIsLoadingFallback(true);
     setErrorFallback(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/${taskId}/dependency-analysis`,
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/dependency-analysis`);
       if (res.ok) {
         const data = await res.json();
         setAnalysis(data);
@@ -91,9 +79,7 @@ export function DependencyTree({ taskId }: Props) {
         throw new Error(errData.error || 'Analysis failed');
       }
     } catch (err) {
-      setErrorFallback(
-        err instanceof Error ? err.message : 'An error occurred',
-      );
+      setErrorFallback(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoadingFallback(false);
     }
@@ -121,11 +107,7 @@ export function DependencyTree({ taskId }: Props) {
 
   const currentAnalysis = useSSEMode ? sseData : analysis;
   const currentIsLoading = useSSEMode ? isLoading : isLoadingFallback;
-  const currentError = useSSEMode
-    ? sseError
-    : errorFallback
-      ? { error: errorFallback }
-      : null;
+  const currentError = useSSEMode ? sseError : errorFallback ? { error: errorFallback } : null;
 
   const expandAll = () => {
     if (currentAnalysis) {
@@ -185,9 +167,7 @@ export function DependencyTree({ taskId }: Props) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <GitBranch className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">
-            Dependency Analysis
-          </span>
+          <span className="font-medium text-zinc-900 dark:text-zinc-100">Dependency Analysis</span>
           {useSSEMode && (
             <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
               SSE
@@ -200,9 +180,7 @@ export function DependencyTree({ taskId }: Props) {
           className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
           title="Refresh"
         >
-          <RefreshCw
-            className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`}
-          />
+          <RefreshCw className={`w-4 h-4 ${currentIsLoading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -220,24 +198,14 @@ export function DependencyTree({ taskId }: Props) {
                 : 'text-zinc-500 hover:text-zinc-700'
             }`}
           >
-            {mode === 'tree'
-              ? 'Tree View'
-              : mode === 'list'
-                ? 'List View'
-                : 'Group View'}
+            {mode === 'tree' ? 'Tree View' : mode === 'list' ? 'List View' : 'Group View'}
           </button>
         ))}
         <div className="flex-1" />
-        <button
-          onClick={expandAll}
-          className="text-xs text-zinc-500 hover:text-zinc-700"
-        >
+        <button onClick={expandAll} className="text-xs text-zinc-500 hover:text-zinc-700">
           Expand All
         </button>
-        <button
-          onClick={collapseAll}
-          className="text-xs text-zinc-500 hover:text-zinc-700"
-        >
+        <button onClick={collapseAll} className="text-xs text-zinc-500 hover:text-zinc-700">
           Collapse All
         </button>
       </div>
@@ -250,12 +218,8 @@ export function DependencyTree({ taskId }: Props) {
             onToggle={toggleNode}
           />
         )}
-        {viewMode === 'list' && (
-          <ListView analysis={currentAnalysis.analysis} />
-        )}
-        {viewMode === 'groups' && (
-          <GroupsView parallelGroups={currentAnalysis.parallelGroups} />
-        )}
+        {viewMode === 'list' && <ListView analysis={currentAnalysis.analysis} />}
+        {viewMode === 'groups' && <GroupsView parallelGroups={currentAnalysis.parallelGroups} />}
       </div>
 
       {/* Legend */}

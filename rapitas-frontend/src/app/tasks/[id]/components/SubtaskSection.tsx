@@ -34,9 +34,7 @@ interface SubtaskSectionProps {
   onSetDeleteConfirm: (v: 'all' | 'selected' | null) => void;
   onDeleteAll: () => void;
   onDeleteSelected: () => void;
-  onStartEditingSubtask: (
-    subtask: NonNullable<Task['subtasks']>[number],
-  ) => void;
+  onStartEditingSubtask: (subtask: NonNullable<Task['subtasks']>[number]) => void;
   onSetEditingSubtaskTitle: (v: string) => void;
   onSetEditingSubtaskDescription: (v: string) => void;
   onSetEditingSubtaskPriority: (v: Priority) => void;
@@ -103,9 +101,7 @@ export default function SubtaskSection({
 }: SubtaskSectionProps) {
   const doneCount = subtasks.filter((s) => s.status === 'done').length;
   const hasSubtasks = subtasks.length > 0;
-  const progressPercent = hasSubtasks
-    ? Math.round((doneCount / subtasks.length) * 100)
-    : 0;
+  const progressPercent = hasSubtasks ? Math.round((doneCount / subtasks.length) * 100) : 0;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
@@ -127,9 +123,7 @@ export default function SubtaskSection({
           mode={showSubtaskDeleteConfirm}
           totalCount={subtasks.length}
           selectedCount={selectedSubtaskIds.size}
-          onConfirm={
-            showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected
-          }
+          onConfirm={showSubtaskDeleteConfirm === 'all' ? onDeleteAll : onDeleteSelected}
           onCancel={() => onSetDeleteConfirm(null)}
         />
       )}

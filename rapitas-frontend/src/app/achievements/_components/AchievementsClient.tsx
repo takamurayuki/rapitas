@@ -41,9 +41,7 @@ type TabType = 'achievements' | 'stats' | 'badges';
  * Main achievements client component
  * メイン実績クライアントコンポーネント
  */
-export const AchievementsClient: React.FC<AchievementsClientProps> = ({
-  userId,
-}) => {
+export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }) => {
   const [activeTab, setActiveTab] = useState<TabType>('achievements');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
@@ -82,10 +80,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({
             <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded w-1/3" />
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-24 bg-gray-300 dark:bg-gray-700 rounded-xl"
-                />
+                <div key={i} className="h-24 bg-gray-300 dark:bg-gray-700 rounded-xl" />
               ))}
             </div>
             <div className="h-96 bg-gray-300 dark:bg-gray-700 rounded-xl" />
@@ -191,9 +186,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({
               className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
               title="データを更新"
             >
-              <RefreshCw
-                className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`}
-              />
+              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
 
             {/* Clear notifications */}
@@ -219,36 +212,28 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {unlockedCount}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              解除済み実績
-            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">解除済み実績</div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {Math.round(completionPercentage)}%
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              完了率
-            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">完了率</div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {totalPoints.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              ポイント
-            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">ポイント</div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {playerStats?.totalTasksCompleted || 0}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              総タスク数
-            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">総タスク数</div>
           </div>
         </motion.div>
 
@@ -340,9 +325,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({
                   <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-2">
                     バッジ機能は準備中です
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-500">
-                    近日公開予定です。お楽しみに！
-                  </p>
+                  <p className="text-gray-500 dark:text-gray-500">近日公開予定です。お楽しみに！</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -379,17 +362,12 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({
         {/* Debug info (development only) */}
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
-              開発情報
-            </h4>
+            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">開発情報</h4>
             <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
               <div>User ID: {userId}</div>
               <div>Tracking: {isTracking ? 'Active' : 'Inactive'}</div>
               <div>Notifications: {notifications.length} pending</div>
-              <div>
-                Last update:{' '}
-                {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}
-              </div>
+              <div>Last update: {playerStats?.lastUpdatedAt?.toLocaleString('ja-JP')}</div>
             </div>
           </div>
         )}

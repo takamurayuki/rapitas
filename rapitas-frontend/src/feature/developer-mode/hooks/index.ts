@@ -1,14 +1,8 @@
 export { useAgentExecution } from './useAgentExecution';
-export type {
-  ExecuteTaskOptions,
-  UseAgentExecutionReturn,
-} from './useAgentExecution';
+export type { ExecuteTaskOptions, UseAgentExecutionReturn } from './useAgentExecution';
 
 export { useGitHubIntegration } from './useGitHubIntegration';
-export type {
-  CreateIntegrationInput,
-  UseGitHubIntegrationReturn,
-} from './useGitHubIntegration';
+export type { CreateIntegrationInput, UseGitHubIntegrationReturn } from './useGitHubIntegration';
 
 export { useRealtimeUpdates } from './useRealtimeUpdates';
 export type {

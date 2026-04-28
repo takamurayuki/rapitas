@@ -18,11 +18,7 @@ import { StatusDot } from './terminal/TerminalLine';
 import { TerminalOutput } from './terminal/TerminalOutput';
 import { TerminalInput } from './terminal/TerminalInput';
 import { useTerminalSubmit } from './terminal/useTerminalSubmit';
-import {
-  type LogLine,
-  classifyLine,
-  appendCapped,
-} from './terminal/terminal-utils';
+import { type LogLine, classifyLine, appendCapped } from './terminal/terminal-utils';
 
 type Props = {
   taskId: number;
@@ -68,8 +64,7 @@ export const TerminalPanel = memo(function TerminalPanel({
   const lineIdCounter = useRef(0);
 
   const polling = useExecutionPolling(taskId);
-  const isRunning =
-    polling.isRunning || executionStatus === 'running' || isExecuting;
+  const isRunning = polling.isRunning || executionStatus === 'running' || isExecuting;
   const isWaiting = polling.waitingForInput;
   const question = polling.question;
 
@@ -82,9 +77,7 @@ export const TerminalPanel = memo(function TerminalPanel({
     prevLogsRef.current = currentLogs;
 
     const newLines: LogLine[] = newLogs
-      .filter(
-        (l) => l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined',
-      )
+      .filter((l) => l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined')
       .map((text) => ({
         id: `log-${lineIdCounter.current++}`,
         type: classifyLine(text),
@@ -130,10 +123,7 @@ export const TerminalPanel = memo(function TerminalPanel({
         if (state?.output) {
           const restoredLines = state.output
             .split('\n')
-            .filter(
-              (l) =>
-                l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined',
-            )
+            .filter((l) => l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined')
             .map((text) => ({
               id: `r-${lineIdCounter.current++}`,
               type: classifyLine(text) as LogLine['type'],
@@ -142,10 +132,7 @@ export const TerminalPanel = memo(function TerminalPanel({
             }));
           setLines(restoredLines);
         }
-        if (
-          state?.status === 'running' ||
-          state?.status === 'waiting_for_input'
-        ) {
+        if (state?.status === 'running' || state?.status === 'waiting_for_input') {
           polling.startPolling();
         }
       });
@@ -224,9 +211,7 @@ export const TerminalPanel = memo(function TerminalPanel({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800 border-b border-zinc-700">
         <StatusDot status={polling.status} waitingForInput={isWaiting} />
-        <span className="text-[10px] text-zinc-400 font-mono">
-          {statusLabel}
-        </span>
+        <span className="text-[10px] text-zinc-400 font-mono">{statusLabel}</span>
         <div className="flex-1" />
 
         <ModelSelector

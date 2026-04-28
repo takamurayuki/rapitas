@@ -40,26 +40,20 @@ export function WorkflowConfigCard({
       <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-violet-500" />
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-            {t('workflowConfig')}
-          </h2>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('workflowConfig')}</h2>
         </div>
       </div>
       <div className="p-6 space-y-6">
         {/* Auto approve plan */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-              {t('autoApprovePlan')}
-            </h3>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">{t('autoApprovePlan')}</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
               {t('autoApproveDescription')}
             </p>
           </div>
           <button
-            onClick={() =>
-              onUpdateSettings({ autoApprovePlan: !settings?.autoApprovePlan })
-            }
+            onClick={() => onUpdateSettings({ autoApprovePlan: !settings?.autoApprovePlan })}
             disabled={isSaving}
             className={toggleClass(settings?.autoApprovePlan)}
             role="switch"

@@ -1,14 +1,7 @@
 'use client';
 
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
-import {
-  FileSearch,
-  FileText,
-  CheckCircle,
-  Clock,
-  PlayCircle,
-  Circle,
-} from 'lucide-react';
+import { FileSearch, FileText, CheckCircle, Clock, PlayCircle, Circle } from 'lucide-react';
 
 const STATUS_CONFIG: Record<
   WorkflowStatus,
@@ -86,8 +79,7 @@ export default function WorkflowStatusIndicator({
   if (!config) return null;
 
   const Icon = config.icon;
-  const sizeClasses =
-    size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
+  const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-sm px-3 py-1 gap-1.5';
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4';
 
   return (
@@ -127,10 +119,7 @@ interface WorkflowProgressProps {
   roles?: WorkflowRoleConfig[];
 }
 
-export function WorkflowProgress({
-  currentStatus,
-  roles,
-}: WorkflowProgressProps) {
+export function WorkflowProgress({ currentStatus, roles }: WorkflowProgressProps) {
   const currentIndex = STAGES.indexOf(currentStatus);
 
   return (
@@ -143,10 +132,7 @@ export function WorkflowProgress({
         const roleConfig = roles?.find((r) => r.role === roleName);
 
         return (
-          <div
-            key={stage}
-            className="flex flex-col items-center gap-0.5 flex-1"
-          >
+          <div key={stage} className="flex flex-col items-center gap-0.5 flex-1">
             <div
               className={`h-1.5 w-full rounded-full transition-colors ${
                 isCompleted

@@ -13,18 +13,10 @@ import { FileCode } from 'lucide-react';
 import { LogAnalysisViewer } from './LogAnalysisViewer';
 import { LogInputTab } from './LogInputTab';
 import { LogSettingsTab } from './LogSettingsTab';
-import type {
-  LogType,
-  LogAnalysisResult,
-  LogFilter,
-  LogLevel,
-} from '@/types/debug-log';
+import type { LogType, LogAnalysisResult, LogFilter, LogLevel } from '@/types/debug-log';
 
 interface DebugLogAnalyzerProps {
-  onAnalyze?: (
-    logContent: string,
-    logType?: LogType,
-  ) => Promise<LogAnalysisResult>;
+  onAnalyze?: (logContent: string, logType?: LogType) => Promise<LogAnalysisResult>;
 }
 
 /**
@@ -34,10 +26,7 @@ interface DebugLogAnalyzerProps {
  * @param selectedLogType - Detected or selected log format / ログ形式
  * @returns A synthetic LogAnalysisResult
  */
-function buildDemoResult(
-  logContent: string,
-  selectedLogType: LogType,
-): LogAnalysisResult {
+function buildDemoResult(logContent: string, selectedLogType: LogType): LogAnalysisResult {
   const lines = logContent.split('\n').filter((line) => line.trim());
   const now = new Date();
 
@@ -58,8 +47,7 @@ function buildDemoResult(
     summary: {
       totalEntries: lines.length,
       errorCount: lines.filter((l) => l.toLowerCase().includes('error')).length,
-      warningCount: lines.filter((l) => l.toLowerCase().includes('warn'))
-        .length,
+      warningCount: lines.filter((l) => l.toLowerCase().includes('warn')).length,
       timeRange: {
         start: new Date(now.getTime() - lines.length * 1000),
         end: now,
@@ -87,14 +75,11 @@ function buildDemoResult(
   };
 }
 
-export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
-  onAnalyze,
-}) => {
+export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze }) => {
   const [logContent, setLogContent] = useState('');
   const [selectedLogType, setSelectedLogType] = useState<LogType>('unknown');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] =
-    useState<LogAnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<LogAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState('input');
   const [filter, setFilter] = useState<LogFilter>({});
@@ -116,9 +101,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
       setAnalysisResult(result);
       setSelectedTab('result');
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : '解析中にエラーが発生しました',
-      );
+      setError(err instanceof Error ? err.message : '解析中にエラーが発生しました');
     } finally {
       setIsAnalyzing(false);
     }
@@ -184,10 +167,7 @@ export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
 
         <TabsContent value="result">
           {analysisResult && (
-            <LogAnalysisViewer
-              analysis={analysisResult}
-              onExport={handleExport}
-            />
+            <LogAnalysisViewer analysis={analysisResult} onExport={handleExport} />
           )}
         </TabsContent>
 

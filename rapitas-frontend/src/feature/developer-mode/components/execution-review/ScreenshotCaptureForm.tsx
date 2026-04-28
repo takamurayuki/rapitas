@@ -86,9 +86,7 @@ export function ScreenshotCaptureForm({
       }
     } catch (err) {
       setCaptureError(
-        err instanceof Error
-          ? err.message
-          : 'スクリーンショットの撮影に失敗しました',
+        err instanceof Error ? err.message : 'スクリーンショットの撮影に失敗しました',
       );
     } finally {
       setIsCapturing(false);
@@ -117,15 +115,11 @@ export function ScreenshotCaptureForm({
           type="text"
           value={captureBaseUrl}
           onChange={(e) => onCaptureBaseUrlChange(e.target.value)}
-          placeholder={
-            detectedProject ? detectedProject.baseUrl : 'http://localhost:3000'
-          }
+          placeholder={detectedProject ? detectedProject.baseUrl : 'http://localhost:3000'}
           className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
         />
         {detectedProject && (
-          <p className="mt-1 text-xs text-zinc-400">
-            検出されたポート: {detectedProject.devPort}
-          </p>
+          <p className="mt-1 text-xs text-zinc-400">検出されたポート: {detectedProject.devPort}</p>
         )}
       </div>
 

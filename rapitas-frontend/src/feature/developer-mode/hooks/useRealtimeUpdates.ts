@@ -27,12 +27,8 @@ export type UseRealtimeUpdatesReturn = {
   disconnect: () => void;
   subscribe: (channel: string) => void;
   unsubscribe: (channel: string) => void;
-  onExecutionOutput: (
-    handler: EventHandler<ExecutionOutputEvent>,
-  ) => () => void;
-  onExecutionStatus: (
-    handler: EventHandler<ExecutionStatusEvent>,
-  ) => () => void;
+  onExecutionOutput: (handler: EventHandler<ExecutionOutputEvent>) => () => void;
+  onExecutionStatus: (handler: EventHandler<ExecutionStatusEvent>) => () => void;
   onGitHubEvent: (handler: EventHandler<GitHubEventData>) => () => void;
   onNotification: (handler: EventHandler<unknown>) => () => void;
 };
@@ -40,13 +36,7 @@ export type UseRealtimeUpdatesReturn = {
 export function useRealtimeUpdates(
   options: UseRealtimeUpdatesOptions = {},
 ): UseRealtimeUpdatesReturn {
-  const {
-    channels = ['*'],
-    autoConnect = true,
-    onConnect,
-    onDisconnect,
-    onError,
-  } = options;
+  const { channels = ['*'], autoConnect = true, onConnect, onDisconnect, onError } = options;
 
   // Stabilize channels array to prevent infinite loops from reference changes
   const channelsKey = channels.join(',');

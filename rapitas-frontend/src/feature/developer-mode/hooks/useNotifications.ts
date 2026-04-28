@@ -12,31 +12,26 @@ export function useNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchNotifications = useCallback(
-    async (unreadOnly?: boolean, limit?: number) => {
-      setIsLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (unreadOnly) params.append('unreadOnly', 'true');
-        if (limit) params.append('limit', limit.toString());
+  const fetchNotifications = useCallback(async (unreadOnly?: boolean, limit?: number) => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (unreadOnly) params.append('unreadOnly', 'true');
+      if (limit) params.append('limit', limit.toString());
 
-        const res = await fetch(
-          `${API_BASE_URL}/notifications?${params.toString()}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setNotifications(data);
-          return data;
-        }
-      } catch (err) {
-        logger.error('Failed to fetch notifications:', err);
-      } finally {
-        setIsLoading(false);
+      const res = await fetch(`${API_BASE_URL}/notifications?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+        return data;
       }
-      return [];
-    },
-    [],
-  );
+    } catch (err) {
+      logger.error('Failed to fetch notifications:', err);
+    } finally {
+      setIsLoading(false);
+    }
+    return [];
+  }, []);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -60,9 +55,7 @@ export function useNotifications() {
       if (res.ok) {
         setNotifications((prev) =>
           prev.map((n) =>
-            n.id === id
-              ? { ...n, isRead: true, readAt: new Date().toISOString() }
-              : n,
+            n.id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n,
           ),
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
@@ -131,11 +124,7 @@ export function useNotifications() {
         return true;
       } else {
         const errorData = await res.json().catch(() => ({}));
-        logger.error(
-          'Failed to delete all notifications:',
-          res.status,
-          errorData,
-        );
+        logger.error('Failed to delete all notifications:', res.status, errorData);
       }
     } catch (err) {
       logger.error('Failed to delete all notifications:', err);

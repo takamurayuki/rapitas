@@ -53,11 +53,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
       >
         <Brain className="w-2.5 h-2.5" />
         AI分析結果
-        {isVisible ? (
-          <EyeOff className="w-2.5 h-2.5" />
-        ) : (
-          <Eye className="w-2.5 h-2.5" />
-        )}
+        {isVisible ? <EyeOff className="w-2.5 h-2.5" /> : <Eye className="w-2.5 h-2.5" />}
       </button>
 
       {/* Analysis Results */}
@@ -68,9 +64,7 @@ export const MemoAnalysisDisplay = memo(function MemoAnalysisDisplay({
             <h4 className="text-[10px] font-medium text-purple-700 dark:text-purple-300 mb-1">
               要約
             </h4>
-            <p className="text-[10px] text-zinc-600 dark:text-zinc-400">
-              {analysis.summary}
-            </p>
+            <p className="text-[10px] text-zinc-600 dark:text-zinc-400">{analysis.summary}</p>
           </div>
 
           {/* Importance & Sentiment */}

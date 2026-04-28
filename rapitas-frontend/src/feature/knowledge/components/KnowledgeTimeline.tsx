@@ -32,17 +32,11 @@ export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
   }, [fetchEvents]);
 
   if (isLoading) {
-    return (
-      <div className="animate-pulse h-20 rounded-lg bg-gray-200 dark:bg-gray-700" />
-    );
+    return <div className="animate-pulse h-20 rounded-lg bg-gray-200 dark:bg-gray-700" />;
   }
 
   if (events.length === 0) {
-    return (
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        {t('noEvents')}
-      </p>
-    );
+    return <p className="text-sm text-gray-500 dark:text-gray-400">{t('noEvents')}</p>;
   }
 
   return (
@@ -58,9 +52,7 @@ export function KnowledgeTimeline({ limit = 20 }: KnowledgeTimelineProps) {
               <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
                 {event.eventType.replace(/_/g, ' ')}
               </span>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                {event.actorType}
-              </span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{event.actorType}</span>
             </div>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               {new Date(event.createdAt).toLocaleString()}

@@ -106,9 +106,7 @@ export function PromptCard({
                   {t('defaultLabel')}
                 </span>
               )}
-              <span
-                className={`px-1.5 py-0.5 text-xs rounded shrink-0 ${categoryInfo.color}`}
-              >
+              <span className={`px-1.5 py-0.5 text-xs rounded shrink-0 ${categoryInfo.color}`}>
                 {t(categoryInfo.labelKey)}
               </span>
             </div>
@@ -119,10 +117,7 @@ export function PromptCard({
             )}
           </div>
         </div>
-        <div
-          className="flex items-center gap-2 shrink-0 ml-3"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="flex items-center gap-2 shrink-0 ml-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={onToggleActive}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -220,8 +215,7 @@ export function PromptCard({
                     {prompt.key}
                   </code>
                   <span className="mx-2">|</span>
-                  {t('updatedLabel')}{' '}
-                  {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
+                  {t('updatedLabel')} {new Date(prompt.updatedAt).toLocaleString('ja-JP')}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

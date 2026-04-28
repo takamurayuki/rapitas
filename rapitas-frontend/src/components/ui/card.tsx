@@ -1,10 +1,6 @@
 import React from 'react';
 
-export function Card({
-  className = '',
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({ className = '', children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={`rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800 ${className}`}
@@ -33,10 +29,7 @@ export function CardTitle({
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3
-      className={`text-lg font-semibold leading-none tracking-tight ${className}`}
-      {...props}
-    >
+    <h3 className={`text-lg font-semibold leading-none tracking-tight ${className}`} {...props}>
       {children}
     </h3>
   );

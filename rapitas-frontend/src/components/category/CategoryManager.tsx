@@ -73,8 +73,7 @@ export default function CategoryManager({ config }: Props) {
   const t = useTranslations('categories');
 
   const accent =
-    accentClasses[config.accentColor as keyof typeof accentClasses] ||
-    accentClasses.indigo;
+    accentClasses[config.accentColor as keyof typeof accentClasses] || accentClasses.indigo;
 
   const {
     items,
@@ -155,22 +154,14 @@ export default function CategoryManager({ config }: Props) {
         ) : items.length === 0 ? (
           <div className="text-center py-16 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <TitleIcon className="w-16 h-16 mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-            <p className="text-lg font-medium mb-2">
-              {t('itemNone', { item: config.itemName })}
-            </p>
-            <p className="text-sm mb-4">
-              {t('itemCreateFirst', { item: config.itemName })}
-            </p>
+            <p className="text-lg font-medium mb-2">{t('itemNone', { item: config.itemName })}</p>
+            <p className="text-sm mb-4">{t('itemCreateFirst', { item: config.itemName })}</p>
           </div>
         ) : (
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId={config.endpoint}>
               {(provided) => (
-                <div
-                  className="grid gap-3"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                >
+                <div className="grid gap-3" ref={provided.innerRef} {...provided.droppableProps}>
                   {items
                     .filter((item) => {
                       if (isAdding) return false;
@@ -195,9 +186,7 @@ export default function CategoryManager({ config }: Props) {
                         onEdit={startEdit}
                         onDelete={handleDelete}
                         onSetDefault={setDefault}
-                        onSave={(id) =>
-                          id !== undefined ? handleUpdate(id) : handleAdd()
-                        }
+                        onSave={(id) => (id !== undefined ? handleUpdate(id) : handleAdd())}
                         onCancel={cancelEdit}
                       />
                     ))}

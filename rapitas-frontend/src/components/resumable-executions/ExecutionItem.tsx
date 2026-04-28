@@ -47,8 +47,7 @@ export function ExecutionItem({
               {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
             </a>
 
-            {(exec.status === 'running' ||
-              exec.status === 'waiting_for_input') && (
+            {(exec.status === 'running' || exec.status === 'waiting_for_input') && (
               <span className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded-full">
                 <Loader2 className="w-2.5 h-2.5 animate-spin" />
                 {t('runningStatus')}

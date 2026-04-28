@@ -105,9 +105,8 @@ export function setupExternalLinkHandlers(): void {
       ).__externalLinkHandler;
       if (existingHandler) {
         link.removeEventListener('click', existingHandler, true);
-        delete (
-          link as HTMLAnchorElement & { __externalLinkHandler?: EventListener }
-        ).__externalLinkHandler;
+        delete (link as HTMLAnchorElement & { __externalLinkHandler?: EventListener })
+          .__externalLinkHandler;
       }
 
       // NOTE: Create listener in capture phase to run before other handlers

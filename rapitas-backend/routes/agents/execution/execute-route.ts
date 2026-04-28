@@ -23,6 +23,7 @@ import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-
 import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
+import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 import type { AttachmentDescriptor } from './instruction-builder';
 
 const log = createLogger('routes:agent-execution:execute');
@@ -198,6 +199,22 @@ export const executeRoute = new Elysia().post(
 
     const executionDir = worktreePath;
 
+    // Resolve which agent should run THIS task at THIS workflow phase. The
+    // /agents pageの WorkflowRoleConfig がエージェント選択の唯一のソース、という
+    // ユーザー方針に基づく — リクエストで agentConfigId が来ていてもロール解決
+    // 結果で上書きする。ロール解決が null（ワークフローコンテキスト無し）の場合
+    // のみリクエスト値 / デフォルトにフォールバック。
+    let resolvedAgentConfigId = agentConfigId;
+    const roleAgent = await resolveAgentForTask(taskIdNum);
+    if (roleAgent?.agentConfigId) {
+      if (resolvedAgentConfigId !== roleAgent.agentConfigId) {
+        log.info(
+          `[API] Task ${taskIdNum}: WorkflowRoleConfig override — role=${roleAgent.role}, agentConfigId=${roleAgent.agentConfigId} (was ${resolvedAgentConfigId ?? 'default'})`,
+        );
+      }
+      resolvedAgentConfigId = roleAgent.agentConfigId;
+    }
+
     // NOTE: Execute in worktree directory for git isolation
     agentWorkerManager
       .executeTask(
@@ -212,7 +229,7 @@ export const executeRoute = new Elysia().post(
         {
           taskId: taskIdNum,
           sessionId: session.id,
-          agentConfigId,
+          agentConfigId: resolvedAgentConfigId,
           workingDirectory: executionDir,
           timeout,
           analysisInfo,

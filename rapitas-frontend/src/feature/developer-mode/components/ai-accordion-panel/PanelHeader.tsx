@@ -21,11 +21,7 @@ type PanelHeaderProps = {
  * @param props.analysisResult - When set, renders the "分析完了" badge.
  * @param props.onOpenSettings - Callback invoked by the settings gear button.
  */
-export function PanelHeader({
-  optimizedPrompt,
-  analysisResult,
-  onOpenSettings,
-}: PanelHeaderProps) {
+export function PanelHeader({ optimizedPrompt, analysisResult, onOpenSettings }: PanelHeaderProps) {
   return (
     <div className="px-4 py-3 bg-linear-to-r from-violet-50 via-indigo-50 to-purple-50 dark:from-violet-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 border-b border-zinc-200 dark:border-zinc-700">
       <div className="flex items-center gap-2">
@@ -33,9 +29,7 @@ export function PanelHeader({
           <Bot className="w-4 h-4 text-violet-600 dark:text-violet-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-50">
-            AI アシスタント
-          </h2>
+          <h2 className="font-bold text-sm text-zinc-900 dark:text-zinc-50">AI アシスタント</h2>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
             分析・最適化・自動実装
           </p>

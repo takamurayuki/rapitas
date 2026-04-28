@@ -123,12 +123,7 @@ export function minutesToAngle(minutes: number): number {
  * @param angleDeg - Angle in degrees / 角度（度数）
  * @returns Cartesian coordinates / 直交座標
  */
-export function polarToCartesian(
-  cx: number,
-  cy: number,
-  r: number,
-  angleDeg: number,
-) {
+export function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
   return {
     x: cx + r * Math.cos(rad),
@@ -144,10 +139,7 @@ export function polarToCartesian(
  * @param endTime - Block end in "HH:MM" / 終了時刻
  * @returns Hours and minutes components / 時間と分の内訳
  */
-export function getDurationParts(
-  startTime: string,
-  endTime: string,
-): { h: number; m: number } {
+export function getDurationParts(startTime: string, endTime: string): { h: number; m: number } {
   const start = timeToMinutes(startTime);
   let end = timeToMinutes(endTime);
 

@@ -26,12 +26,8 @@ export function ToggleSwitch({ value, onChange, label, description }: Props) {
   return (
     <div className="flex items-center justify-between">
       <div>
-        <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          {label}
-        </label>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {description}
-        </p>
+        <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</label>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
       </div>
       <button
         onClick={() => onChange(!value)}

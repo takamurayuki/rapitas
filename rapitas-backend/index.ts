@@ -118,6 +118,14 @@ AIOrchestra.getInstance()
     log.error({ err: error }, 'AI Orchestra startup recovery failed');
   });
 
+// Move legacy in-repo workflow files (`<cwd>/tasks/...`) to the user data
+// dir (`~/.rapitas/workflows/...`). Idempotent — only acts when legacy files
+// remain. See services/workflow/workflow-legacy-migrator.ts.
+import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
+migrateLegacyWorkflowFiles().catch((error) => {
+  log.warn({ err: error }, 'Legacy workflow file migration failed (non-fatal)');
+});
+
 // Initialize Agent Worker Manager for processing agent execution in separate processes
 workerManager.initialize().catch((error) => {
   log.error({ err: error }, 'Failed to initialize Agent Worker Manager');

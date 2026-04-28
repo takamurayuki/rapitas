@@ -3,14 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Priority, Theme } from '@/types';
-import {
-  Star,
-  SwatchBook,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-} from 'lucide-react';
+import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
 import { HomeExpandedFilters } from './HomeExpandedFilters';
@@ -117,8 +110,7 @@ export function HomeThemeFilter({
             </div>
           ) : (
             filteredThemes.map((theme) => {
-              const IconComponent =
-                getIconComponent(theme.icon || '') || SwatchBook;
+              const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
               const isActive = themeFilter === theme.id;
               return (
                 <button
@@ -136,9 +128,7 @@ export function HomeThemeFilter({
                 >
                   <IconComponent className="w-3.5 h-3.5" />
                   {theme.name}
-                  {theme.isDefault && (
-                    <Star className="w-2.5 h-2.5 fill-current" />
-                  )}
+                  {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
                 </button>
               );
             })
@@ -169,12 +159,7 @@ export function HomeThemeFilter({
               : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
           }`}
         >
-          <svg
-            className="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"

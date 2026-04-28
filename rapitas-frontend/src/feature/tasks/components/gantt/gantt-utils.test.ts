@@ -193,12 +193,8 @@ describe('gantt-utils', () => {
 
       const range = adjustDateRange(tasks);
 
-      expect(range.start.getTime()).toBeLessThan(
-        new Date('2024-01-14').getTime(),
-      );
-      expect(range.end.getTime()).toBeGreaterThan(
-        new Date('2024-01-25').getTime(),
-      );
+      expect(range.start.getTime()).toBeLessThan(new Date('2024-01-14').getTime());
+      expect(range.end.getTime()).toBeGreaterThan(new Date('2024-01-25').getTime());
     });
 
     test('期限なしタスクのデフォルト範囲', () => {
@@ -224,19 +220,15 @@ describe('gantt-utils', () => {
       const range = adjustDateRange(tasks, { before: 14, after: 14 });
 
       const baseDate = new Date('2024-01-15');
-      const expectedStart = new Date(
-        baseDate.getTime() - 14 * 24 * 60 * 60 * 1000,
-      );
-      const expectedEnd = new Date(
-        baseDate.getTime() + 14 * 24 * 60 * 60 * 1000,
-      );
+      const expectedStart = new Date(baseDate.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const expectedEnd = new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-      expect(
-        Math.abs(range.start.getTime() - expectedStart.getTime()),
-      ).toBeLessThan(24 * 60 * 60 * 1000);
-      expect(
-        Math.abs(range.end.getTime() - expectedEnd.getTime()),
-      ).toBeLessThan(24 * 60 * 60 * 1000);
+      expect(Math.abs(range.start.getTime() - expectedStart.getTime())).toBeLessThan(
+        24 * 60 * 60 * 1000,
+      );
+      expect(Math.abs(range.end.getTime() - expectedEnd.getTime())).toBeLessThan(
+        24 * 60 * 60 * 1000,
+      );
     });
   });
 

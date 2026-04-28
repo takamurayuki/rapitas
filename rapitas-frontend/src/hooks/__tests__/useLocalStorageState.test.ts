@@ -22,24 +22,18 @@ describe('useLocalStorageState', () => {
   });
 
   it('should return default value when localStorage is empty', () => {
-    const { result } = renderHook(() =>
-      useLocalStorageState('testKey', 'default'),
-    );
+    const { result } = renderHook(() => useLocalStorageState('testKey', 'default'));
     expect(result.current[0]).toBe('default');
   });
 
   it('should read existing value from localStorage', () => {
     localStorage.setItem('testKey', JSON.stringify('stored'));
-    const { result } = renderHook(() =>
-      useLocalStorageState('testKey', 'default'),
-    );
+    const { result } = renderHook(() => useLocalStorageState('testKey', 'default'));
     expect(result.current[0]).toBe('stored');
   });
 
   it('should update state and localStorage on setValue', () => {
-    const { result } = renderHook(() =>
-      useLocalStorageState('testKey', 'default'),
-    );
+    const { result } = renderHook(() => useLocalStorageState('testKey', 'default'));
 
     act(() => {
       result.current[1]('newValue');
@@ -50,9 +44,7 @@ describe('useLocalStorageState', () => {
   });
 
   it('should handle object values', () => {
-    const { result } = renderHook(() =>
-      useLocalStorageState('objKey', { count: 0 }),
-    );
+    const { result } = renderHook(() => useLocalStorageState('objKey', { count: 0 }));
 
     act(() => {
       result.current[1]({ count: 5 });
@@ -64,9 +56,7 @@ describe('useLocalStorageState', () => {
 
   it('should remove item when setting null', () => {
     localStorage.setItem('testKey', JSON.stringify('value'));
-    const { result } = renderHook(() =>
-      useLocalStorageState<string | null>('testKey', 'default'),
-    );
+    const { result } = renderHook(() => useLocalStorageState<string | null>('testKey', 'default'));
 
     act(() => {
       result.current[1](null);
@@ -78,9 +68,7 @@ describe('useLocalStorageState', () => {
 
   it('should handle corrupted localStorage data', () => {
     localStorage.setItem('testKey', 'not-valid-json{{{');
-    const { result } = renderHook(() =>
-      useLocalStorageState('testKey', 'fallback'),
-    );
+    const { result } = renderHook(() => useLocalStorageState('testKey', 'fallback'));
     expect(result.current[0]).toBe('fallback');
   });
 
@@ -96,9 +84,7 @@ describe('useLocalStorageState', () => {
   });
 
   it('should handle array values', () => {
-    const { result } = renderHook(() =>
-      useLocalStorageState<number[]>('arrKey', []),
-    );
+    const { result } = renderHook(() => useLocalStorageState<number[]>('arrKey', []));
 
     act(() => {
       result.current[1]([1, 2, 3]);

@@ -113,9 +113,7 @@ interface ShortcutState {
   ) => ShortcutBinding | undefined;
 }
 
-function formatBindingKey(
-  b: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>,
-): string {
+function formatBindingKey(b: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>): string {
   const parts: string[] = [];
   if (b.ctrl) parts.push('ctrl');
   if (b.meta) parts.push('meta');
@@ -130,28 +128,21 @@ export const useShortcutStore = create<ShortcutState>()(
       shortcuts: DEFAULT_SHORTCUTS,
       updateShortcut: (id, binding) =>
         set((state) => ({
-          shortcuts: state.shortcuts.map((s) =>
-            s.id === id ? { ...s, ...binding } : s,
-          ),
+          shortcuts: state.shortcuts.map((s) => (s.id === id ? { ...s, ...binding } : s)),
         })),
       resetShortcut: (id) =>
         set((state) => {
           const def = DEFAULT_SHORTCUTS.find((s) => s.id === id);
           if (!def) return state;
           return {
-            shortcuts: state.shortcuts.map((s) =>
-              s.id === id ? { ...def } : s,
-            ),
+            shortcuts: state.shortcuts.map((s) => (s.id === id ? { ...def } : s)),
           };
         }),
-      resetAll: () =>
-        set({ shortcuts: DEFAULT_SHORTCUTS.map((s) => ({ ...s })) }),
+      resetAll: () => set({ shortcuts: DEFAULT_SHORTCUTS.map((s) => ({ ...s })) }),
       getDefault: (id) => DEFAULT_SHORTCUTS.find((s) => s.id === id),
       findDuplicate: (id, binding) => {
         const key = formatBindingKey(binding);
-        return get().shortcuts.find(
-          (s) => s.id !== id && formatBindingKey(s) === key,
-        );
+        return get().shortcuts.find((s) => s.id !== id && formatBindingKey(s) === key);
       },
     }),
     {

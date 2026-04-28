@@ -4,14 +4,7 @@
  * Renders a single theme row in view mode (name, badges, action buttons).
  * Does not own any state or API calls.
  */
-import {
-  Edit2,
-  Trash2,
-  Star,
-  Code,
-  FolderOpen,
-  GripVertical,
-} from 'lucide-react';
+import { Edit2, Trash2, Star, Code, FolderOpen, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { DraggableProvided } from '@hello-pangea/dnd';
 import type { Theme } from '@/types';
@@ -19,10 +12,7 @@ import type { Theme } from '@/types';
 type Props = {
   item: Theme;
   provided: DraggableProvided;
-  renderIcon: (
-    iconName: string | null | undefined,
-    size?: number,
-  ) => React.ReactNode;
+  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
   onEdit: (item: Theme) => void;
   onDelete: (id: number, name: string) => void;
   onSetDefault: (id: number) => void;
@@ -38,14 +28,7 @@ type Props = {
  * @param props.onDelete - Called with (id, name) when the delete button is clicked.
  * @param props.onSetDefault - Called with the theme id when the star button is clicked.
  */
-export function ThemeCard({
-  item,
-  provided,
-  renderIcon,
-  onEdit,
-  onDelete,
-  onSetDefault,
-}: Props) {
+export function ThemeCard({ item, provided, renderIcon, onEdit, onDelete, onSetDefault }: Props) {
   const t = useTranslations('themes');
   const tc = useTranslations('common');
 
@@ -101,10 +84,7 @@ export function ThemeCard({
                 color: item.color,
               }}
             >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
               {item.color}
             </span>
 
@@ -148,9 +128,7 @@ export function ThemeCard({
                 })
           }
         >
-          <Star
-            className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`}
-          />
+          <Star className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`} />
           <span className="hidden sm:inline">
             {item.isDefault ? t('default') : t('setAsDefault')}
           </span>

@@ -149,22 +149,16 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
         <div className="flex items-center gap-4">
           <Label className="min-w-[100px]">サンプル:</Label>
           <div className="flex gap-2">
-            {(['json', 'nodejs', 'apache', 'nginx'] as SampleKey[]).map(
-              (key) => (
-                <Button
-                  key={key}
-                  variant="outline"
-                  size="sm"
-                  onClickAction={() => loadSampleLog(key)}
-                >
-                  {key === 'apache'
-                    ? 'Apache'
-                    : key === 'nodejs'
-                      ? 'Node.js'
-                      : key.toUpperCase()}
-                </Button>
-              ),
-            )}
+            {(['json', 'nodejs', 'apache', 'nginx'] as SampleKey[]).map((key) => (
+              <Button
+                key={key}
+                variant="outline"
+                size="sm"
+                onClickAction={() => loadSampleLog(key)}
+              >
+                {key === 'apache' ? 'Apache' : key === 'nodejs' ? 'Node.js' : key.toUpperCase()}
+              </Button>
+            ))}
           </div>
         </div>
 
@@ -189,18 +183,11 @@ export const LogInputTab: React.FC<LogInputTabProps> = ({
 
         {/* Action buttons */}
         <div className="flex justify-between">
-          <Button
-            variant="outline"
-            onClickAction={onClear}
-            disabled={!logContent}
-          >
+          <Button variant="outline" onClickAction={onClear} disabled={!logContent}>
             <Trash2 className="w-4 h-4 mr-2" />
             クリア
           </Button>
-          <Button
-            onClickAction={onAnalyze}
-            disabled={!logContent || isAnalyzing}
-          >
+          <Button onClickAction={onAnalyze} disabled={!logContent || isAnalyzing}>
             {isAnalyzing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

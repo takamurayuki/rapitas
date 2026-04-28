@@ -3,9 +3,10 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GenerateSuggestionsRoute');
 
-const BACKEND_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001'
-).replace('localhost', '127.0.0.1');
+const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001').replace(
+  'localhost',
+  '127.0.0.1',
+);
 
 interface DynamicItem {
   id: string;
@@ -70,23 +71,15 @@ function buildElementSystemPrompt(): string {
 JSONのみ出力。`;
 }
 
-function parseAIResponse(
-  content: string,
-): { suggestions: DynamicItem[] } | null {
+function parseAIResponse(content: string): { suggestions: DynamicItem[] } | null {
   // Remove markdown code blocks if present
   let cleaned = content.trim();
-  cleaned = cleaned
-    .replace(/^```(?:json)?\s*\n?/i, '')
-    .replace(/\n?```\s*$/i, '');
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
   try {
     const parsed = JSON.parse(cleaned);
-    if (
-      parsed.suggestions &&
-      Array.isArray(parsed.suggestions) &&
-      parsed.suggestions.length > 0
-    ) {
+    if (parsed.suggestions && Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
       // Validate each suggestion has required fields
       const valid = parsed.suggestions.every(
         (s: DynamicItem) =>
@@ -147,8 +140,7 @@ function getStaticFallback(
       ],
     };
     return {
-      suggestions:
-        fallbackSubGenres[genre || 'default'] || fallbackSubGenres.default,
+      suggestions: fallbackSubGenres[genre || 'default'] || fallbackSubGenres.default,
     };
   } else {
     // Static fallback elements
@@ -182,9 +174,7 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt =
-      type === 'sub_genres'
-        ? buildSubGenreSystemPrompt()
-        : buildElementSystemPrompt();
+      type === 'sub_genres' ? buildSubGenreSystemPrompt() : buildElementSystemPrompt();
 
     let userMessage = '';
     if (type === 'sub_genres') {
@@ -214,28 +204,20 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             return NextResponse.json(parsed);
           }
-          logger.warn(
-            'AI response could not be parsed as valid suggestions JSON',
-          );
+          logger.warn('AI response could not be parsed as valid suggestions JSON');
         }
       } else {
         const errData = await response.json().catch(() => ({}));
         logger.warn('Backend AI chat returned error:', errData);
       }
     } catch (aiError) {
-      logger.warn(
-        'AI generation failed, falling back to static data:',
-        aiError,
-      );
+      logger.warn('AI generation failed, falling back to static data:', aiError);
     }
 
     // Fallback: return static data
     return NextResponse.json(getStaticFallback(type, genre));
   } catch (error) {
     logger.error('Error generating suggestions:', error);
-    return NextResponse.json(
-      { error: 'サジェスト生成に失敗しました' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: 'サジェスト生成に失敗しました' }, { status: 500 });
   }
 }

@@ -47,9 +47,7 @@ export default function TaskStatusChange({
         }`}
         title={config.label}
       >
-        <span className={isCurrent ? config.color : ''}>
-          {renderIcon(status)}
-        </span>
+        <span className={isCurrent ? config.color : ''}>{renderIcon(status)}</span>
         <span className="text-sm font-medium">{config.label}</span>
       </button>
     );

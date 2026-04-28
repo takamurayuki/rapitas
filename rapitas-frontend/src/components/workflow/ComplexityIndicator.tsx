@@ -1,14 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Info,
-  BarChart3,
-  Loader2,
-} from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, BarChart3, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 import { createLogger } from '@/lib/logger';
@@ -96,9 +89,7 @@ export default function ComplexityIndicator({
     setError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`,
-      );
+      const response = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/analyze-complexity`);
       const data = await response.json();
 
       if (data.success && data.analysis) {
@@ -143,9 +134,7 @@ export default function ComplexityIndicator({
         className={`flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg ${className}`}
       >
         <Loader2 className="h-4 w-4 text-zinc-400 animate-spin" />
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          複雑度を分析中...
-        </span>
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">複雑度を分析中...</span>
       </div>
     );
   }
@@ -177,9 +166,7 @@ export default function ComplexityIndicator({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className={`p-1.5 rounded-full bg-white dark:bg-zinc-800 ${complexity.color}`}
-            >
+            <div className={`p-1.5 rounded-full bg-white dark:bg-zinc-800 ${complexity.color}`}>
               <ComplexityIcon className="h-3.5 w-3.5" />
             </div>
             <div>
@@ -254,36 +241,20 @@ export default function ComplexityIndicator({
               </h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-zinc-600 dark:text-zinc-400">
-                    キーワード:
-                  </span>
-                  <span className="font-medium">
-                    {analysis.factors.keywords}/100
-                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400">キーワード:</span>
+                  <span className="font-medium">{analysis.factors.keywords}/100</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600 dark:text-zinc-400">
-                    推定時間:
-                  </span>
-                  <span className="font-medium">
-                    {analysis.factors.estimatedTime}/100
-                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400">推定時間:</span>
+                  <span className="font-medium">{analysis.factors.estimatedTime}/100</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600 dark:text-zinc-400">
-                    優先度:
-                  </span>
-                  <span className="font-medium">
-                    {analysis.factors.priority}/100
-                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400">優先度:</span>
+                  <span className="font-medium">{analysis.factors.priority}/100</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600 dark:text-zinc-400">
-                    ラベル:
-                  </span>
-                  <span className="font-medium">
-                    {analysis.factors.labels}/100
-                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400">ラベル:</span>
+                  <span className="font-medium">{analysis.factors.labels}/100</span>
                 </div>
               </div>
             </div>

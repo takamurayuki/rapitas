@@ -149,41 +149,21 @@ export const LogChartsTab: React.FC<LogChartsTabProps> = ({ analysis }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="time"
-                  tickFormatter={(time: string | number) =>
-                    new Date(time).toLocaleTimeString()
-                  }
+                  tickFormatter={(time: string | number) => new Date(time).toLocaleTimeString()}
                 />
                 <YAxis />
                 <Tooltip
                   labelFormatter={(label) => {
-                    if (
-                      typeof label === 'string' ||
-                      typeof label === 'number'
-                    ) {
+                    if (typeof label === 'string' || typeof label === 'number') {
                       return new Date(label).toLocaleString();
                     }
                     return String(label);
                   }}
                 />
                 <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="errors"
-                  stroke="#EF4444"
-                  name="エラー"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="warnings"
-                  stroke="#F59E0B"
-                  name="警告"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="info"
-                  stroke="#3B82F6"
-                  name="情報"
-                />
+                <Line type="monotone" dataKey="errors" stroke="#EF4444" name="エラー" />
+                <Line type="monotone" dataKey="warnings" stroke="#F59E0B" name="警告" />
+                <Line type="monotone" dataKey="info" stroke="#3B82F6" name="情報" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

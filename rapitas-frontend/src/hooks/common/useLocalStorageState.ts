@@ -4,10 +4,7 @@ import { createLogger } from '@/lib/logger';
 const logger = createLogger('useLocalStorageState');
 
 // Custom hook for optimized localStorage read/write operations
-export function useLocalStorageState<T>(
-  key: string,
-  defaultValue: T,
-): [T, (value: T) => void] {
+export function useLocalStorageState<T>(key: string, defaultValue: T): [T, (value: T) => void] {
   // Read from localStorage only on initial load (client-side only)
   const [state, setState] = useState<T>(() => {
     // Return default value during server-side rendering
@@ -35,10 +32,7 @@ export function useLocalStorageState<T>(
           setState(JSON.parse(item));
         }
       } catch (error) {
-        logger.error(
-          `Error reading localStorage key "${key}" on mount:`,
-          error,
-        );
+        logger.error(`Error reading localStorage key "${key}" on mount:`, error);
       }
     }, 0);
 
@@ -74,10 +68,7 @@ export function useLocalStorageState<T>(
         try {
           setState(JSON.parse(e.newValue));
         } catch (error) {
-          logger.error(
-            `Error parsing localStorage change for key "${key}":`,
-            error,
-          );
+          logger.error(`Error parsing localStorage change for key "${key}":`, error);
         }
       }
     };

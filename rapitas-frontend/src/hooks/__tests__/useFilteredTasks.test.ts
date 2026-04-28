@@ -39,9 +39,7 @@ describe('useFilteredTasks', () => {
       createTask({ id: 3, status: 'done' }),
     ];
 
-    const { result } = renderHook(() =>
-      useFilteredTasks({ ...defaultProps, tasks }),
-    );
+    const { result } = renderHook(() => useFilteredTasks({ ...defaultProps, tasks }));
 
     expect(result.current.filteredTasks).toHaveLength(3);
     expect(result.current.statusCounts).toEqual({
@@ -83,10 +81,7 @@ describe('useFilteredTasks', () => {
   });
 
   it('should filter by category', () => {
-    const tasks = [
-      createTask({ id: 1, themeId: 1 }),
-      createTask({ id: 2, themeId: 3 }),
-    ];
+    const tasks = [createTask({ id: 1, themeId: 1 }), createTask({ id: 2, themeId: 3 })];
 
     const { result } = renderHook(() =>
       useFilteredTasks({ ...defaultProps, tasks, categoryFilter: 1 }),
@@ -97,10 +92,7 @@ describe('useFilteredTasks', () => {
   });
 
   it('should filter by priority', () => {
-    const tasks = [
-      createTask({ id: 1, priority: 'high' }),
-      createTask({ id: 2, priority: 'low' }),
-    ];
+    const tasks = [createTask({ id: 1, priority: 'high' }), createTask({ id: 2, priority: 'low' })];
 
     const { result } = renderHook(() =>
       useFilteredTasks({ ...defaultProps, tasks, priorityFilter: 'high' }),
@@ -125,14 +117,9 @@ describe('useFilteredTasks', () => {
   });
 
   it('should exclude subtasks (parentId set)', () => {
-    const tasks = [
-      createTask({ id: 1, parentId: null }),
-      createTask({ id: 2, parentId: 1 }),
-    ];
+    const tasks = [createTask({ id: 1, parentId: null }), createTask({ id: 2, parentId: 1 })];
 
-    const { result } = renderHook(() =>
-      useFilteredTasks({ ...defaultProps, tasks }),
-    );
+    const { result } = renderHook(() => useFilteredTasks({ ...defaultProps, tasks }));
 
     expect(result.current.filteredTasks).toHaveLength(1);
     expect(result.current.filteredTasks[0].id).toBe(1);
@@ -178,9 +165,7 @@ describe('useFilteredTasks', () => {
   });
 
   it('should handle empty tasks', () => {
-    const { result } = renderHook(() =>
-      useFilteredTasks({ ...defaultProps, tasks: [] }),
-    );
+    const { result } = renderHook(() => useFilteredTasks({ ...defaultProps, tasks: [] }));
 
     expect(result.current.filteredTasks).toHaveLength(0);
     expect(result.current.statusCounts.all).toBe(0);

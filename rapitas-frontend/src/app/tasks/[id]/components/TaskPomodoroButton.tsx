@@ -20,10 +20,7 @@ export interface TaskPomodoroButtonProps {
 /**
  * Get the timer button style based on pomodoro state
  */
-function getTimerButtonStyle(
-  isThisTaskTimer: boolean,
-  pomodoroState: PomodoroButtonState,
-): string {
+function getTimerButtonStyle(isThisTaskTimer: boolean, pomodoroState: PomodoroButtonState): string {
   const baseStyle =
     'flex items-center gap-2 px-3 py-2 text-xs font-black font-mono tracking-tight rounded-lg shadow-sm transition-all duration-300 text-zinc-700 dark:text-zinc-300 border';
 

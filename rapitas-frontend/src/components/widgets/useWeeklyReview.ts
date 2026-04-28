@@ -3,10 +3,7 @@
 import useSWR from 'swr';
 import { useCallback, useState } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import type {
-  WeeklyReview,
-  WeeklyReviewSingleResponse,
-} from '@/types/weekly-review.types';
+import type { WeeklyReview, WeeklyReviewSingleResponse } from '@/types/weekly-review.types';
 
 const fetcher = async (url: string): Promise<WeeklyReview | null> => {
   const res = await fetch(`${API_BASE_URL}${url}`);
@@ -55,8 +52,7 @@ export function useWeeklyReview(): UseWeeklyReviewReturn {
         await mutate();
         return body.review;
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Regeneration failed';
+        const message = err instanceof Error ? err.message : 'Regeneration failed';
         setRegenerateError(message);
         return null;
       } finally {

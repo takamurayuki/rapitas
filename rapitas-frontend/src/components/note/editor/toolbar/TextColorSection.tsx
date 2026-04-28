@@ -1,11 +1,7 @@
 'use client';
 // TextColorSection
 import { Baseline } from 'lucide-react';
-import {
-  quickTextColors,
-  grayScalePalette,
-  extendedColorPalette,
-} from '../constants';
+import { quickTextColors, grayScalePalette, extendedColorPalette } from '../constants';
 
 interface TextColorSectionProps {
   currentTextColor: string;
@@ -60,10 +56,7 @@ export function TextColorSection({
                 }`}
                 title={item.name}
               >
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
               </button>
             ))}
           </div>

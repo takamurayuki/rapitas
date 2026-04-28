@@ -6,10 +6,7 @@
  */
 
 import type React from 'react';
-import type {
-  ExecutionStatus,
-  ExecutionResult,
-} from '../../hooks/useDeveloperMode';
+import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import type { Task } from '@/types';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
@@ -19,13 +16,7 @@ import type { AgentExecutionHandlers } from './useAgentExecutionHandlers';
 export type QuestionType = 'tool_call' | 'none';
 
 export type PrState = {
-  status:
-    | 'idle'
-    | 'creating_pr'
-    | 'pr_created'
-    | 'merging'
-    | 'merged'
-    | 'error';
+  status: 'idle' | 'creating_pr' | 'pr_created' | 'merging' | 'merged' | 'error';
   prUrl?: string;
   prNumber?: number;
   error?: string;

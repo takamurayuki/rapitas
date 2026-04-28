@@ -8,10 +8,7 @@
  */
 
 import { useCallback } from 'react';
-import type {
-  ParallelSessionState,
-  ParallelExecutionEvent,
-} from './parallel-execution-types';
+import type { ParallelSessionState, ParallelExecutionEvent } from './parallel-execution-types';
 
 /**
  * Returns a memoized handler that merges a single SSE event into session state.
@@ -22,9 +19,7 @@ export function useParallelSSEHandler() {
   const handleSSEEvent = useCallback(
     (
       event: ParallelExecutionEvent,
-      setState: React.Dispatch<
-        React.SetStateAction<ParallelSessionState | null>
-      >,
+      setState: React.Dispatch<React.SetStateAction<ParallelSessionState | null>>,
     ) => {
       setState((prev) => {
         if (!prev) {
@@ -77,14 +72,9 @@ export function useParallelSSEHandler() {
                 startedAt: new Date(event.timestamp),
               });
               if (!newState.runningTasks.includes(event.taskId)) {
-                newState.runningTasks = [
-                  ...newState.runningTasks,
-                  event.taskId,
-                ];
+                newState.runningTasks = [...newState.runningTasks, event.taskId];
               }
-              newState.pendingTasks = newState.pendingTasks.filter(
-                (id) => id !== event.taskId,
-              );
+              newState.pendingTasks = newState.pendingTasks.filter((id) => id !== event.taskId);
             }
             break;
 
@@ -100,14 +90,9 @@ export function useParallelSSEHandler() {
                 tokensUsed: event.data?.tokensUsed,
               });
               if (!newState.completedTasks.includes(event.taskId)) {
-                newState.completedTasks = [
-                  ...newState.completedTasks,
-                  event.taskId,
-                ];
+                newState.completedTasks = [...newState.completedTasks, event.taskId];
               }
-              newState.runningTasks = newState.runningTasks.filter(
-                (id) => id !== event.taskId,
-              );
+              newState.runningTasks = newState.runningTasks.filter((id) => id !== event.taskId);
             }
             break;
 
@@ -124,9 +109,7 @@ export function useParallelSSEHandler() {
               if (!newState.failedTasks.includes(event.taskId)) {
                 newState.failedTasks = [...newState.failedTasks, event.taskId];
               }
-              newState.runningTasks = newState.runningTasks.filter(
-                (id) => id !== event.taskId,
-              );
+              newState.runningTasks = newState.runningTasks.filter((id) => id !== event.taskId);
             }
             break;
 
@@ -141,17 +124,12 @@ export function useParallelSSEHandler() {
 
           case 'progress_updated':
             if (event.data) {
-              if (event.data.progress !== undefined)
-                newState.progress = event.data.progress;
-              if (event.data.completed)
-                newState.completedTasks = event.data.completed;
-              if (event.data.running)
-                newState.runningTasks = event.data.running;
-              if (event.data.pending)
-                newState.pendingTasks = event.data.pending;
+              if (event.data.progress !== undefined) newState.progress = event.data.progress;
+              if (event.data.completed) newState.completedTasks = event.data.completed;
+              if (event.data.running) newState.runningTasks = event.data.running;
+              if (event.data.pending) newState.pendingTasks = event.data.pending;
               if (event.data.failed) newState.failedTasks = event.data.failed;
-              if (event.data.blocked)
-                newState.blockedTasks = event.data.blocked;
+              if (event.data.blocked) newState.blockedTasks = event.data.blocked;
 
               event.data.completed?.forEach((id) => {
                 const s = newState.subtaskStates.get(id);
@@ -181,10 +159,7 @@ export function useParallelSSEHandler() {
               });
               event.data.blocked?.forEach((id) => {
                 const s = newState.subtaskStates.get(id);
-                if (
-                  !s ||
-                  (s.status !== 'completed' && s.status !== 'running')
-                ) {
+                if (!s || (s.status !== 'completed' && s.status !== 'running')) {
                   newState.subtaskStates.set(id, {
                     ...(s ?? { taskId: id }),
                     taskId: id,

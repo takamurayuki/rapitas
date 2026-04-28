@@ -1,18 +1,8 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import {
-  Loader2,
-  MessageCircleQuestion,
-  AlertCircle,
-  CheckCircle2,
-} from 'lucide-react';
-import type {
-  StatusCardProps,
-  AgentStatusType,
-  StatusConfig,
-  StatusCardSize,
-} from './types';
+import { Loader2, MessageCircleQuestion, AlertCircle, CheckCircle2 } from 'lucide-react';
+import type { StatusCardProps, AgentStatusType, StatusConfig, StatusCardSize } from './types';
 
 /**
  * Status configuration map
@@ -53,10 +43,7 @@ const STATUS_CONFIG: Record<AgentStatusType, StatusConfig> = {
 /**
  * Size configuration
  */
-const SIZE_CONFIG: Record<
-  StatusCardSize,
-  { card: string; icon: string; text: string }
-> = {
+const SIZE_CONFIG: Record<StatusCardSize, { card: string; icon: string; text: string }> = {
   sm: {
     card: 'px-3 py-2 max-h-14',
     icon: 'w-4 h-4',
@@ -146,13 +133,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
 
   const displayIcon = useMemo(() => {
     if (icon) {
-      return (
-        <span
-          className={`${sizeConfig.icon} ${config.iconColor} flex-shrink-0`}
-        >
-          {icon}
-        </span>
-      );
+      return <span className={`${sizeConfig.icon} ${config.iconColor} flex-shrink-0`}>{icon}</span>;
     }
     return getDefaultIcon(status, config, sizeConfig.icon);
   }, [icon, status, config, sizeConfig.icon]);

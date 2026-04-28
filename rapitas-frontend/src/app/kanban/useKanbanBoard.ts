@@ -44,9 +44,7 @@ export function useKanbanBoard(
   const fetchAllTasks = useTaskCacheStore((s) => s.fetchAll);
   const fetchTaskUpdates = useTaskCacheStore((s) => s.fetchUpdates);
   const updateTaskLocally = useTaskCacheStore((s) => s.updateTaskLocally);
-  const getExecutingTaskStatus = useExecutionStateStore(
-    (s) => s.getExecutingTaskStatus,
-  );
+  const getExecutingTaskStatus = useExecutionStateStore((s) => s.getExecutingTaskStatus);
   const [loading, setLoading] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -87,10 +85,7 @@ export function useKanbanBoard(
   const onDragEnd = (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    )
+    if (destination.droppableId === source.droppableId && destination.index === source.index)
       return;
 
     updateStatus(parseInt(draggableId), destination.droppableId);
@@ -145,17 +140,14 @@ export function useKanbanBoard(
    * @param taskId - Task to query execution state for
    * @returns Styling object or null if task is not executing
    */
-  const getKanbanExecutionClasses = (
-    taskId: number,
-  ): ExecutionClasses | null => {
+  const getKanbanExecutionClasses = (taskId: number): ExecutionClasses | null => {
     const executionStatus = getExecutingTaskStatus(taskId);
     switch (executionStatus) {
       case 'running':
         return {
           cardClass: 'execution-pulse-blue',
           borderColor: 'blue',
-          badgeClass:
-            'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
+          badgeClass: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300',
           dotClass: 'bg-blue-500',
           label: runningLabel,
         };
@@ -163,8 +155,7 @@ export function useKanbanBoard(
         return {
           cardClass: 'execution-pulse-amber',
           borderColor: 'amber',
-          badgeClass:
-            'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
+          badgeClass: 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300',
           dotClass: 'bg-amber-500',
           label: waitingLabel,
         };

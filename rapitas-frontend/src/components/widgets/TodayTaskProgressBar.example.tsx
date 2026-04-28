@@ -14,8 +14,7 @@ export default function TodayTaskProgressBarExample() {
       <div className="relative z-10 mx-auto max-w-4xl space-y-8">
         <div className="mb-8 border-l-4 border-amber-600 py-2 pl-6">
           <h1 className="mb-4 font-mono text-3xl font-black tracking-tighter text-slate-800 dark:text-slate-100">
-            TODAY_TASK_PROGRESS_BAR{' '}
-            <span className="text-amber-500">{/* EXAMPLES */}</span>
+            TODAY_TASK_PROGRESS_BAR <span className="text-amber-500">{/* EXAMPLES */}</span>
           </h1>
         </div>
 
@@ -27,9 +26,7 @@ export default function TodayTaskProgressBarExample() {
           <TodayTaskProgressBar completedCount={2} totalCount={5} />
           <div className="mt-2">
             <button
-              onClick={() =>
-                setExample1Completed((prev) => (prev < 5 ? prev + 1 : prev))
-              }
+              onClick={() => setExample1Completed((prev) => (prev < 5 ? prev + 1 : prev))}
               className="mr-2 bg-amber-500 px-3 py-1 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-amber-400 active:scale-95"
             >
               COMPLETE TASK
@@ -72,23 +69,16 @@ export default function TodayTaskProgressBarExample() {
           <h2 className="mb-4 font-mono text-sm font-semibold uppercase tracking-widest text-slate-600 dark:text-slate-500">
             [005] INTERACTIVE DEMONSTRATION
           </h2>
-          <TodayTaskProgressBar
-            completedCount={example2Completed}
-            totalCount={10}
-          />
+          <TodayTaskProgressBar completedCount={example2Completed} totalCount={10} />
           <div className="mt-4 flex gap-2">
             <button
-              onClick={() =>
-                setExample2Completed((prev) => (prev < 10 ? prev + 1 : prev))
-              }
+              onClick={() => setExample2Completed((prev) => (prev < 10 ? prev + 1 : prev))}
               className="bg-amber-500 px-4 py-2 font-mono text-xs font-bold uppercase text-black transition-all hover:bg-amber-400 active:scale-95"
             >
               COMPLETE TASK
             </button>
             <button
-              onClick={() =>
-                setExample2Completed((prev) => (prev > 0 ? prev - 1 : prev))
-              }
+              onClick={() => setExample2Completed((prev) => (prev > 0 ? prev - 1 : prev))}
               className="bg-slate-800 px-4 py-2 font-mono text-xs font-bold uppercase text-slate-400 transition-all hover:bg-slate-700 active:scale-95"
             >
               UNDO TASK

@@ -71,10 +71,7 @@ export function useTaskSubmit(
           });
           if (!res.ok) {
             const errorText = await res.text();
-            logger.error(
-              `[useTaskSubmit] Failed to create subtask "${st.title}":`,
-              errorText,
-            );
+            logger.error(`[useTaskSubmit] Failed to create subtask "${st.title}":`, errorText);
           }
           return res;
         }),
@@ -86,10 +83,7 @@ export function useTaskSubmit(
   };
 
   /** Navigates to the task detail page or home after creation. */
-  const redirectAfterCreate = (
-    createdTaskId: number,
-    executeAfterCreate: boolean,
-  ) => {
+  const redirectAfterCreate = (createdTaskId: number, executeAfterCreate: boolean) => {
     if (executeAfterCreate) {
       showToast(t('taskCreatedAutoExecute'), 'success');
       const detailPath = getTaskDetailPath(createdTaskId);
@@ -123,11 +117,8 @@ export function useTaskSubmit(
           status: 'todo',
           priority: v.priority,
           themeId: v.themeId || undefined,
-          labelIds:
-            v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
-          estimatedHours: v.estimatedHours
-            ? parseFloat(v.estimatedHours)
-            : undefined,
+          labelIds: v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
+          estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : undefined,
           dueDate: v.dueDate || undefined,
           workflowMode: v.workflowMode,
           workflowModeOverride: v.isWorkflowModeOverride,
@@ -168,11 +159,8 @@ export function useTaskSubmit(
           status: 'todo',
           priority: v.priority,
           themeId: v.themeId || undefined,
-          labelIds:
-            v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
-          estimatedHours: v.estimatedHours
-            ? parseFloat(v.estimatedHours)
-            : undefined,
+          labelIds: v.selectedLabelIds.length > 0 ? v.selectedLabelIds : undefined,
+          estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : undefined,
           dueDate: v.dueDate || undefined,
           workflowMode: v.workflowMode,
           workflowModeOverride: v.isWorkflowModeOverride,

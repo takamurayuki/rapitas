@@ -70,9 +70,7 @@ export function PromptsManagementTab({
             className="p-1.5 text-zinc-400 hover:text-zinc-600 rounded"
             title="更新"
           >
-            <RefreshCw
-              className={`w-4 h-4 ${isLoadingPrompts ? 'animate-spin' : ''}`}
-            />
+            <RefreshCw className={`w-4 h-4 ${isLoadingPrompts ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={onGenerateAll}
@@ -128,9 +126,7 @@ export function PromptsManagementTab({
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {promptsData.prompts.map((prompt) => {
                 const isEditing = editingPromptId === prompt.id;
-                const subtask = promptsData.subtasks?.find(
-                  (st) => st.id === prompt.taskId,
-                );
+                const subtask = promptsData.subtasks?.find((st) => st.id === prompt.taskId);
                 const isParentTask = prompt.taskId === promptsData.task.id;
 
                 return (
@@ -142,9 +138,7 @@ export function PromptsManagementTab({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                            {isParentTask
-                              ? promptsData.task.title
-                              : (subtask?.title ?? '不明')}
+                            {isParentTask ? promptsData.task.title : (subtask?.title ?? '不明')}
                           </span>
                           {isParentTask ? (
                             <span className="px-1.5 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs rounded">
@@ -174,9 +168,7 @@ export function PromptsManagementTab({
                         {isEditing ? (
                           <>
                             <button
-                              onClick={() =>
-                                onUpdatePrompt(prompt.id, editingPromptText)
-                              }
+                              onClick={() => onUpdatePrompt(prompt.id, editingPromptText)}
                               className="p-1 text-green-500 hover:text-green-600"
                             >
                               <Save className="w-3 h-3" />
@@ -191,23 +183,14 @@ export function PromptsManagementTab({
                         ) : (
                           <>
                             <button
-                              onClick={() =>
-                                onStartEditing(
-                                  prompt.id,
-                                  prompt.optimizedPrompt,
-                                )
-                              }
+                              onClick={() => onStartEditing(prompt.id, prompt.optimizedPrompt)}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
                               title="編集"
                             >
                               <Edit3 className="w-3 h-3" />
                             </button>
                             <button
-                              onClick={() =>
-                                navigator.clipboard.writeText(
-                                  prompt.optimizedPrompt,
-                                )
-                              }
+                              onClick={() => navigator.clipboard.writeText(prompt.optimizedPrompt)}
                               className="p-1 text-zinc-400 hover:text-zinc-600"
                               title="コピー"
                             >
@@ -227,9 +210,7 @@ export function PromptsManagementTab({
                     {isEditing ? (
                       <textarea
                         value={editingPromptText}
-                        onChange={(e) =>
-                          onEditingPromptTextChange(e.target.value)
-                        }
+                        onChange={(e) => onEditingPromptTextChange(e.target.value)}
                         className="w-full p-2 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs font-mono resize-none"
                         rows={4}
                       />

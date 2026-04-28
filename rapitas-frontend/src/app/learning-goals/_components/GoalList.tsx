@@ -23,12 +23,7 @@ type Props = {
  *
  * @param props - goals, selectedGoalId, showWizard, onSelect
  */
-export function GoalList({
-  goals,
-  selectedGoalId,
-  showWizard,
-  onSelect,
-}: Props) {
+export function GoalList({ goals, selectedGoalId, showWizard, onSelect }: Props) {
   const t = useTranslations('learning');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);

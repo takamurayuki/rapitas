@@ -9,10 +9,7 @@ interface ContradictionResolverProps {
   onResolve: (id: number, resolution: ContradictionResolution) => Promise<void>;
 }
 
-export function ContradictionResolver({
-  contradiction,
-  onResolve,
-}: ContradictionResolverProps) {
+export function ContradictionResolver({ contradiction, onResolve }: ContradictionResolverProps) {
   const t = useTranslations('knowledge.contradictions');
   const [isResolving, setIsResolving] = useState(false);
 

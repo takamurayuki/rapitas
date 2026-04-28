@@ -12,6 +12,7 @@ import { createLogger } from '../../../config/logger';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
+import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 
 const log = createLogger('routes:approvals:bulk-approve');
 
@@ -98,6 +99,22 @@ export const bulkApproveRoutes = new Elysia()
           }>(approval.proposedChanges);
           const task = approval.config.task;
 
+          // Same policy as the manual /agents/execute path: WorkflowRoleConfig
+          // is the source of truth. The approval was originally created with
+          // a fixed agentConfigId (often the default), but at execute time we
+          // re-resolve from the task's current workflow phase so ロール設定が
+          // 反映される.
+          let resolvedAgentConfigId = proposedChanges?.agentConfigId;
+          const roleAgent = await resolveAgentForTask(task.id);
+          if (roleAgent?.agentConfigId) {
+            if (resolvedAgentConfigId !== roleAgent.agentConfigId) {
+              log.info(
+                `[bulk-approve] Task ${task.id}: WorkflowRoleConfig override — role=${roleAgent.role}, agentConfigId=${roleAgent.agentConfigId} (was ${resolvedAgentConfigId ?? 'default'})`,
+              );
+            }
+            resolvedAgentConfigId = roleAgent.agentConfigId;
+          }
+
           const session = await prisma.agentSession.create({
             data: {
               configId: approval.config.id,
@@ -117,7 +134,7 @@ export const bulkApproveRoutes = new Elysia()
               {
                 taskId: task.id,
                 sessionId: session.id,
-                agentConfigId: proposedChanges?.agentConfigId,
+                agentConfigId: resolvedAgentConfigId,
                 workingDirectory: proposedChanges?.workingDirectory,
               },
             )

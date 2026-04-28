@@ -16,10 +16,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import type {
-  ExecutionTrendData,
-  AgentPerformanceComparison,
-} from '../_hooks/useMetricsData';
+import type { ExecutionTrendData, AgentPerformanceComparison } from '../_hooks/useMetricsData';
 
 /** Chart color palette — index wraps around for more than 10 series. */
 const COLORS = [
@@ -54,10 +51,7 @@ interface MetricsChartsProps {
  * @param executionTrends - Daily/weekly/monthly execution counts / 実行トレンドデータ
  * @param performanceComparison - Per-agent-type performance metrics / エージェント比較データ
  */
-export function MetricsCharts({
-  executionTrends,
-  performanceComparison,
-}: MetricsChartsProps) {
+export function MetricsCharts({ executionTrends, performanceComparison }: MetricsChartsProps) {
   const t = useTranslations('agents');
 
   return (
@@ -71,11 +65,7 @@ export function MetricsCharts({
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={executionTrends}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#374151"
-                  opacity={0.3}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                 <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
                 <YAxis stroke="#6b7280" fontSize={12} />
                 <Tooltip contentStyle={tooltipStyle} />
@@ -113,11 +103,7 @@ export function MetricsCharts({
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={performanceComparison}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#374151"
-                  opacity={0.3}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                 <XAxis
                   dataKey="agentType"
                   stroke="#6b7280"
@@ -129,16 +115,8 @@ export function MetricsCharts({
                 <YAxis stroke="#6b7280" fontSize={12} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend />
-                <Bar
-                  dataKey="executionCount"
-                  fill="#3b82f6"
-                  name={t('executionCount')}
-                />
-                <Bar
-                  dataKey="successRate"
-                  fill="#10b981"
-                  name={t('successRatePercent')}
-                />
+                <Bar dataKey="executionCount" fill="#3b82f6" name={t('executionCount')} />
+                <Bar dataKey="successRate" fill="#10b981" name={t('successRatePercent')} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -168,10 +146,7 @@ export function MetricsCharts({
                   dataKey="value"
                 >
                   {performanceComparison.map((_, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} />

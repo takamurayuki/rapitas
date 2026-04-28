@@ -36,8 +36,7 @@ export default function CalendarPage() {
   } = useCalendarEvents();
 
   const holidays = useMemo(
-    () =>
-      getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
+    () => getHolidaysForMonth(currentDate.getFullYear(), currentDate.getMonth()),
     [currentDate],
   );
 
@@ -48,14 +47,10 @@ export default function CalendarPage() {
   }, [holidays]);
 
   const prevMonth = () =>
-    setCurrentDate(
-      new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1),
-    );
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
 
   const nextMonth = () =>
-    setCurrentDate(
-      new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1),
-    );
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
   const goToToday = () => {
     const today = new Date();
@@ -100,12 +95,8 @@ export default function CalendarPage() {
         <div className="flex items-center gap-3">
           <CalendarIcon className="w-8 h-8 text-indigo-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
 

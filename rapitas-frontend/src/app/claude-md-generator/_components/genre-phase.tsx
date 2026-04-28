@@ -26,13 +26,7 @@ interface GenrePhaseProps {
  */
 export function GenrePhase({ topRef, t, onSelectGenre }: GenrePhaseProps) {
   return (
-    <PageWrap
-      topRef={topRef}
-      title={t('genreTitle')}
-      sub={t('genreSub')}
-      step={1}
-      total={5}
-    >
+    <PageWrap topRef={topRef} title={t('genreTitle')} sub={t('genreSub')} step={1} total={5}>
       <div
         style={{
           display: 'grid',
@@ -44,9 +38,7 @@ export function GenrePhase({ topRef, t, onSelectGenre }: GenrePhaseProps) {
         {GENRES.map((g) => (
           <div key={g.id} className="card" onClick={() => onSelectGenre(g.id)}>
             <div style={{ fontSize: 24, marginBottom: 6 }}>{g.icon}</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>
-              {t('genre_' + g.id)}
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{t('genre_' + g.id)}</div>
           </div>
         ))}
       </div>

@@ -27,10 +27,7 @@ function toggleValue(arr: string[], value: string): string[] {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
 
-export default function SearchFilterPanel({
-  filters,
-  onFilterChange,
-}: SearchFilterPanelProps) {
+export default function SearchFilterPanel({ filters, onFilterChange }: SearchFilterPanelProps) {
   return (
     <div className="flex flex-col gap-4 p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
       <div>

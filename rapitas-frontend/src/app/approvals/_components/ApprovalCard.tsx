@@ -4,14 +4,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  ChevronRight,
-  Loader2,
-  ListChecks,
-} from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ChevronRight, Loader2, ListChecks } from 'lucide-react';
 import type { ApprovalRequest, Priority } from '@/types';
 import { priorityColors, priorityLabels } from '@/types';
 import { getTaskDetailPath } from '@/utils/tauri';
@@ -19,10 +12,8 @@ import { CheckboxButton } from './CheckboxButton';
 
 /** Tailwind colour classes keyed by approval status. */
 const STATUS_COLORS: Record<string, string> = {
-  pending:
-    'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  approved:
-    'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  pending: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  approved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
   rejected: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   expired: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
 };
@@ -96,20 +87,14 @@ export function ApprovalCard({
       <div className="p-4">
         <div className="flex items-start gap-3">
           {isPending && (
-            <CheckboxButton
-              checked={isSelected}
-              onClick={onToggleSelect}
-              className="mt-1"
-            />
+            <CheckboxButton checked={isSelected} onClick={onToggleSelect} className="mt-1" />
           )}
 
           <div className="flex-1 min-w-0">
             {/* Header */}
             <div className="flex items-start justify-between gap-4 mb-2">
               <div>
-                <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-                  {approval.title}
-                </h3>
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{approval.title}</h3>
                 {approval.config?.task && (
                   <Link
                     href={getTaskDetailPath(approval.config.task.id)}
@@ -132,9 +117,7 @@ export function ApprovalCard({
             {approval.description && (
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3 line-clamp-3">
                 {approval.description.length > 200
-                  ? approval.description
-                      .substring(0, 200)
-                      .replace(/\s+\S*$/, '') + '...'
+                  ? approval.description.substring(0, 200).replace(/\s+\S*$/, '') + '...'
                   : approval.description}
               </p>
             )}
@@ -192,9 +175,7 @@ export function ApprovalCard({
                     />
                   )}
                   <div className="flex-1">
-                    <p className="font-medium text-zinc-900 dark:text-zinc-50">
-                      {subtask.title}
-                    </p>
+                    <p className="font-medium text-zinc-900 dark:text-zinc-50">{subtask.title}</p>
                     {subtask.description && (
                       <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                         {subtask.description}
@@ -240,11 +221,7 @@ export function ApprovalCard({
                 {t('reject')}
               </button>
               <button
-                onClick={() =>
-                  onApprove(
-                    allSelected ? undefined : Array.from(selectedSubtasks),
-                  )
-                }
+                onClick={() => onApprove(allSelected ? undefined : Array.from(selectedSubtasks))}
                 disabled={isProcessing || selectedSubtasks.size === 0}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50"
               >

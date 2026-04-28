@@ -132,9 +132,7 @@ export function TaskCreationSettingsCard({
                   onBlur={onDelayBlur}
                   className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('devSeconds')}
-                </span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('devSeconds')}</span>
               </div>
             </div>
 
@@ -151,8 +149,7 @@ export function TaskCreationSettingsCard({
               <button
                 onClick={() =>
                   onUpdateSettings({
-                    autoCreateAfterTitleGeneration:
-                      !settings?.autoCreateAfterTitleGeneration,
+                    autoCreateAfterTitleGeneration: !settings?.autoCreateAfterTitleGeneration,
                   })
                 }
                 disabled={isSaving}
@@ -166,9 +163,7 @@ export function TaskCreationSettingsCard({
               >
                 <span
                   className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    settings?.autoCreateAfterTitleGeneration
-                      ? 'translate-x-5'
-                      : 'translate-x-0'
+                    settings?.autoCreateAfterTitleGeneration ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>

@@ -14,12 +14,7 @@ import type { FileDiff, ScreenshotInfo } from './github.types';
 /** Common execution lifecycle status shared across agent and developer-mode contexts. */
 export type ExecutionStatus = 'idle' | 'running' | 'completed' | 'failed';
 
-export type AgentStatus =
-  | 'pending'
-  | 'running'
-  | 'paused'
-  | 'completed'
-  | 'failed';
+export type AgentStatus = 'pending' | 'running' | 'paused' | 'completed' | 'failed';
 
 /** Common result envelope returned after initiating an agent execution. */
 export type ExecutionResult = {
@@ -130,11 +125,7 @@ export type ApprovalRequest = {
   id: number;
   configId: number;
   config?: DeveloperModeConfig & { task?: ApprovalRequestTask };
-  requestType:
-    | 'subtask_creation'
-    | 'task_execution'
-    | 'task_completion'
-    | 'code_review';
+  requestType: 'subtask_creation' | 'task_execution' | 'task_completion' | 'code_review';
   title: string;
   description?: string | null;
   proposedChanges: {
@@ -206,13 +197,7 @@ export type AgentCapability = {
   webSearch?: boolean;
 };
 
-export type AgentType =
-  | 'claude-code'
-  | 'codex'
-  | 'gemini'
-  | 'custom'
-  | 'openai'
-  | 'azure-openai';
+export type AgentType = 'claude-code' | 'codex' | 'gemini' | 'custom' | 'openai' | 'azure-openai';
 
 export type AIAgentConfig = {
   id: number;
@@ -232,12 +217,7 @@ export type AIAgentConfig = {
 
 // ==================== Agent Execution ====================
 
-export type AgentExecutionStatus =
-  | 'pending'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type AgentExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type AgentArtifact = {
   type: 'file' | 'code' | 'diff' | 'log';

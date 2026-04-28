@@ -1,10 +1,7 @@
 'use client';
 // WindowResizeOptimizer
 
-import {
-  useWindowResize,
-  useResizePerformance,
-} from '@/hooks/ui/useWindowResize';
+import { useWindowResize, useResizePerformance } from '@/hooks/ui/useWindowResize';
 import { useEffect } from 'react';
 
 export default function WindowResizeOptimizer() {
@@ -15,9 +12,7 @@ export default function WindowResizeOptimizer() {
     onResizeStart: () => {
       document.documentElement.classList.add('window-resizing');
 
-      const nonTaskElements = document.querySelectorAll(
-        'body > *:not([data-task-card-container])',
-      );
+      const nonTaskElements = document.querySelectorAll('body > *:not([data-task-card-container])');
       nonTaskElements.forEach((el) => {
         if (el instanceof HTMLElement) {
           el.style.pointerEvents = 'none';
@@ -32,9 +27,7 @@ export default function WindowResizeOptimizer() {
       });
 
       // NOTE: Marks slide-in animations as completed so they don't re-trigger after resize.
-      const slideInElements = document.querySelectorAll(
-        '.slide-in-bottom:not([data-task-card])',
-      );
+      const slideInElements = document.querySelectorAll('.slide-in-bottom:not([data-task-card])');
       slideInElements.forEach((el) => {
         el.classList.add('animation-done');
       });
@@ -49,9 +42,7 @@ export default function WindowResizeOptimizer() {
     onResizeEnd: () => {
       document.documentElement.classList.remove('window-resizing');
 
-      const nonTaskElements = document.querySelectorAll(
-        'body > *:not([data-task-card-container])',
-      );
+      const nonTaskElements = document.querySelectorAll('body > *:not([data-task-card-container])');
       nonTaskElements.forEach((el) => {
         if (el instanceof HTMLElement) {
           el.style.pointerEvents = '';
@@ -87,9 +78,7 @@ export default function WindowResizeOptimizer() {
       el.classList.add('scroll-optimized');
     });
 
-    const gridElements = document.querySelectorAll(
-      '[class*="grid "], [class*=" grid"]',
-    );
+    const gridElements = document.querySelectorAll('[class*="grid "], [class*=" grid"]');
     gridElements.forEach((el) => {
       el.classList.add('grid-optimized');
     });

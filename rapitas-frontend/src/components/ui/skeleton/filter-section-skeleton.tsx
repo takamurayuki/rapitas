@@ -32,10 +32,7 @@ export function FilterSectionSkeleton() {
           <EnhancedSkeletonBlock className="w-10 h-5 rounded-sm" delay={300} />
           <EnhancedSkeletonBlock className="w-14 h-5 rounded-sm" delay={400} />
         </div>
-        <EnhancedSkeletonBlock
-          className="w-12 h-6 rounded shrink-0"
-          delay={500}
-        />
+        <EnhancedSkeletonBlock className="w-12 h-6 rounded shrink-0" delay={500} />
       </div>
 
       {/* Accordion expanded content */}
@@ -44,47 +41,23 @@ export function FilterSectionSkeleton() {
           <div>
             <EnhancedSkeletonBlock className="w-16 h-3 mb-1.5" delay={200} />
             <div className="flex gap-1">
-              <EnhancedSkeletonBlock
-                className="w-6 h-5 rounded-sm"
-                delay={300}
-              />
-              <EnhancedSkeletonBlock
-                className="w-6 h-5 rounded-sm"
-                delay={400}
-              />
-              <EnhancedSkeletonBlock
-                className="w-6 h-5 rounded-sm"
-                delay={500}
-              />
+              <EnhancedSkeletonBlock className="w-6 h-5 rounded-sm" delay={300} />
+              <EnhancedSkeletonBlock className="w-6 h-5 rounded-sm" delay={400} />
+              <EnhancedSkeletonBlock className="w-6 h-5 rounded-sm" delay={500} />
             </div>
           </div>
           <div>
             <EnhancedSkeletonBlock className="w-12 h-3 mb-1.5" delay={300} />
             <div className="flex gap-1">
-              <EnhancedSkeletonBlock
-                className="w-5 h-5 rounded-sm"
-                delay={400}
-              />
-              <EnhancedSkeletonBlock
-                className="w-5 h-5 rounded-sm"
-                delay={500}
-              />
-              <EnhancedSkeletonBlock
-                className="w-5 h-5 rounded-sm"
-                delay={600}
-              />
-              <EnhancedSkeletonBlock
-                className="w-5 h-5 rounded-sm"
-                delay={700}
-              />
+              <EnhancedSkeletonBlock className="w-5 h-5 rounded-sm" delay={400} />
+              <EnhancedSkeletonBlock className="w-5 h-5 rounded-sm" delay={500} />
+              <EnhancedSkeletonBlock className="w-5 h-5 rounded-sm" delay={600} />
+              <EnhancedSkeletonBlock className="w-5 h-5 rounded-sm" delay={700} />
             </div>
           </div>
           <div>
             <EnhancedSkeletonBlock className="w-14 h-3 mb-1.5" delay={400} />
-            <EnhancedSkeletonBlock
-              className="w-20 h-5 rounded-sm"
-              delay={500}
-            />
+            <EnhancedSkeletonBlock className="w-20 h-5 rounded-sm" delay={500} />
           </div>
         </div>
       </div>

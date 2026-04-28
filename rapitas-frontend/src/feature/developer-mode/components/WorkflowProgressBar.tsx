@@ -49,9 +49,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
   const currentStepIndex = getCurrentStepIndex();
 
   return (
-    <div
-      className={`px-4 py-3 bg-zinc-800/30 border-b border-zinc-700 ${className}`}
-    >
+    <div className={`px-4 py-3 bg-zinc-800/30 border-b border-zinc-700 ${className}`}>
       <div className="flex items-center justify-between max-w-2xl mx-auto">
         {WORKFLOW_STEPS.map((step, index) => {
           const IconComponent = step.icon;
@@ -104,9 +102,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
                 </div>
 
                 <div className="text-center">
-                  <div className={`text-xs font-medium ${styles.text}`}>
-                    {step.label}
-                  </div>
+                  <div className={`text-xs font-medium ${styles.text}`}>{step.label}</div>
                   {isActive && (
                     <div className="text-xs text-zinc-400 mt-0.5 whitespace-nowrap">
                       {step.description}
@@ -126,9 +122,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
               {index < WORKFLOW_STEPS.length - 1 && (
                 <div className="flex-1 h-0.5 mx-4 relative">
                   <div className="absolute inset-0 bg-zinc-700 rounded-full" />
-                  {isCompleted && (
-                    <div className="absolute inset-0 bg-green-500 rounded-full" />
-                  )}
+                  {isCompleted && <div className="absolute inset-0 bg-green-500 rounded-full" />}
                   {isActive && (
                     <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-blue-500 rounded-full opacity-60" />
                   )}
@@ -143,8 +137,7 @@ export const WorkflowProgressBar: React.FC<WorkflowProgressBarProps> = ({
       {currentPhase && (
         <div className="mt-3 text-center">
           <div className="text-xs text-zinc-400">
-            全体進捗: {currentStepIndex + 1}/{WORKFLOW_STEPS.length}{' '}
-            ステップ完了
+            全体進捗: {currentStepIndex + 1}/{WORKFLOW_STEPS.length} ステップ完了
           </div>
           <div className="mt-1 w-full bg-zinc-700 rounded-full h-1 max-w-xs mx-auto">
             <div

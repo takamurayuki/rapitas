@@ -160,12 +160,8 @@ export default function HabitsPage() {
         <div className="flex items-center gap-3">
           <Flame className="w-8 h-8 text-orange-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -207,17 +203,9 @@ export default function HabitsPage() {
                     ? 'bg-emerald-500 text-white'
                     : 'border-2 hover:bg-zinc-100 dark:hover:bg-zinc-700'
                 }`}
-                style={
-                  !isCompleted
-                    ? { borderColor: habit.color, color: habit.color }
-                    : {}
-                }
+                style={!isCompleted ? { borderColor: habit.color, color: habit.color } : {}}
               >
-                {isCompleted ? (
-                  <Check className="w-6 h-6" />
-                ) : (
-                  renderIcon(habit.icon, 24)
-                )}
+                {isCompleted ? <Check className="w-6 h-6" /> : renderIcon(habit.icon, 24)}
               </button>
 
               <div className="flex-1">
@@ -231,9 +219,7 @@ export default function HabitsPage() {
                   {habit.name}
                 </h3>
                 {habit.description && (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {habit.description}
-                  </p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">{habit.description}</p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -301,9 +287,7 @@ export default function HabitsPage() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder={t('habitExample')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     required
@@ -336,9 +320,7 @@ export default function HabitsPage() {
                   <input
                     type="text"
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder={tc('shortDescription')}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />

@@ -23,11 +23,7 @@ interface HomeTaskListProps {
   totalPages: number;
   itemsPerPage: number;
   onTaskClick: (taskId: number) => void;
-  onStatusChange: (
-    taskId: number,
-    status: Status,
-    cardElement?: HTMLElement,
-  ) => void;
+  onStatusChange: (taskId: number, status: Status, cardElement?: HTMLElement) => void;
   onToggleSelect: (taskId: number) => void;
   onTaskUpdated: () => Promise<void>;
   onOpenInPage: (taskId: number) => void;
@@ -110,24 +106,12 @@ export function HomeTaskList({
         <button
           onClick={() => {
             const themeParam = themeFilter || defaultThemeId;
-            router.push(
-              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
-            );
+            router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center gap-2"
         >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           {t('createTask')}
         </button>
@@ -152,11 +136,7 @@ export function HomeTaskList({
               isSelected={selectedTasks.has(task.id)}
               isSelectionMode={isSelectionMode}
               onTaskClick={onTaskClick}
-              onStatusChange={(
-                taskId: number,
-                status: Status,
-                cardElement?: HTMLElement,
-              ) => {
+              onStatusChange={(taskId: number, status: Status, cardElement?: HTMLElement) => {
                 onStatusChange(taskId, status, cardElement);
               }}
               onToggleSelect={onToggleSelect}

@@ -35,12 +35,8 @@ export interface ArrowData {
  */
 export function dateToX(date: Date, viewport: GanttViewport): number {
   const { startDate, endDate, width, margin } = viewport;
-  const totalDays = Math.ceil(
-    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-  );
-  const targetDays = Math.ceil(
-    (date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-  );
+  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const targetDays = Math.ceil((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
   if (totalDays <= 0) return margin.left;
 
@@ -89,15 +85,11 @@ export function taskToBar(
     const daysToSubtract = task.estimatedHours
       ? Math.max(1, Math.ceil(task.estimatedHours / 8))
       : 7;
-    startDate = new Date(
-      endDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000,
-    );
+    startDate = new Date(endDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
   } else {
     // 期限がない場合は今日から推定時間分またはデフォルト7日間
     startDate = new Date();
-    const daysToAdd = task.estimatedHours
-      ? Math.max(1, Math.ceil(task.estimatedHours / 8))
-      : 7;
+    const daysToAdd = task.estimatedHours ? Math.max(1, Math.ceil(task.estimatedHours / 8)) : 7;
     endDate = new Date(startDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
   }
 
@@ -178,9 +170,7 @@ export function adjustDateRange(
       // 推定時間がある場合は開始日も推定
       if (task.estimatedHours) {
         const daysToSubtract = Math.max(1, Math.ceil(task.estimatedHours / 8));
-        const startDate = new Date(
-          dueDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000,
-        );
+        const startDate = new Date(dueDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
         dates.push(startDate);
       }
     }

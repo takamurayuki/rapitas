@@ -18,10 +18,16 @@ export function useDarkMode(): DarkModeReturn {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const storedTheme = localStorage.getItem('theme');
+      const storedTheme =
+        typeof window !== 'undefined' ? window.localStorage?.getItem('theme') : null;
+      const prefersDark =
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+
       if (storedTheme === 'light' || storedTheme === 'dark') {
         setThemeState(storedTheme);
-      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      } else if (prefersDark) {
         setThemeState('dark');
       }
       setMounted(true);
@@ -35,7 +41,7 @@ export function useDarkMode(): DarkModeReturn {
     const root = window.document.documentElement;
     root.classList.remove(isDarkMode ? 'light' : 'dark');
     root.classList.add(theme);
-    localStorage.setItem('theme', theme);
+    window.localStorage?.setItem('theme', theme);
   }, [theme, isDarkMode, mounted]);
 
   const toggleTheme = () => {

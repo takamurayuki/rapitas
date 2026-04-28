@@ -15,10 +15,7 @@ const logger = createLogger('useMemoSection');
 
 type UseMemoSectionOptions = {
   comments: Comment[];
-  onAddComment: (
-    content?: string,
-    parentId?: number,
-  ) => Promise<number | undefined> | void;
+  onAddComment: (content?: string, parentId?: number) => Promise<number | undefined> | void;
   onUpdateComment: (id: number, content: string) => Promise<void>;
   onNewCommentChange: (v: string) => void;
   newComment: string;
@@ -41,9 +38,7 @@ export function useMemoSection({
   const [editText, setEditText] = useState('');
   const [replyId, setReplyId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [highlightedNoteId, setHighlightedNoteId] = useState<number | null>(
-    null,
-  );
+  const [highlightedNoteId, setHighlightedNoteId] = useState<number | null>(null);
   const [selectedMemoType, setSelectedMemoType] = useState<MemoType>('general');
   const [filterType, setFilterType] = useState<MemoType | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -148,10 +143,7 @@ export function useMemoSection({
 
       if (newCommentId && selectedMemoType !== 'general') {
         const memoData = { memoType: selectedMemoType, isPinned: false };
-        localStorage.setItem(
-          `memo-data-${newCommentId}`,
-          JSON.stringify(memoData),
-        );
+        localStorage.setItem(`memo-data-${newCommentId}`, JSON.stringify(memoData));
         setStorageUpdate((prev) => prev + 1);
       }
 
@@ -193,10 +185,7 @@ export function useMemoSection({
         })();
 
         const newMemoData = { ...savedData, analysis, showAnalysis: false };
-        localStorage.setItem(
-          `memo-data-${note.id}`,
-          JSON.stringify(newMemoData),
-        );
+        localStorage.setItem(`memo-data-${note.id}`, JSON.stringify(newMemoData));
       } catch (error) {
         logger.error(`Failed to analyze memo ${note.id}:`, error);
       }

@@ -4,10 +4,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { AlertCircle, XCircle, TrendingUp, CheckCircle } from 'lucide-react';
-import {
-  ErrorSeverity,
-  type ErrorSummary,
-} from '../../services/error-analysis-service';
+import { ErrorSeverity, type ErrorSummary } from '../../services/error-analysis-service';
 
 type ErrorSummaryCardsProps = {
   /** Aggregated error statistics from errorAnalysisService. */
@@ -26,9 +23,7 @@ export function ErrorSummaryCards({ summary }: ErrorSummaryCardsProps) {
       <Card className="p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Total Errors
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Total Errors</p>
             <p className="text-2xl font-bold">{summary.totalErrors}</p>
           </div>
           <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
@@ -40,9 +35,7 @@ export function ErrorSummaryCards({ summary }: ErrorSummaryCardsProps) {
       <Card className="p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Critical Issues
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Critical Issues</p>
             <p className="text-2xl font-bold">
               {summary.errorsBySeverity[ErrorSeverity.CRITICAL] || 0}
             </p>
@@ -56,13 +49,10 @@ export function ErrorSummaryCards({ summary }: ErrorSummaryCardsProps) {
       <Card className="p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Error Rate
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Error Rate</p>
             <div className="flex items-center space-x-1">
               <p className="text-2xl font-bold">
-                {summary.errorTrends[summary.errorTrends.length - 1]?.count ||
-                  0}
+                {summary.errorTrends[summary.errorTrends.length - 1]?.count || 0}
               </p>
               <span className="text-sm text-gray-500">/hr</span>
             </div>
@@ -76,9 +66,7 @@ export function ErrorSummaryCards({ summary }: ErrorSummaryCardsProps) {
       <Card className="p-4 dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Resolution Rate
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Resolution Rate</p>
             {/* NOTE: Resolution rate is hardcoded at 87% — no dynamic data source yet. */}
             <p className="text-2xl font-bold">87%</p>
           </div>

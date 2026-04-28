@@ -20,11 +20,7 @@ const categoryLabels: Record<string, string> = {
   general: '一般',
 };
 
-export function RelatedKnowledgePanel({
-  title,
-  description,
-  themeId,
-}: RelatedKnowledgePanelProps) {
+export function RelatedKnowledgePanel({ title, description, themeId }: RelatedKnowledgePanelProps) {
   const { entries, loading, search } = useRelatedKnowledge();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 

@@ -27,9 +27,7 @@ export function useThemeScroll(deps: unknown[]) {
 
     setIsScrollNeeded(needsScroll);
     setCanScrollLeft(needsScroll && scrollLeft > 0);
-    setCanScrollRight(
-      needsScroll && scrollLeft < scrollWidth - clientWidth - 1,
-    );
+    setCanScrollRight(needsScroll && scrollLeft < scrollWidth - clientWidth - 1);
   }, []);
 
   const scrollThemeLeft = useCallback(() => {
@@ -51,9 +49,7 @@ export function useThemeScroll(deps: unknown[]) {
       const handleScroll = () => checkThemeScrollPosition();
       scrollElement.addEventListener('scroll', handleScroll);
 
-      const resizeObserver = new ResizeObserver(() =>
-        checkThemeScrollPosition(),
-      );
+      const resizeObserver = new ResizeObserver(() => checkThemeScrollPosition());
       resizeObserver.observe(scrollElement);
 
       return () => {

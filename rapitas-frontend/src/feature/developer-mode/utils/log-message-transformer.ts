@@ -16,12 +16,6 @@ export type {
   ExecutionSummary,
 } from './log-pattern-rules';
 
-export {
-  transformLogToUserFriendly,
-  transformLogsToSimple,
-} from './log-transformers';
+export { transformLogToUserFriendly, transformLogsToSimple } from './log-transformers';
 
-export {
-  detectCurrentPhase,
-  generateExecutionSummary,
-} from './log-summary-generator';
+export { detectCurrentPhase, generateExecutionSummary } from './log-summary-generator';

@@ -3,10 +3,7 @@
 import { type Task, type Label, type Resource, type Comment } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import {
   Accordion,
   AccordionItem,
@@ -17,16 +14,7 @@ import {
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import MemoSection from '@/feature/tasks/components/MemoSection';
-import {
-  Clock,
-  Calendar,
-  Tag,
-  FileText,
-  Info,
-  Paperclip,
-  StickyNote,
-  Repeat,
-} from 'lucide-react';
+import { Clock, Calendar, Tag, FileText, Info, Paperclip, StickyNote, Repeat } from 'lucide-react';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -94,11 +82,9 @@ export default function CompactTaskDetailCard({
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const fileResources = resources.filter(
-    (r) =>
-      r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
+    (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
-  const hasMetaInfo =
-    (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
+  const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
@@ -143,10 +129,7 @@ export default function CompactTaskDetailCard({
         {/* Description - Default expanded */}
         {task.description && (
           <AccordionItem id="description">
-            <AccordionTrigger
-              id="description"
-              icon={<FileText className="w-4 h-4" />}
-            >
+            <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
               説明
             </AccordionTrigger>
             <AccordionContent id="description">
@@ -214,15 +197,11 @@ export default function CompactTaskDetailCard({
             <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
-                <span>
-                  作成: {new Date(task.createdAt).toLocaleString(dateLocale)}
-                </span>
+                <span>作成: {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                <span>
-                  更新: {new Date(task.updatedAt).toLocaleString(dateLocale)}
-                </span>
+                <span>更新: {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
               </div>
             </div>
           </AccordionContent>
@@ -244,10 +223,7 @@ export default function CompactTaskDetailCard({
             繰り返し設定
           </AccordionTrigger>
           <AccordionContent id="recurrence">
-            <RecurrenceSelectorWithAccordionClose
-              task={task}
-              onTaskUpdated={onTaskUpdated}
-            />
+            <RecurrenceSelectorWithAccordionClose task={task} onTaskUpdated={onTaskUpdated} />
           </AccordionContent>
         </AccordionItem>
 

@@ -35,9 +35,7 @@ export const createMarkdownComponents = () => ({
   p({ node, children, ...props }: ParagraphProps) {
     // Check if child elements contain pre or code blocks
     const hasCodeBlock = node?.children?.some(
-      (child) =>
-        child.type === 'element' &&
-        (child.tagName === 'pre' || child.tagName === 'code'),
+      (child) => child.type === 'element' && (child.tagName === 'pre' || child.tagName === 'code'),
     );
 
     if (hasCodeBlock) {
@@ -110,11 +108,7 @@ export const createMarkdownComponents = () => ({
     // Only handle styling here, no additional handlers needed
     // so omitting target="_blank" prevents default browser behavior
     return (
-      <a
-        href={href}
-        className="text-blue-600 dark:text-blue-400 hover:underline"
-        {...props}
-      >
+      <a href={href} className="text-blue-600 dark:text-blue-400 hover:underline" {...props}>
         {children}
       </a>
     );

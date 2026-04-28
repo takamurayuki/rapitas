@@ -7,8 +7,10 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Columns2,
+  ArrowLeftRight,
 } from 'lucide-react';
-import type { ModalTab } from '@/stores/note-store';
+import type { ModalTab, SplitNoteSide } from '@/stores/note-store';
 
 interface NoteModalHeaderProps {
   activeTab: ModalTab;
@@ -16,11 +18,13 @@ interface NoteModalHeaderProps {
   searchQuery: string;
   /** Whether a drag gesture is currently in progress / ドラッグ中かどうか */
   didDragRef: React.RefObject<boolean>;
+  splitNoteSide: SplitNoteSide;
   onDragStart: (e: React.MouseEvent) => void;
   onTabChange: (tab: ModalTab) => void;
   onSearchChange: (query: string) => void;
   onToggleMaximize: () => void;
   onClose: () => void;
+  onSwapSplit: () => void;
 }
 
 /**
@@ -41,11 +45,13 @@ export default function NoteModalHeader({
   isMaximized,
   searchQuery,
   didDragRef,
+  splitNoteSide,
   onDragStart,
   onTabChange,
   onSearchChange,
   onToggleMaximize,
   onClose,
+  onSwapSplit,
 }: NoteModalHeaderProps) {
   const handleTabClick = (tab: ModalTab) => (e: React.MouseEvent) => {
     // NOTE: Suppress click when the mousedown was the start of a drag gesture.
@@ -70,6 +76,14 @@ export default function NoteModalHeader({
       return;
     }
     onClose();
+  };
+
+  const handleSwapClick = (e: React.MouseEvent) => {
+    if (didDragRef.current) {
+      e.preventDefault();
+      return;
+    }
+    onSwapSplit();
   };
 
   return (
@@ -118,10 +132,25 @@ export default function NoteModalHeader({
           <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
           <span>AI</span>
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'split'}
+          aria-controls="split-tab-panel"
+          onMouseDown={isMaximized ? undefined : onDragStart}
+          onClick={handleTabClick('split')}
+          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all select-none ${
+            activeTab === 'split'
+              ? 'bg-white/25 text-white shadow-sm'
+              : 'text-white/60 hover:text-white'
+          }`}
+        >
+          <Columns2 className="w-3.5 h-3.5" aria-hidden="true" />
+          <span>両方</span>
+        </button>
       </div>
 
-      {/* Center search bar (note tab only) */}
-      {activeTab === 'note' && (
+      {/* Center search bar (note tab + split shows search; AI alone hides it) */}
+      {(activeTab === 'note' || activeTab === 'split') && (
         <div className="relative flex-1 flex items-center justify-center px-4">
           <div className="relative w-full max-w-xs">
             <Search
@@ -145,17 +174,28 @@ export default function NoteModalHeader({
 
       {/* Window controls */}
       <div className="relative flex items-center gap-1">
+        {activeTab === 'split' && (
+          <button
+            onMouseDown={isMaximized ? undefined : onDragStart}
+            onClick={handleSwapClick}
+            className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            title={
+              splitNoteSide === 'right'
+                ? 'ノートを左に移動（AIを右に）'
+                : 'ノートを右に移動（AIを左に）'
+            }
+            aria-label="左右を入れ替える"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+          </button>
+        )}
         <button
           onMouseDown={isMaximized ? undefined : onDragStart}
           onClick={handleMaximizeClick}
           className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           title={isMaximized ? '元のサイズに戻す' : '全画面表示'}
         >
-          {isMaximized ? (
-            <Minimize2 className="w-4 h-4" />
-          ) : (
-            <Maximize2 className="w-4 h-4" />
-          )}
+          {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
         <button
           onMouseDown={isMaximized ? undefined : onDragStart}

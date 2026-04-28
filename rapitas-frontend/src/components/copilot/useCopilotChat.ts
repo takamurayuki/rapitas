@@ -60,9 +60,7 @@ export function useCopilotChat(taskId?: number) {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(
-            (data as { error?: string }).error ?? `HTTP ${res.status}`,
-          );
+          throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
         }
 
         const data = (await res.json()) as {
@@ -126,9 +124,7 @@ export function useCopilotChat(taskId?: number) {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(
-            (errData as { error?: string }).error ?? `HTTP ${res.status}`,
-          );
+          throw new Error((errData as { error?: string }).error ?? `HTTP ${res.status}`);
         }
 
         const result = (await res.json()) as {
@@ -152,10 +148,7 @@ export function useCopilotChat(taskId?: number) {
           const analysisData = result.data as {
             suggestedSubtasks?: Array<{ title: string; description?: string }>;
           };
-          if (
-            analysisData.suggestedSubtasks &&
-            analysisData.suggestedSubtasks.length > 0
-          ) {
+          if (analysisData.suggestedSubtasks && analysisData.suggestedSubtasks.length > 0) {
             resultMsg.actions = [
               {
                 type: 'create_subtasks',
@@ -171,13 +164,9 @@ export function useCopilotChat(taskId?: number) {
           }
         }
 
-        setMessages((prev) =>
-          prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)),
-        );
+        setMessages((prev) => prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)));
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'アクション実行に失敗しました',
-        );
+        setError(err instanceof Error ? err.message : 'アクション実行に失敗しました');
         // Remove the pending message on error
         setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
       } finally {

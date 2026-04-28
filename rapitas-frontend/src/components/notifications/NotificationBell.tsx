@@ -1,15 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  Bell,
-  BookOpen,
-  Check,
-  CheckCheck,
-  ExternalLink,
-  Lightbulb,
-  X,
-} from 'lucide-react';
+import { Bell, BookOpen, Check, CheckCheck, ExternalLink, Lightbulb, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -18,29 +10,19 @@ import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 const typeIcons: Record<string, string> = {
-  approval_request:
-    'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
-  task_completed:
-    'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  approval_request: 'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
+  task_completed: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   agent_error: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
-  daily_summary:
-    'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
-  pr_review_requested:
-    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-  pr_approved:
-    'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
-  pr_changes_requested:
-    'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
-  agent_execution_started:
-    'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
+  daily_summary: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  pr_review_requested: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  pr_approved: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  pr_changes_requested: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+  agent_execution_started: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
   agent_execution_complete:
     'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
-  github_sync_complete:
-    'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
-  knowledge_extracted:
-    'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
-  knowledge_reminder:
-    'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
+  github_sync_complete: 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400',
+  knowledge_extracted: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
+  knowledge_reminder: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
 };
 
 export default function NotificationBell() {
@@ -64,10 +46,7 @@ export default function NotificationBell() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -138,9 +117,7 @@ export default function NotificationBell() {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
@@ -180,9 +157,7 @@ export default function NotificationBell() {
                 <div
                   key={notification.id}
                   className={`relative group ${
-                    !notification.isRead
-                      ? 'bg-violet-50/50 dark:bg-violet-900/10'
-                      : ''
+                    !notification.isRead ? 'bg-violet-50/50 dark:bg-violet-900/10' : ''
                   }`}
                 >
                   {notification.link ? (
@@ -192,17 +167,11 @@ export default function NotificationBell() {
                       onClick={() => handleNotificationClick(notification)}
                       className="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
                     >
-                      <NotificationContent
-                        notification={notification}
-                        formatTime={formatTime}
-                      />
+                      <NotificationContent notification={notification} formatTime={formatTime} />
                     </Link>
                   ) : (
                     <div className="px-4 py-3" role="menuitem">
-                      <NotificationContent
-                        notification={notification}
-                        formatTime={formatTime}
-                      />
+                      <NotificationContent notification={notification} formatTime={formatTime} />
                     </div>
                   )}
 
@@ -276,12 +245,7 @@ function NotificationContent({
         className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${typeIcons[notification.type]}`}
       >
         {notification.type === 'approval_request' && (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -290,16 +254,9 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === 'task_completed' && (
-          <Check className="w-4 h-4" />
-        )}
+        {notification.type === 'task_completed' && <Check className="w-4 h-4" />}
         {notification.type === 'agent_error' && (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -309,12 +266,7 @@ function NotificationContent({
           </svg>
         )}
         {notification.type === 'daily_summary' && (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -324,12 +276,7 @@ function NotificationContent({
           </svg>
         )}
         {notification.type === 'pr_review_requested' && (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -344,19 +291,10 @@ function NotificationContent({
             />
           </svg>
         )}
-        {notification.type === 'knowledge_extracted' && (
-          <Lightbulb className="w-4 h-4" />
-        )}
-        {notification.type === 'knowledge_reminder' && (
-          <BookOpen className="w-4 h-4" />
-        )}
+        {notification.type === 'knowledge_extracted' && <Lightbulb className="w-4 h-4" />}
+        {notification.type === 'knowledge_reminder' && <BookOpen className="w-4 h-4" />}
         {notification.type === 'agent_execution_started' && (
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"

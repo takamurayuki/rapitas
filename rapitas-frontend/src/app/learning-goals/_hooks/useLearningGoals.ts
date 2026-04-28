@@ -67,11 +67,7 @@ export function useLearningGoals() {
       const res = await fetch(`${API_BASE_URL}/categories`);
       if (res.ok) {
         const data = await res.json();
-        setCategories(
-          data.filter(
-            (c: Category) => c.mode === 'learning' || c.mode === 'both',
-          ),
-        );
+        setCategories(data.filter((c: Category) => c.mode === 'learning' || c.mode === 'both'));
       }
     } catch (e) {
       logger.error('Failed to fetch categories:', e);
@@ -80,22 +76,15 @@ export function useLearningGoals() {
 
   const fetchGoalProgress = useCallback(async (goalList: LearningGoal[]) => {
     const appliedGoals = goalList.filter((g) => g.isApplied && g.themeId);
-    const progressMap: Record<
-      number,
-      { total: number; completed: number; rate: number }
-    > = {};
+    const progressMap: Record<number, { total: number; completed: number; rate: number }> = {};
 
     for (const goal of appliedGoals) {
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/tasks?themeId=${goal.themeId}`,
-        );
+        const res = await fetch(`${API_BASE_URL}/tasks?themeId=${goal.themeId}`);
         if (res.ok) {
           const data = await res.json();
           const tasks = Array.isArray(data) ? data : data.tasks || [];
-          const parentTasks = tasks.filter(
-            (t: { parentId: number | null }) => !t.parentId,
-          );
+          const parentTasks = tasks.filter((t: { parentId: number | null }) => !t.parentId);
           const total = parentTasks.length;
           const completed = parentTasks.filter(
             (t: { status: string }) => t.status === 'done',
@@ -114,9 +103,7 @@ export function useLearningGoals() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchGoals(), fetchCategories()]).finally(() =>
-      setLoading(false),
-    );
+    Promise.all([fetchGoals(), fetchCategories()]).finally(() => setLoading(false));
   }, [fetchGoals, fetchCategories]);
 
   useEffect(() => {
@@ -133,20 +120,15 @@ export function useLearningGoals() {
   const handleAdaptPlan = async (goal: LearningGoal) => {
     setAdapting(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/learning-goals/${goal.id}/adapt`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}/adapt`, {
+        method: 'POST',
+      });
       if (res.ok) {
         const result = await res.json();
         if (result.success) {
           showToast(t('adaptSuccess'), 'success');
           await fetchGoals();
-          const updated = await fetch(
-            `${API_BASE_URL}/learning-goals/${goal.id}`,
-          );
+          const updated = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}`);
           if (updated.ok) setSelectedGoal(await updated.json());
         } else {
           showToast(result.error || t('adaptFailed'), 'error');
@@ -166,10 +148,7 @@ export function useLearningGoals() {
    * @param formData - Wizard form values.
    * @param onSuccess - Called after creation so the wizard can reset.
    */
-  const handleCreateGoal = async (
-    formData: GoalFormData,
-    onSuccess: () => void,
-  ) => {
+  const handleCreateGoal = async (formData: GoalFormData, onSuccess: () => void) => {
     if (!formData.title.trim()) return;
     try {
       const res = await fetch(`${API_BASE_URL}/learning-goals`, {
@@ -210,16 +189,12 @@ export function useLearningGoals() {
     if (targetGoal) setSelectedGoal(targetGoal);
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/learning-goals/${goalId}/generate-plan`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`${API_BASE_URL}/learning-goals/${goalId}/generate-plan`, {
+        method: 'POST',
+      });
       if (res.ok) {
         const result = await res.json();
-        showToast(
-          result.source === 'ai' ? t('aiGeneratedPlan') : t('planGenerated'),
-          'success',
-        );
+        showToast(result.source === 'ai' ? t('aiGeneratedPlan') : t('planGenerated'), 'success');
         await fetchGoals();
         const updated = await fetch(`${API_BASE_URL}/learning-goals/${goalId}`);
         if (updated.ok) setSelectedGoal(await updated.json());
@@ -248,12 +223,9 @@ export function useLearningGoals() {
 
     setApplying(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/learning-goals/${goal.id}/apply`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}/apply`, {
+        method: 'POST',
+      });
       if (res.ok) {
         const result = await res.json();
         if (result.success) {
@@ -265,9 +237,7 @@ export function useLearningGoals() {
             'success',
           );
           await fetchGoals();
-          const updated = await fetch(
-            `${API_BASE_URL}/learning-goals/${goal.id}`,
-          );
+          const updated = await fetch(`${API_BASE_URL}/learning-goals/${goal.id}`);
           if (updated.ok) setSelectedGoal(await updated.json());
         } else {
           showToast(result.error || t('applyFailed'), 'error');

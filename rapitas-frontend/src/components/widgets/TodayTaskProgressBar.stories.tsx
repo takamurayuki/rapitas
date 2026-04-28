@@ -23,8 +23,7 @@ const meta = {
         <div className="relative z-10 mx-auto max-w-4xl">
           <div className="mb-8 border-l-4 border-amber-600 py-2 pl-6">
             <h1 className="font-mono text-2xl font-black tracking-tighter text-slate-100">
-              PROGRESS_BAR_STORIES{' '}
-              <span className="text-amber-500">{/* STORYBOOK */}</span>
+              PROGRESS_BAR_STORIES <span className="text-amber-500">{/* STORYBOOK */}</span>
             </h1>
           </div>
           <div className="space-y-8">
@@ -64,8 +63,7 @@ export const AllCompleted: Story = {
   parameters: {
     docs: {
       description: {
-        story:
-          'Shows the FABULOUS animation when all tasks are completed (100%)',
+        story: 'Shows the FABULOUS animation when all tasks are completed (100%)',
       },
     },
   },
@@ -151,15 +149,11 @@ const InteractiveComponent = () => {
         [INTERACTIVE] PROGRESS CONTROL PANEL
       </div>
 
-      <TodayTaskProgressBar
-        completedCount={completedCount}
-        totalCount={totalCount}
-      />
+      <TodayTaskProgressBar completedCount={completedCount} totalCount={totalCount} />
 
       <div className="mt-8 space-y-4">
         <p className="mb-4 font-mono text-xs text-slate-600">
-          INSTRUCTIONS: Use control buttons to simulate task completion and
-          observe particle effects
+          INSTRUCTIONS: Use control buttons to simulate task completion and observe particle effects
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -193,9 +187,7 @@ const InteractiveComponent = () => {
           <span>
             CURRENT_PROGRESS: {completedCount}/{totalCount}
           </span>
-          <span>
-            EFFICIENCY: {Math.floor((completedCount / totalCount) * 100)}%
-          </span>
+          <span>EFFICIENCY: {Math.floor((completedCount / totalCount) * 100)}%</span>
         </div>
       </div>
     </div>

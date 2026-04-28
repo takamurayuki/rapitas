@@ -26,15 +26,9 @@ interface UseSubtaskDeletionParams {
  * @param params - task, refetch callback, and optional update callback
  * @returns selection state, confirm dialog state, and delete action callbacks
  */
-export function useSubtaskDeletion({
-  task,
-  onRefetch,
-  onTaskUpdated,
-}: UseSubtaskDeletionParams) {
+export function useSubtaskDeletion({ task, onRefetch, onTaskUpdated }: UseSubtaskDeletionParams) {
   const [isSubtaskSelectionMode, setIsSubtaskSelectionMode] = useState(false);
-  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [selectedSubtaskIds, setSelectedSubtaskIds] = useState<Set<number>>(new Set());
   const [showSubtaskDeleteConfirm, setShowSubtaskDeleteConfirm] = useState<
     'all' | 'selected' | null
   >(null);
@@ -65,9 +59,7 @@ export function useSubtaskDeletion({
       });
       if (!res.ok) throw new Error('削除に失敗しました');
       const result = await res.json();
-      logger.debug(
-        `[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`,
-      );
+      logger.debug(`[TaskDetail] Deleted all subtasks: ${result.deletedCount} items`);
       await onRefetch();
       onTaskUpdated?.();
     } catch (err) {
@@ -81,19 +73,14 @@ export function useSubtaskDeletion({
       if (!task || subtaskIds.length === 0) return;
 
       try {
-        const res = await fetch(
-          `${API_BASE}/tasks/${task.id}/subtasks/delete-selected`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subtaskIds }),
-          },
-        );
+        const res = await fetch(`${API_BASE}/tasks/${task.id}/subtasks/delete-selected`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subtaskIds }),
+        });
         if (!res.ok) throw new Error('削除に失敗しました');
         const result = await res.json();
-        logger.debug(
-          `[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`,
-        );
+        logger.debug(`[TaskDetail] Deleted selected subtasks: ${result.deletedCount} items`);
         await onRefetch();
         onTaskUpdated?.();
       } catch (err) {

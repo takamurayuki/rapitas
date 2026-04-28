@@ -1,10 +1,7 @@
 'use client';
 import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import {
-  requestNotificationPermission,
-  showDesktopNotification,
-} from '@/utils/notification';
+import { requestNotificationPermission, showDesktopNotification } from '@/utils/notification';
 import type { ScheduleEvent } from '@/types';
 
 const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds

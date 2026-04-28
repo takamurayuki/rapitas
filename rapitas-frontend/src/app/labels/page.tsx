@@ -1,9 +1,7 @@
 'use client';
 import { Tags } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import CategoryManager, {
-  type CategoryManagerConfig,
-} from '@/components/category/CategoryManager';
+import CategoryManager, { type CategoryManagerConfig } from '@/components/category/CategoryManager';
 
 export default function LabelsPage() {
   const t = useTranslations('labels');

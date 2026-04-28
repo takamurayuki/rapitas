@@ -14,12 +14,7 @@ interface GanttBarProps {
   onHover?: (taskId: number | null) => void;
 }
 
-export function GanttBar({
-  bar,
-  isOnCriticalPath = false,
-  onClick,
-  onHover,
-}: GanttBarProps) {
+export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: GanttBarProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onClick?.(bar.taskId);
@@ -35,8 +30,7 @@ export function GanttBar({
 
   // ステータスに基づくスタイル調整
   const getBarStyle = () => {
-    let baseClass =
-      'transition-all duration-200 ease-out cursor-pointer hover:opacity-80';
+    let baseClass = 'transition-all duration-200 ease-out cursor-pointer hover:opacity-80';
 
     if (isOnCriticalPath) {
       baseClass += ' ring-2 ring-red-400 ring-opacity-60';
@@ -79,9 +73,7 @@ export function GanttBar({
           className="pointer-events-none select-none"
           textAnchor="start"
         >
-          <tspan>
-            {bar.title.length > 20 ? `${bar.title.slice(0, 17)}...` : bar.title}
-          </tspan>
+          <tspan>{bar.title.length > 20 ? `${bar.title.slice(0, 17)}...` : bar.title}</tspan>
         </text>
       )}
 
@@ -98,12 +90,7 @@ export function GanttBar({
 
       {bar.status === 'blocked' && (
         <g>
-          <circle
-            cx={bar.x + bar.width - 8}
-            cy={bar.y + 8}
-            r={6}
-            fill="rgba(0,0,0,0.2)"
-          />
+          <circle cx={bar.x + bar.width - 8} cy={bar.y + 8} r={6} fill="rgba(0,0,0,0.2)" />
           <text
             x={bar.x + bar.width - 8}
             y={bar.y + 8 + 3}

@@ -19,16 +19,10 @@ export default function NoteEditor({ note }: NoteEditorProps) {
         note={note}
         draftTitle={editor.draftTitle}
         isDirty={editor.isDirty}
-        locale={editor.locale}
-        isGeneratingFlashcards={editor.isGeneratingFlashcards}
-        flashcardResult={editor.flashcardResult}
         onTitleChange={editor.handleTitleChange}
         onTitlePaste={editor.handleTitlePaste}
         onSave={editor.handleSave}
-        onTogglePin={() =>
-          editor.updateNote(note.id, { isPinned: !note.isPinned })
-        }
-        onGenerateFlashcards={editor.handleGenerateFlashcards}
+        onTogglePin={() => editor.updateNote(note.id, { isPinned: !note.isPinned })}
       />
 
       <EditorToolbar

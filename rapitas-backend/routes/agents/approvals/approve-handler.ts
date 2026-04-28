@@ -14,6 +14,7 @@ import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
+import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
 
 const log = createLogger('routes:approvals:approve');
 
@@ -64,6 +65,21 @@ export const approveRoutes = new Elysia()
 
       const task = approval.config.task;
 
+      // WorkflowRoleConfig is the source of truth for agent selection. Override
+      // the approval's stored agentConfigId with the role-resolved value when
+      // the task has a workflow context, so 「ロール設定通りに実行される」 holds
+      // for both manual /agents/execute and approval-triggered execution.
+      let resolvedAgentConfigId = proposedChanges.agentConfigId;
+      const roleAgent = await resolveAgentForTask(task.id);
+      if (roleAgent?.agentConfigId) {
+        if (resolvedAgentConfigId !== roleAgent.agentConfigId) {
+          log.info(
+            `[approve] Task ${task.id}: WorkflowRoleConfig override — role=${roleAgent.role}, agentConfigId=${roleAgent.agentConfigId} (was ${resolvedAgentConfigId ?? 'default'})`,
+          );
+        }
+        resolvedAgentConfigId = roleAgent.agentConfigId;
+      }
+
       const session = await prisma.agentSession.create({
         data: {
           configId: approval.config.id,
@@ -93,7 +109,7 @@ export const approveRoutes = new Elysia()
           {
             taskId: task.id,
             sessionId: session.id,
-            agentConfigId: proposedChanges.agentConfigId,
+            agentConfigId: resolvedAgentConfigId,
             workingDirectory: proposedChanges.workingDirectory,
           },
         )

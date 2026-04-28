@@ -229,15 +229,11 @@ export function SubtaskTitleIndicator({
       );
     case 'failed':
       return (
-        <XCircle
-          className={`${iconSize} text-red-500 dark:text-red-400 shrink-0 ${className}`}
-        />
+        <XCircle className={`${iconSize} text-red-500 dark:text-red-400 shrink-0 ${className}`} />
       );
     case 'scheduled':
       return (
-        <Clock
-          className={`${iconSize} text-blue-400 dark:text-blue-500 shrink-0 ${className}`}
-        />
+        <Clock className={`${iconSize} text-blue-400 dark:text-blue-500 shrink-0 ${className}`} />
       );
     case 'blocked':
       return (

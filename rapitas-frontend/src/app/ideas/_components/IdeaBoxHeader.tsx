@@ -25,10 +25,7 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
     setPrevCount(totalIdeas);
   }, [totalIdeas, prevCount]);
 
-  const statusText =
-    totalIdeas === 0
-      ? 'ひらめきを気軽にメモ'
-      : `${totalIdeas}件のアイデア`;
+  const statusText = totalIdeas === 0 ? 'ひらめきを気軽にメモ' : `${totalIdeas}件のアイデア`;
 
   return (
     <div className="flex items-center justify-between mb-6">
@@ -54,9 +51,7 @@ export function IdeaBoxHeader({ totalIdeas, onAddClick }: IdeaBoxHeaderProps) {
           )}
         </div>
         <div>
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-            アイデアボックス
-          </h1>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">アイデアボックス</h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">{statusText}</p>
         </div>
       </div>

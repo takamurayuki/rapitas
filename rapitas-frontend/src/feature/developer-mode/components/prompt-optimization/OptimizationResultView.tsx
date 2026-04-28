@@ -60,9 +60,7 @@ export function OptimizationResultView({
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 品質スコア:{' '}
-                <span
-                  className={`font-medium ${getQualityColor(result.promptQuality.score)}`}
-                >
+                <span className={`font-medium ${getQualityColor(result.promptQuality.score)}`}>
                   {result.promptQuality.score}/100
                 </span>
               </p>
@@ -73,11 +71,7 @@ export function OptimizationResultView({
               onClick={onCopy}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
-              {copied ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
               コピー
             </button>
             <button
@@ -108,8 +102,7 @@ export function OptimizationResultView({
       )}
 
       {/* Issues & Suggestions */}
-      {(result.promptQuality.issues.length > 0 ||
-        result.promptQuality.suggestions.length > 0) && (
+      {(result.promptQuality.issues.length > 0 || result.promptQuality.suggestions.length > 0) && (
         <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 space-y-3">
           {result.promptQuality.issues.length > 0 && (
             <div className="flex items-start gap-2">

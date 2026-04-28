@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  isTauri,
-  openExternalUrlInSplitView,
-  isSplitViewActive,
-} from '@/utils/tauri';
+import { isTauri, openExternalUrlInSplitView, isSplitViewActive } from '@/utils/tauri';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useSplitView');

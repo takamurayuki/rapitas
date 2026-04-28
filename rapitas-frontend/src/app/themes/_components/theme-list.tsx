@@ -6,12 +6,7 @@
  */
 import { Edit2, SwatchBook } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  type DropResult,
-} from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import type { Theme } from '@/types';
 import { ThemeCard } from './theme-card';
 import { ThemeForm } from './theme-form';
@@ -46,10 +41,7 @@ type Props = {
   branchError: string | null;
   setBranches: (b: string[]) => void;
   setBranchError: (e: string | null) => void;
-  renderIcon: (
-    iconName: string | null | undefined,
-    size?: number,
-  ) => React.ReactNode;
+  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
   onDragEnd: (result: DropResult) => void;
   onEdit: (item: Theme) => void;
   onDelete: (id: number, name: string) => void;
@@ -110,12 +102,9 @@ export function ThemeList({
       ? items
       : items.filter((item) => item.categoryId === selectedCategoryId);
 
-  const sortedItems = [...filteredItems].sort(
-    (a, b) => a.sortOrder - b.sortOrder,
-  );
+  const sortedItems = [...filteredItems].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  const currentCategoryId =
-    selectedCategoryId ?? (categories.length > 0 ? categories[0].id : null);
+  const currentCategoryId = selectedCategoryId ?? (categories.length > 0 ? categories[0].id : null);
 
   if (sortedItems.length === 0) {
     return (
@@ -131,11 +120,7 @@ export function ThemeList({
     <DragDropContext onDragEnd={onDragEnd}>
       <Droppable droppableId={`themes-category-${currentCategoryId}`}>
         {(provided) => (
-          <div
-            className="grid gap-3"
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-          >
+          <div className="grid gap-3" ref={provided.innerRef} {...provided.droppableProps}>
             {sortedItems.map((item, index) => (
               <Draggable
                 key={item.id}
@@ -148,9 +133,7 @@ export function ThemeList({
                     ref={draggableProvided.innerRef}
                     {...draggableProvided.draggableProps}
                     className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                      snapshot.isDragging
-                        ? 'shadow-2xl ring-2 ring-purple-500/50'
-                        : ''
+                      snapshot.isDragging ? 'shadow-2xl ring-2 ring-purple-500/50' : ''
                     }`}
                   >
                     {editingId === item.id ? (

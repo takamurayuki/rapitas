@@ -67,9 +67,7 @@ export function BlockFormModal({
               <input
                 type="text"
                 value={formData.label}
-                onChange={(e) =>
-                  onFormChange((prev) => ({ ...prev, label: e.target.value }))
-                }
+                onChange={(e) => onFormChange((prev) => ({ ...prev, label: e.target.value }))}
                 placeholder={t('blockLabelPlaceholder')}
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
@@ -178,20 +176,14 @@ export function BlockFormModal({
                     : 'bg-zinc-200 dark:bg-zinc-600 text-zinc-400'
                 }`}
               >
-                {formData.isNotify ? (
-                  <Bell className="w-5 h-5" />
-                ) : (
-                  <BellOff className="w-5 h-5" />
-                )}
+                {formData.isNotify ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
               </button>
               <div>
                 <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   {t('pcNotification')}
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {formData.isNotify
-                    ? t('notifyOnDescription')
-                    : t('notifyOffDescription')}
+                  {formData.isNotify ? t('notifyOnDescription') : t('notifyOffDescription')}
                 </p>
               </div>
             </div>

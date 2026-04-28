@@ -33,10 +33,7 @@ export function useHomeKeyboard({
 
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
@@ -45,9 +42,7 @@ export function useHomeKeyboard({
           case 'n': {
             e.preventDefault();
             const themeParam = themeFilter || defaultThemeId;
-            router.push(
-              `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
-            );
+            router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
             break;
           }
           case 'q':

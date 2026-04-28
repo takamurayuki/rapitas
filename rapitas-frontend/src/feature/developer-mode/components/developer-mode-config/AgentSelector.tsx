@@ -167,8 +167,7 @@ export function AgentSelector({
     filterByApiKey &&
     allAgents.some(
       (agent) =>
-        !CLI_AGENT_TYPES.includes(agent.agentType) &&
-        !agents.some((da) => da.id === agent.id),
+        !CLI_AGENT_TYPES.includes(agent.agentType) && !agents.some((da) => da.id === agent.id),
     );
 
   return (
@@ -230,9 +229,7 @@ export function AgentSelector({
             const TypeIcon = typeInfo.icon;
             return (
               <>
-                <TypeIcon
-                  className={`w-4 h-4 flex-shrink-0 ${typeInfo.color}`}
-                />
+                <TypeIcon className={`w-4 h-4 flex-shrink-0 ${typeInfo.color}`} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-violet-700 dark:text-violet-300 truncate">

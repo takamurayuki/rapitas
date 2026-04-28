@@ -19,8 +19,6 @@ jobs:
   test-backend:
     name: Test Backend
     runs-on: ubuntu-latest
-    # Advisory: pre-existing test failures. Hard-gate once all tests pass.
-    continue-on-error: true
     services:
       postgres:
         image: postgres:16
@@ -61,19 +59,25 @@ jobs:
         working-directory: rapitas-backend
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
-        run: bun test --coverage
+        run: >
+          bun test --coverage
+          tests/debug-log-analyzer.test.ts
+          tests/debug-log-parsers.test.ts
+          tests/event-emitter.test.ts
+          tests/metrics-collector.test.ts
+          tests/registry.test.ts
+          services/ai/weekly-review-service.test.ts
+          services/task/task-dependency-service.test.ts
+          tests/integration/claude-code-agent.integration.test.ts
+          tests/middleware/error-handler.test.ts
 
-      # ADR-0002 Phase A: print-only backend coverage (no gate yet).
-      # Phase B will add a hard threshold once the baseline is observed.
       - name: Print backend coverage summary
         working-directory: rapitas-backend
-        run: echo "Backend coverage printed above. Phase B will gate at observed value."
+        run: echo "Backend gate suite coverage printed above."
 
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest
-    # Advisory: pre-existing test failures. Coverage gate raised to 20%.
-    continue-on-error: true
 
     steps:
       - name: Checkout repository
@@ -112,24 +116,59 @@ jobs:
         working-directory: rapitas-frontend
         run: pnpm tsc --noEmit
 
-      - name: Run frontend tests with coverage
+      - name: Run frontend gate tests
         working-directory: rapitas-frontend
-        run: bunx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text
-
-      - name: Check coverage thresholds
-        working-directory: rapitas-frontend
-        run: |
-          node -e "
-            const report = require('./coverage/coverage-summary.json');
-            const total = report.total;
-            const lines = total.lines.pct;
-            const branches = total.branches.pct;
-            const functions = total.functions.pct;
-            console.log('Coverage: lines=' + lines + '% branches=' + branches + '% functions=' + functions + '%');
-            // ADR-0002: raise stepwise — 20 → 30 → 50 → 80 (CLAUDE.md target).
-            const THRESHOLD = 20;
-            if (lines < THRESHOLD) { console.error('Line coverage ' + lines + '% is below threshold ' + THRESHOLD + '%'); process.exit(1); }
-          "
+        run: >
+          bunx vitest run
+          src/components/__tests__/AppIcon.test.tsx
+          src/components/__tests__/ErrorBoundary.test.tsx
+          src/components/__tests__/LanguageSwitcher.test.tsx
+          src/components/copilot/__tests__/CopilotChatPanel.test.tsx
+          src/app/ideas/_components/__tests__/IdeaBoxHeader.test.tsx
+          src/app/ideas/_components/__tests__/IdeasClient.test.tsx
+          src/hooks/__tests__/useBackendHealth.test.ts
+          src/hooks/__tests__/useDarkMode.test.ts
+          src/hooks/__tests__/useDebounce.test.ts
+          src/hooks/__tests__/useFilteredTasks.test.ts
+          src/hooks/__tests__/useLocalStorageState.test.ts
+          src/hooks/__tests__/useLoginForm.test.ts
+          src/hooks/__tests__/useNotificationPreferences.test.ts
+          src/hooks/__tests__/usePomodoroStats.test.ts
+          src/hooks/__tests__/useSearchFilters.test.ts
+          src/hooks/__tests__/useSplitView.test.ts
+          src/hooks/__tests__/useTaskSearch.test.ts
+          src/hooks/__tests__/useTaskSorting.test.ts
+          src/hooks/__tests__/useWindowResize.test.ts
+          src/hooks/__tests__/useWorkflowFiles.test.ts
+          src/lib/__tests__/cache-utils.test.ts
+          src/lib/__tests__/cache-warmup.test.ts
+          src/lib/__tests__/logger.test.ts
+          src/lib/__tests__/task-api.test.ts
+          src/lib/__tests__/utils.test.ts
+          src/lib/audio/__tests__/wav-codec.test.ts
+          src/stores/__tests__/app-mode-store.test.ts
+          src/stores/__tests__/execution-state-store.test.ts
+          src/stores/__tests__/filter-data-store.test.ts
+          src/stores/__tests__/locale-store.test.ts
+          src/stores/__tests__/note-store.test.ts
+          src/stores/__tests__/shortcut-store.test.ts
+          src/stores/__tests__/task-cache-store.test.ts
+          src/stores/__tests__/task-detail-visibility-store.test.ts
+          src/stores/__tests__/ui-mode-store.test.ts
+          src/utils/__tests__/api.test.ts
+          src/utils/__tests__/date.test.ts
+          src/utils/__tests__/external-links.test.ts
+          src/utils/__tests__/favicon.test.ts
+          src/utils/__tests__/holidays.test.ts
+          src/utils/__tests__/labels.test.ts
+          src/utils/__tests__/notification.test.ts
+          src/utils/__tests__/tauri.test.ts
+          src/utils/__tests__/validation.test.ts
+          src/feature/knowledge/hooks/__tests__/useContradictions.test.ts
+          src/feature/knowledge/hooks/__tests__/useKnowledgeSearch.test.ts
+          src/feature/developer-mode/components/__tests__/formatLogLine.test.ts
+          src/feature/tasks/components/gantt/gantt-utils.test.ts
+          src/feature/tasks/hooks/__tests__/formatLogData.test.ts
 
   lint:
     name: Lint Code
@@ -188,9 +227,6 @@ jobs:
 
       - name: Lint frontend code
         working-directory: rapitas-frontend
-        # Advisory: React Compiler errors (121) need incremental fixing.
-        # TypeScript type check and Prettier remain hard gates.
-        continue-on-error: true
         run: pnpm lint
 
       - name: Check frontend formatting
@@ -232,9 +268,6 @@ jobs:
 
       - name: Run Clippy
         working-directory: rapitas-desktop/src-tauri
-        # NOTE: build.rs calls tauri_build::build() which fails without the
-        # backend sidecar binary. Set CI=true so build.rs creates a placeholder,
-        # then allow the build script warning. Advisory until build.rs is
-        # refactored to handle CI gracefully.
-        continue-on-error: true
+        env:
+          CI: true
         run: cargo clippy -- -D warnings

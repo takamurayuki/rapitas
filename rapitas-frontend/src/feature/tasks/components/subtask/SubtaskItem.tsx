@@ -13,15 +13,9 @@ import remarkBreaks from 'remark-breaks';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { Pencil, Check, X, Bot, CheckSquare, Square } from 'lucide-react';
-import {
-  SubtaskTitleIndicator,
-  type ParallelExecutionStatus,
-} from '../SubtaskExecutionStatus';
+import { SubtaskTitleIndicator, type ParallelExecutionStatus } from '../SubtaskExecutionStatus';
 
 interface SubtaskItemProps {
   subtask: Task;
@@ -47,12 +41,7 @@ interface SubtaskItemProps {
 /** SVG trash icon shared between active and completed rows. */
 function TrashIcon() {
   return (
-    <svg
-      className="w-3.5 h-3.5"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -108,10 +97,7 @@ export default function SubtaskItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1">
             {isSelectionMode && (
-              <button
-                onClick={() => onToggleSelect(subtask.id)}
-                className="shrink-0"
-              >
+              <button onClick={() => onToggleSelect(subtask.id)} className="shrink-0">
                 {isSelected ? (
                   <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 ) : (
@@ -120,10 +106,7 @@ export default function SubtaskItem({
               </button>
             )}
             {isParallelExecutionRunning && (
-              <SubtaskTitleIndicator
-                executionStatus={executionStatus}
-                size="sm"
-              />
+              <SubtaskTitleIndicator executionStatus={executionStatus} size="sm" />
             )}
             <h4 className="text-base font-medium text-zinc-900 dark:text-zinc-50 line-through">
               {subtask.title}
@@ -175,9 +158,7 @@ export default function SubtaskItem({
 
   // Active subtask card
   return (
-    <div
-      className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-4 ${selectionBorder}`}
-    >
+    <div className={`rounded-lg border bg-zinc-50 dark:bg-indigo-dark-800 p-4 ${selectionBorder}`}>
       {isSelectionMode && (
         <div className="flex items-center mb-3">
           <button
@@ -235,10 +216,7 @@ export default function SubtaskItem({
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 {isParallelExecutionRunning && (
-                  <SubtaskTitleIndicator
-                    executionStatus={executionStatus}
-                    size="md"
-                  />
+                  <SubtaskTitleIndicator executionStatus={executionStatus} size="md" />
                 )}
                 <h4 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
                   {subtask.title}
@@ -269,9 +247,7 @@ export default function SubtaskItem({
                     currentStatus={subtask.status}
                     config={config}
                     renderIcon={renderStatusIcon}
-                    onClick={(newStatus) =>
-                      onStatusUpdate(subtask.id, newStatus)
-                    }
+                    onClick={(newStatus) => onStatusUpdate(subtask.id, newStatus)}
                     size="sm"
                   />
                 );

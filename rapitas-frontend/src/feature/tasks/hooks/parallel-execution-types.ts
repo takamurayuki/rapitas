@@ -92,9 +92,7 @@ export interface UseParallelExecutionStatusReturn {
   /** Get subtask execution status */
   getSubtaskStatus: (subtaskId: number) => ParallelExecutionStatus | undefined;
   /** Start session */
-  startSession: (config?: {
-    maxConcurrentAgents?: number;
-  }) => Promise<string | null>;
+  startSession: (config?: { maxConcurrentAgents?: number }) => Promise<string | null>;
   /** Stop session */
   stopSession: () => Promise<void>;
   /** Update status (manual) */

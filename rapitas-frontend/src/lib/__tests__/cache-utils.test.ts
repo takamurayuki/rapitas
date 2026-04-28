@@ -20,9 +20,7 @@ vi.mock('@/lib/logger', () => ({
 describe('enableCompressionHeaders', () => {
   it('adds Accept-Encoding header', () => {
     const headers = enableCompressionHeaders();
-    expect(headers).toEqual(
-      expect.objectContaining({ 'Accept-Encoding': 'gzip, deflate, br' }),
-    );
+    expect(headers).toEqual(expect.objectContaining({ 'Accept-Encoding': 'gzip, deflate, br' }));
   });
 
   it('preserves existing headers', () => {
@@ -41,17 +39,13 @@ describe('enableCompressionHeaders', () => {
 describe('enableConnectionPooling', () => {
   it('adds Connection header', () => {
     const headers = enableConnectionPooling();
-    expect(headers).toEqual(
-      expect.objectContaining({ Connection: 'keep-alive' }),
-    );
+    expect(headers).toEqual(expect.objectContaining({ Connection: 'keep-alive' }));
   });
 });
 
 describe('requestPartialFields', () => {
   it('builds fields query string', () => {
-    expect(requestPartialFields(['id', 'name', 'status'])).toBe(
-      '?fields=id,name,status',
-    );
+    expect(requestPartialFields(['id', 'name', 'status'])).toBe('?fields=id,name,status');
   });
 
   it('handles single field', () => {
@@ -61,9 +55,7 @@ describe('requestPartialFields', () => {
 
 describe('addCacheVersion', () => {
   it('adds version param to URL without query', () => {
-    expect(addCacheVersion('https://api.com/data')).toBe(
-      'https://api.com/data?v=1.0',
-    );
+    expect(addCacheVersion('https://api.com/data')).toBe('https://api.com/data?v=1.0');
   });
 
   it('adds version param to URL with existing query', () => {
@@ -73,9 +65,7 @@ describe('addCacheVersion', () => {
   });
 
   it('uses custom version', () => {
-    expect(addCacheVersion('https://api.com/data', '2.5')).toBe(
-      'https://api.com/data?v=2.5',
-    );
+    expect(addCacheVersion('https://api.com/data', '2.5')).toBe('https://api.com/data?v=2.5');
   });
 });
 
@@ -126,13 +116,9 @@ describe('CacheManager', () => {
     });
 
     it('throws on HTTP error without cache', async () => {
-      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-        new Response('Error', { status: 500 }),
-      );
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('Error', { status: 500 }));
 
-      await expect(
-        cacheManager.fetchWithETag('https://api.com/data'),
-      ).rejects.toThrow(/500/);
+      await expect(cacheManager.fetchWithETag('https://api.com/data')).rejects.toThrow(/500/);
     });
   });
 

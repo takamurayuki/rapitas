@@ -28,9 +28,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
         }`}
       >
         {isUser ? (
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">
-            {message.content}
-          </p>
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
         ) : (
           <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown
@@ -157,9 +155,7 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                   </div>
                 ),
                 thead: ({ children }) => (
-                  <thead className="bg-zinc-100 dark:bg-zinc-800">
-                    {children}
-                  </thead>
+                  <thead className="bg-zinc-100 dark:bg-zinc-800">{children}</thead>
                 ),
                 tbody: ({ children }) => (
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -173,13 +169,9 @@ export default function ChatMessage({ message }: { message: AIChatMessage }) {
                   </th>
                 ),
                 td: ({ children }) => (
-                  <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">
-                    {children}
-                  </td>
+                  <td className="px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300">{children}</td>
                 ),
-                hr: () => (
-                  <hr className="my-4 border-zinc-300 dark:border-zinc-600" />
-                ),
+                hr: () => <hr className="my-4 border-zinc-300 dark:border-zinc-600" />,
                 a: ({ href, children }) => (
                   <a
                     href={href}

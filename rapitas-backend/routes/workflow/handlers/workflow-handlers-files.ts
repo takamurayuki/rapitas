@@ -6,11 +6,9 @@
  * Not responsible for route registration, status updates, or complexity analysis.
  */
 
-import { mkdir, writeFile } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
-import { sanitizeMarkdownContent } from '../../../utils/common/mojibake-detector';
 import { createLogger } from '../../../config/logger';
 import { recordWorkflowCompletion } from '../../../services/workflow/learning/workflow-learning-optimizer';
 import { extractKnowledgeFromTask } from '../../../services/memory/task-knowledge-extractor';
@@ -20,6 +18,7 @@ import {
   resolveWorkflowDir,
   getFileInfo,
 } from '../core/workflow-helpers';
+import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -118,19 +117,10 @@ export async function handleSaveFile({
     }
     const fileLanguage = (parsedBody?.language === 'en' ? 'en' : 'ja') as 'ja' | 'en';
 
-    await mkdir(dir, { recursive: true });
-
-    // Mojibake detection and sanitization
-    const sanitizeResult = sanitizeMarkdownContent(parsedBody.content);
-    if (sanitizeResult.wasFixed) {
-      log.info(
-        { issues: sanitizeResult.issues },
-        `[Workflow API] Fixed mojibake in ${fileType}.md for task ${taskId}`,
-      );
-    }
-
-    const filePath = join(dir, `${fileType}.md`);
-    await writeFile(filePath, sanitizeResult.content, 'utf-8');
+    // Delegate to writeWorkflowFile so the previous version is archived to
+    // `_archive/<ts>/` and a `WorkflowFile` metadata row is upserted. Mojibake
+    // sanitisation runs inside writeWorkflowFile.
+    const savedContent = await writeWorkflowFile(dir, fileType, parsedBody.content, taskId);
 
     // Auto-update workflowStatus
     let newStatus: string | undefined;
@@ -161,13 +151,13 @@ export async function handleSaveFile({
       try {
         const { analyzePlanForSplitting, createSubtasksFromPlan } =
           await import('../../../services/workflow/subtask-splitter');
-        const analysis = analyzePlanForSplitting(sanitizeResult.content);
+        const analysis = analyzePlanForSplitting(parsedBody.content);
         if (analysis.shouldSplit) {
           log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
           // Load research.md for context inheritance
           let researchContent: string | undefined;
           try {
-            const researchPath = join(dirname(filePath), 'research.md');
+            const researchPath = join(dir, 'research.md');
             const { readFile: rf } = await import('fs/promises');
             researchContent = await rf(researchPath, 'utf-8');
           } catch {
@@ -197,7 +187,7 @@ export async function handleSaveFile({
     // Auto commit and PR creation when saving verify.md
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     if (fileType === 'verify' && newStatus === 'completed') {
-      autoCommitPRResult = await performAutoCommitAndPR(taskId, sanitizeResult.content);
+      autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent);
 
       // Collect workflow learning data asynchronously (fire-and-forget)
       recordWorkflowCompletion(taskId).catch((err) => {
@@ -212,7 +202,7 @@ export async function handleSaveFile({
       // Extract improvement ideas for IdeaBox (async, Ollama-first)
       import('../../../services/memory/idea-extractor')
         .then(({ extractIdeasFromExecutionLog }) => {
-          extractIdeasFromExecutionLog(taskId, sanitizeResult.content).catch((err) => {
+          extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
             log.error({ err, taskId }, 'Failed to extract ideas from task');
           });
         })
@@ -239,7 +229,7 @@ export async function handleSaveFile({
     const response: Record<string, unknown> = {
       success: true,
       fileType,
-      path: filePath,
+      path: join(dir, `${fileType}.md`),
       workflowStatus: newStatus || currentStatus,
       autoApproved,
     };

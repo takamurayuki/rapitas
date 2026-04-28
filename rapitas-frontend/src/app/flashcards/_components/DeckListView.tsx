@@ -42,12 +42,8 @@ export function DeckListView({
         <div className="flex items-center gap-3">
           <Brain className="w-8 h-8 text-blue-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
         <button
@@ -87,9 +83,7 @@ export function DeckListView({
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-              {deck.name}
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50 mb-1">{deck.name}</h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {deck._count?.cards || 0} {t('cardsUnit')}
             </p>

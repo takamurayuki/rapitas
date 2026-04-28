@@ -94,9 +94,7 @@ describe('filterDataStore', () => {
 
   describe('shouldBackgroundRefresh', () => {
     it('should return false when lastUpdated is null', () => {
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
-        false,
-      );
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
     });
 
     it('should return false when isLoading is true', () => {
@@ -104,24 +102,18 @@ describe('filterDataStore', () => {
         lastUpdated: Date.now() - 50 * 60 * 1000,
         isLoading: true,
       });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
-        false,
-      );
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
     });
 
     it('should return true when age exceeds 80% of cache time', () => {
       // 80% of 1 hour = 48 minutes
       useFilterDataStore.setState({ lastUpdated: Date.now() - 50 * 60 * 1000 });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
-        true,
-      );
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(true);
     });
 
     it('should return false when age is below 80% of cache time', () => {
       useFilterDataStore.setState({ lastUpdated: Date.now() - 10 * 60 * 1000 });
-      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(
-        false,
-      );
+      expect(useFilterDataStore.getState().shouldBackgroundRefresh()).toBe(false);
     });
   });
 
@@ -152,9 +144,7 @@ describe('filterDataStore', () => {
     it('should fetch categories and themes on initialization', async () => {
       const mockCategories = [{ id: 1, name: 'Cat1' }];
       const mockThemes = [{ id: 1, name: 'Theme1' }];
-      vi.mocked(apiFetch)
-        .mockResolvedValueOnce(mockCategories)
-        .mockResolvedValueOnce(mockThemes);
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockCategories).mockResolvedValueOnce(mockThemes);
 
       await useFilterDataStore.getState().initializeData();
 
@@ -191,9 +181,7 @@ describe('filterDataStore', () => {
     it('should clear api cache and re-initialize when forced', async () => {
       const mockCategories = [{ id: 1, name: 'Cat1' }];
       const mockThemes = [{ id: 1, name: 'Theme1' }];
-      vi.mocked(apiFetch)
-        .mockResolvedValueOnce(mockCategories)
-        .mockResolvedValueOnce(mockThemes);
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockCategories).mockResolvedValueOnce(mockThemes);
 
       useFilterDataStore.setState({
         isInitialized: true,

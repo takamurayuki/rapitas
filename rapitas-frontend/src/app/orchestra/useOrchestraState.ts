@@ -18,9 +18,7 @@ export function useOrchestraState() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [availableTasks, setAvailableTasks] = useState<AvailableTask[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
-  const [expandedSections, setExpandedSections] = useState<
-    Record<string, boolean>
-  >({
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     running: true,
     queued: true,
     waitingApproval: true,
@@ -50,10 +48,7 @@ export function useOrchestraState() {
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 5;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    const pollInterval: ReturnType<typeof setInterval> = setInterval(
-      fetchState,
-      10000,
-    );
+    const pollInterval: ReturnType<typeof setInterval> = setInterval(fetchState, 10000);
 
     const connectSSE = () => {
       const es = new EventSource(`${API_BASE_URL}/workflow/orchestra/events`);
@@ -69,10 +64,7 @@ export function useOrchestraState() {
           if (data.state) {
             setState(data.state);
           }
-          if (
-            data.type === 'item_update' ||
-            data.type?.startsWith('orchestra_')
-          ) {
+          if (data.type === 'item_update' || data.type?.startsWith('orchestra_')) {
             fetchState();
           }
         } catch {
@@ -85,10 +77,7 @@ export function useOrchestraState() {
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++;
           // NOTE: Exponential backoff capped at 10 seconds to avoid long gaps
-          const delay = Math.min(
-            1000 * Math.pow(2, reconnectAttempts - 1),
-            10000,
-          );
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
           reconnectTimer = setTimeout(() => {
             connectSSE();
           }, delay);
@@ -182,9 +171,7 @@ export function useOrchestraState() {
 
   const fetchAvailableTasks = async () => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks?status=todo,in-progress&limit=50`,
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks?status=todo,in-progress&limit=50`);
       if (res.ok) {
         const data = await res.json();
         setAvailableTasks(Array.isArray(data) ? data : data.tasks || []);

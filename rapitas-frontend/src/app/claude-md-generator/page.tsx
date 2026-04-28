@@ -15,22 +15,10 @@ export default function ClaudeMdGeneratorPage() {
   const w = useWizard();
 
   if (w.phase === 'intro')
-    return (
-      <IntroPhase
-        topRef={w.topRef}
-        t={w.t}
-        onStart={() => w.setPhase('genre')}
-      />
-    );
+    return <IntroPhase topRef={w.topRef} t={w.t} onStart={() => w.setPhase('genre')} />;
 
   if (w.phase === 'genre')
-    return (
-      <GenrePhase
-        topRef={w.topRef}
-        t={w.t}
-        onSelectGenre={w.handleSelectGenre}
-      />
-    );
+    return <GenrePhase topRef={w.topRef} t={w.t} onSelectGenre={w.handleSelectGenre} />;
 
   if (w.phase === 'sub')
     return (

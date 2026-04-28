@@ -67,10 +67,8 @@ export default function ReportsPage() {
   };
 
   const getTrend = (value: number) => {
-    if (value > 0)
-      return { icon: TrendingUp, color: 'text-emerald-500', text: `+${value}` };
-    if (value < 0)
-      return { icon: TrendingDown, color: 'text-red-500', text: `${value}` };
+    if (value > 0) return { icon: TrendingUp, color: 'text-emerald-500', text: `+${value}` };
+    if (value < 0) return { icon: TrendingDown, color: 'text-red-500', text: `${value}` };
     return { icon: Minus, color: 'text-zinc-400', text: '±0' };
   };
 
@@ -105,9 +103,7 @@ export default function ReportsPage() {
         <div className="flex items-center gap-3">
           <FileText className="w-8 h-8 text-indigo-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {new Date(report.period.start).toLocaleDateString(dateLocale)} 〜{' '}
               {new Date(report.period.end).toLocaleDateString(dateLocale)}
@@ -130,9 +126,7 @@ export default function ReportsPage() {
               <CheckCircle2 className="w-5 h-5" />
               <span className="text-sm">{t('completedTasks')}</span>
             </div>
-            <div
-              className={`flex items-center gap-1 text-sm ${tasksTrend.color}`}
-            >
+            <div className={`flex items-center gap-1 text-sm ${tasksTrend.color}`}>
               <tasksTrend.icon className="w-4 h-4" />
               <span>{tasksTrend.text}</span>
             </div>
@@ -140,9 +134,7 @@ export default function ReportsPage() {
           <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
             {report.summary.tasksCompleted}
           </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            {t('weekOverWeek')}
-          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{t('weekOverWeek')}</p>
         </div>
 
         <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
@@ -151,9 +143,7 @@ export default function ReportsPage() {
               <Clock className="w-5 h-5" />
               <span className="text-sm">{t('studyHours')}</span>
             </div>
-            <div
-              className={`flex items-center gap-1 text-sm ${hoursTrend.color}`}
-            >
+            <div className={`flex items-center gap-1 text-sm ${hoursTrend.color}`}>
               <hoursTrend.icon className="w-4 h-4" />
               <span>{hoursTrend.text}h</span>
             </div>
@@ -161,9 +151,7 @@ export default function ReportsPage() {
           <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
             {report.summary.studyHours}h
           </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-            {t('weekOverWeek')}
-          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{t('weekOverWeek')}</p>
         </div>
       </div>
 
@@ -175,15 +163,10 @@ export default function ReportsPage() {
 
         <div className="space-y-6">
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-              {t('taskCount')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('taskCount')}</p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div
-                  key={day.date}
-                  className="flex-1 flex flex-col items-center"
-                >
+                <div key={day.date} className="flex-1 flex flex-col items-center">
                   <div
                     className="w-full bg-indigo-500 rounded-t transition-all"
                     style={{
@@ -202,15 +185,10 @@ export default function ReportsPage() {
           </div>
 
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">
-              {t('studyHours')}
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-2">{t('studyHours')}</p>
             <div className="flex items-end gap-2 h-24">
               {report.dailyData.map((day) => (
-                <div
-                  key={day.date}
-                  className="flex-1 flex flex-col items-center"
-                >
+                <div key={day.date} className="flex-1 flex flex-col items-center">
                   <div
                     className="w-full bg-emerald-500 rounded-t transition-all"
                     style={{
@@ -218,9 +196,7 @@ export default function ReportsPage() {
                       minHeight: day.hours > 0 ? '4px' : '0',
                     }}
                   />
-                  <span className="text-xs text-zinc-400 mt-1">
-                    {day.hours.toFixed(1)}h
-                  </span>
+                  <span className="text-xs text-zinc-400 mt-1">{day.hours.toFixed(1)}h</span>
                 </div>
               ))}
             </div>
@@ -241,10 +217,7 @@ export default function ReportsPage() {
           </h2>
           <div className="space-y-3">
             {report.subjectBreakdown.map((item) => {
-              const total = report.subjectBreakdown.reduce(
-                (sum, i) => sum + i.count,
-                0,
-              );
+              const total = report.subjectBreakdown.reduce((sum, i) => sum + i.count, 0);
               const percentage = Math.round((item.count / total) * 100);
 
               return (

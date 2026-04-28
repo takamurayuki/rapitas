@@ -1,15 +1,7 @@
 'use client';
 // ai-analysis-panel/ApiKeySetupPrompt.tsx
 
-import {
-  Key,
-  Eye,
-  EyeOff,
-  ExternalLink,
-  Loader2,
-  Save,
-  AlertCircle,
-} from 'lucide-react';
+import { Key, Eye, EyeOff, ExternalLink, Loader2, Save, AlertCircle } from 'lucide-react';
 
 type Props = {
   apiKeyInput: string;
@@ -69,11 +61,7 @@ export function ApiKeySetupPrompt({
               onClick={onToggleShowApiKey}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
-              {showApiKey ? (
-                <EyeOff className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
+              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
           <div className="flex items-center justify-between">

@@ -59,9 +59,7 @@ export default function ThemesPage() {
               <SwatchBook className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               {t('title')}
             </h1>
-            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
+            <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
           {!isAdding && (
             <button
@@ -69,8 +67,7 @@ export default function ThemesPage() {
                 setFormData({
                   ...defaultFormData,
                   categoryId:
-                    selectedCategoryId ??
-                    (categories.length > 0 ? categories[0].id : null),
+                    selectedCategoryId ?? (categories.length > 0 ? categories[0].id : null),
                 });
                 setIsAdding(true);
               }}
@@ -160,9 +157,7 @@ export default function ThemesPage() {
               onEdit={startEdit}
               onDelete={handleDelete}
               onSetDefault={setDefault}
-              onSave={(itemId) =>
-                itemId !== undefined ? handleUpdate(itemId) : handleAdd()
-              }
+              onSave={(itemId) => (itemId !== undefined ? handleUpdate(itemId) : handleAdd())}
               onCancel={cancelEdit}
               onCheckDirectory={checkDirectory}
               onFetchBranches={fetchBranches}

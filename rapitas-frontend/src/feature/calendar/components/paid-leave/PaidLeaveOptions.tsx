@@ -68,9 +68,7 @@ export function PaidLeaveOptions({
         <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
           {/* Inline color picker */}
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">
-              カラー
-            </span>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 w-10 shrink-0">カラー</span>
             <div className="flex gap-1.5">
               {COLOR_OPTIONS.map((c) => (
                 <button
@@ -85,9 +83,7 @@ export function PaidLeaveOptions({
                   }`}
                   style={{
                     backgroundColor: c.value,
-                    ...(color === c.value
-                      ? { ['--tw-ring-color' as string]: c.value }
-                      : {}),
+                    ...(color === c.value ? { ['--tw-ring-color' as string]: c.value } : {}),
                   }}
                 />
               ))}

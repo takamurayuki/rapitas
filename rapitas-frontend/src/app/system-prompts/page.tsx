@@ -160,9 +160,7 @@ export default function SystemPromptsPage() {
               <MessageSquare className="w-7 h-7 text-indigo-500" />
               {t('systemPromptManagement')}
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              {t('systemPromptSubtitle')}
-            </p>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('systemPromptSubtitle')}</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -220,51 +218,46 @@ export default function SystemPromptsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.entries(groupedPrompts).map(
-              ([category, categoryPrompts]) => {
-                const categoryInfo = CATEGORY_LABELS[category] || {
-                  labelKey: category,
-                  color:
-                    'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
-                };
+            {Object.entries(groupedPrompts).map(([category, categoryPrompts]) => {
+              const categoryInfo = CATEGORY_LABELS[category] || {
+                labelKey: category,
+                color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
+              };
 
-                return (
-                  <div key={category}>
-                    <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}
-                      >
-                        {t(categoryInfo.labelKey)}
-                      </span>
-                      <span className="text-zinc-400 dark:text-zinc-600">
-                        ({categoryPrompts.length})
-                      </span>
-                    </h2>
-                    <div className="space-y-3">
-                      {categoryPrompts.map((prompt) => (
-                        <PromptCard
-                          key={prompt.key}
-                          prompt={prompt}
-                          isExpanded={expandedKeys.has(prompt.key)}
-                          isEditing={editingPrompt?.key === prompt.key}
-                          onToggleExpand={() => toggleExpand(prompt.key)}
-                          onEdit={() => setEditingPrompt(prompt)}
-                          onCancelEdit={() => setEditingPrompt(null)}
-                          onSave={(updates) => handleSave(prompt.key, updates)}
-                          onReset={() => handleReset(prompt.key)}
-                          onDelete={() => handleDelete(prompt.key)}
-                          onToggleActive={() =>
-                            handleSave(prompt.key, {
-                              isActive: !prompt.isActive,
-                            })
-                          }
-                        />
-                      ))}
-                    </div>
+              return (
+                <div key={category}>
+                  <h2 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded text-xs ${categoryInfo.color}`}>
+                      {t(categoryInfo.labelKey)}
+                    </span>
+                    <span className="text-zinc-400 dark:text-zinc-600">
+                      ({categoryPrompts.length})
+                    </span>
+                  </h2>
+                  <div className="space-y-3">
+                    {categoryPrompts.map((prompt) => (
+                      <PromptCard
+                        key={prompt.key}
+                        prompt={prompt}
+                        isExpanded={expandedKeys.has(prompt.key)}
+                        isEditing={editingPrompt?.key === prompt.key}
+                        onToggleExpand={() => toggleExpand(prompt.key)}
+                        onEdit={() => setEditingPrompt(prompt)}
+                        onCancelEdit={() => setEditingPrompt(null)}
+                        onSave={(updates) => handleSave(prompt.key, updates)}
+                        onReset={() => handleReset(prompt.key)}
+                        onDelete={() => handleDelete(prompt.key)}
+                        onToggleActive={() =>
+                          handleSave(prompt.key, {
+                            isActive: !prompt.isActive,
+                          })
+                        }
+                      />
+                    ))}
                   </div>
-                );
-              },
-            )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

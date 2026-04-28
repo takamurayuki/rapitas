@@ -29,9 +29,7 @@ export function useFilteredTasks({
   // Compute set of theme IDs belonging to selected category
   const categoryThemeIds = useMemo(() => {
     if (categoryFilter === null) return null;
-    return new Set(
-      themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id),
-    );
+    return new Set(themes.filter((t) => t.categoryId === categoryFilter).map((t) => t.id));
   }, [categoryFilter, themes]);
 
   // Centralize filtering logic in single location
@@ -53,19 +51,11 @@ export function useFilteredTasks({
         themeFilter !== null || // Skip category filter when theme is selected
         categoryThemeIds === null ||
         (t.themeId && categoryThemeIds.has(t.themeId));
-      const priorityMatch =
-        priorityFilter === null || t.priority === priorityFilter;
-      const searchMatch =
-        !searchQuery ||
-        t.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const priorityMatch = priorityFilter === null || t.priority === priorityFilter;
+      const searchMatch = !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase());
 
       // Check if all conditions match
-      const matches =
-        statusMatch &&
-        themeMatch &&
-        categoryMatch &&
-        priorityMatch &&
-        searchMatch;
+      const matches = statusMatch && themeMatch && categoryMatch && priorityMatch && searchMatch;
 
       // Update counts (theme and category conditions always apply)
       if (themeMatch && categoryMatch && priorityMatch && searchMatch) {
@@ -79,24 +69,12 @@ export function useFilteredTasks({
     });
 
     return { filteredTasks: filtered, statusCounts: counts };
-  }, [
-    tasks,
-    filter,
-    categoryFilter,
-    themeFilter,
-    priorityFilter,
-    searchQuery,
-    categoryThemeIds,
-  ]);
+  }, [tasks, filter, categoryFilter, themeFilter, priorityFilter, searchQuery, categoryThemeIds]);
 
   // Count today's tasks (filtered by selected theme)
   const todayTasksCounts = useMemo(() => {
     // Don't count today's tasks if category has no themes
-    if (
-      categoryFilter !== null &&
-      categoryThemeIds &&
-      categoryThemeIds.size === 0
-    ) {
+    if (categoryFilter !== null && categoryThemeIds && categoryThemeIds.size === 0) {
       return { total: 0, completed: 0 };
     }
 
@@ -108,10 +86,7 @@ export function useFilteredTasks({
       // When theme filter is set, only count tasks from that theme
       if (themeFilter !== null && t.themeId !== themeFilter) return false;
       // When category filter is set, only count tasks from themes in that category
-      if (
-        categoryThemeIds !== null &&
-        (!t.themeId || !categoryThemeIds.has(t.themeId))
-      )
+      if (categoryThemeIds !== null && (!t.themeId || !categoryThemeIds.has(t.themeId)))
         return false;
       // Filter to only tasks created today (createdAt is today's date)
       const taskDate = new Date(t.createdAt);

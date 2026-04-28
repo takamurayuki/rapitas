@@ -18,20 +18,12 @@ export function ScoreRing({ score, label }: ScoreRingProps) {
   const r = 52;
   const circ = 2 * Math.PI * r;
   const fill = circ * (1 - score / 100);
-  const col =
-    score >= 90 ? 'var(--green)' : score >= 75 ? 'var(--amber)' : 'var(--red)';
+  const col = score >= 90 ? 'var(--green)' : score >= 75 ? 'var(--amber)' : 'var(--red)';
 
   return (
     <div style={{ textAlign: 'center', marginBottom: 24 }}>
       <svg width={124} height={124} viewBox="0 0 124 124">
-        <circle
-          cx={62}
-          cy={62}
-          r={r}
-          fill="none"
-          stroke="var(--s3)"
-          strokeWidth={9}
-        />
+        <circle cx={62} cy={62} r={r} fill="none" stroke="var(--s3)" strokeWidth={9} />
         <circle
           cx={62}
           cy={62}

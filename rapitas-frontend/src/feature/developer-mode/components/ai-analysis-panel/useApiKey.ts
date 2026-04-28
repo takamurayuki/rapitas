@@ -87,9 +87,7 @@ export function useApiKey(): UseApiKeyReturn {
         throw new Error('保存に失敗しました');
       }
     } catch (err) {
-      setApiKeyError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setApiKeyError(err instanceof Error ? err.message : 'Errorが発生しました');
     } finally {
       setIsSavingApiKey(false);
     }
@@ -116,9 +114,7 @@ export function useApiKey(): UseApiKeyReturn {
         throw new Error('削除に失敗しました');
       }
     } catch (err) {
-      setApiKeyError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setApiKeyError(err instanceof Error ? err.message : 'Errorが発生しました');
     } finally {
       setIsSavingApiKey(false);
     }

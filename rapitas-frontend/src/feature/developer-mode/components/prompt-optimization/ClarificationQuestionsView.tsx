@@ -3,10 +3,7 @@
 
 import { Loader2, MessageSquare, HelpCircle, Send } from 'lucide-react';
 import type { PromptClarificationQuestion } from './prompt-optimization-types';
-import {
-  getCategoryLabel,
-  getCategoryColor,
-} from './prompt-optimization-types';
+import { getCategoryLabel, getCategoryColor } from './prompt-optimization-types';
 
 type Props = {
   questions: PromptClarificationQuestion[];
@@ -42,9 +39,7 @@ export function ClarificationQuestionsView({
             <HelpCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              追加情報が必要です
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">追加情報が必要です</h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
               より良いプロンプトを生成するために、以下の質問に回答してください
             </p>
@@ -62,12 +57,8 @@ export function ClarificationQuestionsView({
                   <span className="font-medium text-zinc-900 dark:text-zinc-50 text-sm">
                     {q.question}
                   </span>
-                  {q.isRequired && (
-                    <span className="text-xs text-red-500">*必須</span>
-                  )}
-                  <span
-                    className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}
-                  >
+                  {q.isRequired && <span className="text-xs text-red-500">*必須</span>}
+                  <span className={`px-1.5 py-0.5 text-xs rounded ${getCategoryColor(q.category)}`}>
                     {getCategoryLabel(q.category)}
                   </span>
                 </div>

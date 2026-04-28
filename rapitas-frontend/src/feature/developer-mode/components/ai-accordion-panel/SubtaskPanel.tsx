@@ -68,9 +68,7 @@ export function SubtaskPanel({
         className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 rounded-lg"
       >
         <AlertCircle className="w-3.5 h-3.5 text-red-500" />
-        <span className="text-xs text-red-600 dark:text-red-400">
-          {analysisError}
-        </span>
+        <span className="text-xs text-red-600 dark:text-red-400">{analysisError}</span>
       </div>
     );
   }
@@ -148,11 +146,7 @@ export function SubtaskPanel({
                         ) : (
                           <ChevronDown className="w-2.5 h-2.5" />
                         )}
-                        {st.priority === 'high'
-                          ? '高'
-                          : st.priority === 'medium'
-                            ? '中'
-                            : '低'}
+                        {st.priority === 'high' ? '高' : st.priority === 'medium' ? '中' : '低'}
                       </span>
                     </div>
                   </div>
@@ -161,9 +155,7 @@ export function SubtaskPanel({
             </div>
             {analysisApprovalId && !subtaskCreationSuccess && (
               <div className="flex items-center justify-end gap-2 pt-1">
-                <span className="text-[10px] text-zinc-500">
-                  {selectedSubtasks.length}件選択
-                </span>
+                <span className="text-[10px] text-zinc-500">{selectedSubtasks.length}件選択</span>
                 <button
                   onClick={onApproveSubtasks}
                   disabled={isCreatingSubtasks}

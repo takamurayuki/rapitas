@@ -136,9 +136,7 @@ export default function NoteHoverSidebar() {
       {/* Sidebar body */}
       <div
         className={`h-full bg-white dark:bg-zinc-900 shadow-2xl transition-all duration-300 ${
-          isExpanded
-            ? 'translate-x-0 opacity-100'
-            : '-translate-x-full opacity-0'
+          isExpanded ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
         }`}
       >
         <div className="flex flex-col h-full">
@@ -230,9 +228,7 @@ export default function NoteHoverSidebar() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1 mb-1">
-                          {note.isPinned && (
-                            <Pin className="w-3 h-3 text-yellow-500 shrink-0" />
-                          )}
+                          {note.isPinned && <Pin className="w-3 h-3 text-yellow-500 shrink-0" />}
                           <h4 className="font-medium text-sm truncate text-zinc-900 dark:text-zinc-100">
                             {note.title}
                           </h4>

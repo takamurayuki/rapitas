@@ -26,9 +26,7 @@ export default function PullRequestsClient() {
 
   const [prs, setPrs] = useState<GitHubPullRequest[]>([]);
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
-  const [selectedIntegration, setSelectedIntegration] = useState<string>(
-    integrationId || '',
-  );
+  const [selectedIntegration, setSelectedIntegration] = useState<string>(integrationId || '');
   const [stateFilter, setStateFilter] = useState<string>('open');
   const [loading, setLoading] = useState(true);
 
@@ -89,8 +87,7 @@ export default function PullRequestsClient() {
   const getStateBadge = (state: string) => {
     const styles = {
       open: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-      merged:
-        'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+      merged: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
       closed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     };
     return styles[state as keyof typeof styles] || styles.open;
@@ -107,12 +104,8 @@ export default function PullRequestsClient() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              Pull Requests
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-              {t('prsSubtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Pull Requests</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">{t('prsSubtitle')}</p>
           </div>
         </div>
 
@@ -157,19 +150,14 @@ export default function PullRequestsClient() {
         {loading ? (
           <div className="space-y-3 py-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse"
-              />
+              <div key={i} className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
             ))}
           </div>
         ) : prs.length === 0 ? (
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <GitPullRequest className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
-              {selectedIntegration
-                ? t('noPullRequests')
-                : t('selectRepositoryPrompt')}
+              {selectedIntegration ? t('noPullRequests') : t('selectRepositoryPrompt')}
             </p>
           </div>
         ) : (
@@ -208,19 +196,13 @@ export default function PullRequestsClient() {
                   </div>
                   <div className="flex items-center gap-3 text-sm text-zinc-400">
                     {pr._count?.reviews ? (
-                      <div
-                        className="flex items-center gap-1"
-                        title={t('reviewCount')}
-                      >
+                      <div className="flex items-center gap-1" title={t('reviewCount')}>
                         <Eye className="w-4 h-4" />
                         <span>{pr._count.reviews}</span>
                       </div>
                     ) : null}
                     {pr._count?.comments ? (
-                      <div
-                        className="flex items-center gap-1"
-                        title={t('commentCount')}
-                      >
+                      <div className="flex items-center gap-1" title={t('commentCount')}>
                         <MessageSquare className="w-4 h-4" />
                         <span>{pr._count.comments}</span>
                       </div>

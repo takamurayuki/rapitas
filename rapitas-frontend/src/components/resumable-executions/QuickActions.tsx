@@ -168,8 +168,7 @@ export function QuickActions({
                         <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
                           {exec.taskTitle || `${t('taskPrefix')}${exec.taskId}`}
                         </span>
-                        {(exec.status === 'running' ||
-                          exec.status === 'waiting_for_input') && (
+                        {(exec.status === 'running' || exec.status === 'waiting_for_input') && (
                           <span className="shrink-0 flex items-center gap-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] font-medium rounded">
                             <SpinnerIcon className="w-2.5 h-2.5 animate-spin" />
                           </span>

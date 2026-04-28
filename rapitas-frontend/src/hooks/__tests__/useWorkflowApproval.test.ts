@@ -11,8 +11,7 @@ describe('useWorkflowApproval', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () =>
-          Promise.resolve({ success: true, workflowStatus: 'plan_approved' }),
+        json: () => Promise.resolve({ success: true, workflowStatus: 'plan_approved' }),
       }),
     );
   });
@@ -54,8 +53,7 @@ describe('useWorkflowApproval', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () =>
-          Promise.resolve({ success: true, workflowStatus: 'plan_created' }),
+        json: () => Promise.resolve({ success: true, workflowStatus: 'plan_created' }),
       }),
     );
 
@@ -117,10 +115,7 @@ describe('useWorkflowApproval', () => {
   });
 
   it('should handle network error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('Network failure')),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network failure')));
 
     const { result } = renderHook(() => useWorkflowApproval(1));
 
@@ -138,8 +133,7 @@ describe('useWorkflowApproval', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () =>
-          Promise.resolve({ success: false, workflowStatus: 'plan_created' }),
+        json: () => Promise.resolve({ success: false, workflowStatus: 'plan_created' }),
       }),
     );
 

@@ -18,11 +18,7 @@ export type UseCodeReviewReturn = {
   getDiff: (prId: number) => Promise<FileDiff[]>;
   // Review operations
   getReviews: (prId: number) => Promise<GitHubPRReview[]>;
-  submitReview: (
-    prId: number,
-    action: ReviewAction,
-    body?: string,
-  ) => Promise<void>;
+  submitReview: (prId: number, action: ReviewAction, body?: string) => Promise<void>;
   // Comment operations
   getComments: (prId: number) => Promise<GitHubPRComment[]>;
   addComment: (prId: number, body: string) => Promise<void>;
@@ -51,36 +47,33 @@ export function useCodeReview(): UseCodeReviewReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const request = useCallback(
-    async <T>(url: string, options?: RequestInit): Promise<T> => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE_URL}${url}`, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers,
-          },
-        });
+  const request = useCallback(async <T>(url: string, options?: RequestInit): Promise<T> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}${url}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
 
-        const data = await res.json();
+      const data = await res.json();
 
-        if (!res.ok) {
-          throw new Error(data.error || 'Request failed');
-        }
-
-        return data;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error(data.error || 'Request failed');
       }
-    },
-    [],
-  );
+
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const getDiff = useCallback(
     (prId: number) => {
@@ -91,9 +84,7 @@ export function useCodeReview(): UseCodeReviewReturn {
 
   const getReviews = useCallback(
     async (prId: number) => {
-      const pr = await request<{ reviews?: GitHubPRReview[] }>(
-        `/github/pull-requests/${prId}`,
-      );
+      const pr = await request<{ reviews?: GitHubPRReview[] }>(`/github/pull-requests/${prId}`);
       return pr.reviews || [];
     },
     [request],
@@ -120,9 +111,7 @@ export function useCodeReview(): UseCodeReviewReturn {
 
   const getComments = useCallback(
     async (prId: number) => {
-      const pr = await request<{ comments?: GitHubPRComment[] }>(
-        `/github/pull-requests/${prId}`,
-      );
+      const pr = await request<{ comments?: GitHubPRComment[] }>(`/github/pull-requests/${prId}`);
       return pr.comments || [];
     },
     [request],
@@ -158,9 +147,7 @@ export function useCodeReview(): UseCodeReviewReturn {
 
     for (const line of lines) {
       // Hunk header (@@ -1,5 +1,6 @@)
-      const hunkMatch = line.match(
-        /^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/,
-      );
+      const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/);
       if (hunkMatch) {
         if (currentHunk) {
           hunks.push(currentHunk);

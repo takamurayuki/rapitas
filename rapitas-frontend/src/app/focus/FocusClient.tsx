@@ -61,26 +61,20 @@ export default function FocusClient() {
     try {
       // Record time if linked to a task
       if (taskId && startTime) {
-        const res = await fetch(
-          `${API_BASE_URL}/tasks/${taskId}/time-entries`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              duration,
-              startedAt: startTime.toISOString(),
-              endedAt: endTime.toISOString(),
-              note: t('focusSessionNote', { number: sessionsCompleted + 1 }),
-            }),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/time-entries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            duration,
+            startedAt: startTime.toISOString(),
+            endedAt: endTime.toISOString(),
+            note: t('focusSessionNote', { number: sessionsCompleted + 1 }),
+          }),
+        });
 
         if (res.ok) {
           setSessions((prev) => prev + 1);
-          showToast(
-            t('workTimeRecorded', { minutes: customWorkTime }),
-            'success',
-          );
+          showToast(t('workTimeRecorded', { minutes: customWorkTime }), 'success');
         }
       }
 
@@ -102,8 +96,7 @@ export default function FocusClient() {
     // Generate simple beep sound
     const AudioContextClass =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const audioContext = new AudioContextClass();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
@@ -129,14 +122,10 @@ export default function FocusClient() {
 
     // Browser notification
     if (Notification.permission === 'granted') {
-      new Notification(
-        mode === 'work' ? t('workTimeFinished') : t('breakFinished'),
-        {
-          body:
-            mode === 'work' ? t('takeBreakMessage') : t('resumeWorkMessage'),
-          icon: '/favicon.ico',
-        },
-      );
+      new Notification(mode === 'work' ? t('workTimeFinished') : t('breakFinished'), {
+        body: mode === 'work' ? t('takeBreakMessage') : t('resumeWorkMessage'),
+        icon: '/favicon.ico',
+      });
     }
 
     if (mode === 'work') {
@@ -150,14 +139,7 @@ export default function FocusClient() {
       setMode('work');
       setTimeLeft(customWorkTime * 60);
     }
-  }, [
-    soundEnabled,
-    mode,
-    saveTimeEntry,
-    customBreakTime,
-    customWorkTime,
-    playNotificationSound,
-  ]);
+  }, [soundEnabled, mode, saveTimeEntry, customBreakTime, customWorkTime, playNotificationSound]);
 
   const startTimer = () => {
     if (!isRunning && mode === 'work') {
@@ -263,11 +245,7 @@ export default function FocusClient() {
             onClick={() => setSoundEnabled(!soundEnabled)}
             className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
-            {soundEnabled ? (
-              <Volume2 className="w-5 h-5" />
-            ) : (
-              <VolumeX className="w-5 h-5" />
-            )}
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </button>
         </div>
       </div>
@@ -331,9 +309,7 @@ export default function FocusClient() {
           </svg>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-6xl font-bold text-white font-mono">
-              {formatTime(timeLeft)}
-            </span>
+            <span className="text-6xl font-bold text-white font-mono">{formatTime(timeLeft)}</span>
             <span className="text-white/40 text-sm mt-2">
               {t('session', { number: sessionsCompleted + 1 })}
             </span>

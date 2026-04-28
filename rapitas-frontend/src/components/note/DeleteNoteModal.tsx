@@ -28,12 +28,8 @@ export default function DeleteNoteModal({
             <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-500" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              ノートの削除
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              この操作は取り消せません
-            </p>
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">ノートの削除</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">この操作は取り消せません</p>
           </div>
         </div>
 

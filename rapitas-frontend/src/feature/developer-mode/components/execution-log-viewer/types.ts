@@ -5,12 +5,7 @@
  * Does not contain any component or utility logic.
  */
 
-export type ExecutionLogStatus =
-  | 'idle'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type ExecutionLogStatus = 'idle' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type ExecutionLogViewMode = 'simple' | 'detailed';
 

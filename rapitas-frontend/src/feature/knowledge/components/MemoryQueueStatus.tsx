@@ -34,15 +34,9 @@ export function MemoryQueueStatus({ status }: MemoryQueueStatusProps) {
           key={item.label}
           className="rounded-lg border border-gray-200 bg-white p-2 text-center dark:border-gray-700 dark:bg-gray-800"
         >
-          <div
-            className={`mx-auto mb-1 h-1.5 w-8 rounded-full ${item.color}`}
-          />
-          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {item.value}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {item.label}
-          </p>
+          <div className={`mx-auto mb-1 h-1.5 w-8 rounded-full ${item.color}`} />
+          <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{item.value}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{item.label}</p>
         </div>
       ))}
     </div>

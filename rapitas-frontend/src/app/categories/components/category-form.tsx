@@ -1,15 +1,7 @@
 'use client';
 // category-form
 
-import {
-  Search,
-  X,
-  Save,
-  FolderKanban,
-  Code,
-  BookOpen,
-  Layers,
-} from 'lucide-react';
+import { Search, X, Save, FolderKanban, Code, BookOpen, Layers } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getIconComponent } from '@/components/category/icon-data';
 import { IconGrid } from '@/components/category/IconGrid';
@@ -116,9 +108,7 @@ export function CategoryForm({
         </label>
         <textarea
           value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder={t('categoryDescriptionPlaceholder')}
           rows={1}
           className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
@@ -134,17 +124,13 @@ export function CategoryForm({
             <input
               type="color"
               value={formData.color}
-              onChange={(e) =>
-                setFormData({ ...formData, color: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
               className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
             />
             <input
               type="text"
               value={formData.color}
-              onChange={(e) =>
-                setFormData({ ...formData, color: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
               className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
             />
           </div>
@@ -161,9 +147,7 @@ export function CategoryForm({
               backgroundColor: formData.color + '15',
             }}
           >
-            <div style={{ color: formData.color }}>
-              {renderIcon(formData.icon, 20)}
-            </div>
+            <div style={{ color: formData.color }}>{renderIcon(formData.icon, 20)}</div>
           </div>
         </div>
       </div>
@@ -194,9 +178,7 @@ export function CategoryForm({
             <IconGrid
               icons={filteredIcons.map((i) => i.name)}
               selectedIcon={formData.icon}
-              onIconSelect={(iconName) =>
-                setFormData({ ...formData, icon: iconName })
-              }
+              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
               renderIcon={renderIcon}
               accentClass="bg-indigo-500"
             />
@@ -208,9 +190,7 @@ export function CategoryForm({
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           {t('modeLabel')}
         </label>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">
-          {t('modeDescription')}
-        </p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">{t('modeDescription')}</p>
         <div className="flex gap-1.5">
           {MODE_OPTIONS.map((opt) => {
             const ModeIcon = opt.icon;

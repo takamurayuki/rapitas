@@ -58,21 +58,15 @@ export function InlineApiKeySetup({
   onSave,
   onDelete,
 }: Props) {
-  const currentProvider = API_KEY_PROVIDERS.find(
-    (p) => p.value === apiKeyProvider,
-  )!;
+  const currentProvider = API_KEY_PROVIDERS.find((p) => p.value === apiKeyProvider)!;
   const currentStatus = apiKeyStatuses[apiKeyProvider];
 
   return (
     <div className="mt-3 p-3 bg-zinc-50 dark:bg-indigo-dark-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 space-y-3">
       <div className="flex items-center gap-2">
         <Key className="w-3.5 h-3.5 text-zinc-400" />
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
-          APIキー設定
-        </span>
-        <span className="text-[10px] text-zinc-400">
-          （APIが必要なモデルを有効化）
-        </span>
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">APIキー設定</span>
+        <span className="text-[10px] text-zinc-400">（APIが必要なモデルを有効化）</span>
       </div>
 
       {/* Provider tabs */}
@@ -141,11 +135,7 @@ export function InlineApiKeySetup({
               onClick={onShowApiKeyToggle}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
-              {showApiKey ? (
-                <EyeOff className="w-3 h-3" />
-              ) : (
-                <Eye className="w-3 h-3" />
-              )}
+              {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
           </div>
 

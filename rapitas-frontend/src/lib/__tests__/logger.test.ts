@@ -213,10 +213,7 @@ describe('transientError', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const logger = createLogger('Net');
 
-    const abortErr = new DOMException(
-      'The operation was aborted',
-      'AbortError',
-    );
+    const abortErr = new DOMException('The operation was aborted', 'AbortError');
     logger.transientError('Request aborted', abortErr);
 
     expect(warnSpy).toHaveBeenCalledWith('[Net]', 'Request aborted', abortErr);
@@ -235,11 +232,7 @@ describe('transientError', () => {
     const validationErr = new Error('Invalid input');
     logger.transientError('Operation failed', validationErr);
 
-    expect(errorSpy).toHaveBeenCalledWith(
-      '[Net]',
-      'Operation failed',
-      validationErr,
-    );
+    expect(errorSpy).toHaveBeenCalledWith('[Net]', 'Operation failed', validationErr);
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
@@ -274,20 +267,16 @@ describe('isTransientError', () => {
     vi.resetModules();
     const { isTransientError } = await import('../logger');
 
-    expect(
-      isTransientError(
-        new DOMException('The operation was aborted', 'AbortError'),
-      ),
-    ).toBe(true);
+    expect(isTransientError(new DOMException('The operation was aborted', 'AbortError'))).toBe(
+      true,
+    );
   });
 
   it('identifies ECONNREFUSED as transient', async () => {
     vi.resetModules();
     const { isTransientError } = await import('../logger');
 
-    expect(isTransientError(new Error('ECONNREFUSED 127.0.0.1:3001'))).toBe(
-      true,
-    );
+    expect(isTransientError(new Error('ECONNREFUSED 127.0.0.1:3001'))).toBe(true);
   });
 
   it('does not identify validation errors as transient', async () => {

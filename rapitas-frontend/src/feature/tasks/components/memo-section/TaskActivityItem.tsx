@@ -2,14 +2,7 @@
 // TaskActivityItem
 
 import { memo } from 'react';
-import {
-  TrendingUp,
-  User,
-  ArrowRight,
-  FileText,
-  Tag,
-  GitCommit,
-} from 'lucide-react';
+import { TrendingUp, User, ArrowRight, FileText, Tag, GitCommit } from 'lucide-react';
 import type { TaskActivity } from './types';
 import { timeAgo } from './memo-utils';
 
@@ -59,18 +52,12 @@ export const TaskActivityItem = memo(function TaskActivityItem({
 
   return (
     <div className="flex items-start gap-2.5 py-1.5">
-      <div className={`p-1 rounded-full ${getActivityColor()}`}>
-        {getActivityIcon()}
-      </div>
+      <div className={`p-1 rounded-full ${getActivityColor()}`}>{getActivityIcon()}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">
-            {activity.action}
-          </span>
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">{activity.action}</span>
           {activity.details && (
-            <span className="text-zinc-500 dark:text-zinc-400">
-              {activity.details}
-            </span>
+            <span className="text-zinc-500 dark:text-zinc-400">{activity.details}</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-400">

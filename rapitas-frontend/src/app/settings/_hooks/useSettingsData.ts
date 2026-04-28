@@ -43,9 +43,7 @@ export function useSettingsData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [availableModels, setAvailableModels] = useState<
-    Record<string, ModelOption[]>
-  >({});
+  const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
   const [ollamaUrlInput, setOllamaUrlInput] = useState('');
 
   const [localLlmStatus, setLocalLlmStatus] = useState<{
@@ -63,9 +61,7 @@ export function useSettingsData() {
     totalMB: number;
   } | null>(null);
 
-  const [providerStates, setProviderStates] = useState<
-    Record<string, ProviderState>
-  >(() => {
+  const [providerStates, setProviderStates] = useState<Record<string, ProviderState>>(() => {
     const states: Record<string, ProviderState> = {};
     for (const key of PROVIDER_KEYS) {
       states[key] = { ...INITIAL_PROVIDER_STATE };
@@ -73,10 +69,7 @@ export function useSettingsData() {
     return states;
   });
 
-  const updateProviderState = (
-    providerKey: string,
-    updates: Partial<ProviderState>,
-  ) => {
+  const updateProviderState = (providerKey: string, updates: Partial<ProviderState>) => {
     setProviderStates((prev) => ({
       ...prev,
       [providerKey]: { ...prev[providerKey], ...updates },
@@ -134,10 +127,8 @@ export function useSettingsData() {
       }
       const res = await fetch(`${API_BASE_URL}/settings/api-keys`);
       if (res.ok) {
-        const data: Record<
-          string,
-          { configured: boolean; maskedKey: string | null }
-        > = await res.json();
+        const data: Record<string, { configured: boolean; maskedKey: string | null }> =
+          await res.json();
         setCachedData(CACHE_KEYS.apiKeys, data);
         for (const [provider, info] of Object.entries(data)) {
           if (info.configured && info.maskedKey) {
@@ -152,9 +143,7 @@ export function useSettingsData() {
 
   const fetchModels = useCallback(async () => {
     try {
-      const cached = getCachedData<Record<string, ModelOption[]>>(
-        CACHE_KEYS.models,
-      );
+      const cached = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
       if (cached) {
         setAvailableModels(cached);
         fetch(`${API_BASE_URL}/settings/models`)
@@ -199,10 +188,7 @@ export function useSettingsData() {
    *
    * @param providerKey - Provider identifier (claude, chatgpt, gemini).
    */
-  const saveApiKey = async (
-    providerKey: string,
-    configuredField: keyof UserSettings,
-  ) => {
+  const saveApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
     const state = providerStates[providerKey];
     if (!state.apiKeyInput.trim()) return;
     updateProviderState(providerKey, { isSaving: true });
@@ -224,9 +210,7 @@ export function useSettingsData() {
           isEditing: false,
           showApiKey: false,
         });
-        setSettings((prev) =>
-          prev ? { ...prev, [configuredField]: true } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, [configuredField]: true } : prev));
         showSuccess(t('keySaved'));
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
@@ -247,27 +231,21 @@ export function useSettingsData() {
    * @param providerKey - Provider identifier.
    * @param configuredField - Settings field to clear on success.
    */
-  const deleteApiKey = async (
-    providerKey: string,
-    configuredField: keyof UserSettings,
-  ) => {
+  const deleteApiKey = async (providerKey: string, configuredField: keyof UserSettings) => {
     if (!confirm(t('confirmDeleteKey'))) return;
     updateProviderState(providerKey, { isSaving: true });
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/settings/api-key?provider=${providerKey}`,
-        { method: 'DELETE' },
-      );
+      const res = await fetch(`${API_BASE_URL}/settings/api-key?provider=${providerKey}`, {
+        method: 'DELETE',
+      });
       if (res.ok) {
         updateProviderState(providerKey, {
           maskedApiKey: null,
           apiKeyInput: '',
           isEditing: false,
         });
-        setSettings((prev) =>
-          prev ? { ...prev, [configuredField]: false } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, [configuredField]: false } : prev));
         showSuccess(t('keyDeleted'));
         localStorage.removeItem(CACHE_KEYS.apiKeys);
         localStorage.removeItem(CACHE_KEYS.models);
@@ -288,11 +266,7 @@ export function useSettingsData() {
    * @param modelField - Settings field to update.
    * @param model - Model identifier string.
    */
-  const saveModel = async (
-    providerKey: string,
-    modelField: keyof UserSettings,
-    model: string,
-  ) => {
+  const saveModel = async (providerKey: string, modelField: keyof UserSettings, model: string) => {
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/settings/model`, {
@@ -301,9 +275,7 @@ export function useSettingsData() {
         body: JSON.stringify({ model, provider: providerKey }),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, [modelField]: model || null } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, [modelField]: model || null } : prev));
         showSuccess(t('modelSaved'));
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
@@ -329,9 +301,7 @@ export function useSettingsData() {
         body: JSON.stringify({ defaultAiProvider: provider }),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? { ...prev, defaultAiProvider: provider } : prev,
-        );
+        setSettings((prev) => (prev ? { ...prev, defaultAiProvider: provider } : prev));
         showSuccess(t('providerSaved'));
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {
@@ -353,16 +323,11 @@ export function useSettingsData() {
       });
       const pollInterval = setInterval(async () => {
         try {
-          const res = await fetch(
-            `${API_BASE_URL}/local-llm/download-progress`,
-          );
+          const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`);
           if (res.ok) {
             const progress = await res.json();
             setDownloadProgress(progress);
-            if (
-              progress.status === 'completed' ||
-              progress.status === 'error'
-            ) {
+            if (progress.status === 'completed' || progress.status === 'error') {
               clearInterval(pollInterval);
               setLocalLlmLoading(false);
               fetchLocalLlmStatus();
@@ -421,9 +386,7 @@ export function useSettingsData() {
         body: JSON.stringify(updates),
       });
       if (res.ok) {
-        setSettings((prev) =>
-          prev ? ({ ...prev, ...updates } as UserSettings) : prev,
-        );
+        setSettings((prev) => (prev ? ({ ...prev, ...updates } as UserSettings) : prev));
         showSuccess(t('localLlmSaved'));
         localStorage.removeItem(CACHE_KEYS.settings);
       } else {

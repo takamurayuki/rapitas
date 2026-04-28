@@ -87,10 +87,7 @@ class CacheManager {
    */
   async applyCacheStrategy<T = unknown>(
     url: string,
-    strategy:
-      | 'cache-first'
-      | 'network-first'
-      | 'stale-while-revalidate' = 'network-first',
+    strategy: 'cache-first' | 'network-first' | 'stale-while-revalidate' = 'network-first',
     options: RequestInit = {},
   ): Promise<T> {
     const cacheKey = `${url}:${JSON.stringify(options.body || {})}`;
@@ -119,9 +116,7 @@ class CacheManager {
         // Return stale data immediately, update in background
         if (cached) {
           // Update in background
-          this.fetchAndCache(url, cacheKey, options).catch((err) =>
-            logger.error(err),
-          );
+          this.fetchAndCache(url, cacheKey, options).catch((err) => logger.error(err));
           return cached.data as T;
         }
         return this.fetchAndCache(url, cacheKey, options);
@@ -144,10 +139,7 @@ class CacheManager {
   /**
    * Cache validity check
    */
-  private isCacheValid(
-    entry: CacheEntry,
-    maxAge: number = 5 * 60 * 1000,
-  ): boolean {
+  private isCacheValid(entry: CacheEntry, maxAge: number = 5 * 60 * 1000): boolean {
     return Date.now() - entry.timestamp < maxAge;
   }
 
@@ -199,13 +191,11 @@ class CacheManager {
     size: number;
     entries: Array<{ key: string; size: number; age: number }>;
   } {
-    const entries = Array.from(this.etagCache.entries()).map(
-      ([key, entry]) => ({
-        key,
-        size: JSON.stringify(entry.data).length,
-        age: Date.now() - entry.timestamp,
-      }),
-    );
+    const entries = Array.from(this.etagCache.entries()).map(([key, entry]) => ({
+      key,
+      size: JSON.stringify(entry.data).length,
+      age: Date.now() - entry.timestamp,
+    }));
 
     return {
       size: entries.reduce((sum, e) => sum + e.size, 0),
@@ -219,9 +209,7 @@ export const cacheManager = new CacheManager();
 /**
  * Optimize compression and encoding
  */
-export function enableCompressionHeaders(
-  headers: HeadersInit = {},
-): HeadersInit {
+export function enableCompressionHeaders(headers: HeadersInit = {}): HeadersInit {
   return {
     ...headers,
     'Accept-Encoding': 'gzip, deflate, br',
@@ -231,9 +219,7 @@ export function enableCompressionHeaders(
 /**
  * Keep-Alive and connection pooling
  */
-export function enableConnectionPooling(
-  headers: HeadersInit = {},
-): HeadersInit {
+export function enableConnectionPooling(headers: HeadersInit = {}): HeadersInit {
   return {
     ...headers,
     Connection: 'keep-alive',

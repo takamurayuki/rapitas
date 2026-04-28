@@ -101,17 +101,9 @@ export default function CategoriesPage() {
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="categories">
               {(provided) => (
-                <div
-                  className="grid gap-3"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                >
+                <div className="grid gap-3" ref={provided.innerRef} {...provided.droppableProps}>
                   {items
-                    .filter(
-                      (item) =>
-                        !isAdding &&
-                        (editingId === null || editingId === item.id),
-                    )
+                    .filter((item) => !isAdding && (editingId === null || editingId === item.id))
                     .map((item, index) => (
                       <Draggable
                         key={item.id}
@@ -124,9 +116,7 @@ export default function CategoriesPage() {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             className={`rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 hover:shadow-lg transition-all overflow-hidden ${
-                              snapshot.isDragging
-                                ? 'shadow-2xl ring-2 ring-indigo-500/50'
-                                : ''
+                              snapshot.isDragging ? 'shadow-2xl ring-2 ring-indigo-500/50' : ''
                             }`}
                           >
                             {editingId === item.id ? (
@@ -136,9 +126,7 @@ export default function CategoriesPage() {
                                   {t('editCategory')}
                                 </h2>
                                 <CategoryForm
-                                  {...(formProps as unknown as Parameters<
-                                    typeof CategoryForm
-                                  >[0])}
+                                  {...(formProps as unknown as Parameters<typeof CategoryForm>[0])}
                                   isEdit={true}
                                   itemId={item.id}
                                   onSubmit={(id) => id && handleUpdate(id)}

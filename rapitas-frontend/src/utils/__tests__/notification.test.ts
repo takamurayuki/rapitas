@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  requestNotificationPermission,
-  showDesktopNotification,
-} from '../notification';
+import { requestNotificationPermission, showDesktopNotification } from '../notification';
 
 describe('requestNotificationPermission', () => {
   const originalNotification = window.Notification;

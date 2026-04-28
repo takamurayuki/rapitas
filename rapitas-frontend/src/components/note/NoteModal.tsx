@@ -21,6 +21,7 @@ export default function NoteModal() {
     createNote,
     setModalTab,
     setSearchQuery,
+    toggleSplitNoteSide,
   } = useNoteStore();
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -95,10 +96,7 @@ export default function NoteModal() {
       // NOTE: requestAnimationFrame batches store updates to avoid excessive renders.
       if (rafRef.current === null) {
         rafRef.current = requestAnimationFrame(() => {
-          setModalPosition(
-            tempPositionRef.current.x,
-            tempPositionRef.current.y,
-          );
+          setModalPosition(tempPositionRef.current.x, tempPositionRef.current.y);
           rafRef.current = null;
         });
       }
@@ -214,7 +212,8 @@ export default function NoteModal() {
 
   const handleTabChange = (tab: ModalTab) => {
     setModalTab(tab);
-    if (tab === 'note' && notes.length === 0) {
+    // Ensure a note exists whenever a note panel will be visible.
+    if ((tab === 'note' || tab === 'split') && notes.length === 0) {
       createNote();
     }
   };
@@ -223,9 +222,7 @@ export default function NoteModal() {
 
   return (
     <>
-      {(isDragging || isResizing) && (
-        <DragOverlay cursor={isDragging ? 'move' : 'se-resize'} />
-      )}
+      {(isDragging || isResizing) && <DragOverlay cursor={isDragging ? 'move' : 'se-resize'} />}
       <div
         ref={modalRef}
         role="dialog"
@@ -233,17 +230,17 @@ export default function NoteModal() {
         aria-labelledby="note-modal-title"
         className={`fixed bg-white dark:bg-zinc-900 overflow-hidden note-modal-enter ${
           modalState.isMaximized ? 'rounded-none' : 'rounded-xl shadow-2xl'
-        } ${
-          isDragging || isResizing ? 'note-modal-dragging' : 'note-modal-smooth'
-        }`}
+        } ${isDragging || isResizing ? 'note-modal-dragging' : 'note-modal-smooth'}`}
         style={
           modalState.isMaximized
             ? {
+                // Maximized: cover the global header by going full-viewport
+                // and bumping zIndex above the sticky header (z-50).
                 left: 0,
-                top: 64,
+                top: 0,
                 width: '100vw',
-                height: 'calc(100vh - 64px)',
-                zIndex: modalState.zIndex,
+                height: '100vh',
+                zIndex: Math.max(modalState.zIndex, 60),
               }
             : {
                 left: modalState.position.x,
@@ -261,30 +258,55 @@ export default function NoteModal() {
           isMaximized={modalState.isMaximized}
           searchQuery={searchQuery}
           didDragRef={didDragRef}
+          splitNoteSide={modalState.splitNoteSide}
           onDragStart={handleDragStart}
           onTabChange={handleTabChange}
           onSearchChange={setSearchQuery}
           onToggleMaximize={toggleMaximize}
           onClose={closeModal}
+          onSwapSplit={toggleSplitNoteSide}
         />
 
         {/* Tab body */}
         <div
-          id={activeTab === 'note' ? 'note-tab-panel' : 'ai-tab-panel'}
+          id={
+            activeTab === 'note'
+              ? 'note-tab-panel'
+              : activeTab === 'ai'
+                ? 'ai-tab-panel'
+                : 'split-tab-panel'
+          }
           role="tabpanel"
           className={`h-[calc(100%-48px)] ${
-            isDragging || isResizing
-              ? 'note-modal-non-interactive'
-              : 'note-modal-interactive'
+            isDragging || isResizing ? 'note-modal-non-interactive' : 'note-modal-interactive'
           }`}
         >
           {activeTab === 'note' ? (
-            <NoteTabContent
-              currentNote={currentNote}
-              onCreateNote={createNote}
-            />
-          ) : (
+            <NoteTabContent currentNote={currentNote} onCreateNote={createNote} />
+          ) : activeTab === 'ai' ? (
             <AITabContent />
+          ) : (
+            <div className="flex h-full w-full">
+              {modalState.splitNoteSide === 'right' ? (
+                <>
+                  <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-700">
+                    <AITabContent />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <NoteTabContent currentNote={currentNote} onCreateNote={createNote} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0 border-r border-zinc-200 dark:border-zinc-700">
+                    <NoteTabContent currentNote={currentNote} onCreateNote={createNote} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <AITabContent />
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
 

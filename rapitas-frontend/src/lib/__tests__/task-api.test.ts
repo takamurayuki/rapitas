@@ -122,10 +122,7 @@ describe('preloadTaskDetails', () => {
 
     await preloadTaskDetails([10, 20]);
 
-    expect(mockPrefetch).toHaveBeenCalledWith(
-      ['/tasks/10', '/tasks/20'],
-      300000,
-    );
+    expect(mockPrefetch).toHaveBeenCalledWith(['/tasks/10', '/tasks/20'], 300000);
   });
 });
 
@@ -211,11 +208,7 @@ describe('smartPrefetchTasks', () => {
     await smartPrefetchTasks(5);
 
     expect(mockPrefetch).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        '/tasks/5/related',
-        '/tasks/5/dependencies',
-        '/tasks/statistics',
-      ]),
+      expect.arrayContaining(['/tasks/5/related', '/tasks/5/dependencies', '/tasks/statistics']),
       120000,
     );
   });
@@ -226,10 +219,7 @@ describe('smartPrefetchTasks', () => {
     await smartPrefetchTasks(undefined, 3);
 
     expect(mockPrefetch).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        '/tasks?categoryId=3&page=2',
-        '/tasks/statistics',
-      ]),
+      expect.arrayContaining(['/tasks?categoryId=3&page=2', '/tasks/statistics']),
       120000,
     );
   });

@@ -30,12 +30,7 @@ interface TreeNodeItemProps {
  *
  * @param props - TreeNodeItemProps
  */
-export function TreeNodeItem({
-  node,
-  isExpanded,
-  onToggle,
-  depth = 0,
-}: TreeNodeItemProps) {
+export function TreeNodeItem({ node, isExpanded, onToggle, depth = 0 }: TreeNodeItemProps) {
   const hasChildren = node.children.length > 0;
   const hasDependencies = node.dependsOn.length > 0;
 
@@ -43,9 +38,7 @@ export function TreeNodeItem({
     <div className="select-none">
       <div
         className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors ${
-          depth > 0
-            ? 'ml-6 border-l-2 border-zinc-200 dark:border-zinc-700'
-            : ''
+          depth > 0 ? 'ml-6 border-l-2 border-zinc-200 dark:border-zinc-700' : ''
         }`}
       >
         <button
@@ -95,10 +88,7 @@ export function TreeNodeItem({
               </div>
               <div className="space-y-1">
                 {node.dependsOn.map((dep) => (
-                  <div
-                    key={dep.id}
-                    className="text-xs text-amber-600 dark:text-amber-400"
-                  >
+                  <div key={dep.id} className="text-xs text-amber-600 dark:text-amber-400">
                     <span className="font-medium">{dep.title}</span>
                     <span className="text-amber-500 dark:text-amber-500 ml-2">
                       ({dep.sharedFiles.join(', ')})
@@ -125,9 +115,7 @@ export function TreeNodeItem({
                   </span>
                 ))}
                 {node.files.length > 10 && (
-                  <span className="text-xs text-zinc-500">
-                    +{node.files.length - 10} more
-                  </span>
+                  <span className="text-xs text-zinc-500">+{node.files.length - 10} more</span>
                 )}
               </div>
             </div>

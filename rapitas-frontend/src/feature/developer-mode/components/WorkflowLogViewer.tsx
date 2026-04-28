@@ -14,22 +14,13 @@ import {
   XCircle,
   AlertTriangle,
 } from 'lucide-react';
-import {
-  ExecutionLogViewer,
-  type ExecutionLogStatus,
-} from './ExecutionLogViewer';
+import { ExecutionLogViewer, type ExecutionLogStatus } from './ExecutionLogViewer';
 
 /** Workflow phase definition */
 export type WorkflowPhase = 'research' | 'plan' | 'implement' | 'verify';
 
 /** Phase status */
-export type PhaseStatus =
-  | 'waiting'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'skipped'
-  | 'approved';
+export type PhaseStatus = 'waiting' | 'running' | 'completed' | 'failed' | 'skipped' | 'approved';
 
 /** Logs per phase */
 export interface PhaseLogGroup {
@@ -67,37 +58,17 @@ const PHASE_CONFIG: Record<
   research: {
     label: '調査フェーズ',
     icon: Search,
-    keywords: [
-      '[research]',
-      '調査',
-      'research_done',
-      '依存関係を分析',
-      '影響範囲',
-    ],
+    keywords: ['[research]', '調査', 'research_done', '依存関係を分析', '影響範囲'],
   },
   plan: {
     label: '計画フェーズ',
     icon: FileText,
-    keywords: [
-      '[plan]',
-      '計画',
-      'plan_created',
-      'plan_approved',
-      '自動承認',
-      '実装計画',
-    ],
+    keywords: ['[plan]', '計画', 'plan_created', 'plan_approved', '自動承認', '実装計画'],
   },
   implement: {
     label: '実装フェーズ',
     icon: Wrench,
-    keywords: [
-      '[implement]',
-      '実装',
-      'in_progress',
-      '編集中',
-      'テストを実行',
-      'コミット',
-    ],
+    keywords: ['[implement]', '実装', 'in_progress', '編集中', 'テストを実行', 'コミット'],
   },
   verify: {
     label: '検証フェーズ',
@@ -106,12 +77,7 @@ const PHASE_CONFIG: Record<
   },
 };
 
-const PHASE_ORDER: WorkflowPhase[] = [
-  'research',
-  'plan',
-  'implement',
-  'verify',
-];
+const PHASE_ORDER: WorkflowPhase[] = ['research', 'plan', 'implement', 'verify'];
 
 /**
  * Detect workflow phase from log message
@@ -130,9 +96,7 @@ function detectPhase(message: string): WorkflowPhase | null {
 /**
  * Generate phase status map from workflow status
  */
-function getPhaseStatuses(
-  workflowStatus?: string,
-): Record<WorkflowPhase, PhaseStatus> {
+function getPhaseStatuses(workflowStatus?: string): Record<WorkflowPhase, PhaseStatus> {
   const statusMap: Record<WorkflowPhase, PhaseStatus> = {
     research: 'waiting',
     plan: 'waiting',
@@ -240,10 +204,7 @@ export function WorkflowLogViewer({
     });
   }, []);
 
-  const phaseStatuses = useMemo(
-    () => getPhaseStatuses(workflowStatus),
-    [workflowStatus],
-  );
+  const phaseStatuses = useMemo(() => getPhaseStatuses(workflowStatus), [workflowStatus]);
 
   // Group logs by phase
   const phaseGroups = useMemo(() => {
@@ -380,9 +341,7 @@ export function WorkflowLogViewer({
             )}
 
             {isExpanded && phaseLogs.length === 0 && status !== 'waiting' && (
-              <div className="px-4 pb-2 text-[10px] text-zinc-500 italic">
-                ログなし
-              </div>
+              <div className="px-4 pb-2 text-[10px] text-zinc-500 italic">ログなし</div>
             )}
           </div>
         );

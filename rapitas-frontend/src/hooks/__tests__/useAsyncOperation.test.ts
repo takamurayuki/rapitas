@@ -53,9 +53,7 @@ describe('useAsyncOperation', () => {
   it('should call onSuccess callback', async () => {
     const onSuccess = vi.fn();
 
-    const { result } = renderHook(() =>
-      useAsyncOperation(async () => 'success', { onSuccess }),
-    );
+    const { result } = renderHook(() => useAsyncOperation(async () => 'success', { onSuccess }));
 
     await act(async () => {
       await result.current.execute();

@@ -69,9 +69,7 @@ export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   await new Promise((resolve) => setTimeout(resolve, 1500));
 
   const length = content.length;
-  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(
-    content,
-  );
+  const hasActionWords = /実装|修正|追加|削除|テスト|確認|検討|調査/.test(content);
   const hasIssueWords = /問題|エラー|バグ|課題|困る|難しい|失敗/.test(content);
   const hasPositiveWords = /完了|成功|良い|改善|進捗|解決/.test(content);
 
@@ -85,24 +83,10 @@ export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
   if (hasIssueWords) sentiment = 'negative';
 
   const keywords: string[] = [];
-  const keywordMatches =
-    content.match(/\b[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+\b/g) || [];
-  const commonWords = [
-    'です',
-    'ます',
-    'した',
-    'する',
-    'ある',
-    'この',
-    'その',
-    'たり',
-  ];
+  const keywordMatches = content.match(/\b[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+\b/g) || [];
+  const commonWords = ['です', 'ます', 'した', 'する', 'ある', 'この', 'その', 'たり'];
   keywordMatches.forEach((word) => {
-    if (
-      word.length >= 2 &&
-      !commonWords.includes(word) &&
-      !keywords.includes(word)
-    ) {
+    if (word.length >= 2 && !commonWords.includes(word) && !keywords.includes(word)) {
       keywords.push(word);
     }
   });
@@ -114,8 +98,7 @@ export const analyzeMemo = async (content: string): Promise<MemoAnalysis> => {
     if (item) actionItems.push(item);
   });
 
-  let summary =
-    content.length > 50 ? content.substring(0, 47) + '...' : content;
+  let summary = content.length > 50 ? content.substring(0, 47) + '...' : content;
 
   if (hasActionWords) summary = `${summary} (アクション項目を含む)`;
   if (hasIssueWords) summary = `${summary} (課題を報告)`;

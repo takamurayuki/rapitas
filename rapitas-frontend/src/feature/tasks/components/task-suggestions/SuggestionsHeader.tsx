@@ -42,9 +42,7 @@ export function SuggestionsHeader({
     <div
       onClick={onHeaderClick}
       className={`flex items-center justify-between px-3 py-1.5 ${
-        canExpand
-          ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30'
-          : ''
+        canExpand ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/30' : ''
       } transition-all duration-200`}
     >
       <div className="flex items-center gap-2">

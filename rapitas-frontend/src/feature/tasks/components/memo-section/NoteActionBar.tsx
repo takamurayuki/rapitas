@@ -1,15 +1,7 @@
 'use client';
 // NoteActionBar
 
-import {
-  Loader2,
-  Pin,
-  PinOff,
-  Brain,
-  Pencil,
-  Trash2,
-  CornerDownRight,
-} from 'lucide-react';
+import { Loader2, Pin, PinOff, Brain, Pencil, Trash2, CornerDownRight } from 'lucide-react';
 import type { NoteData } from './types';
 
 type NoteActionBarProps = {
@@ -71,11 +63,7 @@ export function NoteActionBar({
           }`}
           title={isPinned ? 'ピン留め解除' : 'ピン留め'}
         >
-          {isPinned ? (
-            <PinOff className="w-3 h-3" />
-          ) : (
-            <Pin className="w-3 h-3" />
-          )}
+          {isPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
         </button>
         <button
           onClick={onAnalyze}

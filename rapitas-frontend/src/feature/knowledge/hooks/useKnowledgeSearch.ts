@@ -29,8 +29,7 @@ export function useKnowledgeSearch() {
       try {
         const params = new URLSearchParams({ q: query });
         if (options?.limit) params.set('limit', String(options.limit));
-        if (options?.minSimilarity)
-          params.set('minSimilarity', String(options.minSimilarity));
+        if (options?.minSimilarity) params.set('minSimilarity', String(options.minSimilarity));
         if (options?.category) params.set('category', options.category);
         if (options?.themeId) params.set('themeId', String(options.themeId));
 

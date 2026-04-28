@@ -50,38 +50,29 @@ type FileUploaderProps = {
   onResourcesChange: () => void;
 };
 
-export default function FileUploader({
-  taskId,
-  resources,
-  onResourcesChange,
-}: FileUploaderProps) {
+export default function FileUploader({ taskId, resources, onResourcesChange }: FileUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloadStates, setDownloadStates] = useState<
-    Record<number, DownloadState>
-  >({});
+  const [downloadStates, setDownloadStates] = useState<Record<number, DownloadState>>({});
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Download with animation feedback
-  const handleDownload = useCallback(
-    async (resourceId: number, url: string, fileName: string) => {
-      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
-      try {
-        await downloadFile(url, fileName);
-        setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
-        // Reset to idle after 2 seconds
-        setTimeout(() => {
-          setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-        }, 2000);
-      } catch (e) {
+  const handleDownload = useCallback(async (resourceId: number, url: string, fileName: string) => {
+    setDownloadStates((prev) => ({ ...prev, [resourceId]: 'downloading' }));
+    try {
+      await downloadFile(url, fileName);
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'completed' }));
+      // Reset to idle after 2 seconds
+      setTimeout(() => {
         setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
-        setError(e instanceof Error ? e.message : 'ダウンロードに失敗しました');
-      }
-    },
-    [],
-  );
+      }, 2000);
+    } catch (e) {
+      setDownloadStates((prev) => ({ ...prev, [resourceId]: 'idle' }));
+      setError(e instanceof Error ? e.message : 'ダウンロードに失敗しました');
+    }
+  }, []);
 
   const uploadFiles = useCallback(
     async (files: FileList) => {
@@ -212,8 +203,7 @@ export default function FileUploader({
   };
 
   const fileResources = resources.filter(
-    (r) =>
-      r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
+    (r) => r.filePath || r.type === 'file' || r.type === 'image' || r.type === 'pdf',
   );
 
   return (
@@ -247,9 +237,7 @@ export default function FileUploader({
           )}
           <div>
             <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              {isUploading
-                ? 'アップロード中...'
-                : 'ファイルをドラッグ&ドロップ'}
+              {isUploading ? 'アップロード中...' : 'ファイルをドラッグ&ドロップ'}
             </p>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               または クリックして選択（最大10MB）

@@ -206,8 +206,7 @@ export const WithAriaLabel: Story = {
   args: {
     status: 'processing',
     message: 'ファイルアップロード中',
-    ariaLabel:
-      'AIエージェントがファイルをアップロードしています。しばらくお待ちください。',
+    ariaLabel: 'AIエージェントがファイルをアップロードしています。しばらくお待ちください。',
   },
 };
 
@@ -258,10 +257,7 @@ export const DarkMode: Story = {
     <div className="dark p-6 bg-zinc-900 rounded-lg">
       <div className="flex flex-col gap-4">
         <StatusCard status="processing" message="ダークモード: 実行中" />
-        <StatusCard
-          status="waiting_for_input"
-          message="ダークモード: 入力待ち"
-        />
+        <StatusCard status="waiting_for_input" message="ダークモード: 入力待ち" />
         <StatusCard status="error" message="ダークモード: エラー" />
         <StatusCard status="completed" message="ダークモード: 完了" />
       </div>

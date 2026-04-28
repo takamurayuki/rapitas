@@ -11,10 +11,7 @@ export type ValidationResult = {
 /**
  * 必須フィールドのバリデーション
  */
-export function validateRequired(
-  value: string,
-  fieldName: string,
-): ValidationResult {
+export function validateRequired(value: string, fieldName: string): ValidationResult {
   if (!value.trim()) {
     return { valid: false, error: `${fieldName}を入力してください` };
   }
@@ -174,9 +171,7 @@ export function collectErrors(...results: ValidationResult[]): {
   valid: boolean;
   errors: string[];
 } {
-  const errors = results
-    .filter((r) => !r.valid && r.error)
-    .map((r) => r.error!);
+  const errors = results.filter((r) => !r.valid && r.error).map((r) => r.error!);
   return { valid: errors.length === 0, errors };
 }
 

@@ -24,9 +24,7 @@ export function useWorkflowRoles() {
       setRoles(data);
     } catch (err) {
       logger.error('Failed to fetch workflow roles:', err);
-      setError(
-        err instanceof Error ? err.message : 'ロール設定の取得に失敗しました',
-      );
+      setError(err instanceof Error ? err.message : 'ロール設定の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -56,16 +54,13 @@ export function useWorkflowRoles() {
         });
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(
-            errorData.error || `Failed to update role: ${res.status}`,
-          );
+          throw new Error(errorData.error || `Failed to update role: ${res.status}`);
         }
         const updated = await res.json();
         setRoles((prev) => prev.map((r) => (r.role === role ? updated : r)));
         return { success: true };
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'ロール設定の更新に失敗しました';
+        const message = err instanceof Error ? err.message : 'ロール設定の更新に失敗しました';
         setError(message);
         return { success: false, error: message };
       }

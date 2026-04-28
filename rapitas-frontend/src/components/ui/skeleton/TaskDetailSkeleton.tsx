@@ -1,11 +1,7 @@
 'use client';
 
 function SkeletonBlock({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`}
-    />
-  );
+  return <div className={`bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse ${className}`} />;
 }
 
 export default function TaskDetailSkeleton() {

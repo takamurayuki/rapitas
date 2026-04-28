@@ -29,15 +29,9 @@ export interface UseMemoryDataReturn {
 export function useMemoryData(): UseMemoryDataReturn {
   const tc = useTranslations('common');
 
-  const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(
-    null,
-  );
-  const [growthTimeline, setGrowthTimeline] = useState<GrowthTimeline | null>(
-    null,
-  );
-  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | 'all'>(
-    '30d',
-  );
+  const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(null);
+  const [growthTimeline, setGrowthTimeline] = useState<GrowthTimeline | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | 'all'>('30d');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +41,7 @@ export function useMemoryData(): UseMemoryDataReturn {
       setError(null);
       const [overviewRes, timelineRes] = await Promise.all([
         fetch(`${API_BASE_URL}/learning/memory-overview`),
-        fetch(
-          `${API_BASE_URL}/learning/growth-timeline?period=${selectedPeriod}`,
-        ),
+        fetch(`${API_BASE_URL}/learning/growth-timeline?period=${selectedPeriod}`),
       ]);
       if (overviewRes.ok) setMemoryOverview(await overviewRes.json());
       if (timelineRes.ok) setGrowthTimeline(await timelineRes.json());

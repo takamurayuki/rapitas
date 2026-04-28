@@ -4,10 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import type { Task } from '@/types';
 import TodayTaskProgressBar from '@/components/widgets/TodayTaskProgressBar';
-import {
-  statusConfig,
-  renderStatusIcon,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { AutoExecutionMode } from './AutoExecutionMode';
 
@@ -54,8 +51,7 @@ export function HomeToolbar({
   const t = useTranslations('home');
   const tc = useTranslations('common');
 
-  const allSelected =
-    selectedTasksSize === paginatedTasks.length && paginatedTasks.length > 0;
+  const allSelected = selectedTasksSize === paginatedTasks.length && paginatedTasks.length > 0;
 
   return (
     <div className="mb-4 flex items-center justify-between">
@@ -93,20 +89,14 @@ export function HomeToolbar({
 
               return (
                 <React.Fragment key={status}>
-                  {idx > 0 && (
-                    <div className="w-px h-5 bg-slate-300 dark:bg-slate-600" />
-                  )}
+                  {idx > 0 && <div className="w-px h-5 bg-slate-300 dark:bg-slate-600" />}
                   <button
                     onClick={() => onBulkUpdateStatus(status)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all cursor-pointer ${textColorClasses} ${bgHoverClasses}`}
                     title={t('changeToStatus', { status: config.label })}
                   >
-                    <span className="w-3.5 h-3.5">
-                      {renderStatusIcon(status)}
-                    </span>
-                    <span className="text-sm font-medium">
-                      {config.label}
-                    </span>
+                    <span className="w-3.5 h-3.5">{renderStatusIcon(status)}</span>
+                    <span className="text-sm font-medium">{config.label}</span>
                   </button>
                 </React.Fragment>
               );
@@ -128,12 +118,7 @@ export function HomeToolbar({
                   }`}
                   title={`${t('quickAdd')} (Ctrl+Q)`}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -141,9 +126,7 @@ export function HomeToolbar({
                       d="M12 4v16m8-8H4"
                     />
                   </svg>
-                  <span className="text-sm font-medium">
-                    {t('quickAdd')}
-                  </span>
+                  <span className="text-sm font-medium">{t('quickAdd')}</span>
                 </button>
               </div>
 
@@ -151,19 +134,12 @@ export function HomeToolbar({
                 <button
                   onClick={() => {
                     const themeParam = themeFilter || defaultThemeId;
-                    router.push(
-                      `/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`,
-                    );
+                    router.push(`/tasks/new${themeParam ? `?themeId=${themeParam}` : ''}`);
                   }}
                   className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-all cursor-pointer"
                   title={`${t('newTask')} (Ctrl+N)`}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -171,9 +147,7 @@ export function HomeToolbar({
                       d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <span className="text-sm font-medium">
-                    {t('newTask')}
-                  </span>
+                  <span className="text-sm font-medium">{t('newTask')}</span>
                 </button>
               </div>
             </>
@@ -188,12 +162,7 @@ export function HomeToolbar({
                   className="flex items-center gap-2 transition-all cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                   title={allSelected ? t('deselectAndExit') : t('selectAll')}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     {allSelected ? (
                       <path
                         strokeLinecap="round"
@@ -223,12 +192,7 @@ export function HomeToolbar({
                     className="flex items-center gap-2 transition-all cursor-pointer text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                     title={t('deleteSelected')}
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -236,9 +200,7 @@ export function HomeToolbar({
                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                       />
                     </svg>
-                    <span className="text-sm font-medium">
-                      {tc('delete')}
-                    </span>
+                    <span className="text-sm font-medium">{tc('delete')}</span>
                   </button>
                 </div>
               )}
@@ -256,12 +218,7 @@ export function HomeToolbar({
               }`}
               title={t('bulkSelectionMode')}
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -270,9 +227,7 @@ export function HomeToolbar({
                 />
               </svg>
               <span className="text-sm font-medium">
-                {isSelectionMode
-                  ? t('selecting', { count: selectedTasksSize })
-                  : t('bulk')}
+                {isSelectionMode ? t('selecting', { count: selectedTasksSize }) : t('bulk')}
               </span>
             </button>
           </div>

@@ -15,11 +15,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { UserSettings } from '@/types';
-import {
-  ClaudeIcon,
-  ChatGPTIcon,
-  GeminiIcon,
-} from '@/components/icons/ProviderIcons';
+import { ClaudeIcon, ChatGPTIcon, GeminiIcon } from '@/components/icons/ProviderIcons';
 import type { ProviderState, ModelOption } from '../_hooks/useSettingsData';
 
 type ProviderConfig = {
@@ -81,11 +77,7 @@ type Props = {
   onUpdateProviderState: (key: string, updates: Partial<ProviderState>) => void;
   onSaveApiKey: (key: string, configuredField: keyof UserSettings) => void;
   onDeleteApiKey: (key: string, configuredField: keyof UserSettings) => void;
-  onSaveModel: (
-    key: string,
-    modelField: keyof UserSettings,
-    model: string,
-  ) => void;
+  onSaveModel: (key: string, modelField: keyof UserSettings, model: string) => void;
 };
 
 /**
@@ -110,17 +102,13 @@ export function ApiKeySection({
       <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Key className="w-5 h-5 text-zinc-400" />
-          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
-            {t('apiConfig')}
-          </h2>
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">{t('apiConfig')}</h2>
         </div>
       </div>
       <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
         {PROVIDERS.map((provider) => {
           const state = providerStates[provider.key];
-          const isConfigured = !!(settings?.[provider.configuredField] as
-            | boolean
-            | undefined);
+          const isConfigured = !!(settings?.[provider.configuredField] as boolean | undefined);
 
           return (
             <div key={provider.key} className="p-6">
@@ -179,9 +167,7 @@ export function ApiKeySection({
                         {tc('change')}
                       </button>
                       <button
-                        onClick={() =>
-                          onDeleteApiKey(provider.key, provider.configuredField)
-                        }
+                        onClick={() => onDeleteApiKey(provider.key, provider.configuredField)}
                         disabled={state.isSaving}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors disabled:opacity-50"
                       >
@@ -205,18 +191,9 @@ export function ApiKeySection({
                   <div className="relative">
                     <select
                       id={`model-${provider.key}`}
-                      value={
-                        (settings?.[provider.modelField] as
-                          | string
-                          | null
-                          | undefined) ?? ''
-                      }
+                      value={(settings?.[provider.modelField] as string | null | undefined) ?? ''}
                       onChange={(e) =>
-                        onSaveModel(
-                          provider.key,
-                          provider.modelField,
-                          e.target.value,
-                        )
+                        onSaveModel(provider.key, provider.modelField, e.target.value)
                       }
                       className="w-full appearance-none px-4 py-2.5 pr-10 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all text-zinc-900 dark:text-zinc-100"
                     >
@@ -298,9 +275,7 @@ export function ApiKeySection({
                         </button>
                       )}
                       <button
-                        onClick={() =>
-                          onSaveApiKey(provider.key, provider.configuredField)
-                        }
+                        onClick={() => onSaveApiKey(provider.key, provider.configuredField)}
                         disabled={!state?.apiKeyInput.trim() || state?.isSaving}
                         className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >

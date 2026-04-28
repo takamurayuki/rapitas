@@ -139,21 +139,14 @@ export default function TaskSlidePanel({
       >
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-indigo-dark-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-            タスク詳細
-          </h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">タスク詳細</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={handleClose}
               className="p-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               title="閉じる (Esc)"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -167,11 +160,7 @@ export default function TaskSlidePanel({
 
         {/* Content */}
         <div ref={contentRef} className="h-full overflow-y-auto pb-16">
-          <TaskDetailClient
-            taskId={taskId}
-            onTaskUpdated={onTaskUpdated}
-            onClose={handleClose}
-          />
+          <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
         </div>
       </div>
 

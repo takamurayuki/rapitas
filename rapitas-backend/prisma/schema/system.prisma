@@ -43,6 +43,15 @@ model UserSettings {
   autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
   slackWebhookUrl             String?   // Slack Incoming Webhook URL for notifications
   discordWebhookUrl           String?   // Discord Webhook URL for notifications
+  /**
+   * When true, the rapitas runtime spawns CLI agents with their permission-bypass
+   * flags (claude `--dangerously-skip-permissions` / `--permission-mode
+   * bypassPermissions`, codex/gemini `--yolo`) so the agent never stops mid-
+   * execution to ask the user "may I edit this file / run this command?".
+   * Defaults to true to preserve the hardcoded behaviour the codebase used
+   * before this setting existed.
+   */
+  skipAgentPermissionPrompts  Boolean   @default(true)
   createdAt                   DateTime  @default(now())
   updatedAt                   DateTime  @updatedAt
 }

@@ -29,9 +29,7 @@ export interface UseWorkflowHandlersParams {
 
 export interface UseWorkflowHandlersResult {
   currentWorkflowStatus: WorkflowStatus | null;
-  setCurrentWorkflowStatus: React.Dispatch<
-    React.SetStateAction<WorkflowStatus | null>
-  >;
+  setCurrentWorkflowStatus: React.Dispatch<React.SetStateAction<WorkflowStatus | null>>;
   showPlanApprovalModal: boolean;
   closePlanApprovalModal: () => void;
   handlePlanApprovalRequest: () => void;
@@ -52,8 +50,7 @@ export function useWorkflowHandlers({
   restoreExecutionState,
   onTaskUpdated,
 }: UseWorkflowHandlersParams): UseWorkflowHandlersResult {
-  const [currentWorkflowStatus, setCurrentWorkflowStatus] =
-    useState<WorkflowStatus | null>(null);
+  const [currentWorkflowStatus, setCurrentWorkflowStatus] = useState<WorkflowStatus | null>(null);
   const [showPlanApprovalModal, setShowPlanApprovalModal] = useState(false);
 
   // Sync external workflow status into local state when it changes
@@ -106,14 +103,11 @@ export function useWorkflowHandlers({
   const handleWorkflowComplete = useCallback(async () => {
     if (!taskId) return;
     try {
-      const response = await fetch(
-        `${API_BASE}/workflow/tasks/${taskId}/status`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'completed' }),
-        },
-      );
+      const response = await fetch(`${API_BASE}/workflow/tasks/${taskId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      });
       const data = await response.json();
       if (data.success) {
         setCurrentWorkflowStatus('completed');

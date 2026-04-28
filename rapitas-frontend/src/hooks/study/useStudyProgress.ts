@@ -51,17 +51,14 @@ export function useStudyProgress(goalId: number | null): StudyProgressReturn {
 
     fetch(`/api/learning-goals/${goalId}/progress`)
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch progress data');
+        if (!res.ok) throw new Error('進捗データの取得に失敗しました');
         return res.json();
       })
       .then((json) => {
         if (cancelled) return;
         const totalHours = json.totalHours ?? 0;
         const targetHours = json.targetHours ?? 1;
-        const progress = Math.min(
-          100,
-          Math.round((totalHours / targetHours) * 100),
-        );
+        const progress = Math.min(100, Math.round((totalHours / targetHours) * 100));
 
         const milestoneTargets = [10, 25, 50, 75, 100];
         const milestones: Milestone[] = milestoneTargets.map((pct) => ({

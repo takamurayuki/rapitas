@@ -14,17 +14,8 @@ import { X, Clock, ChevronDown, CalendarDays } from 'lucide-react';
 import type { ScheduleEventInput } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
-import {
-  DEFAULT_EVENT_COLOR,
-  DEFAULT_REMINDER_MINUTES,
-  QUICK_TIMES,
-} from './schedule-constants';
-import {
-  getDefaultTimes,
-  toUTCISO,
-  calcDayCount,
-  resolveEndAt,
-} from './schedule-utils';
+import { DEFAULT_EVENT_COLOR, DEFAULT_REMINDER_MINUTES, QUICK_TIMES } from './schedule-constants';
+import { getDefaultTimes, toUTCISO, calcDayCount, resolveEndAt } from './schedule-utils';
 import { ScheduleOptionsPanel } from './ScheduleOptionsPanel';
 
 type Props = {
@@ -40,11 +31,7 @@ type Props = {
  * @param onClose - Callback to dismiss the dialog / ダイアログを閉じるコールバック
  * @param onSubmit - Async callback to persist the event / イベントを保存する非同期コールバック
  */
-export default function ScheduleEventDialog({
-  selectedDate,
-  onClose,
-  onSubmit,
-}: Props) {
+export default function ScheduleEventDialog({ selectedDate, onClose, onSubmit }: Props) {
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
   const defaults = getDefaultTimes();
@@ -58,9 +45,7 @@ export default function ScheduleEventDialog({
   const [isAllDay, setIsAllDay] = useState(false);
   const [isMultiDay, setIsMultiDay] = useState(false);
   const [color, setColor] = useState(DEFAULT_EVENT_COLOR);
-  const [reminderMinutes, setReminderMinutes] = useState<number | null>(
-    DEFAULT_REMINDER_MINUTES,
-  );
+  const [reminderMinutes, setReminderMinutes] = useState<number | null>(DEFAULT_REMINDER_MINUTES);
   const [submitting, setSubmitting] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -83,17 +68,8 @@ export default function ScheduleEventDialog({
     if (!title.trim()) return;
     setSubmitting(true);
     try {
-      const startAt = isAllDay
-        ? toUTCISO(startDate)
-        : toUTCISO(startDate, startTime);
-      const endAt = resolveEndAt(
-        startDate,
-        endDate,
-        startTime,
-        endTime,
-        isAllDay,
-        isMultiDay,
-      );
+      const startAt = isAllDay ? toUTCISO(startDate) : toUTCISO(startDate, startTime);
+      const endAt = resolveEndAt(startDate, endDate, startTime, endTime, isAllDay, isMultiDay);
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -108,14 +84,11 @@ export default function ScheduleEventDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(
-    dateLocale,
-    {
-      month: 'long',
-      day: 'numeric',
-      weekday: 'short',
-    },
-  );
+  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  });
   const formattedEndDate =
     isMultiDay && endDate > startDate
       ? new Date(endDate).toLocaleDateString(dateLocale, {
@@ -173,9 +146,7 @@ export default function ScheduleEventDialog({
                     </span>
                   </p>
                 ) : (
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                    予定を追加
-                  </p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">予定を追加</p>
                 )}
               </div>
             </div>
@@ -293,9 +264,7 @@ export default function ScheduleEventDialog({
                       // Auto-adjust end time to 1 hour after start
                       const [h, m] = e.target.value.split(':').map(Number);
                       const endH = (h + 1) % 24; // NOTE: wraps midnight (23:xx → 00:xx)
-                      setEndTime(
-                        `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
-                      );
+                      setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
                     }}
                     className="flex-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 text-sm transition-all dark:[&::-webkit-calendar-picker-indicator]:invert"
                   />

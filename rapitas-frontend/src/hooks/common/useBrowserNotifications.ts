@@ -12,8 +12,7 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useBrowserNotifications');
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /** Notification event payload from SSE. */
 interface SSENotificationPayload {
@@ -45,12 +44,9 @@ interface UseBrowserNotificationsOptions {
  * @param options - Hook configuration. / フック設定
  * @returns Permission state and unread count. / 許可状態と未読数
  */
-export function useBrowserNotifications(
-  options: UseBrowserNotificationsOptions = {},
-) {
+export function useBrowserNotifications(options: UseBrowserNotificationsOptions = {}) {
   const { enabled = true, onNotification } = options;
-  const [permission, setPermission] =
-    useState<NotificationPermission>('default');
+  const [permission, setPermission] = useState<NotificationPermission>('default');
   const [unreadCount, setUnreadCount] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const onNotificationRef = useRef(onNotification);

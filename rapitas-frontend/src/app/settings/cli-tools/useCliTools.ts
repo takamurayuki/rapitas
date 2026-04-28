@@ -3,12 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
-import type {
-  CLITool,
-  ToolsSummary,
-  ToolActionState,
-  AuthModalState,
-} from './types';
+import type { CLITool, ToolsSummary, ToolActionState, AuthModalState } from './types';
 
 export interface UseCLIToolsReturn {
   tools: CLITool[];
@@ -27,10 +22,7 @@ export interface UseCLIToolsReturn {
   closeAuthModal: () => void;
   verifyAuthentication: () => Promise<void>;
   copyToClipboard: (text: string) => Promise<void>;
-  updateActionState: (
-    toolId: string,
-    updates: Partial<ToolActionState>,
-  ) => void;
+  updateActionState: (toolId: string, updates: Partial<ToolActionState>) => void;
   setAuthModal: React.Dispatch<React.SetStateAction<AuthModalState>>;
 }
 
@@ -46,9 +38,7 @@ export function useCLITools(): UseCLIToolsReturn {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [actionStates, setActionStates] = useState<
-    Record<string, ToolActionState>
-  >({});
+  const [actionStates, setActionStates] = useState<Record<string, ToolActionState>>({});
   const [authModal, setAuthModal] = useState<AuthModalState>({
     isOpen: false,
     tool: null,
@@ -56,10 +46,7 @@ export function useCLITools(): UseCLIToolsReturn {
     step: 'command',
   });
 
-  const updateActionState = (
-    toolId: string,
-    updates: Partial<ToolActionState>,
-  ) => {
+  const updateActionState = (toolId: string, updates: Partial<ToolActionState>) => {
     setActionStates((prev) => ({
       ...prev,
       [toolId]: { ...prev[toolId], ...updates },
@@ -94,9 +81,7 @@ export function useCLITools(): UseCLIToolsReturn {
         throw new Error(data.error || 'Unknown error');
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to fetch CLI tools',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to fetch CLI tools');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -151,10 +136,7 @@ export function useCLITools(): UseCLIToolsReturn {
       if (data.success) {
         if (data.data.isAuthenticated)
           showSuccess(`${data.data.tool.name} is already authenticated`);
-        else
-          setError(
-            `${data.data.tool.name} requires authentication. ${data.data.message}`,
-          );
+        else setError(`${data.data.tool.name} requires authentication. ${data.data.message}`);
         setTimeout(() => {
           setSuccessMessage(null);
           setError(null);
@@ -162,9 +144,7 @@ export function useCLITools(): UseCLIToolsReturn {
         await fetchTools();
       } else throw new Error(data.error || 'Authentication check failed');
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Authentication check failed',
-      );
+      setError(err instanceof Error ? err.message : 'Authentication check failed');
     } finally {
       updateActionState(toolId, { isAuthenticating: false });
     }
@@ -186,9 +166,7 @@ export function useCLITools(): UseCLIToolsReturn {
         });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to get auth command',
-      );
+      setError(err instanceof Error ? err.message : 'Failed to get auth command');
     }
   };
 
@@ -199,14 +177,11 @@ export function useCLITools(): UseCLIToolsReturn {
     if (!authModal.tool) return;
     updateActionState(authModal.tool.id, { isAuthenticating: true });
     try {
-      const data = await fetch(
-        `${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ interactive: false }),
-        },
-      ).then((r) => r.json());
+      const data = await fetch(`${API_BASE_URL}/cli-tools/${authModal.tool.id}/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactive: false }),
+      }).then((r) => r.json());
       if (data.success) {
         if (data.data.isAuthenticated) {
           setAuthModal((prev) => ({ ...prev, step: 'completed' }));
@@ -218,17 +193,11 @@ export function useCLITools(): UseCLIToolsReturn {
             `${authModal.tool.name}の認証が完了していません。ターミナルでコマンドを実行してください。`,
           );
         }
-      } else
-        throw new Error(data.error || 'Authentication verification failed');
+      } else throw new Error(data.error || 'Authentication verification failed');
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Authentication verification failed',
-      );
+      setError(err instanceof Error ? err.message : 'Authentication verification failed');
     } finally {
-      if (authModal.tool)
-        updateActionState(authModal.tool.id, { isAuthenticating: false });
+      if (authModal.tool) updateActionState(authModal.tool.id, { isAuthenticating: false });
     }
   };
 

@@ -1,17 +1,9 @@
 'use client';
 // TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
-import type {
-  Task,
-  Resource,
-  Comment,
-  WorkflowStatus,
-  DeveloperModeConfig,
-} from '@/types';
+import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
 import TaskDetailHeader from './TaskDetailHeader';
-import TaskDetailViewBody, {
-  type TaskDetailViewBodyProps,
-} from './TaskDetailViewBody';
+import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskEditForm from './TaskEditForm';
 import TaskDetailModals from './TaskDetailModals';
 import type { WorkflowFile } from '@/types';
@@ -107,11 +99,7 @@ export default function TaskDetailContent({
   const initialScrollDoneRef = useRef(false);
 
   useEffect(() => {
-    if (
-      !showSkeleton &&
-      containerRef.current &&
-      !initialScrollDoneRef.current
-    ) {
+    if (!showSkeleton && containerRef.current && !initialScrollDoneRef.current) {
       initialScrollDoneRef.current = true;
       containerRef.current.scrollTop = 0;
       setContentReady(false);

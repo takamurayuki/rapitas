@@ -1,13 +1,7 @@
 'use client';
 // AuthContext
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
@@ -42,12 +36,8 @@ export interface RegisterCredentials {
 }
 
 export interface AuthContextType extends AuthState {
-  login: (
-    credentials: LoginCredentials,
-  ) => Promise<{ success: boolean; error?: string }>;
-  register: (
-    credentials: RegisterCredentials,
-  ) => Promise<{ success: boolean; error?: string }>;
+  login: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: string }>;
+  register: (credentials: RegisterCredentials) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   refreshSession: () => Promise<void>;
@@ -264,9 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshSession,
   };
 
-  return (
-    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
@@ -277,9 +265,7 @@ export function useAuth() {
   return context;
 }
 
-export function requireAuth<P extends object>(
-  WrappedComponent: React.ComponentType<P>,
-) {
+export function requireAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
   return function AuthenticatedComponent(props: P) {
     const { isAuthenticated, isLoading } = useAuth();
 
@@ -288,9 +274,7 @@ export function requireAuth<P extends object>(
         <div className="flex items-center justify-center min-h-screen bg-background">
           <div className="flex flex-col items-center space-y-4">
             <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">
-              認証を確認中...
-            </div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">認証を確認中...</div>
           </div>
         </div>
       );

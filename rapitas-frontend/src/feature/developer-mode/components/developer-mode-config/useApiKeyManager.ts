@@ -33,12 +33,8 @@ export function useApiKeyManager() {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSavingApiKey, setIsSavingApiKey] = useState(false);
-  const [apiKeyValidationError, setApiKeyValidationError] = useState<
-    string | null
-  >(null);
-  const [apiKeySuccessMessage, setApiKeySuccessMessage] = useState<
-    string | null
-  >(null);
+  const [apiKeyValidationError, setApiKeyValidationError] = useState<string | null>(null);
+  const [apiKeySuccessMessage, setApiKeySuccessMessage] = useState<string | null>(null);
 
   /**
    * Fetches the configured/masked API key status for all providers.
@@ -149,9 +145,7 @@ export function useApiKeyManager() {
         throw new Error(data?.error ?? '保存に失敗しました');
       }
     } catch (err) {
-      setApiKeyValidationError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setApiKeyValidationError(err instanceof Error ? err.message : 'Errorが発生しました');
     } finally {
       setIsSavingApiKey(false);
     }
@@ -165,10 +159,9 @@ export function useApiKeyManager() {
   const deleteApiKey = async (provider: ApiProvider) => {
     setIsSavingApiKey(true);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/settings/api-key?provider=${provider}`,
-        { method: 'DELETE' },
-      );
+      const res = await fetch(`${API_BASE_URL}/settings/api-key?provider=${provider}`, {
+        method: 'DELETE',
+      });
       if (res.ok) {
         setApiKeyStatuses((prev) => ({
           ...prev,

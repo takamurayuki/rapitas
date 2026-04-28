@@ -30,10 +30,7 @@ type Props = {
  *
  * @param props - settings and save handler.
  */
-export function DefaultProviderSection({
-  settings,
-  onSaveDefaultProvider,
-}: Props) {
+export function DefaultProviderSection({ settings, onSaveDefaultProvider }: Props) {
   const t = useTranslations('settings');
 
   return (
@@ -56,9 +53,7 @@ export function DefaultProviderSection({
           {(['claude', 'chatgpt', 'gemini'] as ApiProvider[]).map((p) => {
             const provider = PROVIDERS.find((pr) => pr.key === p);
             const configField = provider?.configuredField;
-            const isConfigured = !!(
-              configField && settings?.[configField as keyof UserSettings]
-            );
+            const isConfigured = !!(configField && settings?.[configField as keyof UserSettings]);
             const isSelected = settings?.defaultAiProvider === p;
 
             return (
@@ -111,9 +106,7 @@ export function DefaultProviderSection({
                       {PROVIDER_DESCRIPTIONS[p]}
                     </p>
                     {!isConfigured && (
-                      <p className="text-xs text-amber-500 mt-2">
-                        {t('apiKeyNotConfigured')}
-                      </p>
+                      <p className="text-xs text-amber-500 mt-2">{t('apiKeyNotConfigured')}</p>
                     )}
                   </div>
                 </div>

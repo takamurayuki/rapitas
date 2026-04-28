@@ -48,14 +48,7 @@ interface StatCardProps {
  * Individual stat card component
  * 個別統計カードコンポーネント
  */
-const StatCard: React.FC<StatCardProps> = ({
-  title,
-  value,
-  subtitle,
-  icon,
-  color,
-  trend,
-}) => {
+const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color, trend }) => {
   return (
     <motion.div
       className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300"
@@ -66,16 +59,11 @@ const StatCard: React.FC<StatCardProps> = ({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-3 mb-2">
-            <div
-              className="p-2 rounded-lg"
-              style={{ backgroundColor: `${color}20`, color }}
-            >
+            <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}20`, color }}>
               {icon}
             </div>
             <div>
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {title}
-              </h3>
+              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</h3>
             </div>
           </div>
 
@@ -84,9 +72,7 @@ const StatCard: React.FC<StatCardProps> = ({
               {typeof value === 'number' ? value.toLocaleString() : value}
             </span>
             {subtitle && (
-              <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                {subtitle}
-              </span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{subtitle}</span>
             )}
           </div>
 
@@ -105,9 +91,7 @@ const StatCard: React.FC<StatCardProps> = ({
                 {trend.value > 0 ? '+' : ''}
                 {trend.value}
               </span>
-              <span className="text-gray-500 dark:text-gray-400">
-                {trend.label}
-              </span>
+              <span className="text-gray-500 dark:text-gray-400">{trend.label}</span>
             </div>
           )}
         </div>
@@ -165,8 +149,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
             strokeDashoffset={circumference}
             strokeLinecap="round"
             animate={{
-              strokeDashoffset:
-                circumference - (percentage / 100) * circumference,
+              strokeDashoffset: circumference - (percentage / 100) * circumference,
             }}
             transition={{ duration: 2, ease: 'easeOut' }}
           />
@@ -175,9 +158,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {Math.round(percentage)}%
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {value}
-          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{value}</div>
         </div>
       </div>
       <div className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400 text-center">
@@ -199,33 +180,18 @@ interface StreakIndicatorProps {
   color: string;
 }
 
-const StreakIndicator: React.FC<StreakIndicatorProps> = ({
-  current,
-  max,
-  label,
-  icon,
-  color,
-}) => {
+const StreakIndicator: React.FC<StreakIndicatorProps> = ({ current, max, label, icon, color }) => {
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="flex items-center space-x-3">
-        <div
-          className="p-2 rounded-lg"
-          style={{ backgroundColor: `${color}20`, color }}
-        >
+        <div className="p-2 rounded-lg" style={{ backgroundColor: `${color}20`, color }}>
           {icon}
         </div>
         <div className="flex-1">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {label}
-          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{label}</div>
           <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-bold text-gray-900 dark:text-white">
-              {current}
-            </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              / 最高 {max}日
-            </span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-white">{current}</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">/ 最高 {max}日</span>
           </div>
         </div>
       </div>
@@ -237,10 +203,7 @@ const StreakIndicator: React.FC<StreakIndicatorProps> = ({
  * Main task stats board component
  * メインタスク統計ボードコンポーネント
  */
-export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
-  playerStats,
-  className = '',
-}) => {
+export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({ playerStats, className = '' }) => {
   const {
     totalTasksCompleted,
     tasksCompletedToday,
@@ -285,9 +248,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
     <div className={`space-y-8 ${className}`}>
       {/* Overview Stats */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          📊 統計概要
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">📊 統計概要</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title="総タスク数"
@@ -338,9 +299,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
 
       {/* Weekly Progress */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          📈 今週の進捗
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">📈 今週の進捗</h2>
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <ProgressRing
@@ -367,9 +326,7 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
 
       {/* Streaks */}
       <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          🔥 連続記録
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">🔥 連続記録</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StreakIndicator
             current={currentTaskStreak}
@@ -399,27 +356,21 @@ export const TaskStatsBoard: React.FC<TaskStatsBoardProps> = ({
               <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-1">
                 {tasksCompletedToday}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                完了タスク
-              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">完了タスク</div>
             </div>
 
             <div className="text-center">
               <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
                 {formatTime(studyTimeToday)}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                学習時間
-              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">学習時間</div>
             </div>
 
             <div className="text-center">
               <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
                 {agentExecutionsToday}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                エージェント実行
-              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">エージェント実行</div>
             </div>
           </div>
 

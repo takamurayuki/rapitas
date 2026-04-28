@@ -9,9 +9,7 @@ describe('formatDistanceToNow', () => {
   it('returns "たった今" for less than 60 seconds', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T12:00:30'));
-    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe(
-      'たった今',
-    );
+    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe('たった今');
   });
 
   it('returns minutes for less than 60 minutes', () => {
@@ -23,9 +21,7 @@ describe('formatDistanceToNow', () => {
   it('returns hours for less than 24 hours', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-01T15:00:00'));
-    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe(
-      '3時間前',
-    );
+    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe('3時間前');
   });
 
   it('returns days for less than 30 days', () => {
@@ -37,9 +33,7 @@ describe('formatDistanceToNow', () => {
   it('returns months for less than 12 months', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-01T12:00:00'));
-    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe(
-      '3ヶ月前',
-    );
+    expect(formatDistanceToNow(new Date('2026-01-01T12:00:00'))).toBe('3ヶ月前');
   });
 
   it('returns years for 365+ days', () => {

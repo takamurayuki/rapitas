@@ -27,9 +27,7 @@ export type UsePromptsManagementReturn = {
  * @param taskId - The task whose prompts to manage.
  * @returns State values and handler functions for prompt list management.
  */
-export function usePromptsManagement(
-  taskId: number,
-): UsePromptsManagementReturn {
+export function usePromptsManagement(taskId: number): UsePromptsManagementReturn {
   const [promptsData, setPromptsData] = useState<PromptsData | null>(null);
   const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
@@ -49,27 +47,21 @@ export function usePromptsManagement(
         throw new Error('プロンプト一覧の取得に失敗しました');
       }
     } catch (err) {
-      setPromptsError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
     } finally {
       setIsLoadingPrompts(false);
     }
   };
 
   const generateAllPrompts = async () => {
-    if (
-      !confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')
-    )
-      return;
+    if (!confirm('すべてのサブタスク（またはタスク）のプロンプトを生成しますか？')) return;
 
     setIsGeneratingAll(true);
     setPromptsError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/tasks/${taskId}/prompts/generate-all`,
-        { method: 'POST' },
-      );
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/prompts/generate-all`, {
+        method: 'POST',
+      });
       if (res.ok) {
         await fetchPrompts();
       } else {
@@ -77,9 +69,7 @@ export function usePromptsManagement(
         throw new Error(errData.error || '一括生成に失敗しました');
       }
     } catch (err) {
-      setPromptsError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
     } finally {
       setIsGeneratingAll(false);
     }
@@ -100,9 +90,7 @@ export function usePromptsManagement(
         throw new Error('更新に失敗しました');
       }
     } catch (err) {
-      setPromptsError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
     }
   };
 
@@ -119,9 +107,7 @@ export function usePromptsManagement(
         throw new Error('削除に失敗しました');
       }
     } catch (err) {
-      setPromptsError(
-        err instanceof Error ? err.message : 'Errorが発生しました',
-      );
+      setPromptsError(err instanceof Error ? err.message : 'Errorが発生しました');
     }
   };
 

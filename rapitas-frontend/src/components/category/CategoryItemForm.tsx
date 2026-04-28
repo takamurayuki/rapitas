@@ -1,5 +1,6 @@
 'use client';
 // CategoryItemForm
+import { useMemo } from 'react';
 import { Search, Save, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { getIconComponent, ICON_DATA } from './icon-data';
@@ -45,12 +46,14 @@ function RenderIcon({
   defaultIconName: string;
   size?: number;
 }) {
-  const IconComponent = getIconComponent(iconName || '');
-  if (!IconComponent) {
-    const DefaultIcon =
-      getIconComponent(defaultIconName) || ICON_DATA['Tag'].component;
-    return <DefaultIcon size={size} />;
-  }
+  const IconComponent = useMemo(() => {
+    const Component = getIconComponent(iconName || '');
+    if (!Component) {
+      return getIconComponent(defaultIconName) || ICON_DATA['Tag'].component;
+    }
+    return Component;
+  }, [iconName, defaultIconName]);
+
   return <IconComponent size={size} />;
 }
 
@@ -98,9 +101,7 @@ export function CategoryItemForm({
         </label>
         <textarea
           value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder={t('descriptionPlaceholder')}
           rows={1}
           className={`w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all resize-none`}
@@ -116,17 +117,13 @@ export function CategoryItemForm({
             <input
               type="color"
               value={formData.color}
-              onChange={(e) =>
-                setFormData({ ...formData, color: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
               className="h-9 w-12 rounded-lg border border-zinc-300 dark:border-zinc-700 cursor-pointer"
             />
             <input
               type="text"
               value={formData.color}
-              onChange={(e) =>
-                setFormData({ ...formData, color: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, color: e.target.value })}
               className={`flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all font-mono`}
             />
           </div>
@@ -144,11 +141,7 @@ export function CategoryItemForm({
             }}
           >
             <div style={{ color: formData.color }}>
-              <RenderIcon
-                iconName={formData.icon}
-                defaultIconName={config.defaultIcon}
-                size={20}
-              />
+              <RenderIcon iconName={formData.icon} defaultIconName={config.defaultIcon} size={20} />
             </div>
           </div>
         </div>
@@ -157,8 +150,7 @@ export function CategoryItemForm({
       <div>
         <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
           {t('selectIconLabel')}{' '}
-          {!formData.icon &&
-            t('iconNotSelectedDefault', { icon: config.defaultIcon })}
+          {!formData.icon && t('iconNotSelectedDefault', { icon: config.defaultIcon })}
         </label>
 
         <div className="relative mb-2">
@@ -182,15 +174,9 @@ export function CategoryItemForm({
             <IconGrid
               icons={filteredIcons}
               selectedIcon={formData.icon}
-              onIconSelect={(iconName) =>
-                setFormData({ ...formData, icon: iconName })
-              }
+              onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
               renderIcon={(name, size) => (
-                <RenderIcon
-                  iconName={name}
-                  defaultIconName={config.defaultIcon}
-                  size={size}
-                />
+                <RenderIcon iconName={name} defaultIconName={config.defaultIcon} size={size} />
               )}
               accentClass={accent.iconBg}
             />

@@ -49,12 +49,8 @@ function SettingsPage() {
           <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            {t('title')}
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('subtitle')}
-          </p>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
         </div>
       </div>
 
@@ -89,10 +85,7 @@ function SettingsPage() {
           onSaveModel={saveModel}
         />
 
-        <DefaultProviderSection
-          settings={settings}
-          onSaveDefaultProvider={saveDefaultProvider}
-        />
+        <DefaultProviderSection settings={settings} onSaveDefaultProvider={saveDefaultProvider} />
 
         <LocalLlmSection
           settings={settings}

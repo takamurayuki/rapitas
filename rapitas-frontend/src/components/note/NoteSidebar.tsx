@@ -7,13 +7,8 @@ import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
 
 export default function NoteSidebar() {
-  const {
-    currentNoteId,
-    getFilteredNotes,
-    createNote,
-    deleteNote,
-    setCurrentNote,
-  } = useNoteStore();
+  const { currentNoteId, getFilteredNotes, createNote, deleteNote, setCurrentNote } =
+    useNoteStore();
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
 
@@ -75,9 +70,7 @@ export default function NoteSidebar() {
         {filteredNotes.length === 0 ? (
           <div className="p-4 text-center">
             <FileText className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              ノートがありません
-            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">ノートがありません</p>
           </div>
         ) : (
           <div className="space-y-1 p-2">
@@ -94,9 +87,7 @@ export default function NoteSidebar() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 mb-1">
-                      {note.isPinned && (
-                        <Pin className="w-3 h-3 text-yellow-500" />
-                      )}
+                      {note.isPinned && <Pin className="w-3 h-3 text-yellow-500" />}
                       <h4 className="font-medium text-sm truncate text-zinc-900 dark:text-zinc-100">
                         {note.title}
                       </h4>

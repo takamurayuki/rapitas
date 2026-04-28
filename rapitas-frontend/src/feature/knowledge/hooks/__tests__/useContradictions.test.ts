@@ -60,9 +60,7 @@ describe('useContradictions', () => {
 
     expect(result.current.contradictions).toEqual(mockContradictions);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://test:3001/memory/contradictions?limit=20',
-    );
+    expect(mockFetch).toHaveBeenCalledWith('http://test:3001/memory/contradictions?limit=20');
   });
 
   it('should use custom limit', async () => {
@@ -74,9 +72,7 @@ describe('useContradictions', () => {
     renderHook(() => useContradictions(5));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://test:3001/memory/contradictions?limit=5',
-      );
+      expect(mockFetch).toHaveBeenCalledWith('http://test:3001/memory/contradictions?limit=5');
     });
   });
 
@@ -163,14 +159,11 @@ describe('useContradictions', () => {
     });
 
     // Check resolve was called correctly
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://test:3001/memory/contradictions/1/resolve',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resolution: 'keep_a' }),
-      },
-    );
+    expect(mockFetch).toHaveBeenCalledWith('http://test:3001/memory/contradictions/1/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolution: 'keep_a' }),
+    });
 
     // After resolve, contradictions should be refetched (empty now)
     expect(result.current.contradictions).toEqual([]);

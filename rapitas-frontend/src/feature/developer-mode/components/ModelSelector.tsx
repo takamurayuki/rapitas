@@ -3,11 +3,7 @@
 import { useState, useRef, useEffect, memo } from 'react';
 import { ChevronDown, Terminal, Zap, Globe, Check } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
-import {
-  PROVIDER_CONFIGS,
-  getModelName,
-  getProviderLabel,
-} from '../constants/provider-configs';
+import { PROVIDER_CONFIGS, getModelName, getProviderLabel } from '../constants/provider-configs';
 
 type Props = {
   agents: AIAgentConfig[];
@@ -36,8 +32,7 @@ export const ModelSelector = memo(function ModelSelector({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -80,10 +75,7 @@ export const ModelSelector = memo(function ModelSelector({
               </div>
               {items.map((agent) => {
                 const isSelected = agent.id === selectedAgentId;
-                const modelName = getModelName(
-                  agent.agentType,
-                  agent.modelId || '',
-                );
+                const modelName = getModelName(agent.agentType, agent.modelId || '');
                 return (
                   <button
                     key={agent.id}
@@ -92,18 +84,14 @@ export const ModelSelector = memo(function ModelSelector({
                       setOpen(false);
                     }}
                     className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[11px] hover:bg-zinc-700 transition-colors ${
-                      isSelected
-                        ? 'text-violet-400 bg-violet-900/20'
-                        : 'text-zinc-300'
+                      isSelected ? 'text-violet-400 bg-violet-900/20' : 'text-zinc-300'
                     }`}
                   >
                     <span className="flex-1 truncate">
                       {agent.name}
                       <span className="ml-1 text-zinc-500">({modelName})</span>
                     </span>
-                    {isSelected && (
-                      <Check className="w-3 h-3 text-violet-400 shrink-0" />
-                    )}
+                    {isSelected && <Check className="w-3 h-3 text-violet-400 shrink-0" />}
                   </button>
                 );
               })}

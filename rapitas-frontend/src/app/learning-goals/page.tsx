@@ -16,9 +16,7 @@ import { GoalDetailPanel } from './_components/GoalDetailPanel';
  * @param generatedPlan - Raw JSON string from the API.
  * @returns Parsed plan or null if absent/invalid.
  */
-function parsePlan(
-  generatedPlan?: string | null,
-): GeneratedLearningPlan | null {
+function parsePlan(generatedPlan?: string | null): GeneratedLearningPlan | null {
   if (!generatedPlan) return null;
   try {
     return JSON.parse(generatedPlan) as GeneratedLearningPlan;
@@ -79,12 +77,8 @@ export default function LearningGoalsPage() {
         <div className="flex items-center gap-3">
           <BookMarked className="w-8 h-8 text-emerald-500" />
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-              {t('title')}
-            </h1>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {t('subtitle')}
-            </p>
+            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">{t('title')}</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('subtitle')}</p>
           </div>
         </div>
         {!showWizard && (
@@ -102,9 +96,7 @@ export default function LearningGoalsPage() {
       {showWizard && (
         <GoalWizard
           categories={categories}
-          onSubmit={(formData) =>
-            handleCreateGoal(formData, () => setShowWizard(false))
-          }
+          onSubmit={(formData) => handleCreateGoal(formData, () => setShowWizard(false))}
           onCancel={() => setShowWizard(false)}
         />
       )}
@@ -130,9 +122,7 @@ export default function LearningGoalsPage() {
               <h3 className="text-lg font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                 {t('aiGenerating')}
               </h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t('analyzingSources')}
-              </p>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('analyzingSources')}</p>
             </div>
           ) : selectedGoal ? (
             <GoalDetailPanel

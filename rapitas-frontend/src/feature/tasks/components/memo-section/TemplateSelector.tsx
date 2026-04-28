@@ -75,12 +75,8 @@ export const TemplateSelector = memo(function TemplateSelector({
                     className="w-full text-left p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors group"
                   >
                     <div className="flex items-start gap-3">
-                      <div
-                        className={`p-1.5 rounded-lg ${templateTypeConfig.color.bg}`}
-                      >
-                        <TemplateIcon
-                          className={`w-3.5 h-3.5 ${templateTypeConfig.color.text}`}
-                        />
+                      <div className={`p-1.5 rounded-lg ${templateTypeConfig.color.bg}`}>
+                        <TemplateIcon className={`w-3.5 h-3.5 ${templateTypeConfig.color.text}`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">

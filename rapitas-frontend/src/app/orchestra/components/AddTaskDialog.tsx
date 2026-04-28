@@ -110,9 +110,7 @@ export function AddTaskDialog({
             {isRunning ? (
               <button
                 onClick={onEnqueueSelected}
-                disabled={
-                  selectedTaskIds.length === 0 || actionLoading !== null
-                }
+                disabled={selectedTaskIds.length === 0 || actionLoading !== null}
                 className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-50 transition-colors"
               >
                 {t('addTaskDialog.add')}
@@ -120,9 +118,7 @@ export function AddTaskDialog({
             ) : (
               <button
                 onClick={onStartOrchestra}
-                disabled={
-                  selectedTaskIds.length === 0 || actionLoading !== null
-                }
+                disabled={selectedTaskIds.length === 0 || actionLoading !== null}
                 className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
                 <Play className="w-3.5 h-3.5" />

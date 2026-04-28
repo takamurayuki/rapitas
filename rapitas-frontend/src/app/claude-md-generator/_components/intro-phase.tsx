@@ -78,8 +78,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
             lineHeight: 1.1,
             letterSpacing: '-.03em',
             marginBottom: 20,
-            background:
-              'linear-gradient(135deg, #eeeef5 20%, var(--accent2) 80%)',
+            background: 'linear-gradient(135deg, #eeeef5 20%, var(--accent2) 80%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             whiteSpace: 'pre-line',
@@ -100,8 +99,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
           {t('heroDescription')}
           <span style={{ color: 'var(--text)' }}>{t('heroHighlight')}</span>
           <br />
-          {t('heroPerfect')}{' '}
-          <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
+          {t('heroPerfect')} <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
           {t('heroSuffix')}
         </p>
 
@@ -114,12 +112,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
             marginBottom: 40,
           }}
         >
-          {[
-            t('tagDeepDive'),
-            t('tagAiPropose'),
-            t('tagAutoTech'),
-            t('tagBehavior'),
-          ].map((tag) => (
+          {[t('tagDeepDive'), t('tagAiPropose'), t('tagAutoTech'), t('tagBehavior')].map((tag) => (
             <span key={tag} className="tag tag-accent">
               {tag}
             </span>

@@ -120,9 +120,7 @@ function AnalysisResultCard({
   onAction?: (action: string, params?: Record<string, unknown>) => void;
 }) {
   const subtasks = data.suggestedSubtasks ?? [];
-  const [selected, setSelected] = useState<number[]>(() =>
-    subtasks.map((_, i) => i),
-  );
+  const [selected, setSelected] = useState<number[]>(() => subtasks.map((_, i) => i));
   const [created, setCreated] = useState(false);
 
   const toggleSubtask = useCallback((index: number) => {
@@ -132,9 +130,7 @@ function AnalysisResultCard({
   }, []);
 
   const toggleAll = useCallback(() => {
-    setSelected((prev) =>
-      prev.length === subtasks.length ? [] : subtasks.map((_, i) => i),
-    );
+    setSelected((prev) => (prev.length === subtasks.length ? [] : subtasks.map((_, i) => i)));
   }, [subtasks.length]);
 
   const handleCreate = useCallback(() => {
@@ -154,9 +150,7 @@ function AnalysisResultCard({
           <span>|</span>
           <span>推定: {data.estimatedTotalHours}h</span>
         </div>
-        <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">
-          {data.summary}
-        </p>
+        <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">{data.summary}</p>
       </div>
       {subtasks.length > 0 && (
         <div className="space-y-1.5">
@@ -188,9 +182,7 @@ function AnalysisResultCard({
                     className="mt-0.5 w-3 h-3 rounded border-violet-300 text-violet-600"
                   />
                 )}
-                {created && (
-                  <CheckCircle2 className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />
-                )}
+                {created && <CheckCircle2 className="w-3 h-3 mt-0.5 text-green-500 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-violet-700 dark:text-violet-300 text-[11px] line-clamp-1">
                     {st.title}
@@ -214,16 +206,10 @@ function AnalysisResultCard({
                       ) : (
                         <ChevronDown className="w-2.5 h-2.5" />
                       )}
-                      {st.priority === 'high'
-                        ? '高'
-                        : st.priority === 'medium'
-                          ? '中'
-                          : '低'}
+                      {st.priority === 'high' ? '高' : st.priority === 'medium' ? '中' : '低'}
                     </span>
                     {st.estimatedHours != null && (
-                      <span className="text-[9px] text-zinc-400">
-                        {st.estimatedHours}h
-                      </span>
+                      <span className="text-[9px] text-zinc-400">{st.estimatedHours}h</span>
                     )}
                   </div>
                 </div>
@@ -232,9 +218,7 @@ function AnalysisResultCard({
           </div>
           {!created && (
             <div className="flex items-center justify-end gap-2 pt-1">
-              <span className="text-[10px] text-zinc-500">
-                {selected.length}件選択
-              </span>
+              <span className="text-[10px] text-zinc-500">{selected.length}件選択</span>
               <button
                 onClick={handleCreate}
                 disabled={selected.length === 0}
@@ -286,10 +270,7 @@ function MessageBubble({
         className={`max-w-[92%] sm:max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${isUser ? 'bg-indigo-600 text-white' : 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200'}`}
       >
         {isAnalysis ? (
-          <AnalysisResultCard
-            data={msg.actionData!.data as AnalysisData}
-            onAction={onAction}
-          />
+          <AnalysisResultCard data={msg.actionData!.data as AnalysisData} onAction={onAction} />
         ) : (
           <p className="whitespace-pre-wrap">{msg.content}</p>
         )}
@@ -317,13 +298,7 @@ function MessageBubble({
   );
 }
 
-function ProactiveInsight({
-  taskStatus,
-  taskTitle,
-}: {
-  taskStatus?: string;
-  taskTitle?: string;
-}) {
+function ProactiveInsight({ taskStatus, taskTitle }: { taskStatus?: string; taskTitle?: string }) {
   if (!taskStatus || !taskTitle) return null;
   const insights: Array<{ icon: typeof Zap; text: string; color: string }> = [];
   if (taskStatus === 'todo')
@@ -353,9 +328,7 @@ function ProactiveInsight({
           className="flex items-center gap-2 rounded-lg bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50"
         >
           <insight.icon className={`h-3.5 w-3.5 ${insight.color}`} />
-          <span className="text-zinc-600 dark:text-zinc-400">
-            {insight.text}
-          </span>
+          <span className="text-zinc-600 dark:text-zinc-400">{insight.text}</span>
         </div>
       ))}
     </div>
@@ -379,8 +352,7 @@ export function CopilotChatPanel({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current)
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -428,9 +400,7 @@ export function CopilotChatPanel({
         className={`flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 ${className}`}
       >
         <Sparkles className="h-4 w-4 text-indigo-500" />
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">
-          AI コパイロット
-        </span>
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">AI コパイロット</span>
         {messages.length > 0 && (
           <span className="rounded-full bg-indigo-100 px-1.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
             {messages.length}
@@ -456,9 +426,7 @@ export function CopilotChatPanel({
           </h3>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-zinc-400">
-            cache→local→haiku→sonnet
-          </span>
+          <span className="text-[10px] text-zinc-400">cache→local→haiku→sonnet</span>
           {messages.length > 0 && (
             <button
               onClick={clearChat}

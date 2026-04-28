@@ -88,11 +88,9 @@ export function useFavorites(): UseFavoritesReturn {
     }
   };
 
-  const isFavorite = (dirPath: string) =>
-    favorites.some((f) => f.path === dirPath);
+  const isFavorite = (dirPath: string) => favorites.some((f) => f.path === dirPath);
 
-  const getFavoriteId = (dirPath: string) =>
-    favorites.find((f) => f.path === dirPath)?.id;
+  const getFavoriteId = (dirPath: string) => favorites.find((f) => f.path === dirPath)?.id;
 
   return {
     favorites,

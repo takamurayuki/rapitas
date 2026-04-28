@@ -307,8 +307,6 @@ pub fn transcribe_pcm(samples: &[f32], language: &str) -> Result<TranscriptionRe
         .finalize()
         .map_err(|e| format!("WAV finalize error: {e}"))?;
 
-    let result = transcribe(&wav_path, language);
-
     // transcribe() already cleans up the file
-    result
+    transcribe(&wav_path, language)
 }

@@ -1,5 +1,6 @@
 'use client';
 // CategoryItemRow
+import { useMemo } from 'react';
 import { Edit2, Trash2, GripVertical, Star } from 'lucide-react';
 import { Draggable } from '@hello-pangea/dnd';
 import { useTranslations } from 'next-intl';
@@ -54,12 +55,14 @@ function ItemIcon({
   defaultIconName: string;
   size?: number;
 }) {
-  const IconComponent = getIconComponent(iconName || '');
-  if (!IconComponent) {
-    const DefaultIcon =
-      getIconComponent(defaultIconName) || ICON_DATA['Tag'].component;
-    return <DefaultIcon size={size} />;
-  }
+  const IconComponent = useMemo(() => {
+    const Component = getIconComponent(iconName || '');
+    if (!Component) {
+      return getIconComponent(defaultIconName) || ICON_DATA['Tag'].component;
+    }
+    return Component;
+  }, [iconName, defaultIconName]);
+
   return <IconComponent size={size} />;
 }
 
@@ -143,11 +146,7 @@ export function CategoryItemRow({
                     color: item.color,
                   }}
                 >
-                  <ItemIcon
-                    iconName={item.icon}
-                    defaultIconName={config.defaultIcon}
-                    size={20}
-                  />
+                  <ItemIcon iconName={item.icon} defaultIconName={config.defaultIcon} size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50 truncate">
@@ -174,9 +173,7 @@ export function CategoryItemRow({
                     </span>
                     {item._count && (
                       <span className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                        <span className="font-semibold">
-                          {item._count.tasks}
-                        </span>
+                        <span className="font-semibold">{item._count.tasks}</span>
                         <span className="hidden sm:inline">{t('tasks')}</span>
                       </span>
                     )}
@@ -193,9 +190,7 @@ export function CategoryItemRow({
                         : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                   >
-                    <Star
-                      className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`}
-                    />
+                    <Star className={`w-3.5 h-3.5 ${item.isDefault ? 'fill-current' : ''}`} />
                     <span className="hidden sm:inline">
                       {item.isDefault ? t('default') : t('setAsDefault')}
                     </span>

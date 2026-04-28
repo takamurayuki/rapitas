@@ -31,9 +31,7 @@ describe('log-message-transformer', () => {
       const result = transformLogToUserFriendly(createLog);
 
       expect(result.category).toBe('success');
-      expect(result.message).toBe(
-        '✨ 新しいファイル new-component.tsx を作成しました',
-      );
+      expect(result.message).toBe('✨ 新しいファイル new-component.tsx を作成しました');
       expect(result.iconName).toBe('FileEdit');
     });
 
@@ -92,8 +90,7 @@ describe('log-message-transformer', () => {
     });
 
     test('不明なパターンのログをデフォルト処理する', () => {
-      const unknownLog =
-        'Some unknown log message that does not match any pattern';
+      const unknownLog = 'Some unknown log message that does not match any pattern';
       const result = transformLogToUserFriendly(unknownLog);
 
       expect(result.category).toBe('info');
@@ -142,8 +139,7 @@ describe('log-message-transformer', () => {
 
       // 重複する "処理中です" メッセージが統合されることを確認
       const progressMessages = results.filter(
-        (entry) =>
-          entry.category === 'progress' && entry.message === '⏳ 処理中です',
+        (entry) => entry.category === 'progress' && entry.message === '⏳ 処理中です',
       );
       expect(progressMessages).toHaveLength(2); // "processing" と最初の "waiting"
     });

@@ -19,10 +19,7 @@ function PageSkeleton() {
           <div className="h-40 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl"
-              />
+              <div key={i} className="h-32 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
             ))}
           </div>
           <div className="h-80 bg-zinc-200 dark:bg-zinc-700 rounded-xl" />
@@ -88,17 +85,11 @@ export default function AgentMemoryPage() {
         />
 
         {growthTimeline && growthTimeline.timeline.length > 0 && (
-          <ConfidenceTrendChart
-            growthTimeline={growthTimeline}
-            formatChartDate={formatChartDate}
-          />
+          <ConfidenceTrendChart growthTimeline={growthTimeline} formatChartDate={formatChartDate} />
         )}
 
         {memoryOverview && (
-          <RecentLearnings
-            memoryOverview={memoryOverview}
-            formatDate={formatDate}
-          />
+          <RecentLearnings memoryOverview={memoryOverview} formatDate={formatDate} />
         )}
 
         {/* Empty state — no data and no error */}

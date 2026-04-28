@@ -1,11 +1,6 @@
 'use client';
 // PrioritySelector
-import {
-  ChevronsUp,
-  ChevronUp,
-  ChevronsUpDown,
-  ChevronDown,
-} from 'lucide-react';
+import { ChevronsUp, ChevronUp, ChevronsUpDown, ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Priority } from '@/types';
 
@@ -24,9 +19,7 @@ export interface PriorityOption {
  * @param t - Translation function for the 'task' namespace / タスク名前空間の翻訳関数
  * @returns Array of priority option objects.
  */
-export function usePriorityOptions(
-  t: ReturnType<typeof useTranslations>,
-): PriorityOption[] {
+export function usePriorityOptions(t: ReturnType<typeof useTranslations>): PriorityOption[] {
   return [
     {
       value: 'urgent',
@@ -75,11 +68,7 @@ interface PrioritySelectorProps {
  * @param props.onChange - Change handler / 変更ハンドラ
  * @param props.options - Optional pre-built options list / オプションリスト（省略可）
  */
-export function PrioritySelector({
-  value,
-  onChange,
-  options,
-}: PrioritySelectorProps) {
+export function PrioritySelector({ value, onChange, options }: PrioritySelectorProps) {
   const t = useTranslations('task');
   const defaultOptions = usePriorityOptions(t);
   const priorityOptions = options ?? defaultOptions;
@@ -97,9 +86,7 @@ export function PrioritySelector({
               : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700'
           }`}
         >
-          <span className={value === opt.value ? 'text-white' : opt.iconColor}>
-            {opt.icon}
-          </span>
+          <span className={value === opt.value ? 'text-white' : opt.iconColor}>{opt.icon}</span>
           {opt.label}
         </button>
       ))}

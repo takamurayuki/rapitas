@@ -39,9 +39,7 @@ export function TaskAnalysisPanel({
   isApproving,
   onOpenSettings,
 }: TaskAnalysisPanelProps) {
-  const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(
-    new Set(),
-  );
+  const [selectedSubtasks, setSelectedSubtasks] = useState<Set<number>>(new Set());
   const [selectAll, setSelectAll] = useState(true);
 
   const handleToggleSubtask = (index: number) => {
@@ -62,9 +60,7 @@ export function TaskAnalysisPanel({
       setSelectedSubtasks(new Set());
       setSelectAll(false);
     } else {
-      setSelectedSubtasks(
-        new Set(analysisResult?.suggestedSubtasks.map((_, i) => i) || []),
-      );
+      setSelectedSubtasks(new Set(analysisResult?.suggestedSubtasks.map((_, i) => i) || []));
       setSelectAll(true);
     }
   };
@@ -78,10 +74,8 @@ export function TaskAnalysisPanel({
   };
 
   const complexityColors = {
-    simple:
-      'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
-    medium:
-      'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30',
+    simple: 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30',
+    medium: 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30',
     complex: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30',
   };
 
@@ -100,9 +94,7 @@ export function TaskAnalysisPanel({
             <BrainCircuit className="w-8 h-8 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-              AI タスク分析
-            </h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">AI タスク分析</h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
               AIがタスクを分析し、効率的なサブタスクを提案
             </p>
@@ -158,12 +150,8 @@ export function TaskAnalysisPanel({
         <div className="flex items-center gap-3">
           <AlertCircle className="w-6 h-6 text-red-500" />
           <div className="flex-1">
-            <p className="font-medium text-red-700 dark:text-red-300">
-              分析に失敗しました
-            </p>
-            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-              {error}
-            </p>
+            <p className="font-medium text-red-700 dark:text-red-300">分析に失敗しました</p>
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</p>
           </div>
           <button
             onClick={onAnalyze}
@@ -219,9 +207,7 @@ export function TaskAnalysisPanel({
         </div>
 
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
-          <p className="text-zinc-700 dark:text-zinc-300">
-            {analysisResult.summary}
-          </p>
+          <p className="text-zinc-700 dark:text-zinc-300">{analysisResult.summary}</p>
         </div>
 
         <div className="px-6 py-4">
@@ -258,8 +244,7 @@ export function TaskAnalysisPanel({
             {analysisResult.reasoning && (
               <div className="mb-3">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  <span className="font-medium">分解理由:</span>{' '}
-                  {analysisResult.reasoning}
+                  <span className="font-medium">分解理由:</span> {analysisResult.reasoning}
                 </p>
               </div>
             )}
@@ -287,9 +272,7 @@ export function TaskAnalysisPanel({
           </button>
           <button
             onClick={handleApprove}
-            disabled={
-              isApproving || (!selectAll && selectedSubtasks.size === 0)
-            }
+            disabled={isApproving || (!selectAll && selectedSubtasks.size === 0)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-50"
           >
             {isApproving ? (
@@ -329,9 +312,7 @@ function SubtaskProposalItem({
     >
       <div
         className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-          isSelected
-            ? 'border-violet-500 bg-violet-500'
-            : 'border-zinc-300 dark:border-zinc-600'
+          isSelected ? 'border-violet-500 bg-violet-500' : 'border-zinc-300 dark:border-zinc-600'
         }`}
       >
         {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -339,9 +320,7 @@ function SubtaskProposalItem({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs text-zinc-400 dark:text-zinc-500">
-            #{index + 1}
-          </span>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">#{index + 1}</span>
           <span className="font-medium text-zinc-900 dark:text-zinc-50 truncate">
             {subtask.title}
           </span>

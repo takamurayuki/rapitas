@@ -21,8 +21,7 @@ export default function KeyboardShortcuts() {
   useEffect(() => {
     const handleOpenShortcuts = () => setShowHelp(true);
     window.addEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
-    return () =>
-      window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
+    return () => window.removeEventListener(OPEN_SHORTCUTS_EVENT, handleOpenShortcuts);
   }, []);
 
   const actionMap: Record<ShortcutId, () => void> = {
@@ -36,9 +35,7 @@ export default function KeyboardShortcuts() {
     toggleAI: () => {
       const noteStore = useNoteStore.getState();
       if (noteStore.modalState.isOpen) {
-        noteStore.setModalTab(
-          noteStore.modalState.activeTab === 'ai' ? 'note' : 'ai',
-        );
+        noteStore.setModalTab(noteStore.modalState.activeTab === 'ai' ? 'note' : 'ai');
       } else {
         noteStore.openModal('ai');
       }
@@ -98,13 +95,7 @@ export default function KeyboardShortcuts() {
     if (binding.ctrl) parts.push('Ctrl');
     if (binding.meta) parts.push(isMac ? '\u2318' : 'Ctrl');
     if (binding.shift) parts.push(isMac ? '\u21E7' : 'Shift');
-    parts.push(
-      !binding.key
-        ? ''
-        : binding.key === 'Escape'
-          ? 'Esc'
-          : binding.key.toUpperCase(),
-    );
+    parts.push(!binding.key ? '' : binding.key === 'Escape' ? 'Esc' : binding.key.toUpperCase());
     return parts.join(' + ');
   };
 
@@ -143,13 +134,8 @@ export default function KeyboardShortcuts() {
 
         <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
           {shortcuts.map((binding) => (
-            <div
-              key={binding.id}
-              className="flex items-center justify-between py-2"
-            >
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                {binding.label}
-              </span>
+            <div key={binding.id} className="flex items-center justify-between py-2">
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">{binding.label}</span>
               <kbd className="px-2 py-1 bg-zinc-100 dark:bg-zinc-700 rounded text-xs font-mono text-zinc-600 dark:text-zinc-400">
                 {formatShortcut(binding)}
               </kbd>
@@ -159,9 +145,7 @@ export default function KeyboardShortcuts() {
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 text-center">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {isMac
-              ? '\u2318 は Command キー、\u21E7 は Shift キー'
-              : 'Ctrl は Control キー'}
+            {isMac ? '\u2318 は Command キー、\u21E7 は Shift キー' : 'Ctrl は Control キー'}
           </p>
         </div>
       </div>

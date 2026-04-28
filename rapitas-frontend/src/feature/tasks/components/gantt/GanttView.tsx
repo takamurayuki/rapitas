@@ -6,16 +6,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import useSWR from 'swr';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  Loader2,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
 import type { GanttData, GanttTask } from '@/types/task.types';
 import { GanttBar } from './GanttBar';
-import { GanttArrows } from './GanttArrows';
 import {
   adjustDateRange,
   taskToBar,
@@ -24,8 +17,7 @@ import {
   type GanttViewport,
 } from './gantt-utils';
 
-const API_BASE =
-  process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
+const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:3001' : '';
 
 interface GanttViewProps {
   themeId?: number;
@@ -35,11 +27,7 @@ interface GanttViewProps {
 
 type ZoomLevel = 'day' | 'week' | 'month';
 
-export function GanttView({
-  themeId,
-  categoryId,
-  className = '',
-}: GanttViewProps) {
+export function GanttView({ themeId, categoryId, className = '' }: GanttViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('week');
@@ -66,12 +54,8 @@ export function GanttView({
     }
 
     return {
-      from: new Date(
-        center.getTime() - daysBefore * 24 * 60 * 60 * 1000,
-      ).toISOString(),
-      to: new Date(
-        center.getTime() + daysAfter * 24 * 60 * 60 * 1000,
-      ).toISOString(),
+      from: new Date(center.getTime() - daysBefore * 24 * 60 * 60 * 1000).toISOString(),
+      to: new Date(center.getTime() + daysAfter * 24 * 60 * 60 * 1000).toISOString(),
     };
   };
 
@@ -129,9 +113,7 @@ export function GanttView({
   const navigateDate = (direction: 'prev' | 'next') => {
     const days = zoomLevel === 'day' ? 7 : zoomLevel === 'week' ? 30 : 90;
     const multiplier = direction === 'prev' ? -1 : 1;
-    const newDate = new Date(
-      viewDate.getTime() + multiplier * days * 24 * 60 * 60 * 1000,
-    );
+    const newDate = new Date(viewDate.getTime() + multiplier * days * 24 * 60 * 60 * 1000);
     setViewDate(newDate);
   };
 
@@ -145,9 +127,7 @@ export function GanttView({
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-3 text-gray-600 dark:text-gray-400">
-          ガントチャートを読み込み中...
-        </span>
+        <span className="ml-3 text-gray-600 dark:text-gray-400">ガントチャートを読み込み中...</span>
       </div>
     );
   }
@@ -177,15 +157,10 @@ export function GanttView({
   }
 
   // タスクバーデータの生成
-  const bars = ganttData.tasks.map((task, index) =>
-    taskToBar(task, index, viewport),
-  );
+  const bars = ganttData.tasks.map((task, index) => taskToBar(task, index, viewport));
 
   // グリッド線の計算
-  const gridLines =
-    zoomLevel === 'day'
-      ? getDayGridLines(viewport)
-      : getWeekGridLines(viewport);
+  const gridLines = zoomLevel === 'day' ? getDayGridLines(viewport) : getWeekGridLines(viewport);
 
   return (
     <div
@@ -194,16 +169,9 @@ export function GanttView({
       {/* ヘッダー */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            ガントチャート
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ガントチャート</h2>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             {ganttData.metadata.totalTasks} タスク
-            {ganttData.criticalPath.length > 0 && (
-              <span className="ml-2 text-red-600 dark:text-red-400">
-                • クリティカルパス: {ganttData.criticalPath.length} タスク
-              </span>
-            )}
           </div>
         </div>
 
@@ -261,11 +229,7 @@ export function GanttView({
       </div>
 
       {/* ガントチャート */}
-      <div
-        ref={containerRef}
-        className="w-full overflow-auto"
-        style={{ height: '500px' }}
-      >
+      <div ref={containerRef} className="w-full overflow-auto" style={{ height: '500px' }}>
         <svg width={viewport.width} height={viewport.height} className="w-full">
           {/* 背景グリッド */}
           <g className="grid-lines">
@@ -296,21 +260,14 @@ export function GanttView({
                 />
                 <text
                   x={viewport.margin.left - 15}
-                  y={
-                    viewport.margin.top +
-                    index * viewport.rowHeight +
-                    viewport.rowHeight / 2 +
-                    4
-                  }
+                  y={viewport.margin.top + index * viewport.rowHeight + viewport.rowHeight / 2 + 4}
                   textAnchor="end"
                   fontSize="12"
                   fill="currentColor"
                   className="text-gray-700 dark:text-gray-300"
                 >
                   <tspan>
-                    {task.title.length > 25
-                      ? `${task.title.slice(0, 22)}...`
-                      : task.title}
+                    {task.title.length > 25 ? `${task.title.slice(0, 22)}...` : task.title}
                   </tspan>
                 </text>
               </g>
@@ -323,20 +280,12 @@ export function GanttView({
               <GanttBar
                 key={bar.taskId}
                 bar={bar}
-                isOnCriticalPath={ganttData.criticalPath.includes(bar.taskId)}
+                isOnCriticalPath={false}
                 onClick={handleTaskClick}
                 onHover={setHoveredTaskId}
               />
             ))}
           </g>
-
-          {/* 依存関係の矢印 */}
-          <GanttArrows
-            bars={bars}
-            dependencies={ganttData.dependencies}
-            criticalPath={ganttData.criticalPath}
-            hoveredTaskId={hoveredTaskId}
-          />
         </svg>
       </div>
     </div>

@@ -11,10 +11,7 @@ type Props = {
   items: Theme[];
   selectedCategoryId: number | null;
   onSelectCategory: (id: number) => void;
-  renderIcon: (
-    iconName: string | null | undefined,
-    size?: number,
-  ) => React.ReactNode;
+  renderIcon: (iconName: string | null | undefined, size?: number) => React.ReactNode;
 };
 
 /**

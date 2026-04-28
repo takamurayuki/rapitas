@@ -22,9 +22,7 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-blue-100 text-sm">{t('totalExecutions')}</p>
-            <p className="text-2xl font-bold">
-              {overview.totalExecutions.toLocaleString()}
-            </p>
+            <p className="text-2xl font-bold">{overview.totalExecutions.toLocaleString()}</p>
           </div>
           <Activity className="w-8 h-8 text-blue-200" />
         </div>
@@ -34,9 +32,7 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-green-100 text-sm">{t('successRate')}</p>
-            <p className="text-2xl font-bold">
-              {overview.overallSuccessRate.toFixed(1)}%
-            </p>
+            <p className="text-2xl font-bold">{overview.overallSuccessRate.toFixed(1)}%</p>
           </div>
           <CheckCircle2 className="w-8 h-8 text-green-200" />
         </div>
@@ -46,9 +42,7 @@ export function MetricsOverviewCards({ overview }: MetricsOverviewCardsProps) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-purple-100 text-sm">{t('totalTokenUsage')}</p>
-            <p className="text-2xl font-bold">
-              {(overview.totalTokensUsed / 1000).toFixed(0)}K
-            </p>
+            <p className="text-2xl font-bold">{(overview.totalTokensUsed / 1000).toFixed(0)}K</p>
           </div>
           <Zap className="w-8 h-8 text-purple-200" />
         </div>

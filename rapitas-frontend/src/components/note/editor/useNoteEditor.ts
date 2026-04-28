@@ -23,14 +23,8 @@ import {
   handleDeleteColorPersistence,
 } from './color-persistence';
 import { applyTextColor as applyTextColorUtil } from './text-color';
-import {
-  useFlashcardGenerator,
-  type FlashcardResult,
-} from './useFlashcardGenerator';
 import { useEditorInsertion } from './useEditorInsertion';
 import { useNotePopups } from './useNotePopups';
-
-export type { FlashcardResult };
 
 /**
  * All values and handlers returned by useNoteEditor.
@@ -105,11 +99,6 @@ export interface NoteEditorState {
   // Editor events
   onEditorInput: (e: React.FormEvent<HTMLDivElement>) => void;
   onEditorKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
-
-  // Flashcards
-  isGeneratingFlashcards: boolean;
-  flashcardResult: FlashcardResult | null;
-  handleGenerateFlashcards: () => Promise<void>;
 }
 
 /**
@@ -206,8 +195,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
       }
     };
     document.addEventListener('selectionchange', handleSelectionChange);
-    return () =>
-      document.removeEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleDetectFormat]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,8 +209,7 @@ export function useNoteEditor(note: Note): NoteEditorState {
     const target = e.target as HTMLInputElement;
     const start = target.selectionStart || 0;
     const end = target.selectionEnd || 0;
-    const newValue =
-      target.value.substring(0, start) + text + target.value.substring(end);
+    const newValue = target.value.substring(0, start) + text + target.value.substring(end);
     setDraftTitle(newValue);
     setIsDirty(true);
     setTimeout(() => {
@@ -351,29 +338,15 @@ export function useNoteEditor(note: Note): NoteEditorState {
     closeOtherPopups,
   );
 
-  // Flashcard generation delegated to useFlashcardGenerator
-  const flashcards = useFlashcardGenerator(
-    () => contentRef.current?.innerHTML,
-    note.title,
-    locale,
-  );
-
   const onEditorInput = (e: React.FormEvent<HTMLDivElement>) => {
     handleEditorInputUtil(e, editorRefs, handleContentChange);
   };
 
   const onEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     handleEditorKeyDown(e, editorRefs, handleContentChange);
-    if (
-      (e.key === 'Backspace' || e.key === 'Delete') &&
-      selectedTextColorRef.current
-    ) {
+    if ((e.key === 'Backspace' || e.key === 'Delete') && selectedTextColorRef.current) {
       const selection = window.getSelection();
-      if (
-        selection &&
-        selection.rangeCount > 0 &&
-        selection.getRangeAt(0).collapsed
-      ) {
+      if (selection && selection.rangeCount > 0 && selection.getRangeAt(0).collapsed) {
         handleDeleteColorPersistence(editorRefs);
       }
     }
@@ -432,6 +405,5 @@ export function useNoteEditor(note: Note): NoteEditorState {
     insertTable: insertion.insertTable,
     onEditorInput,
     onEditorKeyDown,
-    ...flashcards,
   };
 }

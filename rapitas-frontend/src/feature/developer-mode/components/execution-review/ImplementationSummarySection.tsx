@@ -41,9 +41,7 @@ export function ImplementationSummarySection({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              実装内容の説明
-            </h4>
+            <h4 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">実装内容の説明</h4>
             <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
               {filesCount > 0 && (
                 <span className="flex items-center gap-1">

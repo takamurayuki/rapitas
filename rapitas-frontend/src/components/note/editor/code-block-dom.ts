@@ -45,8 +45,7 @@ function attachKeyHandlers(codeElement: HTMLElement, language: string): void {
         const rangeContainer = range.startContainer;
         if (
           rangeContainer === codeElement ||
-          (rangeContainer.parentNode === codeElement &&
-            rangeContainer.previousSibling === null)
+          (rangeContainer.parentNode === codeElement && rangeContainer.previousSibling === null)
         ) {
           e.preventDefault();
           return;
@@ -83,22 +82,12 @@ function attachKeyHandlers(codeElement: HTMLElement, language: string): void {
 
       if (!range.collapsed) {
         const selectedText = range.toString();
-        document.execCommand(
-          'insertText',
-          false,
-          keyboardEvent.key + selectedText + closing,
-        );
+        document.execCommand('insertText', false, keyboardEvent.key + selectedText + closing);
         const newRange = document.createRange();
         const textNode = range.startContainer;
         if (textNode.nodeType === Node.TEXT_NODE) {
-          newRange.setStart(
-            textNode,
-            range.startOffset + 1 + selectedText.length,
-          );
-          newRange.setEnd(
-            textNode,
-            range.startOffset + 1 + selectedText.length,
-          );
+          newRange.setStart(textNode, range.startOffset + 1 + selectedText.length);
+          newRange.setEnd(textNode, range.startOffset + 1 + selectedText.length);
           selection.removeAllRanges();
           selection.addRange(newRange);
         }
@@ -224,10 +213,7 @@ function buildDeleteButton(): HTMLButtonElement {
  * @param code - Initial code content (defaults to placeholder) / 初期コード内容
  * @returns DocumentFragment containing the code block and a trailing `<p>` / コードブロックのDocumentFragment
  */
-export function createCodeBlockNode(
-  language: string,
-  code: string = '',
-): DocumentFragment {
+export function createCodeBlockNode(language: string, code: string = ''): DocumentFragment {
   const frag = document.createDocumentFragment();
 
   const container = document.createElement('div');
@@ -250,8 +236,7 @@ export function createCodeBlockNode(
   header.style.borderBottom = '1px solid #334155';
 
   const langLabel = document.createElement('span');
-  langLabel.textContent =
-    programmingLanguages.find((l) => l.value === language)?.label ?? language;
+  langLabel.textContent = programmingLanguages.find((l) => l.value === language)?.label ?? language;
   langLabel.style.fontSize = '12px';
   langLabel.style.color = '#94a3b8';
   langLabel.style.fontFamily = 'monospace';
@@ -261,8 +246,7 @@ export function createCodeBlockNode(
   const codeElement = document.createElement('code');
   codeElement.className = `language-${language}`;
   codeElement.textContent = code || '// ここにコードを入力...';
-  codeElement.style.fontFamily =
-    "'Consolas', 'Monaco', 'Courier New', monospace";
+  codeElement.style.fontFamily = "'Consolas', 'Monaco', 'Courier New', monospace";
   codeElement.style.fontSize = '14px';
   codeElement.style.lineHeight = '1.5';
   codeElement.style.color = '#e2e8f0';

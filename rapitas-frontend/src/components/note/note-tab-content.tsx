@@ -19,10 +19,7 @@ interface NoteTabContentProps {
  * @param currentNote - Note to open in the editor, or undefined / エディタで開くノート
  * @param onCreateNote - Called when the user requests a new note / 新規ノート要求時に呼ばれる
  */
-export default function NoteTabContent({
-  currentNote,
-  onCreateNote,
-}: NoteTabContentProps) {
+export default function NoteTabContent({ currentNote, onCreateNote }: NoteTabContentProps) {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const sidebarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

@@ -88,9 +88,7 @@ export function GenerateCardsModal({
               <select
                 value={difficulty}
                 onChange={(e) =>
-                  onDifficultyChange(
-                    e.target.value as 'beginner' | 'intermediate' | 'advanced',
-                  )
+                  onDifficultyChange(e.target.value as 'beginner' | 'intermediate' | 'advanced')
                 }
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
                 disabled={isGenerating}

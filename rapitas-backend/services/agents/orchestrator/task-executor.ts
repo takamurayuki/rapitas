@@ -51,7 +51,7 @@ export async function executeTask(
       where: { id: options.agentConfigId },
     });
     if (dbConfig) {
-      agentConfig = ctx.buildAgentConfigFromDb(dbConfig, options);
+      agentConfig = await ctx.buildAgentConfigFromDb(dbConfig, options);
       resolvedAgentConfigId = dbConfig.id;
     }
   } else {
@@ -59,7 +59,7 @@ export async function executeTask(
       where: { isDefault: true, isActive: true },
     });
     if (defaultDbConfig) {
-      agentConfig = ctx.buildAgentConfigFromDb(defaultDbConfig, options);
+      agentConfig = await ctx.buildAgentConfigFromDb(defaultDbConfig, options);
       resolvedAgentConfigId = defaultDbConfig.id;
       logger.info(
         `[TaskExecutor] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`,

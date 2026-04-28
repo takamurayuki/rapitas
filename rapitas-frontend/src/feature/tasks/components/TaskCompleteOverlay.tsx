@@ -7,10 +7,7 @@ interface TaskCompleteOverlayProps {
   onComplete?: () => void;
 }
 
-export default function TaskCompleteOverlay({
-  show,
-  onComplete,
-}: TaskCompleteOverlayProps) {
+export default function TaskCompleteOverlay({ show, onComplete }: TaskCompleteOverlayProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -70,13 +67,7 @@ export default function TaskCompleteOverlay({
             className="drop-shadow-2xl opacity-90"
           >
             <defs>
-              <linearGradient
-                id="triGradient"
-                x1="0%"
-                y1="100%"
-                x2="0%"
-                y2="0%"
-              >
+              <linearGradient id="triGradient" x1="0%" y1="100%" x2="0%" y2="0%">
                 <stop offset="0%" stopColor="#4f46e5" /> {/* indigo-600 */}
                 <stop offset="100%" stopColor="#a855f7" /> {/* purple-500 */}
               </linearGradient>

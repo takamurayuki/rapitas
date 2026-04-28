@@ -56,10 +56,7 @@ export function MetricsTable({ agentMetrics }: MetricsTableProps) {
           </thead>
           <tbody className="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
             {agentMetrics.map((agent) => (
-              <tr
-                key={agent.agentId}
-                className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
-              >
+              <tr key={agent.agentId} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div
@@ -99,9 +96,7 @@ export function MetricsTable({ agentMetrics }: MetricsTableProps) {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
                   {agent.lastExecutionAt
-                    ? new Date(agent.lastExecutionAt).toLocaleDateString(
-                        dateLocale,
-                      )
+                    ? new Date(agent.lastExecutionAt).toLocaleDateString(dateLocale)
                     : '-'}
                 </td>
               </tr>

@@ -1,12 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type {
-  WorkflowFile,
-  WorkflowFileType,
-  WorkflowStatus,
-  WorkflowPathInfo,
-} from '@/types';
+import type { WorkflowFile, WorkflowFileType, WorkflowStatus, WorkflowPathInfo } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 
 export type WorkflowFilesData = {
@@ -18,12 +13,8 @@ export type WorkflowFilesData = {
 
 export function useWorkflowFiles(taskId: number | null) {
   const [files, setFiles] = useState<WorkflowFilesData | null>(null);
-  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(
-    null,
-  );
-  const [workflowPath, setWorkflowPath] = useState<WorkflowPathInfo | null>(
-    null,
-  );
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
+  const [workflowPath, setWorkflowPath] = useState<WorkflowPathInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isInitialFetch = useRef(true);
@@ -52,11 +43,7 @@ export function useWorkflowFiles(taskId: number | null) {
       setWorkflowStatus(data.workflowStatus || null);
       setWorkflowPath(data.path || null);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'ワークフローファイルの取得に失敗しました',
-      );
+      setError(err instanceof Error ? err.message : 'ワークフローファイルの取得に失敗しました');
     } finally {
       setIsLoading(false);
       isInitialFetch.current = false;
@@ -75,10 +62,7 @@ export function useWorkflowFiles(taskId: number | null) {
   const hasAnyFile = useMemo(() => {
     if (!files) return false;
     return (
-      files.research.exists ||
-      files.question.exists ||
-      files.plan.exists ||
-      files.verify.exists
+      files.research.exists || files.question.exists || files.plan.exists || files.verify.exists
     );
   }, [files]);
 

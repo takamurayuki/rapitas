@@ -10,9 +10,7 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({
 
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
-    selector: (state: {
-      getExecutingTaskStatus: (id: number) => null;
-    }) => unknown,
+    selector: (state: { getExecutingTaskStatus: (id: number) => null }) => unknown,
   ) => selector({ getExecutingTaskStatus: () => null }),
 }));
 
@@ -67,12 +65,8 @@ vi.mock('@/utils/labels', () => ({
 
 // Mock PriorityIcon component
 vi.mock('@/feature/tasks/components/PriorityIcon', () => ({
-  default: ({
-    priority,
-  }: {
-    priority: string | null | undefined;
-    size?: string;
-  }) => (priority ? <span data-testid="priority-icon">{priority}</span> : null),
+  default: ({ priority }: { priority: string | null | undefined; size?: string }) =>
+    priority ? <span data-testid="priority-icon">{priority}</span> : null,
 }));
 
 // Mock TaskStatusChange component
@@ -129,9 +123,7 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => ({
       label: '完了',
     },
   },
-  renderStatusIcon: (status: string) => (
-    <span data-testid={`status-icon-${status}`} />
-  ),
+  renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
 }));
 
 // Mock TaskCompletionAnimation
@@ -278,9 +270,7 @@ describe('TaskCard', () => {
     });
 
     it('選択状態が適切に反映される', () => {
-      render(
-        <TaskCard {...mockProps} isSelectionMode={true} isSelected={true} />,
-      );
+      render(<TaskCard {...mockProps} isSelectionMode={true} isSelected={true} />);
       const checkbox = screen.getByRole('checkbox');
       expect(checkbox).toHaveAttribute('aria-checked', 'true');
     });
@@ -306,11 +296,7 @@ describe('TaskCard', () => {
       render(<TaskCard {...mockProps} />);
       const inProgressBtn = screen.getByTestId('status-btn-in-progress');
       fireEvent.click(inProgressBtn);
-      expect(mockProps.onStatusChange).toHaveBeenCalledWith(
-        1,
-        'in-progress',
-        expect.anything(),
-      );
+      expect(mockProps.onStatusChange).toHaveBeenCalledWith(1, 'in-progress', expect.anything());
     });
   });
 
@@ -346,18 +332,14 @@ describe('TaskCard', () => {
   describe('アニメーション', () => {
     it('スイープアニメーションコンポーネントがレンダリングされる', () => {
       render(<TaskCard {...mockProps} sweepingTaskId={1} />);
-      const cardContainer = screen
-        .getByText('Test Task')
-        .closest('[data-task-card]');
+      const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
       expect(cardContainer).toBeInTheDocument();
       expect(screen.getByTestId('card-light-sweep')).toBeInTheDocument();
     });
 
     it('非スイープ時もカードは正常に表示される', () => {
       render(<TaskCard {...mockProps} sweepingTaskId={2} />);
-      const cardContainer = screen
-        .getByText('Test Task')
-        .closest('[data-task-card]');
+      const cardContainer = screen.getByText('Test Task').closest('[data-task-card]');
       expect(cardContainer).toBeInTheDocument();
     });
   });
@@ -385,17 +367,13 @@ describe('TaskCard', () => {
   describe('アクセシビリティ', () => {
     it('タスクカード要素が適切にレンダリングされる', () => {
       render(<TaskCard {...mockProps} />);
-      const taskElement = screen
-        .getByText('Test Task')
-        .closest('[data-task-card]');
+      const taskElement = screen.getByText('Test Task').closest('[data-task-card]');
       expect(taskElement).toBeInTheDocument();
     });
 
     it('クリック可能な要素として機能する', () => {
       render(<TaskCard {...mockProps} />);
-      const clickableArea = screen
-        .getByText('Test Task')
-        .closest('.cursor-pointer');
+      const clickableArea = screen.getByText('Test Task').closest('.cursor-pointer');
       expect(clickableArea).toBeInTheDocument();
       expect(clickableArea).toHaveClass('cursor-pointer');
     });

@@ -46,23 +46,16 @@ describe('taskCacheStore', () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Old Title' } as never],
       });
-      useTaskCacheStore
-        .getState()
-        .updateTaskLocally(1, { title: 'New Title' } as never);
+      useTaskCacheStore.getState().updateTaskLocally(1, { title: 'New Title' } as never);
       const task = useTaskCacheStore.getState().tasks.find((t) => t.id === 1);
       expect(task?.title).toBe('New Title');
     });
 
     it('should not modify other tasks', () => {
       useTaskCacheStore.setState({
-        tasks: [
-          { id: 1, title: 'Task 1' } as never,
-          { id: 2, title: 'Task 2' } as never,
-        ],
+        tasks: [{ id: 1, title: 'Task 1' } as never, { id: 2, title: 'Task 2' } as never],
       });
-      useTaskCacheStore
-        .getState()
-        .updateTaskLocally(1, { title: 'Updated' } as never);
+      useTaskCacheStore.getState().updateTaskLocally(1, { title: 'Updated' } as never);
       const task2 = useTaskCacheStore.getState().tasks.find((t) => t.id === 2);
       expect(task2?.title).toBe('Task 2');
     });
@@ -71,10 +64,7 @@ describe('taskCacheStore', () => {
   describe('removeTaskLocally', () => {
     it('should remove a task by id', () => {
       useTaskCacheStore.setState({
-        tasks: [
-          { id: 1, title: 'Task 1' } as never,
-          { id: 2, title: 'Task 2' } as never,
-        ],
+        tasks: [{ id: 1, title: 'Task 1' } as never, { id: 2, title: 'Task 2' } as never],
       });
       useTaskCacheStore.getState().removeTaskLocally(1);
       expect(useTaskCacheStore.getState().tasks).toHaveLength(1);
@@ -87,9 +77,7 @@ describe('taskCacheStore', () => {
       useTaskCacheStore.setState({
         tasks: [{ id: 1, title: 'Task 1' } as never],
       });
-      useTaskCacheStore
-        .getState()
-        .addTaskLocally({ id: 2, title: 'Task 2' } as never);
+      useTaskCacheStore.getState().addTaskLocally({ id: 2, title: 'Task 2' } as never);
       const tasks = useTaskCacheStore.getState().tasks;
       expect(tasks).toHaveLength(2);
       expect(tasks[0].id).toBe(2);
@@ -187,10 +175,7 @@ describe('taskCacheStore', () => {
 
     it('should merge incremental updates', async () => {
       useTaskCacheStore.setState({
-        tasks: [
-          { id: 1, title: 'Task 1' } as never,
-          { id: 2, title: 'Task 2' } as never,
-        ],
+        tasks: [{ id: 1, title: 'Task 1' } as never, { id: 2, title: 'Task 2' } as never],
         lastFetchedAt: new Date().toISOString(),
         initialized: true,
       });
@@ -252,9 +237,7 @@ describe('taskCacheStore', () => {
 
       // fetchWithRetry throws after all retries exhausted
       vi.mocked(fetchWithRetry).mockRejectedValue(
-        new Error(
-          'Failed to fetch from http://test:3001/tasks after 3 attempts. Failed to fetch',
-        ),
+        new Error('Failed to fetch from http://test:3001/tasks after 3 attempts. Failed to fetch'),
       );
 
       // Should not throw
@@ -278,9 +261,7 @@ describe('taskCacheStore', () => {
         loading: false,
       });
 
-      vi.mocked(fetchWithRetry).mockRejectedValue(
-        new Error('Failed to fetch after 3 attempts'),
-      );
+      vi.mocked(fetchWithRetry).mockRejectedValue(new Error('Failed to fetch after 3 attempts'));
 
       await useTaskCacheStore.getState().fetchUpdates(true); // silent = true
 
@@ -295,9 +276,7 @@ describe('taskCacheStore', () => {
         initialized: true,
       });
 
-      vi.mocked(fetchWithRetry).mockRejectedValue(
-        new Error('Failed to fetch after 3 attempts'),
-      );
+      vi.mocked(fetchWithRetry).mockRejectedValue(new Error('Failed to fetch after 3 attempts'));
 
       await useTaskCacheStore.getState().fetchUpdates(false); // silent = false
 
@@ -520,9 +499,7 @@ describe('taskCacheStore', () => {
 
     it('should recover on subsequent fetchAll after initial failure', async () => {
       // First: backend down
-      vi.mocked(fetchWithRetry).mockRejectedValueOnce(
-        new Error('Failed to fetch'),
-      );
+      vi.mocked(fetchWithRetry).mockRejectedValueOnce(new Error('Failed to fetch'));
 
       await useTaskCacheStore.getState().fetchAll();
       expect(useTaskCacheStore.getState().tasks).toEqual([]);

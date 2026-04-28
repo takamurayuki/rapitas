@@ -23,12 +23,7 @@ interface VersionListProps {
  * @param props.isInstalling - Whether an install is in flight / インストール中かどうか
  * @param props.onInstall - Install trigger callback / インストールトリガーコールバック
  */
-export function VersionList({
-  versions,
-  agentId,
-  isInstalling,
-  onInstall,
-}: VersionListProps) {
+export function VersionList({ versions, agentId, isInstalling, onInstall }: VersionListProps) {
   const t = useTranslations('agents');
   const locale = useLocaleStore((s) => s.locale);
   const dateLocale = toDateLocale(locale);
@@ -85,9 +80,7 @@ export function VersionList({
             </div>
           ))}
           {versions.length === 0 && (
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              {t('noVersionInfo')}
-            </p>
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm">{t('noVersionInfo')}</p>
           )}
         </div>
       </div>

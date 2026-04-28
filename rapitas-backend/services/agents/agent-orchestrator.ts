@@ -446,7 +446,7 @@ export class AgentOrchestrator {
 
   // ==================== Helpers ====================
 
-  private buildAgentConfigFromDb(
+  private async buildAgentConfigFromDb(
     dbConfig: {
       id: number;
       agentType: string;
@@ -456,7 +456,7 @@ export class AgentOrchestrator {
       modelId: string | null;
     },
     options: { workingDirectory?: string; timeout?: number },
-  ): AgentConfigInput {
+  ): Promise<AgentConfigInput> {
     let decryptedApiKey: string | undefined;
     if (dbConfig.apiKeyEncrypted) {
       try {
@@ -469,6 +469,18 @@ export class AgentOrchestrator {
       }
     }
 
+    // Read the user's permission-skip preference. Defaults to true when the
+    // setting row is missing so historical behaviour is preserved on first
+    // boot. When this is false the CLI agent's native approval prompts are
+    // surfaced to the user via stdin.
+    const settings = await this.prisma.userSettings.findFirst({
+      select: { skipAgentPermissionPrompts: true } as Record<string, true>,
+    });
+    const skipPrompts =
+      ((settings as Record<string, unknown> | null)?.skipAgentPermissionPrompts as
+        | boolean
+        | undefined) ?? true;
+
     return {
       type: (dbConfig.agentType as AgentType) || 'claude-code',
       name: dbConfig.name,
@@ -477,8 +489,8 @@ export class AgentOrchestrator {
       modelId: dbConfig.modelId || undefined,
       workingDirectory: options.workingDirectory,
       timeout: options.timeout,
-      dangerouslySkipPermissions: true,
-      yoloMode: true,
+      dangerouslySkipPermissions: skipPrompts,
+      yoloMode: skipPrompts,
     };
   }
 }

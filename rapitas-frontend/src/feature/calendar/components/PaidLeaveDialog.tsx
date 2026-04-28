@@ -99,9 +99,7 @@ export default function PaidLeaveDialog({
       const toUTCISO = (dateStr: string, timeStr: string = '00:00') => {
         const [year, month, day] = dateStr.split('-').map(Number);
         const [hour, min] = timeStr.split(':').map(Number);
-        return new Date(
-          Date.UTC(year, month - 1, day, hour, min, 0),
-        ).toISOString();
+        return new Date(Date.UTC(year, month - 1, day, hour, min, 0)).toISOString();
       };
 
       let startAt: string;
@@ -113,14 +111,8 @@ export default function PaidLeaveDialog({
           // NOTE: All-day events end at 00:00 on the day after the last day.
           const nextDay = new Date(endDate);
           nextDay.setDate(nextDay.getDate() + 1);
-          const [year, month, day] = nextDay
-            .toISOString()
-            .split('T')[0]
-            .split('-')
-            .map(Number);
-          endAt = new Date(
-            Date.UTC(year, month - 1, day, 0, 0, 0),
-          ).toISOString();
+          const [year, month, day] = nextDay.toISOString().split('T')[0].split('-').map(Number);
+          endAt = new Date(Date.UTC(year, month - 1, day, 0, 0, 0)).toISOString();
         }
       } else {
         startAt = toUTCISO(startDate, startTime);
@@ -146,14 +138,11 @@ export default function PaidLeaveDialog({
     }
   };
 
-  const formattedStartDate = new Date(startDate).toLocaleDateString(
-    dateLocale,
-    {
-      month: 'long',
-      day: 'numeric',
-      weekday: 'short',
-    },
-  );
+  const formattedStartDate = new Date(startDate).toLocaleDateString(dateLocale, {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  });
 
   const formattedEndDate =
     isMultiDay && endDate > startDate
@@ -170,8 +159,7 @@ export default function PaidLeaveDialog({
   const dayCount =
     isMultiDay && endDate > startDate
       ? Math.ceil(
-          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
-            (1000 * 60 * 60 * 24),
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24),
         ) + 1
       : 1;
 
@@ -287,15 +275,9 @@ export default function PaidLeaveDialog({
             type="submit"
             disabled={!title.trim() || submitting || afterUsage < 0}
             className={`mt-4 w-full py-3 rounded-xl font-medium text-white transition-all disabled:cursor-not-allowed active:scale-[0.98] ${
-              !title.trim() || afterUsage < 0
-                ? 'bg-zinc-300 dark:bg-zinc-600 opacity-40'
-                : ''
+              !title.trim() || afterUsage < 0 ? 'bg-zinc-300 dark:bg-zinc-600 opacity-40' : ''
             }`}
-            style={
-              title.trim() && afterUsage >= 0
-                ? { backgroundColor: color }
-                : undefined
-            }
+            style={title.trim() && afterUsage >= 0 ? { backgroundColor: color } : undefined}
           >
             {submitting ? (
               <span className="flex items-center justify-center gap-2">

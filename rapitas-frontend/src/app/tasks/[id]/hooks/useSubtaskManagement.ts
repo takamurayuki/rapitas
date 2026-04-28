@@ -45,13 +45,10 @@ export function useSubtaskManagement({
   // ── Inline subtask editing ───────────────────────────────────────────
   const [editingSubtaskId, setEditingSubtaskId] = useState<number | null>(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
-  const [editingSubtaskDescription, setEditingSubtaskDescription] =
-    useState('');
-  const [editingSubtaskPriority, setEditingSubtaskPriority] =
-    useState<Priority>('medium');
+  const [editingSubtaskDescription, setEditingSubtaskDescription] = useState('');
+  const [editingSubtaskPriority, setEditingSubtaskPriority] = useState<Priority>('medium');
   const [editingSubtaskLabels, setEditingSubtaskLabels] = useState('');
-  const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] =
-    useState('');
+  const [editingSubtaskEstimatedHours, setEditingSubtaskEstimatedHours] = useState('');
 
   // ── Helpers ──────────────────────────────────────────────────────────
   const refetchTask = useCallback(async () => {
@@ -94,9 +91,7 @@ export function useSubtaskManagement({
       .split(',')
       .map((l) => l.trim())
       .filter(Boolean);
-    const hours = newSubtaskEstimatedHours
-      ? parseFloat(newSubtaskEstimatedHours)
-      : undefined;
+    const hours = newSubtaskEstimatedHours ? parseFloat(newSubtaskEstimatedHours) : undefined;
 
     try {
       const res = await fetch(`${API_BASE}/tasks`, {

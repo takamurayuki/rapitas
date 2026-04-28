@@ -26,8 +26,7 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   const view = new DataView(buffer);
 
   const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++)
-      view.setUint8(offset + i, str.charCodeAt(i));
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
   };
 
   writeString(0, 'RIFF');
@@ -65,11 +64,7 @@ export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
  * @param toRate - Target sample rate in Hz.
  * @returns A new `Float32Array` at the target rate (or `samples` itself when no conversion is needed).
  */
-export function resamplePcm(
-  samples: Float32Array,
-  fromRate: number,
-  toRate: number,
-): Float32Array {
+export function resamplePcm(samples: Float32Array, fromRate: number, toRate: number): Float32Array {
   if (fromRate === toRate) return samples;
   const ratio = fromRate / toRate;
   const outputLen = Math.floor(samples.length / ratio);

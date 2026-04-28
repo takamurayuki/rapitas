@@ -20,12 +20,9 @@ export function useDeveloperMode(taskId: number) {
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [executionStatus, setExecutionStatus] =
-    useState<ExecutionStatus>('idle');
-  const [executionResult, setExecutionResult] =
-    useState<ExecutionResult | null>(null);
-  const [analysisResult, setAnalysisResult] =
-    useState<TaskAnalysisResult | null>(null);
+  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle');
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<TaskAnalysisResult | null>(null);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -34,9 +31,7 @@ export function useDeveloperMode(taskId: number) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/developer-mode/config/${taskId}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/developer-mode/config/${taskId}`);
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
@@ -51,22 +46,15 @@ export function useDeveloperMode(taskId: number) {
   }, [taskId]);
 
   const enableDeveloperMode = useCallback(
-    async (options?: {
-      autoApprove?: boolean;
-      maxSubtasks?: number;
-      priority?: string;
-    }) => {
+    async (options?: { autoApprove?: boolean; maxSubtasks?: number; priority?: string }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/developer-mode/enable/${taskId}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(options || {}),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/developer-mode/enable/${taskId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(options || {}),
+        });
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -88,12 +76,9 @@ export function useDeveloperMode(taskId: number) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/developer-mode/disable/${taskId}`,
-        {
-          method: 'DELETE',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/developer-mode/disable/${taskId}`, {
+        method: 'DELETE',
+      });
       if (res.ok) {
         setConfig(null);
         setAnalysisResult(null);
@@ -114,14 +99,11 @@ export function useDeveloperMode(taskId: number) {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/developer-mode/config/${taskId}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates),
-          },
-        );
+        const res = await fetch(`${API_BASE_URL}/developer-mode/config/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
         if (res.ok) {
           const data = await res.json();
           setConfig(data);
@@ -144,12 +126,9 @@ export function useDeveloperMode(taskId: number) {
     setAnalysisError(null);
     setAnalysisResult(null);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/developer-mode/analyze/${taskId}`,
-        {
-          method: 'POST',
-        },
-      );
+      const res = await fetch(`${API_BASE_URL}/developer-mode/analyze/${taskId}`, {
+        method: 'POST',
+      });
       const data = await res.json();
       if (res.ok) {
         setAnalysisResult(data.analysis);
@@ -158,9 +137,7 @@ export function useDeveloperMode(taskId: number) {
         throw new Error(data.error || '分析に失敗しました');
       }
     } catch (err) {
-      setAnalysisError(
-        err instanceof Error ? err.message : 'エラーが発生しました',
-      );
+      setAnalysisError(err instanceof Error ? err.message : 'エラーが発生しました');
       return null;
     } finally {
       setIsAnalyzing(false);
@@ -169,9 +146,7 @@ export function useDeveloperMode(taskId: number) {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/developer-mode/sessions/${taskId}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/developer-mode/sessions/${taskId}`);
       if (res.ok) {
         const data = await res.json();
         setSessions(data);
@@ -185,11 +160,7 @@ export function useDeveloperMode(taskId: number) {
    * AIエージェントを実行してタスクを実装
    */
   const executeAgent = useCallback(
-    async (options?: {
-      instruction?: string;
-      branchName?: string;
-      workingDirectory?: string;
-    }) => {
+    async (options?: { instruction?: string; branchName?: string; workingDirectory?: string }) => {
       setIsExecuting(true);
       setExecutionStatus('running');
       setExecutionResult(null);
@@ -213,8 +184,7 @@ export function useDeveloperMode(taskId: number) {
           throw new Error(data.error || 'エージェントの実行に失敗しました');
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'エラーが発生しました';
+        const errorMessage = err instanceof Error ? err.message : 'エラーが発生しました';
         setError(errorMessage);
         setExecutionStatus('failed');
         setExecutionResult({

@@ -17,10 +17,7 @@ export type SystemPrompt = {
   updatedAt: string;
 };
 
-export const CATEGORY_LABELS: Record<
-  string,
-  { labelKey: string; color: string }
-> = {
+export const CATEGORY_LABELS: Record<string, { labelKey: string; color: string }> = {
   general: {
     labelKey: 'categoryGeneral',
     color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300',
@@ -31,17 +28,14 @@ export const CATEGORY_LABELS: Record<
   },
   optimization: {
     labelKey: 'categoryOptimization',
-    color:
-      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   },
   agent: {
     labelKey: 'categoryAgent',
-    color:
-      'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+    color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   },
   chat: {
     labelKey: 'categoryChat',
-    color:
-      'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   },
 };

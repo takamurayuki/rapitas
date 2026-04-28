@@ -6,11 +6,7 @@
  * Import from this file or from execution-log-viewer/ — both are stable.
  */
 
-export {
-  ExecutionLogViewer,
-  default,
-  formatLogLine,
-} from './execution-log-viewer';
+export { ExecutionLogViewer, default, formatLogLine } from './execution-log-viewer';
 
 export type {
   ExecutionLogStatus,

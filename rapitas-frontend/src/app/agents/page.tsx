@@ -8,7 +8,9 @@ import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
 import { GlobalProviderPreference } from './_components/GlobalProviderPreference';
+import { SkipPermissionToggle } from './_components/SkipPermissionToggle';
 import { createLogger } from '@/lib/logger';
+import { isDevHost } from '@/lib/dev-mode';
 
 const logger = createLogger('AgentsPage');
 
@@ -30,6 +32,8 @@ const CACHE_KEYS = {
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function getCachedData<T>(key: string): T | null {
+  // Skip cache in dev so code edits are visible on every reload.
+  if (isDevHost()) return null;
   try {
     const cached = localStorage.getItem(key);
     if (!cached) return null;
@@ -45,6 +49,7 @@ function getCachedData<T>(key: string): T | null {
 }
 
 function setCachedData<T>(key: string, data: T): void {
+  if (isDevHost()) return;
   try {
     localStorage.setItem(
       key,
@@ -62,17 +67,13 @@ export default function AgentsPage() {
   const t = useTranslations('agents');
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [_loading, setLoading] = useState(true);
-  const [availableModels, setAvailableModels] = useState<
-    Record<string, ModelOption[]>
-  >({});
+  const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
 
   const fetchData = useCallback(async () => {
     try {
       // Check cache first
       const cachedAgents = getCachedData<AIAgentConfig[]>(CACHE_KEYS.agents);
-      const cachedModels = getCachedData<Record<string, ModelOption[]>>(
-        CACHE_KEYS.models,
-      );
+      const cachedModels = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
 
       if (cachedAgents && cachedModels) {
         setAgents(cachedAgents);
@@ -80,10 +81,7 @@ export default function AgentsPage() {
         setLoading(false);
 
         // Fetch in background to update cache
-        Promise.all([
-          fetch(`${API_BASE_URL}/agents/all`),
-          fetch(`${API_BASE_URL}/agents/models`),
-        ])
+        Promise.all([fetch(`${API_BASE_URL}/agents/all`), fetch(`${API_BASE_URL}/agents/models`)])
           .then(async ([agentsRes, modelsRes]) => {
             if (agentsRes.ok) {
               const agentsData = await agentsRes.json();
@@ -137,9 +135,7 @@ export default function AgentsPage() {
               <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                 {t('pageTitle')}
               </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-                {t('pageSubtitle')}
-              </p>
+              <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
             </div>
             <div className="flex items-center gap-3">
               <Link
@@ -160,8 +156,9 @@ export default function AgentsPage() {
           </div>
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 space-y-3">
           <GlobalProviderPreference />
+          <SkipPermissionToggle />
         </div>
 
         <div className="mb-8">
@@ -175,10 +172,7 @@ export default function AgentsPage() {
               </p>
             </div>
             <div className="p-6">
-              <WorkflowRolesConfig
-                agents={agents}
-                availableModels={availableModels}
-              />
+              <WorkflowRolesConfig agents={agents} availableModels={availableModels} />
             </div>
           </div>
         </div>
@@ -193,12 +187,8 @@ export default function AgentsPage() {
                 1
               </div>
               <div>
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {t('step1Title')}
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('step1Description')}
-                </p>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{t('step1Title')}</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('step1Description')}</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -206,12 +196,8 @@ export default function AgentsPage() {
                 2
               </div>
               <div>
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {t('step2Title')}
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('step2Description')}
-                </p>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{t('step2Title')}</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('step2Description')}</p>
               </div>
             </div>
             <div className="flex gap-3">
@@ -219,12 +205,8 @@ export default function AgentsPage() {
                 3
               </div>
               <div>
-                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">
-                  {t('step3Title')}
-                </h3>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {t('step3Description')}
-                </p>
+                <h3 className="font-medium text-zinc-900 dark:text-zinc-100">{t('step3Title')}</h3>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('step3Description')}</p>
               </div>
             </div>
           </div>

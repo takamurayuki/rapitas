@@ -12,10 +12,7 @@
  * @returns `true` when the string resembles a file path. / ファイルパスに見える場合 `true`。
  */
 export function isFilePath(value: string): boolean {
-  return (
-    /^[a-zA-Z]?:?[/\\]/.test(value) ||
-    /\.(ts|tsx|js|jsx|json|md|css|prisma)$/.test(value)
-  );
+  return /^[a-zA-Z]?:?[/\\]/.test(value) || /\.(ts|tsx|js|jsx|json|md|css|prisma)$/.test(value);
 }
 
 /**
@@ -37,9 +34,7 @@ export function formatNestedValue(value: unknown, indent: number = 0): string {
   }
 
   const obj = value as Record<string, unknown>;
-  const entries = Object.entries(obj).filter(
-    ([, v]) => v !== null && v !== undefined,
-  );
+  const entries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined);
   if (entries.length === 0) return '{}';
   if (entries.length <= 2 && !entries.some(([, v]) => typeof v === 'object')) {
     // Display small objects inline
@@ -100,15 +95,7 @@ export function formatLogLine(log: string): FormattedLogLine {
     const isError = !!obj.error;
 
     // Display frequently used fields first
-    const priorityKeys = [
-      'message',
-      'msg',
-      'status',
-      'type',
-      'error',
-      'taskId',
-      'agentId',
-    ];
+    const priorityKeys = ['message', 'msg', 'status', 'type', 'error', 'taskId', 'agentId'];
     for (const key of priorityKeys) {
       if (key in obj && obj[key] !== null && obj[key] !== undefined) {
         const val = obj[key];

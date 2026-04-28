@@ -74,9 +74,7 @@ export function useTaskActions({
           return {
             ...prev,
             subtasks: prev.subtasks.map((subtask) =>
-              subtask.id === taskId
-                ? { ...subtask, status: newStatus as Task['status'] }
-                : subtask,
+              subtask.id === taskId ? { ...subtask, status: newStatus as Task['status'] } : subtask,
             ),
           };
         }

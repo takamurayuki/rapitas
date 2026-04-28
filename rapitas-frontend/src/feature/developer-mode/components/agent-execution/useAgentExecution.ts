@@ -2,15 +2,9 @@
 // useAgentExecution
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  useExecutionPolling,
-  useExecutionStream,
-} from '../../hooks/useExecutionStream';
+import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
-import {
-  parseQuestionOptions,
-  type ParsedQuestion,
-} from './agent-execution-utils';
+import { parseQuestionOptions, type ParsedQuestion } from './agent-execution-utils';
 import type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
@@ -19,11 +13,7 @@ import type {
 } from './agent-execution-types';
 
 // Re-export utilities and types consumed by external callers
-export {
-  formatTokenCount,
-  formatCountdown,
-  parseQuestionOptions,
-} from './agent-execution-utils';
+export { formatTokenCount, formatCountdown, parseQuestionOptions } from './agent-execution-utils';
 export type {
   PrState,
   QuestionType,
@@ -37,9 +27,7 @@ export type {
  * @param props - Component props forwarded from AgentExecutionPanel
  * @returns All state values, derived flags, and event handlers needed by the panel
  */
-export function useAgentExecution(
-  props: UseAgentExecutionProps,
-): UseAgentExecutionReturn {
+export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecutionReturn {
   const {
     taskId,
     isExecuting,
@@ -58,9 +46,7 @@ export function useAgentExecution(
   const [isExpanded, setIsExpanded] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [_showLogs, _setShowLogs] = useState(true);
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(
-    agentConfigId ?? null,
-  );
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(agentConfigId ?? null);
   const [instruction, setInstruction] = useState('');
   const [branchName, setBranchName] = useState('');
   const [userResponse, setUserResponse] = useState('');
@@ -122,8 +108,7 @@ export function useAgentExecution(
 
   // NOTE: Only explicit AI agent status is used; pattern matching is deprecated
   const isWaitingForInput =
-    !isTerminalStatus &&
-    (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
+    !isTerminalStatus && (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
   // NOTE: Question detection uses only API state
   const { hasQuestion, question, questionType } = useMemo((): {
@@ -135,27 +120,18 @@ export function useAgentExecution(
       return {
         hasQuestion: true,
         question: pollingQuestion,
-        questionType:
-          pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
+        questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
       };
     }
     return { hasQuestion: false, question: '', questionType: 'none' };
-  }, [
-    pollingWaitingForInput,
-    pollingQuestion,
-    pollingQuestionType,
-    isTerminalStatus,
-  ]);
+  }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType, isTerminalStatus]);
 
   // NOTE: Prefer structured questionDetails from AskUserQuestion tool calls over text parsing
   const questionParsed = useMemo((): ParsedQuestion | null => {
     if (!question) return null;
 
     // Use structured questionDetails when available (from AskUserQuestion tool calls)
-    if (
-      pollingQuestionDetails?.options &&
-      pollingQuestionDetails.options.length > 0
-    ) {
+    if (pollingQuestionDetails?.options && pollingQuestionDetails.options.length > 0) {
       return {
         text: question,
         options: pollingQuestionDetails.options.map((opt) => opt.label),
@@ -176,9 +152,7 @@ export function useAgentExecution(
     }
     setTimeoutCountdown(pollingQuestionTimeout.remainingSeconds);
     const interval = setInterval(() => {
-      setTimeoutCountdown((prev) =>
-        prev === null || prev <= 0 ? 0 : prev - 1,
-      );
+      setTimeoutCountdown((prev) => (prev === null || prev <= 0 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(interval);
   }, [isWaitingForInput, pollingQuestionTimeout]);
@@ -228,9 +202,7 @@ export function useAgentExecution(
     if (executionSessionId) {
       setSessionId(executionSessionId);
       startPolling(
-        executionOutput
-          ? { initialOutput: executionOutput, preserveLogs: false }
-          : undefined,
+        executionOutput ? { initialOutput: executionOutput, preserveLogs: false } : undefined,
       );
     }
   }, [executionSessionId, executionOutput, startPolling]);
@@ -266,17 +238,12 @@ export function useAgentExecution(
   const hasExecutedRef = useRef(false);
   if (isExecuting) hasExecutedRef.current = true;
   const isRestoredTerminal =
-    !hasExecutedRef.current &&
-    executionResult?.success !== undefined &&
-    !isExecuting;
+    !hasExecutedRef.current && executionResult?.success !== undefined && !isExecuting;
 
   // NOTE: waiting_for_input is NOT considered completed
   // For restored terminal executions, derive status immediately from executionResult.
   const isCompleted =
-    (finalStatus === 'completed' &&
-      !isPollingRunning &&
-      !isSseRunning &&
-      !isWaitingForInput) ||
+    (finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput) ||
     (isRestoredTerminal && executionResult?.success === true);
   const isCancelled = finalStatus === 'cancelled';
   const isFailed =
@@ -291,11 +258,7 @@ export function useAgentExecution(
       sseStatus === 'running' ||
       isWaitingForInput);
 
-  const hasSubtaskTabs = !!(
-    subtasks &&
-    subtasks.length > 0 &&
-    parallelSessionId
-  );
+  const hasSubtaskTabs = !!(subtasks && subtasks.length > 0 && parallelSessionId);
 
   const logViewerStatus = useMemo(() => {
     if (isRunning) return 'running' as const;

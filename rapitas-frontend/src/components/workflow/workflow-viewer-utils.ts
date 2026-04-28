@@ -7,13 +7,7 @@
  */
 
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole } from '@/types';
-import {
-  Search,
-  FileText,
-  CheckCircle,
-  MessageSquare,
-  Code,
-} from 'lucide-react';
+import { Search, FileText, CheckCircle, MessageSquare, Code } from 'lucide-react';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 
 export interface WorkflowTab {
@@ -63,9 +57,7 @@ export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
       return allTabs.filter((tab) => ['verify'].includes(tab.id));
     case 'standard':
       // Standard mode: plan, Q&A, verification
-      return allTabs.filter((tab) =>
-        ['question', 'plan', 'verify'].includes(tab.id),
-      );
+      return allTabs.filter((tab) => ['question', 'plan', 'verify'].includes(tab.id));
     case 'comprehensive':
     default:
       // Comprehensive mode: all tabs
@@ -85,9 +77,7 @@ export interface NextRoleInfo {
  * @param workflowMode - The active workflow mode string
  * @returns Record mapping workflow status strings to their next-role info
  */
-export const getStatusToNextRole = (
-  workflowMode: string,
-): Record<string, NextRoleInfo> => {
+export const getStatusToNextRole = (workflowMode: string): Record<string, NextRoleInfo> => {
   const lightweightMode: Record<string, NextRoleInfo> = {
     draft: { role: 'implementer', label: '実装開始', icon: Code },
     in_progress: {
@@ -132,14 +122,13 @@ export const getStatusToNextRole = (
 };
 
 // Auto-selection mapping for tabs corresponding to status
-export const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> =
-  {
-    research_done: 'research',
-    plan_created: 'plan',
-    in_progress: 'plan',
-    verify_done: 'verify',
-    completed: 'verify',
-  };
+export const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> = {
+  research_done: 'research',
+  plan_created: 'plan',
+  in_progress: 'plan',
+  verify_done: 'verify',
+  completed: 'verify',
+};
 
 /**
  * Determines the effective workflow mode to use for display purposes.
@@ -147,6 +136,5 @@ export const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> =
  * @param workflowMode - The raw workflow mode prop value (may be null)
  * @returns A resolved WorkflowMode string (defaults to 'comprehensive')
  */
-export const resolveWorkflowMode = (
-  workflowMode: WorkflowMode | null | undefined,
-): WorkflowMode => workflowMode || 'comprehensive';
+export const resolveWorkflowMode = (workflowMode: WorkflowMode | null | undefined): WorkflowMode =>
+  workflowMode || 'comprehensive';

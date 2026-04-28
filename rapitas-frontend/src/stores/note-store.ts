@@ -12,7 +12,10 @@ export interface Note {
   color?: string;
 }
 
-export type ModalTab = 'note' | 'ai';
+export type ModalTab = 'note' | 'ai' | 'split';
+
+/** Which side the Note panel sits on in split view. AI takes the opposite side. */
+export type SplitNoteSide = 'left' | 'right';
 
 export interface NoteModalState {
   isOpen: boolean;
@@ -21,6 +24,8 @@ export interface NoteModalState {
   isMaximized: boolean;
   zIndex: number;
   activeTab: ModalTab;
+  /** Side the Note panel occupies in split view (default 'right'). */
+  splitNoteSide: SplitNoteSide;
 }
 
 interface NoteState {
@@ -45,6 +50,8 @@ interface NoteState {
   toggleMaximize: () => void;
   bringToFront: () => void;
   setModalTab: (tab: ModalTab) => void;
+  setSplitNoteSide: (side: SplitNoteSide) => void;
+  toggleSplitNoteSide: () => void;
 
   // Search and filter
   setSearchQuery: (query: string) => void;
@@ -61,19 +68,14 @@ let nextZIndex = 1000;
 const defaultModalState: NoteModalState = {
   isOpen: false,
   position: {
-    x:
-      typeof window !== 'undefined'
-        ? Math.max(100, (window.innerWidth - 600) / 2)
-        : 100,
-    y:
-      typeof window !== 'undefined'
-        ? Math.max(100, (window.innerHeight - 500) / 2)
-        : 100,
+    x: typeof window !== 'undefined' ? Math.max(100, (window.innerWidth - 600) / 2) : 100,
+    y: typeof window !== 'undefined' ? Math.max(100, (window.innerHeight - 500) / 2) : 100,
   },
   size: { width: 600, height: 500 },
   isMaximized: false,
   zIndex: 1000,
   activeTab: 'note',
+  splitNoteSide: 'right',
 };
 
 export const useNoteStore = create<NoteState>()(
@@ -105,9 +107,7 @@ export const useNoteStore = create<NoteState>()(
         set((state) => {
           const newState = {
             notes: state.notes.map((note) =>
-              note.id === id
-                ? { ...note, ...updates, updatedAt: new Date() }
-                : note,
+              note.id === id ? { ...note, ...updates, updatedAt: new Date() } : note,
             ),
           };
 
@@ -115,14 +115,10 @@ export const useNoteStore = create<NoteState>()(
           const updatedNote = newState.notes.find((n) => n.id === id);
           if (
             updatedNote &&
-            (updatedNote.content.trim() !== '' ||
-              updatedNote.title !== '新しいノート')
+            (updatedNote.content.trim() !== '' || updatedNote.title !== '新しいノート')
           ) {
             const hasEmptyNote = newState.notes.some(
-              (n) =>
-                n.content.trim() === '' &&
-                n.title === '新しいノート' &&
-                n.id !== id,
+              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
             );
 
             if (!hasEmptyNote) {
@@ -146,8 +142,7 @@ export const useNoteStore = create<NoteState>()(
       deleteNote: (id) => {
         set((state) => {
           const newNotes = state.notes.filter((note) => note.id !== id);
-          const currentNote =
-            state.currentNoteId === id ? null : state.currentNoteId;
+          const currentNote = state.currentNoteId === id ? null : state.currentNoteId;
 
           // After deletion, create new empty note if none exists
           const hasEmptyNote = newNotes.some(
@@ -184,10 +179,7 @@ export const useNoteStore = create<NoteState>()(
             currentNote.title === '新しいノート'
           ) {
             const otherEmptyNote = state.notes.find(
-              (n) =>
-                n.content.trim() === '' &&
-                n.title === '新しいノート' &&
-                n.id !== id,
+              (n) => n.content.trim() === '' && n.title === '新しいノート' && n.id !== id,
             );
             if (!otherEmptyNote) {
               const newNote: Note = {
@@ -281,6 +273,21 @@ export const useNoteStore = create<NoteState>()(
         }));
       },
 
+      setSplitNoteSide: (side) => {
+        set((state) => ({
+          modalState: { ...state.modalState, splitNoteSide: side },
+        }));
+      },
+
+      toggleSplitNoteSide: () => {
+        set((state) => ({
+          modalState: {
+            ...state.modalState,
+            splitNoteSide: state.modalState.splitNoteSide === 'right' ? 'left' : 'right',
+          },
+        }));
+      },
+
       setSearchQuery: (query) => {
         set({ searchQuery: query });
       },
@@ -325,9 +332,7 @@ export const useNoteStore = create<NoteState>()(
           if (a.isPinned !== b.isPinned) {
             return a.isPinned ? -1 : 1;
           }
-          return (
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          );
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
         });
       },
 

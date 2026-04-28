@@ -70,8 +70,7 @@ export const handleTick = (set: SetFn, get: GetFn): void => {
       });
     }
   } else {
-    const breakDuration =
-      state.pomodoroCount % 4 === 0 ? longBreakDuration : shortBreakDuration;
+    const breakDuration = state.pomodoroCount % 4 === 0 ? longBreakDuration : shortBreakDuration;
     const newPomodoroSeconds = state.pomodoroSeconds + 1;
 
     if (newPomodoroSeconds >= breakDuration) {

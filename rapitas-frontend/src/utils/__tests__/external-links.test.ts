@@ -75,9 +75,7 @@ describe('handleExternalLinkClick', () => {
   });
 
   it('prevents default and opens split view for external links', () => {
-    const windowOpenSpy = vi
-      .spyOn(window, 'open')
-      .mockImplementation(() => null);
+    const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const event = {
       ctrlKey: false,
       metaKey: false,

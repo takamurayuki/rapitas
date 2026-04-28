@@ -126,9 +126,7 @@ export function useSubtaskLogs({
   autoRefresh = true,
   sessionStatus,
 }: UseSubtaskLogsOptions): UseSubtaskLogsReturn {
-  const [subtaskLogs, setSubtaskLogs] = useState<Map<number, SubtaskLogState>>(
-    new Map(),
-  );
+  const [subtaskLogs, setSubtaskLogs] = useState<Map<number, SubtaskLogState>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -178,19 +176,17 @@ export function useSubtaskLogs({
             level?: 'info' | 'warn' | 'error' | 'debug';
             taskId?: number;
           }
-          const logs: SubtaskLogEntry[] = result.data.map(
-            (log: RawLogEntry) => ({
-              timestamp: log.timestamp,
-              message:
-                log.message ||
-                (log.data && typeof log.data === 'object'
-                  ? ((log.data as Record<string, unknown>).message as string) ||
-                    formatLogData(log.data)
-                  : String(log.data ?? '')),
-              level: log.level || 'info',
-              taskId: log.taskId,
-            }),
-          );
+          const logs: SubtaskLogEntry[] = result.data.map((log: RawLogEntry) => ({
+            timestamp: log.timestamp,
+            message:
+              log.message ||
+              (log.data && typeof log.data === 'object'
+                ? ((log.data as Record<string, unknown>).message as string) ||
+                  formatLogData(log.data)
+                : String(log.data ?? '')),
+            level: log.level || 'info',
+            taskId: log.taskId,
+          }));
 
           setSubtaskLogs((prev) => {
             const current = prev.get(taskId);
@@ -201,8 +197,7 @@ export function useSubtaskLogs({
           });
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'ログの取得に失敗しました';
+        const errorMessage = err instanceof Error ? err.message : 'ログの取得に失敗しました';
         setSubtaskLogs((prev) => {
           const current = prev.get(taskId);
           if (!current) return prev;
@@ -262,9 +257,7 @@ export function useSubtaskLogs({
   // Clear loading state on session completion
   useEffect(() => {
     const isCompleted =
-      sessionStatus === 'completed' ||
-      sessionStatus === 'failed' ||
-      sessionStatus === 'cancelled';
+      sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // Clear loading state for all subtasks when completed
@@ -286,9 +279,7 @@ export function useSubtaskLogs({
 
     // If execution is completed, fetch logs one last time and stop polling
     const isCompleted =
-      sessionStatus === 'completed' ||
-      sessionStatus === 'failed' ||
-      sessionStatus === 'cancelled';
+      sessionStatus === 'completed' || sessionStatus === 'failed' || sessionStatus === 'cancelled';
 
     if (isCompleted) {
       // Fetch final logs (executed asynchronously to properly manage loading state)

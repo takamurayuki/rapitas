@@ -5,18 +5,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
-import {
-  validateUrl,
-  validateApiKey,
-  type ValidationResult,
-} from '@/utils/validation';
+import { validateUrl, validateApiKey, type ValidationResult } from '@/utils/validation';
 import { createLogger } from '@/lib/logger';
 import type { AgentConfig, ModelOption } from './agent-settings-types';
-import {
-  saveAgentSettings,
-  deleteAgentApiKey,
-  deleteAgent,
-} from './agent-settings-api';
+import { saveAgentSettings, deleteAgentApiKey, deleteAgent } from './agent-settings-api';
 
 export type { AgentConfig, ModelOption };
 
@@ -50,15 +42,11 @@ export function useAgentSettings(id: string) {
   const [modelId, setModelId] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>(
-    {},
-  );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const fetchModels = useCallback(async (agentType: string) => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/agents/models?type=${agentType}`,
-      );
+      const res = await fetch(`${API_BASE_URL}/agents/models?type=${agentType}`);
       if (res.ok) {
         const data = await res.json();
         setAvailableModels(data.models || []);
@@ -101,8 +89,7 @@ export function useAgentSettings(id: string) {
           result = validateUrl(
             value,
             t('settingsEndpoint'),
-            agent?.agentType === 'custom' ||
-              agent?.agentType === 'azure-openai',
+            agent?.agentType === 'custom' || agent?.agentType === 'azure-openai',
           );
           return result.valid ? null : (result.error ?? null);
         case 'apiKey':
@@ -157,11 +144,7 @@ export function useAgentSettings(id: string) {
       // NOTE: Auto-clear success banner after 3 seconds to avoid stale feedback.
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? t(err.message as 'settingsSaveFailed')
-          : tc('saveFailed'),
-      );
+      setError(err instanceof Error ? t(err.message as 'settingsSaveFailed') : tc('saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -177,11 +160,7 @@ export function useAgentSettings(id: string) {
       await fetchAgent();
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? t(err.message as 'apiKeyDeleteFailed')
-          : tc('deleteFailed'),
-      );
+      setError(err instanceof Error ? t(err.message as 'apiKeyDeleteFailed') : tc('deleteFailed'));
     }
   };
 
@@ -195,9 +174,7 @@ export function useAgentSettings(id: string) {
       const data = await res.json();
       setTestResult({
         success: data.success,
-        message:
-          data.message ||
-          (data.success ? t('connectionSuccess') : t('connectionFailed')),
+        message: data.message || (data.success ? t('connectionSuccess') : t('connectionFailed')),
       });
     } catch (err) {
       logger.error('Failed to test connection:', err);

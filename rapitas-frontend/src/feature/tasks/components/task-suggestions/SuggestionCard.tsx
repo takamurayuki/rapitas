@@ -28,10 +28,7 @@ export type TaskSuggestion = {
   suggestedApproach?: string | null;
 };
 
-const CATEGORY_CONFIG: Record<
-  string,
-  { label: string; icon: React.ReactNode; color: string }
-> = {
+const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   recurring: {
     label: '定期',
     icon: <Repeat className="w-2.5 h-2.5" />,
@@ -40,20 +37,17 @@ const CATEGORY_CONFIG: Record<
   extension: {
     label: '発展',
     icon: <ArrowRight className="w-2.5 h-2.5" />,
-    color:
-      'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
+    color: 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400',
   },
   improvement: {
     label: '改善',
     icon: <Wrench className="w-2.5 h-2.5" />,
-    color:
-      'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
+    color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400',
   },
   new: {
     label: '新規',
     icon: <PlusCircle className="w-2.5 h-2.5" />,
-    color:
-      'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
+    color: 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400',
   },
 };
 
@@ -70,27 +64,17 @@ type SuggestionCardProps = {
  * @param props - See SuggestionCardProps
  * @returns Card element with title, badges, and hover action buttons.
  */
-export function SuggestionCard({
-  suggestion,
-  onApply,
-  onDismiss,
-  onClick,
-}: SuggestionCardProps) {
+export function SuggestionCard({ suggestion, onApply, onDismiss, onClick }: SuggestionCardProps) {
   return (
     <div className="group relative rounded-lg bg-white dark:bg-zinc-900/30 border border-zinc-200/60 dark:border-zinc-700/40 hover:border-violet-300 dark:hover:border-violet-500 transition-all duration-200 hover:shadow-sm">
       <div className="flex items-center gap-2 p-2">
         <div className="flex-1 min-w-0">
-          <button
-            type="button"
-            onClick={onClick}
-            className="w-full text-left group"
-          >
+          <button type="button" onClick={onClick} className="w-full text-left group">
             <div className="flex items-center gap-1.5">
               {suggestion.category && (
                 <span
                   className={`shrink-0 flex items-center gap-0.5 px-1 py-px rounded text-[8px] font-semibold ${
-                    CATEGORY_CONFIG[suggestion.category]?.color ??
-                    CATEGORY_CONFIG.new.color
+                    CATEGORY_CONFIG[suggestion.category]?.color ?? CATEGORY_CONFIG.new.color
                   }`}
                 >
                   {CATEGORY_CONFIG[suggestion.category]?.icon}
@@ -110,8 +94,7 @@ export function SuggestionCard({
                 </span>
               )}
 
-              {(suggestion.priority === 'urgent' ||
-                suggestion.priority === 'high') && (
+              {(suggestion.priority === 'urgent' || suggestion.priority === 'high') && (
                 <span className="shrink-0 w-1 h-1 rounded-full bg-rose-500 dark:bg-rose-400 animate-pulse" />
               )}
             </div>
@@ -124,9 +107,7 @@ export function SuggestionCard({
               {suggestion.completionCriteria && (
                 <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
               )}
-              {suggestion.dependencies && (
-                <Target className="w-2.5 h-2.5 text-amber-500" />
-              )}
+              {suggestion.dependencies && <Target className="w-2.5 h-2.5 text-amber-500" />}
             </div>
           </button>
         </div>

@@ -23,12 +23,7 @@ export default function TaskComments({
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 mt-6">
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-4 flex items-center gap-2">
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -61,10 +56,7 @@ export default function TaskComments({
       {comments.length > 0 && (
         <div className="space-y-4">
           {comments.map((comment) => (
-            <div
-              key={comment.id}
-              className="bg-zinc-50 dark:bg-indigo-dark-800 rounded-lg p-4"
-            >
+            <div key={comment.id} className="bg-zinc-50 dark:bg-indigo-dark-800 rounded-lg p-4">
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs text-zinc-500">
                   {new Date(comment.createdAt).toLocaleString('ja-JP')}

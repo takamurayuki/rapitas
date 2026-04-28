@@ -20,11 +20,14 @@ export type { ExecutionSummary } from './log-pattern-rules';
 export function detectCurrentPhase(
   logs: string[],
 ): 'research' | 'plan' | 'implement' | 'verify' | null {
-  const joined = logs.join('\n');
-  if (/\[verify\]/i.test(joined)) return 'verify';
-  if (/\[implement\]/i.test(joined)) return 'implement';
-  if (/\[plan\]/i.test(joined)) return 'plan';
-  if (/\[research\]/i.test(joined)) return 'research';
+  const lines = splitLogsIntoLines(logs);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (/\[verify\]/i.test(line)) return 'verify';
+    if (/\[implement\]/i.test(line)) return 'implement';
+    if (/\[plan\]/i.test(line)) return 'plan';
+    if (/\[research\]/i.test(line)) return 'research';
+  }
   return null;
 }
 
@@ -35,9 +38,7 @@ export function detectCurrentPhase(
  * @param logs - raw log entries / 生ログ配列
  * @returns summary object or null / サマリーオブジェクトまたは null
  */
-export function generateExecutionSummary(
-  logs: string[],
-): ExecutionSummary | null {
+export function generateExecutionSummary(logs: string[]): ExecutionSummary | null {
   const lines = splitLogsIntoLines(logs);
   const filesEdited = new Set<string>();
   const filesCreated = new Set<string>();
@@ -68,9 +69,7 @@ export function generateExecutionSummary(
 
     if (/\[Tool: Bash\]\s*\$\s*git\s+commit/.test(t)) commits++;
 
-    const rr = t.match(
-      /\[Result:\s*\w+\s*\((\d+(?:\.\d+)?)s\)\s*\$?([\d.]+)?\]/,
-    );
+    const rr = t.match(/\[Result:\s*\w+\s*\((\d+(?:\.\d+)?)s\)\s*\$?([\d.]+)?\]/);
     if (rr) {
       durationSeconds = parseFloat(rr[1]);
       if (rr[2]) costUsd = parseFloat(rr[2]);
@@ -82,15 +81,7 @@ export function generateExecutionSummary(
     }
   }
 
-  if (
-    filesEdited.size +
-      filesCreated.size +
-      testsPassed +
-      testsFailed +
-      commits ===
-    0
-  )
-    return null;
+  if (filesEdited.size + filesCreated.size + testsPassed + testsFailed + commits === 0) return null;
 
   return {
     filesEdited: [...filesEdited],
