@@ -289,7 +289,13 @@ jobs:
           echo "Checking build output..."
           if [ -d "out" ]; then
             echo "✓ out directory exists with $(ls -1 out | wc -l) files"
-            ls -la out/ | head -10
+            count=0
+            for entry in out/* out/.[!.]* out/..?*; do
+              [ -e "$entry" ] || continue
+              echo "$entry"
+              count=$((count + 1))
+              [ "$count" -ge 10 ] && break
+            done
           else
             echo "✗ out directory not found!"
             echo ""
@@ -298,7 +304,13 @@ jobs:
             echo ""
             echo "Checking .next directory:"
             if [ -d ".next" ]; then
-              ls -la .next/ | head -10
+              count=0
+              for entry in .next/* .next/.[!.]* .next/..?*; do
+                [ -e "$entry" ] || continue
+                echo "$entry"
+                count=$((count + 1))
+                [ "$count" -ge 10 ] && break
+              done
             fi
           fi
         shell: bash

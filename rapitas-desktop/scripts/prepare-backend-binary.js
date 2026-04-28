@@ -44,7 +44,9 @@ if (!fs.existsSync(binaryPath)) {
     console.log('Found files:', files);
 
     // Try to find any rapitas-backend file
-    const backendFile = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
+    const backendFile = files.find(
+      (f) => f.startsWith('rapitas-backend') && !f.includes('placeholder'),
+    );
     if (backendFile) {
       console.log(`Found alternative: ${backendFile}`);
       // Create a symlink or copy with the expected name
@@ -84,20 +86,13 @@ if (!config.bundle) {
 
 // Use resources instead of externalBin to embed backend in app directory
 // This approach hides the backend executable from users
-config.bundle.externalBin = [];
-config.bundle.resources = [
-  'binaries/rapitas-backend-*.exe',
-  'binaries/rapitas-backend-*'
-];
-
-console.log('Configured backend as resources (embedded in app directory)');
-console.log('Resources configuration:', config.bundle.resources);
-
 // Verify that at least one backend binary exists
 let foundBinary = null;
 if (fs.existsSync(binariesDir)) {
   const files = fs.readdirSync(binariesDir);
-  foundBinary = files.find(f => f.startsWith('rapitas-backend') && !f.includes('placeholder'));
+  foundBinary = files.find(
+    (f) => f.startsWith('rapitas-backend') && !f.includes('placeholder'),
+  );
 
   if (foundBinary) {
     console.log(`Found backend binary: ${foundBinary}`);
@@ -122,12 +117,29 @@ if (fs.existsSync(binariesDir)) {
       }
 
       console.log(`Created placeholder binary: ${placeholderPath}`);
+      foundBinary = placeholderName;
     } else {
       console.error('No backend binary found and not in CI environment');
       process.exit(1);
     }
   }
 }
+
+const resourceFiles = fs
+  .readdirSync(binariesDir)
+  .filter((file) => file.startsWith('rapitas-backend'))
+  .map((file) => `binaries/${file}`);
+
+if (resourceFiles.length === 0) {
+  console.error(`No backend resource files found in ${binariesDir}`);
+  process.exit(1);
+}
+
+config.bundle.externalBin = [];
+config.bundle.resources = resourceFiles;
+
+console.log('Configured backend as resources (embedded in app directory)');
+console.log('Resources configuration:', config.bundle.resources);
 
 // Write the updated config
 try {
