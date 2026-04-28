@@ -134,28 +134,38 @@ fn main() {
             let _ = fs::create_dir_all(&binaries_dir);
         }
 
-        // Use platform-specific placeholder name to match what prepare-backend-binary.js creates
-        let placeholder_name = if target_os == "windows" {
-            "rapitas-backend-placeholder.exe"
+        // tauri.conf.json contains both `rapitas-backend-*` and
+        // `rapitas-backend-*.exe` resource globs. During clippy/check CI the
+        // real backend sidecar is not built yet, so create placeholders for
+        // both globs to keep Tauri's resource validation happy.
+        let placeholder_names = [
+            "rapitas-backend-placeholder",
+            "rapitas-backend-placeholder.exe",
+        ];
+        let primary_placeholder = binaries_dir.join(if target_os == "windows" {
+            placeholder_names[1]
         } else {
-            "rapitas-backend-placeholder"
-        };
+            placeholder_names[0]
+        });
 
-        let placeholder_path = binaries_dir.join(placeholder_name);
-
-        // Create an empty placeholder file
-        if let Err(e) = fs::write(&placeholder_path, b"") {
-            println!("cargo:warning=Failed to create placeholder file: {e}");
-        } else {
-            println!(
-                "cargo:warning=Created placeholder file: {}",
-                placeholder_path.display()
-            );
+        for placeholder_name in placeholder_names {
+            let placeholder_path = binaries_dir.join(placeholder_name);
+            if let Err(e) = fs::write(&placeholder_path, b"") {
+                println!(
+                    "cargo:warning=Failed to create placeholder file {}: {e}",
+                    placeholder_path.display()
+                );
+            } else {
+                println!(
+                    "cargo:warning=Created placeholder file: {}",
+                    placeholder_path.display()
+                );
+            }
         }
 
         println!(
             "cargo:rustc-env=RAPITAS_BACKEND_PATH={}",
-            placeholder_path.display()
+            primary_placeholder.display()
         );
     } else if !found {
         // Not in CI and binary not found - this is an error
