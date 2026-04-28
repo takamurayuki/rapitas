@@ -98,6 +98,18 @@ export type AgentExecutionResult = {
   retryCount?: number;
   /** Classified failure reason (for retry decisions). */
   failureType?: 'test_failed' | 'lint_error' | 'type_error' | 'timeout' | 'unknown';
+  /** Real cost (USD) reported by Claude Code's stream-json `result` event. */
+  costUsd?: number;
+  /** Standard input tokens reported by `result.usage.input_tokens`. */
+  inputTokens?: number;
+  /** Output tokens reported by `result.usage.output_tokens`. */
+  outputTokens?: number;
+  /** Cache-read input tokens reported by `result.usage.cache_read_input_tokens`. */
+  cacheReadInputTokens?: number;
+  /** Cache-creation input tokens reported by `result.usage.cache_creation_input_tokens`. */
+  cacheCreationInputTokens?: number;
+  /** Primary model used for this execution (largest token share in `modelUsage`). */
+  modelName?: string;
 };
 
 export type AgentArtifact = {

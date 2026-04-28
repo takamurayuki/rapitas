@@ -32,6 +32,7 @@ model AgentSession {
   completedAt       DateTime?
   lastActivityAt    DateTime  @default(now())
   totalTokensUsed   Int       @default(0)
+  totalCostUsd      Decimal   @default(0) @db.Decimal(12, 6)
   errorMessage      String?
   metadata          String?   // JSON stored as string
   branchName        String?   // Git branch name for the execution session
@@ -114,6 +115,12 @@ model AgentExecution {
   startedAt         DateTime?
   completedAt       DateTime?
   tokensUsed        Int       @default(0)
+  inputTokens       Int       @default(0)
+  outputTokens      Int       @default(0)
+  cacheReadInputTokens     Int       @default(0)
+  cacheCreationInputTokens Int       @default(0)
+  costUsd           Decimal   @default(0) @db.Decimal(12, 6)
+  modelName         String?   // e.g., "claude-haiku-4-5-20251001"
   executionTimeMs   Int?
   errorMessage      String?
   question          String?

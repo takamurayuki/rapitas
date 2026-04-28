@@ -50,7 +50,25 @@ interface ParsedJsonMessage {
   };
   result?: unknown;
   duration_ms?: number;
+  duration_api_ms?: number;
   cost_usd?: number;
+  total_cost_usd?: number;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  modelUsage?: Record<
+    string,
+    {
+      inputTokens?: number;
+      outputTokens?: number;
+      cacheReadInputTokens?: number;
+      cacheCreationInputTokens?: number;
+      costUSD?: number;
+    }
+  >;
   session_id?: string;
   error?: string;
   // NOTE: json.message could also be a string in system error events
@@ -243,22 +261,53 @@ function processUserMessage(
 function processResultEvent(json: ParsedJsonMessage, postResult: PostResultFn): void {
   let displayOutput = '';
 
+  // NOTE: stream-json emits `total_cost_usd`; the older `cost_usd` field is kept
+  // as a fallback for any non-stream payloads we may also process here.
+  const costUsd = json.total_cost_usd ?? json.cost_usd;
+
   if (json.result !== undefined) {
     const duration = json.duration_ms ? ` (${(json.duration_ms / 1000).toFixed(1)}s)` : '';
-    const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : '';
+    const cost = costUsd ? ` $${costUsd.toFixed(4)}` : '';
     displayOutput += `\n[Result: ${json.subtype || 'completed'}${duration}${cost}]\n`;
     if (json.result && typeof json.result === 'string') {
       displayOutput += json.result + '\n';
     }
   }
 
+  const usage = json.usage
+    ? {
+        inputTokens: json.usage.input_tokens ?? 0,
+        outputTokens: json.usage.output_tokens ?? 0,
+        cacheReadInputTokens: json.usage.cache_read_input_tokens ?? 0,
+        cacheCreationInputTokens: json.usage.cache_creation_input_tokens ?? 0,
+      }
+    : undefined;
+
+  const modelUsage = json.modelUsage
+    ? Object.fromEntries(
+        Object.entries(json.modelUsage).map(([model, m]) => [
+          model,
+          {
+            inputTokens: m.inputTokens ?? 0,
+            outputTokens: m.outputTokens ?? 0,
+            cacheReadInputTokens: m.cacheReadInputTokens ?? 0,
+            cacheCreationInputTokens: m.cacheCreationInputTokens ?? 0,
+            costUsd: m.costUSD ?? 0,
+          },
+        ]),
+      )
+    : undefined;
+
   postResult({
     type: 'result-event',
     displayOutput,
     subtype: json.subtype,
     durationMs: json.duration_ms,
-    costUsd: json.cost_usd,
+    durationApiMs: json.duration_api_ms,
+    costUsd,
     result: typeof json.result === 'string' ? json.result : undefined,
+    usage,
+    modelUsage,
   });
 }
 

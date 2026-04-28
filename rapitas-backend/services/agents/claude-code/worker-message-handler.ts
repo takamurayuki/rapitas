@@ -14,6 +14,20 @@ import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/o
 import { createLogger } from '../../../config/logger';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 
+/**
+ * Snapshot of the stream-json `result` event captured by the parser worker.
+ * Mirrors `WorkerResultEvent` minus the display fields.
+ */
+export interface WorkerResultUsageSnapshot {
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  /** Model id with the largest token share in `modelUsage`. */
+  modelName?: string;
+}
+
 const logger = createLogger('claude-code-agent');
 
 /**
@@ -35,6 +49,12 @@ export interface WorkerMessageContext {
   hasFileModifyingToolCalls: boolean;
   workerArtifacts: AgentArtifact[];
   workerCommits: GitCommitInfo[];
+  /**
+   * Most recent `result` event payload from stream-json, or null when not
+   * yet received. Captured so the agent can include real cost/usage in its
+   * AgentExecutionResult.
+   */
+  workerResultUsage: WorkerResultUsageSnapshot | null;
   onParseComplete: (() => void) | null;
   parserWorker: Worker | null;
   status: string;
@@ -115,6 +135,14 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
         ctx.outputBuffer += msg.displayOutput;
         ctx.emitOutputInternal(msg.displayOutput);
       }
+      ctx.workerResultUsage = {
+        costUsd: msg.costUsd,
+        inputTokens: msg.usage?.inputTokens,
+        outputTokens: msg.usage?.outputTokens,
+        cacheReadInputTokens: msg.usage?.cacheReadInputTokens,
+        cacheCreationInputTokens: msg.usage?.cacheCreationInputTokens,
+        modelName: pickPrimaryModel(msg.modelUsage),
+      };
       break;
 
     case 'question-detected': {
@@ -200,6 +228,31 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       logger.error({ stack: msg.stack }, `${ctx.logPrefix} Worker error: ${msg.message}`);
       break;
   }
+}
+
+/**
+ * Choose the primary model from a `modelUsage` map. Picks the model with the
+ * largest combined input + output token share so subagent calls do not
+ * dominate the headline figure.
+ */
+function pickPrimaryModel(
+  modelUsage:
+    | Record<
+        string,
+        {
+          inputTokens?: number;
+          outputTokens?: number;
+        }
+      >
+    | undefined,
+): string | undefined {
+  if (!modelUsage) return undefined;
+  let best: { name: string; tokens: number } | null = null;
+  for (const [name, u] of Object.entries(modelUsage)) {
+    const tokens = (u.inputTokens ?? 0) + (u.outputTokens ?? 0);
+    if (!best || tokens > best.tokens) best = { name, tokens };
+  }
+  return best?.name;
 }
 
 // Re-export types so callers don't need a second import path.

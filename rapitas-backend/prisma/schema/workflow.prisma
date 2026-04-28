@@ -10,6 +10,16 @@ model WorkflowRoleConfig {
   agentConfigId   Int?
   agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
   modelId         String?
+  /**
+   * Auto-select tiebreaker for this role. When the SmartRouter has multiple
+   * candidates in the chosen tier, this provider wins. `null` means "use the
+   * global UserSettings.defaultAiProvider". Values: claude / openai / gemini /
+   * ollama / cross-provider.
+   *
+   * `cross-provider` is a special marker meaning "pick a provider different
+   * from the upstream phase" — used for reviewer/verifier to avoid self-bias.
+   */
+  preferredProviderOverride String?
   systemPromptKey String?
   isEnabled       Boolean        @default(true)
   metadata        String         @default("{}")

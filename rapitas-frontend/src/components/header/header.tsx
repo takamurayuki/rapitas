@@ -30,7 +30,6 @@ import {
   Bot,
   CheckCircle,
   Settings,
-  Github,
   GitPullRequest,
   CircleDot,
   Code,
@@ -163,7 +162,7 @@ export default function Header() {
         {
           href: '#',
           label: 'GitHub',
-          icon: Github,
+          icon: Code,
           children: [
             { href: '/github', label: t('devDashboard'), icon: BarChart3 },
             {

@@ -214,14 +214,28 @@ export class WorkflowOrchestrator {
     const roleModelId = (roleConfig as { modelId?: string | null }).modelId;
     let effectiveModelId = roleModelId || agentConfig.modelId;
 
-    // Auto-select: when modelId is 'auto' or unset, use Smart Model Router
+    // Auto-select: when modelId is 'auto' or unset, use Smart Model Router.
+    // The resolver computes `preferredProvider` (role override > global default)
+    // and `excludeProviders` (upstream phase's provider for reviewer/verifier
+    // roles, to mitigate self-evaluation bias).
     if (!effectiveModelId || effectiveModelId === 'auto') {
       try {
-        const { getSmartRoute } = await import('../ai/smart-model-router');
-        const route = await getSmartRoute(taskId);
+        const [{ getSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
+          import('../ai/smart-model-router'),
+          import('./role-provider-resolver'),
+        ]);
+        const prefs = await resolveRoleProviderPreferences(transition.role, taskId);
+        const route = await getSmartRoute(taskId, prefs);
         effectiveModelId = route.recommendedModel;
         log.info(
-          { taskId, role: transition.role, model: effectiveModelId, tier: route.recommendedTier },
+          {
+            taskId,
+            role: transition.role,
+            model: effectiveModelId,
+            tier: route.recommendedTier,
+            preferredProvider: prefs.preferredProvider ?? null,
+            excludeProviders: prefs.excludeProviders ?? [],
+          },
           'Auto-selected model via Smart Router',
         );
       } catch {

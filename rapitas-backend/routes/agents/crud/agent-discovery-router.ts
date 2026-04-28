@@ -14,6 +14,7 @@ import {
   validateApiKeyFormat,
   validateAgentConfig,
 } from '../../../utils/agent/agent-config-schema';
+import { getDefaultAgentName } from '../../../utils/agent/agent-display-name';
 
 export const agentDiscoveryRouter = new Elysia()
 
@@ -52,10 +53,11 @@ export const agentDiscoveryRouter = new Elysia()
         agent = await prisma.aIAgentConfig.create({
           data: {
             agentType: type,
-            name: `Development Agent (${type})`,
+            name: getDefaultAgentName(type, 'development'),
             modelId: model,
             isActive: true,
             isDefault: false,
+            metadata: JSON.stringify({ purpose: 'development' }),
             capabilities: JSON.stringify({
               codeGeneration: true,
               taskAnalysis: true,
@@ -68,7 +70,11 @@ export const agentDiscoveryRouter = new Elysia()
       } else {
         agent = await prisma.aIAgentConfig.update({
           where: { id: agent.id },
-          data: { modelId: model, name: `Development Agent (${type})` },
+          data: {
+            modelId: model,
+            name: getDefaultAgentName(type, 'development'),
+            metadata: JSON.stringify({ purpose: 'development' }),
+          },
         });
       }
 
@@ -107,10 +113,11 @@ export const agentDiscoveryRouter = new Elysia()
         agent = await prisma.aIAgentConfig.create({
           data: {
             agentType: type,
-            name: `Review Agent (${type})`,
+            name: getDefaultAgentName(type, 'review'),
             modelId: model,
             isActive: true,
             isDefault: false,
+            metadata: JSON.stringify({ purpose: 'review' }),
             capabilities: JSON.stringify({
               codeReview: true,
               taskAnalysis: true,
@@ -122,7 +129,11 @@ export const agentDiscoveryRouter = new Elysia()
       } else {
         agent = await prisma.aIAgentConfig.update({
           where: { id: agent.id },
-          data: { modelId: model },
+          data: {
+            modelId: model,
+            name: getDefaultAgentName(type, 'review'),
+            metadata: JSON.stringify({ purpose: 'review' }),
+          },
         });
       }
 

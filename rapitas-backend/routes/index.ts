@@ -30,6 +30,7 @@ export { orchestrator } from '../services/core/orchestrator-instance';
 export { aiAgentRoutes } from './agents/integrations/ai-agent';
 export { parallelExecutionRoutes } from './agents/integrations/parallel-execution';
 export { agentExecutionConfigRoutes } from './agents/config/agent-execution-config';
+export { agentAvailabilityRoutes } from './agents/config/agent-availability';
 export { executionLogsRoutes } from './agents/monitoring/execution-logs';
 export { agentMetricsRouter } from './agents/monitoring/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/system/agent-version-management';
@@ -42,7 +43,6 @@ export { aiChatRoutes } from './ai/ai-chat';
 export { copilotChatRoutes } from './ai/copilot-chat';
 export { promptsRoutes } from './ai/prompts';
 export { systemPromptsRoutes } from './ai/system-prompts';
-export { dailyBriefingRoutes } from './ai/daily-briefing';
 
 // Scheduling
 export { schedulesRoutes } from './scheduling/schedules';

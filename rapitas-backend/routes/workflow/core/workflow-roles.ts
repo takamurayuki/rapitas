@@ -4,6 +4,7 @@
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config';
+import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
 
 const VALID_ROLES = [
   'researcher',
@@ -77,7 +78,16 @@ export const workflowRolesRoutes = new Elysia()
     ];
     const sorted = roleOrder.map((role) => roles.find((r) => r.role === role)).filter(Boolean);
 
-    return sorted;
+    // Rewrite legacy `Development Agent (...)` names so the workflow UI
+    // (toggle-row summary, dropdowns) shows friendly labels.
+    return sorted.map((r) => {
+      if (!r) return r;
+      const ac = r.agentConfig;
+      return {
+        ...r,
+        agentConfig: ac ? { ...ac, name: formatAgentDisplayName(ac.name, ac.agentType) } : ac,
+      };
+    });
   })
 
   .get('/workflow-roles/:role', async ({ params, set }) => {
@@ -121,13 +131,32 @@ export const workflowRolesRoutes = new Elysia()
 
     await ensureRolesExist();
 
-    const { agentConfigId, modelId, systemPromptKey, isEnabled, metadata } = body as {
+    const {
+      agentConfigId,
+      modelId,
+      systemPromptKey,
+      isEnabled,
+      metadata,
+      preferredProviderOverride,
+    } = body as {
       agentConfigId?: number | null;
       modelId?: string | null;
       systemPromptKey?: string | null;
       isEnabled?: boolean;
       metadata?: string;
+      /** `claude` | `openai` | `gemini` | `ollama` | `cross-provider` | null */
+      preferredProviderOverride?: string | null;
     };
+
+    if (preferredProviderOverride !== undefined && preferredProviderOverride !== null) {
+      const valid = ['claude', 'openai', 'gemini', 'ollama', 'cross-provider'];
+      if (!valid.includes(preferredProviderOverride)) {
+        set.status = 400;
+        return {
+          error: `preferredProviderOverride must be one of ${valid.join(', ')} or null`,
+        };
+      }
+    }
 
     // Check existence when agentConfigId is specified
     if (agentConfigId !== undefined && agentConfigId !== null) {
@@ -161,6 +190,9 @@ export const workflowRolesRoutes = new Elysia()
     if (systemPromptKey !== undefined) updateData.systemPromptKey = systemPromptKey;
     if (isEnabled !== undefined) updateData.isEnabled = isEnabled;
     if (metadata !== undefined) updateData.metadata = metadata;
+    if (preferredProviderOverride !== undefined) {
+      updateData.preferredProviderOverride = preferredProviderOverride;
+    }
 
     const updated = await prisma.workflowRoleConfig.update({
       where: { role },

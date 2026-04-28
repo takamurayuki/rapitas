@@ -77,8 +77,28 @@ export type WorkerResultEvent = {
   displayOutput: string;
   subtype?: string;
   durationMs?: number;
+  durationApiMs?: number;
   costUsd?: number;
   result?: string;
+  /** Aggregated usage figures from the stream-json `result` event. */
+  usage?: WorkerResultUsage;
+  /** Per-model breakdown (model id → tokens & cost). */
+  modelUsage?: Record<string, WorkerResultModelUsage>;
+};
+
+export type WorkerResultUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+};
+
+export type WorkerResultModelUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  costUsd: number;
 };
 
 export type WorkerQuestionDetected = {

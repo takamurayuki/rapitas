@@ -16,6 +16,7 @@
 import { Elysia } from 'elysia';
 
 import { agentConfigRouter } from '../config/agent-config-router';
+import { agentUsageSummaryRouter } from '../config/agent-usage-summary';
 import { agentExecutionRouter } from '../execution-management/agent-execution-router';
 import { agentSessionRouter } from '../crud/agent-session-router';
 import { agentAuditRouter, taskExecutionLogsRouter } from '../monitoring/agent-audit-router';
@@ -28,6 +29,7 @@ import { agentResumeRouter } from '../execution-management/agent-resume-router';
 
 export const aiAgentRoutes = new Elysia()
   .use(agentConfigRouter)
+  .use(agentUsageSummaryRouter)
   .use(agentExecutionRouter)
   .use(agentSessionRouter)
   .use(agentAuditRouter)

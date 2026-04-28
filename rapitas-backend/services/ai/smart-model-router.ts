@@ -3,41 +3,42 @@
  *
  * Predicts execution cost before running and auto-selects the optimal model
  * based on task complexity, historical performance, and budget constraints.
- * Routes simple tasks to cheaper/local models and complex tasks to powerful ones.
+ *
+ * Model availability and the per-tier candidate pool are sourced dynamically
+ * from `services/ai/model-discovery` — no model id is hardcoded in this
+ * file, so new releases (Opus 5, Gemini 3 Pro, GPT-5, …) are picked up
+ * automatically as soon as the underlying provider exposes them.
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import {
+  discoverModels,
+  selectBestModel,
+  type DiscoveredModel,
+  type ModelTier,
+  type Provider,
+} from './model-discovery';
+import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
 
 const log = createLogger('smart-model-router');
 
-/** Cost rate per 1K tokens (input+output average) for known models. */
-const MODEL_COST_RATES: Record<string, number> = {
-  'claude-opus-4-20250514': 0.025,
-  'claude-opus-4-6-20250610': 0.025,
-  'claude-sonnet-4-20250514': 0.006,
-  'claude-sonnet-4-6-20250610': 0.006,
-  'claude-haiku-4-5-20251001': 0.002,
-  'claude-3-5-sonnet-20241022': 0.006,
-  'gpt-4o': 0.008,
-  'gpt-4o-mini': 0.001,
-  'gemini-2.0-flash': 0.001,
-  'ollama-local': 0,
-  'llama-server-local': 0,
-};
+/**
+ * Per-1K-token cost fallback used when discovery has no entry for a model.
+ * The discovery layer is the source of truth — this map only catches the
+ * ~edge case where a historical execution references a model id that the
+ * provider has since retired.
+ */
+const MODEL_COST_RATES: Record<string, number> = {};
 
-/** Model capability tiers. */
-const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {
-  'claude-opus-4-20250514': 'premium',
-  'claude-opus-4-6-20250610': 'premium',
-  'claude-sonnet-4-20250514': 'standard',
-  'claude-sonnet-4-6-20250610': 'standard',
-  'claude-haiku-4-5-20251001': 'economy',
-  'claude-3-5-sonnet-20241022': 'standard',
-  'gpt-4o': 'standard',
-  'gpt-4o-mini': 'economy',
-  'gemini-2.0-flash': 'economy',
-  'ollama-local': 'free',
-  'llama-server-local': 'free',
+/** Tier fallback table mirroring `MODEL_COST_RATES`. Empty by design. */
+const MODEL_TIERS: Record<string, 'premium' | 'standard' | 'economy' | 'free'> = {};
+
+/** Provider label shown in trade-off strings. */
+const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  ollama: 'Ollama (ローカル)',
 };
 
 /** Pre-execution cost estimate. */
@@ -83,8 +84,14 @@ export type RoutingDecision = {
  * @returns Cost estimate / コスト見積もり
  */
 export async function estimateCost(taskComplexity: number, modelId: string): Promise<CostEstimate> {
-  const rate = MODEL_COST_RATES[modelId] || MODEL_COST_RATES['default'] || 0.01;
-  const tier = MODEL_TIERS[modelId] || 'standard';
+  // Resolve rate + tier from live discovery first; fall back to the static
+  // table for legacy models that probes do not yet surface, and finally to
+  // the name-based heuristic so unknown ids still produce sane numbers.
+  const { models } = await discoverModels();
+  const discovered = models.find((m) => m.id === modelId);
+  const tier: ModelTier = discovered?.tier ?? MODEL_TIERS[modelId] ?? classifyTier(modelId);
+  const rate =
+    discovered?.costPer1kTokens ?? MODEL_COST_RATES[modelId] ?? inferCostPer1k(modelId, tier);
 
   // Fetch historical token usage for similar complexity tasks
   const similarExecutions = await prisma.agentExecution.findMany({
@@ -147,10 +154,28 @@ export async function estimateCost(taskComplexity: number, modelId: string): Pro
  * @param weeklyBudget - Weekly budget in USD (null = unlimited) / 週間予算（USD）
  * @returns Routing decision with alternatives / 代替案を含むルーティング決定
  */
+/** Optional inputs that shape automatic model selection. */
+export interface SmartRouteOptions {
+  weeklyBudget?: number | null;
+  /** Tiebreaker preference within the chosen tier. */
+  preferredProvider?: Provider;
+  /**
+   * Providers to drop from the candidate pool before selection. Used by the
+   * orchestrator to realise cross-provider review (exclude the upstream phase
+   * provider when picking for reviewer/verifier).
+   */
+  excludeProviders?: Provider[];
+}
+
 export async function getSmartRoute(
   taskId: number,
-  weeklyBudget: number | null = null,
+  options: SmartRouteOptions | number | null = {},
 ): Promise<RoutingDecision> {
+  // NOTE: Backwards-compat: previously the second arg was `weeklyBudget`.
+  // Accept both calling styles so existing callers keep working.
+  const opts: SmartRouteOptions =
+    typeof options === 'number' || options === null ? { weeklyBudget: options } : options;
+  const weeklyBudget = opts.weeklyBudget ?? null;
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: { complexityScore: true, title: true, priority: true },
@@ -175,48 +200,50 @@ export async function getSmartRoute(
     recommendedTier = isUrgent ? 'premium' : 'standard';
   }
 
-  // Check if local LLM is available for economy tier
-  const settings = await prisma.userSettings.findFirst();
-  const hasOllama = !!settings?.ollamaUrl;
-  const hasClaude = !!(settings as Record<string, unknown>)?.claudeApiKeyEncrypted;
+  // Run the dynamic discovery layer: probes CLI/API surfaces of every
+  // configured provider and returns whatever models they advertise right now.
+  const discovery = await discoverModels();
 
-  // Select best model for the tier
-  const modelByTier: Record<string, string> = {
-    premium: 'claude-opus-4-6-20250610',
-    standard: 'claude-sonnet-4-6-20250610',
-    economy: hasOllama ? 'ollama-local' : 'claude-haiku-4-5-20251001',
-    free: 'ollama-local',
-  };
+  // Pick the best model for the desired tier (with automatic downgrade
+  // through premium → standard → economy → free) using the discovery output.
+  const selected = await selectBestModel({
+    desiredTier: recommendedTier as ModelTier,
+    preferFree: budgetPressure,
+    preferredProvider: opts.preferredProvider,
+    excludeProviders: opts.excludeProviders,
+  });
+  const recommendedModel = selected?.model.id ?? null;
+  if (selected) recommendedTier = selected.tier;
 
-  const recommendedModel = modelByTier[recommendedTier] || 'claude-sonnet-4-6-20250610';
-  const costEstimate = await estimateCost(complexity, recommendedModel);
-
-  // Generate alternatives
-  const alternatives: RoutingDecision['alternativeModels'] = [];
-  const tierOrder = ['free', 'economy', 'standard', 'premium'];
-
-  for (const tier of tierOrder) {
-    const model = modelByTier[tier];
-    if (!model || model === recommendedModel) continue;
-    // NOTE: Skip models we don't have keys for
-    if (model.startsWith('claude') && !hasClaude) continue;
-    if (model === 'ollama-local' && !hasOllama) continue;
-
-    const altEstimate = await estimateCost(complexity, model);
-    const tradeoff =
-      tier === 'free'
+  const tradeoffLabel = (m: DiscoveredModel): string => {
+    const tier =
+      m.tier === 'free'
         ? 'コスト0、品質は低下する可能性'
-        : tier === 'economy'
+        : m.tier === 'economy'
           ? '低コスト、シンプルなタスク向き'
-          : tier === 'standard'
+          : m.tier === 'standard'
             ? 'バランス型、多くのタスクに適合'
             : '最高品質、コストが高い';
+    return `${PROVIDER_LABEL[m.provider]} ${m.tier}: ${tier}`;
+  };
+
+  // Build cross-provider alternatives from the same discovered set.
+  const alternatives: RoutingDecision['alternativeModels'] = [];
+  for (const m of discovery.models) {
+    if (m.id === recommendedModel) continue;
+    const est = await estimateCost(complexity, m.id);
     alternatives.push({
-      modelId: model,
-      estimatedCost: altEstimate.estimatedCost,
-      tradeoff,
+      modelId: m.id,
+      estimatedCost: est.estimatedCost,
+      tradeoff: tradeoffLabel(m),
     });
   }
+  alternatives.sort((a, b) => a.estimatedCost - b.estimatedCost);
+
+  // Last-resort fallback: nothing was discovered. Keep previous behavior so
+  // the rest of the orchestrator does not crash on an empty model id.
+  const finalModel = recommendedModel ?? 'claude-sonnet-4-6-20250610';
+  const costEstimate = await estimateCost(complexity, finalModel);
 
   const reason = budgetPressure
     ? `予算残高が少ないため${recommendedTier}モデルを推奨`
@@ -226,12 +253,15 @@ export async function getSmartRoute(
         ? `複雑度${complexity}（高）のため${recommendedTier}モデルを推奨`
         : `複雑度${complexity}（中）に基づき${recommendedTier}モデルを推奨`;
 
+  const availableProviders = discovery.providers.filter((p) => p.available).map((p) => p.provider);
   log.info(
-    `[SmartRouter] Task ${taskId}: complexity=${complexity}, tier=${recommendedTier}, model=${recommendedModel}, cost=$${costEstimate.estimatedCost}`,
+    `[SmartRouter] Task ${taskId}: complexity=${complexity}, tier=${recommendedTier}, ` +
+      `provider=${selected?.model.provider ?? 'fallback'}, model=${finalModel}, cost=$${costEstimate.estimatedCost}, ` +
+      `available=[${availableProviders.join(',')}], discovered=${discovery.models.length}`,
   );
 
   return {
-    recommendedModel,
+    recommendedModel: finalModel,
     recommendedTier,
     reason,
     alternativeModels: alternatives,
@@ -263,10 +293,17 @@ export async function getBudgetStatus(weeklyBudget: number | null = null): Promi
     include: { agentConfig: { select: { modelId: true } } },
   });
 
+  // Resolve per-execution rates from the live discovery cache so retired and
+  // newly-released models alike get a real number.
+  const { models: discoveredForBudget } = await discoverModels();
+  const rateById = new Map(discoveredForBudget.map((m) => [m.id, m.costPer1kTokens ?? 0]));
   let spent = 0;
   for (const exec of executions) {
     const modelId = exec.agentConfig?.modelId || 'default';
-    const rate = MODEL_COST_RATES[modelId] || 0.01;
+    const rate =
+      rateById.get(modelId) ??
+      MODEL_COST_RATES[modelId] ??
+      inferCostPer1k(modelId, classifyTier(modelId));
     spent += (exec.tokensUsed / 1000) * rate;
   }
   spent = Math.round(spent * 100) / 100;

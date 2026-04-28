@@ -19,6 +19,7 @@ import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { Toggle } from '@/components/ui/Toggle';
 const logger = createLogger('WorkflowRolesConfig');
 
 type SystemPrompt = {
@@ -32,6 +33,18 @@ type ModelOption = {
   label: string;
   description?: string;
 };
+
+/**
+ * Roles where the cross-provider review option is meaningful — i.e. roles
+ * that evaluate work produced by an upstream phase. Researcher / planner /
+ * implementer have no review semantics so they only see the regular
+ * provider preferences.
+ */
+const ROLES_SUPPORTING_CROSS_PROVIDER = new Set<WorkflowRole>([
+  'reviewer',
+  'verifier',
+  'auto_verifier',
+]);
 
 const ROLE_CONFIG: Record<
   WorkflowRole,
@@ -165,7 +178,46 @@ export default function WorkflowRolesConfig({
     agentConfigId: number | null,
   ) => {
     setSavingRole(role);
-    const result = await updateRole(role, { agentConfigId, modelId: null });
+    const currentRole = roles.find((r) => r.role === role);
+    // NOTE: Preserve the existing auto/manual mode. If the user is in manual mode
+    // we pick a sensible default model for the new agent so the agent change does
+    // not silently flip auto-select back on (Bug #2).
+    const wasAutoMode = !currentRole?.modelId || currentRole.modelId === 'auto';
+    let nextModelId: string | null = null;
+    if (!wasAutoMode) {
+      const newAgent = activeAgents.find((a) => a.id === agentConfigId);
+      const newAgentModels = newAgent
+        ? (availableModels[newAgent.agentType] ?? [])
+        : [];
+      nextModelId =
+        newAgent?.modelId ||
+        newAgentModels[0]?.value ||
+        currentRole?.modelId ||
+        null;
+    }
+    const result = await updateRole(role, {
+      agentConfigId,
+      modelId: nextModelId,
+    });
+    setSavingRole(null);
+    if (result.success) {
+      setSaveSuccess(role);
+      setTimeout(() => setSaveSuccess(null), 2000);
+    }
+  };
+
+  /**
+   * Set agent + model in a single update. Used when toggling auto-select OFF
+   * while no agent is selected — we need to seed both fields atomically so the
+   * checkbox flips and the manual config block becomes editable.
+   */
+  const handleManualSetup = async (
+    role: WorkflowRole,
+    agentConfigId: number,
+    modelId: string,
+  ) => {
+    setSavingRole(role);
+    const result = await updateRole(role, { agentConfigId, modelId });
     setSavingRole(null);
     if (result.success) {
       setSaveSuccess(role);
@@ -179,6 +231,19 @@ export default function WorkflowRolesConfig({
   ) => {
     setSavingRole(role);
     const result = await updateRole(role, { modelId });
+    setSavingRole(null);
+    if (result.success) {
+      setSaveSuccess(role);
+      setTimeout(() => setSaveSuccess(null), 2000);
+    }
+  };
+
+  const handlePreferredProviderChange = async (
+    role: WorkflowRole,
+    preferredProviderOverride: string | null,
+  ) => {
+    setSavingRole(role);
+    const result = await updateRole(role, { preferredProviderOverride });
     setSavingRole(null);
     if (result.success) {
       setSaveSuccess(role);
@@ -308,32 +373,14 @@ export default function WorkflowRolesConfig({
                     {isSaved && <Save className="h-4 w-4 text-green-500" />}
 
                     {/* Enable/disable toggle */}
-                    <label
-                      className="flex items-center cursor-pointer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        onChange={(e) =>
-                          handleToggleEnabled(roleKey, e.target.checked)
-                        }
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-9 h-5 rounded-full transition-colors ${
-                          isEnabled
-                            ? 'bg-indigo-600'
-                            : 'bg-zinc-300 dark:bg-zinc-600'
-                        } relative`}
-                      >
-                        <div
-                          className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${
-                            isEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                          }`}
-                        />
-                      </div>
-                    </label>
+                    <Toggle
+                      checked={isEnabled}
+                      onChange={(checked) =>
+                        handleToggleEnabled(roleKey, checked)
+                      }
+                      srLabel={`${config.label}を有効化`}
+                      stopPropagation
+                    />
 
                     {/* Expand/collapse icon */}
                     <ChevronDown
@@ -361,28 +408,79 @@ export default function WorkflowRolesConfig({
                         </p>
                       </div>
                     </div>
-                    <label className="flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={
-                          !roleData?.modelId || roleData.modelId === 'auto'
+                    <Toggle
+                      checked={
+                        !roleData?.modelId || roleData.modelId === 'auto'
+                      }
+                      onChange={(checked) => {
+                        if (checked) {
+                          handleModelChange(roleKey, null);
+                          return;
                         }
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            handleModelChange(roleKey, null);
-                          } else {
-                            handleModelChange(
-                              roleKey,
-                              selectedAgent?.modelId ?? null,
-                            );
-                          }
-                        }}
-                        disabled={isSaving}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-zinc-300 rounded-full peer peer-checked:bg-indigo-500 transition-colors relative after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-transform peer-checked:after:translate-x-4" />
-                    </label>
+                        // Toggle OFF: must seed a real modelId, otherwise
+                        // `!modelId` keeps the checkbox stuck ON.
+                        const targetAgent =
+                          selectedAgent ?? activeAgents[0] ?? null;
+                        const targetAgentModels = targetAgent
+                          ? (availableModels[targetAgent.agentType] ?? [])
+                          : [];
+                        const targetModelId =
+                          targetAgent?.modelId ||
+                          targetAgentModels[0]?.value ||
+                          null;
+                        if (!targetModelId || !targetAgent) return;
+                        if (!selectedAgent) {
+                          handleManualSetup(
+                            roleKey,
+                            targetAgent.id,
+                            targetModelId,
+                          );
+                        } else {
+                          handleModelChange(roleKey, targetModelId);
+                        }
+                      }}
+                      disabled={isSaving}
+                      srLabel="自動選択モード"
+                    />
                   </div>
+
+                  {/* Auto-select provider preference (visible only when auto is on) */}
+                  {(!roleData?.modelId || roleData.modelId === 'auto') && (
+                    <div className="mb-4 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                      <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
+                        優先プロバイダ（同性能ティア時のタイブレーカー）
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={roleData?.preferredProviderOverride ?? ''}
+                          onChange={(e) =>
+                            handlePreferredProviderChange(
+                              roleKey,
+                              e.target.value || null,
+                            )
+                          }
+                          disabled={isSaving}
+                          className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <option value="">デフォルト設定に従う</option>
+                          <option value="claude">Claude</option>
+                          <option value="openai">OpenAI</option>
+                          <option value="gemini">Gemini</option>
+                          {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey) && (
+                            <option value="cross-provider">
+                              🔀 別プロバイダ（前フェーズと違うものを選ぶ）
+                            </option>
+                          )}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+                      </div>
+                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1">
+                        {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey)
+                          ? '「別プロバイダ」を選ぶと直前フェーズと異なる AI で評価し、自己バイアスを軽減します'
+                          : 'グローバル設定（/settings の「デフォルトAIプロバイダ」）の値を使うか、ロール個別に上書きできます'}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Manual config (hidden when auto-select is on) */}
                   {roleData?.modelId && roleData.modelId !== 'auto' && (
@@ -408,7 +506,7 @@ export default function WorkflowRolesConfig({
                             <option value="">未設定</option>
                             {activeAgents.map((agent) => (
                               <option key={agent.id} value={agent.id}>
-                                {agent.name} ({agent.agentType})
+                                {agent.name}
                               </option>
                             ))}
                           </select>
@@ -433,16 +531,12 @@ export default function WorkflowRolesConfig({
                             }
                             className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                           >
-                            <option value="">
-                              {selectedAgent
-                                ? selectedAgent.modelId
-                                  ? `カスタム: ${selectedAgent.modelId}`
-                                  : 'カスタム'
-                                : 'エージェント未選択'}
-                            </option>
-                            <option value="auto">
-                              🤖
-                              自動選択（タスク複雑度に応じて最適モデルを選択）
+                            <option value="" disabled>
+                              {!selectedAgent
+                                ? 'エージェント未選択'
+                                : models.length === 0
+                                  ? '利用可能なモデルなし'
+                                  : 'モデルを選択'}
                             </option>
                             {models.map((model) => (
                               <option key={model.value} value={model.value}>

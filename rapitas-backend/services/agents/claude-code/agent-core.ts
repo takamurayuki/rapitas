@@ -23,6 +23,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { checkClaudeAvailable } from './cli-utils';
 import { handleWorkerMessage } from './worker-message-handler';
+import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 import { buildResolveAfterParse } from './execution-resolver';
 import { runClaudeExecution } from './claude-execution-runner';
 
@@ -71,6 +72,8 @@ export class ClaudeCodeAgent extends BaseAgent {
   public workerArtifacts: AgentArtifact[] = [];
   /** @internal Commits parsed by the Worker */
   public workerCommits: GitCommitInfo[] = [];
+  /** @internal Usage figures captured from the stream-json `result` event. */
+  public workerResultUsage: WorkerResultUsageSnapshot | null = null;
   /** @internal Callback invoked when parse-complete finishes */
   public onParseComplete: (() => void) | null = null;
 
@@ -177,6 +180,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.idleTimeoutForceKilled = false;
     this.workerArtifacts = [];
     this.workerCommits = [];
+    this.workerResultUsage = null;
     this.onParseComplete = null;
     const startTime = Date.now();
 

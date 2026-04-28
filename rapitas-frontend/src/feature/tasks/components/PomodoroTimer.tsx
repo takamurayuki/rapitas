@@ -9,7 +9,7 @@ import {
   Coffee,
   Hourglass,
 } from 'lucide-react';
-import { fruit } from '@lucide/lab';
+import Tomato from '@/components/icons/Tomato';
 import { useTranslations } from 'next-intl';
 import {
   usePomodoroStore,
@@ -281,7 +281,7 @@ export default function PomodoroTimer({
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i}>
                 {i < pomodoroCount % 4 ? (
-                  <Icon iconNode={fruit} className="w-5 h-5 text-red-500" />
+                  <Tomato className="w-5 h-5 text-red-500" />
                 ) : (
                   <Circle className="w-5 h-5 text-zinc-300 dark:text-zinc-700" />
                 )}

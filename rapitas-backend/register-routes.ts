@@ -24,6 +24,7 @@ import {
   aiAgentRoutes,
   parallelExecutionRoutes,
   agentExecutionConfigRoutes,
+  agentAvailabilityRoutes,
   executionLogsRoutes,
   agentMetricsRouter,
   agentVersionManagementRoutes,
@@ -83,7 +84,6 @@ import {
   copilotChatRoutes,
   promptsRoutes,
   systemPromptsRoutes,
-  dailyBriefingRoutes,
   ideaBoxRoutes,
 } from './routes';
 
@@ -116,6 +116,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(aiAgentRoutes);
   app.use(parallelExecutionRoutes);
   app.use(agentExecutionConfigRoutes);
+  app.use(agentAvailabilityRoutes);
   app.use(executionLogsRoutes);
   app.use(agentMetricsRouter);
   app.use(agentVersionManagementRoutes);
@@ -181,7 +182,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(copilotChatRoutes);
   app.use(promptsRoutes);
   app.use(systemPromptsRoutes);
-  app.use(dailyBriefingRoutes);
 
   // Scheduling
   app.use(schedulesRoutes);

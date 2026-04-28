@@ -56,4 +56,18 @@ export type WorkflowRoleConfig = {
   systemPromptKey: string | null;
   isEnabled: boolean;
   metadata: string;
+  /**
+   * Auto-select provider preference for this role:
+   * - `claude` / `openai` / `gemini` / `ollama`: prefer that provider on tier ties.
+   * - `cross-provider`: pick a provider different from the previous phase
+   *   (mitigates self-evaluation bias for reviewer/verifier roles).
+   * - `null`: fall back to UserSettings.defaultAiProvider.
+   */
+  preferredProviderOverride?:
+    | 'claude'
+    | 'openai'
+    | 'gemini'
+    | 'ollama'
+    | 'cross-provider'
+    | null;
 };

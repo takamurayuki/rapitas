@@ -11,6 +11,11 @@ import {
   getAllAgentConfigSchemas,
 } from '../../../utils/agent/agent-config-schema';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
+import {
+  formatAgentDisplayName,
+  isDevelopmentAgent,
+  isReviewAgent,
+} from '../../../utils/agent/agent-display-name';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 
 export const agentConfigRouter = new Elysia()
@@ -26,16 +31,18 @@ export const agentConfigRouter = new Elysia()
     });
 
     // NOTE: Only expose development, review, and default agents — other types are internal-only.
+    // The legacy `name.includes('Development Agent')` check is preserved as a fallback so
+    // not-yet-migrated rows continue to surface; new rows are tagged via metadata.purpose.
     const filteredAgents = agents.filter((agent: (typeof agents)[0]) => {
-      const isDevelopmentAgent = agent.name.includes('Development Agent');
-      const isReviewAgent = agent.name.includes('Review Agent');
-      const isDefaultAgent = agent.isDefault;
-
-      return isDevelopmentAgent || isReviewAgent || isDefaultAgent;
+      const meta = fromJsonString(agent.metadata);
+      return (
+        isDevelopmentAgent(agent.name, meta) || isReviewAgent(agent.name, meta) || agent.isDefault
+      );
     });
 
     return filteredAgents.map((agent: (typeof filteredAgents)[0]) => ({
       ...agent,
+      name: formatAgentDisplayName(agent.name, agent.agentType),
       capabilities: fromJsonString(agent.capabilities) ?? {},
     }));
   })
@@ -51,6 +58,7 @@ export const agentConfigRouter = new Elysia()
     });
     return agents.map((agent: (typeof agents)[0]) => ({
       ...agent,
+      name: formatAgentDisplayName(agent.name, agent.agentType),
       capabilities: fromJsonString(agent.capabilities) ?? {},
     }));
   })

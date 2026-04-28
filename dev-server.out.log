@@ -1,0 +1,51 @@
+
+> rapitas@1.0.0 dev:skip-check
+> concurrently --kill-others-on-fail "npm run dev:backend" "npm run dev:frontend" --names "BACKEND,FRONTEND" --prefix-colors "cyan,magenta"
+
+[BACKEND] 
+[BACKEND] > rapitas@1.0.0 dev:backend
+[BACKEND] > cd rapitas-backend && bun run dev
+[BACKEND] 
+[FRONTEND] 
+[FRONTEND] > rapitas@1.0.0 dev:frontend
+[FRONTEND] > cd rapitas-frontend && cross-env pnpm run dev
+[FRONTEND] 
+[BACKEND] $ bun run scripts/dev.ts
+[FRONTEND] 
+[FRONTEND] > rapitas-frontend@0.1.0 dev C:\Projects\rapitas\rapitas-frontend
+[FRONTEND] > node scripts/dev-with-cache-check.js
+[FRONTEND] 
+[FRONTEND] ✓ No dependency changes detected. Using existing cache.
+[FRONTEND] 🚀 Starting Next.js dev server...
+[FRONTEND] 
+[FRONTEND]  ⚠ Port 3000 is in use by process 137948, using available port 3001 instead.
+[BACKEND] [2026-04-28 11:42:29.224] [32mINFO[39m (dev): [36mLoaded environment variables from .env[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m╔════════════════════════════════════════════╗[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m║     Rapitas Backend Dev Server              ║[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m╠════════════════════════════════════════════╣[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m║  • TypeScript changes  → auto restart      ║[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m║  • Prisma schema change → auto db push     ║[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m║  • Ctrl+C to quit                          ║[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36m╚════════════════════════════════════════════╝[39m
+[BACKEND] [2026-04-28 11:42:29.225] [32mINFO[39m (dev): [36mChecking port availability starting from 3001...[39m
+[BACKEND] [2026-04-28 11:42:29.265] [32mINFO[39m (dev): [36mUsing default port 3001[39m
+[BACKEND] [2026-04-28 11:42:29.266] [32mINFO[39m (dev): [36mInitial startup: syncing Prisma schema...[39m
+[FRONTEND] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[FRONTEND]    ▲ Next.js 16.0.1 (Turbopack)
+[FRONTEND]    - Local:        http://localhost:3001
+[FRONTEND]    - Network:      http://169.254.5.8:3001
+[FRONTEND] 
+[FRONTEND]  ✓ Starting...
+[BACKEND] Loaded Prisma config from prisma.config.ts.
+[BACKEND] 
+[BACKEND] Prisma config detected, skipping environment variable loading.
+[BACKEND] Prisma schema loaded from prisma\schema
+[BACKEND] Datasource "db": PostgreSQL database "rapitas", schema "public" at "localhost:5432"
+[FRONTEND]  ⨯ Unable to acquire lock at C:\Projects\rapitas\rapitas-frontend\.next\dev\lock, is another instance of next dev running?
+[FRONTEND]    Suggestion: If you intended to restart next dev, terminate the other process, and then try again.
+[FRONTEND] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[FRONTEND] [?25h
+[FRONTEND]  ELIFECYCLE  Command failed with exit code 1.
+[FRONTEND] npm run dev:frontend exited with code 1
+--> Sending SIGTERM to other processes..
+[BACKEND] npm run dev:backend exited with code 1

@@ -324,6 +324,18 @@ export async function saveExecutionResult(
       additions?: number;
       deletions?: number;
     }>;
+    /** Real cost (USD) from stream-json `result` event. */
+    costUsd?: number;
+    /** Standard input tokens from `result.usage.input_tokens`. */
+    inputTokens?: number;
+    /** Output tokens from `result.usage.output_tokens`. */
+    outputTokens?: number;
+    /** Cache-read input tokens. */
+    cacheReadInputTokens?: number;
+    /** Cache-creation input tokens. */
+    cacheCreationInputTokens?: number;
+    /** Primary model used (largest token share). */
+    modelName?: string;
   },
   fileLogger: ExecutionFileLogger,
   existingData?: {
@@ -334,6 +346,21 @@ export async function saveExecutionResult(
   },
 ): Promise<void> {
   const executionStatus = determineExecutionStatus(result, fileLogger, state);
+
+  // Real-cost fields are only emitted on terminal states by the resolver, so
+  // we avoid clobbering them with zeros when we're saving a waiting_for_input
+  // checkpoint.
+  const usageUpdate =
+    !result.waitingForInput && result.costUsd !== undefined
+      ? {
+          inputTokens: result.inputTokens ?? 0,
+          outputTokens: result.outputTokens ?? 0,
+          cacheReadInputTokens: result.cacheReadInputTokens ?? 0,
+          cacheCreationInputTokens: result.cacheCreationInputTokens ?? 0,
+          costUsd: result.costUsd,
+          modelName: result.modelName ?? null,
+        }
+      : {};
 
   await prisma.agentExecution.update({
     where: { id: executionId },
@@ -351,16 +378,16 @@ export async function saveExecutionResult(
       questionType: result.questionType || null,
       questionDetails: toJsonString(result.questionDetails),
       claudeSessionId: result.claudeSessionId || existingData?.claudeSessionId || null,
+      ...usageUpdate,
     },
   });
 
-  if (result.tokensUsed) {
+  if (result.tokensUsed || result.costUsd) {
     await prisma.agentSession.update({
       where: { id: sessionId },
       data: {
-        totalTokensUsed: {
-          increment: result.tokensUsed,
-        },
+        totalTokensUsed: result.tokensUsed ? { increment: result.tokensUsed } : undefined,
+        totalCostUsd: result.costUsd ? { increment: result.costUsd } : undefined,
         lastActivityAt: new Date(),
       },
     });

@@ -6,6 +6,5 @@
 
 export { ProgressSummaryWidget } from './ProgressSummaryWidget';
 export { CostOptimizationWidget } from './CostOptimizationWidget';
-export { UsageRateLimitGraph } from './UsageRateLimitGraph';
 export { default as BurnupChart } from './BurnupChart';
 export { default as TodayTaskProgressBar } from './TodayTaskProgressBar';

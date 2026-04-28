@@ -19,7 +19,6 @@ import {
   GitCommit,
   GitMerge,
   GitPullRequest,
-  Github,
   Palette,
   Paintbrush,
   PaintBucket,
@@ -98,11 +97,16 @@ export const DEVELOPMENT_CREATIVE_ICONS: Record<string, IconInfo> = {
   },
   GitPullRequest: {
     component: GitPullRequest,
-    keywords: ['Git', 'プルリクエスト', 'PR', 'レビュー'],
-  },
-  Github: {
-    component: Github,
-    keywords: ['GitHub', 'ギットハブ', 'リポジトリ', 'オープンソース'],
+    keywords: [
+      'Git',
+      'プルリクエスト',
+      'PR',
+      'レビュー',
+      'GitHub',
+      'ギットハブ',
+      'リポジトリ',
+      'オープンソース',
+    ],
   },
 
   // Creative & Design

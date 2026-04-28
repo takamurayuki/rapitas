@@ -9,6 +9,7 @@
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from './types';
+import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
 
 const prisma = new PrismaClient();
 
@@ -91,7 +92,7 @@ export async function getAgentMetrics(dateRange?: DateRange): Promise<AgentMetri
 
     return {
       agentId: agent.id,
-      agentName: agent.name,
+      agentName: formatAgentDisplayName(agent.name, agent.agentType),
       agentType: agent.agentType,
       modelId: agent.modelId,
       totalExecutions,

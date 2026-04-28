@@ -1,0 +1,33 @@
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 48, reused 34, downloaded 0, added 0
+Progress: resolved 191, reused 146, downloaded 0, added 0
+Progress: resolved 239, reused 238, downloaded 0, added 0
+Packages: +240
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 240, reused 240, downloaded 0, added 17
+Progress: resolved 240, reused 240, downloaded 0, added 59
+Progress: resolved 240, reused 240, downloaded 0, added 112
+Progress: resolved 240, reused 240, downloaded 0, added 142
+Progress: resolved 240, reused 240, downloaded 0, added 220
+Progress: resolved 240, reused 240, downloaded 0, added 239
+Progress: resolved 240, reused 240, downloaded 0, added 240, done
+
+> rapitas@1.0.0 prepare C:\Projects\rapitas
+> husky
+
+
+dependencies:
++ zustand 5.0.12
+
+devDependencies:
++ @commitlint/cli 20.5.2
++ @commitlint/config-conventional 20.5.0
++ concurrently 9.2.1
++ cross-env 10.1.0
++ eslint 9.39.4 (10.2.1 is available)
++ get-port-cli 3.0.0
++ husky 9.1.7
++ lint-staged 16.4.0
++ prettier 3.8.3
+
+Done in 12.4s using pnpm v10.28.0

@@ -43,7 +43,7 @@ import {
   Pin,
   PinOff,
   Rss,
-  Chrome,
+  Globe,
   Podcast,
   type LucideIcon,
 } from 'lucide-react';
@@ -190,9 +190,9 @@ export const HOME_TRAVEL_ICONS: Record<string, IconInfo> = {
     component: Rss,
     keywords: ['RSS', 'フィード', 'ニュース', '購読', '配信'],
   },
-  Chrome: {
-    component: Chrome,
-    keywords: ['Chrome', 'ブラウザ', 'ウェブ', 'インターネット'],
+  Globe: {
+    component: Globe,
+    keywords: ['グローブ', 'ブラウザ', 'ウェブ', 'インターネット', '地球'],
   },
   Podcast: {
     component: Podcast,

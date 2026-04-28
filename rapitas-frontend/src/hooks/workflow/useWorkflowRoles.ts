@@ -44,6 +44,7 @@ export function useWorkflowRoles() {
         modelId?: string | null;
         systemPromptKey?: string | null;
         isEnabled?: boolean;
+        preferredProviderOverride?: string | null;
       },
     ) => {
       try {

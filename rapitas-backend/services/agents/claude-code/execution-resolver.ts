@@ -15,6 +15,7 @@ import type { QuestionWaitingState } from '../question-detection';
 import type { AgentArtifact, AgentExecutionResult, GitCommitInfo } from '../base-agent';
 import { checkGitDiff } from './git-diff-checker';
 import { createLogger } from '../../../config/logger';
+import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 
 const logger = createLogger('claude-code-agent');
 
@@ -32,6 +33,7 @@ export interface ResolverContext {
   claudeSessionId: string | null;
   hasFileModifyingToolCalls: boolean;
   idleTimeoutForceKilled: boolean;
+  workerResultUsage: WorkerResultUsageSnapshot | null;
 
   // Mutated by the resolver
   status: string;
@@ -66,6 +68,23 @@ export function buildResolveAfterParse(
     const artifacts = getArtifacts();
     const commits = getCommits();
     const executionTimeMs = Date.now() - startTime;
+    const usage = ctx.workerResultUsage;
+    /** Spread real-cost fields (from stream-json `result`) into the resolved value. */
+    const usageFields: Partial<AgentExecutionResult> = usage
+      ? {
+          costUsd: usage.costUsd,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheReadInputTokens: usage.cacheReadInputTokens,
+          cacheCreationInputTokens: usage.cacheCreationInputTokens,
+          modelName: usage.modelName,
+          tokensUsed:
+            (usage.inputTokens ?? 0) +
+            (usage.outputTokens ?? 0) +
+            (usage.cacheReadInputTokens ?? 0) +
+            (usage.cacheCreationInputTokens ?? 0),
+        }
+      : {};
 
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(
@@ -106,6 +125,7 @@ export function buildResolveAfterParse(
         questionDetails,
         questionKey,
         claudeSessionId: ctx.claudeSessionId || undefined,
+        ...usageFields,
       });
       return;
     }
@@ -165,6 +185,7 @@ export function buildResolveAfterParse(
         waitingForInput: false,
         claudeSessionId: ctx.claudeSessionId || undefined,
         errorMessage,
+        ...usageFields,
       });
       return;
     }
@@ -194,6 +215,7 @@ export function buildResolveAfterParse(
             executionTimeMs,
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
+            ...usageFields,
           });
         } else if (ctx.hasFileModifyingToolCalls) {
           // NOTE: File-modifying tools were used but not reflected in git diff
@@ -210,6 +232,7 @@ export function buildResolveAfterParse(
             executionTimeMs,
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
+            ...usageFields,
           });
         } else {
           // Only planning was done — no implementation
@@ -227,6 +250,7 @@ export function buildResolveAfterParse(
             claudeSessionId: ctx.claudeSessionId || undefined,
             errorMessage:
               'Agent output a plan but no actual code changes were made. Please review the prompt and re-execute.',
+            ...usageFields,
           });
         }
       })
@@ -246,6 +270,7 @@ export function buildResolveAfterParse(
             executionTimeMs,
             waitingForInput: false,
             claudeSessionId: ctx.claudeSessionId || undefined,
+            ...usageFields,
           });
         } else {
           // No file-modifying tools used — treat as failure
@@ -263,6 +288,7 @@ export function buildResolveAfterParse(
             claudeSessionId: ctx.claudeSessionId || undefined,
             errorMessage:
               'Could not verify agent execution results. Code changes cannot be confirmed.',
+            ...usageFields,
           });
         }
       });
