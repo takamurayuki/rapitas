@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 
@@ -425,10 +426,21 @@ export default function IdeasClient() {
                         {idea.scope === 'global' ? (
                           <Globe className="h-3 w-3 text-indigo-400" />
                         ) : (
-                          <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
-                            <FolderOpen className="h-3 w-3" />
-                            {themes.find((t) => t.id === idea.themeId)?.name ?? 'プロジェクト'}
-                          </span>
+                          (() => {
+                            const currentTheme = themes.find((t) => t.id === idea.themeId);
+                            const ThemeIcon =
+                              getIconComponent(currentTheme?.icon || '') || FolderOpen;
+                            const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
+                            return (
+                              <span
+                                className="flex items-center gap-0.5 text-[9px]"
+                                style={{ color: themeColor }}
+                              >
+                                <ThemeIcon className="h-3 w-3" />
+                                {currentTheme?.name ?? 'プロジェクト'}
+                              </span>
+                            );
+                          })()
                         )}
                       </div>
                       {idea.content !== idea.title && (
