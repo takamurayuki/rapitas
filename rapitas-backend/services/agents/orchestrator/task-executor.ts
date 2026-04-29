@@ -274,7 +274,12 @@ export async function executeTask(
       const { classifyAgentError } = await import('../../ai/agent-error-classifier');
       const { agentTypeToProvider } = await import('../../ai/agent-fallback');
       const hint = agentTypeToProvider(agentConfig.type) ?? undefined;
-      const classified = classifyAgentError(errorBlob, hint);
+      // Strict mode: only specific named provider error patterns count when
+      // the agent reports success. Bare keywords like "credit" or
+      // "rate-limit" can appear in normal output (code review of rate
+      // limiting logic, summaries giving credit, etc.) and would otherwise
+      // false-positive a successful run as failed.
+      const classified = classifyAgentError(errorBlob, { hint, strict: true });
       if (classified?.retryWithFallback) {
         needsFallback = true;
         logger.warn(
@@ -308,15 +313,20 @@ export async function executeTask(
           },
           '[TaskExecutor] Provider failed — retrying with alternative agent config',
         );
+
+        // Synthesize a banner line that flows through the same pipeline as
+        // ordinary agent output so it appears in the live log panel, the
+        // DB-persisted output column, and the per-execution log file.
+        const banner = `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`;
+        state.output += banner;
+        fileLogger.logOutput(banner, false);
+        logManager.addChunk(banner, false);
         ctx.emitEvent({
           type: 'execution_output',
           executionId: execution.id,
           sessionId: options.sessionId,
           taskId: options.taskId,
-          data: {
-            output: `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`,
-            isError: false,
-          },
+          data: { output: banner, isError: false },
           timestamp: new Date(),
         });
 
@@ -328,19 +338,84 @@ export async function executeTask(
         );
         const newAgent = agentFactory.createAgent(newAgentConfig);
         try {
-          // Replace the active agent reference so subsequent UI events match.
+          // Wire the same handlers onto the fallback agent so its output
+          // continues to flow into state.output / log file / DB log chunks /
+          // SSE feed. Without this the user would see no logs after the
+          // banner above — the new agent would run silently from the UI's
+          // perspective.
+          setupQuestionDetectedHandler(newAgent, {
+            prisma: ctx.prisma,
+            executionId: execution.id,
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            state,
+            fileLogger,
+            emitEvent: (event) => ctx.emitEvent(event),
+            startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
+            getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
+          });
+          setupOutputHandler(
+            newAgent,
+            {
+              prisma: ctx.prisma,
+              executionId: execution.id,
+              sessionId: options.sessionId,
+              taskId: options.taskId,
+              state,
+              agentInfo,
+              fileLogger,
+              onOutput: options.onOutput,
+              emitEvent: (event) => ctx.emitEvent(event),
+            },
+            logManager,
+          );
+
+          // Update the active agent reference + the executions row so the
+          // observation dashboard, agent-availability UI, and resumable
+          // executions panel all reflect the actual running agent.
           agentInfo.agent = newAgent;
+          agentConfig = newAgentConfig;
+          resolvedAgentConfigId = fbId;
+          await ctx.prisma.agentExecution.update({
+            where: { id: execution.id },
+            data: { agentConfigId: fbId },
+          });
+          // Re-emit a started event so the UI updates the running agent label.
+          ctx.emitEvent({
+            type: 'execution_started',
+            executionId: execution.id,
+            sessionId: options.sessionId,
+            taskId: options.taskId,
+            data: {
+              agentType: newAgentConfig.type,
+              agentName: newAgentConfig.name,
+              modelId: newAgentConfig.modelId,
+              fallbackFrom: fallback.classified.provider,
+            },
+            timestamp: new Date(),
+          });
+
           const retryResult = await newAgent.execute(taskWithAnalysis);
-          if (retryResult.success) {
-            fallbackSucceeded = true;
-            agentConfig = newAgentConfig;
-            resolvedAgentConfigId = fbId;
-            result = retryResult;
-            await ctx.prisma.agentExecution.update({
-              where: { id: execution.id },
-              data: { agentConfigId: fbId },
-            });
-          }
+
+          // Re-classify the retry's own output (strict): a second consecutive
+          // quota hit (e.g. Codex → Claude → also rate-limited) should still
+          // be surfaced as a failure rather than masquerading as success.
+          // Strict mode prevents false positives from innocent uses of
+          // "credit" / "rate limit" in successful output.
+          const retryBlob = `${retryResult.errorMessage ?? ''}\n${
+            typeof retryResult.output === 'string' ? retryResult.output.slice(-4000) : ''
+          }`;
+          const { classifyAgentError: reclassify } =
+            await import('../../ai/agent-error-classifier');
+          const retryHint =
+            (await import('../../ai/agent-fallback')).agentTypeToProvider(newAgentConfig.type) ??
+            undefined;
+          const retryHasError = !!reclassify(retryBlob, { hint: retryHint, strict: true })
+            ?.retryWithFallback;
+          const retryActuallySucceeded = retryResult.success && !retryHasError;
+
+          result = retryResult;
+          fallbackSucceeded = retryActuallySucceeded;
         } finally {
           await agentFactory.removeAgent(newAgent.id);
         }

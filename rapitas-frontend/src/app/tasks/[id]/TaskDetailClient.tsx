@@ -16,7 +16,6 @@ import { useWorkflowHandlers } from './hooks/useWorkflowHandlers';
 import { useAutoExecute } from './hooks/useAutoExecute';
 import { useAnalysisHandlers } from './hooks/useAnalysisHandlers';
 import { useDeveloperModeEffects } from './hooks/useDeveloperModeEffects';
-import { useParallelExecutionSetup } from './hooks/useParallelExecutionSetup';
 import { useDeveloperModeSetup } from './hooks/useDeveloperModeSetup';
 
 // Extracted components
@@ -135,15 +134,18 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     onTaskUpdated,
   });
 
-  // ─── Parallel execution ───────────────────────────────────────────────────
-  const {
-    parallelSessionId,
-    isParallelExecutionRunning,
-    getSubtaskStatus,
-    startSession,
-    subtaskLogs,
-    refreshSubtaskLogs,
-  } = useParallelExecutionSetup({ taskId, taskSubtasks: task?.subtasks });
+  // ─── Parallel execution (deprecated — kept as no-op for prop compat) ──────
+  // The parallel-execution mechanism was removed; sub-tasks now flow through
+  // the standard workflow advance path. These constants exist only so the
+  // shared TaskAISection prop shape doesn't have to change in lockstep.
+  const parallelSessionId: string | null = null;
+  const isParallelExecutionRunning = false;
+  const getSubtaskStatus = (_id: number) => undefined;
+  const startSession = async () => {};
+  const subtaskLogs:
+    | Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>
+    | undefined = undefined;
+  const refreshSubtaskLogs = (_id?: number) => {};
 
   const { isTaskExecuting } = useExecutionStateStore();
   const isTaskExecutingInStore = isTaskExecuting(taskId);

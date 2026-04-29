@@ -286,12 +286,12 @@ export function ExecutionSection({
                 e.stopPropagation();
                 onExecute();
               }}
-              disabled={isExecuting || isParallelExecutionRunning}
+              disabled={isExecuting}
               className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
-              aria-label={hasSubtasks ? 'サブタスクを実行' : '実行開始'}
+              aria-label="実行開始"
             >
               <Play className="w-2.5 h-2.5" />
-              {hasSubtasks ? 'サブタスクを実行' : '実行'}
+              実行
             </button>
           )}
           {isExpanded ? (

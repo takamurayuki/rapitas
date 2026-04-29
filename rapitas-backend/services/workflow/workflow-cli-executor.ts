@@ -84,6 +84,7 @@ export async function executeCLIAgent(
       noRootFiles: '**プロジェクトルートには絶対にファイルを作成しないでください。**',
       apiCommand: '**API保存コマンド**:',
       contentPlaceholder: '# ファイル内容をここに記述',
+      powershellCommand: '**PowerShell保存コマンド（Windows/Codex向け）**:',
       prohibitions:
         '**禁止事項**: Write、mkdir、echo等によるプロジェクトルートへの直接ファイル作成は厳禁です。',
       mandatory: '必ず上記APIコマンドを使用してファイル保存を行ってから完了してください。',
@@ -96,6 +97,7 @@ export async function executeCLIAgent(
       noRootFiles: '**Never create files in the project root directory.**',
       apiCommand: '**API Save Command**:',
       contentPlaceholder: '# Write file content here',
+      powershellCommand: '**PowerShell Save Command (for Windows/Codex)**:',
       prohibitions:
         '**Prohibited**: Direct file creation to the project root using Write, mkdir, echo, etc. is strictly forbidden.',
       mandatory: 'Please make sure to save files using the API command above before completing.',
@@ -120,6 +122,11 @@ export async function executeCLIAgent(
     fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
     fullPrompt += `  -H 'Content-Type: application/json' \\\n`;
     fullPrompt += `  -d '{"content":"${cliT.contentPlaceholder}"}'\n\`\`\`\n\n`;
+    fullPrompt += `${cliT.powershellCommand}\n\`\`\`powershell\n`;
+    fullPrompt += `$content = @'\n${cliT.contentPlaceholder}\n'@\n`;
+    fullPrompt += `$body = @{ content = $content } | ConvertTo-Json -Depth 10\n`;
+    fullPrompt += `Invoke-RestMethod -Method Put -Uri "http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile}" -ContentType "application/json; charset=utf-8" -Body $body\n`;
+    fullPrompt += `\`\`\`\n\n`;
     fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
   }
 
@@ -143,6 +150,8 @@ export async function executeCLIAgent(
   const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
   const currentWfStatus = updatedTask?.workflowStatus || 'draft';
   let effectiveSuccess = result.success;
+  let phaseStatus = transition.nextStatus;
+  let phaseError = effectiveSuccess ? undefined : result.errorMessage;
 
   if (transition.outputFile) {
     let fileContent = await readWorkflowFile(workflowDir, transition.outputFile);
@@ -154,7 +163,7 @@ export async function executeCLIAgent(
       );
       const extractedContent = extractMarkdownFromOutput(result.output, transition.outputFile);
       if (extractedContent) {
-        await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent);
+        await writeWorkflowFile(workflowDir, transition.outputFile, extractedContent, taskId);
         fileContent = extractedContent;
         log.info(
           `[WorkflowCLIExecutor] Saved extracted content (${extractedContent.length} chars)`,
@@ -175,7 +184,28 @@ export async function executeCLIAgent(
         );
         effectiveSuccess = true;
       }
+    } else {
+      effectiveSuccess = false;
+      phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+      phaseError =
+        `${transition.outputFile}.md was not saved. ` +
+        'The workflow phase cannot be completed until the required file is written via the workflow API.';
+      log.warn(
+        {
+          taskId,
+          role: transition.role,
+          outputFile: transition.outputFile,
+          agentSuccess: result.success,
+          outputLength: result.output?.length ?? 0,
+        },
+        '[WorkflowCLIExecutor] Required workflow file was not saved; treating phase as failed',
+      );
     }
+  } else if (effectiveSuccess && currentWfStatus !== transition.nextStatus) {
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { workflowStatus: transition.nextStatus },
+    });
   }
 
   try {
@@ -187,9 +217,9 @@ export async function executeCLIAgent(
   const finalResult: WorkflowAdvanceResult = {
     success: effectiveSuccess,
     role: transition.role,
-    status: transition.nextStatus,
+    status: phaseStatus,
     output: result.output,
-    error: effectiveSuccess ? undefined : result.errorMessage,
+    error: effectiveSuccess ? undefined : phaseError,
   };
 
   // Auto-start verification phase after implementer completes

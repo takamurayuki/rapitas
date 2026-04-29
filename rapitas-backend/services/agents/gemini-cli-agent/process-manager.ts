@@ -96,6 +96,13 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
     NO_COLOR: '1',
     CI: '1',
     TERM: 'dumb',
+    // Gemini CLI refuses to run in directories it doesn't recognise as
+    // "trusted" with exit code 55. Workflows operate against external
+    // working directories the user has already opted into via theme
+    // configuration, so flag the workspace as trusted unconditionally.
+    // The user can override by setting GEMINI_CLI_TRUST_WORKSPACE=false
+    // at the parent-process level if they want stricter behaviour.
+    GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
   };
 
   if (config.apiKey) {

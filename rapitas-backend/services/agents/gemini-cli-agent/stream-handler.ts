@@ -18,6 +18,7 @@ import {
 import type { QuestionWaitingState } from '../question-detection';
 import { parseStreamEvent, isNoiseLine } from './output-parser';
 import { createLogger } from '../../../config/logger';
+import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
 
 const logger = createLogger('gemini-cli-agent:stream-handler');
 
@@ -213,8 +214,11 @@ export function attachStreamHandlers(
           continue;
         }
         logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-        callbacks.onOutputBufferAppend(line + '\n');
-        callbacks.onOutput(line + '\n');
+        if (!shouldHideRawCliLine(line)) {
+          const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
+          callbacks.onOutputBufferAppend(displayLine + '\n');
+          callbacks.onOutput(displayLine + '\n');
+        }
       }
     }
 
@@ -227,7 +231,11 @@ export function attachStreamHandlers(
     callbacks.onErrorBufferAppend(output);
     lastOutputTime = Date.now();
     logger.info(`${logPrefix} stderr: ${output.substring(0, 200)}`);
-    callbacks.onOutput(output, true);
+    const filtered = filterCliDiagnosticOutput(output, { provider: 'gemini' });
+    if (filtered.display) {
+      callbacks.onOutputBufferAppend(filtered.display);
+      callbacks.onOutput(filtered.display, filtered.important);
+    }
   });
 
   proc.on('close', (code: number | null) => {
@@ -238,8 +246,11 @@ export function attachStreamHandlers(
     const remaining = (proc as NodeJS.EventEmitter & { _lineBuffer?: string })._lineBuffer || '';
     if (remaining.trim()) {
       logger.info(`${logPrefix} Processing remaining lineBuffer: ${remaining.substring(0, 200)}`);
-      callbacks.onOutputBufferAppend(remaining + '\n');
-      callbacks.onOutput(remaining + '\n');
+      if (!shouldHideRawCliLine(remaining)) {
+        const displayLine = remaining.length > 240 ? `${remaining.slice(0, 237)}...` : remaining;
+        callbacks.onOutputBufferAppend(displayLine + '\n');
+        callbacks.onOutput(displayLine + '\n');
+      }
     }
 
     const executionTimeMs = Date.now() - startTime;

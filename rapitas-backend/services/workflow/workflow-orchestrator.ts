@@ -513,10 +513,13 @@ async function tryProviderFallback(args: {
  * Detect provider quota / rate-limit errors hiding in a successful agent's
  * output. Some CLIs (Codex) exit 0 even when they printed
  * "ERROR: You've hit your usage limit...", so we have to read the body.
+ *
+ * Uses strict mode so legitimate uses of words like "credit" or "rate limit"
+ * in agent prose / code review output don't false-positive as failures.
  */
 async function hasProviderErrorInOutput(blob: string): Promise<boolean> {
   if (!blob.trim()) return false;
   const { classifyAgentError } = await import('../ai/agent-error-classifier');
-  const classified = classifyAgentError(blob);
+  const classified = classifyAgentError(blob, { strict: true });
   return !!classified && classified.retryWithFallback;
 }

@@ -13,6 +13,7 @@ import {
   tolegacyQuestionType,
 } from '../question-detection';
 import { formatToolInfo } from './output-parser';
+import { canonicalToolName } from '../common/tool-name-canonicalizer';
 import { createLogger } from '../../../config/logger';
 import type { ProcessRunnerState, ProcessRunnerCallbacks } from './process-runner';
 import type { CodexCliAgentConfig } from './types';
@@ -79,14 +80,18 @@ export function processJsonEvent(
                 state.process.kill('SIGTERM');
               }
             } else {
+              // Canonicalise tool names so the frontend log-pattern table
+              // matches uniformly across providers (Codex emits e.g.
+              // `Shell` / `apply_patch`; Claude uses `Bash` / `Edit`).
+              const canonicalName = canonicalToolName(toolName);
               const toolInfo = formatToolInfo(
                 toolName || 'unknown',
                 block.input || block.function?.arguments,
               );
-              displayOutput += `\n[Tool: ${toolName}] ${toolInfo}\n`;
+              displayOutput += `\n[Tool: ${canonicalName}] ${toolInfo}\n`;
               if (block.id) {
                 state.activeTools.set(block.id, {
-                  name: toolName || 'unknown',
+                  name: canonicalName,
                   startTime: Date.now(),
                   info: toolInfo,
                 });
