@@ -162,11 +162,16 @@ export const ideaBoxRoutes = new Elysia()
       return { error: 'Invalid ID' };
     }
 
-    const success = await deleteIdea(id);
-    if (!success) {
-      set.status = 404;
-      return { error: 'アイデアが見つかりません' };
+    try {
+      const success = await deleteIdea(id);
+      if (!success) {
+        set.status = 404;
+        return { error: 'アイデアが見つかりません' };
+      }
+      return { success: true };
+    } catch (err) {
+      log.error({ err, id }, 'Failed to delete idea');
+      set.status = 500;
+      return { error: 'アイデアの削除に失敗しました' };
     }
-
-    return { success: true };
   });
