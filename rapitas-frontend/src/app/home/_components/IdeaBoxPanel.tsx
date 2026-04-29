@@ -1,8 +1,10 @@
 'use client';
 // IdeaBoxPanel — compact icon button that opens a modal with improvement ideas.
 import { useState } from 'react';
-import { Lightbulb, X, Plus, Loader2, Send, Tag } from 'lucide-react';
+import { Lightbulb, X, Plus, Loader2, Send, Tag, SwatchBook } from 'lucide-react';
 import { useIdeaBox } from '@/hooks/feature/useIdeaBox';
+import { getIconComponent } from '@/components/category/icon-data';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 
 interface IdeaBoxPanelProps {
   categoryId: number | null;
@@ -37,6 +39,7 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
 
 export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
   const { ideas, stats, isLoading, isSubmitting, submitIdea } = useIdeaBox(categoryId);
+  const { themes } = useFilterDataStore();
   const [isOpen, setIsOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -147,6 +150,9 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                       label: idea.category,
                       color: 'bg-zinc-100 text-zinc-600',
                     };
+                    const theme =
+                      idea.scope === 'project' ? themes.find((t) => t.id === idea.themeId) : null;
+                    const ThemeIcon = getIconComponent(theme?.icon || '') || SwatchBook;
                     return (
                       <div
                         key={idea.id}
@@ -161,6 +167,18 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                           <span className="font-medium text-zinc-700 dark:text-zinc-300 line-clamp-1">
                             {idea.title}
                           </span>
+                          {theme && (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium"
+                              style={{
+                                backgroundColor: theme.color + '15',
+                                color: theme.color,
+                              }}
+                            >
+                              <ThemeIcon className="h-2.5 w-2.5" />
+                              {theme.name}
+                            </span>
+                          )}
                           <span className="ml-auto shrink-0 text-[9px] text-zinc-400">
                             {idea.source}
                           </span>

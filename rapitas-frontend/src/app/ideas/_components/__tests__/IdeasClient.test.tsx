@@ -3,7 +3,7 @@ import IdeasClient from '../IdeasClient';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 vi.mock('@/stores/filter-data-store', () => ({
-  useFilterDataStore: () => ({ categories: [], themes: [] }),
+  useFilterDataStore: () => ({ categories: [], themes: [], initializeData: vi.fn() }),
 }));
 
 const mockIdeas = [

@@ -12,9 +12,11 @@ import {
   User,
   Trash2,
   Pencil,
+  SwatchBook,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 
@@ -70,7 +72,7 @@ export default function IdeasClient() {
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
-  const { categories, themes } = useFilterDataStore();
+  const { categories, themes, initializeData } = useFilterDataStore();
 
   const filteredThemes = newCategoryId
     ? themes.filter((t) => t.categoryId === newCategoryId)
@@ -110,6 +112,10 @@ export default function IdeasClient() {
       setIsLoading(false);
     }
   }, [scopeFilter, filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    initializeData();
+  }, [initializeData]);
 
   useEffect(() => {
     fetchIdeas();
@@ -406,6 +412,9 @@ export default function IdeasClient() {
           <div className="space-y-2">
             {filtered.map((idea) => {
               const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
+              const theme =
+                idea.scope === 'project' ? themes.find((t) => t.id === idea.themeId) : null;
+              const ThemeIcon = getIconComponent(theme?.icon || '') || SwatchBook;
               return (
                 <div
                   key={idea.id}
@@ -424,10 +433,21 @@ export default function IdeasClient() {
                         </span>
                         {idea.scope === 'global' ? (
                           <Globe className="h-3 w-3 text-indigo-400" />
+                        ) : theme ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                            style={{
+                              backgroundColor: theme.color + '15',
+                              color: theme.color,
+                            }}
+                          >
+                            <ThemeIcon className="h-3 w-3" />
+                            {theme.name}
+                          </span>
                         ) : (
-                          <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
+                          <span className="inline-flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
                             <FolderOpen className="h-3 w-3" />
-                            {themes.find((t) => t.id === idea.themeId)?.name ?? 'プロジェクト'}
+                            プロジェクト
                           </span>
                         )}
                       </div>

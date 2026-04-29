@@ -10,8 +10,11 @@ export interface IdeaBoxEntry {
   title: string;
   content: string;
   category: string;
+  scope: 'global' | 'project';
   tags: string[];
   confidence: number;
+  themeId: number | null;
+  taskId: number | null;
   source: string;
   usedInTaskId: number | null;
   createdAt: string;
