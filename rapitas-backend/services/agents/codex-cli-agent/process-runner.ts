@@ -55,6 +55,7 @@ export type ProcessRunnerState = {
   detectedQuestion: QuestionWaitingState;
   activeTools: Map<string, { name: string; startTime: number; info: string }>;
   codexSessionId: string | null;
+  actualModel: string | null;
   status: string;
 };
 
@@ -166,12 +167,10 @@ export function spawnCodexProcess(
     }
 
     if (config.model) {
-      // NOTE: gpt-4o is not available on ChatGPT accounts without API key; fall back to gpt-4-turbo
-      let model = config.model;
-      if (model === 'gpt-4o' && !config.apiKey && !process.env.OPENAI_API_KEY) {
-        logger.info(`${logPrefix} Replacing gpt-4o with gpt-4-turbo for ChatGPT account`);
-        model = 'gpt-4-turbo';
-      }
+      const model = normalizeCodexModel(
+        config.model,
+        !!config.apiKey || !!process.env.OPENAI_API_KEY,
+      );
       args.push('-m', model);
     }
 
@@ -305,6 +304,8 @@ export function spawnCodexProcess(
         const output = data.toString();
         state.errorBuffer += output;
         lastOutputTime = Date.now();
+        const modelMatch = output.match(/(?:^|\n)model:\s*([^\r\n]+)/i);
+        if (modelMatch?.[1]) state.actualModel = modelMatch[1].trim();
         callbacks.emitOutput(output, true);
       });
 
@@ -352,6 +353,7 @@ export function spawnCodexProcess(
             questionDetails,
             questionKey,
             claudeSessionId: state.codexSessionId || undefined,
+            modelName: state.actualModel || config.model,
           });
           return;
         }
@@ -377,6 +379,7 @@ export function spawnCodexProcess(
           executionTimeMs,
           waitingForInput: false,
           claudeSessionId: state.codexSessionId || undefined,
+          modelName: state.actualModel || config.model,
           errorMessage,
         });
       });
@@ -410,4 +413,17 @@ export function spawnCodexProcess(
       });
     }
   });
+}
+
+export function normalizeCodexModel(model: string, hasApiKey: boolean): string {
+  const trimmed = model.trim();
+  if (!trimmed) return trimmed;
+
+  // Legacy GPT-4-era API models are not reliable with Codex CLI ChatGPT
+  // account mode. Prefer the current Codex-capable default family so the CLI
+  // does not silently ignore the request and then report a different model.
+  if (!hasApiKey && /^(gpt-4|gpt-3\.5)/i.test(trimmed)) {
+    return 'gpt-5.5';
+  }
+  return trimmed;
 }

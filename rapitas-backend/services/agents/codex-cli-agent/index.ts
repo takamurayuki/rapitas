@@ -125,6 +125,7 @@ export class CodexCliAgent extends BaseAgent {
       detectedQuestion: this.detectedQuestion,
       activeTools: this.activeTools,
       codexSessionId: this.codexSessionId,
+      actualModel: null,
       status: this.status,
     };
 

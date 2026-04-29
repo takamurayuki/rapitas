@@ -164,7 +164,8 @@ export class ExecutionFileLogger {
     this.outputSize += Buffer.byteLength(output, 'utf-8');
 
     if (isError && output.trim()) {
-      this.log('ERROR', 'error', `[stderr] ${output.trim()}`);
+      const level = classifyStderrLevel(output);
+      this.log(level, level === 'ERROR' ? 'error' : 'output', `[stderr] ${output.trim()}`);
     }
     // NOTE: Normal output uses DEBUG level to avoid flooding — only non-empty output is recorded
     if (!isError && output.trim().length > 0) {
@@ -367,4 +368,41 @@ export class ExecutionFileLogger {
   getLogFilePath(): string {
     return this.logFilePath;
   }
+}
+
+function classifyStderrLevel(output: string): StructuredLogEntry['level'] {
+  const text = output.trim();
+  if (!text) return 'DEBUG';
+
+  // Codex CLI currently emits most of its normal transcript to stderr in
+  // JSON/streaming mode. Treat obvious transcript/tool/status lines as output
+  // so successful runs do not produce misleading error summaries.
+  const informationalPatterns = [
+    /^Reading additional input from stdin/i,
+    /^OpenAI Codex\b/i,
+    /^workdir:/i,
+    /^model:/i,
+    /^provider:/i,
+    /^approval:/i,
+    /^sandbox:/i,
+    /^reasoning/i,
+    /^session id:/i,
+    /^user$/i,
+    /^codex$/i,
+    /^exec$/i,
+    /^succeeded in \d+ms/i,
+    /^diff --git /i,
+    /^tokens used/i,
+  ];
+  if (informationalPatterns.some((pattern) => pattern.test(text))) return 'DEBUG';
+
+  if (
+    /\b(ERROR|Error|Exception|failed|panic|traceback|usage limit|quota|rate limit|RESOURCE_EXHAUSTED)\b/i.test(
+      text,
+    )
+  ) {
+    return 'ERROR';
+  }
+
+  return 'DEBUG';
 }

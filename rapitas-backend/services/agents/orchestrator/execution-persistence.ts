@@ -105,14 +105,16 @@ export async function saveExecutionResult(
   // we avoid clobbering them with zeros when we're saving a waiting_for_input
   // checkpoint.
   const usageUpdate =
-    !result.waitingForInput && result.costUsd !== undefined
+    !result.waitingForInput && (result.costUsd !== undefined || result.modelName)
       ? {
-          inputTokens: result.inputTokens ?? 0,
-          outputTokens: result.outputTokens ?? 0,
-          cacheReadInputTokens: result.cacheReadInputTokens ?? 0,
-          cacheCreationInputTokens: result.cacheCreationInputTokens ?? 0,
-          costUsd: result.costUsd,
-          modelName: result.modelName ?? null,
+          ...(result.costUsd !== undefined && {
+            inputTokens: result.inputTokens ?? 0,
+            outputTokens: result.outputTokens ?? 0,
+            cacheReadInputTokens: result.cacheReadInputTokens ?? 0,
+            cacheCreationInputTokens: result.cacheCreationInputTokens ?? 0,
+            costUsd: result.costUsd,
+          }),
+          ...(result.modelName && { modelName: result.modelName }),
         }
       : {};
 

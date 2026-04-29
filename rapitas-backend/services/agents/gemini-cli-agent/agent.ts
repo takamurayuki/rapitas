@@ -215,6 +215,7 @@ export class GeminiCliAgent extends BaseAgent {
                 questionKey,
                 // NOTE: Re-using claudeSessionId field for session continuation (checkpoint ID takes priority)
                 claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
+                modelName: this.config.model,
               });
               return;
             }
@@ -239,6 +240,7 @@ export class GeminiCliAgent extends BaseAgent {
               executionTimeMs: Date.now() - startTime,
               waitingForInput: false,
               claudeSessionId: this.checkpointId || this.geminiSessionId || undefined,
+              modelName: this.config.model,
               errorMessage,
             });
           },

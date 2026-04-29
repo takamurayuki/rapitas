@@ -100,6 +100,7 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
 
   if (config.apiKey) {
     env.GEMINI_API_KEY = config.apiKey;
+    env.GOOGLE_API_KEY = config.apiKey;
   }
 
   if (config.projectId) {
