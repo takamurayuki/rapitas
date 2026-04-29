@@ -6,11 +6,11 @@
  */
 import { Elysia, t } from 'elysia';
 import { createLogger } from '../../config/logger';
-import { prisma } from '../../config/database';
 import {
   listIdeas,
   submitIdea,
   updateIdea,
+  deleteIdea,
   getIdeaStats,
 } from '../../services/memory/idea-box-service';
 import { runInnovationSession } from '../../services/memory/innovation-session';
@@ -161,12 +161,17 @@ export const ideaBoxRoutes = new Elysia()
       set.status = 400;
       return { error: 'Invalid ID' };
     }
+
     try {
-      await prisma.knowledgeEntry.delete({ where: { id } });
+      const success = await deleteIdea(id);
+      if (!success) {
+        set.status = 404;
+        return { error: 'アイデアが見つかりません' };
+      }
       return { success: true };
     } catch (err) {
       log.error({ err, id }, 'Failed to delete idea');
-      set.status = 404;
-      return { error: 'アイデアが見つかりません' };
+      set.status = 500;
+      return { error: 'アイデアの削除に失敗しました' };
     }
   });
