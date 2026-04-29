@@ -29,6 +29,7 @@ export { aiAgentRoutes } from './agents/integrations/ai-agent';
 export { parallelExecutionRoutes } from './agents/integrations/parallel-execution';
 export { agentExecutionConfigRoutes } from './agents/config/agent-execution-config';
 export { agentAvailabilityRoutes } from './agents/config/agent-availability';
+export { providerCooldownsRoutes } from './agents/config/provider-cooldowns';
 export { executionLogsRoutes } from './agents/monitoring/execution-logs';
 export { agentMetricsRouter } from './agents/monitoring/agent-metrics';
 export { agentVersionManagementRoutes } from './agents/system/agent-version-management';

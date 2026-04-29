@@ -24,17 +24,19 @@ export const ideaBoxRoutes = new Elysia()
     '/idea-box',
     async ({ query }) => {
       const categoryId = query.categoryId ? parseInt(query.categoryId) : undefined;
+      const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const unusedOnly = query.unusedOnly === 'true';
       const scope = query.scope as 'global' | 'project' | undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
 
-      const result = await listIdeas({ categoryId, unusedOnly, scope, limit, offset });
+      const result = await listIdeas({ categoryId, themeId, unusedOnly, scope, limit, offset });
       return result;
     },
     {
       query: t.Object({
         categoryId: t.Optional(t.String()),
+        themeId: t.Optional(t.String()),
         unusedOnly: t.Optional(t.String()),
         scope: t.Optional(t.String()),
         limit: t.Optional(t.String()),

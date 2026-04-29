@@ -184,10 +184,53 @@ export async function handleSaveFile({
       ({ newStatus, autoApproved } = await _handlePlanAutoApprove(taskId, newStatus, fileLanguage));
     }
 
-    // Auto commit and PR creation when saving verify.md
+    // Auto commit and PR creation when saving verify.md.
+    //
+    // NOTE: workflowStatus="completed" only means "verify.md saved". The task
+    // itself (Task.status, Task.completedAt) is updated only after the
+    // downstream commit/PR/merge step succeeds, or — when auto-PR is disabled
+    // — immediately after verify since verify is then the terminal step.
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
+    let taskMarkedDone = false;
     if (fileType === 'verify' && newStatus === 'completed') {
       autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent);
+
+      // Decide whether to mark the Task itself as done.
+      //
+      // Rule: the highest automation step that was attempted must succeed.
+      //   - merge attempted → require merge.success (regardless of pr/commit)
+      //   - pr attempted but no merge → require pr.success
+      //   - commit attempted but no pr → require commit.success
+      //   - nothing attempted → done (manual flow; verify is terminal)
+      //
+      // This prevents "PR created but merge failed" from being misreported
+      // as completed when the user explicitly enabled auto-merge.
+      const commit = autoCommitPRResult.autoCommitResult;
+      const pr = autoCommitPRResult.autoPRResult;
+      const merge = autoCommitPRResult.autoMergeResult;
+      const noAutomationAttempted = !commit && !pr && !merge;
+      let automationSucceeded = false;
+      if (merge !== undefined) automationSucceeded = merge.success === true;
+      else if (pr !== undefined) automationSucceeded = pr.success === true;
+      else if (commit !== undefined) automationSucceeded = commit.success === true;
+
+      if (noAutomationAttempted || automationSucceeded) {
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { status: 'done', completedAt: new Date() },
+        });
+        taskMarkedDone = true;
+      } else {
+        log.warn(
+          {
+            taskId,
+            commitOk: commit?.success,
+            prOk: pr?.success,
+            mergeOk: merge?.success,
+          },
+          '[Workflow] verify.md saved but commit/PR did not succeed — leaving Task.status unchanged',
+        );
+      }
 
       // Collect workflow learning data asynchronously (fire-and-forget)
       recordWorkflowCompletion(taskId).catch((err) => {
@@ -239,9 +282,11 @@ export async function handleSaveFile({
     }
 
     if (fileType === 'verify' && newStatus === 'completed') {
-      response.taskCompleted = true;
-      response.taskStatus = 'done';
-      response.completedAt = new Date().toISOString();
+      // Reflect actual DB state — taskMarkedDone gates on
+      // commit/PR/merge success above.
+      response.taskCompleted = taskMarkedDone;
+      response.taskStatus = taskMarkedDone ? 'done' : 'in-progress';
+      if (taskMarkedDone) response.completedAt = new Date().toISOString();
 
       if (autoCommitPRResult.autoCommitResult)
         response.autoCommit = autoCommitPRResult.autoCommitResult;

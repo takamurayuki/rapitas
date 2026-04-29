@@ -135,6 +135,8 @@ export async function executeCLIAgent(
       sessionId: session.id,
       agentConfigId: agentConfig.id,
       workingDirectory: effectiveWorkDir,
+      modelIdOverride: agentConfig.modelId || undefined,
+      autoCompleteTask: false,
     },
   );
 

@@ -37,6 +37,7 @@ export async function executeTask(
   task: AgentTask,
   options: ExecutionOptions,
 ): Promise<AgentExecutionResult> {
+  // eslint-disable-next-line prefer-const
   let agentConfig: AgentConfigInput = {
     type: 'claude-code',
     name: 'Claude Code Agent',
@@ -67,6 +68,9 @@ export async function executeTask(
     } else {
       logger.info(`[TaskExecutor] No default agent in DB, falling back to Claude Code`);
     }
+  }
+  if (options.modelIdOverride) {
+    agentConfig = { ...agentConfig, modelId: options.modelIdOverride };
   }
 
   const agent = agentFactory.createAgent(agentConfig);
@@ -248,11 +252,98 @@ export async function executeTask(
       logger.info(`[TaskExecutor] AI task analysis not provided`);
     }
 
-    const result = await agent.execute(taskWithAnalysis);
+    let result = await agent.execute(taskWithAnalysis);
 
     logger.info(
       `[TaskExecutor] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
     );
+
+    // If the agent failed — OR succeeded but its output contains a known
+    // provider-quota / rate-limit error — classify, place that provider
+    // into cooldown, and retry once with a different active AIAgentConfig.
+    //
+    // Why we also inspect successful output: some CLIs (notably Codex)
+    // print "ERROR: You've hit your usage limit..." but still exit with
+    // code 0, so result.success would be true. The user sees the error in
+    // the log panel without any automatic recovery. Treating that as a
+    // failure for fallback purposes plugs that gap.
+    const successOutput = typeof result.output === 'string' ? result.output : '';
+    const errorBlob = `${result.errorMessage ?? ''}\n${successOutput.slice(-4000)}`;
+    let needsFallback = !result.success;
+    if (!needsFallback && !options.disableFallback) {
+      const { classifyAgentError } = await import('../../ai/agent-error-classifier');
+      const { agentTypeToProvider } = await import('../../ai/agent-fallback');
+      const hint = agentTypeToProvider(agentConfig.type) ?? undefined;
+      const classified = classifyAgentError(errorBlob, hint);
+      if (classified?.retryWithFallback) {
+        needsFallback = true;
+        logger.warn(
+          {
+            executionId: execution.id,
+            agentType: agentConfig.type,
+            classifiedAs: classified.reason,
+            providerImplicated: classified.provider,
+          },
+          '[TaskExecutor] Detected provider error in successful output — forcing fallback',
+        );
+      }
+    }
+
+    if (needsFallback && !options.disableFallback) {
+      const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
+      const fallback = await findFallbackAgentConfig(errorBlob, agentConfig.type);
+      if (fallback?.agentConfig) {
+        const fbType = (fallback.agentConfig as { agentType: string }).agentType;
+        const fbName = (fallback.agentConfig as { name: string }).name;
+        const fbId = (fallback.agentConfig as { id: number }).id;
+        logger.warn(
+          {
+            originalAgent: agentConfig.name,
+            originalType: agentConfig.type,
+            fallbackAgent: fbName,
+            fallbackType: fbType,
+            cooledProvider: fallback.classified.provider,
+            reason: fallback.classified.reason,
+          },
+          '[TaskExecutor] Provider failed — retrying with alternative agent config',
+        );
+        ctx.emitEvent({
+          type: 'execution_output',
+          executionId: execution.id,
+          sessionId: options.sessionId,
+          taskId: options.taskId,
+          data: {
+            output: `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`,
+            isError: false,
+          },
+          timestamp: new Date(),
+        });
+
+        // Build a new agentConfig from the fallback DB record and run the
+        // same task with `disableFallback` so we never recurse more than once.
+        const newAgentConfig = await ctx.buildAgentConfigFromDb(
+          fallback.agentConfig as never,
+          options,
+        );
+        const newAgent = agentFactory.createAgent(newAgentConfig);
+        try {
+          // Replace the active agent reference so subsequent UI events match.
+          agentInfo.agent = newAgent;
+          const retryResult = await newAgent.execute(taskWithAnalysis);
+          if (retryResult.success) {
+            agentConfig = newAgentConfig;
+            resolvedAgentConfigId = fbId;
+            result = retryResult;
+            await ctx.prisma.agentExecution.update({
+              where: { id: execution.id },
+              data: { agentConfigId: fbId },
+            });
+          }
+        } finally {
+          await agentFactory.removeAgent(newAgent.id);
+        }
+      }
+    }
 
     await saveExecutionResult(
       ctx.prisma,
@@ -282,7 +373,8 @@ export async function executeTask(
       });
 
       // NOTE: Auto-complete task when agent execution succeeds — connects AgentExecution → Task.status.
-      if (options.taskId && !result.waitingForInput) {
+      const shouldAutoCompleteTask = options.autoCompleteTask !== false;
+      if (shouldAutoCompleteTask && options.taskId && !result.waitingForInput) {
         ctx.prisma.task
           .update({
             where: { id: options.taskId },

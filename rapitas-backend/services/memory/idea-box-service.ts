@@ -127,14 +127,15 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
  */
 export async function listIdeas(options: {
   categoryId?: number;
+  themeId?: number;
   unusedOnly?: boolean;
   scope?: IdeaScope;
   limit?: number;
   offset?: number;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
-  const { categoryId, unusedOnly = false, scope, limit = 20, offset = 0 } = options;
+  const { categoryId, themeId, unusedOnly = false, scope, limit = 20, offset = 0 } = options;
 
-  const where = await buildWhereClause(categoryId, unusedOnly, scope);
+  const where = await buildWhereClause(categoryId, themeId, unusedOnly, scope);
 
   const [entries, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
@@ -310,10 +311,20 @@ export async function getIdeaStats(categoryId?: number): Promise<{
 }
 
 /** Build Prisma where clause for idea queries. */
-async function buildWhereClause(categoryId?: number, unusedOnly?: boolean, scope?: IdeaScope) {
-  const themeFilter = categoryId
-    ? { themeId: { in: await getThemeIdsForCategory(categoryId) } }
-    : {};
+async function buildWhereClause(
+  categoryId?: number,
+  themeId?: number,
+  unusedOnly?: boolean,
+  scope?: IdeaScope,
+) {
+  // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
+  let themeFilter = {};
+  if (themeId) {
+    themeFilter = { themeId };
+  } else if (categoryId) {
+    themeFilter = { themeId: { in: await getThemeIdsForCategory(categoryId) } };
+  }
+
   return {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',

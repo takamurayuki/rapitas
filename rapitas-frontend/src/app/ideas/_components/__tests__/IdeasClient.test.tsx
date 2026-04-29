@@ -68,4 +68,53 @@ describe('IdeasClient', () => {
     fireEvent.click(screen.getByText('アイデアを追加'));
     expect(screen.getByPlaceholderText(/アイデアをひとことで/)).toBeInTheDocument();
   });
+
+  it('does not show pagination when total pages is 1', async () => {
+    render(<IdeasClient />);
+    await waitFor(() => screen.getByText('テストアイデア'));
+    // Paginationコンポーネントは totalPages <= 1 の場合非表示
+    expect(screen.queryByRole('button', { name: /ページ/ })).not.toBeInTheDocument();
+  });
+
+  it('shows pagination when there are multiple pages', async () => {
+    global.fetch = vi.fn((url: string) => {
+      if (url.includes('/idea-box/stats')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ total: 50, unused: 30, byCategory: [] }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ideas: mockIdeas, total: 50 }),
+      });
+    }) as unknown as typeof fetch;
+
+    render(<IdeasClient />);
+    await waitFor(() => screen.getByText('テストアイデア'));
+    // 総数50、itemsPerPage=15なので4ページ => ページネーション表示される
+    expect(screen.getByText('4')).toBeInTheDocument(); // 最後のページ番号
+  });
+
+  it('calls API with correct limit and offset parameters', async () => {
+    const mockFetch = vi.fn((url: string) => {
+      if (url.includes('/idea-box/stats')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ total: 50, unused: 30 }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ideas: mockIdeas, total: 50 }),
+      });
+    }) as unknown as typeof fetch;
+    global.fetch = mockFetch;
+
+    render(<IdeasClient />);
+    await waitFor(() => screen.getByText('テストアイデア'));
+
+    // 初期APIコールを確認
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('limit=15&offset=0'));
+  });
 });

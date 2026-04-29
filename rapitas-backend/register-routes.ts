@@ -23,6 +23,7 @@ import {
   parallelExecutionRoutes,
   agentExecutionConfigRoutes,
   agentAvailabilityRoutes,
+  providerCooldownsRoutes,
   executionLogsRoutes,
   agentMetricsRouter,
   agentVersionManagementRoutes,
@@ -118,6 +119,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(parallelExecutionRoutes);
   app.use(agentExecutionConfigRoutes);
   app.use(agentAvailabilityRoutes);
+  app.use(providerCooldownsRoutes);
   app.use(executionLogsRoutes);
   app.use(agentMetricsRouter);
   app.use(agentVersionManagementRoutes);

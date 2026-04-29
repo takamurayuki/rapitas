@@ -19,6 +19,7 @@ import {
   type Provider,
 } from './model-discovery';
 import { classifyTier, inferCostPer1k } from './model-discovery/tier-classifier';
+import { isProviderInCooldown, listActiveCooldowns } from './provider-cooldown';
 
 const log = createLogger('smart-model-router');
 
@@ -204,13 +205,22 @@ export async function getSmartRoute(
   // configured provider and returns whatever models they advertise right now.
   const discovery = await discoverModels();
 
+  // Merge any provider currently in cooldown (quota / rate-limit / auth
+  // failure) into excludeProviders so we don't recommend a model that we
+  // know is going to fail. This is what powers automatic provider fallback
+  // when a previous attempt hit "usage limit" or similar.
+  const cooldownProviders = listActiveCooldowns().map((c) => c.provider);
+  const mergedExcludes = Array.from(
+    new Set([...(opts.excludeProviders ?? []), ...cooldownProviders]),
+  );
+
   // Pick the best model for the desired tier (with automatic downgrade
   // through premium → standard → economy → free) using the discovery output.
   const selected = await selectBestModel({
     desiredTier: recommendedTier as ModelTier,
     preferFree: budgetPressure,
     preferredProvider: opts.preferredProvider,
-    excludeProviders: opts.excludeProviders,
+    excludeProviders: mergedExcludes,
   });
   const recommendedModel = selected?.model.id ?? null;
   if (selected) recommendedTier = selected.tier;

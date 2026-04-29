@@ -76,10 +76,17 @@ export async function handleTaskCompletion(
   try {
     await dbMutex.acquire();
     await withRetry(async () => {
+      // NOTE: Parallel execution mode does NOT create PRs — it's a batch
+      // runner for independent tasks. status='done' here represents
+      // "agent execution succeeded"; PR/merge is performed afterwards via
+      // /agents/parallel-execution/pr-routes (which sets completedAt again,
+      // idempotent). The workflow flow has stricter semantics (verify→PR
+      // gates done) — see routes/workflow/handlers/workflow-handlers-files.
       await ctx.prisma.task.update({
         where: { id: taskId },
         data: {
           status: 'done',
+          completedAt: new Date(),
           actualHours: result.executionTimeMs ? result.executionTimeMs / 3600000 : undefined,
         },
       });

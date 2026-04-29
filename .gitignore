@@ -20,3 +20,5 @@ rapitas-backend/data/
 pnpm-lock.yaml
 rapitas-frontend/bun.lock
 rapitas-desktop/bun.lock
+
+rapitas-desktop/.data/

@@ -209,7 +209,6 @@ export class WorkflowOrchestrator {
     );
 
     const agentConfig = roleConfig.agentConfig;
-    const isCLI = CLI_AGENT_TYPES.has(agentConfig.agentType);
     // Model resolution: role override → agent default → smart auto-select
     const roleModelId = (roleConfig as { modelId?: string | null }).modelId;
     let effectiveModelId = roleModelId || agentConfig.modelId;
@@ -254,25 +253,19 @@ export class WorkflowOrchestrator {
     const advanceFn = this.advanceWorkflow.bind(this);
     const devConfigFn = this.getOrCreateDevConfig.bind(this);
 
-    try {
-      if (isCLI) {
+    // Apply the resolved effectiveModelId uniformly across both execution
+    // paths. Previously CLI agents received the raw agentConfig, causing
+    // role-specific overrides and Smart Router decisions to be silently
+    // dropped — and breaking the cross-provider review safeguard which
+    // reads modelName from upstream executions.
+    const resolvedAgentConfig = await resolveExecutableAgentConfig(agentConfig, effectiveModelId);
+
+    const runAgent = async (cfg: typeof agentConfig): Promise<WorkflowAdvanceResult> => {
+      if (CLI_AGENT_TYPES.has(cfg.agentType)) {
         return await executeCLIAgent(
           taskId,
           task,
-          agentConfig,
-          systemPromptContent,
-          context,
-          transition,
-          workflowInfo.dir,
-          language,
-          advanceFn,
-          devConfigFn,
-        );
-      } else {
-        return await executeAPIAgent(
-          taskId,
-          task,
-          { ...agentConfig, modelId: effectiveModelId },
+          cfg,
           systemPromptContent,
           context,
           transition,
@@ -282,9 +275,62 @@ export class WorkflowOrchestrator {
           devConfigFn,
         );
       }
+      return await executeAPIAgent(
+        taskId,
+        task,
+        cfg,
+        systemPromptContent,
+        context,
+        transition,
+        workflowInfo.dir,
+        language,
+        advanceFn,
+        devConfigFn,
+      );
+    };
+
+    // Wrap the call in a single-retry fallback: if the chosen provider hits
+    // a quota / rate-limit / auth error, mark it cooled-down and re-route
+    // through Smart Router (which now skips cooling providers).
+    //
+    // Note we also treat "success but output contains a provider error" as a
+    // failure for fallback purposes — Codex CLI prints "ERROR: You've hit
+    // your usage limit..." but exits with code 0, so the success flag alone
+    // is unreliable.
+    try {
+      const first = await runAgent(resolvedAgentConfig);
+      const firstHasImplicitError = await hasProviderErrorInOutput(
+        `${first.error ?? ''}\n${typeof first.output === 'string' ? first.output : ''}`,
+      );
+      if (first.success && !firstHasImplicitError) return first;
+
+      const fallback = await tryProviderFallback({
+        taskId,
+        role: transition.role,
+        currentConfig: resolvedAgentConfig,
+        firstResult: first,
+        runAgent,
+      });
+      return fallback ?? first;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);
+
+      // Thrown error path: also try fallback once.
+      const fallback = await tryProviderFallback({
+        taskId,
+        role: transition.role,
+        currentConfig: resolvedAgentConfig,
+        firstResult: {
+          success: false,
+          role: transition.role,
+          status: currentStatus as WorkflowStatus,
+          error: errorMessage,
+        },
+        runAgent,
+      });
+      if (fallback?.success) return fallback;
+
       return {
         success: false,
         role: transition.role,
@@ -293,4 +339,176 @@ export class WorkflowOrchestrator {
       };
     }
   }
+}
+
+async function resolveExecutableAgentConfig<
+  T extends {
+    id: number;
+    agentType: string;
+    name: string;
+    modelId: string | null;
+    apiKeyEncrypted?: string | null;
+    endpoint?: string | null;
+  },
+>(agentConfig: T, effectiveModelId: string | null | undefined): Promise<T> {
+  if (!effectiveModelId) return agentConfig;
+
+  const [{ inferProviderFromModelId }, { agentTypeToProvider, findAgentConfigForProvider }] =
+    await Promise.all([import('./role-provider-resolver'), import('../ai/agent-fallback')]);
+
+  const modelProvider = inferProviderFromModelId(effectiveModelId);
+  const currentProvider = agentTypeToProvider(agentConfig.agentType);
+  if (!modelProvider || modelProvider === currentProvider) {
+    return { ...agentConfig, modelId: effectiveModelId };
+  }
+
+  const compatible = await findAgentConfigForProvider(modelProvider, {
+    excludeConfigId: agentConfig.id,
+  });
+  if (!compatible) {
+    log.warn(
+      {
+        currentAgent: agentConfig.name,
+        currentType: agentConfig.agentType,
+        selectedModel: effectiveModelId,
+        selectedProvider: modelProvider,
+      },
+      'Smart Router selected a model from another provider, but no compatible active agent config was found',
+    );
+    return { ...agentConfig, modelId: effectiveModelId };
+  }
+
+  log.info(
+    {
+      fromAgent: agentConfig.name,
+      fromType: agentConfig.agentType,
+      toAgent: compatible.name,
+      toType: compatible.agentType,
+      model: effectiveModelId,
+    },
+    'Switched workflow agent config to match selected model provider',
+  );
+
+  return {
+    ...agentConfig,
+    id: compatible.id,
+    agentType: compatible.agentType,
+    name: compatible.name,
+    modelId: effectiveModelId,
+    apiKeyEncrypted: compatible.apiKeyEncrypted,
+    endpoint: compatible.endpoint,
+  };
+}
+
+/**
+ * Single-retry fallback when an agent run fails with a quota / rate-limit
+ * style error. Classifies the failure, places the offending provider into
+ * cooldown, then asks Smart Router for a fresh recommendation that
+ * automatically excludes cooled-down providers.
+ *
+ * Returns null when no fallback is appropriate (auth errors, no
+ * alternative, classification miss). The caller should then surface the
+ * original failure to the user.
+ */
+async function tryProviderFallback(args: {
+  taskId: number;
+  role: WorkflowRole;
+  currentConfig: {
+    id: number;
+    agentType: string;
+    name: string;
+    modelId: string | null;
+    apiKeyEncrypted?: string | null;
+    endpoint?: string | null;
+  };
+  firstResult: WorkflowAdvanceResult;
+  runAgent: (cfg: never) => Promise<WorkflowAdvanceResult>;
+}): Promise<WorkflowAdvanceResult | null> {
+  const errorBlob = `${args.firstResult.error ?? ''}\n${
+    typeof args.firstResult.output === 'string' ? args.firstResult.output : ''
+  }`;
+  if (!errorBlob.trim()) return null;
+
+  const [
+    { classifyAgentError },
+    { markProviderCooldown },
+    { getSmartRoute },
+    { findAgentConfigForProvider },
+    { inferProviderFromModelId },
+  ] = await Promise.all([
+    import('../ai/agent-error-classifier'),
+    import('../ai/provider-cooldown'),
+    import('../ai/smart-model-router'),
+    import('../ai/agent-fallback'),
+    import('./role-provider-resolver'),
+  ]);
+
+  const classified = classifyAgentError(errorBlob);
+  if (!classified || !classified.retryWithFallback) return null;
+
+  markProviderCooldown(classified.provider, classified.reason, classified.resetAt, {
+    model: args.currentConfig.modelId ?? undefined,
+    message: classified.rawMessage.slice(0, 200),
+  });
+
+  log.warn(
+    {
+      taskId: args.taskId,
+      role: args.role,
+      cooledProvider: classified.provider,
+      reason: classified.reason,
+    },
+    'Provider failed — retrying with Smart Router fallback',
+  );
+
+  // Re-route. Smart Router will now skip cooled-down providers.
+  let alternativeModel: string;
+  try {
+    const route = await getSmartRoute(args.taskId, {
+      excludeProviders: [classified.provider],
+    });
+    alternativeModel = route.recommendedModel;
+  } catch (err) {
+    log.warn({ err, taskId: args.taskId }, 'Smart Router fallback failed');
+    return null;
+  }
+
+  if (!alternativeModel || alternativeModel === args.currentConfig.modelId) {
+    return null;
+  }
+
+  const provider = inferProviderFromModelId(alternativeModel);
+  const fallbackDbConfig = provider
+    ? await findAgentConfigForProvider(provider, { excludeConfigId: args.currentConfig.id })
+    : null;
+  const fallbackConfig = fallbackDbConfig
+    ? {
+        id: fallbackDbConfig.id,
+        agentType: fallbackDbConfig.agentType,
+        name: fallbackDbConfig.name,
+        modelId: alternativeModel,
+        apiKeyEncrypted: fallbackDbConfig.apiKeyEncrypted,
+        endpoint: fallbackDbConfig.endpoint,
+      }
+    : { ...args.currentConfig, modelId: alternativeModel };
+  const result = await args.runAgent(fallbackConfig as never);
+  if (result.success) {
+    log.info(
+      { taskId: args.taskId, role: args.role, fallbackModel: alternativeModel },
+      'Provider fallback succeeded',
+    );
+  }
+  return result;
+}
+
+/**
+ * Detect provider quota / rate-limit errors hiding in a successful agent's
+ * output. Some CLIs (Codex) exit 0 even when they printed
+ * "ERROR: You've hit your usage limit...", so we have to read the body.
+ */
+async function hasProviderErrorInOutput(blob: string): Promise<boolean> {
+  if (!blob.trim()) return false;
+  const { classifyAgentError } = await import('../ai/agent-error-classifier');
+  const classified = classifyAgentError(blob);
+  return !!classified && classified.retryWithFallback;
 }

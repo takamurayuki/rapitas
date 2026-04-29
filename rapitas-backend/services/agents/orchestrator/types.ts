@@ -25,6 +25,15 @@ export type ExecutionOptions = {
   /** Flag indicating continuation from a previous execution. */
   continueFromPrevious?: boolean;
   branchName?: string;
+  /** Override the DB-configured model for this execution only. */
+  modelIdOverride?: string;
+  /** When false, successful execution does not mark Task.status as done. */
+  autoCompleteTask?: boolean;
+  /**
+   * Internal: when set, the executor will not retry on provider failure.
+   * Used by the fallback path itself to prevent recursion.
+   */
+  disableFallback?: boolean;
 };
 
 export type ExecutionState = {

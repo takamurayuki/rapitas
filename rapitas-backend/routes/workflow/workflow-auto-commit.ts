@@ -210,11 +210,14 @@ export async function performAutoCommitAndPR(
       }
     }
 
-    // Clean up git worktree after commit/PR/merge is complete
+    // Clean up git worktree after commit/PR/merge is complete.
+    // NOTE: baseDir must be the *target* repository (workingDirectory) so the
+    // worktree's parent git context matches. Passing the rapitas source root
+    // here would either fail silently or operate against the wrong repo.
     const worktreePath = latestSession?.worktreePath;
     if (worktreePath) {
       try {
-        await orchestrator.removeWorktree(getProjectRoot(), worktreePath);
+        await orchestrator.removeWorktree(workingDirectory, worktreePath);
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: { worktreePath: null },

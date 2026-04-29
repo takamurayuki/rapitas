@@ -16,6 +16,7 @@ import {
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
+import Pagination from '@/components/ui/pagination/Pagination';
 
 type IdeaScope = 'global' | 'project';
 
@@ -48,6 +49,13 @@ export default function IdeasClient() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [stats, setStats] = useState<IdeaStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // ページネーション状態
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalIdeas, setTotalIdeas] = useState(0);
+
   const [scopeFilter, setScopeFilter] = useState<IdeaScope | 'all'>('all');
   const [filterCategoryId, setFilterCategoryId] = useState<number | null>(null);
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
@@ -75,16 +83,25 @@ export default function IdeasClient() {
   const fetchIdeas = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '50' });
+      const params = new URLSearchParams({
+        limit: String(itemsPerPage),
+        offset: String((currentPage - 1) * itemsPerPage),
+      });
       if (scopeFilter !== 'all') params.set('scope', scopeFilter);
       if (filterCategoryId) params.set('categoryId', String(filterCategoryId));
+      // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
+      if (filterThemeId) params.set('themeId', String(filterThemeId));
+
       const [ideasRes, statsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/idea-box?${params}`),
         fetch(`${API_BASE_URL}/idea-box/stats`),
       ]);
+
       if (ideasRes.ok) {
-        const data = (await ideasRes.json()) as { ideas: Idea[] };
+        const data = (await ideasRes.json()) as { ideas: Idea[]; total: number };
         setIdeas(data.ideas);
+        setTotalIdeas(data.total);
+        setTotalPages(Math.ceil(data.total / itemsPerPage));
       }
       if (statsRes.ok) setStats((await statsRes.json()) as IdeaStats);
     } catch {
@@ -92,11 +109,27 @@ export default function IdeasClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [scopeFilter, filterCategoryId]);
+  }, [scopeFilter, filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchIdeas();
   }, [fetchIdeas]);
+
+  // フィルタ変更時のページリセット
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [scopeFilter, filterCategoryId, filterThemeId, searchQuery]);
+
+  // ページネーションハンドラー
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleItemsPerPageChange = useCallback((count: number) => {
+    setItemsPerPage(count);
+    setCurrentPage(1);
+  }, []);
 
   useEffect(() => {
     if (showQuickAdd) titleRef.current?.focus();
@@ -176,8 +209,8 @@ export default function IdeasClient() {
     }
   }, []);
 
+  // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
   const filtered = ideas.filter((idea) => {
-    if (filterThemeId && idea.themeId !== filterThemeId) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return idea.title.toLowerCase().includes(q) || idea.content.toLowerCase().includes(q);
@@ -185,16 +218,14 @@ export default function IdeasClient() {
     return true;
   });
 
-  const globalCount = ideas.filter((i) => i.scope === 'global').length;
-  const projectCount = ideas.filter((i) => i.scope === 'project').length;
-
-  const totalIdeas = stats?.total ?? ideas.length;
+  // 検索がある場合はクライアント側フィルタリング結果、ない場合はサーバーサイドの総数を使用
+  const displayTotalIdeas = searchQuery ? filtered.length : totalIdeas;
 
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-4xl px-3 sm:px-4 md:px-6 py-4">
         <IdeaBoxHeader
-          totalIdeas={totalIdeas}
+          totalIdeas={displayTotalIdeas}
           onAddClick={() => {
             if (showQuickAdd) {
               handleCancel();
@@ -317,9 +348,9 @@ export default function IdeasClient() {
             onChange={(e) => setScopeFilter(e.target.value as IdeaScope | 'all')}
             className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
           >
-            <option value="all">すべて ({ideas.length})</option>
-            <option value="global">グローバル ({globalCount})</option>
-            <option value="project">プロジェクト ({projectCount})</option>
+            <option value="all">すべて</option>
+            <option value="global">グローバル</option>
+            <option value="project">プロジェクト</option>
           </select>
           <select
             value={filterCategoryId ?? ''}
@@ -443,6 +474,18 @@ export default function IdeasClient() {
               );
             })}
           </div>
+        )}
+
+        {/* Pagination - 検索時は非表示 */}
+        {!isLoading && !searchQuery && ideas.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            itemsPerPageOptions={[5, 10, 15, 25]}
+          />
         )}
       </div>
     </div>

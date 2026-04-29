@@ -192,7 +192,10 @@ export const prRoutes = new Elysia()
 
         if (!mergeResult.success) return { success: false, error: mergeResult.error };
 
-        await prisma.task.update({ where: { id: taskId }, data: { status: 'done' } });
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { status: 'done', completedAt: new Date() },
+        });
 
         // Clean up worktree if still exists
         const latestSession = task.developerModeConfig?.agentSessions?.[0];
