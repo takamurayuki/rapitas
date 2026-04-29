@@ -26,6 +26,7 @@ const mockPrisma = {
 
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
+  getProjectRoot: () => '/tmp/rapitas-test',
   createLogger: () => ({
     info: () => {},
     error: () => {},
@@ -55,6 +56,13 @@ mock.module('../../../services/workflow/complexity-analyzer', () => ({
     recommendedMode: 'standard',
     factors: [],
   }),
+  analyzeTaskComplexityWithLearning: () =>
+    Promise.resolve({
+      complexityScore: 5,
+      recommendedMode: 'standard',
+      factors: [],
+      confidence: 0.8,
+    }),
   getWorkflowModeConfig: () => ({
     lightweight: { name: 'Lightweight' },
     standard: { name: 'Standard' },
@@ -79,6 +87,7 @@ mock.module('fs/promises', () => ({
   readFile: mock(() => Promise.resolve('# Test content')),
   writeFile: mock(() => Promise.resolve()),
   mkdir: mock(() => Promise.resolve()),
+  rename: mock(() => Promise.resolve()),
   stat: mock(() =>
     Promise.resolve({
       mtime: new Date('2026-01-01'),
@@ -107,6 +116,10 @@ function createApp() {
       if (code === 'VALIDATION') {
         set.status = 422;
         return { error: 'Validation error' };
+      }
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        set.status = Number((error as { statusCode: number }).statusCode);
+        return { error: error instanceof Error ? error.message : 'Application error' };
       }
       set.status = 500;
       return {
@@ -151,7 +164,7 @@ describe('GET /workflow/tasks/:taskId/files', () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toBe('Invalid task ID');
+    expect(body.error).toBe('Invalid task ID: abc');
   });
 
   test('存在しないタスクで404を返すこと', async () => {
@@ -209,7 +222,7 @@ describe('PUT /workflow/tasks/:taskId/files/:fileType', () => {
     const body = await res.json();
 
     expect(res.status).toBe(400);
-    expect(body.error).toBe('Invalid task ID');
+    expect(body.error).toBe('Invalid task ID: abc');
   });
 
   test('無効なファイルタイプで400を返すこと', async () => {

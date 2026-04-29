@@ -16,3 +16,4 @@ export { default as ConditionalHeader } from './conditional-header';
 export { DarkModeToggle } from './DarkModeToggle';
 export { default as LanguageSwitcher } from './LanguageSwitcher';
 export { default as Header } from './Header';
+export { default as UpdateBanner } from './UpdateBanner';

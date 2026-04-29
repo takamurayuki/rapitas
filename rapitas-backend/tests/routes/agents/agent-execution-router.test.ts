@@ -3,9 +3,110 @@
  * タスク実行機能（実行、停止、応答、継続、リセット）のテスト
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 import { Elysia } from 'elysia';
-import { agentExecutionRouter } from '../../../routes/agents/execution-management/agent-execution-router';
+
+// Mock prisma
+const mockPrisma = {
+  task: {
+    findUnique: mock(() => Promise.resolve({ id: 999, title: 'Test Task', status: 'todo' })),
+    update: mock(() => Promise.resolve({ id: 999 })),
+  },
+  agentSession: {
+    findFirst: mock(() => Promise.resolve(null)),
+    create: mock(() =>
+      Promise.resolve({ id: 1, configId: 1, branchName: 'test-branch', worktreePath: null }),
+    ),
+    update: mock(() => Promise.resolve({ id: 1 })),
+  },
+  developerModeConfig: {
+    findFirst: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
+    findUnique: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
+    create: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
+    upsert: mock(() => Promise.resolve({ id: 1, autoApprove: false })),
+  },
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ id: 1 })),
+    update: mock(() => Promise.resolve({ id: 1 })),
+  },
+  $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
+};
+
+mock.module('../../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
+}));
+
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+  logger: {
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+    child: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+  },
+}));
+
+mock.module('../../../utils/common/branch-name-generator', () => ({
+  generateBranchName: mock(() => Promise.resolve('feature/test-branch')),
+}));
+
+mock.module('../../../utils/ai-client', () => ({
+  sendAIMessage: mock(() => Promise.resolve({ content: '{}', tokensUsed: 0 })),
+  getDefaultProvider: mock(() => Promise.resolve('openai')),
+  isAnyApiKeyConfigured: mock(() => Promise.resolve(false)),
+}));
+
+mock.module('../../../services/local-llm', () => ({
+  getLocalLLMStatus: mock(() => Promise.resolve({ available: false })),
+  ensureLocalLLM: mock(() => Promise.resolve()),
+}));
+
+mock.module('../../../services/agents/agent-worker-manager', () => ({
+  AgentWorkerManager: {
+    getInstance: () => ({
+      startExecution: mock(() => Promise.resolve()),
+      stopExecution: mock(() => Promise.resolve()),
+      getSessionExecutions: mock(() => []),
+      getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+    }),
+  },
+}));
+
+mock.module('../../../services/workflow/complexity-analyzer', () => ({
+  analyzeTaskComplexity: mock(() => Promise.resolve({ complexity: 'low', factors: [] })),
+  analyzeTaskComplexityWithLearning: mock(() =>
+    Promise.resolve({
+      complexity: 'low',
+      suggestedMode: 'manual',
+      confidence: 90,
+      factors: [],
+    }),
+  ),
+}));
+
+mock.module('../../../services/workflow/role-resolver', () => ({
+  resolveAgentForTask: mock(() => Promise.resolve({ agentType: 'default', confidence: 0.8 })),
+}));
+
+mock.module('../../../services/communication/realtime-service', () => ({
+  realtimeService: {
+    sendTaskUpdate: mock(() => {}),
+    notifyTaskUpdate: mock(() => {}),
+    notifyExecutionStarted: mock(() => {}),
+    broadcast: mock(() => {}),
+  },
+}));
+
+const { agentExecutionRouter } =
+  await import('../../../routes/agents/execution-management/agent-execution-router');
 
 describe('Agent Execution Router', () => {
   let app: Elysia;

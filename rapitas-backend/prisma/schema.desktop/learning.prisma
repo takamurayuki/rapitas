@@ -1,0 +1,123 @@
+// ============================================================================
+// learning.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the learning sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model ExamGoal {
+  id            Int       @id @default(autoincrement())
+  name          String
+  description   String?
+  examDate      DateTime
+  targetScore   String?
+  color         String    @default("#10B981")
+  icon          String?
+  isCompleted   Boolean   @default(false)
+  actualScore   String?
+  tasks         Task[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model StudyStreak {
+  id              Int      @id @default(autoincrement())
+  date            DateTime @unique
+  studyMinutes    Int      @default(0)
+  tasksCompleted  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Learning goals (flexible goal setting → automatic task generation)
+model LearningGoal {
+  id              Int       @id @default(autoincrement())
+  title           String    // Learning goal title (e.g., "Become a red coder in competitive programming")
+  description     String?   // Detailed description of the goal
+  currentLevel    String?   // Current level (e.g., "brown coder", "1 year of professional experience")
+  targetLevel     String?   // Target level (e.g., "red coder", "10 million yen salary")
+  deadline        DateTime? // Achievement deadline
+  dailyHours      Float     @default(2) // Daily study hours
+  categoryId      Int?      // Associated category
+  themeId         Int?      // ID of the auto-generated theme
+  status          String    @default("active") // active, completed, archived
+  generatedPlan   String?   // JSON of the generated learning plan
+  isApplied       Boolean   @default(false) // Whether applied as tasks
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Habit {
+  id            Int           @id @default(autoincrement())
+  name          String
+  description   String?
+  icon          String?
+  color         String        @default("#10B981")
+  frequency     String        @default("daily")
+  targetCount   Int           @default(1)
+  isActive      Boolean       @default(true)
+  logs          HabitLog[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model HabitLog {
+  id        Int      @id @default(autoincrement())
+  habitId   Int
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime
+  count     Int      @default(1)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
+}
+
+model Resource {
+  id          Int      @id @default(autoincrement())
+  taskId      Int?
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  url         String?
+  type        String
+  description String?
+  // File upload fields
+  filePath    String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FlashcardDeck {
+  id              Int         @id @default(autoincrement())
+  name            String
+  description     String?
+  color           String      @default("#3B82F6")
+  taskId          Int?
+  learningGoalId  Int?
+  phaseIndex      Int?
+  cards           Flashcard[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Flashcard {
+  id          Int           @id @default(autoincrement())
+  deckId      Int
+  deck        FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front       String
+  back        String
+  nextReview  DateTime?
+  interval    Int           @default(1)
+  easeFactor  Float         @default(2.5)
+  reviewCount Int           @default(0)
+  // FSRS algorithm fields
+  stability   Float         @default(0)
+  difficulty  Float         @default(0)
+  state       Int           @default(0) // 0=New, 1=Learning, 2=Review, 3=Relearning
+  lapses      Int           @default(0)
+  lastReview  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}

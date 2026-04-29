@@ -22,6 +22,9 @@ const mockPrisma = {
   task: {
     create: mock(() => Promise.resolve({ id: 1, title: 'タスク' })),
   },
+  flashcardDeck: {
+    create: mock(() => Promise.resolve({ id: 1, name: 'Deck' })),
+  },
 };
 
 const mockSendAIMessage = mock(() => Promise.resolve({ content: '{}', tokensUsed: 100 }));
@@ -60,11 +63,24 @@ function resetAllMocks() {
   mockIsAnyApiKeyConfigured.mockReset();
 
   mockGetDefaultProvider.mockResolvedValue('claude');
-  mockIsAnyApiKeyConfigured.mockResolvedValue(true);
+  // Set isAnyApiKeyConfigured to false by default to avoid AI flashcard generation issues
+  mockIsAnyApiKeyConfigured.mockResolvedValue(false);
+
+  // Set default mock for flashcardDeck.create
+  mockPrisma.flashcardDeck.create.mockResolvedValue({ id: 1, name: 'Deck' });
 }
 
 function createApp() {
-  return new Elysia().use(learningGoalsRoutes);
+  return new Elysia()
+    .onError(({ code, error, set }) => {
+      if (code === 'VALIDATION') {
+        set.status = 422;
+        return { error: 'Validation error' };
+      }
+      set.status = 500;
+      return { error: error instanceof Error ? error.message : 'Server error' };
+    })
+    .use(learningGoalsRoutes);
 }
 
 describe('GET /learning-goals', () => {

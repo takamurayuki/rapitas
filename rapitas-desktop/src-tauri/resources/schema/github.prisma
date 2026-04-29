@@ -1,0 +1,109 @@
+// ============================================================================
+// github.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the github sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model GitHubIntegration {
+  id                Int       @id @default(autoincrement())
+  repositoryUrl     String    @unique
+  repositoryName    String
+  ownerName         String
+  accessTokenEnc    String?
+  webhookSecret     String?
+  isActive          Boolean   @default(true)
+  syncIssues        Boolean   @default(true)
+  syncPullRequests  Boolean   @default(true)
+  autoLinkTasks     Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  pullRequests      GitHubPullRequest[]
+  issues            GitHubIssue[]
+}
+
+model GitHubPullRequest {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  prNumber          Int
+  title             String
+  body              String?
+  state             String
+  headBranch        String
+  baseBranch        String
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  reviews           GitHubPRReview[]
+  comments          GitHubPRComment[]
+  @@unique([integrationId, prNumber])
+}
+
+model GitHubPRReview {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  reviewId          Int
+  state             String
+  body              String?
+  authorLogin       String
+  submittedAt       DateTime
+  createdAt         DateTime  @default(now())
+}
+
+model GitHubPRComment {
+  id                Int       @id @default(autoincrement())
+  pullRequestId     Int
+  pullRequest       GitHubPullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  commentId         Int
+  body              String
+  path              String?
+  line              Int?
+  authorLogin       String
+  isFromRapitas     Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model GitHubIssue {
+  id                Int       @id @default(autoincrement())
+  integrationId     Int
+  integration       GitHubIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  issueNumber       Int
+  title             String
+  body              String?
+  state             String
+  labels            String    @default("[]") // JSON array stored as string
+  authorLogin       String
+  url               String
+  linkedTaskId      Int?
+  lastSyncedAt      DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@unique([integrationId, issueNumber])
+}
+
+model GitCommit {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  commitHash        String
+  message           String
+  branch            String
+  filesChanged      Int       @default(0)
+  additions         Int       @default(0)
+  deletions         Int       @default(0)
+  createdAt         DateTime  @default(now())
+}
+
+model FavoriteDirectory {
+  id          Int       @id @default(autoincrement())
+  path        String    @unique
+  name        String?
+  isGitRepo   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

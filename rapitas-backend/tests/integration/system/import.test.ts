@@ -1,13 +1,17 @@
 /**
- * Import Routes Tests
+ * Import Routes Tests (Integration)
  *
  * Tests for the import API endpoints (JSON, CSV, restore)
+ * Separated to avoid mock.module pollution from unit tests.
  */
 
 import { describe, test, expect, afterEach } from 'bun:test';
 import { Elysia } from 'elysia';
+import { PrismaClient } from '@prisma/client';
 import { importRoutes } from '../../../routes/system/import';
-import { prisma } from '../../../config/database';
+
+// Create own PrismaClient for test cleanup to avoid mock pollution from other tests
+const testPrisma = new PrismaClient();
 
 // Create test app with import routes
 const app = new Elysia().use(importRoutes);
@@ -19,7 +23,7 @@ describe('Import Routes', () => {
   afterEach(async () => {
     // Clean up test tasks
     for (const title of createdTaskTitles) {
-      await prisma.task.deleteMany({ where: { title } }).catch(() => {});
+      await testPrisma.task.deleteMany({ where: { title } }).catch(() => {});
     }
     createdTaskTitles.length = 0;
   });
@@ -59,7 +63,7 @@ describe('Import Routes', () => {
       expect(result.errors).toHaveLength(0);
 
       // Verify tasks were created
-      const createdTasks = await prisma.task.findMany({
+      const createdTasks = await testPrisma.task.findMany({
         where: { title: { in: tasks.map((t) => t.title) } },
       });
       expect(createdTasks).toHaveLength(2);
@@ -70,7 +74,7 @@ describe('Import Routes', () => {
       createdTaskTitles.push(title);
 
       // Create task first
-      await prisma.task.create({
+      await testPrisma.task.create({
         data: { title, status: 'todo', priority: 'medium' },
       });
 
@@ -133,7 +137,7 @@ describe('Import Routes', () => {
       const result = await response.json();
       expect(result.imported.tasks).toBe(1);
 
-      const task = await prisma.task.findFirst({ where: { title } });
+      const task = await testPrisma.task.findFirst({ where: { title } });
       expect(task?.dueDate).toBeTruthy();
       expect(task?.estimatedHours).toBe(5);
     });
@@ -202,7 +206,7 @@ newlines"`;
 
       expect(result.imported.tasks).toBe(1);
 
-      const task = await prisma.task.findFirst({ where: { title } });
+      const task = await testPrisma.task.findFirst({ where: { title } });
       expect(task).toBeTruthy();
     });
   });
@@ -233,7 +237,9 @@ newlines"`;
       expect(result.skipped).toBeTruthy();
 
       // Clean up
-      await prisma.category.deleteMany({ where: { name: 'Restored Category' } }).catch(() => {});
+      await testPrisma.category
+        .deleteMany({ where: { name: 'Restored Category' } })
+        .catch(() => {});
     });
 
     test('should reject invalid backup structure', async () => {

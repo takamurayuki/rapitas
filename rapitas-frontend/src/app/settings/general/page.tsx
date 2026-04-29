@@ -5,6 +5,9 @@ import { Settings, Code, GraduationCap, Layers, Globe } from 'lucide-react';
 import { useAppModeStore, type AppMode } from '@/stores/app-mode-store';
 import { useLocaleStore } from '@/stores/locale-store';
 import { locales, type Locale } from '@/i18n/config';
+import BackupCard from '../_components/BackupCard';
+import RecentErrorsCard from '../_components/RecentErrorsCard';
+import Link from 'next/link';
 
 const MODE_OPTIONS: {
   value: AppMode;
@@ -184,6 +187,24 @@ export default function GeneralSettingsPage() {
               ))}
             </div>
           </div>
+        </div>
+
+        <BackupCard />
+        <RecentErrorsCard />
+
+        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+          <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            セットアップ確認
+          </h2>
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+            データベースと AI プロバイダーの状態を再確認します。
+          </p>
+          <Link
+            href="/setup"
+            className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            セットアップ画面を開く
+          </Link>
         </div>
       </div>
     </div>

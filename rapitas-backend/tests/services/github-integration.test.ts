@@ -33,13 +33,8 @@ const mockPrisma = {
   },
 };
 
-mock.module('@prisma/client', () => ({
-  PrismaClient: class {
-    constructor() {
-      return mockPrisma;
-    }
-  },
-}));
+// Note: Do not mock @prisma/client globally as it affects other test files.
+// The GitHubService accepts prisma as a constructor parameter, so we can inject the mock directly.
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},

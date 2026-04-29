@@ -8,7 +8,8 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { toJsonString } from '../../utils/database/db-helpers';
-import { encrypt, isEncryptionKeyConfigured } from '../../utils/common/encryption';
+import { isEncryptionKeyConfigured } from '../../utils/common/encryption';
+import { deleteStoredSecret, saveAgentApiKey } from '../../utils/common/secret-store';
 import { logAgentConfigChange, calculateChanges } from '../../utils/agent/agent-audit-log';
 import type { AIAgentConfig } from '@prisma/client';
 import type { CreateAgentConfigRequest, UpdateAgentConfigRequest } from './types';
@@ -88,11 +89,11 @@ export async function createAgentConfig(config: CreateAgentConfigRequest): Promi
     if (!isEncryptionKeyConfigured()) {
       log.warn('[AgentConfigCrud] Encryption key not configured - storing API key as null');
     } else {
-      apiKeyEncrypted = encrypt(apiKey);
+      apiKeyEncrypted = null;
     }
   }
 
-  const created = await prisma.aIAgentConfig.create({
+  let created = await prisma.aIAgentConfig.create({
     data: {
       agentType,
       name,
@@ -103,6 +104,14 @@ export async function createAgentConfig(config: CreateAgentConfigRequest): Promi
       isDefault: isDefault || false,
     },
   });
+
+  if (apiKey) {
+    apiKeyEncrypted = saveAgentApiKey(created.id, apiKey);
+    created = await prisma.aIAgentConfig.update({
+      where: { id: created.id },
+      data: { apiKeyEncrypted },
+    });
+  }
 
   await logAgentConfigChange({
     agentConfigId: created.id,
@@ -153,7 +162,8 @@ export async function updateAgentConfig(
       if (!isEncryptionKeyConfigured()) {
         log.warn('[AgentConfigCrud] Encryption key not configured - not updating API key');
       } else {
-        apiKeyEncrypted = encrypt(apiKey);
+        deleteStoredSecret(previous.apiKeyEncrypted);
+        apiKeyEncrypted = saveAgentApiKey(id, apiKey);
       }
     }
   }

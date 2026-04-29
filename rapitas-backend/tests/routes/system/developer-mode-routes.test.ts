@@ -35,6 +35,9 @@ const mockPrisma = {
   taskPrompt: {
     create: mock(() => Promise.resolve({ id: 1 })),
   },
+  userSettings: {
+    findFirst: mock(() => Promise.resolve(null)),
+  },
   $transaction: mock((fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -261,15 +264,7 @@ describe('POST /developer-mode/enable/:taskId', () => {
     expect(body.priority).toBe('aggressive');
   });
 
-  test('P2002エラーが発生した場合にfindUnique + updateで復旧すること', async () => {
-    const existingConfig = {
-      id: 1,
-      taskId: 1,
-      isEnabled: false,
-      autoApprove: false,
-      maxSubtasks: 10,
-      priority: 'balanced',
-    };
+  test('P2002エラーが発生した場合にupdateで復旧すること', async () => {
     const updatedConfig = {
       id: 1,
       taskId: 1,
@@ -290,7 +285,6 @@ describe('POST /developer-mode/enable/:taskId', () => {
     p2002Error.meta = { target: ['taskId'] };
 
     mockPrisma.developerModeConfig.upsert.mockRejectedValue(p2002Error);
-    mockPrisma.developerModeConfig.findUniqueOrThrow.mockResolvedValue(existingConfig);
     mockPrisma.developerModeConfig.update.mockResolvedValue(updatedConfig);
 
     const res = await app.handle(
@@ -310,7 +304,7 @@ describe('POST /developer-mode/enable/:taskId', () => {
     expect(body.autoApprove).toBe(true);
     expect(body.priority).toBe('aggressive');
     expect(mockPrisma.developerModeConfig.upsert).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.developerModeConfig.findUniqueOrThrow).toHaveBeenCalledTimes(1);
+    // P2002 fallback goes directly to update (no findUniqueOrThrow)
     expect(mockPrisma.developerModeConfig.update).toHaveBeenCalledTimes(1);
   });
 });

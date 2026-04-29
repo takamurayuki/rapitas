@@ -10,7 +10,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
-import { decrypt } from '../../../utils/common/encryption';
+import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 
 const log = createLogger('routes:agent-test');
@@ -88,7 +88,8 @@ export const agentTestRouter = new Elysia()
             if (!agent.apiKeyEncrypted) {
               return { success: false, message: 'API key is not configured' };
             }
-            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const apiKey = resolveStoredSecret(agent.apiKeyEncrypted);
+            if (!apiKey) return { success: false, message: 'API key is not available' };
             const response = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
               headers: {
@@ -120,7 +121,8 @@ export const agentTestRouter = new Elysia()
             if (!agent.apiKeyEncrypted) {
               return { success: false, message: 'API key is not configured' };
             }
-            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const apiKey = resolveStoredSecret(agent.apiKeyEncrypted);
+            if (!apiKey) return { success: false, message: 'API key is not available' };
             const endpoint = agent.endpoint || 'https://api.openai.com/v1';
             const response = await fetch(`${endpoint}/models`, {
               headers: { Authorization: `Bearer ${apiKey}` },
@@ -146,7 +148,8 @@ export const agentTestRouter = new Elysia()
                 message: 'APIキーまたはエンドポイントが設定されていません',
               };
             }
-            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const apiKey = resolveStoredSecret(agent.apiKeyEncrypted);
+            if (!apiKey) return { success: false, message: 'API key is not available' };
             const response = await fetch(`${agent.endpoint}?api-version=2024-02-15-preview`, {
               headers: { 'api-key': apiKey },
             });
@@ -162,7 +165,8 @@ export const agentTestRouter = new Elysia()
               const geminiPath = process.env.GEMINI_CLI_PATH || 'gemini';
               return await testCliAvailability(geminiPath, 'Gemini CLI');
             }
-            const apiKey = decrypt(agent.apiKeyEncrypted);
+            const apiKey = resolveStoredSecret(agent.apiKeyEncrypted);
+            if (!apiKey) return { success: false, message: 'API key is not available' };
             const response = await fetch(
               `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`,
             );

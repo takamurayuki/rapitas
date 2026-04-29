@@ -71,6 +71,9 @@ export { localLLMRouter } from './system/local-llm';
 export { transcribeRouter } from './system/transcribe';
 export { mcpRoutes } from './system/mcp';
 export { gitCleanupRoutes } from './system/git-cleanup';
+export { backupsRoutes } from './system/backups';
+export { errorsRoutes } from './system/errors';
+export { setupRoutes } from './system/setup';
 export { exportRoutes } from './system/export';
 export { importRoutes } from './system/import';
 // System > Monitoring (extracted per FOLDER_ORGANIZATION_POLICY)

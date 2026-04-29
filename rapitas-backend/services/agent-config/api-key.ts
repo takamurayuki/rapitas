@@ -9,12 +9,12 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { toJsonString, fromJsonString } from '../../utils/database/db-helpers';
+import { isEncryptionKeyConfigured, maskApiKey } from '../../utils/common/encryption';
 import {
-  encrypt,
-  decrypt,
-  maskApiKey,
-  isEncryptionKeyConfigured,
-} from '../../utils/common/encryption';
+  deleteStoredSecret,
+  resolveStoredSecret,
+  saveAgentApiKey,
+} from '../../utils/common/secret-store';
 import { validateApiKeyFormat } from '../../utils/agent/agent-config-schema';
 import { logAgentConfigChange } from '../../utils/agent/agent-audit-log';
 import type { AIAgentConfig } from '@prisma/client';
@@ -44,7 +44,7 @@ export async function setApiKey(id: number, apiKey: string): Promise<void> {
     throw new Error(`Invalid API key format: ${validationResult.message}`);
   }
 
-  const apiKeyEncrypted = encrypt(apiKey);
+  const apiKeyEncrypted = saveAgentApiKey(id, apiKey);
 
   await prisma.aIAgentConfig.update({
     where: { id },
@@ -73,6 +73,8 @@ export async function deleteApiKey(id: number): Promise<void> {
   if (!agent) {
     throw new Error(`Agent config not found: ${id}`);
   }
+
+  deleteStoredSecret(agent.apiKeyEncrypted);
 
   await prisma.aIAgentConfig.update({
     where: { id },
@@ -107,7 +109,7 @@ export async function getApiKey(id: number): Promise<string | null> {
   }
 
   try {
-    return decrypt(agent.apiKeyEncrypted);
+    return resolveStoredSecret(agent.apiKeyEncrypted);
   } catch (error) {
     log.error({ err: error }, `[AgentConfigApiKey] Failed to decrypt API key for agent ${id}`);
     return null;

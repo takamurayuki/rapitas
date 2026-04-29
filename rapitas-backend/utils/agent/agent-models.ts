@@ -39,6 +39,26 @@ const AGENT_TYPE_TO_PROVIDER: Record<string, Provider> = {
 /** All agentType values surfaced by `getAllModels`. Custom agents are excluded. */
 const SUPPORTED_AGENT_TYPES = Object.keys(AGENT_TYPE_TO_PROVIDER);
 
+const PROVIDER_FALLBACK_MODELS: Record<Provider, ModelInfo[]> = {
+  claude: [
+    {
+      value: 'claude-sonnet-4-5',
+      label: 'Claude Sonnet 4.5',
+      description: 'バランス型（Fallback）',
+    },
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', description: '軽量・高速（Fallback）' },
+  ],
+  openai: [
+    { value: 'gpt-5.1', label: 'GPT-5.1', description: '最高性能（Fallback）' },
+    { value: 'gpt-5.1-mini', label: 'GPT-5.1 Mini', description: '軽量・高速（Fallback）' },
+  ],
+  gemini: [
+    { value: 'gemini-3-pro', label: 'Gemini 3 Pro', description: '最高性能（Fallback）' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: '軽量・高速（Fallback）' },
+  ],
+  ollama: [],
+};
+
 /** Convert a discovered model to UI-friendly shape. */
 function toModelInfo(m: DiscoveredModel): ModelInfo {
   return {
@@ -73,7 +93,8 @@ export async function getModelsForAgentType(agentType: string): Promise<ModelInf
   const provider = AGENT_TYPE_TO_PROVIDER[agentType];
   if (!provider) return [];
   const { models } = await discoverModels();
-  return models.filter((m) => m.provider === provider).map(toModelInfo);
+  const discovered = models.filter((m) => m.provider === provider).map(toModelInfo);
+  return discovered.length > 0 ? discovered : PROVIDER_FALLBACK_MODELS[provider];
 }
 
 /**
@@ -95,7 +116,7 @@ export async function getAllModels(): Promise<Record<string, ModelInfo[]>> {
   const result: Record<string, ModelInfo[]> = {};
   for (const agentType of SUPPORTED_AGENT_TYPES) {
     const provider = AGENT_TYPE_TO_PROVIDER[agentType];
-    result[agentType] = byProvider.get(provider) ?? [];
+    result[agentType] = byProvider.get(provider) ?? PROVIDER_FALLBACK_MODELS[provider];
   }
   return result;
 }

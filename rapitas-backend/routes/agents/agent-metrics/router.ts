@@ -7,17 +7,14 @@
  */
 
 import { Elysia } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getAgentMetrics, getExecutionTrends, getMetricsOverview } from './queries';
 import { getAgentPerformanceComparison } from './performance-query';
+import { getSelfObservationSummary } from './observation-query';
 import type { DateRange } from './types';
 
 const log = createLogger('routes:agent-metrics');
-
-// NOTE: Separate PrismaClient instance for the /:agentId detail route which
-// requires a richer include shape not covered by the shared query helpers.
-const prisma = new PrismaClient();
 
 /**
  * Extracts a DateRange object from Elysia query parameters.
@@ -65,6 +62,21 @@ export const agentMetricsRouter = new Elysia({ prefix: '/agent-metrics' })
     } catch (error) {
       log.error({ err: error }, 'Error fetching execution trends');
       return { error: 'Failed to fetch execution trends' };
+    }
+  })
+
+  /**
+   * Self-observation snapshot: cost trend, cache hit rate, model mix, error
+   * rate. Powers the in-app self-observation widget.
+   */
+  .get('/observation', async ({ query }) => {
+    try {
+      const days = Math.min(90, Math.max(1, parseInt(query.days as string) || 14));
+      const summary = await getSelfObservationSummary(days);
+      return summary;
+    } catch (error) {
+      log.error({ err: error }, 'Error fetching self-observation summary');
+      return { error: 'Failed to fetch self-observation summary' };
     }
   })
 

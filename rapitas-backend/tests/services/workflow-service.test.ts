@@ -30,7 +30,15 @@ const mockPrisma = {
   },
 };
 
-mock.module('../../config', () => ({ prisma: mockPrisma }));
+mock.module('../../config', () => ({
+  prisma: mockPrisma,
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+}));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},

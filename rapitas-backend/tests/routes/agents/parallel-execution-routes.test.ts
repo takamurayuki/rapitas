@@ -54,6 +54,29 @@ const mockPrisma = {
 };
 
 mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../utils/common/encryption', () => ({
+  encrypt: mock((value: string) => `encrypted:${value}`),
+  decrypt: mock((value: string) => value.replace(/^encrypted:/, '')),
+  maskApiKey: mock(() => 'sk-****'),
+  isEncryptionKeyConfigured: mock(() => true),
+}));
+mock.module('../../../config', () => ({
+  prisma: mockPrisma,
+  getProjectRoot: () => '/tmp/rapitas-test',
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+}));
+mock.module('../../../services/agents/agent-orchestrator', () => ({
+  AgentOrchestrator: {
+    getInstance: mock(() => ({
+      createPullRequest: mock(() => Promise.resolve({ success: true, url: 'http://example/pr' })),
+    })),
+  },
+}));
 
 // Mock the parallel execution service
 mock.module('../../../services/parallel-execution', () => ({
@@ -85,6 +108,11 @@ mock.module('../../../services/parallel-execution', () => ({
       warnings: [],
     })),
   })),
+  MergeValidator: class {
+    validateMergeReadiness() {
+      return Promise.resolve({ success: true, conflicts: [], risks: [] });
+    }
+  },
 }));
 
 mock.module('../../../services/communication/sse-utils', () => ({

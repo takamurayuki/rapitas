@@ -41,6 +41,7 @@ mock.module('../../../utils/common/encryption', () => ({
 }));
 
 const { flashcardsRoutes } = await import('../../../routes/learning/flashcards');
+const { NotFoundError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -57,6 +58,10 @@ function resetAllMocks() {
 function createApp() {
   return new Elysia()
     .onError(({ code, error, set }) => {
+      if (error instanceof NotFoundError) {
+        set.status = 404;
+        return { error: error.message };
+      }
       if (code === 'VALIDATION') {
         set.status = 422;
         return { error: 'Validation error' };
@@ -129,13 +134,13 @@ describe('GET /flashcard-decks/:id', () => {
     expect(body.cards.length).toBe(1);
   });
 
-  test('存在しないIDでnullを返すこと', async () => {
+  test('存在しないIDで404を返すこと', async () => {
     mockPrisma.flashcardDeck.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(new Request('http://localhost/flashcard-decks/999'));
 
-    // Route returns null which results in 200 with empty body
-    expect(res.status).toBe(200);
+    // Route throws NotFoundError which results in 404
+    expect(res.status).toBe(404);
   });
 });
 

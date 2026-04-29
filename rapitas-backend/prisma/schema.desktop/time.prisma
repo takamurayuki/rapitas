@@ -1,0 +1,63 @@
+// ============================================================================
+// time.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the time sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model TimeEntry {
+  id            Int      @id @default(autoincrement())
+  taskId        Int
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  duration      Float
+  breakDuration Float?   @default(0)
+  note          String?
+  startedAt     DateTime
+  endedAt       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PomodoroSession {
+  id              Int       @id @default(autoincrement())
+  taskId          Int?
+  task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  status          String    @default("active") // active, paused, completed, cancelled
+  type            String    @default("work")   // work, short_break, long_break
+  duration        Int       // total duration in seconds
+  elapsed         Int       @default(0)        // elapsed seconds before current active period
+  startedAt       DateTime  @default(now())
+  pausedAt        DateTime?
+  completedAt     DateTime?
+  completedPomodoros Int    @default(0)         // count of completed work sessions in series
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([taskId])
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId Int?
+  action    String
+  changes   String?  // JSON stored as string
+  metadata  String?  // JSON stored as string
+  createdAt DateTime @default(now())
+}
+
+model DailyScheduleBlock {
+  id          Int      @id @default(autoincrement())
+  label       String
+  startTime   String   // "HH:mm" format (e.g. "07:00")
+  endTime     String   // "HH:mm" format (e.g. "08:00")
+  color       String   @default("#3B82F6")
+  icon        String?
+  category    String   @default("other") // sleep, work, exercise, meal, commute, study, hobby, other
+  isNotify    Boolean  @default(false)   // send PC notification at startTime
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -12,6 +12,7 @@ import { ProductivityHeatmap } from '@/feature/intelligence/components/Productiv
 import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 import { ProgressSummaryWidget } from '@/components/widgets/ProgressSummaryWidget';
 import { CostOptimizationWidget } from '@/components/widgets/CostOptimizationWidget';
+import SelfObservationWidget from '@/components/widgets/SelfObservationWidget';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -184,6 +185,10 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <ProgressSummaryWidget />
         <CostOptimizationWidget />
+      </div>
+
+      <div className="mb-6">
+        <SelfObservationWidget />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

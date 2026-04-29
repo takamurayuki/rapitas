@@ -6,12 +6,12 @@
  * All destructive operations are guarded by isPathSafeForWorktreeOperation from safety.ts.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { rm, stat } from 'fs/promises';
-import { randomBytes } from 'crypto';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
@@ -197,7 +197,7 @@ export async function removeWorktree(
       const gitDirPath = join(worktreePath, '.git');
       if (existsSync(gitDirPath)) {
         try {
-          const gitStat = await stat(gitDirPath);
+          const gitStat = await fsPromises.stat(gitDirPath);
           if (gitStat.isDirectory()) {
             // SAFETY: .git is a directory — this is a main repository, NOT a worktree
             // Worktrees have a .git FILE pointing to the main repo's .git/worktrees/ entry
@@ -212,7 +212,7 @@ export async function removeWorktree(
       }
 
       try {
-        await rm(worktreePath, { recursive: true, force: true });
+        await fsPromises.rm(worktreePath, { recursive: true, force: true });
         logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
       } catch (fsError) {
         logger.error(
@@ -379,8 +379,7 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
         }
 
         // Check filesystem directories against git-tracked worktrees
-        const { readdir } = await import('fs/promises');
-        const dirEntries = await readdir(worktreeDir, { withFileTypes: true });
+        const dirEntries = await fsPromises.readdir(worktreeDir, { withFileTypes: true });
 
         for (const dirEntry of dirEntries) {
           if (!dirEntry.isDirectory()) continue;
@@ -392,7 +391,7 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
           if (!gitTrackedPaths.has(normalizedDirPath)) {
             if (isPathSafeForWorktreeOperation(dirPath, baseDir)) {
               try {
-                await rm(dirPath, { recursive: true, force: true });
+                await fsPromises.rm(dirPath, { recursive: true, force: true });
                 cleanedCount++;
                 logger.info(
                   `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`,

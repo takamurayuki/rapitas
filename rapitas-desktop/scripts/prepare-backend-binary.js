@@ -27,6 +27,15 @@ if (isWindows) {
 const binariesDir = path.join(__dirname, '..', 'src-tauri', 'binaries');
 const binaryPath = path.join(binariesDir, binaryName);
 
+function isUsableBackendBinary(file) {
+  if (!file.startsWith('rapitas-backend') || file.includes('placeholder')) {
+    return false;
+  }
+
+  const stat = fs.statSync(path.join(binariesDir, file));
+  return stat.isFile() && stat.size > 0;
+}
+
 // Ensure binaries directory exists
 if (!fs.existsSync(binariesDir)) {
   fs.mkdirSync(binariesDir, { recursive: true });
@@ -44,9 +53,7 @@ if (!fs.existsSync(binaryPath)) {
     console.log('Found files:', files);
 
     // Try to find any rapitas-backend file
-    const backendFile = files.find(
-      (f) => f.startsWith('rapitas-backend') && !f.includes('placeholder'),
-    );
+    const backendFile = files.find(isUsableBackendBinary);
     if (backendFile) {
       console.log(`Found alternative: ${backendFile}`);
       // Create a symlink or copy with the expected name
@@ -90,9 +97,7 @@ if (!config.bundle) {
 let foundBinary = null;
 if (fs.existsSync(binariesDir)) {
   const files = fs.readdirSync(binariesDir);
-  foundBinary = files.find(
-    (f) => f.startsWith('rapitas-backend') && !f.includes('placeholder'),
-  );
+  foundBinary = files.find(isUsableBackendBinary);
 
   if (foundBinary) {
     console.log(`Found backend binary: ${foundBinary}`);
@@ -127,7 +132,17 @@ if (fs.existsSync(binariesDir)) {
 
 const resourceFiles = fs
   .readdirSync(binariesDir)
-  .filter((file) => file.startsWith('rapitas-backend'))
+  .filter((file) => {
+    return isUsableBackendBinary(file);
+  })
+  .sort((left, right) => {
+    const score = (file) => {
+      if (file.includes(target)) return 3;
+      if (file === 'rapitas-backend' || file === 'rapitas-backend.exe') return 2;
+      return 1;
+    };
+    return score(right) - score(left) || left.localeCompare(right);
+  })
   .map((file) => `binaries/${file}`);
 
 if (resourceFiles.length === 0) {

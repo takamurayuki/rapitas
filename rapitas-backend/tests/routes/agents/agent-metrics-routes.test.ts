@@ -11,19 +11,20 @@ const mockCount = mock(() => Promise.resolve(0));
 const mockFindUnique = mock(() => Promise.resolve(null));
 const mockExecutionFindMany = mock(() => Promise.resolve([]));
 
-mock.module('@prisma/client', () => ({
-  PrismaClient: class {
-    aIAgentConfig = {
-      findMany: mockFindMany,
-      count: mockCount,
-      findUnique: mockFindUnique,
-    };
-    agentExecution = {
-      findMany: mockExecutionFindMany,
-    };
+const mockPrisma = {
+  aIAgentConfig: {
+    findMany: mockFindMany,
+    count: mockCount,
+    findUnique: mockFindUnique,
   },
-  Prisma: { validator: () => ({}) },
-}));
+  agentExecution: {
+    findMany: mockExecutionFindMany,
+  },
+};
+
+// Note: Do not mock @prisma/client globally as it affects other test files.
+// Mock the database config module instead.
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
 
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({

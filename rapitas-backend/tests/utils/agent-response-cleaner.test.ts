@@ -7,13 +7,15 @@ import { cleanImplementationSummary } from '../../utils/agent/agent-response-cle
 
 describe('cleanImplementationSummary', () => {
   test('空入力でデフォルトメッセージを返すこと', () => {
-    expect(cleanImplementationSummary('')).toBe('実装が完了しました。');
-    expect(cleanImplementationSummary('   ')).toBe('実装が完了しました。');
+    expect(cleanImplementationSummary('')).toBe('Implementation completed.');
+    expect(cleanImplementationSummary('   ')).toBe('Implementation completed.');
   });
 
   test('null/undefinedでデフォルトメッセージを返すこと', () => {
-    expect(cleanImplementationSummary(null as unknown as string)).toBe('実装が完了しました。');
-    expect(cleanImplementationSummary(undefined as unknown as string)).toBe('実装が完了しました。');
+    expect(cleanImplementationSummary(null as unknown as string)).toBe('Implementation completed.');
+    expect(cleanImplementationSummary(undefined as unknown as string)).toBe(
+      'Implementation completed.',
+    );
   });
 
   test('正常なMarkdownテキストをそのまま保持すること', () => {

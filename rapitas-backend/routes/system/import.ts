@@ -337,15 +337,15 @@ export const importRoutes = new Elysia({ prefix: '/import' })
         skipExisting?: boolean;
       };
 
-      const lines = csv.split('\n').filter((line) => line.trim());
-      if (lines.length < 2) {
+      const rows = parseCSVRows(csv);
+      if (rows.length < 2) {
         return {
           success: false,
           error: 'CSV must have at least a header and one data row',
         };
       }
 
-      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const headers = rows[0].map((h) => h.trim().toLowerCase());
       const titleIndex = headers.indexOf('title');
 
       if (titleIndex === -1) {
@@ -362,8 +362,8 @@ export const importRoutes = new Elysia({ prefix: '/import' })
         errors: [],
       };
 
-      for (let i = 1; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]);
+      for (let i = 1; i < rows.length; i++) {
+        const values = rows[i];
         const title = values[titleIndex]?.trim();
 
         if (!title) {
@@ -414,6 +414,65 @@ export const importRoutes = new Elysia({ prefix: '/import' })
       }),
     },
   );
+
+/**
+ * Helper function to parse CSV content correctly, handling quoted fields with newlines
+ */
+function parseCSVRows(csv: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentValue = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+
+    if (char === '"') {
+      if (inQuotes && csv[i + 1] === '"') {
+        // Escaped quote
+        currentValue += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      currentRow.push(currentValue.trim());
+      currentValue = '';
+    } else if ((char === '\n' || (char === '\r' && csv[i + 1] === '\n')) && !inQuotes) {
+      // End of row
+      if (char === '\r') i++; // Skip \r in \r\n
+      currentRow.push(currentValue.trim());
+      if (currentRow.some((v) => v)) {
+        // Only add non-empty rows
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentValue = '';
+    } else if (char === '\r' && !inQuotes) {
+      // Handle standalone \r as newline
+      currentRow.push(currentValue.trim());
+      if (currentRow.some((v) => v)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentValue = '';
+    } else {
+      currentValue += char;
+    }
+  }
+
+  // Handle last row if not ending with newline
+  if (currentValue || currentRow.length > 0) {
+    currentRow.push(currentValue.trim());
+    if (currentRow.some((v) => v)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
 
 /**
  * Parse a CSV line handling quoted values

@@ -2,51 +2,16 @@
  * Encryption Utility
  *
  * Encrypts and decrypts sensitive information such as API keys.
+ *
+ * The master key is resolved via the hybrid chain in
+ * `encryption-key-resolver.ts` (env → OS keychain → user file → legacy file →
+ * generated), so callers here only need the resolved value.
  */
 
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import { resolveEncryptionKey, getKeySource } from './encryption-key-resolver';
 
-/**
- * Get or generate the encryption key.
- *
- * Priority:
- * 1. Environment variable ENCRYPTION_KEY (if set)
- * 2. .encryption-key file in the backend root
- * 3. Auto-generate and save to .encryption-key file
- */
-function getOrCreateEncryptionKey(): string {
-  // 1. Check environment variable first
-  if (process.env.ENCRYPTION_KEY) {
-    return process.env.ENCRYPTION_KEY;
-  }
-
-  // 2. Check for .encryption-key file
-  const keyFilePath = path.join(__dirname, '..', '.encryption-key');
-
-  if (fs.existsSync(keyFilePath)) {
-    const key = fs.readFileSync(keyFilePath, 'utf8').trim();
-    if (key && key.length === 64) {
-      return key;
-    }
-  }
-
-  // 3. Generate new key and save to file
-  const newKey = crypto.randomBytes(32).toString('hex');
-
-  try {
-    fs.writeFileSync(keyFilePath, newKey, { mode: 0o600 }); // Restrictive permissions
-    console.log(`[encryption] Generated new encryption key and saved to ${keyFilePath}`);
-  } catch (err) {
-    console.error('[encryption] Failed to save encryption key to file:', err);
-    // Continue with the generated key even if file save fails
-  }
-
-  return newKey;
-}
-
-const ENCRYPTION_KEY = getOrCreateEncryptionKey();
+const ENCRYPTION_KEY = resolveEncryptionKey();
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
@@ -104,8 +69,17 @@ export function maskApiKey(key: string): string {
 }
 
 /**
- * Check whether the encryption key is configured.
+ * Check whether the encryption key is configured (any resolution source).
  */
 export function isEncryptionKeyConfigured(): boolean {
-  return !!process.env.ENCRYPTION_KEY;
+  return ENCRYPTION_KEY.length === 64;
+}
+
+/**
+ * Diagnostic — where the master key was loaded from.
+ *
+ * @returns 'env' | 'keychain' | 'file' | 'legacy-file' | 'generated' | null
+ */
+export function getEncryptionKeySource(): ReturnType<typeof getKeySource> {
+  return getKeySource();
 }

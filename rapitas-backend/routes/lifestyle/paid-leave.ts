@@ -1,11 +1,9 @@
 import { Elysia, t } from 'elysia';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../config/database';
 import { createResponse, createErrorResponse } from '../../utils/common/response';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:paid-leave');
-
-const prisma = new PrismaClient();
 
 // Get current fiscal year (starts April)
 const getCurrentFiscalYear = (date = new Date()): number => {

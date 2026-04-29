@@ -11,7 +11,12 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { getApiKeyForProvider } from '../../../utils/ai-client';
-import { encrypt, decrypt, maskApiKey } from '../../../utils/common/encryption';
+import { maskApiKey } from '../../../utils/common/encryption';
+import {
+  deleteStoredSecret,
+  resolveStoredSecret,
+  saveProviderApiKey,
+} from '../../../utils/common/secret-store';
 import { systemSchemas } from '../../../schemas/system.schema';
 import {
   PROVIDER_COLUMNS,
@@ -61,7 +66,8 @@ export const apiKeyRoutes = new Elysia({ prefix: '/settings' })
       }
 
       try {
-        const decrypted = decrypt(encryptedKey);
+        const decrypted = resolveStoredSecret(encryptedKey);
+        if (!decrypted) return { configured: false, maskedKey: null, provider };
         return {
           configured: true,
           maskedKey: maskApiKey(decrypted),
@@ -92,7 +98,8 @@ export const apiKeyRoutes = new Elysia({ prefix: '/settings' })
 
       if (encryptedKey) {
         try {
-          const decrypted = decrypt(encryptedKey);
+          const decrypted = resolveStoredSecret(encryptedKey);
+          if (!decrypted) throw new Error('API key could not be resolved');
           result[provider] = { configured: true, maskedKey: maskApiKey(decrypted) };
         } catch {
           result[provider] = { configured: false, maskedKey: null };
@@ -128,18 +135,18 @@ export const apiKeyRoutes = new Elysia({ prefix: '/settings' })
       }
 
       const column = PROVIDER_COLUMNS[provider];
-      const encrypted = encrypt(apiKey.trim());
+      const storedSecret = saveProviderApiKey(provider, apiKey.trim());
 
       // Save via upsert (does not overwrite other providers keys)
       const existing = await prisma.userSettings.findFirst();
       if (existing) {
         await prisma.userSettings.update({
           where: { id: existing.id },
-          data: { [column]: encrypted },
+          data: { [column]: storedSecret },
         });
       } else {
         await prisma.userSettings.create({
-          data: { [column]: encrypted },
+          data: { [column]: storedSecret },
         });
       }
 
@@ -186,6 +193,7 @@ export const apiKeyRoutes = new Elysia({ prefix: '/settings' })
       const settings = await prisma.userSettings.findFirst();
 
       if (settings) {
+        deleteStoredSecret(settings[column]);
         await prisma.userSettings.update({
           where: { id: settings.id },
           data: { [column]: null },

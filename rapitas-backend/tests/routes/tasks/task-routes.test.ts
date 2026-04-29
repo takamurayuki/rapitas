@@ -49,13 +49,37 @@ mock.module('../../../services/achievement-checker', () => ({
 mock.module('../../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
-mock.module('../../../src/services/userBehaviorService', () => ({
+mock.module('../../../src/services/user-behavior-service', () => ({
   UserBehaviorService: {
     recordTaskCreated: mock(() => Promise.resolve()),
     recordTaskStarted: mock(() => Promise.resolve()),
     recordTaskCompleted: mock(() => Promise.resolve()),
     recordBehavior: mock(() => Promise.resolve()),
   },
+}));
+mock.module('../../../services/scheduling/recurring-task-service', () => ({
+  onGeneratedTaskCompleted: mock(() => Promise.resolve()),
+}));
+mock.module('../../../services/communication/realtime-service', () => ({
+  realtimeService: {
+    sendTaskUpdate: mock(() => {}),
+    notifyTaskUpdate: mock(() => {}),
+    notifyTaskCreated: mock(() => {}),
+    notifyTaskDeleted: mock(() => {}),
+  },
+}));
+mock.module('../../../services/scheduling/task-calendar-sync', () => ({
+  syncTaskToCalendar: mock(() => Promise.resolve()),
+}));
+mock.module('../../../services/workflow/complexity-analyzer', () => ({
+  analyzeTaskComplexityWithLearning: mock(() =>
+    Promise.resolve({
+      complexity: 'low',
+      suggestedMode: 'manual',
+      confidence: 90,
+      factors: [],
+    }),
+  ),
 }));
 mock.module('../../../utils/ai-client', () => ({
   sendAIMessage: mock(() => Promise.resolve({ content: '{}', tokensUsed: 0 })),
@@ -82,6 +106,7 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { tasksRoutes } = await import('../../../routes/tasks/tasks');
+const { taskSuggestionRoutes } = await import('../../../routes/tasks/task-suggestions');
 const { AppError } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
@@ -114,7 +139,8 @@ function createApp() {
       set.status = 500;
       return { error: error instanceof Error ? error.message : 'Server error' };
     })
-    .use(tasksRoutes);
+    .use(tasksRoutes)
+    .use(taskSuggestionRoutes);
 }
 
 describe('GET /tasks', () => {

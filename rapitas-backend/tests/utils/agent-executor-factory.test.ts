@@ -12,9 +12,8 @@ mock.module('../../services/parallel-execution/parallel-executor', () => ({
   ParallelExecutor: MockParallelExecutor,
 }));
 
-mock.module('@prisma/client', () => ({
-  PrismaClient: class {},
-}));
+// Note: Do not mock @prisma/client globally as it affects other test files.
+// The tests only need a mock prisma object passed as a parameter.
 
 const { getParallelExecutor, cleanupParallelExecutor, isParallelExecutorActive } =
   await import('../../utils/agent/agent-executor-factory');

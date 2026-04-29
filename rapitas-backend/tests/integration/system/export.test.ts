@@ -1,13 +1,17 @@
 /**
- * Export Routes Tests
+ * Export Routes Tests (Integration)
  *
  * Tests for the export API endpoints (JSON, CSV, iCal, backup)
+ * Separated to avoid mock.module pollution from unit tests.
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { Elysia } from 'elysia';
+import { PrismaClient } from '@prisma/client';
 import { exportRoutes } from '../../../routes/system/export';
-import { prisma } from '../../../config/database';
+
+// Create own PrismaClient for test setup/cleanup to avoid mock pollution from other tests
+const testPrisma = new PrismaClient();
 
 // Create test app with export routes
 const app = new Elysia().use(exportRoutes);
@@ -18,7 +22,7 @@ describe('Export Routes', () => {
 
   beforeAll(async () => {
     // Create a test task
-    const task = await prisma.task.create({
+    const task = await testPrisma.task.create({
       data: {
         title: 'Export Test Task',
         description: 'Task for testing export functionality',
@@ -35,7 +39,7 @@ describe('Export Routes', () => {
   afterAll(async () => {
     // Clean up test data
     if (testTaskId) {
-      await prisma.task.delete({ where: { id: testTaskId } }).catch(() => {});
+      await testPrisma.task.delete({ where: { id: testTaskId } }).catch(() => {});
     }
   });
 

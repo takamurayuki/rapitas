@@ -1,13 +1,16 @@
 /**
  * Rate Limits Routes テスト
- * レート制限情報取得のユニットテスト
+ * レート制限・使用状況情報取得のユニットテスト
  */
 import { describe, test, expect, mock, beforeEach } from 'bun:test';
 import { Elysia } from 'elysia';
 
 const mockPrisma = {
-  userSettings: {
-    findFirst: mock(() => Promise.resolve(null)),
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([])),
+  },
+  copilotMessage: {
+    count: mock(() => Promise.resolve(0)),
   },
 };
 
@@ -20,15 +23,8 @@ mock.module('../../../config/logger', () => ({
     debug: () => {},
   }),
 }));
-mock.module('../../../utils/ai-client', () => ({
-  getApiKeyForProvider: mock(() => Promise.resolve(null)),
-}));
-mock.module('../../../utils/common/encryption', () => ({
-  decrypt: mock((v: string) => `decrypted:${v}`),
-}));
 
 const { rateLimitRoutes } = await import('../../../routes/system/monitoring/rate-limits');
-const { getApiKeyForProvider } = await import('../../../utils/ai-client');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -40,7 +36,8 @@ function resetAllMocks() {
       }
     }
   }
-  (getApiKeyForProvider as ReturnType<typeof mock>).mockReset();
+  mockPrisma.agentExecution.findMany.mockResolvedValue([]);
+  mockPrisma.copilotMessage.count.mockResolvedValue(0);
 }
 
 function createApp() {
@@ -66,55 +63,62 @@ describe('GET /rate-limits/', () => {
     app = createApp();
   });
 
-  test('APIキーが設定されていない場合に空のrateLimitsを返すこと', async () => {
-    (getApiKeyForProvider as ReturnType<typeof mock>).mockResolvedValue(null);
-    mockPrisma.userSettings.findFirst.mockResolvedValue(null);
+  test('実行がない場合に空のusageDataを返すこと', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([]);
+    mockPrisma.copilotMessage.count.mockResolvedValue(0);
 
     const res = await app.handle(new Request('http://localhost/rate-limits/'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.rateLimits).toBeDefined();
-    expect(Array.isArray(body.rateLimits)).toBe(true);
-    expect(body.rateLimits.length).toBe(0);
+    expect(body.usageData).toBeDefined();
+    expect(Array.isArray(body.usageData)).toBe(true);
+    expect(body.usageData.length).toBe(0);
   });
 
-  test('ClaudeのAPIキーが設定されている場合にClaudeのレート制限情報を返すこと', async () => {
-    (getApiKeyForProvider as ReturnType<typeof mock>).mockImplementation((provider: string) => {
-      if (provider === 'claude') return Promise.resolve('sk-claude-key');
-      return Promise.resolve(null);
-    });
-    mockPrisma.userSettings.findFirst.mockResolvedValue(null);
+  test('エージェント実行がある場合に使用情報を返すこと', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([
+      {
+        tokensUsed: 1000,
+        executionTimeMs: 5000,
+        command: 'test command',
+        agentConfig: { agentType: 'claude-code', modelId: 'claude-sonnet-4-6' },
+      },
+    ]);
+    mockPrisma.copilotMessage.count.mockResolvedValue(0);
 
     const res = await app.handle(new Request('http://localhost/rate-limits/'));
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body.rateLimits).toBeDefined();
-    expect(Array.isArray(body.rateLimits)).toBe(true);
-    expect(body.rateLimits.length).toBe(1);
-    expect(body.rateLimits[0].provider).toBe('claude');
-    expect(body.rateLimits[0].isMockData).toBe(true);
-    expect(body.rateLimits[0].dataSource).toBe('mock');
+    expect(body.usageData).toBeDefined();
+    expect(Array.isArray(body.usageData)).toBe(true);
+    expect(body.usageData.length).toBe(1);
+    expect(body.usageData[0].provider).toBe('claude');
   });
 
-  test('レート制限情報に必須フィールドが含まれること', async () => {
-    (getApiKeyForProvider as ReturnType<typeof mock>).mockImplementation((provider: string) => {
-      if (provider === 'claude') return Promise.resolve('sk-claude-key');
-      return Promise.resolve(null);
-    });
-    mockPrisma.userSettings.findFirst.mockResolvedValue(null);
+  test('使用情報に必須フィールドが含まれること', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([
+      {
+        tokensUsed: 1000,
+        executionTimeMs: 5000,
+        command: 'test command',
+        agentConfig: { agentType: 'claude-code', modelId: 'claude-sonnet-4-6' },
+      },
+    ]);
+    mockPrisma.copilotMessage.count.mockResolvedValue(0);
 
     const res = await app.handle(new Request('http://localhost/rate-limits/'));
     const body = await res.json();
 
-    const rateLimit = body.rateLimits[0];
-    expect(rateLimit.provider).toBeDefined();
-    expect(rateLimit.plan).toBeDefined();
-    expect(typeof rateLimit.used).toBe('number');
-    expect(typeof rateLimit.limit).toBe('number');
-    expect(rateLimit.period).toBeDefined();
-    expect(rateLimit.lastUpdated).toBeDefined();
-    expect(rateLimit.reliability).toBeDefined();
+    const usage = body.usageData[0];
+    expect(usage.provider).toBeDefined();
+    expect(usage.plan).toBeDefined();
+    expect(typeof usage.tokensUsed).toBe('number');
+    expect(typeof usage.estimatedCost).toBe('number');
+    expect(typeof usage.executionCount).toBe('number');
+    expect(usage.period).toBeDefined();
+    expect(usage.lastUpdated).toBeDefined();
+    expect(usage.dataSource).toBeDefined();
   });
 });

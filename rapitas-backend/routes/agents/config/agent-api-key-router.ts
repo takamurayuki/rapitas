@@ -8,7 +8,8 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
-import { encrypt, maskApiKey, isEncryptionKeyConfigured } from '../../../utils/common/encryption';
+import { maskApiKey, isEncryptionKeyConfigured } from '../../../utils/common/encryption';
+import { deleteStoredSecret, saveAgentApiKey } from '../../../utils/common/secret-store';
 import { logAgentConfigChange } from '../../../utils/agent/agent-audit-log';
 
 const log = createLogger('routes:agent-api-key');
@@ -42,7 +43,7 @@ export const agentApiKeyRouter = new Elysia()
         return { error: 'Agent not found' };
       }
 
-      const apiKeyEncrypted = encrypt(apiKey);
+      const apiKeyEncrypted = saveAgentApiKey(parseInt(id), apiKey);
 
       await prisma.aIAgentConfig.update({
         where: { id: parseInt(id) },
@@ -87,6 +88,8 @@ export const agentApiKeyRouter = new Elysia()
         set.status = 404;
         return { error: 'Agent not found' };
       }
+
+      deleteStoredSecret(agent.apiKeyEncrypted);
 
       await prisma.aIAgentConfig.update({
         where: { id: parseInt(id) },

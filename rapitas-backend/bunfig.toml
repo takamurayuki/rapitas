@@ -2,3 +2,6 @@
 coverage = false
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage"
+# Exclude integration tests from default run (they don't use mock.module)
+# Run them separately with: bun test --path-ignore-patterns="" ./tests/integration/
+pathIgnorePatterns = ["tests/integration/**"]

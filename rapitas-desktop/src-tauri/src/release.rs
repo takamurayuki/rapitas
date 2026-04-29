@@ -42,17 +42,7 @@ pub fn setup_sidecar(app: &tauri::App) {
         let mut backend_path = None;
 
         if dev_resource_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&dev_resource_dir) {
-                backend_path = entries.filter_map(|e| e.ok()).map(|e| e.path()).find(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| {
-                            n.starts_with("rapitas-backend")
-                                && n.ends_with(if cfg!(windows) { ".exe" } else { "" })
-                        })
-                        .unwrap_or(false)
-                });
-            }
+            backend_path = find_backend_binary(&dev_resource_dir);
         }
 
         // Release mode: check the binaries subdirectory next to the app executable
@@ -70,17 +60,7 @@ pub fn setup_sidecar(app: &tauri::App) {
             );
 
             if release_binaries_dir.exists() {
-                if let Ok(entries) = std::fs::read_dir(&release_binaries_dir) {
-                    backend_path = entries.filter_map(|e| e.ok()).map(|e| e.path()).find(|p| {
-                        p.file_name()
-                            .and_then(|n| n.to_str())
-                            .map(|n| {
-                                n.starts_with("rapitas-backend")
-                                    && n.ends_with(if cfg!(windows) { ".exe" } else { "" })
-                            })
-                            .unwrap_or(false)
-                    });
-                }
+                backend_path = find_backend_binary(&release_binaries_dir);
             }
         }
 
@@ -103,10 +83,34 @@ pub fn setup_sidecar(app: &tauri::App) {
     std::fs::copy(&resource_path, &backend_path).expect("failed to copy backend executable");
     println!("[Backend] Copied to: {:?}", backend_path);
 
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut permissions = std::fs::metadata(&backend_path)
+            .expect("failed to read backend executable metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&backend_path, permissions)
+            .expect("failed to mark backend executable");
+    }
+
+    let database_url = resolve_database_url(&app_data_dir);
+    let data_dir = app_data_dir.to_string_lossy().to_string();
+
     // Launch the backend process
     let backend_command = shell
         .command(backend_path.to_string_lossy().to_string())
-        .env("TAURI_BUILD", "true");
+        .env("TAURI_BUILD", "true")
+        .env("RAPITAS_DB_PROVIDER", "sqlite")
+        .env("PORT", "3001")
+        .env("DATABASE_URL", database_url)
+        .env("RAPITAS_DATA_DIR", data_dir)
+        .env("FRONTEND_URL", "tauri://localhost")
+        .env(
+            "CORS_ORIGIN",
+            "tauri://localhost,http://localhost:3000,http://127.0.0.1:3000",
+        );
 
     let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
 
@@ -139,6 +143,101 @@ pub fn setup_sidecar(app: &tauri::App) {
     });
 
     println!("Backend started successfully!");
+}
+
+fn find_backend_binary(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let target_triple = option_env!("TAURI_ENV_TARGET_TRIPLE").unwrap_or("");
+    let mut candidates: Vec<_> = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                return false;
+            };
+            if !name.starts_with("rapitas-backend") || name.contains("placeholder") {
+                return false;
+            }
+            if cfg!(windows) && !name.ends_with(".exe") {
+                return false;
+            }
+            std::fs::metadata(path)
+                .map(|metadata| metadata.is_file() && metadata.len() > 0)
+                .unwrap_or(false)
+        })
+        .collect();
+
+    candidates.sort_by(|left, right| {
+        let left_name = left
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        let right_name = right
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        let left_score = backend_candidate_score(left_name, target_triple);
+        let right_score = backend_candidate_score(right_name, target_triple);
+        right_score
+            .cmp(&left_score)
+            .then_with(|| left_name.cmp(right_name))
+    });
+
+    candidates.into_iter().next()
+}
+
+fn backend_candidate_score(name: &str, target_triple: &str) -> u8 {
+    if !target_triple.is_empty() && name.contains(target_triple) {
+        3
+    } else if name == "rapitas-backend" || name == "rapitas-backend.exe" {
+        2
+    } else {
+        1
+    }
+}
+
+fn resolve_database_url(app_data_dir: &std::path::Path) -> String {
+    if let Ok(database_url) = std::env::var("DATABASE_URL") {
+        if database_url.trim().starts_with("file:") {
+            return database_url;
+        }
+    }
+
+    let env_file = app_data_dir.join(".env");
+    if let Ok(contents) = std::fs::read_to_string(&env_file) {
+        if let Some(database_url) = contents.lines().find_map(parse_database_url_line) {
+            println!("[Backend] Loaded DATABASE_URL from {:?}", env_file);
+            return database_url;
+        }
+    }
+
+    let database_path = app_data_dir.join("rapitas.db");
+    let database_url = format!("file:{}", database_path.to_string_lossy());
+    println!("[Backend] Using desktop SQLite database: {database_path:?}");
+    database_url
+}
+
+fn parse_database_url_line(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return None;
+    }
+
+    let (key, value) = trimmed.split_once('=')?;
+    if key.trim() != "DATABASE_URL" {
+        return None;
+    }
+
+    let value = value
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string();
+    if value.is_empty() || !value.starts_with("file:") {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 pub fn kill_backend(app: &tauri::AppHandle) {

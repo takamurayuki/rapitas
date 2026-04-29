@@ -10,7 +10,7 @@
 
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
-import { decrypt } from '../../../utils/common/encryption';
+import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config/logger';
 import {
   NotFoundError,
@@ -37,7 +37,7 @@ async function resolveApiKey(logger: ReturnType<typeof createLogger>): Promise<s
 
   if (settings?.claudeApiKeyEncrypted) {
     try {
-      apiKey = decrypt(settings.claudeApiKeyEncrypted);
+      apiKey = resolveStoredSecret(settings.claudeApiKeyEncrypted) ?? undefined;
     } catch (error) {
       logger.error({ err: error }, 'Failed to decrypt API key');
       throw new AppError(500, 'Failed to decrypt API key');

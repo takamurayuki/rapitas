@@ -174,6 +174,32 @@ export class LogParserFactory {
   }
 
   /**
+   * Finds the best parser for a given log line by testing each built-in parser.
+   *
+   * @param logLine - A single log line to analyze / 解析する単一のログ行
+   * @returns The first matching parser, or null if none match
+   */
+  static findBestParser(logLine: string): LogParser | null {
+    const parsers = this.createAllParsers();
+    for (const parser of parsers) {
+      if (parser.canParse(logLine)) {
+        return parser;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Creates a parser chain that tries each parser in sequence until one succeeds.
+   *
+   * @param parsers - Array of parsers to chain / チェインするパーサーの配列
+   * @returns The array of parsers for manual iteration
+   */
+  static createParserChain(parsers: LogParser[]): LogParser[] {
+    return parsers;
+  }
+
+  /**
    * Creates a custom parser from a user-supplied pattern and field mapping.
    *
    * @param pattern - Regex string or RegExp / 正規表現文字列またはRegExpオブジェクト

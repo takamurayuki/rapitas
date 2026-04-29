@@ -12,7 +12,7 @@
 import { spawn } from 'child_process';
 import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
-import { decrypt } from '../../../../utils/common/encryption';
+import { resolveStoredSecret } from '../../../../utils/common/secret-store';
 import type { DiscoveredModel, ProviderProbeResult } from '../types';
 import { classifyTier, inferCostPer1k } from '../tier-classifier';
 
@@ -37,7 +37,7 @@ async function findOpenAiApiKey(): Promise<string | null> {
   for (const a of agents) {
     if (!a.apiKeyEncrypted) continue;
     try {
-      const key = decrypt(a.apiKeyEncrypted);
+      const key = resolveStoredSecret(a.apiKeyEncrypted);
       if (key) return key;
     } catch {
       // Try next agent on decryption failure.

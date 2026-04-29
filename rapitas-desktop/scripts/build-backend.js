@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * バックエンドをスタンドアロン実行ファイルにビルドするスクリプト
- * PostgreSQL対応版（Tauriビルド用）
+ * SQLite対応版（Tauriビルド用）
  */
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -34,7 +34,7 @@ function getTargetTriple() {
   return platformMap[platform] || 'x86_64-unknown-linux-gnu';
 }
 
-console.log('Building backend for Tauri sidecar (PostgreSQL)...');
+console.log('Building backend for Tauri sidecar (SQLite)...');
 console.log(`Platform: ${platform}, Arch: ${arch}`);
 console.log(`Target triple: ${targetTriple}`);
 console.log(`Output: ${outputName}`);
@@ -48,12 +48,17 @@ if (!fs.existsSync(OUTPUT_DIR)) {
 const isCI = process.env.CI === 'true';
 
 try {
-  // Step 1: Prisma Clientを生成
+  // Step 1: Desktop向けSQLite Prisma Clientと初期化SQLを生成
   if (!isCI) {
-    console.log('\nStep 1: Generating Prisma Client...');
-    execSync('bun run prisma generate', {
+    console.log('\nStep 1: Generating SQLite Prisma Client and init SQL...');
+    execSync('bun run db:prepare:sqlite', {
       stdio: 'inherit',
-      cwd: BACKEND_DIR
+      cwd: BACKEND_DIR,
+      env: {
+        ...process.env,
+        RAPITAS_DB_PROVIDER: 'sqlite',
+        DATABASE_URL: process.env.DATABASE_URL || 'file:./rapitas-desktop.db'
+      }
     });
   } else {
     console.log('\nStep 1: Skipping Prisma Client generation in CI...');
@@ -70,7 +75,9 @@ try {
       cwd: BACKEND_DIR,
       env: {
         ...process.env,
-        TAURI_BUILD: 'true'
+        TAURI_BUILD: 'true',
+        RAPITAS_DB_PROVIDER: 'sqlite',
+        DATABASE_URL: process.env.DATABASE_URL || 'file:./rapitas-desktop.db'
       }
     }
   );

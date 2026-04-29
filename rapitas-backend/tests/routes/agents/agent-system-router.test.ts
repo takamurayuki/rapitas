@@ -20,6 +20,7 @@ const mockOrchestrator = {
   shutdown: mock(() => Promise.resolve()),
   restart: mock(() => Promise.resolve()),
   getActiveExecutionCount: mock(() => 0),
+  getActiveExecutionCountAsync: mock(() => Promise.resolve(0)),
   isInShutdown: mock(() => false),
 };
 
@@ -29,7 +30,21 @@ const mockRealtimeService = {
 };
 
 // Mock modules
+mock.module('../../../config', () => ({
+  prisma: mockPrisma,
+  getProjectRoot: () => '/tmp/rapitas-test',
+  createLogger: mock(() => ({
+    info: mock(() => {}),
+    error: mock(() => {}),
+    warn: mock(() => {}),
+    debug: mock(() => {}),
+  })),
+}));
 mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../services/core/orchestrator-instance', () => ({
+  orchestrator: mockOrchestrator,
+  stopServer: mock(() => Promise.resolve()),
+}));
 mock.module('../../../routes/agents/approvals', () => ({ orchestrator: mockOrchestrator }));
 mock.module('../../../utils/common/encryption', () => ({
   isEncryptionKeyConfigured: mock(() => true),
@@ -58,6 +73,18 @@ mock.module('child_process', () => ({
       if (event === 'close') setTimeout(() => callback(0), 100);
     }),
   })),
+  execSync: mock(() => Buffer.from('')),
+}));
+mock.module('node:child_process', () => ({
+  spawn: mock(() => ({
+    stdout: { on: mock(() => {}) },
+    stderr: { on: mock(() => {}) },
+    kill: mock(() => {}),
+    on: mock((event, callback) => {
+      if (event === 'close') setTimeout(() => callback(0), 100);
+    }),
+  })),
+  execSync: mock(() => Buffer.from('')),
 }));
 
 const { agentSystemRouter } = await import('../../../routes/agents/system/agent-system-router');
@@ -83,6 +110,7 @@ describe('Agent System Router', () => {
   const originalSetTimeout = global.setTimeout;
 
   beforeEach(() => {
+    process.env.NODE_ENV = 'development';
     // Mock process.exit to prevent shutdown/restart endpoints from killing the test runner
     const mockExit = mock(() => {});
     process.exit = mockExit as unknown as typeof process.exit;

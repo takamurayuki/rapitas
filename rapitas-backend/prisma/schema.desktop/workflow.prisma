@@ -1,0 +1,116 @@
+// ============================================================================
+// workflow.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the workflow sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+/**
+ * Index row mirroring an on-disk workflow markdown file. Lets the API answer
+ * questions like "which tasks have a stale plan.md" without scanning the
+ * filesystem. The actual content stays on disk under
+ * `~/.rapitas/workflows/...` — this table only tracks metadata.
+ */
+model WorkflowFile {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /** "research" | "plan" | "question" | "verify" */
+  fileType     String
+  /** SHA-256 of the current content for cheap change detection. */
+  sha256       String
+  /** Size in bytes of the current content. */
+  sizeBytes    Int
+  /** Absolute path of the file on disk (debugging convenience). */
+  absolutePath String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([taskId, fileType])
+  @@index([fileType, updatedAt])
+}
+
+model WorkflowRoleConfig {
+  id              Int            @id @default(autoincrement())
+  role            String         @unique
+  agentConfigId   Int?
+  agentConfig     AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  modelId         String?
+  /**
+   * Auto-select tiebreaker for this role. When the SmartRouter has multiple
+   * candidates in the chosen tier, this provider wins. `null` means "use the
+   * global UserSettings.defaultAiProvider". Values: claude / openai / gemini /
+   * ollama / cross-provider.
+   *
+   * `cross-provider` is a special marker meaning "pick a provider different
+   * from the upstream phase" — used for reviewer/verifier to avoid self-bias.
+   */
+  preferredProviderOverride String?
+  systemPromptKey String?
+  isEnabled       Boolean        @default(true)
+  metadata        String         @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+// Workflow mode settings (step definitions by mode)
+model WorkflowModeConfig {
+  id              Int       @id @default(autoincrement())
+  mode            String    @unique // "lightweight", "standard", "comprehensive"
+  name            String    // Display name (e.g., "lightweight", "standard", "detailed")
+  description     String?   // Mode description
+  stepDefinitions String    // JSON: Step definitions [{"status": "draft", "role": "implementer", "nextStatus": "in_progress"}]
+  estimatedTime   Int       @default(60) // Expected execution time (minutes)
+  isDefault       Boolean   @default(false)
+  isEnabled       Boolean   @default(true)
+  complexityMin   Float     @default(0)   // Minimum complexity for this mode to apply
+  complexityMax   Float     @default(100) // Maximum complexity for this mode to apply
+  autoSelectRules String    @default("{}") // JSON: Auto-selection rules
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([mode])
+}
+
+// Workflow orchestrator sessions
+model OrchestraSession {
+  id              Int       @id @default(autoincrement())
+  status          String    @default("idle") // idle, conducting, paused, completed, error
+  maxConcurrency  Int       @default(3)
+  totalTasks      Int       @default(0)
+  completedTasks  Int       @default(0)
+  failedTasks     Int       @default(0)
+  metadata        String    @default("{}") // JSON: configuration, stats
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  queueItems      WorkflowQueueItem[]
+
+  @@index([status])
+}
+
+// Workflow queue items
+model WorkflowQueueItem {
+  id                Int       @id @default(autoincrement())
+  taskId            Int
+  orchestraSessionId Int?
+  orchestraSession  OrchestraSession? @relation(fields: [orchestraSessionId], references: [id], onDelete: SetNull)
+  priority          Int       @default(50) // 0-100, higher = more priority
+  status            String    @default("queued") // queued, running, waiting_approval, completed, failed, cancelled
+  currentPhase      String    @default("draft") // draft, research, plan, review, implement, verify
+  dependencies      String    @default("[]") // JSON array of taskIds
+  retryCount        Int       @default(0)
+  maxRetries        Int       @default(3)
+  errorMessage      String?
+  result            String?   // JSON: execution result summary
+  queuedAt          DateTime  @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([taskId, orchestraSessionId])
+  @@index([status, priority])
+  @@index([orchestraSessionId])
+  @@index([taskId])
+}

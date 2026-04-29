@@ -2,7 +2,7 @@
  * AI Provider API Key Management and Authentication
  */
 import { prisma } from '../../config/database';
-import { decrypt } from '../common/encryption';
+import { resolveStoredSecret } from '../common/secret-store';
 import { createLogger } from '../../config/logger';
 import {
   type AIProvider,
@@ -51,7 +51,7 @@ export async function getApiKeyForProvider(provider: AIProvider): Promise<string
     const encrypted = settings[column];
     if (encrypted) {
       try {
-        const decrypted = decrypt(encrypted);
+        const decrypted = resolveStoredSecret(encrypted);
         if (decrypted && isValidApiKeyFormat(decrypted, provider)) {
           return decrypted;
         }

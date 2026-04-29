@@ -1,0 +1,57 @@
+// ============================================================================
+// schedule.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the schedule sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// Schedule event type enum
+enum ScheduleEventType {
+  GENERAL     // General schedule
+  PAID_LEAVE  // Paid leave
+}
+
+// Schedule events (calendar schedule with reminder notifications)
+model ScheduleEvent {
+  id              Int       @id @default(autoincrement())
+  title           String
+  description     String?
+  startAt         DateTime
+  endAt           DateTime?
+  isAllDay        Boolean   @default(false)
+  color           String    @default("#6366F1")
+  reminderMinutes Int?      // How many minutes before reminder notification (null=no reminder)
+  reminderSentAt  DateTime? // Reminder sent date and time
+  taskId          Int?
+  type            ScheduleEventType @default(GENERAL) // Schedule type
+  userId          String    @default("default") // User ID (for future multi-user support)
+  // Recurring event support
+  recurrenceRule  String?   // RRULE format: "FREQ=WEEKLY;BYDAY=MO,WE,FR"
+  recurrenceEnd   DateTime? // Recurrence end date
+  parentEventId   Int?      // Parent event ID for recurring events
+  isRecurrenceException Boolean @default(false) // Individually edited recurring instance
+  originalDate    DateTime? // Original recurring date (for exceptions)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([type])
+  @@index([userId])
+  @@index([startAt])
+  @@index([parentEventId])
+}
+
+// Paid leave remaining days management
+model PaidLeaveBalance {
+  id                    Int       @id @default(autoincrement())
+  userId                String    @unique @default("default")
+  totalDays             Int       @default(20) // Annual granted days
+  usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
+  remainingDays         Float     // Remaining days (actually stored, not a computed field)
+  fiscalYear            Int       // Target fiscal year
+  carryOverDays         Float     @default(0)  // Carried over days from previous year
+  lastCalculatedAt      DateTime  @default(now()) // Last calculated date and time
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, fiscalYear])
+  @@index([fiscalYear])
+}

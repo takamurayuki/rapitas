@@ -6,10 +6,9 @@
  * token totals. Separated from queries.ts to keep file sizes manageable.
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../../config/database';
 import type { AgentPerformanceComparison, DateRange } from './types';
-
-const prisma = new PrismaClient();
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 

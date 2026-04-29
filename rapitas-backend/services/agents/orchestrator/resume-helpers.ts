@@ -7,7 +7,7 @@
 
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput, AgentType } from '../agent-factory';
-import { decrypt } from '../../../utils/common/encryption';
+import { resolveStoredSecret } from '../../../utils/common/secret-store';
 import { createLogger } from '../../../config';
 import type { OrchestratorContext } from './types';
 
@@ -82,7 +82,7 @@ export async function resolveAgentConfig(
   let decryptedApiKey: string | undefined;
   if (dbConfig.apiKeyEncrypted) {
     try {
-      decryptedApiKey = decrypt(dbConfig.apiKeyEncrypted);
+      decryptedApiKey = resolveStoredSecret(dbConfig.apiKeyEncrypted) ?? undefined;
     } catch (e) {
       logger.error(
         { err: e, agentId: dbConfig.id },

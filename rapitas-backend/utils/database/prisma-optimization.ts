@@ -349,6 +349,28 @@ export const QueryOptimizers = {
       _count: { select: { comments: true, timeEntries: true } },
     },
   }),
+
+  // User query with preferences
+  userWithPreferences: (_options?: { role?: string }) => ({
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      preferences: true,
+    },
+  }),
+
+  // Project with aggregated stats
+  projectWithStats: (_dateRange?: { start?: Date; end?: Date }) => ({
+    include: {
+      _count: {
+        select: { tasks: true },
+      },
+      tasks: {
+        select: { status: true },
+      },
+    },
+  }),
 };
 
 // Global type declarations

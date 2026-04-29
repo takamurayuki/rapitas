@@ -18,6 +18,13 @@ type PrismaInstance = InstanceType<typeof PrismaClient>;
 
 const logger = createLogger('task-create-helpers');
 
+function titleEqualsFilter(title: string) {
+  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
+    return { equals: title };
+  }
+  return { equals: title, mode: 'insensitive' };
+}
+
 /**
  * Creates a subtask under an existing parent, preventing duplicates via Serializable transaction.
  *
@@ -48,7 +55,7 @@ export async function createSubtask(
   return prisma.$transaction(
     async (tx) => {
       const existingSubtask = await tx.task.findFirst({
-        where: { parentId, title: { equals: title, mode: 'insensitive' } },
+        where: { parentId, title: titleEqualsFilter(title) } as any,
       });
 
       if (existingSubtask) {

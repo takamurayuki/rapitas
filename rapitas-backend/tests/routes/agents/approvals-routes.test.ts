@@ -64,6 +64,16 @@ const mockPrisma = {
 };
 
 mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config', () => ({
+  prisma: mockPrisma,
+  getProjectRoot: () => '/tmp/rapitas-test',
+  createLogger: () => ({
+    info: () => {},
+    error: () => {},
+    warn: () => {},
+    debug: () => {},
+  }),
+}));
 
 mock.module('../../../services/agents/agent-orchestrator', () => ({
   createOrchestrator: mock(() => ({
@@ -103,7 +113,7 @@ mock.module('../../../services/misc/screenshot-service', () => ({
   captureScreenshotsForDiff: mock(() => Promise.resolve([])),
 }));
 
-const { approvalsRoutes } = await import('../../../routes/agents/approvals');
+const { approvalsRoutes } = await import('../../../routes/agents/integrations/approvals');
 
 import { Elysia } from 'elysia';
 const app = new Elysia().use(approvalsRoutes);

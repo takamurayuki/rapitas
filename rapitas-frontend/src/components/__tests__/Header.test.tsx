@@ -159,6 +159,7 @@ vi.mock('lucide-react', () => {
     User: createIcon('user-icon'),
     LogOut: createIcon('log-out-icon'),
     Package: createIcon('package-icon'),
+    Lightbulb: createIcon('lightbulb-icon'),
   };
 });
 

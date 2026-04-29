@@ -10,12 +10,12 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers';
+import { maskApiKey, isEncryptionKeyConfigured } from '../../../utils/common/encryption';
 import {
-  encrypt,
-  decrypt,
-  maskApiKey,
-  isEncryptionKeyConfigured,
-} from '../../../utils/common/encryption';
+  deleteStoredSecret,
+  resolveStoredSecret,
+  saveAgentApiKey,
+} from '../../../utils/common/secret-store';
 import { logAgentConfigChange, calculateChanges } from '../../../utils/agent/agent-audit-log';
 
 const log = createLogger('routes:agent-crud');
@@ -50,20 +50,27 @@ export const agentCrudRouter = new Elysia()
             '[agents] Encryption key not configured. API keys should be set via environment variables in production.',
           );
         }
-        apiKeyEncrypted = encrypt(apiKey);
       }
 
-      const created = await prisma.aIAgentConfig.create({
+      let created = await prisma.aIAgentConfig.create({
         data: {
           agentType,
           name,
-          apiKeyEncrypted,
+          apiKeyEncrypted: null,
           endpoint,
           modelId,
           capabilities: toJsonString(capabilities || {}) ?? '{}',
           isDefault: isDefault || false,
         },
       });
+
+      if (apiKey) {
+        apiKeyEncrypted = saveAgentApiKey(created.id, apiKey);
+        created = await prisma.aIAgentConfig.update({
+          where: { id: created.id },
+          data: { apiKeyEncrypted },
+        });
+      }
 
       await logAgentConfigChange({
         agentConfigId: created.id,
@@ -122,6 +129,7 @@ export const agentCrudRouter = new Elysia()
 
       let apiKeyEncrypted: string | null | undefined = undefined;
       if (clearApiKey) {
+        if (previous?.apiKeyEncrypted) deleteStoredSecret(previous.apiKeyEncrypted);
         apiKeyEncrypted = null;
       } else if (apiKey) {
         if (!isEncryptionKeyConfigured()) {
@@ -129,7 +137,8 @@ export const agentCrudRouter = new Elysia()
             '[agents] Encryption key not configured. API keys should be set via environment variables in production.',
           );
         }
-        apiKeyEncrypted = encrypt(apiKey);
+        if (previous?.apiKeyEncrypted) deleteStoredSecret(previous.apiKeyEncrypted);
+        apiKeyEncrypted = saveAgentApiKey(parseInt(id), apiKey);
       }
 
       const updated = await prisma.aIAgentConfig.update({
@@ -230,7 +239,8 @@ export const agentCrudRouter = new Elysia()
       let hasApiKey = false;
       if (agent.apiKeyEncrypted) {
         try {
-          const decryptedKey = decrypt(agent.apiKeyEncrypted);
+          const decryptedKey = resolveStoredSecret(agent.apiKeyEncrypted);
+          if (!decryptedKey) throw new Error('API key could not be resolved');
           maskedApiKey = maskApiKey(decryptedKey);
           hasApiKey = true;
         } catch (e) {

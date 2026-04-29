@@ -17,6 +17,9 @@ import ConditionalHeader from '@/components/common/conditional-header';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
 import OfflineIndicatorLoader from '@/components/common/OfflineIndicatorLoader';
+import UpdateBanner from '@/components/common/UpdateBanner';
+import GlobalErrorReporter from '@/components/common/GlobalErrorReporter';
+import SetupGate from '@/components/common/SetupGate';
 // import WindowResizeOptimizer from '@/components/common/WindowResizeOptimizer';
 
 const geistSans = Geist({
@@ -137,6 +140,13 @@ export default function RootLayout({
                       </Suspense>
                       <Suspense fallback={null}>
                         <ResumableExecutionsBanner />
+                      </Suspense>
+                      <Suspense fallback={null}>
+                        <UpdateBanner />
+                      </Suspense>
+                      <GlobalErrorReporter />
+                      <Suspense fallback={null}>
+                        <SetupGate />
                       </Suspense>
                       <ScheduleReminderProvider />
                       <Suspense fallback={null}>

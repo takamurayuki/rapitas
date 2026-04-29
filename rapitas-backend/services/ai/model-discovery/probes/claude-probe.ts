@@ -15,7 +15,7 @@
 import { spawn } from 'child_process';
 import { prisma } from '../../../../config/database';
 import { createLogger } from '../../../../config/logger';
-import { decrypt } from '../../../../utils/common/encryption';
+import { resolveStoredSecret } from '../../../../utils/common/secret-store';
 import type { DiscoveredModel, ProviderProbeResult } from '../types';
 import { classifyTier, inferCostPer1k } from '../tier-classifier';
 
@@ -30,7 +30,7 @@ async function findClaudeApiKey(): Promise<string | null> {
   const settingsKey = (settings as Record<string, unknown> | null)?.claudeApiKeyEncrypted;
   if (typeof settingsKey === 'string' && settingsKey) {
     try {
-      const k = decrypt(settingsKey);
+      const k = resolveStoredSecret(settingsKey);
       if (k) return k;
     } catch {
       // fall through
@@ -47,7 +47,7 @@ async function findClaudeApiKey(): Promise<string | null> {
   for (const a of agents) {
     if (!a.apiKeyEncrypted) continue;
     try {
-      const key = decrypt(a.apiKeyEncrypted);
+      const key = resolveStoredSecret(a.apiKeyEncrypted);
       if (key) return key;
     } catch {
       // try next

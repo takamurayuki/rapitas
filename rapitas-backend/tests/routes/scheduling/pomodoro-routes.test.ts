@@ -16,7 +16,7 @@ const mockCancelPomodoro = mock(() => Promise.resolve({ id: 1 }));
 const mockGetStatistics = mock(() => Promise.resolve({ totalSessions: 0, totalMinutes: 0 }));
 const mockGetHistory = mock(() => Promise.resolve({ sessions: [], total: 0 }));
 
-mock.module('../../../services/pomodoro-service', () => ({
+mock.module('../../../services/scheduling/pomodoro-service', () => ({
   getActiveSession: mockGetActiveSession,
   startPomodoro: mockStartPomodoro,
   pausePomodoro: mockPausePomodoro,

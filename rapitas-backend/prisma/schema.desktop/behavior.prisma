@@ -1,0 +1,127 @@
+// ============================================================================
+// behavior.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the behavior sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// Records user behavior data
+model UserBehavior {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @default(1) // For future multi-user support
+  actionType      String    // task_created, task_completed, task_started, task_updated, theme_selected, label_used, etc.
+  taskId          Int?
+  task            Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  themeId         Int?
+  theme           Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  context         String?   // JSON: Detailed behavior context (time of day, day of week, surrounding actions, etc.)
+  metadata        String?   // JSON: Other metadata
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, actionType])
+  @@index([createdAt])
+}
+
+// Records task completion patterns
+model TaskPattern {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @default(1)
+  themeId              Int?
+  theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  taskTitle            String
+  taskDescription      String?
+  priority             String
+  estimatedHours       Float?
+  actualHours          Float?
+  completionRate       Float?    // Completion rate (0-1)
+  averageTimeToStart   Float?    // Average time from creation to start (hours)
+  averageTimeToComplete Float?   // Average time from start to completion (hours)
+  frequency            Int       @default(1) // Number of occurrences of this pattern
+  labelIds             String    @default("[]") // JSON array of label IDs
+  lastOccurrence       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([userId, taskTitle, themeId])
+  @@index([userId, themeId])
+}
+
+// Aggregated data for AI learning
+model UserBehaviorSummary {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @default(1)
+  periodType           String    // daily, weekly, monthly
+  periodStart          DateTime
+  periodEnd            DateTime
+  themeId              Int?
+  theme                Theme?    @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  totalTasks           Int       @default(0)
+  completedTasks       Int       @default(0)
+  averageCompletionTime Float?    // Average completion time (hours)
+  preferredTimeOfDay   String?   // morning, afternoon, evening, night
+  preferredDayOfWeek   String?   // JSON array: ["monday", "tuesday", ...]
+  mostUsedLabels       String    @default("[]") // JSON array of label IDs with counts
+  taskPriorities       String    @default("{}") // JSON: {"urgent": 10, "high": 20, ...}
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([userId, periodType, periodStart, themeId])
+  @@index([userId, periodType, periodStart])
+}
+
+// Task analysis settings (AI analysis parameters per task)
+model TaskAnalysisConfig {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Analysis parameters
+  analysisDepth         String    @default("standard") // quick, standard, deep
+  maxSubtasks           Int       @default(10)
+  priorityStrategy      String    @default("balanced") // aggressive, balanced, conservative
+  includeEstimates      Boolean   @default(true)
+  includeDependencies   Boolean   @default(true)
+  includeTips           Boolean   @default(true)
+
+  // Model and provider settings
+  agentConfigId         Int?
+  agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  modelOverride         String?   // Override with specific model ID
+  maxTokens             Int?      // Maximum tokens for analysis
+  temperature           Float?    // Analysis creativity parameter (0.0-1.0)
+
+  // Prompt strategy
+  promptStrategy        String    @default("auto") // auto, detailed, concise, custom
+  customPromptTemplate  String?   // Custom prompt template
+  contextInstructions   String?   // Additional context instructions
+
+  // Automation settings
+  autoApproveSubtasks   Boolean   @default(false)
+  autoOptimizePrompt    Boolean   @default(false)
+  notifyOnComplete      Boolean   @default(true)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([taskId])
+}
+
+// AI suggestion cache (saved per theme)
+model TaskSuggestionCache {
+  id                Int       @id @default(autoincrement())
+  themeId           Int
+  title             String
+  description       String?
+  priority          String    @default("medium")
+  estimatedHours    Float?
+  reason            String?
+  category          String    @default("new") // recurring, extension, improvement, new
+  labelIds          String    @default("[]") // JSON array stored as string
+  analysis          String?   // AI analysis text (saved only in first record)
+  completionCriteria String?  // Completion criteria
+  measurableOutcome String?   // Measurable outcome
+  dependencies      String?   // Prerequisites
+  suggestedApproach String?   // Suggested approach
+  createdAt         DateTime  @default(now())
+
+  @@index([themeId])
+}

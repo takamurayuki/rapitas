@@ -1,0 +1,243 @@
+// ============================================================================
+// agents.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the agents sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+model DeveloperModeConfig {
+  id                Int       @id @default(autoincrement())
+  taskId            Int       @unique
+  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  isEnabled         Boolean   @default(true)
+  autoApprove       Boolean   @default(false)
+  notifyInApp       Boolean   @default(true)
+  maxSubtasks       Int       @default(10)
+  priority          String    @default("balanced")
+  requireApproval   String    @default("always")
+  autoExecuteOn     String    @default("[]") // JSON array stored as string
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentSessions     AgentSession[]
+  approvalRequests  ApprovalRequest[]
+}
+
+model AgentSession {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  status            String    @default("pending")
+  mode              String?   // セッションモード: "workflow-researcher", "workflow-planner" etc.
+  startedAt         DateTime?
+  completedAt       DateTime?
+  lastActivityAt    DateTime  @default(now())
+  totalTokensUsed   Int       @default(0)
+  totalCostUsd      Decimal   @default(0) @db.Decimal(12, 6)
+  errorMessage      String?
+  metadata          String?   // JSON stored as string
+  branchName        String?   // Git branch name for the execution session
+  worktreePath      String?   // Absolute path to git worktree (non-null during execution)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agentActions      AgentAction[]
+  agentExecutions   AgentExecution[]
+}
+
+model AgentAction {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actionType        String
+  targetTaskId      Int?
+  input             String?   // JSON stored as string
+  output            String?   // JSON stored as string
+  tokensUsed        Int       @default(0)
+  durationMs        Int?
+  status            String    @default("success")
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+}
+
+model ApprovalRequest {
+  id                Int       @id @default(autoincrement())
+  configId          Int
+  config            DeveloperModeConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  requestType       String
+  title             String
+  description       String?
+  proposedChanges   String    // JSON stored as string
+  status            String    @default("pending")
+  expiresAt         DateTime?
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  notificationSent  Boolean   @default(false)
+  executionType     String?
+  estimatedChanges  String?   // JSON stored as string
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model AIAgentConfig {
+  id              Int       @id @default(autoincrement())
+  agentType       String
+  name            String
+  apiKeyEncrypted String?
+  endpoint        String?
+  modelId         String?
+  version         String?   // Agent version (e.g., "1.0.0")
+  latestVersion   String?   // Latest available version
+  isDefault       Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  isInstalled     Boolean   @default(true)  // Whether installed
+  installPath     String?   // Installation path
+  capabilities    String    @default("{}") // JSON stored as string
+  metadata        String    @default("{}") // Version-specific metadata (JSON)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  executions              AgentExecution[]
+  taskAnalysisConfigs     TaskAnalysisConfig[]
+  agentExecutionConfigs   AgentExecutionConfig[]
+  workflowRoles           WorkflowRoleConfig[]
+}
+
+model AgentExecution {
+  id                Int       @id @default(autoincrement())
+  sessionId         Int
+  session           AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  agentConfigId     Int?
+  agentConfig       AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+  command           String
+  status            String    @default("pending")
+  output            String?
+  artifacts         String?   // JSON stored as string
+  startedAt         DateTime?
+  completedAt       DateTime?
+  tokensUsed        Int       @default(0)
+  inputTokens       Int       @default(0)
+  outputTokens      Int       @default(0)
+  cacheReadInputTokens     Int       @default(0)
+  cacheCreationInputTokens Int       @default(0)
+  costUsd           Decimal   @default(0) @db.Decimal(12, 6)
+  modelName         String?   // e.g., "claude-haiku-4-5-20251001"
+  executionTimeMs   Int?
+  errorMessage      String?
+  question          String?
+  questionType      String?
+  questionDetails   String?   // JSON stored as string
+  claudeSessionId   String?   // Claude Code CLI session ID for --resume
+  createdAt         DateTime  @default(now())
+  gitCommits        GitCommit[]
+  executionLogs     AgentExecutionLog[]
+}
+
+model AgentExecutionLog {
+  id                Int       @id @default(autoincrement())
+  executionId       Int
+  execution         AgentExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  logChunk          String
+  logType           String    @default("stdout") // stdout, stderr, system
+  sequenceNumber    Int
+  timestamp         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([executionId, sequenceNumber])
+}
+
+// Agent execution settings (execution parameters per task)
+model AgentExecutionConfig {
+  id                    Int       @id @default(autoincrement())
+  taskId                Int       @unique
+  task                  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Agent selection
+  agentConfigId         Int?
+  agentConfig           AIAgentConfig? @relation(fields: [agentConfigId], references: [id], onDelete: SetNull)
+
+  // Execution environment settings
+  workingDirectory      String?   // Working directory override
+  timeoutMs             Int       @default(900000) // Execution timeout (default 15 minutes)
+  maxRetries            Int       @default(0)
+
+  // Git settings
+  branchStrategy        String    @default("auto") // auto, manual, none
+  branchPrefix          String    @default("feature/")
+  autoCommit            Boolean   @default(false)
+  autoCreatePR          Boolean   @default(false)
+  autoMergePR           Boolean   @default(false)
+  mergeCommitThreshold  Int       @default(5)
+  targetBranch          String    @default("develop") // Target branch for PR creation and merging
+
+  // Execution control
+  requireApproval       String    @default("always") // always, major_only, never
+  autoExecuteOnAnalysis Boolean   @default(false) // Auto-execute after analysis completion
+  parallelExecution     Boolean   @default(false) // Parallel execution of subtasks
+  maxConcurrentAgents   Int       @default(3)
+
+  // Prompt settings
+  useOptimizedPrompt    Boolean   @default(true)
+  additionalInstructions String?  // Additional instructions
+
+  // Code review settings
+  autoCodeReview        Boolean   @default(true)
+  reviewScope           String    @default("changes") // changes, full, none
+
+  // Notification settings
+  notifyOnStart         Boolean   @default(true)
+  notifyOnComplete      Boolean   @default(true)
+  notifyOnError         Boolean   @default(true)
+  notifyOnQuestion      Boolean   @default(true)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([taskId])
+}
+
+// System prompt management (manage hardcoded prompts in DB)
+model SystemPrompt {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique   // Unique key (e.g., "task_analysis", "prompt_optimization")
+  name        String              // Display name
+  description String?             // Prompt description
+  content     String              // Prompt content
+  category    String    @default("general") // Category (general, analysis, optimization, agent, chat)
+  isActive    Boolean   @default(true)
+  isDefault   Boolean   @default(true) // Whether this is the default prompt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([key])
+  @@index([category])
+}
+
+// AI agent configuration change log
+model AgentConfigAuditLog {
+  id              Int       @id @default(autoincrement())
+  agentConfigId   Int
+  action          String    // create, update, delete, api_key_set, api_key_delete, test_connection
+  changeDetails   String?   // JSON stored as string - what was changed
+  previousValues  String?   // JSON stored as string - values before change
+  newValues       String?   // JSON stored as string - values after change
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+
+  @@index([agentConfigId])
+  @@index([createdAt])
+}
+
+// AI Copilot chat messages (Claude Code CLI based, not API)
+model CopilotMessage {
+  id              Int      @id @default(autoincrement())
+  taskId          Int?     // Associated task (null for global chat)
+  role            String   // "user" | "assistant"
+  content         String   // Message text
+  claudeSessionId String?  // Claude Code --resume session ID for continuity
+  metadata        String   @default("{}") // JSON: model, tokens, etc.
+  createdAt       DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([claudeSessionId])
+}

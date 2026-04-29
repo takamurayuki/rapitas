@@ -17,13 +17,9 @@ const mockPrisma = {
   },
 };
 
-// paid-leave.ts creates its own PrismaClient, so we mock @prisma/client
-mock.module('@prisma/client', () => ({
-  PrismaClient: class {
-    paidLeaveBalance = mockPrisma.paidLeaveBalance;
-    scheduleEvent = mockPrisma.scheduleEvent;
-  },
-}));
+// Note: Do not mock @prisma/client globally as it affects other test files.
+// Mock the database config module instead.
+mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},

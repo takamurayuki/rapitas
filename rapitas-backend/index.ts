@@ -2,8 +2,16 @@
 import { setupGlobalErrorHandlers, errorHandler } from './middleware';
 setupGlobalErrorHandlers();
 
+// Initialize unified error capture (local ring buffer + optional Sentry).
+// Must run before any module that could throw at import time.
+import { initErrorCapture } from './services/system/error-capture';
+initErrorCapture();
+
 import { createLogger } from './config/logger';
 const log = createLogger('server');
+
+import { ensureDesktopSqliteDatabase } from './config/desktop-sqlite';
+await ensureDesktopSqliteDatabase();
 
 // Validate environment variables at startup
 import { validateEnvironment } from './config/env-validation';
@@ -134,6 +142,10 @@ workerManager.initialize().catch((error) => {
 // Start innovation session scheduler (generates novel ideas twice daily)
 import { startInnovationScheduler } from './services/memory/innovation-session';
 startInnovationScheduler();
+
+// Start weekly DB backup scheduler (~/.rapitas/backups/, 8-week retention).
+import { startBackupScheduler } from './services/system/backup-scheduler';
+startBackupScheduler();
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);

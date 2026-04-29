@@ -4,12 +4,10 @@
  * Utility for recording audit logs of AI agent configuration changes.
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('agent-audit-log');
-
-const prisma = new PrismaClient();
 
 export type AuditAction =
   | 'create'

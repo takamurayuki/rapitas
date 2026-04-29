@@ -17,6 +17,12 @@ const mockPrisma = {
   resource: {
     findMany: mock(() => Promise.resolve([])),
   },
+  pomodoroSession: {
+    findMany: mock(() => Promise.resolve([])),
+  },
+  timeEntry: {
+    findMany: mock(() => Promise.resolve([])),
+  },
 };
 
 mock.module('../../config/database', () => ({ prisma: mockPrisma }));
@@ -44,6 +50,8 @@ function resetAllMocks() {
   mockPrisma.task.findMany.mockResolvedValue([]);
   mockPrisma.comment.findMany.mockResolvedValue([]);
   mockPrisma.resource.findMany.mockResolvedValue([]);
+  mockPrisma.pomodoroSession.findMany.mockResolvedValue([]);
+  mockPrisma.timeEntry.findMany.mockResolvedValue([]);
 }
 
 function createApp() {

@@ -1,0 +1,217 @@
+// ============================================================================
+// memory.prisma — auto-arranged by scripts/split-prisma-schema.cjs (ADR-0006)
+// Source of truth for the memory sub-domain. Add new models in this file
+// rather than recreating a monolithic schema.prisma.
+// ============================================================================
+
+// Knowledge entries (core of memory system)
+model KnowledgeEntry {
+  id              Int       @id @default(autoincrement())
+  sourceType      String    // "agent_execution" | "user_learning" | "task_pattern" | "distilled_procedure" | "consolidated"
+  sourceId        String?
+  title           String
+  content         String
+  contentHash     String
+  category        String    @default("general") // "procedure" | "fact" | "pattern" | "preference" | "insight"
+  tags            String    @default("[]")
+  confidence      Float     @default(1.0)
+  accessCount     Int       @default(0)
+  lastAccessedAt  DateTime?
+  forgettingStage String    @default("active") // "active" | "dormant" | "archived"
+  decayScore      Float     @default(1.0)
+  lastDecayAt     DateTime  @default(now())
+  pinnedUntil     DateTime?
+  validationStatus String   @default("pending") // "pending" | "validated" | "rejected" | "conflict"
+  validatedAt     DateTime?
+  validationMethod String?
+  themeId         Int?
+  taskId          Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  contradictions    KnowledgeContradiction[] @relation("EntryA")
+  contradictedBy    KnowledgeContradiction[] @relation("EntryB")
+  reconsolidations  KnowledgeReconsolidation[]
+
+  @@index([sourceType, sourceId])
+  @@index([category])
+  @@index([forgettingStage])
+  @@index([contentHash])
+  @@index([themeId])
+  @@index([decayScore])
+}
+
+// Timeline events (event log foundation of memory system)
+model TimelineEvent {
+  id              Int       @id @default(autoincrement())
+  eventType       String    // "task_completed" | "agent_execution" | "knowledge_created" | "consolidation" | etc.
+  actorType       String    @default("system") // "user" | "agent" | "system"
+  actorId         String?
+  payload         String    @default("{}") // JSON
+  correlationId   String?   // For grouping related events
+  createdAt       DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([correlationId])
+  @@index([createdAt])
+}
+
+// Consolidation execution records (daily knowledge integration process logs)
+model ConsolidationRun {
+  id                Int       @id @default(autoincrement())
+  runDate           DateTime
+  status            String    @default("running") // "running" | "completed" | "failed"
+  entriesProcessed  Int       @default(0)
+  entriesMerged     Int       @default(0)
+  entriesCreated    Int       @default(0)
+  errorMessage      String?
+  durationMs        Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([runDate])
+  @@index([status])
+}
+
+// Knowledge contradiction tracking (management of conflicting entry pairs)
+model KnowledgeContradiction {
+  id                Int       @id @default(autoincrement())
+  entryAId          Int
+  entryA            KnowledgeEntry @relation("EntryA", fields: [entryAId], references: [id], onDelete: Cascade)
+  entryBId          Int
+  entryB            KnowledgeEntry @relation("EntryB", fields: [entryBId], references: [id], onDelete: Cascade)
+  contradictionType String    // "factual" | "procedural" | "preference"
+  description       String?
+  resolution        String?   // "keep_a" | "keep_b" | "merge" | "dismiss" | null (unresolved)
+  resolvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([entryAId, entryBId])
+  @@index([resolution])
+}
+
+// Knowledge re-consolidation records (knowledge update history based on prediction errors)
+model KnowledgeReconsolidation {
+  id                Int       @id @default(autoincrement())
+  entryId           Int
+  entry             KnowledgeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  predictionError   String    // Prediction error content
+  errorMagnitude    Float     // Error magnitude (0.0-1.0)
+  previousContent   String    // Content before update
+  newContent        String    // Content after update
+  triggerSource     String?   // Re-consolidation trigger source
+  createdAt         DateTime  @default(now())
+
+  @@index([entryId])
+  @@index([errorMagnitude])
+}
+
+// Memory system background job queue
+model MemoryTaskQueue {
+  id              Int       @id @default(autoincrement())
+  taskType        String    // "embed" | "consolidate" | "validate" | "forget_sweep" | "distill" | "detect_contradiction"
+  payload         String    @default("{}") // JSON
+  priority        Int       @default(0)    // Higher value = higher priority
+  status          String    @default("pending") // "pending" | "processing" | "completed" | "failed" | "dead_letter"
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(3)
+  errorMessage    String?
+  scheduledAt     DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, priority])
+  @@index([taskType])
+  @@index([scheduledAt])
+}
+
+// Memory journal entries (WAL crash resistance)
+model MemoryJournalEntry {
+  id              Int       @id @default(autoincrement())
+  operationType   String    // "create" | "update" | "delete"
+  targetTable     String    // "KnowledgeEntry" | "TimelineEvent" | etc.
+  targetId        Int?
+  payload         String    @default("{}") // JSON
+  status          String    @default("pending") // "pending" | "committed" | "failed"
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// AI-generated weekly review (Tier S #3)
+// Stores Claude-generated weekly summaries built from completed tasks,
+// TimeEntry, PomodoroSession, and ActivityLog. One row per ISO week.
+model WeeklyReview {
+  id          Int      @id @default(autoincrement())
+  weekStart   DateTime // Monday 00:00 of the reviewed week
+  weekEnd     DateTime // Sunday 23:59:59 of the reviewed week
+  summary     String   // AI-generated narrative (Markdown allowed)
+  stats       String   @default("{}") // JSON snapshot of the aggregated stats
+  modelUsed   String   @default("claude-haiku-4-5-20251001") // AI model used
+  generatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([weekStart])
+  @@index([generatedAt])
+}
+
+// Knowledge graph nodes
+model KnowledgeGraphNode {
+  id            Int       @id @default(autoincrement())
+  label         String    // Node name
+  nodeType      String    // concept, problem, solution, technology, pattern
+  description   String?
+  properties    String    @default("{}") // JSON: additional properties
+  weight        Float     @default(1.0) // importance weight
+  accessCount   Int       @default(0)
+  lastAccessedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  outEdges      KnowledgeGraphEdge[] @relation("EdgeFrom")
+  inEdges       KnowledgeGraphEdge[] @relation("EdgeTo")
+
+  @@unique([label, nodeType])
+  @@index([nodeType])
+  @@index([weight])
+}
+
+// Knowledge graph edges
+model KnowledgeGraphEdge {
+  id            Int       @id @default(autoincrement())
+  fromNodeId    Int
+  toNodeId      Int
+  fromNode      KnowledgeGraphNode @relation("EdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode        KnowledgeGraphNode @relation("EdgeTo", fields: [toNodeId], references: [id], onDelete: Cascade)
+  edgeType      String    // related, causes, solves, requires, part_of, similar_to
+  weight        Float     @default(1.0) // relationship strength
+  metadata      String    @default("{}") // JSON
+  createdAt     DateTime  @default(now())
+
+  @@unique([fromNodeId, toNodeId, edgeType])
+  @@index([fromNodeId])
+  @@index([toNodeId])
+  @@index([edgeType])
+}
+
+// Episodic memory - detailed experiment records
+model EpisodeMemory {
+  id            Int       @id @default(autoincrement())
+  experimentId  Int
+  experiment    Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  phase         String    // research, hypothesis, plan, execute, evaluate, learn
+  content       String    // Episode content
+  context       String    @default("{}") // JSON: environmental context
+  outcome       String?   // success, failure, partial
+  emotionalTag  String?   // surprising, expected, frustrating, satisfying
+  importance    Float     @default(0.5) // 0-1.0
+  createdAt     DateTime  @default(now())
+
+  @@index([experimentId])
+  @@index([phase])
+  @@index([importance])
+}

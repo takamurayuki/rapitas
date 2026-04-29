@@ -20,6 +20,14 @@ import type {
 
 const log = createLogger('self-learning:experiment');
 
+function titleContainsFilter(query: string) {
+  const contains = query.split(' ')[0] ?? '';
+  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
+    return { contains };
+  }
+  return { contains, mode: 'insensitive' };
+}
+
 /**
  */
 export async function createExperiment(input: CreateExperimentInput) {
@@ -103,8 +111,8 @@ export async function runResearch(
   const relatedExperiments = await prisma.experiment.findMany({
     where: {
       status: 'completed',
-      title: { contains: query.split(' ')[0] ?? '', mode: 'insensitive' },
-    },
+      title: titleContainsFilter(query),
+    } as any,
     select: { id: true },
     take: 5,
     orderBy: { createdAt: 'desc' },

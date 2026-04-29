@@ -10,6 +10,7 @@ import { MetricsOverviewCards } from './_components/MetricsOverviewCards';
 import { MetricsFilters } from './_components/MetricsFilters';
 import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
+import { SelfObservationWidget } from '@/components/widgets';
 
 function AgentMetricsPage() {
   const t = useTranslations('agents');
@@ -77,6 +78,10 @@ function AgentMetricsPage() {
         />
 
         {overview && <MetricsOverviewCards overview={overview} />}
+
+        <div className="my-6">
+          <SelfObservationWidget />
+        </div>
 
         <MetricsCharts
           executionTrends={executionTrends}

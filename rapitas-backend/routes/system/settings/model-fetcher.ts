@@ -7,8 +7,6 @@
  * Not responsible for HTTP routing or API-key persistence.
  */
 
-import { prisma } from '../../../config/database';
-import { decrypt } from '../../../utils/common/encryption';
 import { getApiKeyForProvider } from '../../../utils/ai-client';
 import { createLogger } from '../../../config/logger';
 import {
@@ -72,10 +70,7 @@ export async function fetchAvailableModels(): Promise<
     }
 
     // Fetch OpenAI models
-    const settings = await prisma.userSettings.findFirst();
-    const openaiApiKey = settings?.chatgptApiKeyEncrypted
-      ? decrypt(settings.chatgptApiKeyEncrypted)
-      : null;
+    const openaiApiKey = await getApiKeyForProvider('chatgpt');
     if (openaiApiKey) {
       try {
         const response = await fetch('https://api.openai.com/v1/models', {
@@ -102,9 +97,7 @@ export async function fetchAvailableModels(): Promise<
     }
 
     // Fetch Gemini models
-    const geminiApiKey = settings?.geminiApiKeyEncrypted
-      ? decrypt(settings.geminiApiKeyEncrypted)
-      : null;
+    const geminiApiKey = await getApiKeyForProvider('gemini');
     if (geminiApiKey) {
       try {
         const response = await fetch(

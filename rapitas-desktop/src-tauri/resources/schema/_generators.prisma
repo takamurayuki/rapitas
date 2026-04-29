@@ -1,0 +1,13 @@
+// Prisma schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+  // NOTE: prismaSchemaFolder graduated to GA in Prisma 6 — listing it under
+  // previewFeatures emits a deprecation warning on every CLI invocation.
+  // The folder layout under prisma/schema/ works without any flag.
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

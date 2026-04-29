@@ -27,6 +27,8 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { systemPromptsRoutes } = await import('../../../routes/ai/system-prompts');
+const { NotFoundError, ValidationError, ConflictError } =
+  await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -41,7 +43,28 @@ function resetAllMocks() {
 }
 
 function createApp() {
-  return new Elysia().use(systemPromptsRoutes);
+  return new Elysia()
+    .onError(({ code, error, set }) => {
+      if (error instanceof NotFoundError) {
+        set.status = 404;
+        return { error: error.message };
+      }
+      if (error instanceof ValidationError) {
+        set.status = 400;
+        return { error: error.message };
+      }
+      if (error instanceof ConflictError) {
+        set.status = 409;
+        return { error: error.message };
+      }
+      if (code === 'VALIDATION') {
+        set.status = 400;
+        return { error: 'Validation error' };
+      }
+      set.status = 500;
+      return { error: error instanceof Error ? error.message : 'Server error' };
+    })
+    .use(systemPromptsRoutes);
 }
 
 describe('GET /system-prompts', () => {

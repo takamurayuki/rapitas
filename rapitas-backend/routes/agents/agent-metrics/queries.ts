@@ -7,11 +7,10 @@
  * All functions are pure data-access utilities; routing is handled in router.ts.
  */
 
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../../config/database';
 import type { AgentMetrics, ExecutionTrendData, MetricsOverview, DateRange } from './types';
 import { formatAgentDisplayName } from '../../../utils/agent/agent-display-name';
-
-const prisma = new PrismaClient();
 
 type ExecutionWhereInput = Prisma.AgentExecutionWhereInput;
 

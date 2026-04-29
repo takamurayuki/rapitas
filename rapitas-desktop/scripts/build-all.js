@@ -10,7 +10,7 @@ const FRONTEND_DIR = path.resolve(__dirname, '../../rapitas-frontend');
 const BACKEND_DIR = path.resolve(__dirname, '../../rapitas-backend');
 const SCRIPTS_DIR = __dirname;
 
-console.log('=== Building Rapitas for production (PostgreSQL) ===\n');
+console.log('=== Building Rapitas desktop for production (SQLite) ===\n');
 
 // CI環境の検出
 const isCI = process.env.CI === 'true';

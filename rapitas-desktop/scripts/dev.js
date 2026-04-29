@@ -615,6 +615,8 @@ const useWatch = args.includes("--watch");
 
 const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
 const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
+const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
+const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
 
@@ -691,14 +693,14 @@ function cleanupAgentPidFiles() {
 
 if (useWatch) {
   console.log(
-    "Starting development servers for Tauri (PostgreSQL) with HOT RELOAD...",
+    "Starting development servers for Tauri (SQLite) with HOT RELOAD...",
   );
   console.log(
     "⚠️  注意: ファイル変更時にバックエンドが再起動します。AIエージェント実行中は中断される可能性があります。",
   );
 } else {
   console.log(
-    "Starting development servers for Tauri (PostgreSQL) in STABLE mode...",
+    "Starting development servers for Tauri (SQLite) in STABLE mode...",
   );
   console.log(
     "ℹ️  バックエンドのホットリロードは無効です。コード変更後は手動で再起動してください。",
@@ -746,27 +748,31 @@ let fileWatchers = [];
 let lastRestartCompletedAt = 0;
 
 /**
- * データベーススキーマの同期とPrisma Client生成
+ * Desktop dev 用 SQLite Prisma Client と初期化SQLを生成
  */
 function syncDatabaseAndGenerateClient() {
-  console.log("\nSyncing database schema...");
+  console.log("\nPreparing desktop SQLite database...");
   try {
-    execSync("bunx prisma db push --skip-generate --accept-data-loss", {
-      cwd: BACKEND_DIR,
-      stdio: "inherit",
-    });
-    console.log("Database schema synced.");
+    fs.mkdirSync(DESKTOP_DATA_DIR, { recursive: true });
   } catch (err) {
-    console.error("Failed to sync database schema:", err.message);
-    console.log("⚠️  PostgreSQLが起動していることを確認してください。");
+    console.error("Failed to create desktop data directory:", err.message);
     throw err;
   }
 
-  console.log("Generating Prisma Client...");
+  console.log("Generating SQLite Prisma Client and init SQL...");
   try {
-    execSync("bun run db:generate", { cwd: BACKEND_DIR, stdio: "inherit" });
+    execSync("bun run db:prepare:sqlite", {
+      cwd: BACKEND_DIR,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        RAPITAS_DB_PROVIDER: "sqlite",
+        DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
+      },
+    });
+    console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
   } catch (err) {
-    console.error("Failed to generate Prisma Client:", err.message);
+    console.error("Failed to prepare SQLite Prisma Client:", err.message);
     throw err;
   }
 }
@@ -807,6 +813,9 @@ function startBackend(retryCount = 0) {
     env: {
       ...process.env,
       TAURI_BUILD: "true",
+      RAPITAS_DB_PROVIDER: "sqlite",
+      DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
+      RAPITAS_DATA_DIR: DESKTOP_DATA_DIR,
       PORT: String(actualBackendPort),
     },
   });

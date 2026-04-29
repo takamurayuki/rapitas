@@ -103,7 +103,7 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
             main_window.unmaximize().ok();
             main_window
                 .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                    x: (screen_width / 2) as i32,
+                    x: screen_width / 2,
                     y: 0,
                 }))
                 .ok();
@@ -269,6 +269,8 @@ fn main() {
         use std::sync::Mutex;
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init())
             .manage(Mutex::new(release::BackendState { child: None }))
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
@@ -305,6 +307,8 @@ fn main() {
         println!("[Dev Mode] Skipping sidecar - backend started by dev.js");
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,

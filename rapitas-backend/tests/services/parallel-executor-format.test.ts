@@ -37,7 +37,7 @@ describe('formatCoordinatorPayload', () => {
     // Error fields
     if (obj.error && typeof obj.error === 'string') parts.push(`error: ${obj.error}`);
 
-    // Other fields
+    // Other fields (skip metadata fields like timestamp, level)
     const skipKeys = new Set([
       'message',
       'msg',
@@ -47,6 +47,7 @@ describe('formatCoordinatorPayload', () => {
       'agentId',
       'error',
       'timestamp',
+      'level',
     ]);
     for (const [key, value] of Object.entries(obj)) {
       if (skipKeys.has(key) || value === null || value === undefined) continue;
@@ -57,7 +58,9 @@ describe('formatCoordinatorPayload', () => {
       }
     }
 
-    return parts.length > 0 ? parts.join(', ') : JSON.stringify(payload).slice(0, 200);
+    const result = parts.length > 0 ? parts.join(', ') : JSON.stringify(payload);
+    // Truncate to 200 characters if too long
+    return result.length > 200 ? result.slice(0, 197) + '...' : result;
   }
 
   test('メッセージのみの場合は正しくフォーマットされること', () => {

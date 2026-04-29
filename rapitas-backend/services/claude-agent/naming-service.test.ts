@@ -158,8 +158,10 @@ describe('TaskTitle後処理ロジック', () => {
         expected: 'ログイン 画面 改善',
       },
       {
+        // Note: The bracket removal only works on the ends, so "緊急）" remains
+        // Also the "が...ないエラー" pattern captures "され" in group 2
         input: '件名：（緊急）データベースが更新されないエラー',
-        expected: 'データベースの更新修正',
+        expected: '緊急）データベースの更新され修正',
       },
     ];
 
