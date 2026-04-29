@@ -64,12 +64,14 @@ export function useExecutionPolling(taskId: number | null) {
    * Start polling for execution status
    *
    * @param options.initialOutput - Initial output for restore / リストア時の初期出力
+   * @param options.initialOutputLength - Existing output cursor without rendering restored logs
    * @param options.preserveLogs - When true, preserve existing logs / trueの場合ログを保持
    * @param options.terminalGraceMs - Grace period before accepting terminal status / ターミナル状態受け入れグレース期間（ms）
    */
   const startPolling = useCallback(
     async (options?: {
       initialOutput?: string;
+      initialOutputLength?: number;
       preserveLogs?: boolean;
       terminalGraceMs?: number;
     }) => {
@@ -106,7 +108,16 @@ export function useExecutionPolling(taskId: number | null) {
       responseGraceUntilRef.current = 0;
       clearedQuestionRef.current = null;
 
-      if (options?.initialOutput) {
+      if (typeof options?.initialOutputLength === 'number') {
+        lastOutputLengthRef.current = Math.max(0, options.initialOutputLength);
+        setState((prev) => ({
+          ...prev,
+          isConnected: true,
+          isRunning: true,
+          status: 'running',
+          logs: options.preserveLogs ? prev.logs : [],
+        }));
+      } else if (options?.initialOutput) {
         lastOutputLengthRef.current = options.initialOutput.length;
         setState((prev) => ({
           ...prev,
@@ -139,8 +150,9 @@ export function useExecutionPolling(taskId: number | null) {
       // Initial poll
       await poll();
 
-      // Poll every 300ms for near-realtime responsiveness
-      intervalRef.current = setInterval(poll, 300);
+      // Codex/Gemini can emit large output bursts; polling too frequently makes
+      // the task detail panel re-render and JSON-parse large payloads constantly.
+      intervalRef.current = setInterval(poll, 1000);
     },
     // NOTE: refs object is stable (same ref objects across renders); no need to include in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps

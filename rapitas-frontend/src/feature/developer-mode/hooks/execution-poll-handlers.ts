@@ -263,9 +263,13 @@ export async function executePoll(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/execution-status`, {
-      signal: controller.signal,
-    });
+    const outputOffset = Math.max(0, lastOutputLengthRef.current);
+    const res = await fetch(
+      `${API_BASE_URL}/tasks/${taskId}/execution-status?outputOffset=${outputOffset}`,
+      {
+        signal: controller.signal,
+      },
+    );
     clearTimeout(timeoutId);
 
     if (refs.lastProcessedStatusRef.current === 'cancelled') {
@@ -289,20 +293,40 @@ export async function executePoll(
     const polledTokensUsed = data.tokensUsed as number | undefined;
     const polledTotalSessionTokens = data.totalSessionTokens as number | undefined;
     if (polledTokensUsed || polledTotalSessionTokens) {
-      setState((prev) => ({
-        ...prev,
-        tokensUsed: polledTokensUsed ?? prev.tokensUsed,
-        totalSessionTokens: polledTotalSessionTokens ?? prev.totalSessionTokens,
-      }));
+      setState((prev) => {
+        const nextTokensUsed = polledTokensUsed ?? prev.tokensUsed;
+        const nextTotalSessionTokens = polledTotalSessionTokens ?? prev.totalSessionTokens;
+        if (
+          prev.tokensUsed === nextTokensUsed &&
+          prev.totalSessionTokens === nextTotalSessionTokens
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          tokensUsed: nextTokensUsed,
+          totalSessionTokens: nextTotalSessionTokens,
+        };
+      });
     }
 
     // Append new output diff
+    if (typeof data.outputLength === 'number') {
+      const nextOutputLength = Math.max(0, data.outputLength as number);
+      if (nextOutputLength < lastOutputLengthRef.current) {
+        lastOutputLengthRef.current = nextOutputLength;
+      }
+    }
+
     if (data.output) {
       const currentLength = lastOutputLengthRef.current;
-      const newOutput = (data.output as string).slice(currentLength);
+      const newOutput = data.output as string;
       if (newOutput) {
         logger.debug('New output received:', newOutput.length, 'chars');
-        lastOutputLengthRef.current = (data.output as string).length;
+        lastOutputLengthRef.current =
+          typeof data.outputLength === 'number'
+            ? Math.max(currentLength + newOutput.length, data.outputLength as number)
+            : currentLength + newOutput.length;
         setState((prev) => {
           const lastLog = prev.logs[prev.logs.length - 1];
           if (lastLog && lastLog === newOutput) {
@@ -420,11 +444,15 @@ export async function executePoll(
         refs.lastProcessedStatusRef.current = 'running';
         // NOTE: Don't clear grace period — session resume fallback may still be in progress
       }
-      setState((prev) => ({
-        ...prev,
-        isRunning: true,
-        status: 'running',
-      }));
+      setState((prev) =>
+        prev.isRunning && prev.status === 'running'
+          ? prev
+          : {
+              ...prev,
+              isRunning: true,
+              status: 'running',
+            },
+      );
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

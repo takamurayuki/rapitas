@@ -38,7 +38,6 @@ import {
   githubRoutes,
   approvalsRoutes,
   aiAgentRoutes,
-  parallelExecutionRoutes,
   taskAnalysisConfigRoutes,
   agentExecutionConfigRoutes,
   executionLogsRoutes,
@@ -170,7 +169,6 @@ app.use(sseRoutes);
 app.use(githubRoutes);
 app.use(approvalsRoutes);
 app.use(aiAgentRoutes);
-app.use(parallelExecutionRoutes);
 app.use(taskAnalysisConfigRoutes);
 app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);

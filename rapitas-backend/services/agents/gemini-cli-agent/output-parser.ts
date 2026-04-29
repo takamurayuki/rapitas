@@ -8,6 +8,7 @@
 
 import type { GeminiStreamEvent } from './types';
 import type { AgentArtifact, GitCommitInfo } from '../base-agent';
+import { canonicalToolName } from '../common/tool-name-canonicalizer';
 
 /**
  * Parse a single Gemini stream-json event into a display string.
@@ -31,11 +32,14 @@ export function parseStreamEvent(
           if (block.type === 'text' && block.text) {
             displayOutput += block.text;
           } else if (block.type === 'tool_use') {
+            // Canonicalise tool names so the frontend log-pattern table
+            // (which knows Claude's vocabulary) matches Gemini output too.
+            const canonicalName = canonicalToolName(block.name);
             const toolInfo = formatToolInfo(block.name || 'unknown', block.input);
-            displayOutput += `\n[Tool: ${block.name}] ${toolInfo}\n`;
+            displayOutput += `\n[Tool: ${canonicalName}] ${toolInfo}\n`;
             if (block.id) {
               activeTools.set(block.id, {
-                name: block.name || 'unknown',
+                name: canonicalName,
                 startTime: Date.now(),
                 info: toolInfo,
               });

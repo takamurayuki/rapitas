@@ -57,8 +57,53 @@ describe('classifyAgentError', () => {
   });
 
   it('hint があり 429 ヒントが見つかれば rate_limit として hint プロバイダで分類する', () => {
-    const r = classifyAgentError('HTTP 429 Too Many Requests', 'gemini');
+    const r = classifyAgentError('HTTP 429 Too Many Requests\nERROR: rate limit', 'gemini');
     expect(r?.reason).toBe('rate_limit');
     expect(r?.provider).toBe('gemini');
+  });
+
+  describe('strict mode (false-positive prevention)', () => {
+    it('strict mode では明示的なルールにマッチしない単語は無視する', () => {
+      // 通常モードでは false-positive する文字列
+      const innocuous = [
+        'Implemented rate limiting on the API endpoints.',
+        'Give credit to @ymd for the original idea.',
+        'See credit balance section in README.',
+      ];
+      for (const s of innocuous) {
+        // 旧来の lenient モード: 危険な誤検知が起きうる
+        // 新しい strict モード: null を返すべき
+        expect(classifyAgentError(s, { strict: true })).toBeNull();
+      }
+    });
+
+    it('strict modeでも明示的なCodex/Claude/Geminiパターンはマッチする', () => {
+      const r = classifyAgentError("ERROR: You've hit your usage limit. try again at 1:19 PM", {
+        strict: true,
+      });
+      expect(r).not.toBeNull();
+      expect(r!.provider).toBe('openai');
+      expect(r!.reason).toBe('quota');
+    });
+
+    it('strict modeでも Anthropic credit_balance_too_low はマッチする', () => {
+      const r = classifyAgentError('Anthropic API error: credit_balance_too_low', {
+        strict: true,
+      });
+      expect(r?.reason).toBe('quota');
+      expect(r?.provider).toBe('claude');
+    });
+
+    it('lenient mode (デフォルト) でも、ERRORコンテキストなしの単独 "credit" は誤検知しない（修正後）', () => {
+      // 修正前: '\b(quota|usage limit|credit)\b' で単独"credit"が誤検知
+      // 修正後: ERRORコンテキスト+具体的なフレーズ要求でこれは null
+      expect(classifyAgentError('Give credit to original author')).toBeNull();
+      expect(classifyAgentError('Implements rate limiting middleware')).toBeNull();
+    });
+
+    it('lenient mode で ERROR文脈 + 明確な quotaフレーズはマッチする', () => {
+      const r = classifyAgentError('ERROR: usage limit exceeded for this hour');
+      expect(r?.reason).toBe('quota');
+    });
   });
 });

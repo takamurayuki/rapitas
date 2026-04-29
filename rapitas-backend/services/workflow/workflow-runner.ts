@@ -163,13 +163,30 @@ export class WorkflowRunner {
         const currentStatus = task.workflowStatus || 'draft';
         execution.currentPhase = currentStatus;
 
-        // Completion check
-        if (currentStatus === 'completed' || currentStatus === 'verify_done') {
+        // Completion check.
+        // `verify_done` alone is not terminal: verify.md may have been written
+        // while requested commit/PR/merge automation failed. Only `completed`
+        // (or a done task for backwards compatibility) closes the queue item.
+        if (
+          currentStatus === 'completed' ||
+          (currentStatus === 'verify_done' && task.status === 'done')
+        ) {
           await this.queue.updateStatus(item.id, 'completed', {
             currentPhase: currentStatus,
             result: JSON.stringify({ completedAt: new Date().toISOString() }),
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
+          continueLoop = false;
+          break;
+        }
+
+        if (currentStatus === 'verify_done') {
+          await this.queue.updateStatus(item.id, 'failed', {
+            currentPhase: currentStatus,
+            errorMessage:
+              'verify.md was saved, but the task did not pass the completion gate. Check commit/PR/merge automation results.',
+          });
+          this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
           continueLoop = false;
           break;
         }
@@ -310,6 +327,7 @@ export class WorkflowRunner {
       plan_created: '計画作成',
       plan_approved: '計画承認',
       in_progress: '実装中',
+      verify_done: '検証完了',
       completed: '完了',
       advancing: '次フェーズへ進行中',
     };

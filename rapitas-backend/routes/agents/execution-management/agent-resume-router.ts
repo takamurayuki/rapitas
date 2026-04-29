@@ -11,21 +11,12 @@ import { join } from 'path';
 import { prisma, getProjectRoot } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { toJsonString } from '../../../utils/database/db-helpers';
-import { ParallelExecutor } from '../../../services/parallel-execution/parallel-executor';
-import type { TaskPriority } from '../../../services/parallel-execution/types-dir/types';
+// NOTE: Parallel execution mechanism was removed. Sub-tasks now resume
+// through the same single-task path as the parent — they're picked up
+// by the regular workflow advance loop in workflow-orchestrator.
 import { handleResumeCompletion } from './agent-resume-handlers';
 
 const log = createLogger('routes:agent-resume');
-
-// NOTE: Lazy singleton — avoids creating the executor when the module loads,
-// since the Prisma client may not be ready yet at import time.
-let parallelExecutor: ParallelExecutor | null = null;
-function getParallelExecutor(): ParallelExecutor {
-  if (!parallelExecutor) {
-    parallelExecutor = new ParallelExecutor(prisma);
-  }
-  return parallelExecutor;
-}
 
 export const agentResumeRouter = new Elysia()
 
@@ -149,56 +140,25 @@ export const agentResumeRouter = new Elysia()
         },
       });
 
-      // Parallel execution if in-progress subtasks exist
+      // Subtask resume (parallel-execution mechanism removed): the parent
+      // task is the unit of resume. Each subtask is just a child Task and
+      // gets advanced through its own workflow when the user later kicks
+      // off advance on it. Surface a notification so the user knows there
+      // are interrupted subtasks waiting.
       if (hasSubtasks) {
         log.info(
-          `[resume] Starting parallel execution for task ${task.id} with ${subtasks.length} in-progress subtasks`,
+          `[resume] Parent task ${task.id} has ${subtasks.length} in-progress subtask(s); they will resume on their own workflow advance.`,
         );
-
-        const executor = getParallelExecutor();
-        const analysisResult = await executor.analyzeDependencies({
-          parentTaskId: task.id,
-          subtasks: subtasks.map((st: (typeof subtasks)[number]) => ({
-            id: st.id,
-            title: st.title,
-            description: st.description || '',
-            estimatedHours: st.estimatedHours || 1,
-            priority: (st.priority || 'medium') as TaskPriority,
-            explicitDependencies: [] as number[],
-          })),
-        });
-
-        executor
-          .startSession(
-            task.id,
-            analysisResult.plan,
-            analysisResult.treeMap.nodes,
-            workingDirectory,
-          )
-          .then(async (session) => {
-            log.info(`[resume] Parallel execution session started: ${session.sessionId}`);
+        await prisma.notification
+          .create({
+            data: {
+              type: 'agent_execution_resumed',
+              title: 'サブタスクが残っています',
+              message: `「${task.title}」配下にまだ進行中のサブタスクが${subtasks.length}件あります。各サブタスクのワークフローを進めてください。`,
+              link: `/tasks/${task.id}`,
+            },
           })
-          .catch(async (error) => {
-            log.error({ err: error }, '[resume] Parallel execution error');
-            await prisma.notification.create({
-              data: {
-                type: 'agent_error',
-                title: '並列実行エラー',
-                message: `「${task.title}」の並列実行中にエラーが発生しました: ${error.message}`,
-                link: `/tasks/${task.id}`,
-              },
-            });
-          });
-
-        return {
-          success: true,
-          executionId,
-          taskId: task.id,
-          taskTitle: task.title,
-          parallelExecution: true,
-          subtaskCount: subtasks.length,
-          message: `進行中のサブタスク${subtasks.length}件の並列実行を再開しました。進捗はリアルタイムで確認できます。`,
-        };
+          .catch(() => {});
       }
 
       await prisma.task.update({

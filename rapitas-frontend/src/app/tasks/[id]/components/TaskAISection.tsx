@@ -286,7 +286,19 @@ export default function TaskAISection({
       agents={agents as Parameters<typeof AIAccordionPanel>[0]['agents']}
       onAgentChange={onAgentChange}
       onExecute={handleExecute}
-      onReset={onReset}
+      onReset={async () => {
+        await Promise.resolve(onReset());
+        setTask((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'todo',
+                startedAt: null,
+                completedAt: null,
+              }
+            : prev,
+        );
+      }}
       onRestoreExecutionState={
         onRestoreExecutionState as Parameters<typeof AIAccordionPanel>[0]['onRestoreExecutionState']
       }

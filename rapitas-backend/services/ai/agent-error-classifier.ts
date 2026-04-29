@@ -92,7 +92,9 @@ const RULES: PatternRule[] = [
     reason: 'quota',
     pattern: /credit[ _]?balance[ _]?too[ _]?low/i,
   },
-  { provider: 'claude', reason: 'rate_limit', pattern: /rate[ _]?limit/i },
+  // Match Anthropic's specific error name, not the generic phrase, so we
+  // don't false-positive on prose like "implements rate limiting".
+  { provider: 'claude', reason: 'rate_limit', pattern: /rate_limit_error/i },
   {
     provider: 'claude',
     reason: 'rate_limit',
@@ -128,15 +130,37 @@ const RULES: PatternRule[] = [
   { provider: 'ollama', reason: 'transient', pattern: /model.*not.*found/i },
 ];
 
+export interface ClassifyOptions {
+  /** Optional provider hint (e.g. the agent we tried) used as a fallback. */
+  hint?: Provider;
+  /**
+   * Strict mode — only explicit named rules count, the bare-keyword
+   * heuristics are skipped. Use this when validating the output of a
+   * SUCCESSFUL run to avoid false positives on innocent words like
+   * "credit", "rate limit" (e.g. when the agent is reviewing code that
+   * implements rate limiting). The lenient mode is fine when we already
+   * know the agent failed and just want to attribute it to a provider.
+   */
+  strict?: boolean;
+}
+
 /**
  * Classify an error message / output blob.
  *
  * @param input - Raw message, stderr, or stringified exception
- * @param hint - Optional provider hint (e.g. the agent we tried) used as a
- *   fallback when no rule matches but we still want to mark *something*
+ * @param hintOrOptions - Provider hint (legacy) or full ClassifyOptions
  * @returns Classification or null if the input is plainly not an AI error
  */
-export function classifyAgentError(input: string, hint?: Provider): ClassifiedError | null {
+export function classifyAgentError(
+  input: string,
+  hintOrOptions?: Provider | ClassifyOptions,
+): ClassifiedError | null {
+  const opts: ClassifyOptions =
+    typeof hintOrOptions === 'string' || hintOrOptions === undefined
+      ? { hint: hintOrOptions }
+      : hintOrOptions;
+  const { hint, strict = false } = opts;
+
   const message = (input ?? '').slice(0, 4000);
   if (!message.trim()) return null;
 
@@ -152,18 +176,11 @@ export function classifyAgentError(input: string, hint?: Provider): ClassifiedEr
     }
   }
 
-  // Last-resort: HTTP-style status hints commonly present in tool output.
-  if (/\b(429|rate[_ ]?limit)\b/i.test(message)) {
-    return {
-      reason: 'rate_limit',
-      provider: hint ?? 'claude',
-      retryWithFallback: true,
-      rawMessage: message,
-    };
-  }
-  // Generic quota mention without a known provider — attribute to hint or
-  // fall back to claude.
-  if (/\b(quota|usage limit|credit)\b/i.test(message)) {
+  if (strict) return null;
+
+  // Strong quota signal: the phrase "try again at HH:MM" is virtually
+  // always a quota/throttle response. Match it even without ERROR context.
+  if (/try again at\s+\d{1,2}:\d{2}/i.test(message)) {
     return {
       reason: 'quota',
       provider: hint ?? 'claude',
@@ -171,6 +188,36 @@ export function classifyAgentError(input: string, hint?: Provider): ClassifiedEr
       retryWithFallback: true,
       rawMessage: message,
     };
+  }
+
+  // Last-resort: HTTP-style status hints commonly present in tool output.
+  // Only fire when the keyword sits next to an ERROR/FATAL marker so we
+  // don't trip on "implements rate limiting" or similar prose.
+  const errorContext = /(^|\n)\s*(ERROR|FATAL|Exception|Traceback)/i.test(message);
+  if (errorContext) {
+    if (/\b(429|rate[_ ]?limit(ed|ing)?)\b/i.test(message)) {
+      return {
+        reason: 'rate_limit',
+        provider: hint ?? 'claude',
+        retryWithFallback: true,
+        rawMessage: message,
+      };
+    }
+    // Bare "credit" alone is too noisy — require explicit credit *balance*
+    // / *exhausted* / *exceeded* phrasing.
+    if (
+      /\b(quota exceeded|usage limit|credit balance|out of credits|insufficient credit)\b/i.test(
+        message,
+      )
+    ) {
+      return {
+        reason: 'quota',
+        provider: hint ?? 'claude',
+        resetAt: parseTryAgainAt(message),
+        retryWithFallback: true,
+        rawMessage: message,
+      };
+    }
   }
 
   return null;

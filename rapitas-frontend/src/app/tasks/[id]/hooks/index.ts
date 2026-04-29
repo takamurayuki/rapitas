@@ -26,9 +26,3 @@ export type { UseDeveloperModeEffectsParams } from './useDeveloperModeEffects';
 
 export { useDeveloperModeSetup } from './useDeveloperModeSetup';
 export type { UseDeveloperModeSetupResult } from './useDeveloperModeSetup';
-
-export { useParallelExecutionSetup } from './useParallelExecutionSetup';
-export type {
-  UseParallelExecutionSetupParams,
-  UseParallelExecutionSetupResult,
-} from './useParallelExecutionSetup';

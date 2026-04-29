@@ -151,7 +151,14 @@ export async function executeAPIAgent(
     const executionTimeMs = Date.now() - startTime;
 
     if (transition.outputFile && output.trim()) {
-      await writeWorkflowFile(workflowDir, transition.outputFile, output);
+      await writeWorkflowFile(workflowDir, transition.outputFile, output, taskId);
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { workflowStatus: transition.nextStatus },
+      });
+    } else if (transition.outputFile) {
+      throw new Error(`${transition.outputFile}.md was not generated`);
+    } else {
       await prisma.task.update({
         where: { id: taskId },
         data: { workflowStatus: transition.nextStatus },
