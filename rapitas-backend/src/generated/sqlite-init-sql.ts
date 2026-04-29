@@ -1536,9 +1536,6 @@ CREATE INDEX "ScheduleEvent_startAt_idx" ON "ScheduleEvent"("startAt");
 CREATE INDEX "ScheduleEvent_parentEventId_idx" ON "ScheduleEvent"("parentEventId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PaidLeaveBalance_userId_key" ON "PaidLeaveBalance"("userId");
-
--- CreateIndex
 CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear");
 
 -- CreateIndex

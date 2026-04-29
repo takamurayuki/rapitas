@@ -42,7 +42,7 @@ model ScheduleEvent {
 // Paid leave remaining days management
 model PaidLeaveBalance {
   id                    Int       @id @default(autoincrement())
-  userId                String    @unique @default("default")
+  userId                String    @default("default")
   totalDays             Int       @default(20) // Annual granted days
   usedDays              Float     @default(0)  // Used days (Float for half-day leave support)
   remainingDays         Float     // Remaining days (actually stored, not a computed field)
