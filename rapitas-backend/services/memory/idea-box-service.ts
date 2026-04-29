@@ -258,6 +258,33 @@ export async function updateIdea(ideaId: number, input: UpdateIdeaInput): Promis
 }
 
 /**
+ * Delete an idea from the IdeaBox. Validates existence and sourceType before deletion.
+ *
+ * @param ideaId - KnowledgeEntry ID / アイデアID
+ * @returns true on successful deletion, false if idea not found / 削除成否
+ */
+export async function deleteIdea(ideaId: number): Promise<boolean> {
+  const existing = await prisma.knowledgeEntry.findUnique({
+    where: { id: ideaId },
+    select: { id: true, sourceType: true },
+  });
+
+  if (!existing || existing.sourceType !== 'idea_box') {
+    log.debug({ ideaId }, 'Idea not found or not an idea_box entry');
+    return false;
+  }
+
+  try {
+    await prisma.knowledgeEntry.delete({ where: { id: ideaId } });
+    log.info({ ideaId }, 'Idea deleted successfully');
+    return true;
+  } catch (err) {
+    log.error({ err, ideaId }, 'Failed to delete idea');
+    return false;
+  }
+}
+
+/**
  * Mark an idea as used in a generated task.
  *
  * @param ideaId - KnowledgeEntry ID / アイデアID
