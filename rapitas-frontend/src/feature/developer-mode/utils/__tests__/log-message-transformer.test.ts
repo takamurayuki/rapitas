@@ -115,6 +115,12 @@ describe('log-message-transformer', () => {
       );
       expect(transformLogToUserFriendly('+ log.warn({ err }, "failed");').category).toBe('hidden');
       expect(
+        transformLogToUserFriendly('rapitas-backend\\utils\\ai-client\\error-handler.ts').category,
+      ).toBe('hidden');
+      expect(transformLogToUserFriendly('$ rapitas-backend\\pnpm-workspace.yaml').category).toBe(
+        'hidden',
+      );
+      expect(
         transformLogToUserFriendly(
           '2026-04-29T10:04:29Z ERROR codex_core::session: failed to record rollout',
         ).category,

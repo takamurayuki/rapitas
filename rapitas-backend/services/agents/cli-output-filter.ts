@@ -89,6 +89,7 @@ export function filterCliDiagnosticOutput(
     if (
       isBenignDiagnostic(trimmed) ||
       isNoiseLine(trimmed) ||
+      isFilePathListLine(trimmed) ||
       isDiffHunkLine(trimmed) ||
       isDiffOrCodeLine(trimmed)
     ) {
@@ -134,6 +135,7 @@ export function shouldHideRawCliLine(line: string): boolean {
   if (
     isBenignDiagnostic(trimmed) ||
     isNoiseLine(trimmed) ||
+    isFilePathListLine(trimmed) ||
     isDiffHunkLine(trimmed) ||
     isDiffOrCodeLine(trimmed)
   ) {
@@ -155,6 +157,13 @@ function isDiffOrCodeLine(line: string): boolean {
 
 function isDiffHunkLine(line: string): boolean {
   return /^[+-](?![+-]{2}\s)/.test(line);
+}
+
+function isFilePathListLine(line: string): boolean {
+  const candidate = line.replace(/^\$\s+/, '').trim();
+  if (candidate.includes(' ')) return false;
+  if (!/[\\/]/.test(candidate)) return false;
+  return /^(?:[A-Za-z]:[\\/])?[\w@()[\].-]+(?:[\\/][\w@()[\].-]+)+$/.test(candidate);
 }
 
 function isBenignDiagnostic(line: string): boolean {

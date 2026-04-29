@@ -527,6 +527,7 @@ export const HIDDEN_PATTERNS = [
   /^\+\+\+ /,
   /^@@ /,
   /^[+-](?![+-]{2}\s)/,
+  /^\$?\s*(?:[A-Za-z]:[\\/])?[\w@()[\].-]+(?:[\\/][\w@()[\].-]+)+$/,
   /^(import|export|const|let|function|class|interface|type|return|if|else|try|catch)\b/,
   /^[A-Za-z0-9_$]+\.(error|warn|info|debug|log)\(/,
   /^<\/?[A-Za-z][^>]*>/,

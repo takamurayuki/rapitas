@@ -76,4 +76,20 @@ describe('cli-output-filter', () => {
     expect(filtered.display).toBe('');
     expect(filtered.important).toBe(false);
   });
+
+  it('hides standalone file path lists from command output', () => {
+    const filtered = filterCliDiagnosticOutput(
+      [
+        'rapitas-backend\\utils\\ai-client\\error-handler.ts',
+        '$ rapitas-backend\\pnpm-workspace.yaml',
+        'rapitas-frontend\\src\\app\\dashboard\\error.tsx',
+      ].join('\n'),
+      { provider: 'codex' },
+    );
+
+    expect(filtered.display).toBe('');
+    expect(filtered.important).toBe(false);
+    expect(shouldHideRawCliLine('rapitas-backend\\services\\system\\error-capture.ts')).toBe(true);
+    expect(shouldHideRawCliLine('$ rapitas-backend\\bun.lock')).toBe(true);
+  });
 });
