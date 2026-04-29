@@ -166,7 +166,7 @@ const SingleToast: React.FC<SingleToastProps> = ({
             {/* Content */}
             <div className="flex items-center space-x-3 mb-3">
               <motion.div
-                className="p-3 rounded-lg flex-shrink-0"
+                className="p-3 rounded-lg shrink-0"
                 style={{
                   backgroundColor: `${rarityColor}20`,
                   color: rarityColor,

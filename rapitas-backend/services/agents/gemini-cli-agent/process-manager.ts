@@ -53,7 +53,16 @@ export function resolveCliPath(cliName: string): string {
 export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | null): string[] {
   const args: string[] = [];
 
+  // Pass `-p` (with empty value) to trigger headless / non-interactive
+  // mode. Without it, Gemini CLI starts an interactive REPL on Windows
+  // that loads `node-pty` and crashes with `AttachConsole failed`.
+  // Per `gemini --help`, the `-p` value is "Appended to input on stdin
+  // (if any)", so the real prompt body comes through the stdin pipe in
+  // `spawnGeminiProcess` and the empty `-p` is a no-op suffix.
+  args.push('-p', '');
   args.push('--output-format', 'stream-json');
+  // Skip the workspace-trust prompt — already opted in via theme settings.
+  args.push('--skip-trust');
 
   if (config.sandboxMode) {
     args.push('--sandbox');

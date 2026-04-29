@@ -93,18 +93,36 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       logPrefix: '[API]',
     });
 
-    // Pipeline: AI review → commit → PR → cleanup → mark task done
-    reviewAndCommitWorktree({
-      taskId: taskIdNum,
-      taskTitle,
-      sessionId,
-      workDir,
-      executionDir,
-      branchName,
-      executionOutput: result.output,
-    }).catch((err) => {
-      log.warn({ err, taskId: taskIdNum }, '[API] Post-execution review pipeline failed');
-    });
+    // Determine whether this execution belongs to a workflow phase. If so,
+    // PR creation is the responsibility of `performAutoCommitAndPR` —
+    // triggered when `verify.md` is saved at the end of the verifier phase.
+    // Without this guard, the implementer phase finishes successfully and
+    // would create the PR before the verifier had a chance to run, so the
+    // user sees "PR created → 検証フェーズ" ordering.
+    const session = await prisma.agentSession
+      .findUnique({ where: { id: sessionId }, select: { mode: true } })
+      .catch(() => null);
+    const isWorkflowPhase = session?.mode?.startsWith('workflow-') === true;
+
+    if (isWorkflowPhase) {
+      log.info(
+        { taskId: taskIdNum, mode: session?.mode },
+        '[API] Workflow phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
+      );
+    } else {
+      // Pipeline: AI review → commit → PR → cleanup → mark task done
+      reviewAndCommitWorktree({
+        taskId: taskIdNum,
+        taskTitle,
+        sessionId,
+        workDir,
+        executionDir,
+        branchName,
+        executionOutput: result.output,
+      }).catch((err) => {
+        log.warn({ err, taskId: taskIdNum }, '[API] Post-execution review pipeline failed');
+      });
+    }
   } else {
     log.error(
       { errorMessage: result.errorMessage },

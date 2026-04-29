@@ -196,33 +196,33 @@ export async function handleSaveFile({
 
       // Decide whether to mark the Task itself as done.
       //
-      // Rule: the highest automation step that was requested must succeed.
-      //   - merge attempted → require merge.success (regardless of pr/commit)
-      //   - pr attempted but no merge → require pr.success
-      //   - commit attempted but no pr → require commit.success
-      //   - nothing attempted → done (manual flow; verify is terminal)
+      // Hardened rule (per user request: "ステータスの完了をPR作成後にする"):
+      // status='done' is set ONLY when a PR has been published. The user
+      // can still get auto-merge to terminal completion via auto-merge,
+      // but a verify-pass alone never marks done — verification without
+      // a PR is just "ready for PR review" and stays in_progress.
       //
-      // This prevents "PR created but merge failed" from being misreported
-      // as completed when the user explicitly enabled auto-merge.
+      //   - merge attempted → require merge.success
+      //   - pr  attempted   → require pr.success
+      //   - merge / pr NOT attempted → never auto-done; user must trigger
+      //     PR via the existing /agents/parallel-execution/pr-routes
+      //     endpoint, which marks done after merge.
       const commit = autoCommitPRResult.autoCommitResult;
       const pr = autoCommitPRResult.autoPRResult;
       const merge = autoCommitPRResult.autoMergeResult;
       const requested = autoCommitPRResult.requested;
-      const noAutomationRequested =
-        !requested?.autoCommit && !requested?.autoCreatePR && !requested?.autoMergePR;
       let automationSucceeded = false;
       if (requested?.autoMergePR) automationSucceeded = merge?.success === true;
       else if (requested?.autoCreatePR) automationSucceeded = pr?.success === true;
-      else if (requested?.autoCommit) automationSucceeded = commit?.success === true;
 
-      if (noAutomationRequested || automationSucceeded) {
+      if (automationSucceeded) {
         await prisma.task.update({
           where: { id: taskId },
           data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
         });
         taskMarkedDone = true;
       } else {
-        log.warn(
+        log.info(
           {
             taskId,
             requested,
@@ -230,7 +230,7 @@ export async function handleSaveFile({
             prOk: pr?.success,
             mergeOk: merge?.success,
           },
-          '[Workflow] verify.md saved but requested commit/PR automation did not succeed — leaving task incomplete',
+          '[Workflow] verify.md saved — task remains in_progress until a PR is created (auto or manual). Status will be marked done after PR.',
         );
       }
 

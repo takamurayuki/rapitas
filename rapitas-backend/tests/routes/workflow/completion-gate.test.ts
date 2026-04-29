@@ -26,31 +26,27 @@ interface AutomationOutcome {
 
 /** Mirror of the gate logic in workflow-handlers-files.ts */
 function shouldMarkTaskDone(o: AutomationOutcome): boolean {
-  const commit = o.autoCommitResult;
   const pr = o.autoPRResult;
   const merge = o.autoMergeResult;
   const requested = o.requested;
-  const noAutomationRequested =
-    !requested?.autoCommit && !requested?.autoCreatePR && !requested?.autoMergePR;
   let automationSucceeded = false;
   if (requested?.autoMergePR) automationSucceeded = merge?.success === true;
   else if (requested?.autoCreatePR) automationSucceeded = pr?.success === true;
-  else if (requested?.autoCommit) automationSucceeded = commit?.success === true;
-  return noAutomationRequested || automationSucceeded;
+  return automationSucceeded;
 }
 
 describe('verify completion gate', () => {
-  it('自動化が走らなかった場合（手動運用）は done にする', () => {
-    expect(shouldMarkTaskDone({})).toBe(true);
+  it('何も要求されていない場合は done にしない（PR待ち）', () => {
+    expect(shouldMarkTaskDone({})).toBe(false);
   });
 
-  it('autoCommit のみ成功（PR/Mergeなし）は done', () => {
+  it('autoCommit のみ成功でも done にしない（PR必須）', () => {
     expect(
       shouldMarkTaskDone({
         requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
         autoCommitResult: { success: true },
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('PR まで成功（Mergeなし）は done', () => {
@@ -74,7 +70,7 @@ describe('verify completion gate', () => {
     ).toBe(true);
   });
 
-  it('autoCommit 失敗（PR/Mergeなし）は done にしない', () => {
+  it('autoCommit 失敗は done にしない', () => {
     expect(
       shouldMarkTaskDone({
         requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
@@ -104,7 +100,7 @@ describe('verify completion gate', () => {
     ).toBe(false);
   });
 
-  it('autoCreatePR が要求されているがPR未実行なら done にしない', () => {
+  it('autoCreatePR 要求されているが PR 未実行なら done にしない', () => {
     expect(
       shouldMarkTaskDone({
         requested: { autoCommit: false, autoCreatePR: true, autoMergePR: false },
