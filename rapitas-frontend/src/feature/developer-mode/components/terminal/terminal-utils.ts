@@ -15,6 +15,8 @@ export type LogLine = {
 
 /** Maximum number of lines kept in memory to prevent unbounded growth. */
 export const MAX_TERMINAL_LINES = 1000;
+/** Maximum rendered terminal characters. Codex/Gemini can emit very large logs. */
+export const MAX_TERMINAL_CHARS = 120_000;
 
 /**
  * Classifies a raw log string into a LogLine type based on prefix conventions.
@@ -68,5 +70,25 @@ export function lineColor(type: LogLine['type']): string {
  */
 export function appendCapped(prev: LogLine[], newLines: LogLine[]): LogLine[] {
   const combined = [...prev, ...newLines];
-  return combined.length > MAX_TERMINAL_LINES ? combined.slice(-MAX_TERMINAL_LINES) : combined;
+  const lineCapped =
+    combined.length > MAX_TERMINAL_LINES ? combined.slice(-MAX_TERMINAL_LINES) : combined;
+
+  let remainingChars = MAX_TERMINAL_CHARS;
+  const charCapped: LogLine[] = [];
+  for (let i = lineCapped.length - 1; i >= 0; i--) {
+    const line = lineCapped[i];
+    if (remainingChars <= 0) break;
+    if (line.text.length <= remainingChars) {
+      charCapped.unshift(line);
+      remainingChars -= line.text.length;
+      continue;
+    }
+    charCapped.unshift({
+      ...line,
+      text: line.text.slice(-remainingChars),
+    });
+    break;
+  }
+
+  return charCapped;
 }

@@ -26,7 +26,6 @@ export { taskAutoGenerateRoutes } from './tasks/task-auto-generate';
 export { approvalsRoutes } from './agents/integrations/approvals';
 export { orchestrator } from '../services/core/orchestrator-instance';
 export { aiAgentRoutes } from './agents/integrations/ai-agent';
-export { parallelExecutionRoutes } from './agents/integrations/parallel-execution';
 export { agentExecutionConfigRoutes } from './agents/config/agent-execution-config';
 export { agentAvailabilityRoutes } from './agents/config/agent-availability';
 export { providerCooldownsRoutes } from './agents/config/provider-cooldowns';

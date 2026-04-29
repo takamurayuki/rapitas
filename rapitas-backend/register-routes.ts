@@ -20,7 +20,6 @@ import {
   recurringTaskRoutes,
   approvalsRoutes,
   aiAgentRoutes,
-  parallelExecutionRoutes,
   agentExecutionConfigRoutes,
   agentAvailabilityRoutes,
   providerCooldownsRoutes,
@@ -116,7 +115,6 @@ export function registerAllRoutes(app: Elysia): void {
   // Agents
   app.use(approvalsRoutes);
   app.use(aiAgentRoutes);
-  app.use(parallelExecutionRoutes);
   app.use(agentExecutionConfigRoutes);
   app.use(agentAvailabilityRoutes);
   app.use(providerCooldownsRoutes);

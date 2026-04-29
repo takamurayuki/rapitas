@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
+import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 
@@ -221,6 +222,14 @@ export default function IdeasClient() {
   // 検索がある場合はクライアント側フィルタリング結果、ない場合はサーバーサイドの総数を使用
   const displayTotalIdeas = searchQuery ? filtered.length : totalIdeas;
 
+  // 検索時のページング処理: クライアントサイドでページング
+  const paginatedFiltered = searchQuery
+    ? filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : filtered;
+
+  // 動的ページ数計算: 検索時とフィルタ時で異なるtotal値を使用
+  const dynamicTotalPages = searchQuery ? Math.ceil(filtered.length / itemsPerPage) : totalPages;
+
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
       <div className="mx-auto max-w-4xl px-3 sm:px-4 md:px-6 py-4">
@@ -404,7 +413,7 @@ export default function IdeasClient() {
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((idea) => {
+            {paginatedFiltered.map((idea) => {
               const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
               return (
                 <div
@@ -425,10 +434,21 @@ export default function IdeasClient() {
                         {idea.scope === 'global' ? (
                           <Globe className="h-3 w-3 text-indigo-400" />
                         ) : (
-                          <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400">
-                            <FolderOpen className="h-3 w-3" />
-                            {themes.find((t) => t.id === idea.themeId)?.name ?? 'プロジェクト'}
-                          </span>
+                          (() => {
+                            const currentTheme = themes.find((t) => t.id === idea.themeId);
+                            const ThemeIcon =
+                              getIconComponent(currentTheme?.icon || '') || FolderOpen;
+                            const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
+                            return (
+                              <span
+                                className="flex items-center gap-0.5 text-[9px]"
+                                style={{ color: themeColor }}
+                              >
+                                <ThemeIcon className="h-3 w-3" />
+                                {currentTheme?.name ?? 'プロジェクト'}
+                              </span>
+                            );
+                          })()
                         )}
                       </div>
                       {idea.content !== idea.title && (
@@ -476,15 +496,15 @@ export default function IdeasClient() {
           </div>
         )}
 
-        {/* Pagination - 検索時は非表示 */}
-        {!isLoading && !searchQuery && ideas.length > 0 && (
+        {/* Pagination - 検索時も表示 */}
+        {!isLoading && filtered.length > 0 && (
           <Pagination
             currentPage={currentPage}
-            totalPages={totalPages}
+            totalPages={dynamicTotalPages}
             itemsPerPage={itemsPerPage}
             onPageChange={handlePageChange}
             onItemsPerPageChange={handleItemsPerPageChange}
-            itemsPerPageOptions={[5, 10, 15, 25]}
+            itemsPerPageOptions={[5, 10, 15]}
           />
         )}
       </div>

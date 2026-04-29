@@ -18,9 +18,11 @@ const agentWorkerManager = AgentWorkerManager.getInstance();
 export const statusRoute = new Elysia().get(
   '/tasks/:id/execution-status',
   async (context) => {
-    const { params } = context;
+    const { params, query } = context;
     try {
       const taskId = parseInt(params.id);
+      const outputOffset =
+        typeof query.outputOffset === 'string' ? parseInt(query.outputOffset, 10) : NaN;
 
       const config = await prisma.developerModeConfig.findUnique({
         where: { taskId },
@@ -85,6 +87,9 @@ export const statusRoute = new Elysia().get(
         name: string;
         modelId: string | null;
       } | null;
+      const fullOutput = latestExecution?.output || '';
+      const hasOutputOffset = Number.isFinite(outputOffset) && outputOffset >= 0;
+      const output = hasOutputOffset ? fullOutput.slice(outputOffset) : fullOutput;
 
       return {
         sessionId: latestSession.id,
@@ -92,7 +97,8 @@ export const statusRoute = new Elysia().get(
         sessionMode: latestSession.mode || null,
         executionId: latestExecution?.id,
         executionStatus: latestExecution?.status,
-        output: latestExecution?.output,
+        output,
+        outputLength: fullOutput.length,
         errorMessage: latestExecution?.errorMessage,
         startedAt: latestExecution?.startedAt,
         completedAt: latestExecution?.completedAt,
@@ -126,6 +132,9 @@ export const statusRoute = new Elysia().get(
   {
     params: t.Object({
       id: t.String(),
+    }),
+    query: t.Object({
+      outputOffset: t.Optional(t.String()),
     }),
   },
 );

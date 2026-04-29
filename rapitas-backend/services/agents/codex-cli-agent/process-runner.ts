@@ -16,6 +16,7 @@ import { createLogger } from '../../../config/logger';
 import type { CodexCliAgentConfig } from './types';
 import { resolveCliPath } from './types';
 import { processJsonEvent } from './json-event-handler';
+import { filterCliDiagnosticOutput, shouldHideRawCliLine } from '../cli-output-filter';
 
 const logger = createLogger('codex-cli-agent/process-runner');
 
@@ -294,8 +295,11 @@ export function spawnCodexProcess(
               continue;
             }
             logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-            state.outputBuffer += line + '\n';
-            callbacks.emitOutput(line + '\n');
+            if (!shouldHideRawCliLine(line)) {
+              const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
+              state.outputBuffer += displayLine + '\n';
+              callbacks.emitOutput(displayLine + '\n');
+            }
           }
         }
       });
@@ -306,7 +310,11 @@ export function spawnCodexProcess(
         lastOutputTime = Date.now();
         const modelMatch = output.match(/(?:^|\n)model:\s*([^\r\n]+)/i);
         if (modelMatch?.[1]) state.actualModel = modelMatch[1].trim();
-        callbacks.emitOutput(output, true);
+        const filtered = filterCliDiagnosticOutput(output, { provider: 'codex' });
+        if (filtered.display) {
+          state.outputBuffer += filtered.display;
+          callbacks.emitOutput(filtered.display, filtered.important);
+        }
       });
 
       state.process.on('close', (code: number | null) => {

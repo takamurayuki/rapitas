@@ -18,7 +18,12 @@ import { StatusDot } from './terminal/TerminalLine';
 import { TerminalOutput } from './terminal/TerminalOutput';
 import { TerminalInput } from './terminal/TerminalInput';
 import { useTerminalSubmit } from './terminal/useTerminalSubmit';
-import { type LogLine, classifyLine, appendCapped } from './terminal/terminal-utils';
+import {
+  type LogLine,
+  MAX_TERMINAL_CHARS,
+  classifyLine,
+  appendCapped,
+} from './terminal/terminal-utils';
 
 type Props = {
   taskId: number;
@@ -121,7 +126,11 @@ export const TerminalPanel = memo(function TerminalPanel({
     if (onRestoreExecutionState) {
       onRestoreExecutionState().then((state) => {
         if (state?.output) {
-          const restoredLines = state.output
+          const restoredOutput =
+            state.output.length > MAX_TERMINAL_CHARS
+              ? state.output.slice(-MAX_TERMINAL_CHARS)
+              : state.output;
+          const restoredLines = restoredOutput
             .split('\n')
             .filter((l) => l.trim() && l.trim() !== 'null' && l.trim() !== 'undefined')
             .map((text) => ({
@@ -130,10 +139,13 @@ export const TerminalPanel = memo(function TerminalPanel({
               text,
               ts: Date.now(),
             }));
-          setLines(restoredLines);
+          setLines((prev) => appendCapped(prev, restoredLines));
         }
         if (state?.status === 'running' || state?.status === 'waiting_for_input') {
-          polling.startPolling();
+          polling.startPolling({
+            initialOutputLength: state.output?.length ?? 0,
+            preserveLogs: true,
+          });
         }
       });
     }
