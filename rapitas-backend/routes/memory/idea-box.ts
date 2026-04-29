@@ -12,8 +12,11 @@ import {
   updateIdea,
   deleteIdea,
   getIdeaStats,
+  markIdeaAsUsed,
 } from '../../services/memory/idea-box-service';
 import { runInnovationSession } from '../../services/memory/innovation-session';
+import { prisma } from '../../config/database';
+import { createTask } from '../../services/task/task-mutations';
 
 const log = createLogger('routes:idea-box');
 
@@ -174,4 +177,140 @@ export const ideaBoxRoutes = new Elysia()
       set.status = 500;
       return { error: 'アイデアの削除に失敗しました' };
     }
-  });
+  })
+
+  /** Convert an idea to a task using AI. */
+  .post(
+    '/idea-box/:id/convert-to-task',
+    async ({ params, body, set }) => {
+      const ideaId = parseInt(params.id);
+      if (isNaN(ideaId)) {
+        set.status = 400;
+        return { error: 'Invalid idea ID' };
+      }
+
+      try {
+        // Get the idea
+        const idea = await prisma.knowledgeEntry.findFirst({
+          where: { id: ideaId, sourceType: 'idea_box' },
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            category: true,
+            themeId: true,
+          },
+        });
+
+        if (!idea) {
+          set.status = 404;
+          return { error: 'アイデアが見つかりません' };
+        }
+
+        // Check if already used
+        const existingUsage = await prisma.knowledgeEntry.findFirst({
+          where: { id: ideaId, sourceId: { startsWith: 'used_task_' } },
+        });
+
+        if (existingUsage) {
+          set.status = 400;
+          return { error: 'このアイデアは既にタスク化されています' };
+        }
+
+        // AI conversion prompt
+        const prompt = `以下のアイデアを具体的なタスクに変換してください：
+
+タイトル: ${idea.title}
+内容: ${idea.content}
+カテゴリ: ${idea.category}
+
+以下のJSON形式で回答してください：
+{
+  "title": "タスクのタイトル",
+  "description": "具体的な作業内容の説明",
+  "priority": "high|medium|low",
+  "estimatedHours": 数値,
+  "status": "todo"
+}`;
+
+        // Call AI service (basic implementation)
+        const aiResponse = await fetch(
+          `${process.env.API_BASE_URL || 'http://localhost:3001'}/ai/chat`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: prompt,
+              systemPrompt:
+                'あなたはタスク管理のエキスパートです。アイデアを実行可能な具体的タスクに変換してください。',
+            }),
+          },
+        );
+
+        let taskData;
+        if (aiResponse.ok) {
+          const aiResult = (await aiResponse.json()) as { message?: string };
+          try {
+            taskData = JSON.parse(aiResult.message ?? '{}');
+          } catch {
+            // AI response parsing failed, use fallback
+            taskData = {
+              title: idea.title,
+              description: idea.content,
+              priority: 'medium',
+              estimatedHours: 1,
+              status: 'todo',
+            };
+          }
+        } else {
+          // AI service failed, use fallback
+          taskData = {
+            title: idea.title,
+            description: idea.content,
+            priority: 'medium',
+            estimatedHours: 1,
+            status: 'todo',
+          };
+        }
+
+        // Create the task
+        const newTask = await createTask(prisma, {
+          title: taskData.title,
+          description: taskData.description,
+          priority: taskData.priority || 'medium',
+          estimatedHours: taskData.estimatedHours || 1,
+          status: taskData.status || 'todo',
+          themeId: body.themeId ?? idea.themeId ?? undefined,
+        });
+
+        if (!newTask) {
+          set.status = 500;
+          return { error: 'タスクの作成に失敗しました' };
+        }
+
+        // Mark idea as used
+        await markIdeaAsUsed(ideaId, newTask.id);
+
+        log.info({ ideaId, taskId: newTask.id }, 'Idea converted to task');
+
+        return {
+          success: true,
+          taskId: newTask.id,
+          task: taskData,
+        };
+      } catch (err) {
+        log.error({ err, ideaId }, 'Failed to convert idea to task');
+        set.status = 500;
+        return { error: 'アイデアのタスク変換に失敗しました' };
+      }
+    },
+    {
+      params: t.Object({
+        id: t.String(),
+      }),
+      body: t.Object({
+        themeId: t.Optional(t.Number()),
+        customInstructions: t.Optional(t.String()),
+      }),
+    },
+  );

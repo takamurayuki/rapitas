@@ -34,6 +34,18 @@ export type QuestionKey = {
 /**
  * Question details for UI rendering (options, headers, etc.)
  */
+/**
+ * One sub-question inside a multi-question AskUserQuestion call.
+ * Each gets its own header / options / multiSelect so the UI can step
+ * through them one at a time, Claude-WebUI style.
+ */
+export type SubQuestion = {
+  header?: string;
+  question: string;
+  options?: Array<{ label: string; description?: string }>;
+  multiSelect?: boolean;
+};
+
 export type QuestionDetails = {
   headers?: string[];
   options?: Array<{
@@ -41,6 +53,12 @@ export type QuestionDetails = {
     description?: string;
   }>;
   multiSelect?: boolean;
+  /**
+   * Full sequenced sub-question list. Populated when the agent emits a
+   * `questions` array with multiple entries; the UI renders these one
+   * at a time and concatenates answers when sending back to the agent.
+   */
+  questions?: SubQuestion[];
 };
 
 /**

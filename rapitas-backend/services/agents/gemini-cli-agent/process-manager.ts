@@ -172,6 +172,11 @@ export function spawnGeminiProcess(
   if (isWindows) {
     const argsString = args
       .map((arg) => {
+        // Quote empty strings explicitly — without "" the empty value
+        // collapses in cmd.exe and the next flag is consumed as the
+        // missing value (`-p` followed by `--output-format` would
+        // produce `Not enough arguments following: p`).
+        if (arg === '') return '""';
         if (arg.includes(' ') || arg.includes('&') || arg.includes('|')) {
           return `"${arg}"`;
         }

@@ -12,6 +12,7 @@ import {
   User,
   Trash2,
   Pencil,
+  ArrowRight,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
@@ -72,6 +73,10 @@ export default function IdeasClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const { categories, themes } = useFilterDataStore();
+
+  // タスク変換関連のstate
+  const [convertingIdeaId, setConvertingIdeaId] = useState<number | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
 
   const filteredThemes = newCategoryId
     ? themes.filter((t) => t.categoryId === newCategoryId)
@@ -209,6 +214,38 @@ export default function IdeasClient() {
       /* non-critical */
     }
   }, []);
+
+  const handleConvertToTask = useCallback(
+    async (idea: Idea) => {
+      setConvertingIdeaId(idea.id);
+      setIsConverting(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            themeId: idea.themeId,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Task created:', result);
+          // Refresh ideas to show the idea as used
+          await fetchIdeas();
+        } else {
+          console.error('Failed to convert idea to task');
+        }
+      } catch (error) {
+        console.error('Error converting idea to task:', error);
+      } finally {
+        setConvertingIdeaId(null);
+        setIsConverting(false);
+      }
+    },
+    [fetchIdeas],
+  );
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
   const filtered = ideas.filter((idea) => {
@@ -474,6 +511,20 @@ export default function IdeasClient() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      {!idea.usedInTaskId && (
+                        <button
+                          onClick={() => handleConvertToTask(idea)}
+                          disabled={isConverting && convertingIdeaId === idea.id}
+                          className="rounded p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
+                          aria-label="タスク化"
+                        >
+                          {isConverting && convertingIdeaId === idea.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEdit(idea)}
                         className="rounded p-1 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"

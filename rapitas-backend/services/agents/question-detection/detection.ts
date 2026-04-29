@@ -113,6 +113,23 @@ export function extractQuestionInfo(input: Record<string, unknown> | undefined):
       questionDetails.headers = headers;
     }
 
+    // Preserve every sub-question (header / question / options / multiSelect)
+    // so the frontend can step through them one at a time. Previously only
+    // the first question's options were kept and the rest were lost.
+    questionDetails.questions = questions
+      .filter((q) => (q.question || q.header || '').trim().length > 0)
+      .map((q) => ({
+        header: q.header,
+        question: q.question || q.header || '',
+        options: Array.isArray(q.options)
+          ? q.options.map((opt) => ({
+              label: opt.label || '',
+              description: opt.description,
+            }))
+          : undefined,
+        multiSelect: typeof q.multiSelect === 'boolean' ? q.multiSelect : undefined,
+      }));
+
     const firstQuestion = questions[0];
     if (firstQuestion) {
       if (firstQuestion.options && Array.isArray(firstQuestion.options)) {

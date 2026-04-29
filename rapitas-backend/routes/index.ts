@@ -98,6 +98,7 @@ export { githubRoutes, taskGithubRoutes } from './social/github';
 export { statisticsRoutes } from './analytics/statistics';
 export { reportsRoutes } from './analytics/reports';
 export { intelligentSuggestionsRoutes } from './analytics/intelligent-suggestions';
+
 export { weeklyReviewRoutes } from './analytics/weekly-review';
 
 // Lifestyle
