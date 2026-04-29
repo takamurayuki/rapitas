@@ -53,7 +53,18 @@ export function resolveCliPath(cliName: string): string {
 export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | null): string[] {
   const args: string[] = [];
 
+  // Pass -p with an empty trailing prompt: this triggers Gemini's
+  // non-interactive (headless) mode while still letting us feed the actual
+  // prompt body via stdin. The CLI documents `-p <prompt>` as
+  // "Appended to input on stdin (if any)", so the empty -p value is
+  // benign and stdin content becomes the effective prompt.
+  // Without -p the CLI starts an interactive REPL which on Windows tries
+  // to load node-pty and fails with `AttachConsole failed`.
+  args.push('-p', '');
   args.push('--output-format', 'stream-json');
+  // Skip the workspace-trust prompt; the working directory was already
+  // opted into by the user via theme settings.
+  args.push('--skip-trust');
 
   if (config.sandboxMode) {
     args.push('--sandbox');
