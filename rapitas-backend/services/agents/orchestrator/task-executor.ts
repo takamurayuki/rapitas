@@ -289,6 +289,7 @@ export async function executeTask(
       }
     }
 
+    let fallbackSucceeded = false;
     if (needsFallback && !options.disableFallback) {
       const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
       const fallback = await findFallbackAgentConfig(errorBlob, agentConfig.type);
@@ -331,6 +332,7 @@ export async function executeTask(
           agentInfo.agent = newAgent;
           const retryResult = await newAgent.execute(taskWithAnalysis);
           if (retryResult.success) {
+            fallbackSucceeded = true;
             agentConfig = newAgentConfig;
             resolvedAgentConfigId = fbId;
             result = retryResult;
@@ -343,6 +345,15 @@ export async function executeTask(
           await agentFactory.removeAgent(newAgent.id);
         }
       }
+    }
+    if (needsFallback && !fallbackSucceeded) {
+      result = {
+        ...result,
+        success: false,
+        errorMessage:
+          result.errorMessage ||
+          'Provider failure detected and no fallback agent completed successfully',
+      };
     }
 
     await saveExecutionResult(

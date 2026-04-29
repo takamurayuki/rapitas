@@ -14,12 +14,25 @@
  * it inline after the first failure without orchestration overhead.
  */
 
-import { prisma } from '../../config/database';
-import { createLogger } from '../../config/logger';
 import { classifyAgentError, type ClassifiedError } from './agent-error-classifier';
 import { isProviderInCooldown, markProviderCooldown, type Provider } from './provider-cooldown';
 
-const log = createLogger('agent-fallback');
+const log = {
+  info: (data: unknown, message: string) => console.info(message, data),
+  warn: (data: unknown, message: string) => console.warn(message, data),
+};
+
+type AgentConfigRecord = {
+  id: number;
+  agentType: string;
+  name: string;
+  apiKeyEncrypted: string | null;
+  endpoint: string | null;
+  modelId: string | null;
+  isActive?: boolean;
+  isDefault?: boolean;
+  updatedAt?: Date;
+};
 
 /**
  * Map a stored agentType string to the canonical Provider used by the
@@ -57,8 +70,9 @@ export function providerToAgentTypes(provider: Provider): string[] {
 export async function findAgentConfigForProvider(
   provider: Provider,
   opts?: { excludeConfigId?: number },
-): Promise<Awaited<ReturnType<typeof prisma.aIAgentConfig.findFirst>> | null> {
+): Promise<AgentConfigRecord | null> {
   if (isProviderInCooldown(provider)) return null;
+  const { prisma } = await import('../../config/database');
   const agentTypes = providerToAgentTypes(provider);
   const candidates = await prisma.aIAgentConfig.findMany({
     where: { isActive: true, agentType: { in: agentTypes } },
@@ -81,7 +95,7 @@ export async function findFallbackAgentConfig(
   errorBlob: string,
   currentAgentType: string | null | undefined,
 ): Promise<{
-  agentConfig: Awaited<ReturnType<typeof prisma.aIAgentConfig.findFirst>>;
+  agentConfig: AgentConfigRecord;
   classified: ClassifiedError;
 } | null> {
   if (!errorBlob.trim()) return null;
@@ -99,6 +113,7 @@ export async function findFallbackAgentConfig(
   // Pick the most appropriate alternative: prefer the user's default,
   // otherwise the most recently updated active config from a different
   // provider that isn't itself in cooldown.
+  const { prisma } = await import('../../config/database');
   const candidates = await prisma.aIAgentConfig.findMany({
     where: { isActive: true },
     orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],

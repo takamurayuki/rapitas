@@ -311,7 +311,15 @@ export class WorkflowOrchestrator {
         firstResult: first,
         runAgent,
       });
-      return fallback ?? first;
+      if (fallback) return fallback;
+      if (firstHasImplicitError) {
+        return {
+          ...first,
+          success: false,
+          error: first.error || 'Provider failure detected and no fallback completed successfully',
+        };
+      }
+      return first;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowOrchestrator] Error in ${transition.role}: ${errorMessage}`);

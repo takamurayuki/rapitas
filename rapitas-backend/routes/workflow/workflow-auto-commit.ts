@@ -20,6 +20,11 @@ import {
 const log = createLogger('routes:workflow:auto-commit');
 
 export type AutoCommitPRResult = {
+  requested?: {
+    autoCommit: boolean;
+    autoCreatePR: boolean;
+    autoMergePR: boolean;
+  };
   autoCommitResult?: {
     success: boolean;
     hash?: string;
@@ -48,6 +53,11 @@ export async function performAutoCommitAndPR(
 
   try {
     const execConfig = await prisma.agentExecutionConfig.findUnique({ where: { taskId } });
+    result.requested = {
+      autoCommit: !!execConfig?.autoCommit,
+      autoCreatePR: !!execConfig?.autoCreatePR,
+      autoMergePR: !!execConfig?.autoMergePR,
+    };
 
     if (
       !execConfig ||
@@ -136,6 +146,13 @@ export async function performAutoCommitAndPR(
     }
 
     // Process autoCreatePR (only if autoCommit succeeded)
+    if (execConfig.autoCreatePR && !execConfig.autoCommit) {
+      result.autoPRResult = {
+        success: false,
+        error:
+          'autoCreatePR requires autoCommit so the workflow can identify the branch to publish.',
+      };
+    }
     if (execConfig.autoCreatePR && result.autoCommitResult?.success) {
       try {
         const prTitle = `[Task-${taskId}] ${task.title}`;

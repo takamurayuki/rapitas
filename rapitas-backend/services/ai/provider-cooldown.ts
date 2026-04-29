@@ -11,10 +11,11 @@
  * touching call sites.
  */
 
-import { createLogger } from '../../config/logger';
 import type { Provider } from './model-discovery/types';
 
-const log = createLogger('provider-cooldown');
+const log = {
+  warn: (data: unknown, message: string) => console.warn(message, data),
+};
 
 export type { Provider };
 

@@ -25,15 +25,32 @@ export const stopRoute = new Elysia().post(
     try {
       const task = await prisma.task.findUnique({
         where: { id: taskId },
-        select: { workingDirectory: true },
+        select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
       });
+      const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
+
+      await prisma.workflowQueueItem
+        .updateMany({
+          where: {
+            taskId,
+            status: { in: ['queued', 'running', 'waiting_approval'] },
+          },
+          data: {
+            status: 'cancelled',
+            completedAt: new Date(),
+            errorMessage: 'Cancelled by user',
+          },
+        })
+        .catch((err) => {
+          log.warn({ err, taskId }, '[stop-execution] Failed to cancel workflow queue items');
+        });
 
       const config = await prisma.developerModeConfig.findUnique({
         where: { taskId },
         include: {
           agentSessions: {
             where: {
-              status: { in: ['running', 'pending'] },
+              status: { in: ['active', 'running', 'pending'] },
             },
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -98,10 +115,10 @@ export const stopRoute = new Elysia().post(
             }
           }
 
-          if (task?.workingDirectory) {
+          if (workingDirectory) {
             try {
-              await agentWorkerManager.revertChanges(task.workingDirectory);
-              log.info(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
+              await agentWorkerManager.revertChanges(workingDirectory);
+              log.info(`[stop-execution] Reverted changes in ${workingDirectory}`);
             } catch (revertError) {
               log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
             }
@@ -116,9 +133,9 @@ export const stopRoute = new Elysia().post(
           }
 
           // Clean up worktree if session has one
-          if (executionSession?.session?.worktreePath && task?.workingDirectory) {
+          if (executionSession?.session?.worktreePath && workingDirectory) {
             try {
-              await removeWorktree(task.workingDirectory, executionSession.session.worktreePath);
+              await removeWorktree(workingDirectory, executionSession.session.worktreePath);
               await prisma.agentSession.update({
                 where: { id: executionSession.session.id },
                 data: { worktreePath: null },
@@ -134,6 +151,7 @@ export const stopRoute = new Elysia().post(
             }
           }
 
+          releaseTaskExecutionLock(taskId);
           return {
             success: true,
             message: 'Execution cancelled and changes reverted',
@@ -159,6 +177,7 @@ export const stopRoute = new Elysia().post(
 
       for (const execution of pendingExecutions) {
         try {
+          await orchestrator.stopExecution(execution.id).catch(() => false);
           await prisma.agentExecutionLog.deleteMany({
             where: { executionId: execution.id },
           });
@@ -183,7 +202,7 @@ export const stopRoute = new Elysia().post(
         await prisma.agentSession.update({
           where: { id: session.id },
           data: {
-            status: 'failed',
+            status: 'cancelled',
             completedAt: new Date(),
             errorMessage: 'Cancelled by user',
           },
@@ -196,9 +215,9 @@ export const stopRoute = new Elysia().post(
       }
 
       // Clean up worktree if session has one
-      if (session.worktreePath && task?.workingDirectory) {
+      if (session.worktreePath && workingDirectory) {
         try {
-          await removeWorktree(task.workingDirectory, session.worktreePath);
+          await removeWorktree(workingDirectory, session.worktreePath);
           await prisma.agentSession.update({
             where: { id: session.id },
             data: { worktreePath: null },
@@ -212,10 +231,10 @@ export const stopRoute = new Elysia().post(
         }
       }
 
-      if (task?.workingDirectory) {
+      if (workingDirectory) {
         try {
-          await agentWorkerManager.revertChanges(task.workingDirectory);
-          log.info(`[stop-execution] Reverted changes in ${task.workingDirectory}`);
+          await agentWorkerManager.revertChanges(workingDirectory);
+          log.info(`[stop-execution] Reverted changes in ${workingDirectory}`);
         } catch (revertError) {
           log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
         }

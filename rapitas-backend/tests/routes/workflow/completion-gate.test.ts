@@ -14,6 +14,11 @@
 import { describe, it, expect } from 'bun:test';
 
 interface AutomationOutcome {
+  requested?: {
+    autoCommit: boolean;
+    autoCreatePR: boolean;
+    autoMergePR: boolean;
+  };
   autoCommitResult?: { success: boolean };
   autoPRResult?: { success: boolean };
   autoMergeResult?: { success: boolean };
@@ -24,12 +29,14 @@ function shouldMarkTaskDone(o: AutomationOutcome): boolean {
   const commit = o.autoCommitResult;
   const pr = o.autoPRResult;
   const merge = o.autoMergeResult;
-  const noAutomationAttempted = !commit && !pr && !merge;
+  const requested = o.requested;
+  const noAutomationRequested =
+    !requested?.autoCommit && !requested?.autoCreatePR && !requested?.autoMergePR;
   let automationSucceeded = false;
-  if (merge !== undefined) automationSucceeded = merge.success === true;
-  else if (pr !== undefined) automationSucceeded = pr.success === true;
-  else if (commit !== undefined) automationSucceeded = commit.success === true;
-  return noAutomationAttempted || automationSucceeded;
+  if (requested?.autoMergePR) automationSucceeded = merge?.success === true;
+  else if (requested?.autoCreatePR) automationSucceeded = pr?.success === true;
+  else if (requested?.autoCommit) automationSucceeded = commit?.success === true;
+  return noAutomationRequested || automationSucceeded;
 }
 
 describe('verify completion gate', () => {
@@ -38,12 +45,18 @@ describe('verify completion gate', () => {
   });
 
   it('autoCommit のみ成功（PR/Mergeなし）は done', () => {
-    expect(shouldMarkTaskDone({ autoCommitResult: { success: true } })).toBe(true);
+    expect(
+      shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
+        autoCommitResult: { success: true },
+      }),
+    ).toBe(true);
   });
 
   it('PR まで成功（Mergeなし）は done', () => {
     expect(
       shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
         autoCommitResult: { success: true },
         autoPRResult: { success: true },
       }),
@@ -53,6 +66,7 @@ describe('verify completion gate', () => {
   it('Merge まで成功は done', () => {
     expect(
       shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
         autoCommitResult: { success: true },
         autoPRResult: { success: true },
         autoMergeResult: { success: true },
@@ -61,12 +75,18 @@ describe('verify completion gate', () => {
   });
 
   it('autoCommit 失敗（PR/Mergeなし）は done にしない', () => {
-    expect(shouldMarkTaskDone({ autoCommitResult: { success: false } })).toBe(false);
+    expect(
+      shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: false, autoMergePR: false },
+        autoCommitResult: { success: false },
+      }),
+    ).toBe(false);
   });
 
   it('Commit 成功するが PR 失敗は done にしない', () => {
     expect(
       shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
         autoCommitResult: { success: true },
         autoPRResult: { success: false },
       }),
@@ -76,9 +96,18 @@ describe('verify completion gate', () => {
   it('Merge 失敗は done にしない（PR成功でも）', () => {
     expect(
       shouldMarkTaskDone({
+        requested: { autoCommit: true, autoCreatePR: true, autoMergePR: true },
         autoCommitResult: { success: true },
         autoPRResult: { success: true },
         autoMergeResult: { success: false },
+      }),
+    ).toBe(false);
+  });
+
+  it('autoCreatePR が要求されているがPR未実行なら done にしない', () => {
+    expect(
+      shouldMarkTaskDone({
+        requested: { autoCommit: false, autoCreatePR: true, autoMergePR: false },
       }),
     ).toBe(false);
   });
