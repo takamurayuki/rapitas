@@ -114,7 +114,9 @@ export class GeminiCliAgent extends BaseAgent {
       logger.info(`${this.logPrefix} Using ${task.analysisInfo ? 'structured' : 'simple'} prompt`);
 
       const resumeId = this.config.checkpointId || task.resumeSessionId;
-      const args = buildCliArgs(prompt, this.config, resumeId);
+      // NOTE: Prompt is now piped via stdin in spawnGeminiProcess to avoid
+      // Windows shell truncation of long multi-line prompts.
+      const args = buildCliArgs(this.config, resumeId);
 
       const isWindows = process.platform === 'win32';
       const geminiPath = resolveCliPath(
@@ -133,7 +135,7 @@ export class GeminiCliAgent extends BaseAgent {
 
       try {
         const env = buildProcessEnv(this.config);
-        this.process = spawnGeminiProcess(geminiPath, args, workDir, env);
+        this.process = spawnGeminiProcess(geminiPath, args, workDir, env, prompt);
 
         logger.info(`${this.logPrefix} Process spawned with PID: ${this.process.pid}`);
         this.emitOutput(`${this.logPrefix} Process PID: ${this.process.pid}\n`);

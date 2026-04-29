@@ -38,19 +38,21 @@ export function resolveCliPath(cliName: string): string {
 /**
  * Build the spawn arguments array for the Gemini CLI.
  *
- * @param prompt - Prompt string to pass via -p flag / -pフラグで渡すプロンプト
+ * IMPORTANT: The prompt itself is not passed in `args` any more — long
+ * multi-line workflow prompts get truncated when serialised through
+ * `shell: true` on Windows, which is why Gemini was responding to only
+ * the first line ("use Japanese") and idling. The prompt is instead
+ * piped via stdin in `spawnGeminiProcess`. The Gemini CLI auto-detects
+ * piped stdin and consumes the body as the user prompt without entering
+ * interactive mode.
+ *
  * @param config - Agent configuration / エージェント設定
  * @param resumeId - Optional checkpoint/session ID to resume from / 再開用チェックポイントID
  * @returns Array of CLI argument strings
  */
-export function buildCliArgs(
-  prompt: string,
-  config: GeminiCliAgentConfig,
-  resumeId?: string | null,
-): string[] {
+export function buildCliArgs(config: GeminiCliAgentConfig, resumeId?: string | null): string[] {
   const args: string[] = [];
 
-  args.push('-p', prompt);
   args.push('--output-format', 'stream-json');
 
   if (config.sandboxMode) {
@@ -96,6 +98,9 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
     NO_COLOR: '1',
     CI: '1',
     TERM: 'dumb',
+    // Workspaces opted-in by the user via theme settings are trusted; without
+    // this Gemini exits with code 55 ("not a trusted directory").
+    GEMINI_CLI_TRUST_WORKSPACE: process.env.GEMINI_CLI_TRUST_WORKSPACE ?? 'true',
   };
 
   if (config.apiKey) {
@@ -122,12 +127,19 @@ export function buildProcessEnv(config: GeminiCliAgentConfig): NodeJS.ProcessEnv
 }
 
 /**
- * Spawn the Gemini CLI process.
+ * Spawn the Gemini CLI process and pipe the prompt via stdin.
+ *
+ * The prompt is delivered through stdin rather than the `-p` flag because
+ * long workflow prompts (system header + role context + file-save curl
+ * snippets) get truncated when serialised through `shell: true` on
+ * Windows, making Gemini reply only to the first line. Piping through
+ * stdin has no length / quoting limits.
  *
  * @param geminiPath - Resolved path to the Gemini CLI executable
- * @param args - CLI argument array
+ * @param args - CLI argument array (must NOT contain the prompt)
  * @param workDir - Working directory for the process
  * @param env - Environment variables
+ * @param prompt - User prompt to feed via stdin
  * @returns Spawned ChildProcess instance
  */
 export function spawnGeminiProcess(
@@ -135,6 +147,7 @@ export function spawnGeminiProcess(
   args: string[],
   workDir: string,
   env: NodeJS.ProcessEnv,
+  prompt: string,
 ): ChildProcess {
   const isWindows = process.platform === 'win32';
 
@@ -158,7 +171,10 @@ export function spawnGeminiProcess(
     finalArgs = args;
   }
 
-  logger.info(`[ProcessManager] Final command: ${finalCommand.substring(0, 100)}...`);
+  logger.info(
+    { promptChars: prompt.length },
+    `[ProcessManager] Spawning Gemini (prompt via stdin)`,
+  );
 
   const proc = spawn(finalCommand, finalArgs, {
     cwd: workDir,
@@ -175,8 +191,12 @@ export function spawnGeminiProcess(
     proc.stderr.setEncoding('utf8');
   }
 
-  // NOTE: Prompt passed via -p flag, so stdin is not needed
+  // Feed the prompt via stdin then close it so Gemini knows the prompt
+  // is complete and can begin processing instead of waiting interactively.
   if (proc.stdin) {
+    proc.stdin.setDefaultEncoding('utf8');
+    proc.stdin.write(prompt);
+    if (!prompt.endsWith('\n')) proc.stdin.write('\n');
     proc.stdin.end();
   }
 
