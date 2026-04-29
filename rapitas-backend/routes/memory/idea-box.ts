@@ -17,8 +17,10 @@ import {
 import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
 import { createTask } from '../../services/task/task-mutations';
+import { sendAIMessage, type AIProvider } from '../../utils/ai-client';
 
 const log = createLogger('routes:idea-box');
+const AI_PROVIDERS: AIProvider[] = ['claude', 'chatgpt', 'gemini', 'ollama'];
 
 export const ideaBoxRoutes = new Elysia()
 
@@ -190,7 +192,6 @@ export const ideaBoxRoutes = new Elysia()
       }
 
       try {
-        // Get the idea
         const idea = await prisma.knowledgeEntry.findFirst({
           where: { id: ideaId, sourceType: 'idea_box' },
           select: {
@@ -199,6 +200,7 @@ export const ideaBoxRoutes = new Elysia()
             content: true,
             category: true,
             themeId: true,
+            sourceId: true,
           },
         });
 
@@ -207,80 +209,89 @@ export const ideaBoxRoutes = new Elysia()
           return { error: 'アイデアが見つかりません' };
         }
 
-        // Check if already used
-        const existingUsage = await prisma.knowledgeEntry.findFirst({
-          where: { id: ideaId, sourceId: { startsWith: 'used_task_' } },
-        });
-
-        if (existingUsage) {
+        if (idea.sourceId?.startsWith('used_task_')) {
           set.status = 400;
           return { error: 'このアイデアは既にタスク化されています' };
         }
 
-        // AI conversion prompt
+        const targetThemeId = body.themeId ?? idea.themeId ?? undefined;
+        const targetTheme = targetThemeId
+          ? await prisma.theme.findUnique({
+              where: { id: targetThemeId },
+              select: { id: true, name: true, category: { select: { id: true, name: true } } },
+            })
+          : null;
+
+        if (targetThemeId && !targetTheme) {
+          set.status = 400;
+          return { error: '指定されたテーマが見つかりません' };
+        }
+
         const prompt = `以下のアイデアを具体的なタスクに変換してください：
 
 タイトル: ${idea.title}
 内容: ${idea.content}
-カテゴリ: ${idea.category}
+アイデア分類: ${idea.category}
+登録先カテゴリ: ${targetTheme?.category?.name ?? '未指定'}
+登録先テーマ: ${targetTheme?.name ?? '未指定'}
+追加指示: ${body.customInstructions?.trim() || 'なし'}
 
 以下のJSON形式で回答してください：
 {
   "title": "タスクのタイトル",
   "description": "具体的な作業内容の説明",
-  "priority": "high|medium|low",
+  "priority": "urgent|high|medium|low",
   "estimatedHours": 数値,
   "status": "todo"
 }`;
 
-        // Call AI service (basic implementation)
-        const aiResponse = await fetch(
-          `${process.env.API_BASE_URL || 'http://localhost:3001'}/ai/chat`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: prompt,
-              systemPrompt:
-                'あなたはタスク管理のエキスパートです。アイデアを実行可能な具体的タスクに変換してください。',
-            }),
-          },
-        );
+        let taskData = {
+          title: idea.title,
+          description: idea.content,
+          priority: 'medium',
+          estimatedHours: 1,
+          status: 'todo',
+        };
 
-        let taskData;
-        if (aiResponse.ok) {
-          const aiResult = (await aiResponse.json()) as { message?: string };
-          try {
-            taskData = JSON.parse(aiResult.message ?? '{}');
-          } catch {
-            // AI response parsing failed, use fallback
-            taskData = {
-              title: idea.title,
-              description: idea.content,
-              priority: 'medium',
-              estimatedHours: 1,
-              status: 'todo',
-            };
-          }
-        } else {
-          // AI service failed, use fallback
+        try {
+          const provider = AI_PROVIDERS.includes(body.provider as AIProvider)
+            ? (body.provider as AIProvider)
+            : 'ollama';
+          const response = await sendAIMessage({
+            provider,
+            messages: [{ role: 'user', content: prompt }],
+            systemPrompt:
+              'あなたはタスク管理のエキスパートです。アイデアを実行可能で具体的なタスクに変換してください。回答はJSONのみで返してください。',
+            maxTokens: 1000,
+            skipCache: true,
+            ...(targetThemeId ? { ragThemeId: targetThemeId } : {}),
+          });
+          const jsonText = response.content.match(/\{[\s\S]*\}/)?.[0] ?? response.content;
+          const parsed = JSON.parse(jsonText) as Partial<typeof taskData>;
           taskData = {
-            title: idea.title,
-            description: idea.content,
-            priority: 'medium',
-            estimatedHours: 1,
-            status: 'todo',
+            title: parsed.title?.trim() || taskData.title,
+            description: parsed.description?.trim() || taskData.description,
+            priority: ['urgent', 'high', 'medium', 'low'].includes(parsed.priority ?? '')
+              ? parsed.priority!
+              : 'medium',
+            estimatedHours:
+              typeof parsed.estimatedHours === 'number' && parsed.estimatedHours > 0
+                ? parsed.estimatedHours
+                : 1,
+            status: parsed.status === 'todo' ? 'todo' : 'todo',
           };
+        } catch (aiErr) {
+          log.warn({ err: aiErr, ideaId }, 'AI conversion failed, using fallback task data');
         }
 
-        // Create the task
         const newTask = await createTask(prisma, {
           title: taskData.title,
           description: taskData.description,
           priority: taskData.priority || 'medium',
           estimatedHours: taskData.estimatedHours || 1,
           status: taskData.status || 'todo',
-          themeId: body.themeId ?? idea.themeId ?? undefined,
+          themeId: targetThemeId,
+          isAiTaskAnalysis: true,
         });
 
         if (!newTask) {
@@ -296,7 +307,7 @@ export const ideaBoxRoutes = new Elysia()
         return {
           success: true,
           taskId: newTask.id,
-          task: taskData,
+          task: newTask,
         };
       } catch (err) {
         log.error({ err, ideaId }, 'Failed to convert idea to task');
@@ -311,6 +322,7 @@ export const ideaBoxRoutes = new Elysia()
       body: t.Object({
         themeId: t.Optional(t.Number()),
         customInstructions: t.Optional(t.String()),
+        provider: t.Optional(t.String()),
       }),
     },
   );

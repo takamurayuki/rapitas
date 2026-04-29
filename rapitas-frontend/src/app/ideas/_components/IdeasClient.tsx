@@ -13,6 +13,7 @@ import {
   Trash2,
   Pencil,
   ArrowRight,
+  X,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
@@ -72,11 +73,25 @@ export default function IdeasClient() {
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
-  const { categories, themes } = useFilterDataStore();
+  const { categories, themes, initializeData } = useFilterDataStore();
 
   // タスク変換関連のstate
   const [convertingIdeaId, setConvertingIdeaId] = useState<number | null>(null);
   const [isConverting, setIsConverting] = useState(false);
+  const [convertDialogIdea, setConvertDialogIdea] = useState<Idea | null>(null);
+  const [convertCategoryId, setConvertCategoryId] = useState<number | null>(null);
+  const [convertThemeId, setConvertThemeId] = useState<number | null>(null);
+  const [convertInstructions, setConvertInstructions] = useState('');
+  const [convertError, setConvertError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      (categories.length === 0 || themes.length === 0) &&
+      typeof initializeData === 'function'
+    ) {
+      void initializeData();
+    }
+  }, [categories.length, initializeData, themes.length]);
 
   const filteredThemes = newCategoryId
     ? themes.filter((t) => t.categoryId === newCategoryId)
@@ -84,6 +99,10 @@ export default function IdeasClient() {
 
   const filterThemes = filterCategoryId
     ? themes.filter((t) => t.categoryId === filterCategoryId)
+    : themes;
+
+  const convertThemes = convertCategoryId
+    ? themes.filter((t) => t.categoryId === convertCategoryId)
     : themes;
 
   const fetchIdeas = useCallback(async () => {
@@ -215,36 +234,64 @@ export default function IdeasClient() {
     }
   }, []);
 
+  const openConvertDialog = useCallback(
+    (idea: Idea) => {
+      const theme = themes.find((t) => t.id === idea.themeId);
+      setConvertDialogIdea(idea);
+      setConvertCategoryId(theme?.categoryId ?? null);
+      setConvertThemeId(idea.themeId ?? null);
+      setConvertInstructions('');
+      setConvertError(null);
+    },
+    [themes],
+  );
+
+  const closeConvertDialog = useCallback(() => {
+    if (isConverting) return;
+    setConvertDialogIdea(null);
+    setConvertCategoryId(null);
+    setConvertThemeId(null);
+    setConvertInstructions('');
+    setConvertError(null);
+  }, [isConverting]);
+
   const handleConvertToTask = useCallback(
-    async (idea: Idea) => {
-      setConvertingIdeaId(idea.id);
+    async () => {
+      if (!convertDialogIdea || !convertThemeId) return;
+
+      setConvertingIdeaId(convertDialogIdea.id);
       setIsConverting(true);
+      setConvertError(null);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            themeId: idea.themeId,
-          }),
-        });
+        const response = await fetch(
+          `${API_BASE_URL}/idea-box/${convertDialogIdea.id}/convert-to-task`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              themeId: convertThemeId,
+              customInstructions: convertInstructions.trim() || undefined,
+            }),
+          },
+        );
 
         if (response.ok) {
-          const result = await response.json();
-          console.log('Task created:', result);
-          // Refresh ideas to show the idea as used
+          setConvertDialogIdea(null);
           await fetchIdeas();
         } else {
-          console.error('Failed to convert idea to task');
+          const result = (await response.json().catch(() => null)) as { error?: string } | null;
+          setConvertError(result?.error ?? 'タスク化に失敗しました');
         }
       } catch (error) {
         console.error('Error converting idea to task:', error);
+        setConvertError('タスク化に失敗しました');
       } finally {
         setConvertingIdeaId(null);
         setIsConverting(false);
       }
     },
-    [fetchIdeas],
+    [convertDialogIdea, convertInstructions, convertThemeId, fetchIdeas],
   );
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
@@ -513,7 +560,7 @@ export default function IdeasClient() {
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                       {!idea.usedInTaskId && (
                         <button
-                          onClick={() => handleConvertToTask(idea)}
+                          onClick={() => openConvertDialog(idea)}
                           disabled={isConverting && convertingIdeaId === idea.id}
                           className="rounded p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
                           aria-label="タスク化"
@@ -557,6 +604,121 @@ export default function IdeasClient() {
             onItemsPerPageChange={handleItemsPerPageChange}
             itemsPerPageOptions={[5, 10, 15]}
           />
+        )}
+
+        {convertDialogIdea && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                    アイデアをタスク化
+                  </h2>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                    {convertDialogIdea.title}
+                  </p>
+                </div>
+                <button
+                  onClick={closeConvertDialog}
+                  disabled={isConverting}
+                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  aria-label="閉じる"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      カテゴリ
+                    </span>
+                    <select
+                      value={convertCategoryId ?? ''}
+                      onChange={(e) => {
+                        const id = e.target.value ? parseInt(e.target.value) : null;
+                        setConvertCategoryId(id);
+                        setConvertThemeId(null);
+                      }}
+                      disabled={isConverting}
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                      <option value="">カテゴリを選択</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      テーマ
+                    </span>
+                    <select
+                      value={convertThemeId ?? ''}
+                      onChange={(e) =>
+                        setConvertThemeId(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      disabled={isConverting || !convertCategoryId}
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                      <option value="">テーマを選択</option>
+                      {convertThemes.map((theme) => (
+                        <option key={theme.id} value={theme.id}>
+                          {theme.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                    AIへの追加指示
+                  </span>
+                  <textarea
+                    value={convertInstructions}
+                    onChange={(e) => setConvertInstructions(e.target.value)}
+                    disabled={isConverting}
+                    rows={3}
+                    placeholder="任意: 実装寄りにする、調査タスクにする、範囲を小さくする など"
+                    className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800"
+                  />
+                </label>
+
+                {convertError && (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/30 dark:text-red-300">
+                    {convertError}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  onClick={closeConvertDialog}
+                  disabled={isConverting}
+                  className="rounded-lg px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleConvertToTask}
+                  disabled={!convertThemeId || isConverting}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {isConverting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
+                  AIで分析して登録
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
