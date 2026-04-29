@@ -97,6 +97,40 @@ describe('log-message-transformer', () => {
       expect(result.message).toBe(unknownLog);
     });
 
+    test('Codex/Gemini のコマンドログを Claude Code 形式と同じ意味で分類する', () => {
+      const testCommand = transformLogToUserFriendly('[Command] bun test --isolate test.ts');
+      expect(testCommand.category).toBe('progress');
+      expect(testCommand.message).toBe('テストを実行中...');
+      expect(testCommand.iconName).toBe('TestTube');
+
+      const searchCommand = transformLogToUserFriendly('[Command] Get-Content src/app.ts');
+      expect(searchCommand.category).toBe('info');
+      expect(searchCommand.message).toContain('調査:');
+      expect(searchCommand.iconName).toBe('Search');
+    });
+
+    test('Codex/Gemini のノイズや差分ログを非表示にする', () => {
+      expect(transformLogToUserFriendly('[codex] hidden 406 noisy line(s)').category).toBe(
+        'hidden',
+      );
+      expect(transformLogToUserFriendly('+ log.warn({ err }, "failed");').category).toBe('hidden');
+      expect(
+        transformLogToUserFriendly(
+          '2026-04-29T10:04:29Z ERROR codex_core::session: failed to record rollout',
+        ).category,
+      ).toBe('hidden');
+    });
+
+    test('CLI 実行ライフサイクルログに適切なアイコンを割り当てる', () => {
+      const start = transformLogToUserFriendly('[Codex] Starting execution...');
+      expect(start.category).toBe('phase-transition');
+      expect(start.iconName).toBe('Play');
+
+      const timeout = transformLogToUserFriendly('[Gemini] Execution timed out (no output)');
+      expect(timeout.category).toBe('error');
+      expect(timeout.iconName).toBe('Timer');
+    });
+
     test('長いメッセージを省略する', () => {
       const longLog =
         'This is a very long log message that should be truncated because it exceeds the maximum length limit that we have set for display purposes in the UI component';

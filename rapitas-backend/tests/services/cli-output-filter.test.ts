@@ -44,6 +44,36 @@ describe('cli-output-filter', () => {
   it('hides raw code-like lines', () => {
     expect(shouldHideRawCliLine('import { foo } from "./bar";')).toBe(true);
     expect(shouldHideRawCliLine('const value = createThing();')).toBe(true);
+    expect(shouldHideRawCliLine("log.error({ err }, 'Failed to convert idea to task');")).toBe(
+      true,
+    );
+    expect(shouldHideRawCliLine("return { error: 'アイデアが見つかりません' };")).toBe(true);
     expect(shouldHideRawCliLine('short human-readable status')).toBe(false);
+  });
+
+  it('hides diff lines even when they contain command or error-like words', () => {
+    const filtered = filterCliDiagnosticOutput(
+      [
+        '+import { sendAIMessage, type AIProvider } from "../../utils/ai-client";',
+        "+ log.warn({ err: aiErr, ideaId }, 'AI conversion failed, using fallback');",
+        "log.error({ err, ideaId }, 'Failed to convert idea to task');",
+        '+ <option key={cat.id} value={cat.id}>',
+        '+ {cat.name}',
+      ].join('\n'),
+      { provider: 'codex' },
+    );
+
+    expect(filtered.display).toBe('');
+    expect(filtered.important).toBe(false);
+  });
+
+  it('hides benign Codex telemetry errors', () => {
+    const filtered = filterCliDiagnosticOutput(
+      '2026-04-29T10:04:29.536900Z ERROR codex_core::session: failed to record rollout',
+      { provider: 'codex' },
+    );
+
+    expect(filtered.display).toBe('');
+    expect(filtered.important).toBe(false);
   });
 });

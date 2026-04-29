@@ -88,10 +88,7 @@ export function attachStreamHandlers(
     }
 
     if (idleTime > OUTPUT_IDLE_TIMEOUT && lineBuffer.trim()) {
-      logger.info(`${logPrefix} Output idle for ${idleTime}ms, flushing lineBuffer`);
-      callbacks.onOutputBufferAppend(lineBuffer + '\n');
-      callbacks.onOutput(lineBuffer + '\n');
-      lineBuffer = '';
+      logger.info(`${logPrefix} Holding partial stdout line while waiting for newline`);
     }
 
     if (idleTime > 10000) {

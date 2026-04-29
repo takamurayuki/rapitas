@@ -15,6 +15,11 @@ const IMPORTANT_PATTERNS = [
   /\b(warn|warning)\b/i,
 ];
 
+const BENIGN_DIAGNOSTIC_PATTERNS = [
+  /codex_core::session: failed to record rollout/i,
+  /failed to record rollout/i,
+];
+
 const NOISE_PATTERNS = [
   /^Reading additional input from stdin/i,
   /^OpenAI Codex\b/i,
@@ -33,6 +38,20 @@ const NOISE_PATTERNS = [
   /^--- /,
   /^\+\+\+ /,
   /^@@ /,
+];
+
+const DIFF_OR_CODE_PATTERNS = [
+  /^(import|export|const|let|function|class|interface|type|return|if|else|try|catch)\b/,
+  /^[A-Za-z0-9_$]+\.(error|warn|info|debug|log)\(/,
+  /^[A-Za-z0-9_$.[\]'"`]+\s*[:=]/,
+  /^<\/?[A-Za-z][^>]*>/,
+  /^[+\- ]{1,3}(import|export|const|let|function|class|interface|type|return|if|else|try|catch)\b/,
+  /^[+\- ]{1,3}[A-Za-z0-9_$.[\]'"`]+\s*[:=]/,
+  /^[+\- ]{1,3}<\/?[A-Za-z][^>]*>/,
+  /^[+\- ]{1,3}[})\];,]+$/,
+  /^[+\- ]{1,3}\/\/ /,
+  /^[+\- ]{1,3}\/\*/,
+  /^[+\- ]{1,3}\* /,
 ];
 
 const COMMAND_PATTERNS = [
@@ -67,13 +86,18 @@ export function filterCliDiagnosticOutput(
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    if (IMPORTANT_PATTERNS.some((pattern) => pattern.test(trimmed))) {
-      displayLines.push(truncateLine(trimmed));
+    if (
+      isBenignDiagnostic(trimmed) ||
+      isNoiseLine(trimmed) ||
+      isDiffHunkLine(trimmed) ||
+      isDiffOrCodeLine(trimmed)
+    ) {
+      omittedLines++;
       continue;
     }
 
-    if (NOISE_PATTERNS.some((pattern) => pattern.test(trimmed))) {
-      omittedLines++;
+    if (IMPORTANT_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+      displayLines.push(truncateLine(trimmed));
       continue;
     }
 
@@ -89,9 +113,7 @@ export function filterCliDiagnosticOutput(
     return { display: '', important: false };
   }
 
-  const display =
-    displayLines.join('\n') +
-    (omittedLines > 0 ? `\n[${options.provider}] hidden ${omittedLines} noisy line(s)` : '');
+  const display = displayLines.join('\n');
 
   return {
     display: display ? `${display}\n` : '',
@@ -109,14 +131,34 @@ export function shouldHideRawCliLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return true;
   if (trimmed.length > MAX_DISPLAY_LINE_CHARS) return true;
-  if (NOISE_PATTERNS.some((pattern) => pattern.test(trimmed))) return true;
-  if (/^[+\- ]{1,3}(import|export|const|let|function|class|interface|type)\b/.test(trimmed)) {
+  if (
+    isBenignDiagnostic(trimmed) ||
+    isNoiseLine(trimmed) ||
+    isDiffHunkLine(trimmed) ||
+    isDiffOrCodeLine(trimmed)
+  ) {
     return true;
   }
   if (/^[{[}"'`]|[{};]$/.test(trimmed) && !IMPORTANT_PATTERNS.some((p) => p.test(trimmed))) {
     return true;
   }
   return false;
+}
+
+function isNoiseLine(line: string): boolean {
+  return NOISE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isDiffOrCodeLine(line: string): boolean {
+  return DIFF_OR_CODE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isDiffHunkLine(line: string): boolean {
+  return /^[+-](?![+-]{2}\s)/.test(line);
+}
+
+function isBenignDiagnostic(line: string): boolean {
+  return BENIGN_DIAGNOSTIC_PATTERNS.some((pattern) => pattern.test(line));
 }
 
 function truncateLine(line: string): string {

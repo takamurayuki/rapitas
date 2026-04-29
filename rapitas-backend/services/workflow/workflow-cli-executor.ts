@@ -114,6 +114,53 @@ export async function executeCLIAgent(
   let fullPrompt = '';
   if (systemPrompt) fullPrompt += `${cliT.systemHeader}\n${systemPrompt}\n\n`;
   fullPrompt += `## ${language === 'ja' ? '出力言語' : 'Output Language'}\n${languageInstruction}\n\n`;
+
+  // Existing-feature gate: before treating the task as a green-field design
+  // problem, the agent must scan the working directory for matching code.
+  // Without this, AI was repeatedly designing things like "アイデアボックス"
+  // from scratch even though they already exist in the repo, leading to
+  // wasted research and irrelevant clarifying questions.
+  const existingFeatureGate =
+    language === 'ja'
+      ? `## 重要: 既存機能チェック（最優先）
+
+**新規機能として設計を始める前に、まず既存実装を確認してください。**
+
+このタスクのタイトル・説明から主要キーワード（機能名・エンティティ名・画面名・URLパス等）を抽出し、対象リポジトリ内を以下の手段で必ず検索してください:
+
+1. **ファイル名検索**: \`find\` / \`Glob\` で関連しそうなファイル名 (例: \`**/idea-box*\`, \`**/IdeaBox*\`)
+2. **コード内全文検索**: \`grep\` / \`Grep\` でキーワード（日本語表記・英語表記の両方）
+3. **ルート/ナビゲーション**: \`routes/\` / \`pages/\` / \`app/\` 配下のエンドポイントとリンク
+4. **DB schema**: \`prisma/schema/\` のテーブル名・関連 model
+
+検出結果に応じて分岐:
+- **既存機能と判定**: research.md / plan.md の冒頭に「**既存機能**」と明記し、現在の実装ファイル一覧・現在の振る舞いを要約してから、**追加・修正点の差分のみ**を設計対象としてください。新規UI/UX仕様の質問は不要です。
+- **既存機能の拡張**: 既存ファイルへの修正案として記述し、新規ファイルは最小限に。
+- **完全に新規**: 既存に類似機能がないことを明示した上で、初めて新規設計に入ってください。
+
+この既存機能チェックの結果は、研究フェーズ・計画フェーズの出力ファイルに必ず**「既存機能チェック」セクション**として残してください。
+
+`
+      : `## CRITICAL: Existing-feature check (do this FIRST)
+
+**Before treating the task as a green-field design problem, audit the existing implementation.**
+
+Extract the principal keywords from the task title/description (feature names, entity names, screen names, URL paths) and search the working repository using:
+
+1. **File-name search**: \`find\` / \`Glob\` for likely names (e.g. \`**/idea-box*\`).
+2. **Full-text search**: \`grep\` / \`Grep\` for keywords (both English and the user's language).
+3. **Routes/navigation**: scan \`routes/\` / \`pages/\` / \`app/\` for matching endpoints / links.
+4. **DB schema**: scan \`prisma/schema/\` for matching tables / models.
+
+Branch on the result:
+- **Already exists**: write "**EXISTING FEATURE**" at the top of research.md / plan.md, summarise current files and behaviour, and design ONLY the diff (additions / modifications). Do NOT ask UI/UX clarification questions for already-implemented surfaces.
+- **Extension of existing**: scope changes as edits to existing files; minimise new files.
+- **Truly new**: state explicitly that no similar feature exists, then proceed with green-field design.
+
+Always include an "Existing-feature check" section in the research / plan output that lists what you found.
+
+`;
+  fullPrompt += existingFeatureGate;
   fullPrompt += context;
 
   if (outputFilePath) {

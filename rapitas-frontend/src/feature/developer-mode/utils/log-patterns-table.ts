@@ -146,6 +146,65 @@ export const LOG_PATTERNS: LogPatternRule[] = [
       iconName: 'AlertCircle',
     }),
   },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Starting execution/i,
+    transform: (_l, m) => ({
+      category: 'phase-transition',
+      message: `${m[1]} の実行を開始`,
+      iconName: 'Play',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Working directory:\s*(.+)/i,
+    transform: (_l, m) => ({
+      category: 'info',
+      message: `作業ディレクトリ: ${m[2].split(/[\\/]/).pop() || m[2]}`,
+      detail: m[2],
+      iconName: 'FileSearch',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Process PID:\s*(\d+)/i,
+    transform: (_l, m) => ({
+      category: 'info',
+      message: `プロセス起動 PID ${m[2]}`,
+      iconName: 'Terminal',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Timeout:\s*(.+)/i,
+    transform: (_l, m) => ({
+      category: 'info',
+      message: `タイムアウト設定: ${m[2]}`,
+      iconName: 'Timer',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Prompt:\s*(.+)/i,
+    transform: (_l, m) => ({
+      category: 'agent-text',
+      message: `指示: ${m[2].substring(0, 120)}${m[2].length > 120 ? '...' : ''}`,
+      detail: m[2].length > 120 ? m[2] : undefined,
+      iconName: 'MessageSquare',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*(?:Execution )?timed out/i,
+    transform: (_l, m) => ({
+      category: 'error',
+      message: `${m[1]} の実行がタイムアウトしました`,
+      iconName: 'Timer',
+    }),
+  },
+  {
+    pattern: /^\[(Codex|Gemini|Claude(?: Code)?)\]\s*Error:\s*(.+)/i,
+    transform: (_l, m) => ({
+      category: 'error',
+      message: `${m[1]} エラー: ${m[2].substring(0, 100)}`,
+      detail: m[2].length > 100 ? m[2] : undefined,
+      iconName: 'AlertCircle',
+    }),
+  },
 
   // ── Result ───────────────────────────────────────────────────────────
   {
@@ -190,6 +249,60 @@ export const LOG_PATTERNS: LogPatternRule[] = [
   },
 
   // ── Tool calls — Bash (multiple sub-cases) ────────────────────────────
+  {
+    pattern: /^\[Command\]\s*(.+)/,
+    transform: (_l, m) => {
+      const cmd = m[1].trim();
+      if (/(?:^|\s)(bun|npm|yarn|pnpm)\s+(?:test|run\s+test|vitest)/i.test(cmd))
+        return {
+          category: 'progress',
+          message: 'テストを実行中...',
+          detail: cmd,
+          iconName: 'TestTube',
+        };
+      if (/(?:^|\s)(tsc|cargo\s+clippy|cargo\s+test|prettier)\b/i.test(cmd))
+        return {
+          category: 'progress',
+          message: '検証コマンドを実行中...',
+          detail: cmd,
+          iconName: 'ShieldCheck',
+        };
+      if (/\bgit\s+commit\b/i.test(cmd))
+        return {
+          category: 'info',
+          message: 'コミット中...',
+          detail: cmd,
+          iconName: 'GitCommitHorizontal',
+        };
+      if (/\bgit\s+push\b/i.test(cmd))
+        return {
+          category: 'info',
+          message: 'リモートにプッシュ中...',
+          detail: cmd,
+          iconName: 'Upload',
+        };
+      if (/\bgit\b/i.test(cmd))
+        return {
+          category: 'info',
+          message: `Git: ${cmd.substring(0, 70)}${cmd.length > 70 ? '...' : ''}`,
+          detail: cmd.length > 70 ? cmd : undefined,
+          iconName: 'GitBranch',
+        };
+      if (/\b(rg|grep|Select-String|Get-Content|cat|sed|ls|Get-ChildItem)\b/i.test(cmd))
+        return {
+          category: 'info',
+          message: `調査: ${cmd.substring(0, 70)}${cmd.length > 70 ? '...' : ''}`,
+          detail: cmd.length > 70 ? cmd : undefined,
+          iconName: 'Search',
+        };
+      return {
+        category: 'info',
+        message: `$ ${cmd.substring(0, 70)}${cmd.length > 70 ? '...' : ''}`,
+        detail: cmd.length > 70 ? cmd : undefined,
+        iconName: 'Terminal',
+      };
+    },
+  },
   {
     pattern: /^\[Tool: Bash\]\s*\$\s*(.+)/,
     transform: (_l, m) => {
@@ -326,6 +439,15 @@ export const LOG_PATTERNS: LogPatternRule[] = [
       iconName: 'HelpCircle',
     }),
   },
+  {
+    pattern: /^\[警告\]\s*(.+)/,
+    transform: (_l, m) => ({
+      category: 'warning',
+      message: m[1].substring(0, 120),
+      detail: m[1].length > 120 ? m[1] : undefined,
+      iconName: 'AlertTriangle',
+    }),
+  },
 
   // ── Test results ──────────────────────────────────────────────────────
   {
@@ -342,6 +464,14 @@ export const LOG_PATTERNS: LogPatternRule[] = [
       category: 'error',
       message: `テスト ${m[1]}件失敗`,
       iconName: 'XCircle',
+    }),
+  },
+  {
+    pattern: /typecheck|type-check|tsc --noEmit/i,
+    transform: () => ({
+      category: 'progress',
+      message: '型チェックを実行中...',
+      iconName: 'ShieldCheck',
     }),
   },
 
@@ -388,4 +518,16 @@ export const HIDDEN_PATTERNS = [
   /^Active code page:/i,
   /^現在のコード ページ:/i,
   /^chcp\s/i,
+  /^\[codex\] hidden \d+ noisy line\(s\)/i,
+  /^\[gemini\] hidden \d+ noisy line\(s\)/i,
+  /codex_core::session: failed to record rollout/i,
+  /^diff --git /,
+  /^index [a-f0-9]+\.\.[a-f0-9]+/,
+  /^--- /,
+  /^\+\+\+ /,
+  /^@@ /,
+  /^[+-](?![+-]{2}\s)/,
+  /^(import|export|const|let|function|class|interface|type|return|if|else|try|catch)\b/,
+  /^[A-Za-z0-9_$]+\.(error|warn|info|debug|log)\(/,
+  /^<\/?[A-Za-z][^>]*>/,
 ];

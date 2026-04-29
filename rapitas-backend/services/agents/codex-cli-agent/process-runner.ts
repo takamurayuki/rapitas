@@ -231,9 +231,7 @@ export function spawnCodexProcess(
         }
 
         if (idleTime > OUTPUT_IDLE_TIMEOUT && state.lineBuffer.trim()) {
-          state.outputBuffer += state.lineBuffer + '\n';
-          callbacks.emitOutput(state.lineBuffer + '\n');
-          state.lineBuffer = '';
+          logger.info(`${logPrefix} Holding partial stdout line while waiting for newline`);
         }
       }, IDLE_CHECK_INTERVAL_MS);
 
@@ -263,6 +261,36 @@ export function spawnCodexProcess(
 
       const cleanupTimeoutCheck = () => clearInterval(timeoutCheckInterval);
 
+      const appendRawStdoutLine = (line: string) => {
+        if (shouldHideRawCliLine(line)) return;
+        const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
+        state.outputBuffer += displayLine + '\n';
+        callbacks.emitOutput(displayLine + '\n');
+      };
+
+      const handleStdoutLine = (line: string) => {
+        if (!line.trim()) return;
+        try {
+          const json = JSON.parse(line);
+          logger.info(`${logPrefix} Event: ${json.type}`);
+          processJsonEvent(json, state, callbacks, config, logPrefix);
+        } catch {
+          // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
+          const trimmed = line.trim();
+          if (
+            !trimmed ||
+            /^Active code page:/i.test(trimmed) ||
+            /^現在のコード ページ:/i.test(trimmed) ||
+            /^chcp\s/i.test(trimmed)
+          ) {
+            logger.info(`${logPrefix} Filtered non-JSON: ${trimmed.substring(0, 100)}`);
+            return;
+          }
+          logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
+          appendRawStdoutLine(line);
+        }
+      };
+
       state.process.stdout?.on('data', (data: Buffer) => {
         const chunk = data.toString();
         state.lineBuffer += chunk;
@@ -276,32 +304,7 @@ export function spawnCodexProcess(
         const lines = state.lineBuffer.split('\n');
         state.lineBuffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const json = JSON.parse(line);
-            logger.info(`${logPrefix} Event: ${json.type}`);
-            processJsonEvent(json, state, callbacks, config, logPrefix);
-          } catch {
-            // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
-            const trimmed = line.trim();
-            if (
-              !trimmed ||
-              /^Active code page:/i.test(trimmed) ||
-              /^現在のコード ページ:/i.test(trimmed) ||
-              /^chcp\s/i.test(trimmed)
-            ) {
-              logger.info(`${logPrefix} Filtered non-JSON: ${trimmed.substring(0, 100)}`);
-              continue;
-            }
-            logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-            if (!shouldHideRawCliLine(line)) {
-              const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
-              state.outputBuffer += displayLine + '\n';
-              callbacks.emitOutput(displayLine + '\n');
-            }
-          }
-        }
+        for (const line of lines) handleStdoutLine(line);
       });
 
       state.process.stderr?.on('data', (data: Buffer) => {
@@ -323,8 +326,7 @@ export function spawnCodexProcess(
         const executionTimeMs = Date.now() - startTime;
 
         if (state.lineBuffer.trim()) {
-          state.outputBuffer += state.lineBuffer + '\n';
-          callbacks.emitOutput(state.lineBuffer + '\n');
+          handleStdoutLine(state.lineBuffer);
         }
 
         logger.info(`${logPrefix} Closed with code: ${code}, time: ${executionTimeMs}ms`);
