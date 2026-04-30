@@ -162,7 +162,7 @@ export function spawnCodexProcess(
 
     // NOTE: Default to full-auto since this is intended for automated execution
     if (config.yolo) {
-      args.push('--yolo');
+      args.push('--dangerously-bypass-approvals-and-sandbox');
     } else {
       args.push('--full-auto');
     }
@@ -225,7 +225,7 @@ export function spawnCodexProcess(
         if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
           logger.warn(`${logPrefix} No output received after ${Math.floor(totalElapsed / 1000)}s`);
           callbacks.emitOutput(
-            `\n[警告] ${Math.floor(totalElapsed / 1000)}秒経過しましたが、Codex CLIからの応答がありません。処理を継続しています...\n`,
+            `\n[情報] ${Math.floor(totalElapsed / 1000)}秒経過: Codex は内部処理中です (調査・計画立案中)。応答が来るまでお待ちください。タイムアウトは ${Math.floor(timeout / 1000)}秒です。\n`,
           );
           hasReceivedAnyOutput = true;
         }

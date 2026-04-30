@@ -41,10 +41,16 @@ export async function createWorktree(
   taskId?: number,
   repositoryUrl?: string | null,
 ): Promise<string> {
+  // NOTE: Generous timeout (10 min) covers worst-case scenarios:
+  //   - First-ever worktree on a fresh machine where pnpm store is cold
+  //   - Old worker process that still does dependency install inside createWorktree
+  //     (pre-restart state during this rollout)
+  // The current implementation kicks off install in the background and returns
+  // in <5s, so this ceiling is effectively unused on a restarted backend.
   return ipc(
     'create-worktree',
     { baseDir, branchName, taskId, repositoryUrl },
-    30000,
+    10 * 60 * 1000,
   ) as Promise<string>;
 }
 
@@ -60,7 +66,9 @@ export async function removeWorktree(
   baseDir: string,
   worktreePath: string,
 ): Promise<void> {
-  await ipc('remove-worktree', { baseDir, worktreePath }, 30000);
+  // NOTE: 5 min timeout — `git worktree remove --force` plus filesystem rm of
+  // a populated worktree (including node_modules) can take 1-2 min on Windows.
+  await ipc('remove-worktree', { baseDir, worktreePath }, 5 * 60 * 1000);
 }
 
 /**
@@ -71,7 +79,12 @@ export async function removeWorktree(
  * @returns Count of cleaned worktrees / クリーンアップ数
  */
 export async function cleanupStaleWorktrees(ipc: IpcSender, baseDir: string): Promise<number> {
-  return ipc('cleanup-stale-worktrees', { baseDir }, 30000) as Promise<number>;
+  // NOTE: 10 min ceiling — startup cleanup iterates over all stale worktrees
+  // and runs `git worktree remove --force` on each, which on Windows must
+  // delete the entire node_modules tree (hardlinks to pnpm store).
+  // Each removal can take 30s-2min, multiplied by however many stale worktrees
+  // were left behind by prior crashes.
+  return ipc('cleanup-stale-worktrees', { baseDir }, 10 * 60 * 1000) as Promise<number>;
 }
 
 /**

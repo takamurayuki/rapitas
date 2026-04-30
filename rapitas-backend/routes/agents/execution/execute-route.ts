@@ -24,6 +24,10 @@ import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import {
+  startWorktreeDependenciesInstall,
+  taskNeedsDependencies,
+} from '../../../services/agents/orchestrator/git-operations/dependency-installer';
 import type { AttachmentDescriptor } from './instruction-builder';
 
 const log = createLogger('routes:agent-execution:execute');
@@ -183,6 +187,19 @@ export const executeRoute = new Elysia().post(
 
     const { developerModeConfig, session, worktreePath } = setupResult;
 
+    // NOTE: Workflow enforcement is suppressed when this execution is part of
+    // a workflow phase (the orchestrator already manages phase transitions),
+    // when the user passed an explicit `instruction` (free-form override), or
+    // when an existing approved plan.md exists for this task.
+    const existingPlan = await prisma.workflowFile
+      .findFirst({
+        where: { taskId: taskIdNum, fileType: 'plan' },
+        select: { id: true },
+      })
+      .catch(() => null);
+    const isContinuation = !!sessionId;
+    const enforceWorkflow = !instruction && !isContinuation && !existingPlan;
+
     const fullInstruction = buildFullInstruction({
       taskTitle: task.title,
       taskDescription: task.description,
@@ -190,6 +207,8 @@ export const executeRoute = new Elysia().post(
       optimizedPrompt,
       attachments,
       workingDirectory: worktreePath,
+      taskId: taskIdNum,
+      enforceWorkflow,
     });
 
     const analysisInfo =
@@ -215,7 +234,35 @@ export const executeRoute = new Elysia().post(
       resolvedAgentConfigId = roleAgent.agentConfigId;
     }
 
-    // NOTE: Execute in worktree directory for git isolation
+    // NOTE: Kick off dependency install in the BACKGROUND, but DO NOT await it
+    // before launching the agent CLI. The agent typically spends 5-30s on
+    // research/grep before attempting any verification command (vitest, build),
+    // by which time the parallel pnpm install has usually finished. Worst case:
+    // the agent's verification fails fast → empty diff → post-execution-review
+    // marks the task as `blocked` and the user can re-run with logs.
+    // This avoids the 30-90s "first log appears late" UX problem that came
+    // from blocking the executeTask launch on install completion.
+    const needsDeps = taskNeedsDependencies(task.title, task.description);
+    if (needsDeps) {
+      startWorktreeDependenciesInstall(executionDir).catch((error) => {
+        log.warn(
+          { err: error, taskId: taskIdNum },
+          `[API] Background dependency install failed; verification commands may fail`,
+        );
+      });
+      log.info(
+        `[API] Task ${taskIdNum}: dependency install running in background (agent CLI launching now in parallel)`,
+      );
+    } else {
+      log.info(
+        `[API] Task ${taskIdNum}: skipping dependency install (task heuristic indicates no JS code change)`,
+      );
+    }
+
+    // NOTE: Execute in worktree directory for git isolation. We launch the
+    // agent CLI immediately (no install gate) for fast UI feedback. The agent
+    // worker spawns the codex/claude CLI process and the user starts seeing
+    // output within ~2-3s instead of after the 30-90s install window.
     agentWorkerManager
       .executeTask(
         {
@@ -233,6 +280,10 @@ export const executeRoute = new Elysia().post(
           workingDirectory: executionDir,
           timeout,
           analysisInfo,
+          // NOTE: Task detail execution has its own completion gate in
+          // execute-post-handler/post-execution-review. The generic orchestrator
+          // must not mark the task done just because the CLI process exited 0.
+          autoCompleteTask: false,
         },
       )
       .then((result) =>

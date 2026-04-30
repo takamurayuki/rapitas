@@ -77,6 +77,19 @@ describe('cli-output-filter', () => {
     expect(filtered.important).toBe(false);
   });
 
+  it('hides benign Codex arg0 startup warnings', () => {
+    const filtered = filterCliDiagnosticOutput(
+      [
+        'WARNING: failed to clean up stale arg0 temp dirs: アクセスが拒否されました。 (os error 5)',
+        'WARNING: proceeding, even though we could not update PATH: アクセスが拒否されました。 (os error 5) at path "C:\\Users\\user\\.codex\\tmp\\arg0\\codex-arg0Pn0BPw"',
+      ].join('\n'),
+      { provider: 'codex' },
+    );
+
+    expect(filtered.display).toBe('');
+    expect(filtered.important).toBe(false);
+  });
+
   it('hides standalone file path lists from command output', () => {
     const filtered = filterCliDiagnosticOutput(
       [
@@ -91,5 +104,45 @@ describe('cli-output-filter', () => {
     expect(filtered.important).toBe(false);
     expect(shouldHideRawCliLine('rapitas-backend\\services\\system\\error-capture.ts')).toBe(true);
     expect(shouldHideRawCliLine('$ rapitas-backend\\bun.lock')).toBe(true);
+  });
+
+  it('hides codex tool labels with code excerpts (調査: { ... })', () => {
+    expect(shouldHideRawCliLine('調査: {categories.map((cat) => (')).toBe(true);
+    expect(shouldHideRawCliLine('調査: {cat.name}')).toBe(true);
+    expect(shouldHideRawCliLine('Investigation: { foo: 1 }')).toBe(true);
+    expect(shouldHideRawCliLine('$ } catch (error) {')).toBe(true);
+    expect(shouldHideRawCliLine('} catch (error) {')).toBe(true);
+    expect(shouldHideRawCliLine('/* error */')).toBe(true);
+    expect(shouldHideRawCliLine('}')).toBe(true);
+    expect(shouldHideRawCliLine('} else {')).toBe(true);
+    // But a labelled error message with important keywords stays visible.
+    expect(shouldHideRawCliLine('調査: timeout exceeded after 30s')).toBe(false);
+  });
+
+  it('hides grep-style match lines (path:lineno:content)', () => {
+    const filtered = filterCliDiagnosticOutput(
+      [
+        "rapitas-backend\\routes\\foo.ts:42: log.error({ err }, 'Failed to update task');",
+        "rapitas-frontend/src/app/page.tsx:88: return { error: 'not found' };",
+      ].join('\n'),
+      { provider: 'codex' },
+    );
+
+    expect(filtered.display).toBe('');
+    expect(filtered.important).toBe(false);
+    expect(
+      shouldHideRawCliLine('$ rapitas-backend\\bun.lock:8: "@anthropic-ai/sdk": "^0.52.0",'),
+    ).toBe(true);
+    expect(shouldHideRawCliLine('rapitas-backend\\bun.lock:623: "pino": ["pino@10.3.1"')).toBe(
+      true,
+    );
+    expect(
+      shouldHideRawCliLine(
+        '調査: rapitas-backend\\bun.lock:537: "levn": ["levn@0.4.1", "", { "depende...',
+      ),
+    ).toBe(true);
+    expect(shouldHideRawCliLine('rapitas-frontend/src/app/page.tsx:42: const x = 1;')).toBe(true);
+    // Plain prose mentioning a colon and number must NOT match.
+    expect(shouldHideRawCliLine('Result code is 42: success')).toBe(false);
   });
 });

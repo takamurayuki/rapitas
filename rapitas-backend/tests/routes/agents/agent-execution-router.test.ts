@@ -56,6 +56,7 @@ mock.module('../../../config/logger', () => ({
 
 mock.module('../../../utils/common/branch-name-generator', () => ({
   generateBranchName: mock(() => Promise.resolve('feature/test-branch')),
+  generateFallbackBranchName: mock(() => 'feature/test-branch'),
 }));
 
 mock.module('../../../utils/ai-client', () => ({

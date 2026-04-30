@@ -39,6 +39,7 @@ declare module 'bun:test' {
     toBeGreaterThanOrEqual(expected: number): void;
     toBeLessThanOrEqual(expected: number): void;
     toHaveLength(expected: number): void;
+    toHaveProperty(propertyName: string, value?: any): void;
     toHaveBeenCalled(): void;
     toHaveBeenCalledWith(...args: any[]): void;
     toHaveBeenCalledTimes(expected: number): void;

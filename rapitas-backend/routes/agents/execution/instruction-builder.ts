@@ -61,6 +61,11 @@ export function buildFullInstruction(params: {
   attachments?: AttachmentDescriptor[];
   /** Target working directory for implementation / 実装先の作業ディレクトリ */
   workingDirectory?: string;
+  /** Task ID — needed by the workflow API curl examples / ワークフローAPI用のタスクID */
+  taskId?: number;
+  /** Whether the agent should follow the research → plan → approval workflow.
+   *  Defaults to true so ad-hoc executions don't skip planning. */
+  enforceWorkflow?: boolean;
 }): string {
   const {
     taskTitle,
@@ -69,6 +74,8 @@ export function buildFullInstruction(params: {
     optimizedPrompt,
     attachments,
     workingDirectory,
+    taskId,
+    enforceWorkflow = true,
   } = params;
 
   let fullInstruction: string;
@@ -90,6 +97,112 @@ export function buildFullInstruction(params: {
     fullInstruction += `重要: あなたのカレントディレクトリはこのディレクトリに設定されています。`;
     fullInstruction += `rapitasプロジェクト(C:\\Projects\\rapitas)のファイルを変更しないでください。`;
     fullInstruction += `すべてのファイル操作は上記ディレクトリ内で行ってください。\n`;
+  }
+
+  // NOTE: Force the agent through research → plan → approval gate. Without this
+  // injection, codex/claude CLIs jump straight to implementation regardless of
+  // CLAUDE.md (which they do not auto-load). The agent saves research.md and
+  // plan.md via the workflow API, then exits — the user approves the plan in
+  // the UI, and a subsequent execution handles implementation.
+  if (enforceWorkflow && taskId !== undefined) {
+    fullInstruction += `\n\n## 必須ワークフロー (絶対に守ってください)
+
+**この実行では実装を始めてはいけません。** 調査と計画を保存してから終了します。
+実装は、ユーザがUIでプラン承認した後の別実行で行います。
+
+あなたは「リサーチャー」と「プランナー」のロールを兼ねます。各ロールのスコープと制約は以下のとおりです。
+
+### あなたの最重要責任
+**実装フェーズで質問が出ない計画書を作ること。** plan.md の "設計判断の根拠" と "実装者への申し送り事項" は、あなたが手抜きすると後段の実装エージェントが必ずつまずきます。
+
+### スコープ外（絶対にやってはいけない）
+- ソースコードファイル (.ts/.tsx/.js/.jsx/.css/.scss 等) の変更
+- plan.md 保存後の追加作業 (実装やテスト実行は次の実行で行う)
+- 設計判断の理由を書かずに plan.md を保存すること（「なぜそうするか」が無い計画は不合格）
+- 推測で済ませること（不明点があれば次の Step 1.5 で停止し、ユーザに質問）
+
+### Step 1: 調査 (research.md の作成)
+
+1. 関連ファイル/コードを Read / Grep で調査
+2. 影響範囲・依存関係・類似実装の有無・テスト戦略を整理
+3. 検討した実装方針の選択肢 (A/B/C 等) と、それぞれのメリット/デメリットを列挙
+4. 仕様の曖昧な点があれば "未確定事項" として列挙
+5. 以下の API で research.md を保存:
+
+\`\`\`bash
+curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/research \\
+  -H 'Content-Type: application/json' \\
+  -d '{"content":"<下記テンプレートで埋める>"}'
+\`\`\`
+
+research.md テンプレート:
+\`\`\`markdown
+# 調査結果
+## 影響範囲: [変更が及ぶファイル/モジュール一覧]
+## 依存関係: [前提となるコンポーネントや API]
+## 類似実装: [再利用可能な既存パターン]
+## 実装方針の選択肢
+- 選択肢A: [説明] / メリット / デメリット
+- 選択肢B: [説明] / メリット / デメリット
+## リスク評価: [破壊的変更の可能性とその対策]
+## テスト戦略: [単体/統合テストの観点]
+## 未確定事項: [プランナー (=あなたの次フェーズ) が解決すべき項目。空ならその旨明記]
+\`\`\`
+
+### Step 1.5: ユーザ質問 (どうしても判断不能な場合のみ)
+
+仕様が曖昧で複数選択肢のうちどれか決定不能な場合のみ、question.md に質問を書いて停止する:
+
+\`\`\`bash
+curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/question \\
+  -H 'Content-Type: application/json' \\
+  -d '{"content":"# Q1: <質問>\\n- 背景: ...\\n- 候補A: ...\\n- 候補B: ...\\n- 推奨: ..."}'
+\`\`\`
+
+→ question.md を保存したら **plan.md は保存せず終了**。ユーザの回答後に再実行されます。
+
+### Step 2: 計画 (plan.md の作成)
+
+1. research.md の "未確定事項" を全件解消する（実装者に丸投げ禁止）
+2. 採用する実装方針を選び、**なぜ選んだか** を明記
+3. 変更ファイル一覧、実装ステップ (チェックボックス + 期待動作 + 確認方法)、リスク、DoD を立案
+4. **想定される実装者の疑問を先回りして回答する "実装者への申し送り事項" セクションを必ず書く**
+5. 以下の API で plan.md を保存:
+
+\`\`\`bash
+curl -X PUT http://localhost:3001/workflow/tasks/${taskId}/files/plan \\
+  -H 'Content-Type: application/json' \\
+  -d '{"content":"<下記テンプレートで埋める>"}'
+\`\`\`
+
+plan.md テンプレート (重要セクションは省略不可):
+\`\`\`markdown
+# 実装計画
+## タスク概要
+## 設計判断の根拠 (実装者向け Why)
+- 採用したアプローチ + 採用理由 + 却下した代替案
+- データモデル/状態管理の決定 (保存先/キー名/デフォルト値 と 各々の理由)
+- 互換性/マイグレーション方針 + 理由
+- エッジケースの方針 + 理由
+## 実装チェックリスト (各項目に「期待動作」「確認方法」を併記)
+## 変更予定ファイル (新規 / 変更 ごとに目的と理由を併記)
+## リスク評価と対策
+## 完了条件 (DoD)
+## 実装順序
+## 実装者への申し送り事項 ← ここで実装者の疑問を先回りして潰す
+\`\`\`
+
+### Step 3: 終了
+
+**plan.md 保存後、コードを一切変更せずにすぐ終了してください。**
+ユーザは UI 上でプランを確認し、承認後に別の実行で実装を開始します。
+
+### 違反した場合の挙動
+
+- plan.md を保存せず実装を開始 → Rapitas は session を failed としてマークし worktree を保持します
+- 任意のソースコードファイル (.ts/.tsx/.js/.jsx/.css 等) に変更を加えた場合 → 同上
+- 設計判断の根拠が無い plan.md → レビュアー/実装者から差し戻されます
+`;
   }
 
   // NOTE: Instruct the agent to emit [IDEA] markers in its output whenever

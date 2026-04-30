@@ -42,6 +42,34 @@ export function processJsonEvent(
   let displayOutput = '';
 
   switch (json.type) {
+    case 'thread.started':
+      if (json.thread_id) {
+        state.codexSessionId = String(json.thread_id);
+        callbacks.onSessionId(state.codexSessionId);
+        logger.info(`${logPrefix} Thread ID: ${state.codexSessionId}`);
+      }
+      break;
+
+    case 'turn.started':
+      break;
+
+    case 'error':
+      displayOutput += `[Error] ${json.message || json.error || 'unknown'}\n`;
+      break;
+
+    case 'turn.failed': {
+      const errorMessage =
+        typeof json.error?.message === 'string'
+          ? json.error.message
+          : json.message || json.error || 'unknown';
+      displayOutput += `\n[Result: failed]\n${errorMessage}\n`;
+      break;
+    }
+
+    case 'turn.completed':
+      displayOutput += `\n[Result: completed]\n`;
+      break;
+
     case 'assistant':
     case 'message':
       if (json.message?.content) {

@@ -15,7 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
-import { installWorktreeDependencies } from './dependency-installer';
+import { clearWorktreeDependenciesTracking } from './dependency-installer';
 import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
@@ -122,11 +122,10 @@ export async function createWorktree(
       `[createWorktree] Worktree created: ${worktreePath} (branch: ${effectiveBranchName})`,
     );
 
-    // NOTE: git worktree only checks out tracked files; node_modules is gitignored
-    // and therefore missing in the worktree. Install dependencies now so that
-    // agent-spawned commands (next, vitest, etc.) can resolve their CLI binaries.
-    await installWorktreeDependencies(worktreePath);
-
+    // NOTE: Dependency install is intentionally NOT awaited here. The caller
+    // (executeRoute) decides whether/when to install based on task heuristics
+    // and awaits via `awaitWorktreeDependencies(worktreePath)` just before
+    // launching the agent CLI — keeping the HTTP response fast.
     return worktreePath;
   } catch (error) {
     logger.error(
@@ -261,6 +260,10 @@ export async function removeWorktree(
   } catch (pruneError) {
     logger.warn({ err: pruneError }, '[removeWorktree] git worktree prune failed');
   }
+
+  // NOTE: Drop install tracking so a future worktree at the same path
+  // (after directory reuse) does not see a stale resolved-promise.
+  clearWorktreeDependenciesTracking(worktreePath);
 }
 
 /**

@@ -8,7 +8,8 @@
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
-    "typeRoots": ["./node_modules/@types", "./@types"]
+    "typeRoots": ["./node_modules/@types", "./@types"],
+    "types": ["bun-test", "bun"]
   },
   "include": ["tests/**/*.ts", "tests/**/*.tsx"],
   "exclude": ["node_modules/**/*"]

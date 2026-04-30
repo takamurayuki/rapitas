@@ -15,7 +15,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { toJsonString } from '../../../utils/database/db-helpers';
-import { generateBranchName } from '../../../utils/common/branch-name-generator';
+import { generateFallbackBranchName } from '../../../utils/common/branch-name-generator';
 
 const log = createLogger('routes:agent-execution:setup');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -103,16 +103,17 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     log.info(`[setup] Created new session ${session.id}`);
   }
 
-  // Generate branch name
+  // NOTE: Branch names are an internal identifier; AI generation added 1-15s of
+  // Ollama latency for negligible UX value. Use the deterministic heuristic
+  // (generateFallbackBranchName) instead — it inspects keywords for
+  // feature/bugfix/chore prefix selection and runs in microseconds.
   let finalBranchName = branchName;
   if (!finalBranchName) {
-    try {
-      finalBranchName = await generateBranchName(taskTitle, undefined);
-      log.info(`[setup] Generated branch name: ${finalBranchName}`);
-    } catch (error) {
-      log.error({ err: error }, `[setup] Branch name generation failed`);
+    finalBranchName = generateFallbackBranchName(taskTitle);
+    if (!finalBranchName || finalBranchName.length === 0) {
       finalBranchName = `feature/task-${taskIdNum}-auto-generated`;
     }
+    log.info(`[setup] Generated branch name (deterministic): ${finalBranchName}`);
   }
 
   // NOTE: Use git worktree for isolation — each task gets its own working directory
@@ -131,25 +132,29 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     throw worktreeError;
   }
 
-  session = await prisma.agentSession.update({
-    where: { id: session.id },
-    data: { branchName: finalBranchName, worktreePath },
-  });
-
-  await prisma.notification.create({
-    data: {
-      type: 'agent_execution_started',
-      title: 'Agent execution started',
-      message: `Started automatic execution of "${taskTitle}"`,
-      link: `/tasks/${taskIdNum}`,
-      metadata: toJsonString({ sessionId: session.id, taskId: taskIdNum }),
-    },
-  });
-
-  await prisma.task.update({
-    where: { id: taskIdNum },
-    data: { status: 'in-progress', startedAt: taskStartedAt || new Date() },
-  });
+  // NOTE: Three writes below are independent (no FK ordering between them) —
+  // run them concurrently to shave ~30-90ms off the response path.
+  const currentSessionId = session.id;
+  const [updatedSession] = await Promise.all([
+    prisma.agentSession.update({
+      where: { id: currentSessionId },
+      data: { branchName: finalBranchName, worktreePath },
+    }),
+    prisma.notification.create({
+      data: {
+        type: 'agent_execution_started',
+        title: 'Agent execution started',
+        message: `Started automatic execution of "${taskTitle}"`,
+        link: `/tasks/${taskIdNum}`,
+        metadata: toJsonString({ sessionId: currentSessionId, taskId: taskIdNum }),
+      },
+    }),
+    prisma.task.update({
+      where: { id: taskIdNum },
+      data: { status: 'in-progress', startedAt: taskStartedAt || new Date() },
+    }),
+  ]);
+  session = updatedSession;
   log.info(`[setup] Updated task ${taskIdNum} status to 'in-progress'`);
 
   return { developerModeConfig, session, finalBranchName, worktreePath };

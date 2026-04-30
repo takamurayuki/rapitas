@@ -19,6 +19,12 @@ import {
   removeWorktree,
   cleanupStaleWorktrees,
 } from './worktree-ops';
+import {
+  awaitWorktreeDependencies,
+  startWorktreeDependenciesInstall,
+  taskNeedsDependencies,
+  clearWorktreeDependenciesTracking,
+} from './dependency-installer';
 
 export {
   getGitDiff,
@@ -35,6 +41,10 @@ export {
   createWorktree,
   removeWorktree,
   cleanupStaleWorktrees,
+  awaitWorktreeDependencies,
+  startWorktreeDependenciesInstall,
+  taskNeedsDependencies,
+  clearWorktreeDependenciesTracking,
 };
 
 /**

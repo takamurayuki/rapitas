@@ -10,6 +10,10 @@
 
 import { spawn, execSync } from 'child_process';
 import type { ChildProcess } from 'child_process';
+import { constants as fsConstants } from 'fs';
+import { access, stat } from 'fs/promises';
+import { homedir } from 'os';
+import { join } from 'path';
 import { BaseAgent } from '../base-agent';
 import type { AgentCapability, AgentTask, AgentExecutionResult } from '../base-agent';
 import { createInitialWaitingState } from '../question-detection';
@@ -97,13 +101,13 @@ export class CodexCliAgent extends BaseAgent {
       };
     }
 
-    const isCodexAvailable = await this.isAvailable();
-    if (!isCodexAvailable) {
+    const availabilityError = await this.getAvailabilityError();
+    if (availabilityError) {
       this.status = 'failed';
       return {
         success: false,
         output: '',
-        errorMessage: `Codex CLI not found. Please install it with: npm install -g @openai/codex`,
+        errorMessage: availabilityError,
         executionTimeMs: Date.now() - startTime,
       };
     }
@@ -244,38 +248,16 @@ export class CodexCliAgent extends BaseAgent {
   }
 
   async isAvailable(): Promise<boolean> {
-    return new Promise((resolve) => {
-      const isWindows = process.platform === 'win32';
-      const codexPath = resolveCliPath(
-        process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
-      );
-      const proc = spawn(codexPath, ['--version'], { shell: true });
-
-      const timeout = setTimeout(() => {
-        proc.kill();
-        resolve(false);
-      }, 10000);
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout);
-        resolve(code === 0);
-      });
-      proc.on('error', () => {
-        clearTimeout(timeout);
-        resolve(false);
-      });
-    });
+    const availabilityError = await this.getAvailabilityError();
+    if (availabilityError) logger.warn(`${this.logPrefix} ${availabilityError}`);
+    return !availabilityError;
   }
 
   async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = [];
 
-    const available = await this.isAvailable();
-    if (!available) {
-      errors.push(
-        'Codex CLI is not installed or not available in PATH. Install with: npm install -g @openai/codex',
-      );
-    }
+    const availabilityError = await this.getAvailabilityError();
+    if (availabilityError) errors.push(availabilityError);
 
     if (this.config.apiKey) {
       logger.info(`${this.logPrefix} Using provided API key`);
@@ -317,5 +299,108 @@ export class CodexCliAgent extends BaseAgent {
   /** Delegate to standalone buildStructuredPrompt with agent's log prefix. */
   private buildPrompt(task: AgentTask): string {
     return buildStructuredPrompt(task, this.logPrefix);
+  }
+
+  private async runCodexCommand(
+    args: string[],
+    timeoutMs: number = 10000,
+  ): Promise<{ ok: boolean; stderr: string }> {
+    return new Promise((resolve) => {
+      const isWindows = process.platform === 'win32';
+      const codexPath = resolveCliPath(
+        process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
+      );
+
+      // NOTE: With `shell: true`, Node.js does NOT auto-quote arguments
+      // containing spaces. e.g. ['debug', 'prompt-input', 'health check']
+      // becomes the literal command line `codex debug prompt-input health
+      // check`, and Codex parses `check` as an extra positional argument
+      // ("unexpected argument 'check' found"). Build the command line
+      // ourselves with proper quoting to avoid this.
+      const quotedCodex = codexPath.includes(' ') ? `"${codexPath}"` : codexPath;
+      const quotedArgs = args
+        .map((arg) =>
+          /[\s"]/.test(arg) ? `"${arg.replace(/"/g, isWindows ? '""' : '\\"')}"` : arg,
+        )
+        .join(' ');
+      const command = `${quotedCodex} ${quotedArgs}`;
+
+      const proc = spawn(command, [], {
+        shell: true,
+        windowsHide: true,
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+      let stderr = '';
+
+      const timeout = setTimeout(() => {
+        proc.kill();
+        resolve({ ok: false, stderr: `Timed out after ${timeoutMs}ms` });
+      }, timeoutMs);
+
+      proc.stderr?.setEncoding('utf8');
+      proc.stderr?.on('data', (chunk) => {
+        stderr += String(chunk);
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timeout);
+        resolve({ ok: code === 0, stderr });
+      });
+      proc.on('error', (error) => {
+        clearTimeout(timeout);
+        resolve({ ok: false, stderr: error.message });
+      });
+    });
+  }
+
+  private async getAvailabilityError(): Promise<string | null> {
+    const runtimeAccessError = await this.getRuntimeAccessError();
+    if (runtimeAccessError) return runtimeAccessError;
+
+    const versionCheck = await this.runCodexCommand(['--version']);
+    if (!versionCheck.ok) {
+      return 'Codex CLI is not installed or not available in PATH. Install with: npm install -g @openai/codex';
+    }
+
+    // `codex --version` can succeed even when the CLI cannot open its session
+    // store. `debug prompt-input` exercises the same session-file path without
+    // making a model/network request, so it is a cheap runtime readiness probe.
+    const sessionCheck = await this.runCodexCommand(['debug', 'prompt-input', 'health check']);
+    if (!sessionCheck.ok) {
+      return `Codex CLI cannot start a session. ${sessionCheck.stderr.trim() || 'Session probe failed.'}`;
+    }
+
+    return null;
+  }
+
+  /**
+   * Codex can print a version even when it cannot start a session. On Windows
+   * this commonly happens when ~/.codex/sessions is owned/locked by another
+   * process. Treat that as unavailable so routing does not pick a broken agent.
+   */
+  private async getRuntimeAccessError(): Promise<string | null> {
+    const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');
+    const sessionsDir = join(codexHome, 'sessions');
+
+    const checkWritableIfExists = async (path: string, label: string): Promise<string | null> => {
+      try {
+        await stat(path);
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        return code === 'ENOENT' ? null : `${label} を確認できません: ${path}`;
+      }
+
+      try {
+        await access(path, fsConstants.R_OK | fsConstants.W_OK);
+        return null;
+      } catch {
+        return `${label} に読み書きできません: ${path}`;
+      }
+    };
+
+    return (
+      (await checkWritableIfExists(sessionsDir, 'Codex セッションディレクトリ')) ||
+      (await checkWritableIfExists(codexHome, 'Codex ホームディレクトリ'))
+    );
   }
 }

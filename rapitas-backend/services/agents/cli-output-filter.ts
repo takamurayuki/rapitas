@@ -18,6 +18,8 @@ const IMPORTANT_PATTERNS = [
 const BENIGN_DIAGNOSTIC_PATTERNS = [
   /codex_core::session: failed to record rollout/i,
   /failed to record rollout/i,
+  /failed to clean up stale arg0 temp dirs/i,
+  /proceeding, even though we could not update PATH/i,
 ];
 
 const NOISE_PATTERNS = [
@@ -86,23 +88,28 @@ export function filterCliDiagnosticOutput(
     const trimmed = line.trim();
     if (!trimmed) continue;
 
+    const stripped = stripCliLabels(trimmed);
+    const candidate = stripped || trimmed;
+
     if (
-      isBenignDiagnostic(trimmed) ||
-      isNoiseLine(trimmed) ||
-      isFilePathListLine(trimmed) ||
-      isDiffHunkLine(trimmed) ||
-      isDiffOrCodeLine(trimmed)
+      isBenignDiagnostic(candidate) ||
+      isNoiseLine(candidate) ||
+      isFilePathListLine(candidate) ||
+      isGrepMatchLine(candidate) ||
+      isDiffHunkLine(candidate) ||
+      isDiffOrCodeLine(candidate) ||
+      isBracketOnlyLine(candidate)
     ) {
       omittedLines++;
       continue;
     }
 
-    if (IMPORTANT_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    if (IMPORTANT_PATTERNS.some((pattern) => pattern.test(candidate))) {
       displayLines.push(truncateLine(trimmed));
       continue;
     }
 
-    if (COMMAND_PATTERNS.some((pattern) => pattern.test(trimmed))) {
+    if (COMMAND_PATTERNS.some((pattern) => pattern.test(candidate))) {
       displayLines.push(`[Command] ${truncateLine(trimmed)}`);
       continue;
     }
@@ -132,19 +139,51 @@ export function shouldHideRawCliLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return true;
   if (trimmed.length > MAX_DISPLAY_LINE_CHARS) return true;
+
+  // NOTE: Strip codex/CLI labels (`$ ` shell echo, `調査:` / `Investigation:`
+  // tool labels) so the inner heuristics see the actual content. Otherwise a
+  // line like `調査: { foo }` slips past the bracket / code filter because of
+  // the prefix. The IMPORTANT-keyword exception still applies after stripping.
+  const stripped = stripCliLabels(trimmed);
+  const candidate = stripped || trimmed;
+
   if (
-    isBenignDiagnostic(trimmed) ||
-    isNoiseLine(trimmed) ||
-    isFilePathListLine(trimmed) ||
-    isDiffHunkLine(trimmed) ||
-    isDiffOrCodeLine(trimmed)
+    isBenignDiagnostic(candidate) ||
+    isNoiseLine(candidate) ||
+    isFilePathListLine(candidate) ||
+    isGrepMatchLine(candidate) ||
+    isDiffHunkLine(candidate) ||
+    isDiffOrCodeLine(candidate) ||
+    isBracketOnlyLine(candidate)
   ) {
     return true;
   }
-  if (/^[{[}"'`]|[{};]$/.test(trimmed) && !IMPORTANT_PATTERNS.some((p) => p.test(trimmed))) {
+  if (/^[{[}"'`]|[{};]$/.test(candidate) && !IMPORTANT_PATTERNS.some((p) => p.test(candidate))) {
+    return true;
+  }
+  // NOTE: A bare codex tool label (e.g. `調査:`, `Investigation:`) with code-like
+  // body is noise. If stripping the label leaves something short and not
+  // important-looking, hide it.
+  if (
+    stripped &&
+    stripped !== trimmed &&
+    stripped.length < 60 &&
+    !IMPORTANT_PATTERNS.some((p) => p.test(stripped))
+  ) {
     return true;
   }
   return false;
+}
+
+/**
+ * Remove codex/CLI prefix labels so heuristics can inspect the real content.
+ * Preserves the rest of the line verbatim.
+ */
+function stripCliLabels(line: string): string {
+  return line
+    .replace(/^\$\s+/, '')
+    .replace(/^(?:調査|investigation|research|exec|run|execute|tool):\s+/i, '')
+    .trim();
 }
 
 function isNoiseLine(line: string): boolean {
@@ -159,11 +198,42 @@ function isDiffHunkLine(line: string): boolean {
   return /^[+-](?![+-]{2}\s)/.test(line);
 }
 
+/**
+ * True when the line is essentially just brackets / punctuation (e.g. `}`,
+ * `} catch (error) {`, `/* error *​/`). These show up when an agent dumps code
+ * excerpts — useful in a code review, but pure noise in a live execution log.
+ */
+function isBracketOnlyLine(line: string): boolean {
+  if (/^\s*[{}()\[\];,]+\s*$/.test(line)) return true;
+  if (/^\s*\/[*\/]/.test(line)) return true; // `/* ... */` or `// ...`
+  if (/^\s*\}\s*(?:catch|finally|else|while)\b/.test(line)) return true;
+  if (/^\s*\}\s*\)?[,;]?\s*$/.test(line)) return true;
+  return false;
+}
+
 function isFilePathListLine(line: string): boolean {
   const candidate = line.replace(/^\$\s+/, '').trim();
   if (candidate.includes(' ')) return false;
   if (!/[\\/]/.test(candidate)) return false;
   return /^(?:[A-Za-z]:[\\/])?[\w@()[\].-]+(?:[\\/][\w@()[\].-]+)+$/.test(candidate);
+}
+
+/**
+ * Detects grep-style line output dumped by codex/claude when the agent runs
+ * `grep -n` or similar. Format: `<path>:<lineno>:<content>`, optionally prefixed
+ * with `$ ` (CLI echo) or `調査: ` / `Investigation: ` (research label).
+ *
+ * These lines flood execution logs when an agent grep's a large file
+ * (e.g., bun.lock, pnpm-lock.yaml, generated SQL).
+ */
+function isGrepMatchLine(line: string): boolean {
+  // NOTE: Caller already stripped `$ ` and tool labels via stripCliLabels, but
+  // accept either form here for robustness when invoked directly.
+  const candidate = line
+    .replace(/^\$\s+/, '')
+    .replace(/^(?:調査|investigation|research):\s+/i, '')
+    .trim();
+  return /^(?:[A-Za-z]:[\\/])?[\w@()[\].-]+(?:[\\/][\w@()[\].-]+)*:\d+:/.test(candidate);
 }
 
 function isBenignDiagnostic(line: string): boolean {

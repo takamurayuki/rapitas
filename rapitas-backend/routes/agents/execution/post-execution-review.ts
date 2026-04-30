@@ -64,9 +64,88 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // 1. Get the diff from the worktree
   const diff = await getDiff(executionDir);
   if (!diff.trim()) {
-    log.info({ taskId }, 'No changes in worktree, cleaning up');
-    await cleanupWorktree(workDir, executionDir, sessionId);
-    await markTaskDone(taskId);
+    // NOTE: Workflow files (research.md / plan.md / verify.md) are stored
+    // OUTSIDE the worktree at `~/.rapitas/workflows/...` so their creation does
+    // NOT show up in `git diff`. If the agent followed the workflow correctly
+    // (saved research/plan via the workflow API and then exited without code
+    // changes), `task.workflowStatus` will have transitioned to a planning
+    // state. Treat that as a successful planning phase — NOT a blocked failure.
+    const taskState = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    const planningStatuses = new Set(['research_done', 'plan_created', 'plan_approved']);
+    if (taskState?.workflowStatus && planningStatuses.has(taskState.workflowStatus)) {
+      log.info(
+        { taskId, sessionId, workflowStatus: taskState.workflowStatus },
+        'Agent completed planning phase (research/plan saved). Awaiting user approval before implementation.',
+      );
+      await prisma.task
+        .update({ where: { id: taskId }, data: { status: 'in_progress' } })
+        .catch((err) => log.warn({ err, taskId }, 'Failed to update task status'));
+      // Worktree is preserved so the next execution (after user approves the
+      // plan in the UI) can pick up where this one left off.
+      return;
+    }
+
+    // NOTE: Empty diff with no planning artifacts almost always means the agent
+    // gave up mid-task without making any change (CLI crashed, vitest EPERM,
+    // agent hallucinated completion, ignored the workflow instruction, etc.).
+    // DO NOT silently mark the task as done — surface it to the user as
+    // `blocked` so they can inspect the worktree and re-run.
+    log.warn(
+      { taskId, sessionId, workflowStatus: taskState?.workflowStatus ?? null },
+      'Agent reported success but produced no diff and no planning artifacts — marking task as blocked',
+    );
+    await prisma.task
+      .update({ where: { id: taskId }, data: { status: 'blocked' } })
+      .catch((err) => log.warn({ err, taskId }, 'Failed to update task to blocked'));
+    await prisma.agentSession
+      .update({
+        where: { id: sessionId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          errorMessage:
+            'Agent finished but produced no file changes and no workflow artifacts (research.md/plan.md). Possible causes: verification command crashed, agent ignored the workflow instruction, or hallucinated completion. Worktree preserved for inspection.',
+        },
+      })
+      .catch((err) => log.warn({ err, sessionId }, 'Failed to update session to failed'));
+    // NOTE: Worktree intentionally preserved (not cleaned up) so the user can
+    // inspect what the agent did/did not do. The worktree-cleanup-scheduler
+    // will eventually remove it after the configured retention window.
+    return;
+  }
+
+  // NOTE: If the agent produced code changes but the user has not yet approved
+  // the plan, refuse to commit/PR. This catches cases where the agent ignored
+  // the workflow instruction and implemented despite being told to plan first.
+  // The diff is preserved in the worktree so the user can review/discard.
+  const taskWithStatus = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+    .catch(() => null);
+  const status = taskWithStatus?.workflowStatus;
+  // We only enforce the gate when a plan exists (plan_created) but isn't yet
+  // approved. `null` / `draft` means workflow tracking isn't engaged for this
+  // task — fall through to AI review as before.
+  if (status === 'plan_created') {
+    log.warn(
+      { taskId, sessionId, workflowStatus: status },
+      'Agent produced code changes but plan.md is not yet approved — blocking commit/PR until user approves the plan',
+    );
+    await prisma.task
+      .update({ where: { id: taskId }, data: { status: 'blocked' } })
+      .catch((err) => log.warn({ err, taskId }, 'Failed to update task to blocked'));
+    await prisma.agentSession
+      .update({
+        where: { id: sessionId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          errorMessage:
+            'Agent implemented before the user approved plan.md. Worktree changes preserved for review. Approve the plan in the UI and re-run, or discard the worktree.',
+        },
+      })
+      .catch((err) => log.warn({ err, sessionId }, 'Failed to update session to failed'));
     return;
   }
 
