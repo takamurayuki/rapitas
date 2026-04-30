@@ -116,17 +116,60 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
-  // NOTE: If the agent produced code changes but the user has not yet approved
-  // the plan, refuse to commit/PR. This catches cases where the agent ignored
-  // the workflow instruction and implemented despite being told to plan first.
-  // The diff is preserved in the worktree so the user can review/discard.
+  // NOTE: If the agent produced code changes but did NOT save a plan.md via
+  // the workflow API, the agent ignored the workflow instructions entirely
+  // (codex CLI is known to do this — it's optimized for "implement now" and
+  // does not respect "save plan and stop" instructions). Revert the worktree
+  // to discard the unauthorized changes and block the task so the user is
+  // forced to re-run the planning phase.
   const taskWithStatus = await prisma.task
     .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
     .catch(() => null);
   const status = taskWithStatus?.workflowStatus;
-  // We only enforce the gate when a plan exists (plan_created) but isn't yet
-  // approved. `null` / `draft` means workflow tracking isn't engaged for this
-  // task — fall through to AI review as before.
+  const planFile = await prisma.workflowFile
+    .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
+    .catch(() => null);
+  const planExists = !!planFile;
+
+  if (!planExists) {
+    log.error(
+      { taskId, sessionId, workflowStatus: status, diffSize: diff.length },
+      'Agent produced code changes WITHOUT saving plan.md — workflow violated. Reverting worktree and blocking task.',
+    );
+    // Discard the agent's unauthorized changes so the user has a clean slate
+    // to retry from. The branch + worktree are preserved (just the working
+    // tree is reset to HEAD).
+    try {
+      const { execSync } = await import('node:child_process');
+      execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
+      execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
+      log.info({ taskId, executionDir }, 'Reverted unauthorized agent changes');
+    } catch (revertErr) {
+      log.warn(
+        { err: revertErr, taskId },
+        'Failed to revert worktree (proceeding to mark blocked)',
+      );
+    }
+    await prisma.task
+      .update({ where: { id: taskId }, data: { status: 'blocked' } })
+      .catch((err) => log.warn({ err, taskId }, 'Failed to update task to blocked'));
+    await prisma.agentSession
+      .update({
+        where: { id: sessionId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          errorMessage:
+            'ワークフロー違反: エージェントが plan.md を保存せずに直接コードを変更しました (codex CLI は「計画して停止」指示を無視する傾向があります)。worktree の未承認変更は破棄しました。タスクを再実行すれば調査・計画フェーズからやり直します。',
+        },
+      })
+      .catch((err) => log.warn({ err, sessionId }, 'Failed to update session to failed'));
+    return;
+  }
+
+  // NOTE: plan.md exists but isn't approved yet — agent jumped ahead from
+  // planning to implementation in a single run. Preserve the diff (it might
+  // be salvageable) but block the commit/PR until user approves the plan.
   if (status === 'plan_created') {
     log.warn(
       { taskId, sessionId, workflowStatus: status },

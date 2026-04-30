@@ -781,7 +781,9 @@ function syncDatabaseAndGenerateClient() {
 const RESTART_EXIT_CODE = 75;
 
 // Bunクラッシュ（Segmentation fault等）を示す終了コード
-const BUN_CRASH_EXIT_CODES = [134, 139]; // 134=SIGABRT, 139=SIGSEGV
+// 134=SIGABRT, 139=SIGSEGV, 3=Bun "Internal assertion failure" panic
+// (Bun panics on Windows surface as exit code 3 at the bun script wrapper layer.)
+const BUN_CRASH_EXIT_CODES = [3, 134, 139];
 
 // クラッシュリカバリの設定
 const MAX_CRASH_RETRIES = 3;
@@ -845,9 +847,15 @@ function startBackend(retryCount = 0) {
       );
       crashTimestamps.push(now);
 
-      console.error(
-        `\n⚠️ Bun crashed with exit code ${code} (Segmentation fault / runtime crash)`,
-      );
+      const crashKind =
+        code === 3
+          ? 'Internal assertion failure (Bun panic)'
+          : code === 134
+            ? 'SIGABRT (assertion / abort)'
+            : code === 139
+              ? 'SIGSEGV (segmentation fault)'
+              : 'runtime crash';
+      console.error(`\n⚠️ Bun crashed with exit code ${code} (${crashKind})`);
 
       if (crashTimestamps.length <= MAX_CRASH_RETRIES) {
         console.log(
