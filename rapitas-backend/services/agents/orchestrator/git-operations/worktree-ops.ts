@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
+import { installWorktreeDependencies } from './dependency-installer';
 import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
@@ -120,6 +121,12 @@ export async function createWorktree(
     logger.info(
       `[createWorktree] Worktree created: ${worktreePath} (branch: ${effectiveBranchName})`,
     );
+
+    // NOTE: git worktree only checks out tracked files; node_modules is gitignored
+    // and therefore missing in the worktree. Install dependencies now so that
+    // agent-spawned commands (next, vitest, etc.) can resolve their CLI binaries.
+    await installWorktreeDependencies(worktreePath);
+
     return worktreePath;
   } catch (error) {
     logger.error(

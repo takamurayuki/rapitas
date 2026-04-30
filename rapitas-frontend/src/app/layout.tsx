@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import Header from '@/components/common/Header';
 import KeyboardShortcuts from '@/components/common/KeyboardShortcuts';
 import { ResumableExecutionsBanner } from '@/components/common/ResumableExecutionsBanner';
 import ScheduleReminderProvider from '@/components/providers/ScheduleReminderProvider';
@@ -119,7 +118,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <IntlProvider>
           <AuthProvider>
             <PomodoroProvider>
