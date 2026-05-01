@@ -52,6 +52,20 @@ export class CodexCliAgent extends BaseAgent {
     };
   }
 
+  /**
+   * Override the log prefix so investigation-mode runs are clearly marked
+   * as "Research Agent (codex)" in logs / UI streams. The Development Agent
+   * label was misleading users and the agent itself, since codex inferred
+   * "implementation task" from the tag and then ignored read-only
+   * instructions.
+   */
+  get logPrefix(): string {
+    if (this.config.investigationMode) {
+      return `[Research Agent (codex)]`;
+    }
+    return `[${this.name}]`;
+  }
+
   getCapabilities(): AgentCapability {
     return {
       codeGeneration: true,
@@ -133,10 +147,15 @@ export class CodexCliAgent extends BaseAgent {
       status: this.status,
     };
 
-    // Extend config with task-level resumeSessionId if provided
+    // Extend config with task-level overrides (resume session, investigation
+    // mode forwarded from ExecutionOptions). Investigation mode is the safe
+    // pattern for research/plan/review phases — read-only sandbox + `-o file`
+    // capture so codex cannot modify the workspace.
     const effectiveConfig: CodexCliAgentConfig = {
       ...this.config,
       resumeSessionId: this.config.resumeSessionId ?? task.resumeSessionId,
+      investigationMode: this.config.investigationMode ?? task.investigationMode,
+      outputLastMessageFile: this.config.outputLastMessageFile ?? task.outputLastMessageFile,
     };
 
     const result = await spawnCodexProcess(

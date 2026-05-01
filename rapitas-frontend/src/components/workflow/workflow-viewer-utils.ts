@@ -51,16 +51,21 @@ export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
     },
   ];
 
+  // NOTE: Research is now MANDATORY across all complexity tiers — the
+  // research-only execution path (read-only sandbox, codex stdout → research.md)
+  // runs as the very first phase regardless of workflowMode. The tabs reflect
+  // that: research is always shown; remaining tabs scale with complexity.
   switch (workflowMode) {
     case 'lightweight':
-      // Lightweight mode: verification only
-      return allTabs.filter((tab) => ['verify'].includes(tab.id));
+      // Lightweight: research + verify (skip plan / Q&A)
+      return allTabs.filter((tab) => ['research', 'verify'].includes(tab.id));
     case 'standard':
-      // Standard mode: plan, Q&A, verification
-      return allTabs.filter((tab) => ['question', 'plan', 'verify'].includes(tab.id));
+      // Standard: research + plan + Q&A + verify (skip nothing now that
+      // research is mandatory)
+      return allTabs.filter((tab) => ['research', 'question', 'plan', 'verify'].includes(tab.id));
     case 'comprehensive':
     default:
-      // Comprehensive mode: all tabs
+      // Comprehensive: all tabs (same as standard at present)
       return allTabs;
   }
 };
@@ -78,8 +83,14 @@ export interface NextRoleInfo {
  * @returns Record mapping workflow status strings to their next-role info
  */
 export const getStatusToNextRole = (workflowMode: string): Record<string, NextRoleInfo> => {
+  // NOTE: All modes now start with the researcher role (research.md is a
+  // mandatory first artifact). lightweight skips plan/review and goes
+  // research → implement; standard inserts plan/review; comprehensive is
+  // the same as standard at this point — kept distinct for future
+  // divergence.
   const lightweightMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'implementer', label: '実装開始', icon: Code },
+    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
+    research_done: { role: 'implementer', label: '実装開始', icon: Code },
     in_progress: {
       role: 'auto_verifier',
       label: '自動検証実行',
@@ -88,7 +99,8 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
   };
 
   const standardMode: Record<string, NextRoleInfo> = {
-    draft: { role: 'planner', label: '計画作成', icon: FileText },
+    draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
+    research_done: { role: 'planner', label: '計画作成', icon: FileText },
     plan_created: {
       role: 'reviewer',
       label: 'レビュー実行',
@@ -121,10 +133,14 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
   }
 };
 
-// Auto-selection mapping for tabs corresponding to status
+// Auto-selection mapping for tabs corresponding to status. `draft` now
+// points at `research` so the user lands on the research tab immediately
+// after the first execution kicks off (research is the always-on first phase).
 export const STATUS_TO_TAB: Partial<Record<WorkflowStatus, WorkflowFileType>> = {
+  draft: 'research',
   research_done: 'research',
   plan_created: 'plan',
+  plan_approved: 'plan',
   in_progress: 'plan',
   verify_done: 'verify',
   completed: 'verify',

@@ -8,6 +8,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { getTaskWorkflowDir } from '../workflow/workflow-paths';
 
 const log = createLogger('progress-summary');
 
@@ -83,9 +84,8 @@ async function readVerifyFile(
   categoryId: number | null | undefined,
 ): Promise<string | null> {
   try {
-    const catDir = categoryId ? String(categoryId) : '0';
-    const thDir = themeId ? String(themeId) : '0';
-    const filePath = join(process.cwd(), 'tasks', catDir, thDir, String(taskId), 'verify.md');
+    const taskDir = getTaskWorkflowDir(categoryId ?? null, themeId, taskId);
+    const filePath = join(taskDir, 'verify.md');
     return await readFile(filePath, 'utf-8');
   } catch {
     return null;

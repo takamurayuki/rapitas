@@ -122,6 +122,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // does not respect "save plan and stop" instructions). Revert the worktree
   // to discard the unauthorized changes and block the task so the user is
   // forced to re-run the planning phase.
+  // EXCEPTION: codex agents run without workflow enforcement, so missing
+  // plan.md is expected for them. Skip the revert for codex sessions.
   const taskWithStatus = await prisma.task
     .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
     .catch(() => null);
@@ -131,7 +133,17 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     .catch(() => null);
   const planExists = !!planFile;
 
-  if (!planExists) {
+  // Look up the agent type via session → execution → agentConfig chain.
+  const execution = await prisma.agentExecution
+    .findFirst({
+      where: { sessionId },
+      orderBy: { createdAt: 'desc' },
+      select: { agentConfig: { select: { agentType: true } } },
+    })
+    .catch(() => null);
+  const reviewIsCodexAgent = execution?.agentConfig?.agentType === 'codex';
+
+  if (!planExists && !reviewIsCodexAgent) {
     log.error(
       { taskId, sessionId, workflowStatus: status, diffSize: diff.length },
       'Agent produced code changes WITHOUT saving plan.md — workflow violated. Reverting worktree and blocking task.',

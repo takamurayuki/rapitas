@@ -185,6 +185,17 @@ export async function removeWorktree(
     }
   }
 
+  // NOTE: Always run `git worktree prune` BEFORE attempting remove. This
+  // clears stale entries left behind by previous failed removes (commonly
+  // happens when a long-running codex/install process held a file handle
+  // during the prior cleanup). Without this, `git worktree remove` may
+  // refuse with "is not a working tree".
+  try {
+    await execAsync('git worktree prune', { cwd: baseDir, encoding: 'utf8' });
+  } catch (preErr) {
+    logger.debug({ err: preErr }, '[removeWorktree] pre-prune failed (non-fatal)');
+  }
+
   try {
     await execAsync(`git worktree remove "${worktreePath}" --force`, {
       cwd: baseDir,
@@ -217,13 +228,30 @@ export async function removeWorktree(
         }
       }
 
-      try {
-        await fsPromises.rm(worktreePath, { recursive: true, force: true });
-        logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
-      } catch (fsError) {
+      // NOTE: Windows often fails the first rm pass with EBUSY/EFAULT when a
+      // codex / pnpm / SSE process still holds a handle inside node_modules.
+      // Retry up to 3 times with backoff so transient holds release.
+      const maxAttempts = 3;
+      let lastErr: unknown;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await fsPromises.rm(worktreePath, { recursive: true, force: true });
+          logger.info(
+            `[removeWorktree] Cleaned up directory: ${worktreePath} (attempt ${attempt})`,
+          );
+          lastErr = null;
+          break;
+        } catch (fsError) {
+          lastErr = fsError;
+          if (attempt < maxAttempts) {
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+          }
+        }
+      }
+      if (lastErr) {
         logger.error(
-          { err: fsError },
-          `[removeWorktree] Failed to clean up directory: ${worktreePath}`,
+          { err: lastErr },
+          `[removeWorktree] Failed to clean up directory after ${maxAttempts} attempts: ${worktreePath}`,
         );
       }
     }

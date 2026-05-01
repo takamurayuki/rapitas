@@ -3,6 +3,7 @@
  *
  * Computes the SmartRouter inputs for a given workflow role:
  *  - `preferredProvider`: per-role override > global UserSettings default
+ *    > default AIAgentConfig provider (isDefault=true) > undefined
  *  - `excludeProviders`: cross-provider review exclusions for reviewer /
  *    verifier roles, derived from previous AgentExecutions on the same task
  *
@@ -13,6 +14,7 @@
  */
 import { prisma } from '../../config/database';
 import type { Provider } from '../ai/model-discovery';
+import { agentTypeToProvider } from '../ai/agent-fallback';
 
 const VALID_PROVIDERS: ReadonlySet<Provider> = new Set(['claude', 'openai', 'gemini', 'ollama']);
 
@@ -54,10 +56,27 @@ export async function resolveRoleProviderPreferences(
   const isExplicitProvider =
     !!override && override !== 'cross-provider' && VALID_PROVIDERS.has(override as Provider);
 
-  // Resolution order: explicit role override > global default > undefined.
+  // Resolution order:
+  //   1. explicit role override
+  //   2. global UserSettings.defaultAiProvider
+  //   3. provider of the default AIAgentConfig (isDefault=true), derived
+  //      from its agentType (claude-code → claude, codex → openai, …).
+  //      Keeps the SmartRouter aligned with what the user picked as their
+  //      "default agent" on the AIエージェント管理 page even when they
+  //      never set a global provider preference.
+  //   4. undefined → SmartRouter falls back to cheapest across all providers.
   // When the user picked `cross-provider`, no specific preferredProvider is
   // applied (any non-upstream provider is acceptable).
-  const explicitPreference = isCrossProvider ? null : isExplicitProvider ? override : globalDefault;
+  let explicitPreference: string | null | undefined = null;
+  if (!isCrossProvider) {
+    if (isExplicitProvider) {
+      explicitPreference = override;
+    } else if (globalDefault && VALID_PROVIDERS.has(globalDefault as Provider)) {
+      explicitPreference = globalDefault;
+    } else {
+      explicitPreference = await getDefaultAgentProvider();
+    }
+  }
   const preferredProvider =
     explicitPreference && VALID_PROVIDERS.has(explicitPreference as Provider)
       ? (explicitPreference as Provider)
@@ -97,6 +116,24 @@ async function getUpstreamProvider(taskId: number): Promise<Provider | null> {
   });
   if (!recent?.modelName) return null;
   return inferProviderFromModelId(recent.modelName);
+}
+
+/**
+ * Derive a Provider from the user's default `AIAgentConfig` row. Used as a
+ * tertiary fallback so the SmartRouter biases toward the same provider that
+ * runs the default agent when the user has not configured anything else.
+ *
+ * @returns Provider mapped from the default agent's `agentType`, or null
+ *          when no default is configured. / プロバイダー、未設定時はnull
+ */
+async function getDefaultAgentProvider(): Promise<Provider | null> {
+  const defaultAgent = await prisma.aIAgentConfig.findFirst({
+    where: { isDefault: true, isActive: true },
+    select: { agentType: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+  if (!defaultAgent) return null;
+  return agentTypeToProvider(defaultAgent.agentType);
 }
 
 /** Map a model id to its provider family using simple substring rules. */

@@ -12,6 +12,28 @@ import { createLogger } from '../../../config/logger';
 const logger = createLogger('execution-persistence');
 
 /**
+ * Coerce a possibly-stringified numeric value to a finite number.
+ *
+ * Returns null when the input is null / undefined / NaN / non-finite.
+ * Strips JSON-style enclosing quotes that creep in when results travel
+ * through stringified IPC channels (e.g. `"\"1.46\""` → 1.46).
+ *
+ * Used to defend Prisma Decimal/Int columns against double-encoded values
+ * that previously corrupted ~1000 rows of AgentSession.totalCostUsd.
+ */
+function toFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const stripped = value.replace(/^"+|"+$/g, '').trim();
+    if (stripped === '') return null;
+    const n = Number(stripped);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
  * Determine execution status from result and log it.
  */
 export function determineExecutionStatus(
@@ -104,15 +126,19 @@ export async function saveExecutionResult(
   // Real-cost fields are only emitted on terminal states by the resolver, so
   // we avoid clobbering them with zeros when we're saving a waiting_for_input
   // checkpoint.
+  // NOTE: Coerce numeric fields to Number to prevent double-JSON-encoded
+  // strings (e.g. `"\"0\""`) from being written into SQLite Decimal columns.
+  // Prior IPC bugs let stringified values through and corrupted ~1k rows.
+  const safeCostUsd = toFiniteNumber(result.costUsd);
   const usageUpdate =
-    !result.waitingForInput && (result.costUsd !== undefined || result.modelName)
+    !result.waitingForInput && (safeCostUsd !== null || result.modelName)
       ? {
-          ...(result.costUsd !== undefined && {
-            inputTokens: result.inputTokens ?? 0,
-            outputTokens: result.outputTokens ?? 0,
-            cacheReadInputTokens: result.cacheReadInputTokens ?? 0,
-            cacheCreationInputTokens: result.cacheCreationInputTokens ?? 0,
-            costUsd: result.costUsd,
+          ...(safeCostUsd !== null && {
+            inputTokens: toFiniteNumber(result.inputTokens) ?? 0,
+            outputTokens: toFiniteNumber(result.outputTokens) ?? 0,
+            cacheReadInputTokens: toFiniteNumber(result.cacheReadInputTokens) ?? 0,
+            cacheCreationInputTokens: toFiniteNumber(result.cacheCreationInputTokens) ?? 0,
+            costUsd: safeCostUsd,
           }),
           ...(result.modelName && { modelName: result.modelName }),
         }
@@ -138,12 +164,17 @@ export async function saveExecutionResult(
     },
   });
 
-  if (result.tokensUsed || result.costUsd) {
+  // NOTE: Same defensive coercion as above — if upstream bugs send strings
+  // for these fields, we still write a clean number to Prisma so the
+  // Decimal/Int columns don't accumulate JSON-quoted garbage.
+  const incTokens = toFiniteNumber(result.tokensUsed);
+  const incCost = toFiniteNumber(result.costUsd);
+  if (incTokens || incCost) {
     await prisma.agentSession.update({
       where: { id: sessionId },
       data: {
-        totalTokensUsed: result.tokensUsed ? { increment: result.tokensUsed } : undefined,
-        totalCostUsd: result.costUsd ? { increment: result.costUsd } : undefined,
+        totalTokensUsed: incTokens ? { increment: incTokens } : undefined,
+        totalCostUsd: incCost ? { increment: incCost } : undefined,
         lastActivityAt: new Date(),
       },
     });

@@ -134,7 +134,7 @@ export function buildProcessEnv(
  * @param parseCommits - Function to extract commits from output / 出力からコミットを抽出する関数
  * @returns Promise resolving to AgentExecutionResult / AgentExecutionResultに解決するPromise
  */
-export function spawnCodexProcess(
+export async function spawnCodexProcess(
   config: CodexCliAgentConfig,
   workDir: string,
   prompt: string,
@@ -147,27 +147,81 @@ export function spawnCodexProcess(
   const { logPrefix } = callbacks;
   const timeout = config.timeout ?? 900000;
 
+  // Ensure the parent dir of --output-last-message exists BEFORE spawn so
+  // codex doesn't silently skip the write (ENOENT was the symptom seen
+  // when researchTempOutputFile pointed to a non-existent dir).
+  if (config.outputLastMessageFile) {
+    try {
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
+      await fs.mkdir(path.dirname(config.outputLastMessageFile), { recursive: true });
+    } catch {
+      // Best-effort; spawn may still succeed if dir was created by another
+      // path (e.g. execute-route already created .rapitas/).
+    }
+  }
+
   return new Promise((resolve) => {
+    // CRITICAL: Per `codex exec --help`, the prompt MUST be the final
+    // positional argument AFTER all OPTIONS:
+    //   codex exec [OPTIONS] [PROMPT]
+    // Putting the prompt right after `exec` (before --sandbox / --json /
+    // -o flags) confuses codex's argument parser and the agent ends up
+    // treating the prompt as a confirmation request — which is why we saw
+    // "了解しました。調査対象を指定してください" replies.
+    // We accumulate FLAGS first and append PROMPT (or `resume <id>`) last.
     const args: string[] = ['exec'];
 
-    const resumeId = config.resumeSessionId;
-    if (resumeId) {
-      args.push('resume', resumeId);
-      logger.info(`${logPrefix} Resuming session: ${resumeId}`);
-    } else {
-      args.push(prompt);
+    // NOTE: --json switches stdout to JSONL events (used in implementation
+    // mode for live UI streaming). Investigation mode SKIPS --json so codex
+    // returns plain markdown straight to stdout — easier to parse, and
+    // prior bug: --json combined with --output-last-message on some codex
+    // versions exited with code 2 before the agent ran any reasoning.
+    if (!config.investigationMode) {
+      args.push('--json');
     }
+    args.push('--cd', workDir);
 
-    args.push('--json', '--cd', workDir);
-
-    // NOTE: Default to full-auto since this is intended for automated execution
-    if (config.yolo) {
+    // NOTE: Investigation mode (research/plan/review phases) — codex MUST NOT
+    // modify code. `codex exec` is non-interactive by default. We use:
+    //   --sandbox=read-only        → no file writes anywhere (OS guaranteed)
+    //   --skip-git-repo-check      → tolerate worktrees that aren't recognized
+    //                                as git repos
+    // We deliberately DO NOT use `--output-last-message`. That flag would
+    // require granting write permission to a path inside the read-only
+    // sandbox (via writable_roots or similar), which complicates security
+    // guarantees. Instead we rely on codex's documented behavior: the final
+    // assistant message goes to STDOUT. The Rapitas backend (parent process,
+    // full permissions) captures stdout and writes research.md / plan.md /
+    // verify.md to ~/.rapitas/workflows/ itself. codex never needs file-write
+    // access for the workflow output to be saved.
+    if (config.investigationMode) {
+      args.push('--sandbox', 'read-only');
+      args.push('--skip-git-repo-check');
+      logger.info(
+        `${logPrefix} Investigation mode: --sandbox=read-only, --skip-git-repo-check, NO --json, NO --output-last-message (final message captured from stdout by parent process)`,
+      );
+    } else if (config.yolo) {
       args.push('--dangerously-bypass-approvals-and-sandbox');
+    } else if (config.sandboxMode) {
+      // Explicit per-execution overrides. `codex exec` doesn't accept
+      // `--ask-for-approval`, so approvalPolicy is ignored here too.
+      args.push('--sandbox', config.sandboxMode);
+      if (config.outputLastMessageFile) {
+        args.push('--output-last-message', config.outputLastMessageFile);
+      }
     } else {
+      // Default for the implementation phase: workspace-write sandbox, no
+      // prompts. Same as the long-standing rapitas behavior.
       args.push('--full-auto');
     }
 
-    if (config.model) {
+    // NOTE: Skip explicit `-m <model>` in investigation mode. Some codex
+    // CLI versions reject specific model IDs (e.g. gpt-5.5) when paired
+    // with --sandbox=read-only and exit with code 2 before the agent runs.
+    // Falling back to the user's codex config default (~/.codex/config.toml)
+    // is more robust for the read-only investigation path.
+    if (config.model && !config.investigationMode) {
       const model = normalizeCodexModel(
         config.model,
         !!config.apiKey || !!process.env.OPENAI_API_KEY,
@@ -175,7 +229,27 @@ export function spawnCodexProcess(
       args.push('-m', model);
     }
 
-    if (config.sandboxMode) args.push('-s', config.sandboxMode);
+    // Prompt handling differs by mode:
+    //   - resume: append `resume <id>` (positional) — keep existing behavior
+    //   - investigation: pass a SHORT imperative as positional + the LONG
+    //     markdown body via STDIN. Long Markdown bodies passed as positional
+    //     args were sometimes interpreted by codex as a request to clarify
+    //     the task. The CLI explicitly supports prompt-plus-stdin: a short
+    //     imperative arg + body on stdin works reliably.
+    //   - implementation: pass full prompt as positional (legacy behavior)
+    const resumeId = config.resumeSessionId;
+    let promptForStdin: string | null = null;
+    if (resumeId) {
+      args.push('resume', resumeId);
+      logger.info(`${logPrefix} Resuming session: ${resumeId}`);
+    } else if (config.investigationMode) {
+      const headline =
+        '次の標準入力に含まれる調査タスクを実行し、最終回答を必ず "# 調査レポート" から始めてください。前置きは不要です。';
+      args.push(headline);
+      promptForStdin = prompt;
+    } else {
+      args.push(prompt);
+    }
 
     const isWindows = process.platform === 'win32';
     const codexPath = resolveCliPath(
@@ -184,6 +258,18 @@ export function spawnCodexProcess(
 
     logger.info(`${logPrefix} Platform: ${process.platform}, Codex: ${codexPath}`);
     logger.info(`${logPrefix} Timeout: ${timeout}ms, Prompt: ${prompt.length} chars`);
+
+    // Diagnostic: print the FULL spawn args (with prompt truncated for log
+    // hygiene) so we can verify codex receives `exec [OPTIONS] PROMPT` in
+    // the correct order. The spawn line is the single most important data
+    // point when an agent comes back with "了解しました" — it tells us if
+    // OPTIONS landed before the positional PROMPT.
+    const argsForLog = args.map((a, i) => {
+      if (i === args.length - 1 && a.length > 100) return `<prompt:${a.length}chars>`;
+      return a;
+    });
+    logger.info(`${logPrefix} Spawn argv: ${JSON.stringify([codexPath, ...argsForLog])}`);
+    logger.info(`${logPrefix} Spawn cwd: ${workDir}`);
 
     callbacks.emitOutput(`${logPrefix} Starting execution...\n`);
     callbacks.emitOutput(`${logPrefix} Working directory: ${workDir}\n`);
@@ -210,8 +296,22 @@ export function spawnCodexProcess(
       logger.info(`${logPrefix} Process spawned with PID: ${state.process.pid}`);
       callbacks.emitOutput(`${logPrefix} Process PID: ${state.process.pid}\n`);
 
-      // NOTE: codex exec receives the prompt via args, so stdin is not needed
-      if (state.process.stdin) state.process.stdin.end();
+      // Investigation mode: pipe the long Markdown prompt body into stdin.
+      // Implementation mode: prompt is fully on the args, close stdin.
+      if (state.process.stdin) {
+        if (promptForStdin) {
+          try {
+            state.process.stdin.setDefaultEncoding('utf8');
+            state.process.stdin.write(promptForStdin);
+          } catch (writeErr) {
+            logger.warn(
+              { err: writeErr },
+              `${logPrefix} Failed to write prompt body to codex stdin`,
+            );
+          }
+        }
+        state.process.stdin.end();
+      }
 
       state.lineBuffer = '';
 
@@ -262,6 +362,16 @@ export function spawnCodexProcess(
       const cleanupTimeoutCheck = () => clearInterval(timeoutCheckInterval);
 
       const appendRawStdoutLine = (line: string) => {
+        // CRITICAL: in investigation mode the deliverable IS the stdout
+        // markdown. Do NOT filter and do NOT truncate — the post-handler
+        // slices `# 調査レポート` out of the full buffer, so we must keep
+        // EVERY byte that the agent emits. Implementation mode keeps the
+        // existing filter/truncate behavior to preserve UI log hygiene.
+        if (config.investigationMode) {
+          state.outputBuffer += line + '\n';
+          callbacks.emitOutput(line + '\n');
+          return;
+        }
         if (shouldHideRawCliLine(line)) return;
         const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
         state.outputBuffer += displayLine + '\n';
@@ -330,6 +440,32 @@ export function spawnCodexProcess(
         }
 
         logger.info(`${logPrefix} Closed with code: ${code}, time: ${executionTimeMs}ms`);
+
+        // CRITICAL diagnostic: when codex exits non-zero, dump the FULL
+        // stderr buffer + the args we used. Exit code 2 typically means
+        // CLI-arg misuse (unknown flag / bad value) and the explanation
+        // lives in stderr — but our existing filter pipeline drops it.
+        // This bypasses the filter and surfaces the raw bytes.
+        if (code !== null && code !== 0) {
+          const stderrSample =
+            state.errorBuffer && state.errorBuffer.length > 0
+              ? state.errorBuffer.slice(-4096)
+              : '(stderr was empty)';
+          logger.error(
+            {
+              exitCode: code,
+              executionTimeMs,
+              stderrTail: stderrSample,
+              outputBufferLen: state.outputBuffer.length,
+              argsForLog,
+            },
+            `${logPrefix} Codex CLI exited non-zero — full diagnostic`,
+          );
+          callbacks.emitOutput(
+            `\n[Codex 終了コード ${code}] stderr (末尾4KB):\n${stderrSample}\n`,
+            true,
+          );
+        }
 
         if (state.status === 'cancelled') {
           resolve({

@@ -240,6 +240,10 @@ export async function executeTask(
       ...task,
       analysisInfo: options.analysisInfo,
       ...(ragContext ? { description: `${task.description ?? ''}\n\n${ragContext}` } : {}),
+      // Forward investigation-mode flags from ExecutionOptions onto the task
+      // so codex (or any other agent) can pick them up at spawn time.
+      investigationMode: options.investigationMode ?? task.investigationMode,
+      outputLastMessageFile: options.outputLastMessageFile ?? task.outputLastMessageFile,
     };
 
     if (options.analysisInfo) {

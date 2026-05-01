@@ -80,3 +80,42 @@ export function resolveLegacyTaskDir(
 export function getArchiveDir(taskDir: string, isoTimestamp: string): string {
   return join(taskDir, '_archive', isoTimestamp.replace(/[:.]/g, '-'));
 }
+
+/**
+ * Absolute path of the agent-temp directory for transient capture files
+ * (e.g. codex `--output-last-message` outputs that we read once and move
+ * to the workflow API).
+ *
+ * Lives OUTSIDE any project worktree so:
+ *   - The file survives worktree cleanup that runs before / during the
+ *     post-handler harvest step.
+ *   - It works for ANY working directory the agent operates in (rapitas,
+ *     other projects, etc.) without polluting the project tree.
+ *   - One canonical location operators can purge if it grows.
+ *
+ * Layout: `<baseDir>/agent-temp/<scope>/<filename>` where baseDir is
+ *   `${RAPITAS_DATA_DIR}` or `${HOME}/.rapitas`.
+ *
+ * @returns Base directory for agent transient files. / agent一時ファイルベースディレクトリ
+ */
+export function getAgentTempBaseDir(): string {
+  const override = process.env.RAPITAS_DATA_DIR;
+  if (override && override.trim().length > 0) {
+    return join(override, 'agent-temp');
+  }
+  return join(homedir(), '.rapitas', 'agent-temp');
+}
+
+/**
+ * Resolve the per-task agent-temp directory used to capture CLI output
+ * before it is uploaded to the workflow API. Independent of the worktree
+ * so files survive `git worktree remove` / cleanup.
+ *
+ * @param taskId - Task id. / タスクID
+ * @param sessionId - Session id (optional, when known). / セッションID（任意）
+ * @returns Absolute directory path. / 絶対パス
+ */
+export function getAgentTempDir(taskId: number, sessionId?: number | null): string {
+  const session = sessionId ? `s${sessionId}` : 'no-session';
+  return join(getAgentTempBaseDir(), `task-${taskId}`, session);
+}

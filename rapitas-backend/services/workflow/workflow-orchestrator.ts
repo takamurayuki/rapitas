@@ -43,7 +43,14 @@ type WorkflowStatus =
   | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
-// Comprehensive mode - existing 5-step workflow
+// NOTE: Research is mandatory across ALL workflow modes. The read-only
+// research pipeline runs as the first step regardless of complexity, then:
+//   - lightweight skips plan/review and goes straight to implementation
+//   - standard adds plan + review
+//   - comprehensive matches standard at this point (kept distinct for
+//     future divergence in scope / depth)
+
+// Comprehensive mode - 5-step workflow (research → plan → review → impl → verify)
 const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
@@ -52,17 +59,19 @@ const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// Standard mode - 4-step workflow
+// Standard mode - 5-step (research now mandatory)
 const STANDARD_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
+  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
+  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
   plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
   plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// Lightweight mode - 2-step workflow
+// Lightweight mode - 3-step (research → implement → auto-verify)
 const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
+  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
+  research_done: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
   in_progress: { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 

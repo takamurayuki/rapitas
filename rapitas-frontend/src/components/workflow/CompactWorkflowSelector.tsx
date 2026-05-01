@@ -42,13 +42,17 @@ export interface ComplexityScore {
   recommendedMode: WorkflowMode;
 }
 
+// NOTE: Research is mandatory across all modes (read-only sandbox-backed
+// research.md as the very first artifact regardless of complexity). The
+// `steps` arrays reflect that, prepending '調査' for lightweight/standard
+// to match the new ROLE_BY_STATUS / getWorkflowTabs.
 const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
   lightweight: {
     mode: 'lightweight',
     name: '軽量',
     description: 'バグ修正、UI調整、軽微な変更に最適',
-    estimatedTime: '15-30分',
-    steps: ['実装', '自動検証'],
+    estimatedTime: '20-40分',
+    steps: ['調査', '実装', '自動検証'],
     icon: Zap,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50',
@@ -58,7 +62,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     name: '標準',
     description: '中規模機能追加、リファクタリングに最適',
     estimatedTime: '1-2時間',
-    steps: ['計画作成', '実装', '検証'],
+    steps: ['調査', '計画作成', '実装', '検証'],
     icon: Target,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50',
@@ -68,7 +72,7 @@ const WORKFLOW_MODE_CONFIGS: Record<WorkflowMode, WorkflowModeConfig> = {
     name: '詳細',
     description: '大規模機能、アーキテクチャ変更に最適',
     estimatedTime: '3-4時間',
-    steps: ['調査', '計画作成', '実装', '検証'],
+    steps: ['調査', '計画作成', 'レビュー', '実装', '検証'],
     icon: Microscope,
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/50',

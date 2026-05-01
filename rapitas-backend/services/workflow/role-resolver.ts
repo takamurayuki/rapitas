@@ -24,6 +24,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { recommendAgentForRole } from './role-recommender';
 
 const log = createLogger('role-resolver');
 
@@ -46,7 +47,14 @@ type WorkflowStatus =
 
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
-/** Role that owns each workflow status, per workflow mode. Mirrors workflow-orchestrator. */
+/**
+ * Role that owns each workflow status, per workflow mode.
+ *
+ * NOTE: Research is mandatory across ALL modes — the read-only research
+ * pipeline (codex with --sandbox=read-only, stdout → research.md) runs
+ * regardless of complexity. lightweight skips plan/review; standard adds
+ * them back. This mirrors the frontend's getWorkflowTabs / getStatusToNextRole.
+ */
 const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, WorkflowRole>>> = {
   comprehensive: {
     draft: 'researcher',
@@ -56,13 +64,15 @@ const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, Workfl
     in_progress: 'verifier',
   },
   standard: {
-    draft: 'planner',
+    draft: 'researcher',
+    research_done: 'planner',
     plan_created: 'reviewer',
     plan_approved: 'implementer',
     in_progress: 'verifier',
   },
   lightweight: {
-    draft: 'implementer',
+    draft: 'researcher',
+    research_done: 'implementer',
     in_progress: 'auto_verifier',
   },
 };
@@ -70,6 +80,15 @@ const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, Workfl
 export interface ResolvedRoleAgent {
   role: WorkflowRole;
   agentConfigId: number | null;
+  /**
+   * Per-role model override. `null` means "no explicit override; use the
+   * agent's default OR the SmartRouter auto-pick if 'auto'".
+   * `'auto'` is a sentinel string used by the UI to mean "let the SmartRouter
+   * pick the cheapest/best-fit model based on task complexity + budget".
+   */
+  modelId: string | null;
+  /** True when modelId is null/'auto' — caller should invoke SmartRouter. */
+  shouldAutoSelectModel: boolean;
 }
 
 /**
@@ -99,11 +118,52 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
 
   const roleConfig = await prisma.workflowRoleConfig.findUnique({
     where: { role },
-    select: { agentConfigId: true, isEnabled: true },
+    select: { agentConfigId: true, isEnabled: true, modelId: true },
   });
-  if (!roleConfig || !roleConfig.isEnabled) {
-    log.debug({ taskId, role }, 'Role not configured or disabled');
-    return { role, agentConfigId: null };
+  // NOTE: We compute `shouldAutoSelectModel` based on the per-role modelId:
+  //   - explicit modelId set ("claude-haiku-4-5-...") → use as-is
+  //   - modelId === 'auto' or null/empty → SmartRouter picks
+  const roleModelId = roleConfig?.modelId ?? null;
+  const shouldAutoSelectModel = !roleModelId || roleModelId === 'auto' || roleModelId.trim() === '';
+
+  if (roleConfig?.isEnabled && roleConfig.agentConfigId) {
+    return {
+      role,
+      agentConfigId: roleConfig.agentConfigId,
+      modelId: shouldAutoSelectModel ? null : roleModelId,
+      shouldAutoSelectModel,
+    };
   }
-  return { role, agentConfigId: roleConfig.agentConfigId };
+
+  // NOTE: Fall back to capability-based recommendation when no explicit
+  // assignment exists. This ensures every role gets the BEST-FIT agent
+  // available even when the user hasn't manually configured WorkflowRoleConfig.
+  // codex (which ignores planning instructions) is automatically excluded
+  // from researcher/planner/reviewer roles by the capability registry.
+  log.info(
+    { taskId, role, reason: roleConfig ? 'role disabled' : 'no role config' },
+    'Falling back to capability-based agent recommendation',
+  );
+  const recommended = await recommendAgentForRole(role);
+  if (!recommended) {
+    return { role, agentConfigId: null, modelId: null, shouldAutoSelectModel: true };
+  }
+  log.info(
+    {
+      taskId,
+      role,
+      pickedAgent: recommended.agentName,
+      pickedType: recommended.agentType,
+      reason: recommended.reason,
+    },
+    'Auto-recommended agent for role',
+  );
+  // When recommender chose the agent, also flag for SmartRouter auto-select
+  // unless the user explicitly pinned a model on the role.
+  return {
+    role,
+    agentConfigId: recommended.agentConfigId,
+    modelId: shouldAutoSelectModel ? null : roleModelId,
+    shouldAutoSelectModel,
+  };
 }

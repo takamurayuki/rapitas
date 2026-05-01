@@ -6,8 +6,8 @@
  */
 
 import { readFile, stat } from 'fs/promises';
-import { join } from 'path';
 import { prisma } from '../../../config';
+import { getTaskWorkflowDir } from '../../../services/workflow/workflow-paths';
 
 export const VALID_FILE_TYPES = ['research', 'question', 'plan', 'verify'] as const;
 export type WorkflowFileType = (typeof VALID_FILE_TYPES)[number];
@@ -40,12 +40,9 @@ export async function resolveWorkflowDir(taskId: number) {
   const categoryId = task.theme?.categoryId ?? null;
   const themeId = task.themeId ?? null;
 
-  const categoryDir = categoryId !== null ? String(categoryId) : '0';
-  const themeDir = themeId !== null ? String(themeId) : '0';
-
   return {
     task,
-    dir: join(process.cwd(), 'tasks', categoryDir, themeDir, String(taskId)),
+    dir: getTaskWorkflowDir(categoryId, themeId, taskId),
     categoryId,
     themeId,
   };

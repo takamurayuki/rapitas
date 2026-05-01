@@ -11,6 +11,7 @@ import { parseIntentFile, exportToIntentFormat } from '../../services/intent/int
 import { compileIntent } from '../../services/intent/intent-compiler';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { getTaskWorkflowDir } from '../../services/workflow/workflow-paths';
 
 const log = createLogger('routes:intent');
 
@@ -81,10 +82,18 @@ export const intentRoutes = new Elysia({ prefix: '/intent' })
           },
         });
 
-        // Save workflow files via filesystem
-        const categoryDir = '0';
-        const themeDir = themeId ? String(themeId) : '0';
-        const taskDir = join(process.cwd(), 'tasks', categoryDir, themeDir, String(task.id));
+        // Save workflow files to the canonical workflow base dir
+        // (`${RAPITAS_DATA_DIR || ~/.rapitas}/workflows/<cat>/<theme>/<task>/`).
+        // Using process.cwd()/tasks here was the legacy in-repo location and
+        // is no longer read by the workflow API.
+        const categoryId = themeId
+          ? ((
+              await prisma.theme
+                .findUnique({ where: { id: themeId }, select: { categoryId: true } })
+                .catch(() => null)
+            )?.categoryId ?? null)
+          : null;
+        const taskDir = getTaskWorkflowDir(categoryId, themeId ?? null, task.id);
 
         const { mkdir, writeFile } = await import('fs/promises');
         await mkdir(taskDir, { recursive: true });
@@ -164,10 +173,13 @@ export const intentRoutes = new Elysia({ prefix: '/intent' })
 
         if (!task) return { success: false, error: 'Task not found' };
 
-        // Load workflow files
-        const categoryDir = task.theme?.categoryId ? String(task.theme.categoryId) : '0';
-        const themeDir = task.themeId ? String(task.themeId) : '0';
-        const taskDir = join(process.cwd(), 'tasks', categoryDir, themeDir, String(taskId));
+        // Load workflow files from the canonical workflow base dir
+        // (`${RAPITAS_DATA_DIR || ~/.rapitas}/workflows/<cat>/<theme>/<task>/`).
+        const taskDir = getTaskWorkflowDir(
+          task.theme?.categoryId ?? null,
+          task.themeId ?? null,
+          taskId,
+        );
 
         let planContent: string | null = null;
         let verifyContent: string | null = null;

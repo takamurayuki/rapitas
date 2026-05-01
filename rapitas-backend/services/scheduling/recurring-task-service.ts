@@ -9,6 +9,7 @@ import { createLogger } from '../../config/logger';
 import { parseRRule, expandRecurrence, RECURRENCE_PRESETS } from './recurrence-service';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';
+import { getTaskWorkflowDir } from '../workflow/workflow-paths';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -136,10 +137,7 @@ async function resolveWorkflowDir(prisma: PrismaInstance, taskId: number): Promi
   const categoryId = task.theme?.categoryId ?? null;
   const themeId = task.themeId ?? null;
 
-  const categoryDir = categoryId !== null ? String(categoryId) : '0';
-  const themeDir = themeId !== null ? String(themeId) : '0';
-
-  return join(process.cwd(), 'tasks', categoryDir, themeDir, String(taskId));
+  return getTaskWorkflowDir(categoryId, themeId, taskId);
 }
 
 /**

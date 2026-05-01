@@ -18,6 +18,27 @@ export type CodexCliAgentConfig = {
   yolo?: boolean;
   resumeSessionId?: string;
   sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
+  /**
+   * Approval policy mirror of `--ask-for-approval`. When set, this overrides
+   * the implicit policy from `--full-auto`. Use `never` for non-interactive
+   * read-only investigation runs.
+   */
+  approvalPolicy?: 'never' | 'on-request' | 'on-failure' | 'untrusted';
+  /**
+   * Path to which Codex should write its final assistant message via the
+   * `-o / --output-last-message` flag. Used by research/plan/review phases
+   * so the agent's output is captured as a file even though it cannot
+   * modify the workspace.
+   */
+  outputLastMessageFile?: string;
+  /**
+   * When true, codex is treated as an investigation-only agent for the
+   * current execution: skip `--full-auto`, use `--sandbox=read-only`, set
+   * `--ask-for-approval=never`, and write final output via `-o` if
+   * `outputLastMessageFile` is provided. The result is a Markdown report
+   * with NO code changes possible at the OS level.
+   */
+  investigationMode?: boolean;
 };
 
 /**

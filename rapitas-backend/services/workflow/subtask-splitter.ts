@@ -10,6 +10,7 @@ import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { getTaskWorkflowDir } from './workflow-paths';
 
 const log = createLogger('subtask-splitter');
 
@@ -201,10 +202,13 @@ export async function createSubtasksFromPlan(
 
       subtaskIds.push(subtask.id);
 
-      // Create subtask workflow directory with instruction.md
-      const categoryDir = parentTask.theme?.categoryId ? String(parentTask.theme.categoryId) : '0';
-      const themeDir = parentTask.themeId ? String(parentTask.themeId) : '0';
-      const parentDir = join(process.cwd(), 'tasks', categoryDir, themeDir, String(parentTaskId));
+      // Create subtask workflow directory with instruction.md under the
+      // canonical workflow base dir (`${RAPITAS_DATA_DIR || ~/.rapitas}/workflows/`).
+      const parentDir = getTaskWorkflowDir(
+        parentTask.theme?.categoryId ?? null,
+        parentTask.themeId ?? null,
+        parentTaskId,
+      );
       const subtaskDir = join(parentDir, 'subtasks', `${planned.order}`);
 
       await mkdir(subtaskDir, { recursive: true });

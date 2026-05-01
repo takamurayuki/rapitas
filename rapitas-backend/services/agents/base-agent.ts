@@ -62,6 +62,17 @@ export type AgentTask = {
   modelId?: string;
   /** Whether plan.md should be auto-approved (skips waiting for user approval). */
   autoApprovePlan?: boolean;
+  /**
+   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * For codex this triggers `--sandbox=read-only --ask-for-approval=never`
+   * so code modifications are physically impossible.
+   */
+  investigationMode?: boolean;
+  /**
+   * Path to which the agent should write its final assistant message.
+   * For codex, mapped to the `-o / --output-last-message` flag.
+   */
+  outputLastMessageFile?: string;
 };
 
 /**
@@ -154,7 +165,9 @@ export abstract class BaseAgent {
   ) {}
 
   /**
-   * Log prefix in [AgentName] format.
+   * Log prefix in [AgentName] format. Subclasses may override per-execution
+   * (e.g. CodexCliAgent in investigation mode renames itself to
+   * "Research Agent" so logs make the role obvious).
    */
   get logPrefix(): string {
     return `[${this.name}]`;

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
 import {
   Lightbulb,
   Loader2,
@@ -54,7 +55,7 @@ export default function IdeasClient() {
 
   // ページネーション状態
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(15);
+  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('ideaBox.itemsPerPage', 15);
   const [totalPages, setTotalPages] = useState(0);
   const [totalIdeas, setTotalIdeas] = useState(0);
 

@@ -34,6 +34,20 @@ export type ExecutionOptions = {
    * Used by the fallback path itself to prevent recursion.
    */
   disableFallback?: boolean;
+  /**
+   * Investigation mode: agent runs as read-only researcher/planner/reviewer.
+   * For codex specifically this means `--sandbox=read-only
+   * --ask-for-approval=never -o <file>` so the agent CANNOT modify code at
+   * the OS level — perfect for the safe research → plan → review chain.
+   * The orchestrator wires this through to the CLI args.
+   */
+  investigationMode?: boolean;
+  /**
+   * Optional path to which the agent should write its final assistant
+   * message. Used together with investigationMode for codex's `-o` flag.
+   * Caller resolves this to the workflow file path (research.md / plan.md).
+   */
+  outputLastMessageFile?: string;
 };
 
 export type ExecutionState = {

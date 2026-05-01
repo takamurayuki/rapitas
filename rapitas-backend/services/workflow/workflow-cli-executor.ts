@@ -16,6 +16,12 @@ import {
   cleanupRootWorkflowFiles,
   extractMarkdownFromOutput,
 } from './workflow-file-utils';
+import {
+  validateResearch,
+  validatePlan,
+  validateVerify,
+  type ValidationResult,
+} from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 
 const log = createLogger('workflow-cli-executor');
@@ -163,7 +169,74 @@ Always include an "Existing-feature check" section in the research / plan output
   fullPrompt += existingFeatureGate;
   fullPrompt += context;
 
-  if (outputFilePath) {
+  // Investigation phases (research/plan/review) MUST run with read-only
+  // sandbox so codex (and any other CLI agent) cannot modify code. The
+  // agent's final message is captured via codex `-o <file>` (a temp file
+  // we then upload to the workflow API server-side). This is the official
+  // safe pattern: codex CANNOT save the md itself, the OS guarantees it.
+  const isInvestigationPhase =
+    transition.role === 'researcher' ||
+    transition.role === 'planner' ||
+    transition.role === 'reviewer';
+
+  // Investigation phases capture the agent's final message from STDOUT
+  // (in result.output) instead of via codex `--output-last-message`. The
+  // latter would require granting write permission inside the read-only
+  // sandbox, which contradicts the safety contract. The Rapitas backend is
+  // the sole writer for the persistent <output>.md files in ~/.rapitas/
+  // workflows/, which only requires its own data-dir permissions.
+  const tempOutputFile: string | null = null;
+
+  if (isInvestigationPhase && transition.outputFile) {
+    // Strict research-only contract. No curl, no implementation, no test exec.
+    // The agent simply produces the markdown report as its final message —
+    // the CLI captures it via -o, we save it server-side.
+    fullPrompt +=
+      language === 'ja'
+        ? `\n\n## 厳守事項 (調査専用モード)
+
+**あなたは「調査専用」エージェントです。実装も検証も行いません。**
+
+### 絶対禁止
+- ソースコード / テストコード / 設定ファイル / lockfile の変更
+- \`apply_patch\` の使用 / ファイル書き込みの試行
+- \`pnpm install\` / \`pnpm test\` / \`vitest\` / \`tsc\` / \`prettier\` / \`eslint\` などの実行
+- \`git\` コマンドの実行
+- 「対応しました」「実装しました」「テスト追加しました」のような実装完了報告
+
+### 許可
+- ファイル内容の読み取り (\`Read\` / \`cat\` / \`Get-Content\`)
+- 検索系コマンド (\`grep\` / \`rg\` / \`find\` / \`Glob\`)
+- ディレクトリ列挙 (\`ls\` / \`Get-ChildItem\`)
+- 問題箇所の推測と修正方針の提案 (実装はしない)
+
+### 出力
+**最終回答として、Markdown 形式の${transition.outputFile === 'plan' ? '実装計画書' : transition.outputFile === 'research' ? '調査レポート' : 'レビュー指摘書'}のみを返してください。** Rapitas 側で外部からあなたの最終メッセージを ${transition.outputFile}.md として保存します。あなた自身がファイルを作る必要はありません。
+`
+        : `\n\n## STRICT RULES (Investigation-only mode)
+
+**You are an investigation-only agent. You do NOT implement or verify.**
+
+### FORBIDDEN
+- Modifying source code / test code / config / lockfile
+- Using \`apply_patch\` or attempting any file write
+- Running \`pnpm install\` / \`pnpm test\` / \`vitest\` / \`tsc\` / \`prettier\` / \`eslint\`
+- Running any \`git\` command
+- Saying "対応しました" / "implemented" / "added tests"
+
+### ALLOWED
+- Reading files (\`Read\` / \`cat\` / \`Get-Content\`)
+- Search (\`grep\` / \`rg\` / \`find\` / \`Glob\`)
+- Directory listing (\`ls\` / \`Get-ChildItem\`)
+- Reasoning about problems and proposing approaches (NO implementation)
+
+### OUTPUT
+**Return ONLY the markdown ${transition.outputFile === 'plan' ? 'implementation plan' : transition.outputFile === 'research' ? 'investigation report' : 'review report'} as your final assistant message.** Rapitas will capture your final message externally and save it as ${transition.outputFile}.md. You do NOT need to create the file yourself.
+`;
+  } else if (outputFilePath) {
+    // Non-investigation phase OR non-codex agent fallback: keep the legacy
+    // "save via curl" instructions so other CLIs (claude-code, gemini) can
+    // also produce md files.
     fullPrompt += `\n\n${cliT.fileHeader}\n${cliT.fileInstruction}\n${cliT.noRootFiles}\n\n`;
     fullPrompt += `${cliT.apiCommand}\n\`\`\`bash\n`;
     fullPrompt += `curl -X PUT http://localhost:${process.env.PORT || '3001'}/workflow/tasks/${taskId}/files/${transition.outputFile} \\\n`;
@@ -191,8 +264,40 @@ Always include an "Existing-feature check" section in the research / plan output
       workingDirectory: effectiveWorkDir,
       modelIdOverride: agentConfig.modelId || undefined,
       autoCompleteTask: false,
+      investigationMode: isInvestigationPhase,
+      // For investigation phases, codex writes its final message to a TEMP
+      // file via -o. We read that temp file after the run and upload it to
+      // the workflow API ourselves — codex never gets to touch the
+      // workflow file path directly.
+      outputLastMessageFile: tempOutputFile ?? undefined,
     },
   );
+
+  // Investigation-mode result harvesting: if codex wrote to the temp file,
+  // upload its contents to the workflow API server-side (codex itself
+  // Investigation-phase harvest: capture stdout (result.output) and save it
+  // to the workflow API as <outputFile>.md. codex `exec` writes the final
+  // assistant message to stdout for any --sandbox mode, so this works
+  // even with read-only sandbox where codex itself cannot write files.
+  if (isInvestigationPhase && transition.outputFile && result.output?.trim()) {
+    try {
+      await writeWorkflowFile(workflowDir, transition.outputFile, result.output.trim(), taskId);
+      log.info(
+        {
+          taskId,
+          role: transition.role,
+          outputFile: transition.outputFile,
+          chars: result.output.length,
+        },
+        '[WorkflowCLIExecutor] Captured stdout and saved to workflow API',
+      );
+    } catch (captureErr) {
+      log.warn(
+        { err: captureErr, taskId, role: transition.role },
+        '[WorkflowCLIExecutor] Failed to save stdout to workflow API',
+      );
+    }
+  }
 
   const updatedTask = await prisma.task.findUnique({ where: { id: taskId } });
   const currentWfStatus = updatedTask?.workflowStatus || 'draft';
@@ -219,6 +324,23 @@ Always include an "Existing-feature check" section in the research / plan output
     }
 
     if (fileContent) {
+      // Structural validation: ensure the artifact has the required sections
+      // so the next role isn't handed an under-specified document. We log the
+      // result for observability but still advance — fail-soft for now.
+      const validation = validateOutput(transition.outputFile, fileContent);
+      if (!validation.ok) {
+        log.warn(
+          {
+            taskId,
+            role: transition.role,
+            outputFile: transition.outputFile,
+            missingSections: validation.missingSections,
+            severity: validation.severity,
+          },
+          `[WorkflowCLIExecutor] ${validation.summary}`,
+        );
+      }
+
       if (currentWfStatus !== transition.nextStatus) {
         await prisma.task.update({
           where: { id: taskId },
@@ -283,4 +405,21 @@ Always include an "Existing-feature check" section in the research / plan output
   }
 
   return finalResult;
+}
+
+/**
+ * Dispatch validation by output-file type. Returns a permissive result for
+ * unknown types so the executor doesn't reject legitimate artifacts.
+ */
+function validateOutput(outputFile: string, content: string): ValidationResult {
+  switch (outputFile) {
+    case 'research':
+      return validateResearch(content);
+    case 'plan':
+      return validatePlan(content);
+    case 'verify':
+      return validateVerify(content);
+    default:
+      return { ok: true, missingSections: [], severity: 0, summary: 'no validator' };
+  }
 }
