@@ -902,7 +902,8 @@
     "changes": "Changes",
     "fileCount": "Files",
     "additions": "Additions",
-    "deletions": "Deletions"
+    "deletions": "Deletions",
+    "settings": "Settings"
   },
   "workflow": {
     "title": "Workflow",

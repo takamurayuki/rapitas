@@ -902,7 +902,8 @@
     "changes": "変更",
     "fileCount": "ファイル数",
     "additions": "追加",
-    "deletions": "削除"
+    "deletions": "削除",
+    "settings": "設定"
   },
   "workflow": {
     "title": "ワークフロー",
