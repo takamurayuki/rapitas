@@ -32,6 +32,14 @@ export type AgentConfigInput = {
   allowedTools?: string[];
   disallowedTools?: string[];
   customConfig?: Record<string, unknown>;
+  /**
+   * Forward investigation-mode flags from ExecutionOptions onto the
+   * agent config so claude-code / codex / gemini all honor the
+   * read-only contract uniformly.
+   */
+  investigationMode?: boolean;
+  investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
+  outputLastMessageFile?: string;
 };
 
 export type RegisteredAgentInfo = {
@@ -141,6 +149,8 @@ export class AgentFactory {
           timeout: config.timeout,
           continueConversation: config.continueConversation,
           resumeSessionId: config.resumeSessionId,
+          investigationMode: config.investigationMode,
+          investigationOutputType: config.investigationOutputType,
         };
         const agent = new ClaudeCodeAgent(id, config.name, claudeConfig);
         this.activeAgents.set(id, agent);

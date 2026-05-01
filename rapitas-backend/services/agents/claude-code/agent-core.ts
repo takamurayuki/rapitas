@@ -37,6 +37,20 @@ export type ClaudeCodeAgentConfig = {
   maxTokens?: number;
   continueConversation?: boolean; // Whether to continue the previous conversation
   resumeSessionId?: string; // Session ID used with --resume
+  /**
+   * When true, run as a read-only investigation agent: file edits, shell
+   * execution and any tool that could mutate the workspace or call the
+   * workflow API are added to `--disallowedTools`. Mirrors the codex
+   * investigation contract so the parent process is the sole writer for
+   * research.md / plan.md / verify.md.
+   */
+  investigationMode?: boolean;
+  /**
+   * Investigation phase output type — drives the prompt template only.
+   * The runner does not need to inspect this; it is forwarded to the
+   * prompt builder via the AgentTask field.
+   */
+  investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
 };
 
 export class ClaudeCodeAgent extends BaseAgent {

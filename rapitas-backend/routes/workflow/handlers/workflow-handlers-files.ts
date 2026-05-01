@@ -110,6 +110,40 @@ export async function handleSaveFile({
       throw new NotFoundError('Task not found');
     }
 
+    // Reject backward / out-of-order workflow file saves. Past incidents
+    // showed agents (especially claude-code with full shell access) calling
+    // `curl PUT /workflow/.../files/research` AFTER verify.md was already
+    // saved, regressing the task to research_done and corrupting the
+    // status machine. Each file type is only allowed when the task is in
+    // a phase that can legitimately produce that artifact.
+    const ALLOWED_FILE_TYPES_BY_STATUS: Record<string, ReadonlySet<WorkflowFileType>> = {
+      draft: new Set(['research', 'question']),
+      research_done: new Set(['plan', 'question', 'research']),
+      plan_created: new Set(['plan', 'question']),
+      plan_approved: new Set(['question']),
+      in_progress: new Set(['verify', 'question']),
+      verify_done: new Set([]),
+      completed: new Set([]),
+    };
+    const currentStatusForGuard = resolved.task.workflowStatus ?? 'draft';
+    const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
+    if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
+      log.warn(
+        {
+          taskId,
+          fileType,
+          currentStatus: currentStatusForGuard,
+          allowed: Array.from(allowedForCurrent),
+        },
+        '[Workflow] Rejected workflow file save: invalid status transition',
+      );
+      throw new ValidationError(
+        `Invalid workflow transition: status "${currentStatusForGuard}" cannot accept "${fileType}.md". ` +
+          `Allowed file types in this phase: [${Array.from(allowedForCurrent).join(', ') || 'none'}]. ` +
+          `Reset the task or wait for the correct phase before saving.`,
+      );
+    }
+
     const { dir } = resolved;
     const parsedBody = body as { content: string; language?: 'ja' | 'en' };
     if (!parsedBody?.content && parsedBody?.content !== '') {

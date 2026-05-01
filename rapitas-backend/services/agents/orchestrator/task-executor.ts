@@ -72,6 +72,20 @@ export async function executeTask(
   if (options.modelIdOverride) {
     agentConfig = { ...agentConfig, modelId: options.modelIdOverride };
   }
+  // Forward investigation-mode flags onto the agent config so the factory
+  // can pass them to claude-code / codex / gemini uniformly. Without this,
+  // claude-code researcher/planner runs spawn with full Bash/Edit/Write
+  // permissions and the agent bypasses the workflow API contract by
+  // calling `curl PUT /workflow/...` directly.
+  if (options.investigationMode || options.investigationOutputType) {
+    agentConfig = {
+      ...agentConfig,
+      investigationMode: options.investigationMode ?? agentConfig.investigationMode,
+      investigationOutputType:
+        options.investigationOutputType ?? agentConfig.investigationOutputType,
+      outputLastMessageFile: options.outputLastMessageFile ?? agentConfig.outputLastMessageFile,
+    };
+  }
 
   const agent = agentFactory.createAgent(agentConfig);
 

@@ -53,7 +53,28 @@ function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: s
 
   // NOTE: Disable worktree tools to prevent the spawned CLI from creating nested worktrees
   // that conflict with rapitas-managed worktrees and could corrupt .git/ directory structure.
-  args.push('--disallowedTools', 'EnterWorktree,ExitWorktree');
+  // Investigation mode (research / planner / reviewer): block ALL mutating
+  // tools so the agent can't bypass the parent-only workflow contract by
+  // writing files directly, running shell commands (curl / git / pnpm),
+  // or invoking the workflow API itself. Read-only tools (Read / Glob /
+  // Grep / WebFetch / WebSearch) remain available so the agent can still
+  // investigate the codebase.
+  const disallowed = ['EnterWorktree', 'ExitWorktree'];
+  if (cfg.investigationMode) {
+    disallowed.push(
+      'Bash',
+      'PowerShell',
+      'Edit',
+      'Write',
+      'MultiEdit',
+      'NotebookEdit',
+      'Task', // disallow Agent/Task tool to prevent recursion / tool re-acquisition
+    );
+    logExtras.push(
+      `${agent.logPrefix} Investigation mode: blocking write/shell tools (${disallowed.slice(2).join(',')})`,
+    );
+  }
+  args.push('--disallowedTools', disallowed.join(','));
 
   return { args, logExtras };
 }
