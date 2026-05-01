@@ -22,6 +22,7 @@ import { writeWorkflowFile } from '../../../services/workflow/workflow-file-util
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
+import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -186,8 +187,48 @@ export async function handleSaveFile({
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
       newStatus = 'plan_created';
     } else if (fileType === 'verify') {
-      log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
-      newStatus = 'verify_done';
+      // Run the verify validator (catches "claims all-pass but body says
+      // failed" hallucinations + explicit ❌ markers). When validation
+      // signals a real failure we hold the task at `in_progress` and
+      // mark task.status='blocked' so the user notices, instead of
+      // silently advancing to verify_done and auto-PR.
+      try {
+        const { validateVerify } =
+          await import('../../../services/workflow/phase-output-validator');
+        const verifyValidation = validateVerify(savedContent);
+        if (!verifyValidation.ok && verifyValidation.severity >= 80) {
+          log.warn(
+            { taskId, summary: verifyValidation.summary },
+            '[Workflow] verify.md failed validation — blocking task instead of marking verify_done',
+          );
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: currentStatus ?? null,
+            toStatus: currentStatus ?? 'in_progress',
+            actor: 'verifier',
+            cause: 'verify_validation_failed',
+            phase: 'verify',
+            metadata: {
+              sizeBytes: savedContent.length,
+              reason: verifyValidation.summary,
+            },
+            invariantViolation: true,
+            invariantMessage: verifyValidation.summary,
+          });
+          // newStatus stays undefined — caller skips the verify_done
+          // transition + auto-commit/PR pipeline below.
+        } else {
+          log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
+          newStatus = 'verify_done';
+        }
+      } catch (err) {
+        // Validator failure must not block legitimate verify saves.
+        log.warn({ err, taskId }, '[Workflow] verify validator threw, allowing save anyway');
+        newStatus = 'verify_done';
+      }
     }
 
     if (newStatus) {
@@ -254,10 +295,16 @@ export async function handleSaveFile({
       }
     }
 
-    // Auto-approve when saving plan.md if autoApprovePlan is enabled
+    // Auto-approve when saving plan.md if autoApprovePlan is enabled.
+    // Delegates to the shared helper so the orchestrator-driven save
+    // path (workflow-cli-executor) and this HTTP path stay in sync.
     let autoApproved = false;
     if (fileType === 'plan' && newStatus === 'plan_created') {
-      ({ newStatus, autoApproved } = await _handlePlanAutoApprove(taskId, newStatus, fileLanguage));
+      const approval = await maybeAutoApprovePlan(taskId, fileLanguage);
+      if (approval.autoApproved) {
+        newStatus = 'plan_approved';
+        autoApproved = true;
+      }
     }
 
     // Auto commit and PR creation when saving verify.md.
@@ -393,96 +440,8 @@ export async function handleSaveFile({
   }
 }
 
-/**
- * Internal helper: auto-approve plan and optionally advance the workflow.
- *
- * @param taskId - Task ID / タスクID
- * @param currentNewStatus - Status set before calling this helper / 現在の新ステータス
- * @param fileLanguage - Language preference for workflow advance / 言語設定
- * @returns Updated newStatus and autoApproved flag / 更新後のステータスと自動承認フラグ
- */
-async function _handlePlanAutoApprove(
-  taskId: number,
-  currentNewStatus: string | undefined,
-  fileLanguage: 'ja' | 'en',
-): Promise<{ newStatus: string | undefined; autoApproved: boolean }> {
-  const userSettings = await prisma.userSettings.findFirst();
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { autoApprovePlan: true, parentId: true },
-  });
-
-  const isSubtask = task?.parentId !== null && task?.parentId !== undefined;
-
-  const shouldAutoApprove =
-    task?.autoApprovePlan ||
-    userSettings?.autoApprovePlan ||
-    (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
-
-  if (!shouldAutoApprove) {
-    return { newStatus: currentNewStatus, autoApproved: false };
-  }
-
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
-  });
-  await recordTransition({
-    taskId,
-    fromStatus: 'plan_created',
-    toStatus: 'plan_approved',
-    actor: 'system',
-    cause: 'auto_approve_plan',
-    phase: 'plan',
-    metadata: {
-      taskLevelAutoApprove: !!task?.autoApprovePlan,
-      globalAutoApprove: !!userSettings?.autoApprovePlan,
-      isSubtask,
-    },
-  });
-
-  const approvalReason = task?.autoApprovePlan
-    ? 'task-level autoApprovePlan setting enabled'
-    : isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan
-      ? 'subtask autoApproveSubtaskPlan setting enabled'
-      : 'global autoApprovePlan setting enabled';
-
-  await prisma.activityLog.create({
-    data: {
-      taskId,
-      action: 'plan_auto_approved',
-      metadata: JSON.stringify({
-        previousStatus: 'plan_created',
-        newStatus: 'plan_approved',
-        reason: approvalReason,
-        taskLevelSetting: task?.autoApprovePlan || false,
-        globalLevelSetting: userSettings?.autoApprovePlan || false,
-        subtaskAutoApprove:
-          isSubtask && !!(userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan,
-        isSubtask,
-      }),
-      createdAt: new Date(),
-    },
-  });
-
-  // Automatically start the implementation phase
-  try {
-    const { WorkflowOrchestrator } =
-      await import('../../../services/workflow/workflow-orchestrator');
-    const orchestrator = WorkflowOrchestrator.getInstance();
-    orchestrator
-      .advanceWorkflow(taskId, fileLanguage)
-      .then((result) => {
-        log.info(
-          `[Workflow] Auto-advance after auto-approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
-        );
-      })
-      .catch((err) => {
-        log.error({ err }, `[Workflow] Auto-advance after auto-approval failed for task ${taskId}`);
-      });
-  } catch (err) {
-    log.error({ err }, '[Workflow] Failed to auto-advance after auto-approval');
-  }
-
-  return { newStatus: 'plan_approved', autoApproved: true };
-}
+// NOTE: `_handlePlanAutoApprove` lived here previously. The same logic now
+// lives in `services/workflow/plan-auto-approve.ts` so the orchestrator
+// path (workflow-cli-executor) and this HTTP handler share a single
+// source of truth — preventing drift like the recent "auto-approve does
+// not fire when planner saves via writeWorkflowFile" regression.

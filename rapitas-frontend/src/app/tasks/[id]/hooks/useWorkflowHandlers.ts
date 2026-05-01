@@ -105,7 +105,12 @@ export function useWorkflowHandlers({
     try {
       const response = await fetch(`${API_BASE}/workflow/tasks/${taskId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Required by the backend status guard so agent shell-calls can't
+          // mutate workflow state. Only the UI is allowed to send this.
+          'X-Rapitas-Source': 'ui',
+        },
         body: JSON.stringify({ status: 'completed' }),
       });
       const data = await response.json();

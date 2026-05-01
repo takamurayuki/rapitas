@@ -313,4 +313,105 @@ export const ideaBoxRoutes = new Elysia()
         customInstructions: t.Optional(t.String()),
       }),
     },
+  )
+
+  /**
+   * Manual idea → task conversion. Unlike `convert-to-task` (which
+   * delegates to an AI to fill in title/description/priority/etc.), this
+   * endpoint accepts caller-supplied fields verbatim. Useful when the
+   * user wants exact control over how the idea is filed.
+   *
+   * @param params.id - IdeaBox entry id (KnowledgeEntry with sourceType=idea_box) / アイデアID
+   * @param body.title - Task title (required, falls back to idea.title) / タスクタイトル
+   * @param body.description - Task description (falls back to idea.content) / タスク説明
+   * @param body.priority - low | medium | high | urgent / 優先度
+   * @param body.estimatedHours - Estimated work hours / 予想作業時間
+   * @param body.themeId - Theme to attach the task to / 紐付けるテーマID
+   * @param body.labels - Optional labels JSON / ラベル配列
+   * @returns Newly created task id and shape / 作成したタスク
+   */
+  .post(
+    '/idea-box/:id/convert-to-task-manual',
+    async ({ params, body, set }) => {
+      const ideaId = parseInt(params.id);
+      if (isNaN(ideaId)) {
+        set.status = 400;
+        return { error: 'Invalid idea ID' };
+      }
+
+      try {
+        const idea = await prisma.knowledgeEntry.findFirst({
+          where: { id: ideaId, sourceType: 'idea_box' },
+          select: { id: true, title: true, content: true, themeId: true },
+        });
+        if (!idea) {
+          set.status = 404;
+          return { error: 'アイデアが見つかりません' };
+        }
+
+        const existingUsage = await prisma.knowledgeEntry.findFirst({
+          where: { id: ideaId, sourceId: { startsWith: 'used_task_' } },
+        });
+        if (existingUsage) {
+          set.status = 400;
+          return { error: 'このアイデアは既にタスク化されています' };
+        }
+
+        const title = body.title?.trim() || idea.title;
+        const description = body.description?.trim() ?? idea.content;
+        const priority = body.priority ?? 'medium';
+        const estimatedHours =
+          typeof body.estimatedHours === 'number' && body.estimatedHours >= 0
+            ? body.estimatedHours
+            : undefined;
+        const themeId = body.themeId ?? idea.themeId ?? undefined;
+
+        if (!title) {
+          set.status = 400;
+          return { error: 'タイトルは必須です' };
+        }
+
+        const newTask = await createTask(prisma, {
+          title,
+          description,
+          priority,
+          estimatedHours,
+          status: 'todo',
+          themeId,
+          labels: body.labels && body.labels.length > 0 ? JSON.stringify(body.labels) : undefined,
+        });
+        if (!newTask) {
+          set.status = 500;
+          return { error: 'タスクの作成に失敗しました' };
+        }
+
+        await markIdeaAsUsed(ideaId, newTask.id);
+
+        log.info(
+          { ideaId, taskId: newTask.id, source: 'manual' },
+          'Idea converted to task (manual)',
+        );
+
+        return {
+          success: true,
+          taskId: newTask.id,
+          task: { id: newTask.id, title, description, priority, estimatedHours, themeId },
+        };
+      } catch (err) {
+        log.error({ err, ideaId }, 'Failed to convert idea to task (manual)');
+        set.status = 500;
+        return { error: 'アイデアのタスク変換に失敗しました' };
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        title: t.Optional(t.String()),
+        description: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
+        estimatedHours: t.Optional(t.Number()),
+        themeId: t.Optional(t.Number()),
+        labels: t.Optional(t.Array(t.String())),
+      }),
+    },
   );

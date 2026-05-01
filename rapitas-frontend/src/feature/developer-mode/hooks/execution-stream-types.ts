@@ -60,6 +60,20 @@ export type ExecutionStreamState = {
   tokensUsed?: number;
   /** Total token usage for the session */
   totalSessionTokens?: number;
+  /**
+   * Increments every time the polling loop observes either:
+   *   - a workflow phase reaching `completed` status (research_done /
+   *     plan_created / etc — auto-advance or terminal)
+   *   - a phase rollover (executionId changed — implementer → verifier)
+   *
+   * Parent components watch this marker via useEffect to trigger
+   * `refetchWorkflowFiles()` — without it, the workflow status indicator
+   * and file tabs go stale until the page is reloaded, even though
+   * polling is still happily running for the next phase. The user
+   * reported exactly that as "調査が実行完了してから UI がリロードしないと
+   * 更新されない".
+   */
+  phaseAdvanceMarker?: number;
 };
 
 // Max log entries to prevent memory leaks

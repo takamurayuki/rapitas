@@ -25,6 +25,12 @@ When rules conflict, follow this order:
 - **Never write workflow files directly** (mkdir, Write tool, etc.).
   Always use the workflow API. (See Section 4.)
 
+- **Never run `npm install` / `bun install` / `pnpm install` (or `ci`, `--frozen-lockfile`, etc.) inside a git worktree.**
+  worktree の `node_modules` はメインチェックアウトへのリンクで共有されている。install は共有依存ツリーを書き換え、メイン側と他の worktree を壊す。新規依存が必要な場合はメインチェックアウトで install してから worktree で `node scripts/setup-worktree.cjs` を再実行する。
+
+- **git worktree に入ったら、コードを触る前に必ず `node scripts/setup-worktree.cjs` を実行する。**
+  これでメインの `node_modules`・Prisma 生成物・`.env` が worktree から使えるようになる。スクリプトは冪等で `--check` モードあり。詳細ルールは `AGENTS.md` の「git worktree 運用ルール」を参照。
+
 ---
 
 ## 2. ARCHITECTURE

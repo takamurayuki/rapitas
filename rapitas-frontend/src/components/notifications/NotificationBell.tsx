@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Bell, BookOpen, Check, CheckCheck, ExternalLink, Lightbulb, X } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  Check,
+  CheckCheck,
+  ExternalLink,
+  Lightbulb,
+  ListPlus,
+  X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -11,6 +20,7 @@ import { toDateLocale } from '@/lib/utils';
 
 const typeIcons: Record<string, string> = {
   approval_request: 'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400',
+  task_created: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400',
   task_completed: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
   agent_error: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
   daily_summary: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
@@ -254,6 +264,7 @@ function NotificationContent({
             />
           </svg>
         )}
+        {notification.type === 'task_created' && <ListPlus className="w-4 h-4" />}
         {notification.type === 'task_completed' && <Check className="w-4 h-4" />}
         {notification.type === 'agent_error' && (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

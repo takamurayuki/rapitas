@@ -57,12 +57,10 @@ export function SkipPermissionToggle() {
 
   const checked = settings?.skipAgentPermissionPrompts ?? true;
   const Icon = checked ? ShieldOff : ShieldCheck;
-  const tone = checked
-    ? 'text-amber-600 dark:text-amber-400'
-    : 'text-emerald-600 dark:text-emerald-400';
+  const tone = 'text-indigo-600 dark:text-indigo-400';
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 px-6 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2 min-w-0">
           <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${tone}`} />
@@ -96,7 +94,7 @@ export function SkipPermissionToggle() {
           checked={checked}
           onChange={onToggle}
           disabled={busy}
-          color={checked ? 'amber' : 'green'}
+          color="indigo"
           srLabel="エージェント許可確認スキップ"
         />
       </div>

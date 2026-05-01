@@ -76,6 +76,28 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
       parentId: task.parentId,
       timestamp: new Date().toISOString(),
     });
+
+    // Persist a Notification row so the bell shows the new task and the
+    // user can jump straight to its detail page. `link: /tasks/:id` is
+    // what `NotificationBell` wraps in <Link>, giving us the click-to-
+    // navigate behavior for free. Best-effort: a notification failure
+    // must NEVER block the actual task creation.
+    prisma.notification
+      .create({
+        data: {
+          type: 'task_created',
+          title: parentId ? 'サブタスクを作成しました' : 'タスクを作成しました',
+          message: task.title,
+          link: `/tasks/${task.id}`,
+          metadata: JSON.stringify({
+            taskId: task.id,
+            parentId: task.parentId ?? null,
+          }),
+        },
+      })
+      .catch(() => {
+        /* notification failure is non-fatal */
+      });
   }
 
   return task;

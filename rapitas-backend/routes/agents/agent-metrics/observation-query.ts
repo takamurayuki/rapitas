@@ -58,13 +58,40 @@ interface ExecutionMetricRow {
   modelName: string | null;
 }
 
-/** Convert Prisma Decimal | string | number to JS number. */
+/**
+ * Convert Prisma Decimal | string | number to JS number.
+ * Defensive against legacy double-JSON-encoded values like `"\"0\""`
+ * that earlier IPC bugs left in AgentExecution.costUsd. Auto-unwraps
+ * up to 5 nested JSON-string layers before parsing as float.
+ */
 function toNumber(v: unknown): number {
   if (v === null || v === undefined) return 0;
-  if (typeof v === 'number') return v;
-  if (typeof v === 'string') return parseFloat(v) || 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let current: unknown = v;
+  for (let i = 0; i < 5; i++) {
+    if (typeof current !== 'string') break;
+    if (current.length === 0) return 0;
+    if (current[0] !== '"') break;
+    try {
+      current = JSON.parse(current);
+    } catch {
+      break;
+    }
+  }
+  if (typeof current === 'number') return Number.isFinite(current) ? current : 0;
+  if (typeof current === 'string') {
+    const n = parseFloat(current);
+    return Number.isFinite(n) ? n : 0;
+  }
   // Prisma Decimal exposes toString()
-  return parseFloat(String(v)) || 0;
+  const n = parseFloat(String(current));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Defensive integer coercion mirroring `toNumber`. */
+function toInt(v: unknown): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+  return Math.trunc(toNumber(v));
 }
 
 function isoDate(d: Date): string {
@@ -127,13 +154,19 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
 
   for (const r of rows) {
     const cost = toNumber(r.costUsd);
+    const input = toInt(r.inputTokens);
+    const output = toInt(r.outputTokens);
+    const cacheRead = toInt(r.cacheReadInputTokens);
+    const cacheCreation = toInt(r.cacheCreationInputTokens);
+    const execTime = toInt(r.executionTimeMs);
+
     totalCostUsd += cost;
-    totalInput += r.inputTokens;
-    totalOutput += r.outputTokens;
-    totalCacheRead += r.cacheReadInputTokens;
-    totalCacheCreation += r.cacheCreationInputTokens;
-    if (r.executionTimeMs && r.executionTimeMs > 0) {
-      totalTime += r.executionTimeMs;
+    totalInput += input;
+    totalOutput += output;
+    totalCacheRead += cacheRead;
+    totalCacheCreation += cacheCreation;
+    if (execTime > 0) {
+      totalTime += execTime;
       timeSamples++;
     }
     if (r.status === 'failed' || r.errorMessage) failed++;
@@ -142,9 +175,9 @@ export async function getSelfObservationSummary(windowDays = 14): Promise<SelfOb
     const bucket = dailyMap.get(dayKey);
     if (bucket) {
       bucket.costUsd += cost;
-      bucket.inputTokens += r.inputTokens;
-      bucket.outputTokens += r.outputTokens;
-      bucket.cacheReadInputTokens += r.cacheReadInputTokens;
+      bucket.inputTokens += input;
+      bucket.outputTokens += output;
+      bucket.cacheReadInputTokens += cacheRead;
       bucket.executions += 1;
     }
 

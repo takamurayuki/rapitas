@@ -37,7 +37,33 @@ export type PollRefs = {
   responseGraceUntilRef: React.MutableRefObject<number>;
   clearedQuestionRef: React.MutableRefObject<string | null>;
   terminalStatusGraceUntilRef: React.MutableRefObject<number>;
+  /**
+   * Tracks the most recent `executionId` returned by the status endpoint.
+   * When the orchestrator auto-advances (implementer → verifier etc.) it
+   * spawns a NEW AgentExecution row inside the same task, with a different
+   * id. Detecting the change lets us reset the output cursor and the
+   * "final-log emitted" flag so the new phase's logs surface immediately
+   * — which is what the user expected when they said "画面を再読み込みし
+   * ないとログが表示されない".
+   */
+  lastExecutionIdRef: React.MutableRefObject<number | null>;
 };
+
+/**
+ * Phases the orchestrator auto-advances after completion. When the just-
+ * completed phase is one of these, polling MUST continue so the FE picks
+ * up the next phase's execution row instead of stopping at the seam.
+ */
+const AUTO_ADVANCING_PHASES = new Set<string>([
+  'workflow-researcher',
+  'workflow-planner',
+  'workflow-reviewer',
+  'workflow-implementer',
+]);
+
+function isAutoAdvancingPhase(sessionMode: string | null | undefined): boolean {
+  return !!sessionMode && AUTO_ADVANCING_PHASES.has(sessionMode);
+}
 
 /**
  * Handle the 'completed' execution status.
@@ -73,13 +99,31 @@ export function handleCompleted(
       '\n';
   }
 
+  // PHASE-COMPLETE BUT NOT TASK-COMPLETE: when an auto-advancing workflow
+  // phase ends (researcher/planner/reviewer/implementer), reset internal
+  // tracking so the NEXT phase's execution can be picked up by the same
+  // polling loop without a page reload. The caller (`executePoll`) checks
+  // `isAutoAdvancing` to decide whether to call `stopPolling()`.
+  if (isAutoAdvancingPhase(sessionMode)) {
+    refs.lastProcessedStatusRef.current = null;
+    refs.hasAddedFinalLogRef.current = false;
+    refs.lastProcessedQuestionRef.current = null;
+  }
+
   return (prev) => ({
     ...prev,
-    isRunning: false,
-    status: 'completed',
+    // Stay "running" between auto-advancing phases so the UI does not
+    // flash "完了" between implementer and verifier.
+    isRunning: isAutoAdvancingPhase(sessionMode) ? true : false,
+    status: isAutoAdvancingPhase(sessionMode) ? 'running' : 'completed',
     waitingForInput: false,
     question: undefined,
     sessionMode: sessionMode || prev.sessionMode,
+    // Bump the marker so parent components refetch workflow files /
+    // workflow status. Fires for BOTH terminal completion and
+    // auto-advancing phase boundaries — both points where the
+    // workflowStatus + saved md files have moved on the server.
+    phaseAdvanceMarker: (prev.phaseAdvanceMarker ?? 0) + 1,
     logs:
       shouldAddLog && prev.logs.length > 0
         ? trimLogs([...prev.logs, completionMessage])
@@ -87,6 +131,14 @@ export function handleCompleted(
           ? [completionMessage]
           : prev.logs,
   });
+}
+
+/**
+ * Inspect `data.sessionMode` and decide whether the polling loop should
+ * keep running after this `completed` row was processed.
+ */
+export function shouldKeepPollingAfterCompleted(data: Record<string, unknown>): boolean {
+  return isAutoAdvancingPhase(data.sessionMode as string | null);
 }
 
 /**
@@ -289,6 +341,40 @@ export async function executePoll(
       return;
     }
 
+    // Detect a phase rollover: orchestrator advanced to a new phase
+    // (researcher → planner → ... → verifier) which spawned a NEW
+    // AgentExecution row. Reset the output cursor and the "final log
+    // emitted" flag so the new phase's logs surface immediately, while
+    // keeping the accumulated UI logs (so the user sees the whole
+    // task's history in one scroll).
+    const newExecutionId =
+      typeof data.executionId === 'number' ? (data.executionId as number) : null;
+    if (
+      newExecutionId !== null &&
+      refs.lastExecutionIdRef.current !== null &&
+      newExecutionId !== refs.lastExecutionIdRef.current
+    ) {
+      logger.info(
+        'Phase rollover detected: new executionId',
+        newExecutionId,
+        'replacing',
+        refs.lastExecutionIdRef.current,
+      );
+      lastOutputLengthRef.current = 0;
+      refs.lastProcessedStatusRef.current = null;
+      refs.hasAddedFinalLogRef.current = false;
+      refs.lastProcessedQuestionRef.current = null;
+      // Bump phase advance marker — parents refetch workflow files /
+      // status indicator on the seam.
+      setState((prev) => ({
+        ...prev,
+        phaseAdvanceMarker: (prev.phaseAdvanceMarker ?? 0) + 1,
+      }));
+    }
+    if (newExecutionId !== null) {
+      refs.lastExecutionIdRef.current = newExecutionId;
+    }
+
     // Always update token usage
     const polledTokensUsed = data.tokensUsed as number | undefined;
     const polledTotalSessionTokens = data.totalSessionTokens as number | undefined;
@@ -361,7 +447,12 @@ export async function executePoll(
       const updater = handleCompleted(data, refs);
       if (updater) {
         setState(updater);
-        stopPolling();
+        // Only stop polling when the task as a whole is done. For
+        // auto-advancing workflow phases, keep polling so the next phase's
+        // execution row is picked up the moment it appears.
+        if (!shouldKeepPollingAfterCompleted(data)) {
+          stopPolling();
+        }
       }
     } else if (data.executionStatus === 'failed') {
       const updater = handleFailed(data, refs);

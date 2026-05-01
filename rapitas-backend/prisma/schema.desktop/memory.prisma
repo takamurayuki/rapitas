@@ -38,6 +38,16 @@ model KnowledgeEntry {
   @@index([contentHash])
   @@index([themeId])
   @@index([decayScore])
+  // Composite index covering the IdeaBox list query hot path:
+  // `WHERE sourceType='idea_box' AND forgettingStage='active' AND themeId
+  //  [IS NULL | IS NOT NULL | = X] ORDER BY confidence DESC, createdAt DESC`.
+  // Without this, a /ideas page filter by "プロジェクト" scope did a full
+  // KnowledgeEntry scan (1k+ rows including distillation outputs) and
+  // froze the UI for several seconds. The composite index lets SQLite /
+  // Postgres jump straight to the IdeaBox slice and walk it in order.
+  // Sort modifiers omitted for cross-provider compatibility (the
+  // optimizer picks the right scan direction with ASC indexes too).
+  @@index([sourceType, forgettingStage, themeId, confidence, createdAt], map: "KnowledgeEntry_ideabox_list_idx")
 }
 
 // Timeline events (event log foundation of memory system)

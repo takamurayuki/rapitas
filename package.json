@@ -39,6 +39,9 @@
     "clean": "node scripts/clean.cjs",
     "clean:deep": "node scripts/clean.cjs --deep",
     "clean:dry": "node scripts/clean.cjs --dry-run",
+    "worktree:setup": "node scripts/setup-worktree.cjs",
+    "worktree:check": "node scripts/setup-worktree.cjs --check",
+    "worktree:teardown": "node scripts/setup-worktree.cjs --teardown",
     "perf": "node scripts/measure-performance.cjs",
     "perf:ci": "node scripts/measure-performance.cjs --ci",
     "prepare": "husky"

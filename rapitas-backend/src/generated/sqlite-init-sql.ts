@@ -1464,6 +1464,9 @@ CREATE INDEX "KnowledgeEntry_themeId_idx" ON "KnowledgeEntry"("themeId");
 CREATE INDEX "KnowledgeEntry_decayScore_idx" ON "KnowledgeEntry"("decayScore");
 
 -- CreateIndex
+CREATE INDEX "KnowledgeEntry_ideabox_list_idx" ON "KnowledgeEntry"("sourceType", "forgettingStage", "themeId", "confidence", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "TimelineEvent_eventType_idx" ON "TimelineEvent"("eventType");
 
 -- CreateIndex

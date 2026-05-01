@@ -60,13 +60,40 @@ export async function buildRoleContext(
         planHeader: '# 承認済み実装計画 (plan.md)',
         reviewHeader: '# レビュー指摘事項 (question.md)',
         instruction:
-          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。',
+          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。\n\n' +
+          '## 実装者の責務 (厳守)\n' +
+          '- あなたの仕事はコード変更だけです。**verify.md / research.md / plan.md は絶対に保存しないでください。**\n' +
+          '- `curl` / `Invoke-RestMethod` / `wget` を使って `http://localhost:3001/workflow/...` を叩くことを禁じます。検証は次フェーズの verifier ロールが行います。\n' +
+          '- 同様に `PUT /tasks/:id/status` などタスクステータスを変更する API も呼ばないでください。状態遷移は Rapitas 側が自動で行います。\n' +
+          '- ワークフロー API を叩いても **400 で拒否されます** (status guard)。回避策の探索はせず、コード変更が終わったらそこで終了してください。\n' +
+          '- 実装が完了したら、変更内容のサマリ (どのファイルを何のために変えたか) を最後のメッセージに残して終了してください。Rapitas が後段で verify.md を自動生成します。',
       },
       verifier: {
         planHeader: '# 実装計画 (plan.md)',
         diffHeader: '# 変更差分 (git diff)',
         instruction:
-          '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。',
+          '上記の計画と実装結果を検証し、verify.mdとしてMarkdown形式でレポートを作成してください。\n\n' +
+          '計画チェックリストの消化状況、テスト結果、品質メトリクスを含めてください。\n\n' +
+          '## 検証フェーズの厳守事項\n' +
+          '### テスト結果は必ず実測値を記載してください (虚偽報告厳禁)\n' +
+          '- `npm test` / `pnpm test` / `vitest` を実際に実行し、**最終行の集計** (`Tests N passed | M failed`、`Test Files X passed | Y failed`、終了コード) を verify.md に **コピペ** してください。\n' +
+          '- テストコマンドが exit code 非0 で終わった場合、**「全テスト通過」と書くことを禁止** します。落ちたテスト名と失敗理由を箇条書きで列挙してください。\n' +
+          '- テストが落ちている場合、verify.md の冒頭に `**❌ 検証失敗**` を必ず記載し、`## テスト失敗の概要` セクションで以下を記述:\n' +
+          '  - 失敗テスト数 / 全テスト数\n' +
+          '  - 各失敗テストのファイル名 + テスト名\n' +
+          '  - スタックトレースまたは expected/received の差分\n' +
+          '  - 推測される原因 (実装が plan と乖離した点)\n' +
+          '- テスト実行が **環境エラー** (依存欠落、ネットワーク不通等) で完走しなかった場合は、その旨を `## テスト未完走` セクションに明記してください。「成功」とは決して書かないでください。\n' +
+          '\n### 必須セクション\n' +
+          '```markdown\n' +
+          '# 検証レポート\n' +
+          '## 検証結果サマリ (✅ 検証成功 / ❌ 検証失敗 / ⚠️ 一部失敗 のいずれか)\n' +
+          '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)\n' +
+          '## テスト結果 (実コマンド + 終了コード + 集計)\n' +
+          '## 品質メトリクス (lint / type-check / build の結果)\n' +
+          '## 残課題 / フォローアップ\n' +
+          '```\n' +
+          '冒頭は必ず `# 検証レポート` で開始し、テストが1件でも落ちていれば `❌ 検証失敗` または `⚠️ 一部失敗` を選択してください。',
       },
     },
     en: {
@@ -93,13 +120,36 @@ export async function buildRoleContext(
         planHeader: '# Approved Implementation Plan (plan.md)',
         reviewHeader: '# Review Feedback (question.md)',
         instruction:
-          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.',
+          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.\n\n' +
+          '## Implementer Constraints (strict)\n' +
+          '- Your job is code changes ONLY. **DO NOT save verify.md / research.md / plan.md.**\n' +
+          '- DO NOT call `http://localhost:3001/workflow/...` via `curl` / `Invoke-RestMethod` / `wget`. Verification is performed by the verifier role in the next phase.\n' +
+          '- DO NOT call `PUT /tasks/:id/status` or any task-status mutation API. State transitions are managed by Rapitas.\n' +
+          '- The workflow API will return 400 if you try (status guard). Do not search for workarounds — finish when code changes are done.\n' +
+          '- Once implementation is done, leave a short summary (which files changed and why) as your final message and exit. Rapitas auto-generates verify.md downstream.',
       },
       verifier: {
         planHeader: '# Implementation Plan (plan.md)',
         diffHeader: '# Changes (git diff)',
         instruction:
-          'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\nInclude the completion status of the plan checklist, test results, and quality metrics.',
+          'Please verify the implementation plan and results above, and create a report as verify.md in Markdown format.\n\n' +
+          'Include the completion status of the plan checklist, test results, and quality metrics.\n\n' +
+          '## Verification phase strict rules\n' +
+          '### Report ACTUAL test results (no false claims)\n' +
+          '- Run `npm test` / `pnpm test` / `vitest` for real and **paste the summary line** (`Tests N passed | M failed`, `Test Files X passed | Y failed`, exit code) into verify.md.\n' +
+          '- If the test command exits non-zero, you are **forbidden from writing "all tests pass"**. List failing tests by name with their reason.\n' +
+          '- If tests fail, mark verify.md with `**❌ Verification Failed**` at the top and add a `## Test Failure Summary` section listing per-test failures, stack traces / expected-vs-received, and the suspected root cause (plan deviation).\n' +
+          '- If tests could not run due to environment errors (missing deps, network, …), say so explicitly under `## Tests Did Not Complete`. Never claim success.\n' +
+          '\n### Required sections\n' +
+          '```markdown\n' +
+          '# Verification Report\n' +
+          '## Result summary (✅ Pass / ❌ Fail / ⚠️ Partial)\n' +
+          '## Checklist status (each plan item ✅/❌)\n' +
+          '## Test results (actual command + exit code + summary)\n' +
+          '## Quality metrics (lint / type-check / build)\n' +
+          '## Outstanding work / follow-ups\n' +
+          '```\n' +
+          'Start with `# Verification Report`. If even one test fails, choose `❌ Fail` or `⚠️ Partial`.',
       },
     },
   };

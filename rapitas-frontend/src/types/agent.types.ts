@@ -169,6 +169,7 @@ export type Notification = {
   id: number;
   type:
     | 'approval_request'
+    | 'task_created'
     | 'task_completed'
     | 'agent_error'
     | 'daily_summary'

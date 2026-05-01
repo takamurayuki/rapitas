@@ -24,6 +24,7 @@
 - `prisma generate` や `prisma db push` を手動実行しない。開発サーバー起動スクリプトが必要なタイミングで実行する。スキーマ変更後はユーザーにサーバー再起動を依頼する。
 - 自動化が未完了のタスクを `completed` や `done` として扱わない。
 - Claude 専用の CLI 機能やファイルが Codex/Gemini でも存在すると仮定しない。
+- **git worktree 内で `npm install` / `bun install` / `pnpm install` を実行しない。** 共有された `node_modules` を上書きし、メインチェックアウトと他の worktree を破壊する。依存追加は必ずメインチェックアウトで行う。
 
 ## よく使う検証
 
@@ -102,6 +103,42 @@ CI/CD や配布ビルドでは、OS ごとの依存関係に注意する。Linux
 - コミットは変更範囲が検証済みになってから行う。
 - PR を作成する場合は `gh` を使い、PR URL をログとタスク結果に残す。
 - PR 作成前にタスクを完了扱いにしない。
+
+## git worktree 運用ルール（全エージェント共通）
+
+新しく worktree に入って最初に行うこと:
+
+1. **必ず最初にセットアップスクリプトを実行する。** メインチェックアウトの `node_modules`、Prisma 生成物、`.env` を共有/コピーする:
+
+   ```bash
+   node scripts/setup-worktree.cjs
+   # もしくは npm スクリプト経由
+   npm run worktree:setup
+   ```
+
+   - スクリプトは Node.js 製で OS 非依存（Windows / macOS / Linux で動作）。
+   - Windows では directory junction、POSIX では symlink を使うため管理者権限不要。
+   - 二重実行は安全（既にリンク済みなら何もしない）。
+   - `--check` を付ければ変更せず差分だけ報告する。
+
+2. **install 系コマンドは worktree 内で禁止。** `npm install` / `bun install` / `pnpm install` / `npm ci` / `pnpm install --frozen-lockfile` などはすべて NG。worktree の `node_modules` はメインチェックアウトへのリンクなので、install するとメインの依存ツリーを直接書き換える。新規依存が必要な場合はメインチェックアウトで install してからスクリプトを再実行する（既にリンク済みなので即座に反映される）。
+
+3. **テスト・型チェック・lint はメインではなく worktree 内で実行する。** スクリプトを当てた後の worktree は完全にスタンドアロンに動作するため、テスト修正と再実行のループも worktree 内で完結できる。メインのバックエンドサーバー（ポート 3001）には触れない。
+
+4. **Prisma スキーマを worktree 内で変更しない。** 生成物 (`rapitas-backend/src/generated`) はメインへのリンクであり、`prisma generate` の実行は禁止されている。スキーマ変更が必要な場合はメインチェックアウトで行い、ユーザーにサーバー再起動を依頼する。
+
+5. **DB を共有していることに注意する。** 統合テストは PostgreSQL を共有するため、複数 worktree 並行で破壊的なテストを走らせない。テスト用に独立した DB が必要な場合は `DATABASE_URL` を実行時に上書きして別スキーマに向ける。
+
+6. **worktree を削除する前に、作業ブランチを push 済みであることを確認する。** `node_modules` と生成物はリンクなのでデータロスはないが、`.env` と未コミット変更は worktree 削除で失われる。
+
+7. **worktree を削除する前に必ず teardown を実行する。** Windows の junction や symlink は `git worktree remove` / `rm -rf` を妨げる（"resource busy" / "Directory not empty" エラー）。次の手順で削除する:
+
+   ```bash
+   # 1. worktree 内のリンクと .env を撤去
+   node scripts/setup-worktree.cjs --teardown <worktree-path>
+   # 2. その後で git に削除させる
+   git worktree remove <worktree-path>
+   ```
 
 ## 変更時の注意
 

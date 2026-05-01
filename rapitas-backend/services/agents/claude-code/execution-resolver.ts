@@ -102,6 +102,40 @@ export function buildResolveAfterParse(
       `${ctx.logPrefix} Final question detection - hasQuestion: ${hasQuestion}, questionType: ${questionType}, questionKey: ${JSON.stringify(questionKey)}, exitCode: ${code}`,
     );
 
+    // Detect Claude Code's "selected model is invalid" message early so the
+    // execution is reported as failed instead of slipping through as a 1.3s
+    // success. This happens when SmartRouter picks an OpenAI / codex model
+    // ID for a claude-code agent — claude-code prints
+    //   "There's an issue with the selected model (X). It may not exist or
+    //    you may not have access to it. Run --model to pick a different
+    //    model."
+    // and exits. The combined output is short and would otherwise pass the
+    // existing exit-code check.
+    const modelMismatchHit =
+      /There'?s an issue with the selected model.*Run --model to pick a different/i.test(
+        ctx.outputBuffer + '\n' + ctx.errorBuffer,
+      );
+    if (modelMismatchHit) {
+      logger.error(
+        { logPrefix: ctx.logPrefix, executionTimeMs },
+        '[claude-code] Model rejected by CLI — likely a provider/agent mismatch (e.g. codex-* model passed to claude-code). Failing fast.',
+      );
+      ctx.status = 'failed';
+      resolve({
+        success: false,
+        output: ctx.outputBuffer,
+        artifacts,
+        commits,
+        executionTimeMs,
+        waitingForInput: false,
+        claudeSessionId: ctx.claudeSessionId || undefined,
+        errorMessage:
+          'Claude Code rejected the selected model. The orchestrator picked a model from a different provider (likely codex-/gpt- family) and routed it to a claude-code agent. Re-run after the role-resolver agent-switch lands; if the issue persists check WorkflowRoleConfig.preferredProviderOverride for this role.',
+        ...usageFields,
+      });
+      return;
+    }
+
     // NOTE: When a question is detected, enter waiting_for_input regardless of exit code.
     // Claude Code may exit with non-zero even after outputting a question.
     if (hasQuestion) {

@@ -34,7 +34,7 @@ const PLAN_REQUIRED_SECTIONS = [
   '完了条件',
 ];
 
-const VERIFY_REQUIRED_SECTIONS = ['変更ファイル', 'テスト', 'チェックリスト'];
+const VERIFY_REQUIRED_SECTIONS = ['テスト結果', 'チェックリスト', '検証結果サマリ'];
 
 /**
  * Validate research.md content.
@@ -60,9 +60,72 @@ export function validatePlan(content: string): ValidationResult {
 
 /**
  * Validate verify.md content.
+ *
+ * In addition to the structural section check, look for the contradiction
+ * pattern where the report says "全テスト通過 / all tests pass" but the
+ * embedded test summary indicates `failed` / `exit 1` / `× N tests`. The
+ * agent has been observed hallucinating a "全12テスト通過" claim while
+ * the implementer's changes actually broke 10 tests (gemini-2.5-flash
+ * verifier, observed in production). When that contradiction is
+ * detected, return `ok=false` with severity=80 so the orchestrator's
+ * existing "treat as failed when validation fails" branch fires.
+ *
+ * @param content - verify.md body / verify.md 本文
+ * @returns Validation result with contradiction details when applicable
  */
 export function validateVerify(content: string): ValidationResult {
-  return validateSections(content, VERIFY_REQUIRED_SECTIONS, 'verify.md');
+  const sectionResult = validateSections(content, VERIFY_REQUIRED_SECTIONS, 'verify.md');
+  if (!sectionResult.ok) return sectionResult;
+
+  const lower = content.toLowerCase();
+  const claimsAllPass =
+    /全[テt]?\d*\s*テスト[^❌]{0,30}通過|all\s+tests?\s+pass|all\s+\d+\s+tests?\s+passed|✅\s*検証成功|✅\s*pass/i.test(
+      content,
+    ) || /すべて(?:の)?テスト[^❌]{0,40}(成功|通過|パス)/.test(content);
+  const failureSignals = [
+    /\b(\d+)\s+failed/i,
+    /tests?\s+\d+\s+failed/i,
+    /test\s+files?[\s\S]{0,80}failed/i,
+    /failing\s+test/i,
+    /テスト[^。\n]{0,30}失敗/,
+    /失敗\s*(?:した)?テスト/,
+    /❌/,
+    /exit\s*(code\s*)?[:=]?\s*1\b/i,
+    /exit\s*1\b/i,
+    /×\s*\d+/,
+  ];
+  const failureHits = failureSignals
+    .map((re) => content.match(re))
+    .filter((m): m is RegExpMatchArray => !!m);
+
+  if (claimsAllPass && failureHits.length > 0) {
+    const evidence = failureHits
+      .map((m) => m[0])
+      .slice(0, 3)
+      .join(' | ');
+    return {
+      ok: false,
+      missingSections: [],
+      severity: 80,
+      summary:
+        `verify.md self-contradicts: claims all tests pass while body contains failure signals (${evidence}). ` +
+        `Verifier likely hallucinated success — re-run with stricter test-honesty prompt.`,
+    };
+  }
+
+  // Detect the explicit "tests did not complete" or "❌" mark — surface
+  // as a soft failure so the workflow does not silently auto-PR a
+  // broken implementation.
+  if (/❌\s*検証失敗|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
+    return {
+      ok: false,
+      missingSections: [],
+      severity: 90,
+      summary: 'verify.md explicitly marks the verification as failed.',
+    };
+  }
+
+  return sectionResult;
 }
 
 /**

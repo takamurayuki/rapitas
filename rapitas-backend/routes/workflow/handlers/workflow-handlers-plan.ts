@@ -133,22 +133,63 @@ export async function handleApprovePlan({
 export async function handleUpdateStatus({
   params,
   body,
+  headers,
   set,
 }: {
   params: { taskId: string };
   body: unknown;
+  headers?: Record<string, string | undefined>;
   set: { status: number };
 }) {
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
-    const parsedBody = body as { status: string };
+    const parsedBody = body as { status: string; reason?: string };
     if (
       !parsedBody?.status ||
       !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)
     ) {
       throw new ValidationError(
         `Invalid status. Must be one of: ${VALID_WORKFLOW_STATUSES.join(', ')}`,
+      );
+    }
+
+    // Block agents from calling this endpoint to bypass the file-save guard.
+    // Past incidents had implementer phase claude-code agents calling
+    // `PUT /tasks/:id/status` to bump themselves from plan_approved → in_progress
+    // so they could then save verify.md. UI calls always set X-Source=ui or
+    // similar. Server-internal callers don't go through HTTP at all (they
+    // call `prisma.task.update` directly), so legitimate HTTP traffic for
+    // this endpoint should always include the FE-emitted header.
+    const source = headers?.['x-rapitas-source'];
+    if (!source || source !== 'ui') {
+      log.warn(
+        {
+          taskId,
+          attemptedStatus: parsedBody.status,
+          source: source ?? null,
+          ua: headers?.['user-agent'] ?? null,
+        },
+        '[Workflow] Rejected manual status change: missing X-Rapitas-Source=ui header (likely an agent shell-call)',
+      );
+      // Record the bypass attempt for forensics.
+      await recordTransition({
+        taskId,
+        fromStatus: null,
+        toStatus: parsedBody.status,
+        actor: 'system',
+        cause: 'manual_status_change_blocked',
+        metadata: {
+          reason: 'missing X-Rapitas-Source=ui header',
+          source: source ?? null,
+          ua: headers?.['user-agent'] ?? null,
+        },
+        invariantViolation: true,
+        invariantMessage: 'Agent attempted to call PUT /tasks/:id/status without UI header',
+      });
+      throw new ValidationError(
+        'Manual workflow-status changes require the X-Rapitas-Source=ui header. ' +
+          'Agents are not permitted to mutate workflow state directly.',
       );
     }
 

@@ -141,7 +141,13 @@ export function inferProviderFromModelId(modelId: string): Provider | null {
   const m = modelId.toLowerCase();
   if (/(ollama|llama|mistral|qwen|deepseek|phi|gemma|local)/.test(m)) return 'ollama';
   if (/(claude|opus|sonnet|haiku|anthropic)/.test(m)) return 'claude';
-  if (/^(gpt-|o\d|openai|chatgpt)/.test(m)) return 'openai';
+  // Codex CLI exposes models named `codex-auto`, `codex-auto-review`,
+  // `codex-mini-latest` etc. — these are OpenAI-family but the older
+  // regex (`^(gpt-|o\d|openai|chatgpt)`) didn't match the `codex-` prefix.
+  // The miss caused SmartRouter's selection (`codex-auto-review`) to land
+  // on a claude-code agent, which then failed at spawn time with
+  // "There's an issue with the selected model (codex-auto-review)".
+  if (/^(gpt-|o\d|openai|chatgpt|codex(-|$))/.test(m)) return 'openai';
   if (/^gemini|^google/.test(m)) return 'gemini';
   return null;
 }

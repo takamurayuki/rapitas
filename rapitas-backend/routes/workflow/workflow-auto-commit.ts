@@ -109,16 +109,38 @@ export async function performAutoCommitAndPR(
       task.theme?.defaultBranch ||
       'master';
 
+    // CRITICAL: git commit / push / PR commands MUST run inside the
+    // per-task worktree, not the dev project root. Earlier code passed
+    // `workingDirectory` (project root) to all git commands, which:
+    //   - committed against whatever branch was checked out at the root
+    //   - never touched the agent's actual changes (those live in the
+    //     worktree on the task branch)
+    //   - silently produced "no diff" or no-op commits
+    // Fall back to `workingDirectory` only when no worktree exists, so
+    // callers that already work without isolation keep functioning.
+    const gitCwd = latestSession?.worktreePath || workingDirectory;
+    if (latestSession?.worktreePath) {
+      log.info(
+        { taskId, worktreePath: latestSession.worktreePath, branchName },
+        '[Workflow] Running git operations inside per-task worktree',
+      );
+    } else {
+      log.warn(
+        { taskId, workingDirectory, branchName },
+        '[Workflow] No worktree on session — git operations will run on the dev project root (NOT isolated)',
+      );
+    }
+
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
     // Process autoCommit
     if (execConfig.autoCommit) {
       try {
         if (branchName) {
-          await orchestrator.createBranch(workingDirectory, branchName);
+          await orchestrator.createBranch(gitCwd, branchName);
         }
         const commitResult = await orchestrator.createCommit(
-          workingDirectory,
+          gitCwd,
           `feat(task-${taskId}): ${task.title}`,
         );
         result.autoCommitResult = {
@@ -158,7 +180,7 @@ export async function performAutoCommitAndPR(
         const prTitle = `[Task-${taskId}] ${task.title}`;
         const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
         const prResult = await orchestrator.createPullRequest(
-          workingDirectory,
+          gitCwd,
           prTitle,
           prBody,
           targetBranch,
@@ -187,7 +209,7 @@ export async function performAutoCommitAndPR(
     if (execConfig.autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
       try {
         const mergeResult = await orchestrator.mergePullRequest(
-          workingDirectory,
+          gitCwd,
           result.autoPRResult.prNumber,
           execConfig.mergeCommitThreshold ?? 5,
           targetBranch,

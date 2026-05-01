@@ -26,6 +26,7 @@ export function useExecutionPolling(taskId: number | null) {
     question: undefined,
     questionType: 'none',
     questionTimeout: undefined,
+    phaseAdvanceMarker: 0,
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -42,6 +43,10 @@ export function useExecutionPolling(taskId: number | null) {
   const responseGraceUntilRef = useRef<number>(0);
   // Cleared question text on answer submission (prevents re-detection of same question)
   const clearedQuestionRef = useRef<string | null>(null);
+  // Track current executionId so phase rollover (implementer → verifier
+  // creates a new AgentExecution row) resets the output cursor and lets
+  // the next phase's logs render without a page reload.
+  const lastExecutionIdRef = useRef<number | null>(null);
 
   const refs: PollRefs = {
     lastProcessedStatusRef,
@@ -50,6 +55,7 @@ export function useExecutionPolling(taskId: number | null) {
     responseGraceUntilRef,
     clearedQuestionRef,
     terminalStatusGraceUntilRef,
+    lastExecutionIdRef,
   };
 
   const stopPolling = useCallback(() => {
@@ -107,6 +113,7 @@ export function useExecutionPolling(taskId: number | null) {
       lastProcessedQuestionRef.current = null;
       responseGraceUntilRef.current = 0;
       clearedQuestionRef.current = null;
+      lastExecutionIdRef.current = null;
 
       if (typeof options?.initialOutputLength === 'number') {
         lastOutputLengthRef.current = Math.max(0, options.initialOutputLength);
@@ -198,6 +205,7 @@ export function useExecutionPolling(taskId: number | null) {
     lastProcessedQuestionRef.current = null;
     responseGraceUntilRef.current = 0;
     clearedQuestionRef.current = null;
+    lastExecutionIdRef.current = null;
     setState({
       isConnected: false,
       isRunning: false,
@@ -209,6 +217,7 @@ export function useExecutionPolling(taskId: number | null) {
       question: undefined,
       questionType: 'none',
       questionTimeout: undefined,
+      phaseAdvanceMarker: 0,
     });
   }, []);
 

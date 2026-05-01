@@ -84,6 +84,7 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     questionDetails: pollingQuestionDetails,
     sessionMode: pollingSessionMode,
     tokensUsed: pollingTokensUsed,
+    phaseAdvanceMarker: pollingPhaseAdvanceMarker,
     startPolling,
     stopPolling,
     clearLogs: clearPollingLogs,
@@ -223,6 +224,24 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
       handledTerminalStatusRef.current = null;
     }
   }, [pollingStatus, onExecutionComplete]);
+
+  // Also notify on PHASE rollover / completion within an auto-advancing
+  // workflow (researcher → planner → ...). Without this, my earlier fix
+  // that keeps `pollingStatus = 'running'` between phases prevented the
+  // terminal-state effect above from firing, so the workflow status
+  // indicator + file tabs went stale until the user reloaded the page.
+  // The `phaseAdvanceMarker` increments on each phase boundary; that
+  // increment is what we react to. The marker is monotonically growing,
+  // so we only fire when it actually changes.
+  const handledPhaseMarkerRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (typeof pollingPhaseAdvanceMarker !== 'number') return;
+    if (handledPhaseMarkerRef.current === pollingPhaseAdvanceMarker) return;
+    handledPhaseMarkerRef.current = pollingPhaseAdvanceMarker;
+    if (pollingPhaseAdvanceMarker > 0) {
+      onExecutionComplete?.();
+    }
+  }, [pollingPhaseAdvanceMarker, onExecutionComplete]);
 
   // Derived status flags
   const finalStatus =

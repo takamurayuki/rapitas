@@ -69,6 +69,13 @@ function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: s
       'MultiEdit',
       'NotebookEdit',
       'Task', // disallow Agent/Task tool to prevent recursion / tool re-acquisition
+      // The agent previously pivoted to these tools when blocked from
+      // Bash/PowerShell, trying to find a way to call the workflow API.
+      // Block them too so it stays on the read-only Read/Glob/Grep path
+      // and just outputs the markdown report to stdout.
+      'WebFetch',
+      'ToolSearch',
+      'Skill',
     );
     logExtras.push(
       `${agent.logPrefix} Investigation mode: blocking write/shell tools (${disallowed.slice(2).join(',')})`,

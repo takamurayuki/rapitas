@@ -25,6 +25,7 @@ import {
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { checkWorkflowInvariants } from './workflow-invariants';
+import { maybeAutoApprovePlan } from './plan-auto-approve';
 
 const log = createLogger('workflow-cli-executor');
 
@@ -69,13 +70,89 @@ export async function executeCLIAgent(
     select: { themeId: true, theme: { select: { workingDirectory: true } } },
   });
   const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
-  // Use theme workingDirectory for implementer role, process.cwd() for research/plan/verify
   const isImplementationRole = transition.role === 'implementer';
-  const effectiveWorkDir = isImplementationRole && themeWorkDir ? themeWorkDir : process.cwd();
+  const isVerifierRole = transition.role === 'verifier' || transition.role === 'auto_verifier';
+  // CRITICAL: implementer / verifier must run inside the per-task git worktree
+  // that the original execute-route call created via executeSetup. Without
+  // this, code edits land directly on the dev project root, no branch is
+  // produced, and the auto-commit/PR pipeline can't fire (no diff to compare,
+  // no branch to push). Earlier code defaulted to `themeWorkDir` which is the
+  // dev project ROOT — the user reported "worktree が作成されない / コミット
+  // も PR も作られない" exactly because of this regression.
+  // Look up the most recent session for THIS task that already has a
+  // worktreePath. The execute-route's research mode setup or a prior
+  // implementer run is the usual source. We resolve this BEFORE creating
+  // the new session so the new session can inherit the worktree path
+  // immediately (and the agent runs inside it).
+  let resolvedWorktreePath: string | null = null;
+  let resolvedBranchName: string | null = null;
+  if (isImplementationRole || isVerifierRole) {
+    const sessionWithWorktree = await prisma.agentSession
+      .findFirst({
+        where: {
+          config: { taskId },
+          worktreePath: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { worktreePath: true, branchName: true },
+      })
+      .catch(() => null);
+    if (sessionWithWorktree?.worktreePath) {
+      resolvedWorktreePath = sessionWithWorktree.worktreePath;
+      resolvedBranchName = sessionWithWorktree.branchName;
+      log.info(
+        { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
+        '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
+      );
+    } else if (themeWorkDir) {
+      // No prior worktree — create one so implementer/verifier always runs
+      // in isolation and produces a branch the auto-PR pipeline can push.
+      try {
+        const { generateFallbackBranchName } =
+          await import('../../utils/common/branch-name-generator');
+        const taskTitle =
+          (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
+            ?.title ?? `task-${taskId}`;
+        const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+        const wt = await orchestrator.createWorktree(themeWorkDir, branchName, taskId, null);
+        resolvedWorktreePath = wt;
+        resolvedBranchName = branchName;
+        log.info(
+          { taskId, role: transition.role, worktreePath: wt, branchName },
+          '[WorkflowCLIExecutor] Created new worktree (no prior session had one)',
+        );
+      } catch (wtErr) {
+        log.error(
+          { err: wtErr, taskId, role: transition.role, themeWorkDir },
+          '[WorkflowCLIExecutor] Failed to create worktree — falling back to themeWorkDir (NOT isolated)',
+        );
+      }
+    } else {
+      log.warn(
+        { taskId, role: transition.role },
+        '[WorkflowCLIExecutor] No themeWorkDir configured; running at process.cwd() (no isolation)',
+      );
+    }
+  }
+  // CRITICAL: implementer / verifier must run inside the per-task git
+  // worktree. Earlier code defaulted to `themeWorkDir` which is the dev
+  // project ROOT — the user reported "worktree が作成されない / コミット
+  // も PR も作られない" exactly because of this regression.
+  const effectiveWorkDir: string =
+    resolvedWorktreePath ??
+    (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
 
   const devConfig = await getOrCreateDevConfig(taskId);
   const session = await prisma.agentSession.create({
-    data: { configId: devConfig.id, mode: `workflow-${transition.role}`, status: 'active' },
+    data: {
+      configId: devConfig.id,
+      mode: `workflow-${transition.role}`,
+      status: 'active',
+      // Persist the worktree path on the session so post-handlers
+      // (auto-commit / PR) and the reset-route worktree cleanup can find it.
+      worktreePath: resolvedWorktreePath ?? undefined,
+      branchName: resolvedBranchName ?? undefined,
+    },
   });
 
   await mkdir(workflowDir, { recursive: true });
@@ -424,6 +501,23 @@ ${
               ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
               : undefined,
         });
+
+        // Auto-approve plan when the user's settings allow it. Without
+        // this, the orchestrator-driven planner phase would land on
+        // `plan_created` and wait for a UI click — even when
+        // `userSettings.autoApprovePlan = true` is enabled, because the
+        // auto-approve helper used to live exclusively in the HTTP file
+        // handler that the orchestrator path bypasses.
+        if (transition.nextStatus === 'plan_created') {
+          const approval = await maybeAutoApprovePlan(taskId, language).catch(() => null);
+          if (approval?.autoApproved) {
+            log.info(
+              { taskId, reason: approval.reason },
+              '[WorkflowCLIExecutor] Plan auto-approved after planner phase',
+            );
+            phaseStatus = 'plan_approved';
+          }
+        }
       }
       if (!effectiveSuccess) {
         log.info(

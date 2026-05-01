@@ -12,12 +12,58 @@ import { ApiClientCache } from './cache';
 import { ApiClientBatch } from './batch';
 import type { RequestOptions } from './types';
 
+/**
+ * Hard ceiling on any single API request. Without a cap, a stalled
+ * connection (backend deadlock, dropped TCP keep-alive, etc.) leaves the
+ * promise hanging forever. The same promise is then returned by the
+ * in-flight dedup map, so EVERY subsequent caller for the same path also
+ * hangs — which is exactly the "task detail page stays in loading state
+ * until server restart" symptom users reported. Restarting the backend
+ * forced TCP RST → fetch finally rejected → queue cleared → recovery.
+ *
+ * 30s is generous enough for legitimately slow workflow endpoints but
+ * short enough that a recoverable hang surfaces as an actionable error.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export class APIClient {
   private cache = new ApiClientCache();
   private batch = new ApiClientBatch();
   private requestQueue = new Map<string, Promise<unknown>>();
+  private requestQueueAt = new Map<string, number>();
   private debounceTimers = new Map<string, NodeJS.Timeout>();
   private throttleLastCall = new Map<string, number>();
+
+  constructor() {
+    // Belt-and-braces sweep: drop any in-flight entry older than 2× the
+    // timeout. This protects against edge cases where the abort signal
+    // didn't actually surface a rejection (custom transports, polyfills,
+    // etc.). The map is a memory cache only — clearing it loses dedup
+    // benefit for that one request, never correctness.
+    if (typeof window !== 'undefined') {
+      window.setInterval(
+        () => this.sweepStaleRequestQueueEntries(REQUEST_TIMEOUT_MS * 2),
+        REQUEST_TIMEOUT_MS,
+      );
+      // Also sweep when the tab becomes visible again — covers the
+      // "laptop closed for 5 minutes, all promises orphaned" case.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.sweepStaleRequestQueueEntries(REQUEST_TIMEOUT_MS);
+        }
+      });
+    }
+  }
+
+  private sweepStaleRequestQueueEntries(maxAgeMs: number): void {
+    const now = Date.now();
+    for (const [key, startedAt] of this.requestQueueAt) {
+      if (now - startedAt > maxAgeMs) {
+        this.requestQueue.delete(key);
+        this.requestQueueAt.delete(key);
+      }
+    }
+  }
 
   /**
    * Basic fetch with caching and in-flight deduplication.
@@ -44,14 +90,17 @@ export class APIClient {
           this.cache.set(cacheKey, data, options.cacheTime);
         }
         this.requestQueue.delete(cacheKey);
+        this.requestQueueAt.delete(cacheKey);
         return data;
       })
       .catch((error) => {
         this.requestQueue.delete(cacheKey);
+        this.requestQueueAt.delete(cacheKey);
         throw error;
       });
 
     this.requestQueue.set(cacheKey, request);
+    this.requestQueueAt.set(cacheKey, Date.now());
     return request;
   }
 
@@ -202,8 +251,47 @@ export class APIClient {
    * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
    */
   private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
+    const requestStartedAt = Date.now();
+    const method = (options.method || 'GET').toUpperCase();
+    const requestLabel = `${method} ${(() => {
+      try {
+        return new URL(url).pathname + new URL(url).search;
+      } catch {
+        return url;
+      }
+    })()}`;
+
+    // Compose any caller-provided AbortSignal with our timeout signal so
+    // either source can cancel the request. AbortSignal.any is in modern
+    // browsers; fall back to manual chaining when unavailable.
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      // Surface BOTH the URL and the elapsed time so the user can find
+      // which endpoint stalled without diving into devtools network tab.
+      const elapsed = Date.now() - requestStartedAt;
+      const msg = `Request timeout after ${elapsed}ms — ${requestLabel}`;
+
+      console.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
+      timeoutController.abort(new Error(msg));
+    }, REQUEST_TIMEOUT_MS);
+
+    let signal: AbortSignal = timeoutController.signal;
+    const callerSignal = (options as RequestOptions & { signal?: AbortSignal }).signal;
+    if (callerSignal) {
+      const anyFn = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal })
+        .any;
+      if (typeof anyFn === 'function') {
+        signal = anyFn([timeoutController.signal, callerSignal]);
+      } else if (callerSignal.aborted) {
+        timeoutController.abort(callerSignal.reason);
+      } else {
+        callerSignal.addEventListener('abort', () => timeoutController.abort(callerSignal.reason));
+      }
+    }
+
     const fetchInit: RequestInit = {
       ...options,
+      signal,
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -211,29 +299,43 @@ export class APIClient {
       },
     };
 
-    // NOTE: offlineFetch relies on IndexedDB and navigator.onLine which
-    // only exist in the browser. During SSR (Next.js server components)
-    // fall back to native fetch — offline queuing is a client-only concern.
-    let response: Response;
-    if (typeof window !== 'undefined') {
-      const method = (options.method || 'GET').toUpperCase();
-      const pathname = (() => {
-        try {
-          return new URL(url).pathname;
-        } catch {
-          return url;
-        }
-      })();
-      response = await offlineFetch(url, fetchInit, `${method} ${pathname}`);
-    } else {
-      response = await fetch(url, fetchInit);
-    }
+    try {
+      // NOTE: offlineFetch relies on IndexedDB and navigator.onLine which
+      // only exist in the browser. During SSR (Next.js server components)
+      // fall back to native fetch — offline queuing is a client-only concern.
+      let response: Response;
+      if (typeof window !== 'undefined') {
+        const pathname = (() => {
+          try {
+            return new URL(url).pathname;
+          } catch {
+            return url;
+          }
+        })();
+        response = await offlineFetch(url, fetchInit, `${method} ${pathname}`);
+      } else {
+        response = await fetch(url, fetchInit);
+      }
 
-    if (!response.ok) {
-      const error = await response.text().catch(() => 'Unknown error');
-      throw new Error(`API Error: ${response.status} - ${error}`);
-    }
+      if (!response.ok) {
+        const error = await response.text().catch(() => 'Unknown error');
+        throw new Error(`API Error: ${response.status} (${requestLabel}) - ${error}`);
+      }
 
-    return response.json();
+      return response.json();
+    } catch (err) {
+      // Annotate ANY thrown error (including AbortError from non-timeout
+      // sources) with the request label so it surfaces in the UI toast
+      // / console rather than appearing as a bare "AbortError".
+      if (err instanceof Error && !err.message.includes(requestLabel)) {
+        const annotated = new Error(`${err.message} — ${requestLabel}`);
+        annotated.stack = err.stack;
+        (annotated as Error & { cause?: unknown }).cause = err;
+        throw annotated;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 }

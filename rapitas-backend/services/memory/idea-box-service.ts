@@ -137,12 +137,29 @@ export async function listIdeas(options: {
 
   const where = await buildWhereClause(categoryId, themeId, unusedOnly, scope);
 
+  // PERF: project the FE-shown columns only. The default Prisma select
+  // pulls every column from KnowledgeEntry — including `content` (often
+  // multi-KB Markdown) and large JSON `tags` — which alone added ~50% of
+  // the wire-transfer time for a 20-item page. `toIdeaBoxEntry` only
+  // touches the 9 columns below.
   const [entries, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
       where,
       orderBy: [{ confidence: 'desc' }, { createdAt: 'desc' }],
       take: limit,
       skip: offset,
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        category: true,
+        tags: true,
+        confidence: true,
+        themeId: true,
+        taskId: true,
+        sourceId: true,
+        createdAt: true,
+      },
     }),
     prisma.knowledgeEntry.count({ where }),
   ]);
@@ -345,19 +362,45 @@ async function buildWhereClause(
   scope?: IdeaScope,
 ) {
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
-  let themeFilter = {};
+  let themeFilter: Record<string, unknown> = {};
   if (themeId) {
     themeFilter = { themeId };
   } else if (categoryId) {
     themeFilter = { themeId: { in: await getThemeIdsForCategory(categoryId) } };
   }
 
+  // PERF: scope filtering used to be `tags: { contains: 'scope:project' }`.
+  // That's a JSON-string substring LIKE on a non-indexable column and
+  // performed a full scan over KnowledgeEntry — observed as a multi-second
+  // freeze on the /ideas page when the user picked "プロジェクト" filter
+  // with thousands of distilled rows in the table.
+  //
+  // The data invariant from `submitIdea` / `updateIdea` is:
+  //   scope === 'project'  ↔  themeId IS NOT NULL
+  //   scope === 'global'   ↔  themeId IS NULL
+  // (both code paths derive scope from themeId presence when scope is
+  // not explicitly provided, and the FE wires them together.) So we can
+  // map the scope filter to themeId null-state, which uses the existing
+  // foreign-key index and returns immediately.
+  //
+  // When themeFilter already pins a specific themeId / theme set, that
+  // ALREADY implies project-scope, so we skip the redundant null-check
+  // (and avoid a Prisma "themeId" key collision).
+  let scopeFilter: Record<string, unknown> = {};
+  if (scope && !themeId && !categoryId) {
+    scopeFilter = scope === 'project' ? { themeId: { not: null } } : { themeId: null };
+  } else if (scope === 'global' && (themeId || categoryId)) {
+    // Logical contradiction — global ideas never have a theme. Force an
+    // empty result rather than scanning anything.
+    scopeFilter = { themeId: -1 };
+  }
+
   return {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
     ...(unusedOnly ? { NOT: { sourceId: { startsWith: 'used_task_' } } } : {}),
-    ...(scope ? { tags: { contains: `scope:${scope}` } } : {}),
     ...themeFilter,
+    ...scopeFilter,
   };
 }
 

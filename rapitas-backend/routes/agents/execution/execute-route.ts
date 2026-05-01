@@ -296,6 +296,10 @@ export const executeRoute = new Elysia().post(
             );
             resolvedAgentConfigId = compatible.id;
           } else {
+            // No compatible agent — passing the foreign-provider model to
+            // the current agent will make the CLI reject it (e.g.
+            // claude-code seeing `codex-auto-review`). Drop the override
+            // so the agent uses its DB-configured default model instead.
             log.warn(
               {
                 taskId: taskIdNum,
@@ -304,8 +308,36 @@ export const executeRoute = new Elysia().post(
                 targetProvider,
                 currentAgentType: currentAgent?.agentType,
               },
-              '[API] No compatible agent for selected model provider — keeping original agent (model may be ignored)',
+              '[API] No compatible agent for selected model provider — DROPPING modelIdOverride and falling back to agent default',
             );
+            resolvedModelOverride = undefined;
+          }
+        } else if (!targetProvider && resolvedModelOverride) {
+          // We picked a model whose family we cannot infer (new release
+          // naming, custom alias, …). Sending an unknown id to claude-code
+          // produces "There's an issue with the selected model" and a 1.3s
+          // dead-end. Verify the model name at least starts with a hint
+          // matching the current agent's provider; otherwise drop the
+          // override so the agent uses its default.
+          const looksLikeOurFamily =
+            (currentProvider === 'claude' &&
+              /^(claude|opus|sonnet|haiku|anthropic)/i.test(resolvedModelOverride)) ||
+            (currentProvider === 'openai' &&
+              /^(gpt-|o\d|openai|chatgpt|codex)/i.test(resolvedModelOverride)) ||
+            (currentProvider === 'gemini' && /^(gemini|google)/i.test(resolvedModelOverride)) ||
+            (currentProvider === 'ollama' &&
+              /(ollama|llama|qwen|mistral|deepseek|phi|gemma)/i.test(resolvedModelOverride));
+          if (!looksLikeOurFamily) {
+            log.warn(
+              {
+                taskId: taskIdNum,
+                role: roleAgent?.role,
+                model: resolvedModelOverride,
+                currentAgentType: currentAgent?.agentType,
+              },
+              '[API] Selected model does not match agent provider family — DROPPING modelIdOverride',
+            );
+            resolvedModelOverride = undefined;
           }
         }
       } catch (switchErr) {
