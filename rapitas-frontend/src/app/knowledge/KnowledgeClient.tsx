@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Brain, Plus, BarChart3 } from 'lucide-react';
+import { useLocalStorageState } from '@/hooks/common/useLocalStorageState';
 import { useKnowledge } from '@/feature/knowledge/hooks/useKnowledge';
 import { useKnowledgeSearch } from '@/feature/knowledge/hooks/useKnowledgeSearch';
 import { useMemoryStats } from '@/feature/knowledge/hooks/useMemoryStats';
@@ -10,6 +11,7 @@ import { KnowledgeEntryCard } from '@/feature/knowledge/components/KnowledgeEntr
 import { KnowledgeSearchBar } from '@/feature/knowledge/components/KnowledgeSearchBar';
 import { KnowledgeFilterPanel } from '@/feature/knowledge/components/KnowledgeFilterPanel';
 import { KnowledgeStats } from '@/feature/knowledge/components/KnowledgeStats';
+import Pagination from '@/components/ui/pagination/Pagination';
 import type {
   KnowledgeCategory,
   ForgettingStage,
@@ -30,6 +32,7 @@ export default function KnowledgeClient() {
   const tc = useTranslations('common');
 
   const [page, setPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('knowledge.itemsPerPage', 15);
   const [category, setCategory] = useState<KnowledgeCategory | ''>('');
   const [stage, setStage] = useState<ForgettingStage | ''>('');
   const [validation, setValidation] = useState<ValidationStatus | ''>('');
@@ -44,7 +47,7 @@ export default function KnowledgeClient() {
 
   const { entries, total, totalPages, isLoading, createEntry } = useKnowledge({
     page,
-    limit: 20,
+    limit: itemsPerPage,
     category: category || undefined,
     forgettingStage: stage || undefined,
     validationStatus: validation || undefined,
@@ -63,6 +66,20 @@ export default function KnowledgeClient() {
       }
     },
     [search],
+  );
+
+  // ページネーションハンドラー
+  const handlePageChange = useCallback((nextPage: number) => {
+    setPage(nextPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleItemsPerPageChange = useCallback(
+    (count: number) => {
+      setItemsPerPage(count);
+      setPage(1);
+    },
+    [setItemsPerPage],
   );
 
   const handleCreate = async () => {
@@ -177,26 +194,15 @@ export default function KnowledgeClient() {
       )}
 
       {/* Pagination */}
-      {!searchMode && totalPages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-2">
-          <button
-            onClick={() => setPage(Math.max(1, page - 1))}
-            disabled={page <= 1}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300"
-          >
-            {tc('back')}
-          </button>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {page} / {totalPages}
-          </span>
-          <button
-            onClick={() => setPage(Math.min(totalPages, page + 1))}
-            disabled={page >= totalPages}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300"
-          >
-            Next
-          </button>
-        </div>
+      {!searchMode && !isLoading && entries.length > 0 && (
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          itemsPerPageOptions={[5, 10, 15, 20]}
+        />
       )}
 
       {/* Create Modal */}

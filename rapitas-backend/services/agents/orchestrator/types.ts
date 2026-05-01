@@ -43,6 +43,13 @@ export type ExecutionOptions = {
    */
   investigationMode?: boolean;
   /**
+   * Output artifact type for investigation mode. Drives codex's
+   * positional headline (`# 調査レポート` / `# 実装計画` / …) so the
+   * planner/reviewer phases produce documents with the correct shape
+   * instead of being force-shaped as research reports.
+   */
+  investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
+  /**
    * Optional path to which the agent should write its final assistant
    * message. Used together with investigationMode for codex's `-o` flag.
    * Caller resolves this to the workflow file path (research.md / plan.md).

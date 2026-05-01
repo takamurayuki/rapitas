@@ -243,6 +243,7 @@ export async function executeTask(
       // Forward investigation-mode flags from ExecutionOptions onto the task
       // so codex (or any other agent) can pick them up at spawn time.
       investigationMode: options.investigationMode ?? task.investigationMode,
+      investigationOutputType: options.investigationOutputType ?? task.investigationOutputType,
       outputLastMessageFile: options.outputLastMessageFile ?? task.outputLastMessageFile,
     };
 
@@ -442,20 +443,35 @@ export async function executeTask(
       state,
       result,
       fileLogger,
+      undefined,
+      { investigationMode: options.investigationMode },
     );
     emitResultEvent(result, execution.id, options.sessionId, options.taskId, (event) =>
       ctx.emitEvent(event),
     );
 
-    // Memory system: timeline event + distillation
-    const eventType = result.success ? 'agent_execution_completed' : 'agent_execution_failed';
-    appendEvent({
-      eventType,
-      actorType: 'agent',
-      actorId: agentConfig.type,
-      payload: { executionId: execution.id, taskId: options.taskId, success: result.success },
-      correlationId: `execution_${execution.id}`,
-    }).catch((err) => logger.debug({ err }, '[TaskExecutor] Timeline event failed'));
+    // Memory system: timeline event + distillation.
+    // RESEARCH MODE: skip the success timeline event here. Codex exiting 0
+    // does NOT mean the research phase is done — research.md still has to
+    // be sliced from stdout, validated, and saved by the post-handler. The
+    // post-handler emits `agent_execution_completed` itself once the file
+    // is persisted and the workflow has been advanced to the next phase.
+    // Failure paths still fire here so visible errors aren't suppressed.
+    if (result.success && options.investigationMode) {
+      logger.info(
+        { executionId: execution.id, taskId: options.taskId },
+        '[TaskExecutor] Investigation mode: deferring agent_execution_completed timeline event to post-handler (after research.md save + workflow advance)',
+      );
+    } else {
+      const eventType = result.success ? 'agent_execution_completed' : 'agent_execution_failed';
+      appendEvent({
+        eventType,
+        actorType: 'agent',
+        actorId: agentConfig.type,
+        payload: { executionId: execution.id, taskId: options.taskId, success: result.success },
+        correlationId: `execution_${execution.id}`,
+      }).catch((err) => logger.debug({ err }, '[TaskExecutor] Timeline event failed'));
+    }
 
     if (result.success) {
       memoryTaskQueue.enqueue('distill', { executionId: execution.id }, 1).catch((err) => {

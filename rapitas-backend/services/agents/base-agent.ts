@@ -69,6 +69,14 @@ export type AgentTask = {
    */
   investigationMode?: boolean;
   /**
+   * Investigation phase output type. Codex uses this to decide which
+   * heading the final markdown must start with (`# 調査レポート` /
+   * `# 実装計画` / `# レビュー指摘` / `# 検証結果`). The orchestrator
+   * passes the role's output file label so each phase produces an
+   * artifact with the right shape.
+   */
+  investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
+  /**
    * Path to which the agent should write its final assistant message.
    * For codex, mapped to the `-o / --output-last-message` flag.
    */

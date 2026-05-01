@@ -243,8 +243,22 @@ export async function spawnCodexProcess(
       args.push('resume', resumeId);
       logger.info(`${logPrefix} Resuming session: ${resumeId}`);
     } else if (config.investigationMode) {
-      const headline =
-        '次の標準入力に含まれる調査タスクを実行し、最終回答を必ず "# 調査レポート" から始めてください。前置きは不要です。';
+      // Phase-aware headline. The orchestrator passes the role's output
+      // type so plan / review phases don't get force-started with a
+      // "# 調査レポート" requirement (which previously caused planner
+      // outputs to be saved as plan.md but with the wrong heading and
+      // missing required sections).
+      const outputType = config.investigationOutputType ?? 'research';
+      const headlineByType: Record<NonNullable<typeof outputType>, string> = {
+        research:
+          '次の標準入力に含まれる調査タスクを実行し、最終回答を必ず "# 調査レポート" から始めてください。前置きは不要です。',
+        plan: '次の標準入力に含まれる実装計画タスクを実行し、最終回答を必ず "# 実装計画" から始めてください。前置きは不要です。"## 設計判断の根拠" と "## 実装チェックリスト" のセクションを必ず含めてください。',
+        review:
+          '次の標準入力に含まれるレビュータスクを実行し、最終回答を必ず "# レビュー指摘" から始めてください。前置きは不要です。',
+        verify:
+          '次の標準入力に含まれる検証タスクを実行し、最終回答を必ず "# 検証結果" から始めてください。前置きは不要です。',
+      };
+      const headline = headlineByType[outputType];
       args.push(headline);
       promptForStdin = prompt;
     } else {

@@ -19,8 +19,29 @@ const agentWorkerManager = AgentWorkerManager.getInstance();
 export const resetRoute = new Elysia().post(
   '/tasks/:id/reset-execution-state',
   async (context) => {
-    const { params } = context;
+    const { params, headers, request } = context;
     const taskId = parseInt(params.id);
+
+    // Diagnostic: log WHO triggered the reset (FE button click vs API caller).
+    // Past incidents had executions silently killed within ~14s of start with no
+    // obvious trigger; capturing referer/UA/origin makes future occurrences
+    // attributable to a specific UI element or external caller.
+    const referer = (headers as Record<string, string | undefined>)?.referer ?? null;
+    const userAgent = (headers as Record<string, string | undefined>)?.['user-agent'] ?? null;
+    const origin = (headers as Record<string, string | undefined>)?.origin ?? null;
+    const xRequestedWith =
+      (headers as Record<string, string | undefined>)?.['x-requested-with'] ?? null;
+    log.info(
+      {
+        taskId,
+        referer,
+        userAgent,
+        origin,
+        xRequestedWith,
+        method: (request as { method?: string } | undefined)?.method,
+      },
+      '[reset-execution-state] Request received',
+    );
 
     try {
       const config = await prisma.developerModeConfig.findUnique({

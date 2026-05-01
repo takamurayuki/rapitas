@@ -35,6 +35,19 @@ function toFiniteNumber(value: unknown): number | null {
 
 /**
  * Determine execution status from result and log it.
+ *
+ * Research mode is special: the CLI exiting with code 0 only means the agent
+ * produced output — research.md still has to be sliced from stdout, validated,
+ * and saved by the post-handler before the workflow can advance. Marking the
+ * execution `completed` at this point lets the FE Log Viewer paint the
+ * "完了" badge prematurely and stops downstream phase queueing from being
+ * obvious. We expose `post_processing` as the intermediate state; the
+ * post-handler flips it to `completed` once research.md is saved.
+ *
+ * @param result - Execution result from the agent. / エージェント実行結果
+ * @param fileLogger - Per-execution file logger. / 実行ごとのファイルロガー
+ * @param state - In-memory execution state being mutated. / 実行ステート
+ * @param opts.investigationMode - True when this is a research-mode run. / 調査モード時 true
  */
 export function determineExecutionStatus(
   result: {
@@ -46,12 +59,22 @@ export function determineExecutionStatus(
   },
   fileLogger: ExecutionFileLogger,
   state: ExecutionState,
+  opts?: { investigationMode?: boolean },
 ): string {
   if (result.waitingForInput) {
     state.status = 'waiting_for_input';
     fileLogger.logStatusChange('running', 'waiting_for_input', 'Question detected');
     return 'waiting_for_input';
   } else if (result.success) {
+    if (opts?.investigationMode) {
+      state.status = 'post_processing';
+      fileLogger.logStatusChange(
+        'running',
+        'post_processing',
+        'Codex exited 0; awaiting research.md slice + save before final completion',
+      );
+      return 'post_processing';
+    }
     state.status = 'completed';
     fileLogger.logExecutionEnd('completed', {
       success: true,
@@ -120,8 +143,9 @@ export async function saveExecutionResult(
     executionTimeMs?: number | null;
     claudeSessionId?: string | null;
   },
+  opts?: { investigationMode?: boolean },
 ): Promise<void> {
-  const executionStatus = determineExecutionStatus(result, fileLogger, state);
+  const executionStatus = determineExecutionStatus(result, fileLogger, state, opts);
 
   // Real-cost fields are only emitted on terminal states by the resolver, so
   // we avoid clobbering them with zeros when we're saving a waiting_for_input

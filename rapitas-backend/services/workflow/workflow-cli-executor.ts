@@ -191,11 +191,23 @@ Always include an "Existing-feature check" section in the research / plan output
     // Strict research-only contract. No curl, no implementation, no test exec.
     // The agent simply produces the markdown report as its final message —
     // the CLI captures it via -o, we save it server-side.
+    const phaseLabelJa =
+      transition.outputFile === 'plan'
+        ? '計画専用モード'
+        : transition.outputFile === 'question'
+          ? 'レビュー専用モード'
+          : '調査専用モード';
+    const phaseRoleJa =
+      transition.outputFile === 'plan'
+        ? '計画専用'
+        : transition.outputFile === 'question'
+          ? 'レビュー専用'
+          : '調査専用';
     fullPrompt +=
       language === 'ja'
-        ? `\n\n## 厳守事項 (調査専用モード)
+        ? `\n\n## 厳守事項 (${phaseLabelJa})
 
-**あなたは「調査専用」エージェントです。実装も検証も行いません。**
+**あなたは「${phaseRoleJa}」エージェントです。実装も検証も行いません。**
 
 ### 絶対禁止
 - ソースコード / テストコード / 設定ファイル / lockfile の変更
@@ -212,7 +224,38 @@ Always include an "Existing-feature check" section in the research / plan output
 
 ### 出力
 **最終回答として、Markdown 形式の${transition.outputFile === 'plan' ? '実装計画書' : transition.outputFile === 'research' ? '調査レポート' : 'レビュー指摘書'}のみを返してください。** Rapitas 側で外部からあなたの最終メッセージを ${transition.outputFile}.md として保存します。あなた自身がファイルを作る必要はありません。
+${
+  transition.outputFile === 'plan'
+    ? `
+### plan.md 必須テンプレート (この見出し構成を必ず守ること)
+\`\`\`markdown
+# 実装計画
+
+## 既存機能チェック
+[既存実装の有無 / 影響範囲を要約]
+
+## 設計判断の根拠
+[採用したアプローチと却下した代替案、それぞれの理由]
+
+## 変更予定ファイル
+- \`path/to/file\` — 変更目的
+
+## 実装チェックリスト
+- [ ] 各タスクは検証可能な単位で記述
+
+## テスト計画
+- ユニット / 統合 / E2E
+
+## リスク評価
+- 破壊的変更 / 互換性 / マイグレーション
+
+## 完了条件
+- 観測可能な成功条件
+\`\`\`
+冒頭は必ず \`# 実装計画\` で始め、\`## 設計判断の根拠\` と \`## 実装チェックリスト\` を欠落させないでください。これらが無いと validator が plan.md を不適合と判定し、後段の実装エージェントが質問を出して止まります。
 `
+    : ''
+}`
         : `\n\n## STRICT RULES (Investigation-only mode)
 
 **You are an investigation-only agent. You do NOT implement or verify.**
@@ -265,6 +308,20 @@ Always include an "Existing-feature check" section in the research / plan output
       modelIdOverride: agentConfig.modelId || undefined,
       autoCompleteTask: false,
       investigationMode: isInvestigationPhase,
+      // Phase-specific output type. Drives codex's positional headline
+      // (`# 調査レポート` vs `# 実装計画` vs `# レビュー指摘`) so each
+      // role's CLI invocation produces an artifact in the correct shape.
+      // Without this, planner phases were force-shaped as research reports
+      // and the validator flagged plan.md for missing 設計判断の根拠 /
+      // 実装チェックリスト sections.
+      investigationOutputType:
+        transition.outputFile === 'plan'
+          ? 'plan'
+          : transition.outputFile === 'verify'
+            ? 'verify'
+            : transition.outputFile === 'question'
+              ? 'review'
+              : 'research',
       // For investigation phases, codex writes its final message to a TEMP
       // file via -o. We read that temp file after the run and upload it to
       // the workflow API ourselves — codex never gets to touch the
@@ -381,6 +438,69 @@ Always include an "Existing-feature check" section in the research / plan output
     await cleanupRootWorkflowFiles(taskId);
   } catch (cleanupError) {
     log.warn({ err: cleanupError }, '[WorkflowCLIExecutor] Cleanup warning');
+  }
+
+  // Flip the AgentExecution row from `post_processing` (set when codex
+  // exited 0 in investigation mode) to `completed` now that the role's
+  // output file has been validated and saved. Without this, downstream
+  // jobs like the distillation worker skip the execution because they
+  // refuse to act on a non-completed row, and the FE's "完了" badge
+  // never lights up for planner / reviewer / verifier phases.
+  if (effectiveSuccess && isInvestigationPhase) {
+    try {
+      await prisma.agentExecution.updateMany({
+        where: { sessionId: session.id, status: 'post_processing' },
+        data: { status: 'completed', completedAt: new Date() },
+      });
+      log.info(
+        { taskId, role: transition.role, outputFile: transition.outputFile },
+        '[WorkflowCLIExecutor] AgentExecution flipped post_processing → completed',
+      );
+    } catch (flipErr) {
+      log.warn(
+        { err: flipErr, taskId, sessionId: session.id },
+        '[WorkflowCLIExecutor] Failed to flip post_processing → completed',
+      );
+    }
+    // Emit the deferred timeline event now that the artifact is on disk.
+    try {
+      const { appendEvent } = await import('../memory/timeline');
+      const latestExec = await prisma.agentExecution
+        .findFirst({
+          where: { sessionId: session.id },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, agentConfig: { select: { agentType: true } } },
+        })
+        .catch(() => null);
+      if (latestExec) {
+        await appendEvent({
+          eventType: 'agent_execution_completed',
+          actorType: 'agent',
+          actorId: latestExec.agentConfig?.agentType ?? 'codex',
+          payload: {
+            executionId: latestExec.id,
+            taskId,
+            success: true,
+            phase: transition.role,
+          },
+          correlationId: `execution_${latestExec.id}`,
+        }).catch(() => {});
+      }
+    } catch {
+      /* timeline emission is best-effort */
+    }
+    log.info(
+      { taskId, role: transition.role, outputFile: transition.outputFile },
+      `[WorkflowCLIExecutor] ${transition.role} phase completed`,
+    );
+    log.info(
+      {
+        taskId,
+        fromRole: transition.role,
+        nextWorkflowStatus: transition.nextStatus,
+      },
+      '[WorkflowCLIExecutor] Next phase queued',
+    );
   }
 
   const finalResult: WorkflowAdvanceResult = {

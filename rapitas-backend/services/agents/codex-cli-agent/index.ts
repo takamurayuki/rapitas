@@ -155,6 +155,7 @@ export class CodexCliAgent extends BaseAgent {
       ...this.config,
       resumeSessionId: this.config.resumeSessionId ?? task.resumeSessionId,
       investigationMode: this.config.investigationMode ?? task.investigationMode,
+      investigationOutputType: this.config.investigationOutputType ?? task.investigationOutputType,
       outputLastMessageFile: this.config.outputLastMessageFile ?? task.outputLastMessageFile,
     };
 
@@ -221,6 +222,12 @@ export class CodexCliAgent extends BaseAgent {
             logger.warn({ err: killErr }, `${this.logPrefix} process.kill() also failed`);
           }
         }
+        // Windows holds file handles for a brief window after taskkill /T /F
+        // before the kernel releases them. Without this delay, the immediate
+        // worktree removal after stop() returns hits EBUSY / Permission
+        // denied because rg / pnpm / node spawned by codex are still draining.
+        // 1.5s is enough in practice; the caller still retries with backoff.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       } else {
         this.process.kill('SIGINT');
 

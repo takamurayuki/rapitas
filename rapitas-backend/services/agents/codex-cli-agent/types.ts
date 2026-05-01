@@ -39,6 +39,14 @@ export type CodexCliAgentConfig = {
    * with NO code changes possible at the OS level.
    */
   investigationMode?: boolean;
+  /**
+   * Which kind of artifact the investigation should produce. Drives the
+   * positional headline given to `codex exec` so the agent knows whether
+   * its final message must start with `# 調査レポート`, `# 実装計画`, or
+   * `# レビュー指摘`. Defaults to `research` when omitted to preserve
+   * the original behaviour of the researcher role.
+   */
+  investigationOutputType?: 'research' | 'plan' | 'review' | 'verify';
 };
 
 /**
