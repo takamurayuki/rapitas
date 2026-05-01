@@ -1236,6 +1236,24 @@ CREATE TABLE "OrchestraSession" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowTransition" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "taskId" INTEGER NOT NULL,
+    "fromStatus" TEXT,
+    "toStatus" TEXT NOT NULL,
+    "actor" TEXT NOT NULL,
+    "cause" TEXT NOT NULL,
+    "phase" TEXT,
+    "executionId" INTEGER,
+    "sessionId" INTEGER,
+    "metadata" TEXT NOT NULL DEFAULT '{}',
+    "invariantViolation" BOOLEAN NOT NULL DEFAULT false,
+    "invariantMessage" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "WorkflowTransition_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowQueueItem" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
@@ -1600,6 +1618,15 @@ CREATE INDEX "WorkflowModeConfig_mode_idx" ON "WorkflowModeConfig"("mode");
 
 -- CreateIndex
 CREATE INDEX "OrchestraSession_status_idx" ON "OrchestraSession"("status");
+
+-- CreateIndex
+CREATE INDEX "WorkflowTransition_taskId_createdAt_idx" ON "WorkflowTransition"("taskId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "WorkflowTransition_cause_idx" ON "WorkflowTransition"("cause");
+
+-- CreateIndex
+CREATE INDEX "WorkflowTransition_executionId_idx" ON "WorkflowTransition"("executionId");
 
 -- CreateIndex
 CREATE INDEX "WorkflowQueueItem_status_priority_idx" ON "WorkflowQueueItem"("status", "priority");

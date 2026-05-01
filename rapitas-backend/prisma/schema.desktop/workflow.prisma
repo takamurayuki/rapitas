@@ -89,6 +89,53 @@ model OrchestraSession {
   @@index([status])
 }
 
+/**
+ * Append-only log of every workflow status transition. Each row records the
+ * before/after status pair, what triggered the change (file save, agent
+ * exit, manual API call, …), the executionId that caused it (when known),
+ * and any invariant violations the recorder detected. This is the primary
+ * source for the `/workflow/tasks/:id/transitions` timeline endpoint and
+ * for "where did the state machine break" forensics.
+ *
+ * Never mutate or delete rows — they are the audit trail.
+ */
+model WorkflowTransition {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /** Workflow status before the transition. `null` for the very first row. */
+  fromStatus   String?
+  /** Workflow status after the transition. */
+  toStatus     String
+  /** Role / actor that drove the transition: researcher / planner / reviewer / implementer / verifier / system / user. */
+  actor        String
+  /**
+   * Free-text cause label. Use stable codes so dashboards can filter:
+   *   `file_saved:research` / `file_saved:plan` / `file_saved:verify`
+   *   `auto_advance` / `auto_approve_plan` / `manual_status_change`
+   *   `phase_completed:planner` / `phase_failed:implementer`
+   *   `reset` / `transition_rejected`
+   */
+  cause        String
+  /** Workflow phase / role label at the moment of transition (debug). */
+  phase        String?
+  /** AgentExecution.id that produced the artifact, when applicable. */
+  executionId  Int?
+  /** AgentSession.id that was active, when applicable. */
+  sessionId    Int?
+  /** JSON payload with extra context (file size, diff stats, etc.). */
+  metadata     String   @default("{}")
+  /** True when an invariant assertion failed at this transition. */
+  invariantViolation Boolean @default(false)
+  /** Human-readable invariant message when violation=true. */
+  invariantMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([cause])
+  @@index([executionId])
+}
+
 // Workflow queue items
 model WorkflowQueueItem {
   id                Int       @id @default(autoincrement())

@@ -142,6 +142,8 @@ model Task {
 
   // Workflow markdown file index (research/plan/question/verify metadata).
   workflowFiles        WorkflowFile[]
+  // Append-only audit trail of workflow status transitions.
+  workflowTransitions  WorkflowTransition[]
 }
 
 model Comment {

@@ -20,6 +20,8 @@ import {
 } from '../core/workflow-helpers';
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { recordTransition } from '../../../services/workflow/transition-recorder';
+import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
 
 const log = createLogger('routes:workflow:handlers:files');
 
@@ -137,6 +139,22 @@ export async function handleSaveFile({
         },
         '[Workflow] Rejected workflow file save: invalid status transition',
       );
+      // Record the rejection so forensic timelines show the agent attempt.
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'transition_rejected',
+        phase: fileType,
+        metadata: {
+          attemptedFileType: fileType,
+          allowed: Array.from(allowedForCurrent),
+          reason: 'file type not allowed in current workflow status',
+        },
+        invariantViolation: true,
+        invariantMessage: `Tried to save ${fileType}.md while status="${currentStatusForGuard}"`,
+      });
       throw new ValidationError(
         `Invalid workflow transition: status "${currentStatusForGuard}" cannot accept "${fileType}.md". ` +
           `Allowed file types in this phase: [${Array.from(allowedForCurrent).join(', ') || 'none'}]. ` +
@@ -177,6 +195,30 @@ export async function handleSaveFile({
         where: { id: taskId },
         data: { workflowStatus: newStatus, updatedAt: new Date() },
       });
+      // Record the transition + immediately verify invariants. We log
+      // violations but DO NOT throw — the file was already saved on disk
+      // and rolling back would create a worse "ghost" state.
+      const violations = await checkWorkflowInvariants(taskId);
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatus ?? null,
+        toStatus: newStatus,
+        actor: 'system',
+        cause: `file_saved:${fileType}`,
+        phase: fileType,
+        metadata: { sizeBytes: savedContent.length },
+        invariantViolation: violations.length > 0,
+        invariantMessage:
+          violations.length > 0
+            ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
+            : undefined,
+      });
+      if (violations.length > 0) {
+        log.warn(
+          { taskId, violations },
+          '[Workflow] Invariant violations detected after status update',
+        );
+      }
     }
 
     // Auto-split into subtasks when plan.md is saved and task is large enough
@@ -255,6 +297,15 @@ export async function handleSaveFile({
           data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
         });
         taskMarkedDone = true;
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: 'completed',
+          actor: 'system',
+          cause: requested?.autoMergePR ? 'auto_merge_succeeded' : 'auto_pr_succeeded',
+          phase: 'verify',
+          metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+        });
       } else {
         log.info(
           {
@@ -375,6 +426,19 @@ async function _handlePlanAutoApprove(
   await prisma.task.update({
     where: { id: taskId },
     data: { workflowStatus: 'plan_approved', updatedAt: new Date() },
+  });
+  await recordTransition({
+    taskId,
+    fromStatus: 'plan_created',
+    toStatus: 'plan_approved',
+    actor: 'system',
+    cause: 'auto_approve_plan',
+    phase: 'plan',
+    metadata: {
+      taskLevelAutoApprove: !!task?.autoApprovePlan,
+      globalAutoApprove: !!userSettings?.autoApprovePlan,
+      isSubtask,
+    },
   });
 
   const approvalReason = task?.autoApprovePlan

@@ -145,14 +145,16 @@ export async function findRelatedKnowledge(
 
     if (keywords.length === 0) return [];
 
-    // Search active knowledge with theme matching
+    // Search active knowledge with theme matching.
+    // NOTE: `mode: 'insensitive'` is PostgreSQL-only; SQLite Prisma clients
+    // reject it as an unknown argument. We already lower-case the keywords
+    // above (L140), and Japanese (the dominant content language) has no
+    // case distinction, so dropping `mode` is functionally equivalent and
+    // works on both database backends.
     const where: Record<string, unknown> = {
       forgettingStage: { in: ['active', 'dormant'] },
       OR: keywords.map((kw) => ({
-        OR: [
-          { title: { contains: kw, mode: 'insensitive' } },
-          { content: { contains: kw, mode: 'insensitive' } },
-        ],
+        OR: [{ title: { contains: kw } }, { content: { contains: kw } }],
       })),
     };
 

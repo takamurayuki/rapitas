@@ -13,6 +13,8 @@ import { AgentWorkerManager } from '../../../services/agents/agent-worker-manage
 import { updateSessionStatusWithRetry, createCodeReviewApproval } from './session-helpers';
 import { reviewAndCommitWorktree } from './post-execution-review';
 import { detectExecutionFailures } from './execution-output-validator';
+import { recordTransition } from '../../../services/workflow/transition-recorder';
+import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
 
 const log = createLogger('routes:agent-execution:post-handler');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -483,6 +485,27 @@ async function handleResearchResult(params: {
         data: { status: 'in_progress', workflowStatus: nextWfStatus },
       })
       .catch((e) => log.warn({ err: e, taskId: taskIdNum }, '[API] Failed to update task'));
+    if (currentWf !== nextWfStatus) {
+      const violations = await checkWorkflowInvariants(taskIdNum);
+      await recordTransition({
+        taskId: taskIdNum,
+        fromStatus: currentWf,
+        toStatus: nextWfStatus,
+        actor: 'researcher',
+        cause: 'phase_completed:researcher',
+        phase: 'research',
+        sessionId,
+        metadata: {
+          revertedDiff,
+          reportChars: researchMarkdown.length,
+        },
+        invariantViolation: violations.length > 0,
+        invariantMessage:
+          violations.length > 0
+            ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
+            : undefined,
+      });
+    }
     await prisma.agentSession
       .update({
         where: { id: sessionId },

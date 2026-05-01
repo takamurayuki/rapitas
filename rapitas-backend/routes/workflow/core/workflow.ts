@@ -7,6 +7,7 @@
  */
 
 import { Elysia } from 'elysia';
+import { prisma } from '../../../config';
 import {
   handleGetFiles,
   handleSaveFile,
@@ -61,4 +62,37 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
     handleAnalyzeComplexity(ctx as Parameters<typeof handleAnalyzeComplexity>[0]),
   )
 
-  .get('/modes', (ctx) => handleGetModes(ctx as Parameters<typeof handleGetModes>[0]));
+  .get('/modes', (ctx) => handleGetModes(ctx as Parameters<typeof handleGetModes>[0]))
+
+  /**
+   * Read-only timeline of every workflow status transition for a task.
+   * Backed by the append-only `WorkflowTransition` table populated by
+   * `recordTransition()`. Use this to debug "why is the task in
+   * unexpected state X?" without re-running the agents.
+   */
+  .get('/tasks/:taskId/transitions', async (ctx) => {
+    const params = ctx.params as { taskId: string };
+    const taskId = parseInt(params.taskId);
+    if (!Number.isFinite(taskId)) {
+      return { success: false, error: 'invalid taskId' };
+    }
+    const rows = await prisma.workflowTransition
+      .findMany({
+        where: { taskId },
+        orderBy: { createdAt: 'asc' },
+      })
+      .catch(() => null);
+    if (!rows) {
+      return { success: false, error: 'failed to load transitions' };
+    }
+    const transitions = rows.map((r) => {
+      let parsedMeta: unknown = {};
+      try {
+        parsedMeta = r.metadata ? JSON.parse(r.metadata) : {};
+      } catch {
+        parsedMeta = { raw: r.metadata };
+      }
+      return { ...r, metadata: parsedMeta };
+    });
+    return { success: true, taskId, count: transitions.length, transitions };
+  });

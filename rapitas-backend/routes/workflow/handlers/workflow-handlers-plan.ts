@@ -9,6 +9,7 @@ import { prisma } from '../../../config';
 import { NotFoundError, ValidationError, parseId } from '../../../middleware/error-handler';
 import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
+import { recordTransition } from '../../../services/workflow/transition-recorder';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -51,6 +52,16 @@ export async function handleApprovePlan({
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: newStatus, updatedAt: new Date() },
+    });
+
+    await recordTransition({
+      taskId,
+      fromStatus: task.workflowStatus ?? null,
+      toStatus: newStatus,
+      actor: 'user',
+      cause: parsedBody.approved ? 'manual_plan_approved' : 'manual_plan_rejected',
+      phase: 'plan',
+      metadata: { reason: parsedBody.reason ?? null },
     });
 
     await prisma.activityLog.create({
@@ -147,6 +158,15 @@ export async function handleUpdateStatus({
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: parsedBody.status, updatedAt: new Date() },
+    });
+
+    await recordTransition({
+      taskId,
+      fromStatus: task.workflowStatus ?? null,
+      toStatus: parsedBody.status,
+      actor: 'user',
+      cause: 'manual_status_change',
+      metadata: {},
     });
 
     await prisma.activityLog.create({

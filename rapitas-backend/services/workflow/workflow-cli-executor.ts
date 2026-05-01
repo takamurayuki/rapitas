@@ -23,6 +23,8 @@ import {
   type ValidationResult,
 } from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import { recordTransition, type TransitionActor } from './transition-recorder';
+import { checkWorkflowInvariants } from './workflow-invariants';
 
 const log = createLogger('workflow-cli-executor');
 
@@ -403,6 +405,25 @@ ${
           where: { id: taskId },
           data: { workflowStatus: transition.nextStatus },
         });
+        const violations = await checkWorkflowInvariants(taskId);
+        await recordTransition({
+          taskId,
+          fromStatus: currentWfStatus,
+          toStatus: transition.nextStatus,
+          actor: transition.role as TransitionActor,
+          cause: `phase_completed:${transition.role}`,
+          phase: transition.outputFile ?? transition.role,
+          sessionId: session.id,
+          metadata: {
+            outputFile: transition.outputFile,
+            chars: typeof fileContent === 'string' ? fileContent.length : 0,
+          },
+          invariantViolation: violations.length > 0,
+          invariantMessage:
+            violations.length > 0
+              ? violations.map((v) => `${v.code}:${v.message}`).join(' | ')
+              : undefined,
+        });
       }
       if (!effectiveSuccess) {
         log.info(
@@ -431,6 +452,16 @@ ${
     await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: transition.nextStatus },
+    });
+    await recordTransition({
+      taskId,
+      fromStatus: currentWfStatus,
+      toStatus: transition.nextStatus,
+      actor: transition.role as TransitionActor,
+      cause: `phase_completed:${transition.role}`,
+      phase: transition.outputFile ?? transition.role,
+      sessionId: session.id,
+      metadata: { outputFile: transition.outputFile ?? null },
     });
   }
 
