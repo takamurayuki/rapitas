@@ -521,8 +521,8 @@ export default function IdeasClient() {
           </div>
         )}
 
-        {/* 編集中は一覧・フィルタ・ページネーションを隠して、編集 UI に集中させる */}
-        {editingId === null && (
+        {/* 編集中・追加フォーム表示中は一覧・フィルタ・ページネーションを隠して、入力 UI に集中させる */}
+        {editingId === null && !showQuickAdd && (
           <>
             {/* Filters — three dropdowns: scope / category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
