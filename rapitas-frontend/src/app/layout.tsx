@@ -64,8 +64,8 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        {/* 
-          SECURITY: This dangerouslySetInnerHTML is safe - it contains only 
+        {/*
+          SECURITY: This dangerouslySetInnerHTML is safe - it contains only
           hardcoded static JavaScript for theme initialization. No user input.
         */}
         <script
@@ -87,8 +87,8 @@ export default function RootLayout({
             `,
           }}
         />
-        {/* 
-          SECURITY: This dangerouslySetInnerHTML is safe - it contains only 
+        {/*
+          SECURITY: This dangerouslySetInnerHTML is safe - it contains only
           hardcoded static JavaScript for service worker management. No user input.
         */}
         <script

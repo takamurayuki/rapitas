@@ -4,7 +4,15 @@
  * Manages downloading of Qwen2.5-0.5B Q4_K_M GGUF model
  * and llama-server binary from llama.cpp GitHub releases.
  */
-import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync, chmodSync, rmSync } from 'fs';
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  statSync,
+  unlinkSync,
+  chmodSync,
+  rmSync,
+} from 'fs';
 import { join, resolve, isAbsolute } from 'path';
 import { createLogger } from '../../config';
 

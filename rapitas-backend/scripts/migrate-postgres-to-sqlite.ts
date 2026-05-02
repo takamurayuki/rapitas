@@ -40,7 +40,9 @@ const PROVIDER_SECRET_FIELDS: Record<string, string> = {
  */
 function assertValidSqlIdentifier(identifier: string, type: 'table' | 'column'): void {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
-    throw new Error(`Invalid SQL ${type} name: "${identifier}". Only alphanumeric and underscore characters are allowed.`);
+    throw new Error(
+      `Invalid SQL ${type} name: "${identifier}". Only alphanumeric and underscore characters are allowed.`,
+    );
   }
 }
 

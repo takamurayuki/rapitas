@@ -121,11 +121,13 @@ export function HomeTaskList({
 
   return (
     <>
-      <div className="grid gap-3">
+      {/* NOTE: grid-cols-1 (= minmax(0, 1fr)) を明示しないとカラムが content-sized になり、
+          長いタイトルがコンテナ幅を押し広げて truncate が効かなくなる。min-w-0 と併せて指定する。 */}
+      <div className="grid grid-cols-1 gap-3 min-w-0">
         {paginatedTasks.map((task, index) => (
           <div
             key={task.id}
-            className="slide-in-bottom"
+            className="slide-in-bottom min-w-0"
             style={{
               animationDelay: `${index * 0.02}s`,
               animationFillMode: 'both',

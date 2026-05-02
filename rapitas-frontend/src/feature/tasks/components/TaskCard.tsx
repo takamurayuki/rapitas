@@ -59,7 +59,7 @@ const TaskCard = memo(function TaskCard({
       ref={tc.cardRef}
       data-task-card
       onMouseEnter={tc.handleMouseEnter}
-      className={`group relative z-0 rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
+      className={`group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
         isSelected
           ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 shadow-lg shadow-purple-200/50 dark:shadow-purple-900/50'
           : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900`
@@ -79,7 +79,7 @@ const TaskCard = memo(function TaskCard({
 
       {/* Main row */}
       <div
-        className="relative z-10 flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
+        className="relative z-10 flex items-center gap-3 px-3 py-2.5 min-w-0 cursor-pointer transition-all duration-300 ease-out hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 rounded-t-lg"
         onClick={() => {
           if (isSelectionMode && onToggleSelect) {
             onToggleSelect(task.id);
@@ -150,9 +150,12 @@ const TaskCard = memo(function TaskCard({
 
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <h3 className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm">
+          <div className="flex items-center gap-2 mb-1 min-w-0">
+            <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
+              <h3
+                className="font-medium text-zinc-900 dark:text-zinc-50 truncate text-sm min-w-0"
+                title={task.title}
+              >
                 {task.title}
               </h3>
               <PriorityIcon priority={task.priority} size="md" />
@@ -187,8 +190,9 @@ const TaskCard = memo(function TaskCard({
             </div>
           </div>
 
-          {/* Subtask progress + meta badges */}
-          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          {/* Subtask progress + meta badges
+              NOTE: flex-wrap + min-w-0 で狭幅時にバッジを折返し、横スクロールを防ぐ */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 min-w-0">
             {tc.localSubtasks.length > 0 && (
               <>
                 <div className="shrink-0 flex items-center gap-2">
@@ -221,7 +225,8 @@ const TaskCard = memo(function TaskCard({
                     {tc.localSubtasks.length}
                   </button>
                   {tc.completionRate !== null && (
-                    <div className="w-75 h-1 ml-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                    // NOTE: w-75 は非標準のため無効だった。狭幅で潰れないよう shrink-0 + 最大幅を指定。
+                    <div className="w-20 sm:w-32 md:w-48 max-w-full h-1 ml-1 shrink-0 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full ${tc.getProgressBarColor(tc.completionRate)} transition-all duration-700 ease-out`}
                         style={{ width: `${tc.completionRate}%` }}
@@ -292,10 +297,11 @@ const TaskCard = memo(function TaskCard({
           </div>
         </div>
 
-        {/* Status change buttons */}
+        {/* Status change buttons
+            NOTE: shrink-0 でタイトル列に侵食されないよう固定領域として確保 */}
         {!isSelectionMode && (
           <div
-            className="flex items-center gap-1 pl-3 self-stretch"
+            className="flex items-center gap-1 pl-3 self-stretch shrink-0"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
