@@ -33,6 +33,17 @@ const PROVIDER_SECRET_FIELDS: Record<string, string> = {
   geminiApiKeyEncrypted: 'gemini',
 };
 
+/**
+ * Validates table/column names to prevent SQL injection.
+ * Only alphanumeric characters and underscores are allowed.
+ * Throws if the identifier is invalid.
+ */
+function assertValidSqlIdentifier(identifier: string, type: 'table' | 'column'): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
+    throw new Error(`Invalid SQL ${type} name: "${identifier}". Only alphanumeric and underscore characters are allowed.`);
+  }
+}
+
 function hasArg(name: string): boolean {
   return process.argv.includes(name);
 }
@@ -129,6 +140,10 @@ export function insertRows(
   rows: AnyRow[],
 ): number {
   if (rows.length === 0 || columns.length === 0) return 0;
+
+  // Validate table and column names to prevent SQL injection
+  assertValidSqlIdentifier(table, 'table');
+  columns.forEach((col) => assertValidSqlIdentifier(col, 'column'));
 
   const quotedColumns = columns.map((column) => `"${column}"`).join(', ');
   const placeholders = columns.map(() => '?').join(', ');
@@ -238,11 +253,16 @@ async function prepareSqliteTarget(options: MigrationOptions): Promise<Database 
 }
 
 function getSqliteColumns(database: Database, table: string): string[] {
+  // Validate table name to prevent SQL injection
+  assertValidSqlIdentifier(table, 'table');
   const rows = database.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all();
   return rows.map((row) => row.name);
 }
 
 async function fetchPostgresRows(client: PrismaLike, table: string): Promise<AnyRow[]> {
+  // Validate table name to prevent SQL injection
+  assertValidSqlIdentifier(table, 'table');
+
   const columns = await client.$queryRawUnsafe<{ column_name: string }[]>(
     `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1`,
     table,
@@ -251,6 +271,7 @@ async function fetchPostgresRows(client: PrismaLike, table: string): Promise<Any
 
   const hasId = columns.some((column) => column.column_name === 'id');
   const orderBy = hasId ? ' ORDER BY "id"' : '';
+  // Table name is validated above; safe to interpolate
   return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
 }
 

@@ -13,7 +13,6 @@ import {
   taskSuggestionRoutes,
   taskQuickCreateRoutes,
   taskAutoGenerateRoutes,
-  taskStatisticsRoutes,
   tempStatisticsRoutes,
   taskAnalysisConfigRoutes,
   batchRoutes,
@@ -106,7 +105,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(taskSuggestionRoutes);
   app.use(taskQuickCreateRoutes);
   app.use(taskAutoGenerateRoutes);
-  app.use(taskStatisticsRoutes);
   app.use(tempStatisticsRoutes);
   app.use(taskAnalysisConfigRoutes);
   app.use(batchRoutes);

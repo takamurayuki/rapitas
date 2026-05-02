@@ -4,9 +4,23 @@
  * Manages downloading of Qwen2.5-0.5B Q4_K_M GGUF model
  * and llama-server binary from llama.cpp GitHub releases.
  */
-import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync, chmodSync } from 'fs';
-import { join } from 'path';
+import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync, chmodSync, rmSync } from 'fs';
+import { join, resolve, isAbsolute } from 'path';
 import { createLogger } from '../../config';
+
+const log = createLogger('local-llm:model-downloader');
+
+/**
+ * Validates that a path is within the expected base directory.
+ * Prevents path traversal attacks.
+ */
+function assertSafePath(basePath: string, targetPath: string): void {
+  const resolvedBase = resolve(basePath);
+  const resolvedTarget = resolve(targetPath);
+  if (!resolvedTarget.startsWith(resolvedBase)) {
+    throw new Error(`Path traversal detected: ${targetPath} is outside ${basePath}`);
+  }
+}
 
 const log = createLogger('local-llm:model-downloader');
 
@@ -234,17 +248,15 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
         }
       }
 
-      // Delete temp directory and ZIP
-      execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
-        timeout: 10000,
-      });
+      // Delete temp directory and ZIP (use fs.rmSync for safety)
+      assertSafePath(binDir, extractDir);
+      rmSync(extractDir, { recursive: true, force: true });
     } catch (error) {
       // Cleanup
       try {
         if (existsSync(extractDir)) {
-          execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
-            timeout: 10000,
-          });
+          assertSafePath(binDir, extractDir);
+          rmSync(extractDir, { recursive: true, force: true });
         }
       } catch {
         /* ignore */
@@ -254,9 +266,12 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
   } else {
     // Unix: extract with unzip
     const extractDir = join(binDir, '_llama_tmp');
+    assertSafePath(binDir, extractDir);
     mkdirSync(extractDir, { recursive: true });
 
     try {
+      // Validate paths before shell commands (paths are generated internally, not from user input)
+      assertSafePath(binDir, zipPath);
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
 
       // Search for llama-server
@@ -287,10 +302,13 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
         }
       }
 
-      execSync(`rm -rf "${extractDir}"`, { timeout: 10000 });
+      // Clean up using fs.rmSync for safety
+      rmSync(extractDir, { recursive: true, force: true });
     } catch (error) {
       try {
-        if (existsSync(extractDir)) execSync(`rm -rf "${extractDir}"`, { timeout: 10000 });
+        if (existsSync(extractDir)) {
+          rmSync(extractDir, { recursive: true, force: true });
+        }
       } catch {
         /* ignore */
       }

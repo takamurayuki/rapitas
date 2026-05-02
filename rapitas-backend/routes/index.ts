@@ -13,7 +13,6 @@ export { templatesRoutes } from './organization/templates';
 
 // Tasks
 export { tasksRoutes } from './tasks/tasks';
-export { taskStatisticsRoutes } from './tasks/task-statistics';
 export { tempStatisticsRoutes } from './tasks/temp-statistics';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';

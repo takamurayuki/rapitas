@@ -54,17 +54,6 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     }
   })
 
-  // Get task statistics
-  .get('/statistics', async () => {
-    try {
-      const stats = await QueryOptimizers.getTaskStatistics(prisma, {});
-      return stats;
-    } catch (error) {
-      logger.error({ err: error }, 'Failed to fetch task statistics');
-      throw new AppError(500, 'Failed to fetch task statistics');
-    }
-  })
-
   // Get all tasks (supports incremental fetch via `since` param)
   .get('/', async (context) => {
     const { query } = context;

@@ -9,12 +9,12 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Issues | 51 |
+| Total Issues | 48 |
 | Critical | 1 |
-| High | 14 |
+| High | 11 |
 | Medium | 35 |
 | Low | 1 |
-| Estimated Effort | 129 developer-days |
+| Estimated Effort | 126 developer-days |
 
 ---
 
@@ -38,10 +38,10 @@ Potential SQL injection via string interpolation in SQL query
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:136
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
 `INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
 
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:254
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
 return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
 ```
 </details>
@@ -68,11 +68,42 @@ Potential SQL injection via string interpolation in SQL query
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:136
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
 `INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
 
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:254
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
 return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
+```
+</details>
+
+#### 🟠 [security-command_injection] Fix command injection: 4 occurrences
+
+**Priority:** high | **Effort:** small | **Category:** Security
+
+Template literal in child process - verify input is not user-controlled
+
+**Files:**
+- `rapitas-backend\services\local-llm\model-downloader.ts`
+- `rapitas-backend\services\misc\preview-deploy-service.ts`
+- `rapitas-backend\services\misc\tech-debt-liquidator.ts`
+
+**Acceptance Criteria:**
+- [ ] All 4 instances are fixed
+- [ ] Input validation is added where necessary
+- [ ] Security tests are added to prevent regression
+
+<details>
+<summary>Code Context</summary>
+
+```typescript
+// rapitas-backend\services\local-llm\model-downloader.ts:275
+execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
+
+// rapitas-backend\services\local-llm\model-downloader.ts:278
+const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
+
+// rapitas-backend\services\misc\preview-deploy-service.ts:69
+const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
 ```
 </details>
 
@@ -94,10 +125,10 @@ dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-frontend\src\app\layout.tsx:68
+// rapitas-frontend\src\app\layout.tsx:72
 dangerouslySetInnerHTML={{
 
-// rapitas-frontend\src\app\layout.tsx:87
+// rapitas-frontend\src\app\layout.tsx:95
 dangerouslySetInnerHTML={{
 ```
 </details>
@@ -117,36 +148,6 @@ Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution\s
 - [ ] All consumers use the canonical endpoint
 - [ ] Deprecated endpoint is removed
 
-#### 🟠 [api-dup-POST--execution-fork-fork] Remove duplicate endpoint: POST /execution-fork/fork
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts, rapitas-backend\routes\agents\integrations\execution-fork-routes.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts`
-- `rapitas-backend\routes\agents\integrations\execution-fork-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--execution-fork-compare--executionId] Remove duplicate endpoint: GET /execution-fork/compare/:executionId
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts, rapitas-backend\routes\agents\integrations\execution-fork-routes.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts`
-- `rapitas-backend\routes\agents\integrations\execution-fork-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
 #### 🟠 [api-dup-GET--] Remove duplicate endpoint: GET /
 
 **Priority:** high | **Effort:** small | **Category:** API Consistency
@@ -156,21 +157,6 @@ Endpoint is defined in multiple files: rapitas-backend\routes\learning\handlers\
 **Files:**
 - `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts`
 - `rapitas-backend\routes\system\search\search-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--tasks-statistics] Remove duplicate endpoint: GET /tasks/statistics
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\tasks\task-statistics.ts, rapitas-backend\routes\tasks\tasks.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\tasks\task-statistics.ts`
-- `rapitas-backend\routes\tasks\tasks.ts`
 
 **Acceptance Criteria:**
 - [ ] Endpoint exists in only one file
@@ -201,17 +187,17 @@ Potential SQL injection via string interpolation in SQL query
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:136
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
 `INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
 
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:254
+// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
 return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
 ```
 </details>
 
-#### 🟠 [security-command_injection] Fix command injection: 8 occurrences
+#### 🟠 [security-command_injection] Fix command injection: 4 occurrences
 
-**Priority:** high | **Effort:** medium | **Category:** Security
+**Priority:** high | **Effort:** small | **Category:** Security
 
 Template literal in child process - verify input is not user-controlled
 
@@ -221,7 +207,7 @@ Template literal in child process - verify input is not user-controlled
 - `rapitas-backend\services\misc\tech-debt-liquidator.ts`
 
 **Acceptance Criteria:**
-- [ ] All 8 instances are fixed
+- [ ] All 4 instances are fixed
 - [ ] Input validation is added where necessary
 - [ ] Security tests are added to prevent regression
 
@@ -229,14 +215,14 @@ Template literal in child process - verify input is not user-controlled
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-backend\services\local-llm\model-downloader.ts:238
-execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
-
-// rapitas-backend\services\local-llm\model-downloader.ts:245
-execSync(`powershell -Command "Remove-Item -Path '${extractDir}' -Recurse -Force"`, {
-
-// rapitas-backend\services\local-llm\model-downloader.ts:260
+// rapitas-backend\services\local-llm\model-downloader.ts:275
 execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
+
+// rapitas-backend\services\local-llm\model-downloader.ts:278
+const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
+
+// rapitas-backend\services\misc\preview-deploy-service.ts:69
+const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
 ```
 </details>
 
@@ -258,10 +244,10 @@ dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.
 <summary>Code Context</summary>
 
 ```typescript
-// rapitas-frontend\src\app\layout.tsx:68
+// rapitas-frontend\src\app\layout.tsx:72
 dangerouslySetInnerHTML={{
 
-// rapitas-frontend\src\app\layout.tsx:87
+// rapitas-frontend\src\app\layout.tsx:95
 dangerouslySetInnerHTML={{
 ```
 </details>
@@ -624,7 +610,7 @@ Critical file with 540 lines has no test coverage. Add unit tests to ensure reli
 
 **Priority:** medium | **Effort:** large | **Category:** Test Coverage
 
-Feature has only 9% coverage. 167 files need tests.
+Feature has only 9% coverage. 166 files need tests.
 
 **Files:**
 - `rapitas-backend\routes\tasks\batch-v2.ts`
@@ -660,7 +646,7 @@ Feature has only 21% coverage. 15 files need tests.
 
 **Priority:** medium | **Effort:** large | **Category:** Test Coverage
 
-Feature has only 11% coverage. 274 files need tests.
+Feature has only 11% coverage. 273 files need tests.
 
 **Files:**
 - `rapitas-backend\routes\agents\agent-metrics\performance-query.ts`
@@ -786,14 +772,14 @@ Feature has only 12% coverage. 69 files need tests.
 
 **Priority:** medium | **Effort:** large | **Category:** Test Coverage
 
-Feature has only 13% coverage. 26 files need tests.
+Feature has only 14% coverage. 25 files need tests.
 
 **Files:**
 - `rapitas-backend\routes\analytics\intelligent-suggestions.ts`
 - `rapitas-backend\routes\analytics\weekly-review.ts`
 - `rapitas-backend\routes\system\monitoring\progress-summary.ts`
-- `rapitas-backend\routes\tasks\task-statistics.ts`
 - `rapitas-backend\routes\tasks\temp-statistics.ts`
+- `rapitas-backend\scripts\analyze-codebase\agent-report-generator.ts`
 
 **Acceptance Criteria:**
 - [ ] Coverage increased to at least 50%
@@ -817,36 +803,6 @@ Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution\s
 - [ ] All consumers use the canonical endpoint
 - [ ] Deprecated endpoint is removed
 
-#### 🟠 [api-dup-POST--execution-fork-fork] Remove duplicate endpoint: POST /execution-fork/fork
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts, rapitas-backend\routes\agents\integrations\execution-fork-routes.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts`
-- `rapitas-backend\routes\agents\integrations\execution-fork-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--execution-fork-compare--executionId] Remove duplicate endpoint: GET /execution-fork/compare/:executionId
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts, rapitas-backend\routes\agents\integrations\execution-fork-routes.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts`
-- `rapitas-backend\routes\agents\integrations\execution-fork-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
 #### 🟠 [api-dup-GET--] Remove duplicate endpoint: GET /
 
 **Priority:** high | **Effort:** small | **Category:** API Consistency
@@ -856,21 +812,6 @@ Endpoint is defined in multiple files: rapitas-backend\routes\learning\handlers\
 **Files:**
 - `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts`
 - `rapitas-backend\routes\system\search\search-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--tasks-statistics] Remove duplicate endpoint: GET /tasks/statistics
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\tasks\task-statistics.ts, rapitas-backend\routes\tasks\tasks.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\tasks\task-statistics.ts`
-- `rapitas-backend\routes\tasks\tasks.ts`
 
 **Acceptance Criteria:**
 - [ ] Endpoint exists in only one file
@@ -1006,9 +947,7 @@ Files with multiple issues should be prioritized for refactoring.
 |------|-------------|--------------|
 | `rapitas-backend\services\agents\orchestrator\task-executor.ts` | 2 | - |
 | `rapitas-backend\services\agents\codex-cli-agent\process-runner.ts` | 2 | - |
-| `rapitas-backend\routes\agents\execution-management\execution-fork-routes.ts` | 2 | - |
-| `rapitas-backend\routes\agents\integrations\execution-fork-routes.ts` | 2 | - |
-| `rapitas-backend\routes\tasks\task-statistics.ts` | 2 | - |
+| `rapitas-backend\scripts\analyze-codebase\agent-report-generator.ts` | 2 | - |
 | `rapitas-backend\register-routes.ts` | 2 | - |
 | `rapitas-backend\scripts\migrate-postgres-to-sqlite.ts` | 1 | - |
 | `rapitas-frontend\src\hooks\common\useSpeechRecognition.ts` | 1 | - |
@@ -1024,7 +963,6 @@ Files with multiple issues should be prioritized for refactoring.
 | `rapitas-backend\routes\agents\execution\stop-route.ts` | 1 | - |
 | `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts` | 1 | - |
 | `rapitas-backend\routes\system\search\search-route.ts` | 1 | - |
-| `rapitas-backend\routes\tasks\tasks.ts` | 1 | - |
 | `rapitas-frontend\src\components\note\editor\useNoteEditor.ts` | 1 | - |
 | `rapitas-frontend\src\app\claude-md-generator\_hooks\useWizard.ts` | 1 | - |
 | `rapitas-frontend\src\app\settings\shortcuts\hooks\useShortcutSettings.ts` | 1 | - |
@@ -1034,6 +972,9 @@ Files with multiple issues should be prioritized for refactoring.
 | `rapitas-frontend\src\app\calendar\_components\CalendarGrid.tsx` | 1 | - |
 | `rapitas-frontend\src\app\tasks\[id]\components\TaskAISection.tsx` | 1 | - |
 | `rapitas-backend\services\agents\orchestrator\stale-execution-recovery.ts` | 1 | - |
+| `rapitas-backend\routes\agents\execution\execute-post-handler.ts` | 1 | - |
+| `rapitas-backend\services\workflow\workflow-cli-executor.ts` | 1 | - |
+| `rapitas-backend\routes\agents\execution\execute-route.ts` | 1 | - |
 
 ---
 
