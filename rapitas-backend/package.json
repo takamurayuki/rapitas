@@ -64,5 +64,12 @@
   },
   "trustedDependencies": [
     "protobufjs"
-  ]
+  ],
+  "overrides": {
+    "protobufjs": "^7.5.5",
+    "defu": "^6.1.5",
+    "minimatch": "^9.0.7",
+    "flatted": "^3.4.0",
+    "picomatch": "^4.0.4"
+  }
 }
