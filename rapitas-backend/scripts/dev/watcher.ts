@@ -6,7 +6,7 @@
  * executions are active and polls until they complete.
  */
 import { spawn } from 'bun';
-import { watch } from 'fs';
+import { watch, existsSync } from 'fs';
 import { join } from 'path';
 import { startServer, ROOT_DIR, INDEX_FILE, getServerPort, log } from './server-manager';
 
@@ -204,22 +204,37 @@ export function watchTypeScriptFiles(): void {
 }
 
 /**
- * Watches the Prisma schema file for changes and triggers db push + generate + restart.
+ * Watches the Prisma schema directory (multi-file `prismaSchemaFolder` layout)
+ * for changes and triggers db push + generate + restart.
+ *
+ * NOTE: Legacy projects used a single `prisma/schema.prisma` file. Per ADR-0006
+ * this repo splits the schema across `prisma/schema/*.prisma` files, so we watch
+ * the directory recursively. We still fall back to the single-file path if the
+ * folder is absent.
  */
 export function watchPrismaSchema(): void {
-  const PRISMA_SCHEMA = join(ROOT_DIR, 'prisma', 'schema.prisma');
+  const PRISMA_SCHEMA_DIR = join(ROOT_DIR, 'prisma', 'schema');
+  const PRISMA_SCHEMA_FILE = join(ROOT_DIR, 'prisma', 'schema.prisma');
+  const watchTarget = existsSync(PRISMA_SCHEMA_DIR) ? PRISMA_SCHEMA_DIR : PRISMA_SCHEMA_FILE;
+
+  if (!existsSync(watchTarget)) {
+    log.warn(`Prisma schema not found at ${watchTarget} — skip watching`);
+    return;
+  }
+
   let lastChangeTime = 0;
 
-  watch(PRISMA_SCHEMA, async (eventType) => {
-    if (eventType === 'change') {
-      // NOTE: 1-second guard prevents duplicate events fired by some editors on save.
-      const now = Date.now();
-      if (now - lastChangeTime < 1000) return;
-      lastChangeTime = now;
+  watch(watchTarget, { recursive: true }, async (eventType, filename) => {
+    if (eventType !== 'change') return;
+    // Only react to .prisma files (avoid .DS_Store, swap files, etc.).
+    if (filename && !filename.toString().endsWith('.prisma')) return;
+    // 1-second guard prevents duplicate events fired by some editors on save.
+    const now = Date.now();
+    if (now - lastChangeTime < 1000) return;
+    lastChangeTime = now;
 
-      await handlePrismaChange();
-    }
+    await handlePrismaChange();
   });
 
-  log.info('Watching Prisma schema for changes');
+  log.info(`Watching Prisma schema at ${watchTarget} for changes`);
 }

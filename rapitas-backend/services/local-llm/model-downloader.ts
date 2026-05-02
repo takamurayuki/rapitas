@@ -30,8 +30,6 @@ function assertSafePath(basePath: string, targetPath: string): void {
   }
 }
 
-const log = createLogger('local-llm:model-downloader');
-
 // Qwen2.5-0.5B-Instruct Q4_K_M (~400MB)
 const DEFAULT_MODEL_URL =
   'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
