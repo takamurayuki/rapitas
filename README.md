@@ -1,8 +1,39 @@
-# Rapitas
+<h1 align="center">rapitas</h1>
 
-AI-Powered 階層型タスク管理システム
+<p align="center">
+  <strong>AI agent native task management.</strong><br/>
+  Multi-CLI (Claude Code / Codex / Gemini) を切替可能な自律エンジニアリングエージェント + 階層型タスク管理 + ナレッジ・メモリ統合を、Web と Tauri デスクトップで提供する Local-first SaaS スタック。
+</p>
 
-Rapitasは、AI機能を統合した先進的なタスク管理システムです。Claude/OpenAI統合によるAIエージェント実行、リアルタイム同期、ポモドーロタイマー、そしてクロスプラットフォーム対応（Web + デスクトップ）を提供します。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"/></a>
+  <img src="https://img.shields.io/badge/Next.js-16-black.svg" alt="Next.js 16"/>
+  <img src="https://img.shields.io/badge/Bun-1.3-fbf0df.svg" alt="Bun 1.3"/>
+  <img src="https://img.shields.io/badge/Tauri-2.x-24C8DB.svg" alt="Tauri 2"/>
+  <img src="https://img.shields.io/badge/Prisma-6.x-2D3748.svg" alt="Prisma 6"/>
+</p>
+
+<!-- TODO(public-launch): docs/demo.gif を追加してここに表示 -->
+<!-- ![demo](docs/demo.gif) -->
+
+## ✨ 主な特徴
+
+| | |
+| --- | --- |
+| 🤖 **Multi-CLI Agent** | Claude Code / Codex CLI / Gemini CLI を 1 アプリから切替・フォールバック実行 |
+| 🔁 **5-role Workflow** | Researcher → Planner → Reviewer → Implementer → Verifier の自律ワークフローで research.md / plan.md / verify.md を順次生成 |
+| 🛡️ **ハルシネーション検出** | `verify.md` の自己矛盾（"全テスト通過" と書きながら ❌ がある等）を検出し PR 生成を停止 |
+| 🧠 **Self-evolving Prompts** | `PromptEvolution` モデルで A/B テスト結果からシステムプロンプトを自動進化 |
+| 📦 **Local-first + Web** | Tauri 2 + SQLite で完全ローカル動作、Web 版で PostgreSQL に切替可 |
+| 📋 **階層タスク** | Category / Theme / Task / Subtask の 4 段階構造、`WorkflowTransition` による append-only 監査ログ |
+| ⏱️ **生産性ツール内蔵** | Pomodoro、Habit、Calendar、Flashcard、Knowledge Graph、Idea Box（音声書き起こし対応） |
+| 🔐 **0 Critical / 0 High** 脆弱性 | `bun audit` / `pnpm audit` 双方クリア（2026-05 時点） |
+
+---
+
+## 元の説明
+
+AI機能を統合した先進的なタスク管理システムです。Claude/OpenAI統合によるAIエージェント実行、リアルタイム同期、ポモドーロタイマー、そしてクロスプラットフォーム対応（Web + デスクトップ）を提供します。
 
 ## プロジェクト構成
 
