@@ -18,6 +18,7 @@ export const EXCLUDED_DIRS = new Set([
   '.next-tauri',
   'dist',
   '.git',
+  '.worktrees',
   'target',
   'build',
   'uploads',

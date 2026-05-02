@@ -28,6 +28,7 @@ import { collectFeatureCompleteness } from './metrics/feature-completeness';
 import { collectMaintainabilityMetrics } from './metrics/maintainability-metrics';
 import { computeScoring } from './scoring';
 import { generateMarkdownReport } from './report-generator';
+import { generateAgentReport, renderAgentReportMarkdown } from './agent-report-generator';
 import type { AnalysisResult } from './types';
 
 const log = createLogger('analyze-codebase');
@@ -121,6 +122,7 @@ async function main() {
   log.info('Generating outputs...');
   const jsonPath = join(PROJECT_ROOT, 'analysis-result.json');
   const mdPath = join(PROJECT_ROOT, 'analysis-report.md');
+  const agentMdPath = join(PROJECT_ROOT, 'analysis-for-agent.md');
 
   writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf-8');
   log.info(`JSON output: ${jsonPath}`);
@@ -128,6 +130,12 @@ async function main() {
   const report = generateMarkdownReport(result);
   writeFileSync(mdPath, report, 'utf-8');
   log.info(`Markdown report: ${mdPath}`);
+
+  log.info('Generating AI agent-optimized report...');
+  const agentReport = generateAgentReport(result);
+  const agentMarkdown = renderAgentReportMarkdown(agentReport);
+  writeFileSync(agentMdPath, agentMarkdown, 'utf-8');
+  log.info(`AI agent report: ${agentMdPath}`);
 
   log.info('=== Analysis Complete ===');
   log.info(`Total files: ${codeMetrics.totalFiles}`);
@@ -147,6 +155,11 @@ async function main() {
   log.info(`  Features: ${scoring.featureCoverageScore}/100`);
   log.info(`  Security: ${scoring.securityScore}/100`);
   log.info(`  Code duplication: ${(maintainabilityMetrics.duplicationRatio * 100).toFixed(1)}%`);
+  log.info(`--- AI Agent Report ---`);
+  log.info(`  Action items: ${agentReport.summary.totalIssues}`);
+  log.info(`  Critical: ${agentReport.summary.criticalCount}`);
+  log.info(`  Quick wins: ${agentReport.quickWins.length}`);
+  log.info(`  Estimated effort: ${agentReport.summary.estimatedTotalEffort}`);
   log.info(`Execution time: ${executionTimeMs}ms`);
 }
 
