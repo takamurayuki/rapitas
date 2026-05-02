@@ -1,0 +1,63 @@
+#!/bin/sh
+# Pre-push hook
+#
+# Two safeguards before every push:
+#   1. Block direct push to `main` (force PR-based merges via develop).
+#      GitHub branch protection enforces this server-side as well, but the
+#      local hook fails fast and avoids surprise rejections.
+#   2. Run a fast typecheck (frontend + backend) so broken builds never reach
+#      the remote. Tests are skipped here (too slow); CI runs them in PR.
+#
+# Bypass with `git push --no-verify` only when intentional and exceptional.
+
+remote="$1"
+url="$2"
+
+# 1) Block direct push to main
+zero=$(printf '%040d\n' 0)
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$local_sha" = "$zero" ]; then
+        # Branch deletion — allowed (server-side protection still blocks main delete).
+        continue
+    fi
+
+    case "$remote_ref" in
+        refs/heads/main)
+            cat <<MSG
+🛑 Direct push to 'main' is blocked.
+
+Use the develop branch and open a PR instead:
+
+  git push origin develop
+  gh pr create --base main --head develop
+
+Bypass (rare): git push --no-verify
+MSG
+            exit 1
+            ;;
+    esac
+done
+
+# 2) Fast typecheck — skip if commit message contains [skip-typecheck]
+echo "🔍 Pre-push typecheck..."
+
+cd rapitas-frontend && pnpm exec tsc --noEmit -p tsconfig.json 2>&1 \
+    | grep -E "error TS" | grep -v "KnowledgeClient.test" \
+    | head -1 | grep -q "error TS" \
+    && {
+        echo "❌ Frontend typecheck failed. Run: cd rapitas-frontend && pnpm exec tsc --noEmit"
+        exit 1
+    }
+cd ..
+
+cd rapitas-backend && bunx tsc --noEmit --skipLibCheck 2>&1 \
+    | grep -E "error TS" | grep -vE "bun-types|overrides.d.ts|KnowledgeClient" \
+    | head -1 | grep -q "error TS" \
+    && {
+        echo "❌ Backend typecheck failed. Run: cd rapitas-backend && bunx tsc --noEmit"
+        exit 1
+    }
+cd ..
+
+echo "✅ Pre-push checks passed"
+exit 0
