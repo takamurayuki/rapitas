@@ -95,10 +95,135 @@ export function WorkflowFileContent({
       </div>
 
       {/* Markdown body */}
-      <div className="prose dark:prose-invert max-w-none prose-sm prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-p:text-zinc-700 dark:prose-p:text-zinc-300">
+      <div
+        className={[
+          'prose dark:prose-invert max-w-none prose-sm',
+          'prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100',
+          'prose-headings:font-semibold prose-headings:tracking-tight',
+          'prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-p:leading-relaxed',
+          'prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-li:my-0.5',
+          'prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100',
+          'prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline',
+        ].join(' ')}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
+            // Section headings — give H2 / H3 a clear visual rhythm so each
+            // logical block reads as its own card-like section.
+            h1: ({ children, ...props }) => (
+              <h1
+                className="!mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
+                {...props}
+              >
+                {children}
+              </h1>
+            ),
+            h2: ({ children, ...props }) => (
+              <h2
+                className="!mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
+                {...props}
+              >
+                {children}
+              </h2>
+            ),
+            h3: ({ children, ...props }) => (
+              <h3
+                className="!mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
+                {...props}
+              >
+                {children}
+              </h3>
+            ),
+            h4: ({ children, ...props }) => (
+              <h4
+                className="!mt-4 !mb-2 text-sm !font-semibold text-zinc-800 dark:text-zinc-200"
+                {...props}
+              >
+                {children}
+              </h4>
+            ),
+            // Horizontal rule — make section breaks more visible.
+            hr: (props) => (
+              <hr
+                className="!my-6 border-0 h-px bg-gradient-to-r from-transparent via-zinc-300 dark:via-zinc-600 to-transparent"
+                {...props}
+              />
+            ),
+            // Tables — bordered, header-shaded, hover-highlighted, and
+            // wrapped in an overflow container so wide tables stay readable
+            // on narrow screens.
+            table: ({ children, ...props }) => (
+              <div className="!my-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                <table className="!my-0 w-full text-sm border-collapse" {...props}>
+                  {children}
+                </table>
+              </div>
+            ),
+            thead: ({ children, ...props }) => (
+              <thead
+                className="bg-zinc-50 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700"
+                {...props}
+              >
+                {children}
+              </thead>
+            ),
+            tbody: ({ children, ...props }) => (
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800" {...props}>
+                {children}
+              </tbody>
+            ),
+            tr: ({ children, ...props }) => (
+              <tr
+                className="transition-colors hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10"
+                {...props}
+              >
+                {children}
+              </tr>
+            ),
+            th: ({ children, ...props }) => (
+              <th
+                className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:text-zinc-300 whitespace-nowrap"
+                {...props}
+              >
+                {children}
+              </th>
+            ),
+            td: ({ children, ...props }) => (
+              <td
+                className="px-3 py-2 align-top text-zinc-700 dark:text-zinc-300 [&_code]:text-[0.8em]"
+                {...props}
+              >
+                {children}
+              </td>
+            ),
+            // Blockquote — render as a callout box so notes / warnings stand out.
+            blockquote: ({ children, ...props }) => (
+              <blockquote
+                className="!my-4 !pl-4 !pr-3 !py-2 border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50/60 dark:bg-amber-900/15 rounded-r-md !not-italic [&>p]:!my-0 [&>p]:text-amber-900 dark:[&>p]:text-amber-200"
+                {...props}
+              >
+                {children}
+              </blockquote>
+            ),
+            // Lists — tighten spacing and add custom markers.
+            ul: ({ children, ...props }) => (
+              <ul
+                className="!my-2 !pl-5 list-disc marker:text-indigo-500 dark:marker:text-indigo-400"
+                {...props}
+              >
+                {children}
+              </ul>
+            ),
+            ol: ({ children, ...props }) => (
+              <ol
+                className="!my-2 !pl-5 list-decimal marker:text-indigo-600 dark:marker:text-indigo-400 marker:font-semibold"
+                {...props}
+              >
+                {children}
+              </ol>
+            ),
+            // Task-list checkbox — keep it disabled but visible.
             input: ({ type, checked, ...props }) => {
               if (type === 'checkbox') {
                 return (
@@ -106,20 +231,39 @@ export function WorkflowFileContent({
                     type="checkbox"
                     checked={checked}
                     disabled
-                    className="mr-2 accent-indigo-600"
+                    className="mr-2 mt-0.5 accent-indigo-600 align-middle"
                     {...props}
                   />
                 );
               }
               return <input type={type} {...props} />;
             },
-            code: ({ className: codeClassName, children, ...props }) => (
-              <code
-                className={`${codeClassName || ''} bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-sm`}
+            // Code — distinct styling for inline vs fenced blocks.
+            code: ({ className: codeClassName, children, ...props }) => {
+              const isBlock = (codeClassName || '').includes('language-');
+              if (isBlock) {
+                return (
+                  <code className={codeClassName} {...props}>
+                    {children}
+                  </code>
+                );
+              }
+              return (
+                <code
+                  className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono border border-indigo-100 dark:border-indigo-800/50"
+                  {...props}
+                >
+                  {children}
+                </code>
+              );
+            },
+            pre: ({ children, ...props }) => (
+              <pre
+                className="!my-3 !p-3 rounded-lg bg-zinc-900 dark:bg-zinc-950 text-zinc-100 text-xs overflow-x-auto border border-zinc-800"
                 {...props}
               >
                 {children}
-              </code>
+              </pre>
             ),
           }}
         >
