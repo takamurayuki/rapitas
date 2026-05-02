@@ -90,6 +90,7 @@ export class DockerLogParser implements LogParser {
       const json = JSON.parse(logLine);
       return json.log && json.stream && json.time;
     } catch {
+      // intentionally ignore - invalid JSON
       return false;
     }
   }
@@ -113,6 +114,7 @@ export class DockerLogParser implements LogParser {
           type: this.type,
         };
       } catch {
+        // intentionally ignore - parsing failed, try next format
         return null;
       }
     }

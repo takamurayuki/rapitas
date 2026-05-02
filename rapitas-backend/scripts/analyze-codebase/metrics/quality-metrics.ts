@@ -39,21 +39,35 @@ export function collectQualityMetrics(files: FileInfo[]): AnalysisResult['qualit
   const isTestFile = (f: FileInfo) =>
     /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(f.relativePath) || f.relativePath.includes('__tests__');
 
+  const isScriptFile = (f: FileInfo) =>
+    f.relativePath.includes('/scripts/') || f.relativePath.includes('\\scripts\\');
+
   for (const f of tsFiles) {
     const isTest = isTestFile(f);
+    const isScript = isScriptFile(f);
     const lines = f.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!line.trim().startsWith('//') && !line.trim().startsWith('*')) {
-        if (!isTest && (/:\s*any\b/.test(line) || /as\s+any\b/.test(line) || /<any>/.test(line))) {
+        // Skip any usage that is acknowledged with HACK comment (per CLAUDE.md policy)
+        const hasHackComment =
+          /HACK\s*\([^)]+\)\s*:/i.test(line) ||
+          (i > 0 && /\/\/\s*HACK\s*\([^)]+\)\s*:/i.test(lines[i - 1]));
+        if (
+          !isTest &&
+          !hasHackComment &&
+          (/:\s*any\b/.test(line) || /as\s+any\b/.test(line) || /<any>/.test(line))
+        ) {
           anyUsage++;
         }
       }
       if (/\/\/\s*TODO[\s:]/i.test(line)) todoCount++;
       if (/\/\/\s*FIXME[\s:]/i.test(line)) fixmeCount++;
       if (/\/\/\s*HACK[\s:]/i.test(line)) hackCount++;
+      // Skip console.log in test files and scripts (development tools)
       if (
         !isTest &&
+        !isScript &&
         /console\.log\s*\(/.test(line) &&
         !line.trim().startsWith('//') &&
         !line.trim().startsWith('*') &&
@@ -64,13 +78,24 @@ export function collectQualityMetrics(files: FileInfo[]): AnalysisResult['qualit
         tryCatchCount++;
       }
       // Detect empty catch blocks (single-line and multiline)
-      if (/catch\s*(\([^)]*\))?\s*\{\s*\}/.test(line)) {
-        emptyTryCatchCount++;
-      } else if (/catch\s*(\([^)]*\))?\s*\{\s*$/.test(line)) {
-        // Check if next non-empty line is just "}"
-        const nextLine = lines.slice(i + 1).find((l) => l.trim().length > 0);
-        if (nextLine && /^\s*\}\s*$/.test(nextLine)) {
+      // Skip for test files - empty catches are often acceptable for error assertions
+      if (!isTest) {
+        if (/catch\s*(\([^)]*\))?\s*\{\s*\}/.test(line)) {
           emptyTryCatchCount++;
+        } else if (/catch\s*(\([^)]*\))?\s*\{\s*$/.test(line)) {
+          // Check if next non-empty line is just "}" or has an intentional-empty comment
+          const nextIdx = lines.slice(i + 1).findIndex((l) => l.trim().length > 0);
+          if (nextIdx >= 0) {
+            const nextLine = lines[i + 1 + nextIdx];
+            // Skip if comment indicates intentionally empty
+            const blockContent = lines.slice(i + 1, i + 1 + nextIdx + 1).join(' ');
+            const hasIntentionalComment = /\/[/*].*(?:intentional|ignore|skip|noop|expected)/i.test(
+              blockContent,
+            );
+            if (/^\s*\}\s*$/.test(nextLine) && !hasIntentionalComment) {
+              emptyTryCatchCount++;
+            }
+          }
         }
       }
       // Count test assertions

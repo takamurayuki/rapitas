@@ -31,7 +31,9 @@ export function resolveCliPath(cliName: string): string {
     if (resolved && existsSync(resolved)) {
       return resolved;
     }
-  } catch {}
+  } catch {
+    // intentionally ignore - fallback to cliName if resolution fails
+  }
   return cliName;
 }
 

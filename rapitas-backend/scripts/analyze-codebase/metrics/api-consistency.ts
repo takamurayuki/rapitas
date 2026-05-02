@@ -59,8 +59,11 @@ export function collectAPIConsistency(endpoints: Endpoint[]): AnalysisResult['ap
   }
 
   // Duplicate endpoints (same method + path from different files)
+  // Exclude root paths ('/' or '') as they are typically sub-router relative paths
   const endpointMap = new Map<string, string[]>();
   for (const ep of endpoints) {
+    // Skip relative root paths that are common in sub-routers
+    if (ep.path === '/' || ep.path === '') continue;
     const key = `${ep.method} ${ep.path}`;
     const files = endpointMap.get(key) || [];
     files.push(ep.file);

@@ -17,12 +17,13 @@ import type { FileInfo, Endpoint, PrismaModel, AnalysisResult } from '../types';
  * @returns Architecture breakdown for backend, prisma, and frontend layers / アーキテクチャ集計
  */
 export function collectArchitectureMetrics(files: FileInfo[]): AnalysisResult['architecture'] {
-  // Backend routes & endpoints
+  // Backend routes & endpoints (excluding test files)
   const routeFiles = files.filter(
     (f) =>
       f.relativePath.startsWith('rapitas-backend') &&
       f.relativePath.includes('routes') &&
-      f.ext === '.ts',
+      f.ext === '.ts' &&
+      !f.relativePath.match(/\.(test|spec)\.ts$/),
   );
 
   const endpoints: Endpoint[] = [];

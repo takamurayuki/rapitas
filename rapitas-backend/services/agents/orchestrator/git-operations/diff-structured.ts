@@ -122,7 +122,9 @@ export async function getDiff(workingDirectory: string): Promise<FileDiffRecord[
           });
           patch = filePatch;
         }
-      } catch {}
+      } catch {
+        // intentionally ignore - proceed with empty patch if diff fails
+      }
 
       files.push({
         filename,

@@ -103,6 +103,7 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
             database.exec(stmt);
             createdIndexes++;
           } catch {
+            // intentionally ignore - index already exists or other constraint error
             indexErrors++;
           }
         }

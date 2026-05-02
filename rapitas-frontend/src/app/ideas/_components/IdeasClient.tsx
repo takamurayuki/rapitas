@@ -262,8 +262,7 @@ export default function IdeasClient() {
         });
 
         if (response.ok) {
-          const result = await response.json();
-          console.log('Task created:', result);
+          await response.json();
           await fetchIdeas();
         } else {
           console.error('Failed to convert idea to task');

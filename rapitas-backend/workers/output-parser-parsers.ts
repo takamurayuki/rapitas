@@ -145,6 +145,7 @@ export function formatToolInfo(
       }
     }
   } catch {
+    // intentionally ignore - malformed input returns empty string
     return '';
   }
 }

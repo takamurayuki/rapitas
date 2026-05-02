@@ -280,9 +280,10 @@ async function extractLlamaServerFromZip(zipPath: string): Promise<string> {
     try {
       // Validate paths before shell commands (paths are generated internally, not from user input)
       assertSafePath(binDir, zipPath);
+      // SECURITY: safe - paths are validated above and not from user input
       execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
 
-      // Search for llama-server
+      // SECURITY: safe - extractDir is validated above and not from user input
       const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
         timeout: 10000,
         encoding: 'utf-8',

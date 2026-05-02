@@ -384,7 +384,9 @@ async function handleResearchResult(params: {
       const { execSync } = await import('node:child_process');
       execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
       execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
-    } catch {}
+    } catch {
+      // intentionally ignore - best-effort cleanup
+    }
     await prisma.task
       .update({ where: { id: taskIdNum }, data: { status: 'blocked' } })
       .catch(() => {});

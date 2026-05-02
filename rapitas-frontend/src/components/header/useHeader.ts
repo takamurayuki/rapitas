@@ -165,7 +165,9 @@ export function useHeader(): UseHeaderReturn {
             window.location.reload();
             return;
           }
-        } catch {}
+        } catch {
+          // intentionally ignore - server not ready yet, continue polling
+        }
       }
       setIsRestarting(false);
       alert(t('restartTimeout'));

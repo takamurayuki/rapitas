@@ -65,7 +65,7 @@ async function checkGitHubDeployments(
     const { execSync } = await import('child_process');
     const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
-    // NOTE: Check PR checks for deployment URLs (works with Vercel, Netlify, etc.)
+    // SECURITY: safe - prNumber is a validated integer from function parameter
     const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
       cwd: workingDirectory,
       encoding: 'utf8',

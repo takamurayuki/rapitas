@@ -29,7 +29,7 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
       return { connected: true, models, serverType: 'ollama' };
     }
   } catch {
-    // Possibly not Ollama, try next
+    // intentionally ignored - connection may fail, try next server type
   }
 
   // Try llama-server's /v1/models
@@ -43,7 +43,7 @@ export async function checkOllamaConnection(baseUrl: string): Promise<{
       return { connected: true, models, serverType: 'llama-server' };
     }
   } catch {
-    // Not llama-server either
+    // intentionally ignored - server may not be available
   }
 
   return {

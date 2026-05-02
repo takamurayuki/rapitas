@@ -14,6 +14,7 @@ export class JSONLogParser implements LogParser {
       JSON.parse(logLine);
       return true;
     } catch {
+      // intentionally ignore - invalid JSON means can't parse
       return false;
     }
   }
@@ -31,6 +32,7 @@ export class JSONLogParser implements LogParser {
         type: this.type,
       };
     } catch {
+      // intentionally ignore - malformed JSON returns null
       return null;
     }
   }

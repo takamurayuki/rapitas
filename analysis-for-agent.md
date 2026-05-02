@@ -9,248 +9,28 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Issues | 48 |
-| Critical | 1 |
-| High | 11 |
-| Medium | 35 |
+| Total Issues | 37 |
+| Critical | 0 |
+| High | 7 |
+| Medium | 29 |
 | Low | 1 |
-| Estimated Effort | 126 developer-days |
+| Estimated Effort | 121 developer-days |
 
 ---
 
 ## 🚨 Blockers (Critical Priority)
 
-#### 🔴 [security-sql_injection] Fix sql injection: 2 occurrences
-
-**Priority:** critical | **Effort:** small | **Category:** Security
-
-Potential SQL injection via string interpolation in SQL query
-
-**Files:**
-- `rapitas-backend\scripts\migrate-postgres-to-sqlite.ts`
-
-**Acceptance Criteria:**
-- [ ] All 2 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
-`INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
-
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
-return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
-```
-</details>
+_No critical blockers identified._
 
 ---
 
 ## ⚡ Quick Wins (High Impact, Low Effort)
 
-#### 🔴 [security-sql_injection] Fix sql injection: 2 occurrences
-
-**Priority:** critical | **Effort:** small | **Category:** Security
-
-Potential SQL injection via string interpolation in SQL query
-
-**Files:**
-- `rapitas-backend\scripts\migrate-postgres-to-sqlite.ts`
-
-**Acceptance Criteria:**
-- [ ] All 2 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
-`INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
-
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
-return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
-```
-</details>
-
-#### 🟠 [security-command_injection] Fix command injection: 4 occurrences
-
-**Priority:** high | **Effort:** small | **Category:** Security
-
-Template literal in child process - verify input is not user-controlled
-
-**Files:**
-- `rapitas-backend\services\local-llm\model-downloader.ts`
-- `rapitas-backend\services\misc\preview-deploy-service.ts`
-- `rapitas-backend\services\misc\tech-debt-liquidator.ts`
-
-**Acceptance Criteria:**
-- [ ] All 4 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-backend\services\local-llm\model-downloader.ts:275
-execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
-
-// rapitas-backend\services\local-llm\model-downloader.ts:278
-const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
-
-// rapitas-backend\services\misc\preview-deploy-service.ts:69
-const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
-```
-</details>
-
-#### 🟠 [security-xss_risk] Fix xss risk: 2 occurrences
-
-**Priority:** high | **Effort:** small | **Category:** Security
-
-dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.
-
-**Files:**
-- `rapitas-frontend\src\app\layout.tsx`
-
-**Acceptance Criteria:**
-- [ ] All 2 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-frontend\src\app\layout.tsx:72
-dangerouslySetInnerHTML={{
-
-// rapitas-frontend\src\app\layout.tsx:95
-dangerouslySetInnerHTML={{
-```
-</details>
-
-#### 🟠 [api-dup-POST--tasks--id-stop-execution] Remove duplicate endpoint: POST /tasks/:id/stop-execution
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution\stop-route.test.ts, rapitas-backend\routes\agents\execution\stop-route.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution\stop-route.test.ts`
-- `rapitas-backend\routes\agents\execution\stop-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--] Remove duplicate endpoint: GET /
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts, rapitas-backend\routes\system\search\search-route.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts`
-- `rapitas-backend\routes\system\search\search-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
+_No quick wins identified._
 
 ---
 
 ## 📋 All Action Items (Prioritized)
-
-### Security
-
-#### 🔴 [security-sql_injection] Fix sql injection: 2 occurrences
-
-**Priority:** critical | **Effort:** small | **Category:** Security
-
-Potential SQL injection via string interpolation in SQL query
-
-**Files:**
-- `rapitas-backend\scripts\migrate-postgres-to-sqlite.ts`
-
-**Acceptance Criteria:**
-- [ ] All 2 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:151
-`INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
-
-// rapitas-backend\scripts\migrate-postgres-to-sqlite.ts:275
-return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
-```
-</details>
-
-#### 🟠 [security-command_injection] Fix command injection: 4 occurrences
-
-**Priority:** high | **Effort:** small | **Category:** Security
-
-Template literal in child process - verify input is not user-controlled
-
-**Files:**
-- `rapitas-backend\services\local-llm\model-downloader.ts`
-- `rapitas-backend\services\misc\preview-deploy-service.ts`
-- `rapitas-backend\services\misc\tech-debt-liquidator.ts`
-
-**Acceptance Criteria:**
-- [ ] All 4 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-backend\services\local-llm\model-downloader.ts:275
-execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { timeout: 60000 });
-
-// rapitas-backend\services\local-llm\model-downloader.ts:278
-const found = execSync(`find "${extractDir}" -name "llama-server" -type f | head -1`, {
-
-// rapitas-backend\services\misc\preview-deploy-service.ts:69
-const checksJson = execSync(`${ghPath} pr checks ${prNumber} --json name,state,link`, {
-```
-</details>
-
-#### 🟠 [security-xss_risk] Fix xss risk: 2 occurrences
-
-**Priority:** high | **Effort:** small | **Category:** Security
-
-dangerouslySetInnerHTML usage - potential XSS risk. Ensure content is sanitized.
-
-**Files:**
-- `rapitas-frontend\src\app\layout.tsx`
-
-**Acceptance Criteria:**
-- [ ] All 2 instances are fixed
-- [ ] Input validation is added where necessary
-- [ ] Security tests are added to prevent regression
-
-<details>
-<summary>Code Context</summary>
-
-```typescript
-// rapitas-frontend\src\app\layout.tsx:72
-dangerouslySetInnerHTML={{
-
-// rapitas-frontend\src\app\layout.tsx:95
-dangerouslySetInnerHTML={{
-```
-</details>
 
 ### Complexity
 
@@ -480,11 +260,11 @@ Critical file with 1646 lines has no test coverage. Add unit tests to ensure rel
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
 
-#### 🟡 [test-untested-rapitas-backend-routes-agents-execution-execute-post-handler-ts--766-lines-] Add tests for: rapitas-backend\routes\agents\execution\execute-post-handler.ts
+#### 🟡 [test-untested-rapitas-backend-routes-agents-execution-execute-post-handler-ts--768-lines-] Add tests for: rapitas-backend\routes\agents\execution\execute-post-handler.ts
 
 **Priority:** medium | **Effort:** large | **Category:** Test Coverage
 
-Critical file with 766 lines has no test coverage. Add unit tests to ensure reliability.
+Critical file with 768 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
 - `rapitas-backend\routes\agents\execution\execute-post-handler.ts`
@@ -786,37 +566,23 @@ Feature has only 14% coverage. 25 files need tests.
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
 
+### Code Quality
+
+#### 🟡 [quality-any-usage] Reduce `any` type usage: 22 occurrences
+
+**Priority:** medium | **Effort:** medium | **Category:** Code Quality
+
+Replace `any` types with proper TypeScript types for better type safety and IDE support.
+
+**Files:**
+
+
+**Acceptance Criteria:**
+- [ ] any usage reduced by at least 50%
+- [ ] Proper types defined for complex objects
+- [ ] No new any types introduced
+
 ### API Consistency
-
-#### 🟠 [api-dup-POST--tasks--id-stop-execution] Remove duplicate endpoint: POST /tasks/:id/stop-execution
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\agents\execution\stop-route.test.ts, rapitas-backend\routes\agents\execution\stop-route.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\agents\execution\stop-route.test.ts`
-- `rapitas-backend\routes\agents\execution\stop-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
-
-#### 🟠 [api-dup-GET--] Remove duplicate endpoint: GET /
-
-**Priority:** high | **Effort:** small | **Category:** API Consistency
-
-Endpoint is defined in multiple files: rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts, rapitas-backend\routes\system\search\search-route.ts. Consolidate to single location.
-
-**Files:**
-- `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts`
-- `rapitas-backend\routes\system\search\search-route.ts`
-
-**Acceptance Criteria:**
-- [ ] Endpoint exists in only one file
-- [ ] All consumers use the canonical endpoint
-- [ ] Deprecated endpoint is removed
 
 #### 🟢 [api-verb-in-url] Fix verb-in-URL patterns: 10 endpoints
 
@@ -840,103 +606,6 @@ REST best practice: use HTTP methods for actions, not URL verbs. E.g., POST /tas
 - [ ] HTTP methods indicate the action
 - [ ] API documentation is updated
 
-### Architecture
-
-#### 🟡 [arch-layer-rapitas-backend-register-routes-ts] Fix layer violation: rapitas-backend\register-routes.ts
-
-**Priority:** medium | **Effort:** small | **Category:** Architecture
-
-Route file imports from another route file (should go through services)
-
-**Files:**
-- `rapitas-backend\register-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Import follows proper layer boundaries
-- [ ] If needed, shared module is created at appropriate layer
-
-#### 🟡 [arch-layer-rapitas-backend-routes-agents-agent-version-version-routes-ts] Fix layer violation: rapitas-backend\routes\agents\agent-version\version-routes.ts
-
-**Priority:** medium | **Effort:** small | **Category:** Architecture
-
-Route file imports from another route file (should go through services)
-
-**Files:**
-- `rapitas-backend\routes\agents\agent-version\version-routes.ts`
-
-**Acceptance Criteria:**
-- [ ] Import follows proper layer boundaries
-- [ ] If needed, shared module is created at appropriate layer
-
-#### 🟡 [arch-layer-rapitas-backend-routes-agents-cli-tools-index-ts] Fix layer violation: rapitas-backend\routes\agents\cli-tools\index.ts
-
-**Priority:** medium | **Effort:** small | **Category:** Architecture
-
-Route file imports from another route file (should go through services)
-
-**Files:**
-- `rapitas-backend\routes\agents\cli-tools\index.ts`
-
-**Acceptance Criteria:**
-- [ ] Import follows proper layer boundaries
-- [ ] If needed, shared module is created at appropriate layer
-
-#### 🟡 [arch-layer-rapitas-backend-routes-agents-execution-management-index-ts] Fix layer violation: rapitas-backend\routes\agents\execution-management\index.ts
-
-**Priority:** medium | **Effort:** small | **Category:** Architecture
-
-Route file imports from another route file (should go through services)
-
-**Files:**
-- `rapitas-backend\routes\agents\execution-management\index.ts`
-
-**Acceptance Criteria:**
-- [ ] Import follows proper layer boundaries
-- [ ] If needed, shared module is created at appropriate layer
-
-#### 🟡 [arch-layer-rapitas-backend-routes-agents-system-agent-version-management-ts] Fix layer violation: rapitas-backend\routes\agents\system\agent-version-management.ts
-
-**Priority:** medium | **Effort:** small | **Category:** Architecture
-
-Route file imports from another route file (should go through services)
-
-**Files:**
-- `rapitas-backend\routes\agents\system\agent-version-management.ts`
-
-**Acceptance Criteria:**
-- [ ] Import follows proper layer boundaries
-- [ ] If needed, shared module is created at appropriate layer
-
-### Code Quality
-
-#### 🟡 [quality-any-usage] Reduce `any` type usage: 30 occurrences
-
-**Priority:** medium | **Effort:** medium | **Category:** Code Quality
-
-Replace `any` types with proper TypeScript types for better type safety and IDE support.
-
-**Files:**
-
-
-**Acceptance Criteria:**
-- [ ] any usage reduced by at least 50%
-- [ ] Proper types defined for complex objects
-- [ ] No new any types introduced
-
-#### 🟡 [quality-empty-catch] Fix empty catch blocks: 7 occurrences
-
-**Priority:** medium | **Effort:** small | **Category:** Code Quality
-
-Empty catch blocks hide errors. Add proper error handling or logging.
-
-**Files:**
-
-
-**Acceptance Criteria:**
-- [ ] All empty catch blocks have proper error handling
-- [ ] Errors are logged appropriately
-- [ ] User-facing errors have helpful messages
-
 ---
 
 ## 📁 File Index
@@ -948,21 +617,11 @@ Files with multiple issues should be prioritized for refactoring.
 | `rapitas-backend\services\agents\orchestrator\task-executor.ts` | 2 | - |
 | `rapitas-backend\services\agents\codex-cli-agent\process-runner.ts` | 2 | - |
 | `rapitas-backend\scripts\analyze-codebase\agent-report-generator.ts` | 2 | - |
-| `rapitas-backend\register-routes.ts` | 2 | - |
-| `rapitas-backend\scripts\migrate-postgres-to-sqlite.ts` | 1 | - |
 | `rapitas-frontend\src\hooks\common\useSpeechRecognition.ts` | 1 | - |
 | `rapitas-frontend\src\app\settings\_hooks\useSettingsData.ts` | 1 | - |
 | `rapitas-frontend\src\feature\developer-mode\components\agent-execution\useAgentExecution.ts` | 1 | - |
 | `rapitas-backend\services\ai\natural-language-parser.ts` | 1 | - |
-| `rapitas-backend\services\local-llm\model-downloader.ts` | 1 | - |
-| `rapitas-backend\services\misc\preview-deploy-service.ts` | 1 | - |
-| `rapitas-backend\services\misc\tech-debt-liquidator.ts` | 1 | - |
-| `rapitas-frontend\src\app\layout.tsx` | 1 | - |
 | `rapitas-backend\src\generated\sqlite-init-sql.ts` | 1 | - |
-| `rapitas-backend\routes\agents\execution\stop-route.test.ts` | 1 | - |
-| `rapitas-backend\routes\agents\execution\stop-route.ts` | 1 | - |
-| `rapitas-backend\routes\learning\handlers\learning-goal-crud-handlers.ts` | 1 | - |
-| `rapitas-backend\routes\system\search\search-route.ts` | 1 | - |
 | `rapitas-frontend\src\components\note\editor\useNoteEditor.ts` | 1 | - |
 | `rapitas-frontend\src\app\claude-md-generator\_hooks\useWizard.ts` | 1 | - |
 | `rapitas-frontend\src\app\settings\shortcuts\hooks\useShortcutSettings.ts` | 1 | - |
@@ -975,6 +634,16 @@ Files with multiple issues should be prioritized for refactoring.
 | `rapitas-backend\routes\agents\execution\execute-post-handler.ts` | 1 | - |
 | `rapitas-backend\services\workflow\workflow-cli-executor.ts` | 1 | - |
 | `rapitas-backend\routes\agents\execution\execute-route.ts` | 1 | - |
+| `rapitas-frontend\src\feature\developer-mode\components\ai-accordion-panel\ExecutionBody.tsx` | 1 | - |
+| `rapitas-backend\services\workflow\workflow-orchestrator.ts` | 1 | - |
+| `rapitas-frontend\src\feature\developer-mode\hooks\execution-poll-handlers.ts` | 1 | - |
+| `rapitas-backend\routes\tasks\batch-v2.ts` | 1 | - |
+| `rapitas-backend\routes\tasks\recurring-tasks.ts` | 1 | - |
+| `rapitas-backend\routes\tasks\task-analysis-config.ts` | 1 | - |
+| `rapitas-backend\routes\tasks\task-auto-generate.ts` | 1 | - |
+| `rapitas-backend\routes\tasks\task-quick-create.ts` | 1 | - |
+| `rapitas-frontend\src\app\tasks\[id]\components\TaskPomodoroButton.tsx` | 1 | - |
+| `rapitas-frontend\src\feature\tasks\components\PomodoroTimer.tsx` | 1 | - |
 
 ---
 

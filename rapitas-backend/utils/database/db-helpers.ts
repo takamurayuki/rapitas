@@ -16,6 +16,7 @@ export function getLabelsArray(labels: unknown): string[] {
       const parsed = JSON.parse(labels);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
+      // intentionally ignore parse errors, return empty array
       return [];
     }
   }
@@ -52,6 +53,7 @@ export function fromJsonString<T = unknown>(value: unknown): T | null {
     try {
       return JSON.parse(value) as T;
     } catch {
+      // intentionally ignore parse errors, return null
       return null;
     }
   }

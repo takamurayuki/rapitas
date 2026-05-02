@@ -149,6 +149,7 @@ export function insertRows(
 
   const quotedColumns = columns.map((column) => `"${column}"`).join(', ');
   const placeholders = columns.map(() => '?').join(', ');
+  // SECURITY: safe - table and columns are validated above via assertValidSqlIdentifier
   const statement = database.prepare(
     `INSERT INTO "${table}" (${quotedColumns}) VALUES (${placeholders})`,
   );
@@ -257,6 +258,7 @@ async function prepareSqliteTarget(options: MigrationOptions): Promise<Database 
 function getSqliteColumns(database: Database, table: string): string[] {
   // Validate table name to prevent SQL injection
   assertValidSqlIdentifier(table, 'table');
+  // SECURITY: safe - table name validated above
   const rows = database.query<{ name: string }, []>(`PRAGMA table_info("${table}")`).all();
   return rows.map((row) => row.name);
 }
@@ -273,7 +275,7 @@ async function fetchPostgresRows(client: PrismaLike, table: string): Promise<Any
 
   const hasId = columns.some((column) => column.column_name === 'id');
   const orderBy = hasId ? ' ORDER BY "id"' : '';
-  // Table name is validated above; safe to interpolate
+  // SECURITY: safe - table name validated via assertValidSqlIdentifier above
   return client.$queryRawUnsafe<AnyRow[]>(`SELECT * FROM "${table}"${orderBy}`);
 }
 

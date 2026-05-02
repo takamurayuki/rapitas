@@ -26,6 +26,7 @@ function tryCreateEntry(account: string): KeyringEntry | null {
         try {
           return entry.getPassword();
         } catch {
+          // intentionally ignore - return null on keyring failure
           return null;
         }
       },
@@ -34,11 +35,12 @@ function tryCreateEntry(account: string): KeyringEntry | null {
         try {
           entry.deletePassword();
         } catch {
-          // Already absent or platform does not support delete.
+          // intentionally ignore - already absent or platform does not support delete
         }
       },
     };
   } catch {
+    // intentionally ignore - keyring module may not be available
     return null;
   }
 }

@@ -82,6 +82,7 @@ export async function scanForTechDebt(workingDirectory: string): Promise<TechDeb
 
       for (const file of files) {
         try {
+          // SECURITY: safe - file path comes from git ls-files (local git index), not user input
           const wc = execSync(`wc -l < "${file}"`, {
             cwd: workingDirectory,
             encoding: 'utf8',

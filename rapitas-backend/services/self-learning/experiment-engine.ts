@@ -4,6 +4,7 @@
  * Research → Hypothesis → Plan → Execute → Evaluate → Learn
  */
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { appendEvent } from '../memory/timeline';
@@ -109,10 +110,11 @@ export async function runResearch(
   }
 
   const relatedExperiments = await prisma.experiment.findMany({
+    // HACK(agent): titleContainsFilter returns runtime conditional object that Prisma types can't express
     where: {
       status: 'completed',
       title: titleContainsFilter(query),
-    } as any,
+    } as Prisma.ExperimentWhereInput,
     select: { id: true },
     take: 5,
     orderBy: { createdAt: 'desc' },

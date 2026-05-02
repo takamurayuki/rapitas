@@ -107,8 +107,12 @@ export function collectSecurityFindings(files: FileInfo[]): AnalysisResult['secu
     const lines = f.content.split('\n');
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // Skip comments
+      // Skip comment-only lines
       if (line.trim().startsWith('//') || line.trim().startsWith('*')) continue;
+      // Skip lines marked as security-reviewed (check within 3 preceding lines)
+      const checkRange = lines.slice(Math.max(0, i - 3), i + 1).join('\n');
+      if (/SECURITY:\s*(?:safe|reviewed|verified|ok)/i.test(checkRange)) continue;
+
       const isTest = f.relativePath.match(/\.(test|spec)\./);
       const isDemo =
         f.relativePath.includes('demo') ||

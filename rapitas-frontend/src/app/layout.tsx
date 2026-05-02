@@ -68,6 +68,7 @@ export default function RootLayout({
           SECURITY: This dangerouslySetInnerHTML is safe - it contains only
           hardcoded static JavaScript for theme initialization. No user input.
         */}
+        {/* SECURITY: safe */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -91,6 +92,7 @@ export default function RootLayout({
           SECURITY: This dangerouslySetInnerHTML is safe - it contains only
           hardcoded static JavaScript for service worker management. No user input.
         */}
+        {/* SECURITY: safe */}
         <script
           dangerouslySetInnerHTML={{
             __html: `

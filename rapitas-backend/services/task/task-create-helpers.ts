@@ -4,7 +4,7 @@
  * Internal helpers for creating subtasks and parent tasks.
  * Called exclusively by task-mutations.ts — not part of the public API.
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { createLogger } from '../../config/logger';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import {
@@ -55,7 +55,8 @@ export async function createSubtask(
   return prisma.$transaction(
     async (tx) => {
       const existingSubtask = await tx.task.findFirst({
-        where: { parentId, title: titleEqualsFilter(title) } as any,
+        // HACK(agent): Prisma's StringFilter type doesn't support runtime conditional mode property
+        where: { parentId, title: titleEqualsFilter(title) } as Prisma.TaskWhereInput,
       });
 
       if (existingSubtask) {

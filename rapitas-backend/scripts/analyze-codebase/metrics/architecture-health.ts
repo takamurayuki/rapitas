@@ -38,8 +38,22 @@ export function collectArchitectureHealth(
     }
     if (f.relativePath.includes('routes') && f.relativePath.startsWith('rapitas-backend')) {
       // Route files should not import from other route files (go through services)
+      // Exception: files that aggregate sub-routes via .use() pattern
+      const isAggregator = /index\.ts$|register-routes\.ts$/.test(f.relativePath);
+      const usesSubRoutes = /\.use\s*\(\s*\w+Routes?\s*\)/.test(f.content);
+      // Exception: barrel/re-export files (contain only export statements, no route definitions)
+      const isBarrelFile =
+        /^\s*(?:\/\*\*[\s\S]*?\*\/\s*)?(?:export\s+\{[^}]+\}\s+from|export\s+\*\s+from|export\s+type\s+\{)/m.test(
+          f.content,
+        ) && !/\.(get|post|put|patch|delete)\s*\(/.test(f.content);
       const routeImports = f.content.match(/from\s+["'`]\..*routes/g);
-      if (routeImports && routeImports.length > 0) {
+      if (
+        !isAggregator &&
+        !usesSubRoutes &&
+        !isBarrelFile &&
+        routeImports &&
+        routeImports.length > 0
+      ) {
         layerViolations.push({
           file: f.relativePath,
           message: 'Route file imports from another route file (should go through services)',

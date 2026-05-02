@@ -384,6 +384,7 @@ class AgentWorker {
           process.kill(pid, 0);
           resolve(true);
         } catch {
+          // intentionally ignore - process doesn't exist
           resolve(false);
         }
       }

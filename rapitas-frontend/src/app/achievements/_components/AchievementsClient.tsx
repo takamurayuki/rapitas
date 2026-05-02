@@ -121,8 +121,7 @@ export const AchievementsClient: React.FC<AchievementsClientProps> = ({ userId }
     setActiveTab(tabId);
   };
 
-  const handleAchievementClick = (achievement: any) => {
-    console.log('Achievement clicked:', achievement);
+  const handleAchievementClick = (_achievement: unknown) => {
     // TODO: Show achievement detail modal
   };
 

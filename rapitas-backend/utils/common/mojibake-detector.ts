@@ -196,7 +196,7 @@ function fixUtf8Latin1(text: string): string {
             fixed = fixed.replace(sequence, utf8String);
           }
         } catch {
-          // Ignore failed conversions
+          // intentionally ignore - skip failed encoding conversions
           continue;
         }
       }
@@ -229,7 +229,7 @@ function fixUtf8Latin1(text: string): string {
       });
     }
   } catch {
-    // If any error occurs during fixing, return original text
+    // intentionally ignore - if any error occurs during fixing, return original text
     return text;
   }
 

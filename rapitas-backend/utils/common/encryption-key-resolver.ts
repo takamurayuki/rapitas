@@ -22,6 +22,9 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { createLogger } from '../../config/logger';
+
+const logger = createLogger('encryption-key-resolver');
 
 // NOTE: RAPITAS_KEYCHAIN_SERVICE allows tests (and exotic deployments) to
 // route the keychain entry to a different service so they cannot collide
@@ -124,7 +127,7 @@ export function resolveEncryptionKey(): string {
     if (keyring) {
       try {
         keyring.setPassword(fileKey);
-        console.log('[encryption] Migrated key from user file into OS keychain');
+        logger.info('Migrated key from user file into OS keychain');
       } catch {
         /* keep file as-is on failure */
       }
@@ -139,11 +142,11 @@ export function resolveEncryptionKey(): string {
     if (keyring) {
       try {
         keyring.setPassword(legacyKey);
-        console.log('[encryption] Migrated legacy key into OS keychain');
+        logger.info('Migrated legacy key into OS keychain');
       } catch {
         try {
           writeKeyToFile(userPath, legacyKey);
-          console.log('[encryption] Migrated legacy key to user file');
+          logger.info('Migrated legacy key to user file');
         } catch {
           /* fall through */
         }
@@ -151,7 +154,7 @@ export function resolveEncryptionKey(): string {
     } else {
       try {
         writeKeyToFile(userPath, legacyKey);
-        console.log('[encryption] Migrated legacy key to user file');
+        logger.info('Migrated legacy key to user file');
       } catch {
         /* fall through */
       }
@@ -165,21 +168,21 @@ export function resolveEncryptionKey(): string {
   if (keyring) {
     try {
       keyring.setPassword(generated);
-      console.log('[encryption] Generated new key and stored in OS keychain');
+      logger.info('Generated new key and stored in OS keychain');
     } catch {
       try {
         writeKeyToFile(userPath, generated);
-        console.warn(`[encryption] Keychain write failed; saved key to ${userPath}`);
+        logger.warn({ userPath }, 'Keychain write failed; saved key to file');
       } catch (err) {
-        console.error('[encryption] Failed to persist generated key:', err);
+        logger.error({ err }, 'Failed to persist generated key');
       }
     }
   } else {
     try {
       writeKeyToFile(userPath, generated);
-      console.log(`[encryption] Generated new key at ${userPath}`);
+      logger.info({ userPath }, 'Generated new key');
     } catch (err) {
-      console.error('[encryption] Failed to persist generated key:', err);
+      logger.error({ err }, 'Failed to persist generated key');
     }
   }
   cached = { value: generated, source: 'generated' };

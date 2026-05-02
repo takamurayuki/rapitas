@@ -6,6 +6,7 @@
  * under the 500-line per-file limit.
  */
 import { Elysia, t } from 'elysia';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
@@ -35,14 +36,16 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
       // Split query for multi-word search
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      const whereCondition: any = {
+      const whereCondition: Prisma.TaskWhereInput = {
         parentId: null,
         AND: [],
       };
 
       // Multi-word search (title + optional description)
       const searchConditions = words.map((word) => {
-        const conditions: any[] = [{ title: { contains: word, mode: 'insensitive' } }];
+        const conditions: Prisma.TaskWhereInput[] = [
+          { title: { contains: word, mode: 'insensitive' } },
+        ];
 
         // Include description in search when searchDescription is true
         if (searchDescription === 'true') {
