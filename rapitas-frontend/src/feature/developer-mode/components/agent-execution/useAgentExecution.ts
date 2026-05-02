@@ -49,7 +49,16 @@ function computeQuestionState(
  */
 function parseQuestionWithDetails(
   question: string | undefined,
-  pollingQuestionDetails: { options?: { label: string }[] } | undefined,
+  // NOTE: 上流の questionDetails は description / headers / multiSelect 等を持つが
+  // ここで使うのは options[].label のみなので、ワイドな入力を許容する。
+  pollingQuestionDetails:
+    | {
+        options?: { label: string; description?: string }[];
+        headers?: string[];
+        multiSelect?: boolean;
+      }
+    | null
+    | undefined,
 ): ParsedQuestion | null {
   if (!question) return null;
 
@@ -222,7 +231,7 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     () =>
       computeQuestionState(
         isTerminalStatus,
-        pollingWaitingForInput,
+        pollingWaitingForInput ?? false,
         pollingQuestion,
         pollingQuestionType,
       ),
@@ -356,7 +365,7 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     finalStatus,
     isPollingRunning,
     isSseRunning,
-    isWaitingForInput,
+    isWaitingForInput: isWaitingForInput ?? false,
     isRestoredTerminal,
     executionResult,
     isExecuting,
