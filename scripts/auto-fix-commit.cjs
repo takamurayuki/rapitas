@@ -90,13 +90,32 @@ async function main() {
   log('📋 Step 1: lint-staged を実行中...', 'blue');
   const firstRun = exec('npx lint-staged');
 
-  if (firstRun.success) {
+  // lint-stagedの依存関係エラーをチェック
+  const isLintStagedBroken =
+    !firstRun.success &&
+    (firstRun.output.includes('ERR_MODULE_NOT_FOUND') ||
+      firstRun.output.includes('Cannot find package') ||
+      firstRun.output.includes('tinyexec'));
+
+  if (isLintStagedBroken) {
+    log('⚠️  lint-stagedの依存関係に問題があります', 'yellow');
+    log('🔄 フォールバック: pre-commit-check.cjs を使用します\n', 'cyan');
+
+    // pre-commit-check.cjsで代替チェック
+    const fallbackCheck = exec('node scripts/pre-commit-check.cjs');
+    if (fallbackCheck.success) {
+      log('✅ すべてのチェックが通りました！\n', 'green');
+      process.exit(0);
+    }
+    // フォールバックチェックも失敗した場合は、自動修正フローへ進む
+    log('⚠️  フォーマット/Lintエラーが検出されました\n', 'yellow');
+  } else if (firstRun.success) {
     log('✅ すべてのチェックが通りました！\n', 'green');
     process.exit(0);
+  } else {
+    // 失敗した場合
+    log('⚠️  Lint/フォーマットエラーが検出されました\n', 'yellow');
   }
-
-  // 失敗した場合
-  log('⚠️  Lint/フォーマットエラーが検出されました\n', 'yellow');
 
   // ステージされたファイルを記録
   const stagedFiles = getStagedFiles();
@@ -211,29 +230,55 @@ async function main() {
 
   log('✅ 再ステージング完了\n', 'green');
 
-  // 第2回目: lint-stagedを再実行
+  // 第2回目: 修正後の検証
   log('🔄 Step 2: 修正後の検証を実行中...\n', 'blue');
-  const secondRun = exec('npx lint-staged');
 
-  if (secondRun.success) {
-    log('✅ 自動修正が成功しました！', 'green');
-    log('✨ コミットを継続します\n', 'cyan');
-    process.exit(0);
-  }
+  // lint-stagedが利用可能かチェック
+  if (isLintStagedBroken) {
+    // フォールバック: pre-commit-check.cjsを使用
+    log('📋 pre-commit-check.cjs で検証中...', 'cyan');
+    const fallbackCheck = exec('node scripts/pre-commit-check.cjs');
 
-  // それでも失敗する場合
-  log('', 'reset');
-  log('═══════════════════════════════════════════', 'red');
-  log('❌ 自動修正後もエラーが残っています', 'red');
-  log('═══════════════════════════════════════════', 'red');
-  log('', 'reset');
+    if (fallbackCheck.success) {
+      log('✅ 自動修正が成功しました！', 'green');
+      log('✨ コミットを継続します\n', 'cyan');
+      process.exit(0);
+    }
 
-  // 詳細チェックを自動実行
-  log('🔍 詳細なエラー情報を表示中...\n', 'yellow');
+    // フォールバックチェックも失敗
+    log('', 'reset');
+    log('═══════════════════════════════════════════', 'red');
+    log('❌ 自動修正後もエラーが残っています', 'red');
+    log('═══════════════════════════════════════════', 'red');
+    log('', 'reset');
 
-  const checkResult = exec('node scripts/pre-commit-check.cjs');
-  if (!checkResult.success && checkResult.output) {
-    console.log(checkResult.output);
+    if (fallbackCheck.output) {
+      console.log(fallbackCheck.output);
+    }
+  } else {
+    // lint-stagedを再実行
+    const secondRun = exec('npx lint-staged');
+
+    if (secondRun.success) {
+      log('✅ 自動修正が成功しました！', 'green');
+      log('✨ コミットを継続します\n', 'cyan');
+      process.exit(0);
+    }
+
+    // それでも失敗する場合
+    log('', 'reset');
+    log('═══════════════════════════════════════════', 'red');
+    log('❌ 自動修正後もエラーが残っています', 'red');
+    log('═══════════════════════════════════════════', 'red');
+    log('', 'reset');
+
+    // 詳細チェックを自動実行
+    log('🔍 詳細なエラー情報を表示中...\n', 'yellow');
+
+    const checkResult = exec('node scripts/pre-commit-check.cjs');
+    if (!checkResult.success && checkResult.output) {
+      console.log(checkResult.output);
+    }
   }
 
   log('\n💡 対処方法:', 'yellow');
