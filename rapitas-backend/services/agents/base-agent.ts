@@ -22,7 +22,9 @@ export type AgentStatus =
   | 'completed'
   | 'failed'
   | 'cancelled'
-  | 'waiting_for_input';
+  | 'waiting_for_input'
+  // NOTE: investigationMode で codex が exit 0 した直後、research.md の slice 保存を待つ過渡状態
+  | 'post_processing';
 
 /**
  * AI task analysis result for structured prompt generation.

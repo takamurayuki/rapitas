@@ -59,7 +59,7 @@ export class CodexCliAgent extends BaseAgent {
    * "implementation task" from the tag and then ignored read-only
    * instructions.
    */
-  get logPrefix(): string {
+  override get logPrefix(): string {
     if (this.config.investigationMode) {
       return `[Research Agent (codex)]`;
     }

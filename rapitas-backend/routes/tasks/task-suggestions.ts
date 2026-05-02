@@ -36,9 +36,12 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
       // Split query for multi-word search
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      const whereCondition: Prisma.TaskWhereInput = {
+      // NOTE: AND を後段で push するため、TaskWhereInput のユニオン (TaskWhereInput | TaskWhereInput[])
+      // ではなく明示的に配列型に narrow した interface を使う。
+      const andConditions: Prisma.TaskWhereInput[] = [];
+      const whereCondition: Prisma.TaskWhereInput & { AND: Prisma.TaskWhereInput[] } = {
         parentId: null,
-        AND: [],
+        AND: andConditions,
       };
 
       // Multi-word search (title + optional description)
