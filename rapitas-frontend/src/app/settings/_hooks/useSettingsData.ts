@@ -30,6 +30,102 @@ export const INITIAL_PROVIDER_STATE: ProviderState = {
 
 export const PROVIDER_KEYS = ['claude', 'chatgpt', 'gemini'] as const;
 
+// ────────────────────────────────────────────────────────────────────────────
+// Fetch Helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch with stale-while-revalidate pattern.
+ *
+ * @param url - API endpoint URL
+ * @param cacheKey - Cache key for localStorage
+ * @param onData - Callback when data is received (from cache or fresh)
+ */
+async function fetchWithSWR<T>(
+  url: string,
+  cacheKey: string,
+  onData: (data: T) => void,
+): Promise<{ cached: boolean; data: T | null }> {
+  const cached = getCachedData<T>(cacheKey);
+  if (cached) {
+    onData(cached);
+    // Background revalidate
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          onData(data);
+          setCachedData(cacheKey, data);
+        }
+      })
+      .catch(() => {
+        /* ignore background errors */
+      });
+    return { cached: true, data: cached };
+  }
+
+  const res = await fetch(url);
+  if (res.ok) {
+    const data = await res.json();
+    onData(data);
+    setCachedData(cacheKey, data);
+    return { cached: false, data };
+  }
+  return { cached: false, data: null };
+}
+
+/**
+ * Make an API request with standard error handling.
+ *
+ * @returns Response data on success, throws on failure
+ */
+async function apiRequest<T>(url: string, options: RequestInit, errorMessage: string): Promise<T> {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.error ?? errorMessage);
+  }
+  return res.json();
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Download Progress Polling
+// ────────────────────────────────────────────────────────────────────────────
+
+type DownloadProgressState = {
+  status: string;
+  progress: number;
+  downloadedMB: number;
+  totalMB: number;
+};
+
+/**
+ * Poll download progress until completed or error.
+ */
+function pollDownloadProgress(
+  onProgress: (progress: DownloadProgressState) => void,
+  onComplete: (success: boolean) => void,
+): () => void {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`);
+      if (res.ok) {
+        const progress = await res.json();
+        onProgress(progress);
+        if (progress.status === 'completed' || progress.status === 'error') {
+          clearInterval(interval);
+          onComplete(progress.status === 'completed');
+        }
+      }
+    } catch {
+      clearInterval(interval);
+      onComplete(false);
+    }
+  }, 1000);
+
+  return () => clearInterval(interval);
+}
+
 /**
  * Central hook for the settings page.
  *
@@ -84,28 +180,15 @@ export function useSettingsData() {
   const fetchSettings = useCallback(async () => {
     setIsLoading(true);
     try {
-      const cached = getCachedData<UserSettings>(CACHE_KEYS.settings);
-      if (cached) {
-        setSettings(cached);
-        setIsLoading(false);
-        // NOTE: Stale-while-revalidate: show cached data immediately, refresh in background.
-        fetch(`${API_BASE_URL}/settings`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data) {
-              setSettings(data);
-              setCachedData(CACHE_KEYS.settings, data);
-            }
-          });
-        return;
-      }
-      const res = await fetch(`${API_BASE_URL}/settings`);
-      if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-        setCachedData(CACHE_KEYS.settings, data);
-        if (data.ollamaUrl) setOllamaUrlInput(data.ollamaUrl);
-      }
+      const { cached, data } = await fetchWithSWR<UserSettings>(
+        `${API_BASE_URL}/settings`,
+        CACHE_KEYS.settings,
+        (data) => {
+          setSettings(data);
+          if (data.ollamaUrl) setOllamaUrlInput(data.ollamaUrl);
+        },
+      );
+      if (cached) setIsLoading(false);
     } catch {
       setError(t('fetchFailed'));
     } finally {
@@ -114,28 +197,21 @@ export function useSettingsData() {
   }, [t]);
 
   const fetchApiKeys = useCallback(async () => {
+    type ApiKeyData = Record<string, { configured: boolean; maskedKey: string | null }>;
+    const applyApiKeyData = (data: ApiKeyData) => {
+      for (const [provider, info] of Object.entries(data)) {
+        if (info.configured && info.maskedKey) {
+          updateProviderState(provider, { maskedApiKey: info.maskedKey });
+        }
+      }
+    };
+
     try {
-      const cached = getCachedData<
-        Record<string, { configured: boolean; maskedKey: string | null }>
-      >(CACHE_KEYS.apiKeys);
-      if (cached) {
-        for (const [provider, info] of Object.entries(cached)) {
-          if (info.configured && info.maskedKey) {
-            updateProviderState(provider, { maskedApiKey: info.maskedKey });
-          }
-        }
-      }
-      const res = await fetch(`${API_BASE_URL}/settings/api-keys`);
-      if (res.ok) {
-        const data: Record<string, { configured: boolean; maskedKey: string | null }> =
-          await res.json();
-        setCachedData(CACHE_KEYS.apiKeys, data);
-        for (const [provider, info] of Object.entries(data)) {
-          if (info.configured && info.maskedKey) {
-            updateProviderState(provider, { maskedApiKey: info.maskedKey });
-          }
-        }
-      }
+      await fetchWithSWR<ApiKeyData>(
+        `${API_BASE_URL}/settings/api-keys`,
+        CACHE_KEYS.apiKeys,
+        applyApiKeyData,
+      );
     } catch (err) {
       logger.error(t('apiKeysFetchFailed'), err);
     }
@@ -143,25 +219,11 @@ export function useSettingsData() {
 
   const fetchModels = useCallback(async () => {
     try {
-      const cached = getCachedData<Record<string, ModelOption[]>>(CACHE_KEYS.models);
-      if (cached) {
-        setAvailableModels(cached);
-        fetch(`${API_BASE_URL}/settings/models`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data) {
-              setAvailableModels(data);
-              setCachedData(CACHE_KEYS.models, data);
-            }
-          });
-        return;
-      }
-      const res = await fetch(`${API_BASE_URL}/settings/models`);
-      if (res.ok) {
-        const data: Record<string, ModelOption[]> = await res.json();
-        setAvailableModels(data);
-        setCachedData(CACHE_KEYS.models, data);
-      }
+      await fetchWithSWR<Record<string, ModelOption[]>>(
+        `${API_BASE_URL}/settings/models`,
+        CACHE_KEYS.models,
+        setAvailableModels,
+      );
     } catch (err) {
       logger.error(t('modelsFetchFailed'), err);
     }
@@ -318,29 +380,12 @@ export function useSettingsData() {
   const handleDownloadModel = async () => {
     setLocalLlmLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/local-llm/download-model`, {
-        method: 'POST',
+      await fetch(`${API_BASE_URL}/local-llm/download-model`, { method: 'POST' });
+      pollDownloadProgress(setDownloadProgress, (success) => {
+        setLocalLlmLoading(false);
+        fetchLocalLlmStatus();
+        if (success) showSuccess(t('localLlmDownloaded'));
       });
-      const pollInterval = setInterval(async () => {
-        try {
-          const res = await fetch(`${API_BASE_URL}/local-llm/download-progress`);
-          if (res.ok) {
-            const progress = await res.json();
-            setDownloadProgress(progress);
-            if (progress.status === 'completed' || progress.status === 'error') {
-              clearInterval(pollInterval);
-              setLocalLlmLoading(false);
-              fetchLocalLlmStatus();
-              if (progress.status === 'completed') {
-                showSuccess(t('localLlmDownloaded'));
-              }
-            }
-          }
-        } catch {
-          clearInterval(pollInterval);
-          setLocalLlmLoading(false);
-        }
-      }, 1000);
     } catch {
       setLocalLlmLoading(false);
       setError(t('localLlmTestFailed'));

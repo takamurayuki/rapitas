@@ -62,11 +62,6 @@ export type ProcessRunnerState = {
 
 /**
  * Build the final spawn command and args for the given platform.
- *
- * @param codexPath - Resolved path to the Codex CLI executable / Codex CLI実行ファイルのパス
- * @param args - Codex CLI argument list / Codex CLIの引数リスト
- * @param isWindows - Whether the current platform is Windows / Windows上で実行中かどうか
- * @returns Tuple of [command, args] ready for `spawn` / `spawn`に渡す[command, args]のタプル
  */
 export function buildSpawnCommand(
   codexPath: string,
@@ -85,16 +80,11 @@ export function buildSpawnCommand(
     .join(' ');
 
   const quotedPath = codexPath.includes(' ') ? `"${codexPath}"` : codexPath;
-  // NOTE: chcp 65001 sets Windows console to UTF-8 before running Codex to avoid garbled output
   return [`chcp 65001 >NUL 2>&1 && ${quotedPath} ${argsString}`, []];
 }
 
 /**
  * Build the environment variables for the Codex CLI process.
- *
- * @param config - Agent configuration / エージェント設定
- * @param isWindows - Whether the current platform is Windows / Windows上で実行中かどうか
- * @returns Environment variables object / 環境変数オブジェクト
  */
 export function buildProcessEnv(
   config: CodexCliAgentConfig,
@@ -121,18 +111,286 @@ export function buildProcessEnv(
 }
 
 /**
+ * Ensure output directory exists before spawn.
+ */
+async function ensureOutputDirectory(outputPath: string | undefined): Promise<void> {
+  if (!outputPath) return;
+
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  } catch {
+    // Best-effort; spawn may still succeed if dir exists
+  }
+}
+
+/** Investigation mode headline mappings */
+const INVESTIGATION_HEADLINES: Record<string, string> = {
+  research:
+    '次の標準入力に含まれる調査タスクを実行し、最終回答を必ず "# 調査レポート" から始めてください。前置きは不要です。',
+  plan: '次の標準入力に含まれる実装計画タスクを実行し、最終回答を必ず "# 実装計画" から始めてください。前置きは不要です。"## 設計判断の根拠" と "## 実装チェックリスト" のセクションを必ず含めてください。',
+  review:
+    '次の標準入力に含まれるレビュータスクを実行し、最終回答を必ず "# レビュー指摘" から始めてください。前置きは不要です。',
+  verify:
+    '次の標準入力に含まれる検証タスクを実行し、最終回答を必ず "# 検証結果" から始めてください。前置きは不要です。',
+};
+
+/** Result of building CLI args */
+interface ArgsResult {
+  args: string[];
+  promptForStdin: string | null;
+}
+
+/**
+ * Build Codex CLI arguments based on configuration and mode.
+ */
+function buildCodexArgs(
+  config: CodexCliAgentConfig,
+  workDir: string,
+  prompt: string,
+  logPrefix: string,
+): ArgsResult {
+  const args: string[] = ['exec'];
+
+  // JSON mode for implementation (not investigation)
+  if (!config.investigationMode) {
+    args.push('--json');
+  }
+  args.push('--cd', workDir);
+
+  // Sandbox and permission settings
+  if (config.investigationMode) {
+    args.push('--sandbox', 'read-only');
+    args.push('--skip-git-repo-check');
+    logger.info(
+      `${logPrefix} Investigation mode: --sandbox=read-only, --skip-git-repo-check, NO --json`,
+    );
+  } else if (config.yolo) {
+    args.push('--dangerously-bypass-approvals-and-sandbox');
+  } else if (config.sandboxMode) {
+    args.push('--sandbox', config.sandboxMode);
+    if (config.outputLastMessageFile) {
+      args.push('--output-last-message', config.outputLastMessageFile);
+    }
+  } else {
+    args.push('--full-auto');
+  }
+
+  // Model setting (skip in investigation mode)
+  if (config.model && !config.investigationMode) {
+    const model = normalizeCodexModel(
+      config.model,
+      !!config.apiKey || !!process.env.OPENAI_API_KEY,
+    );
+    args.push('-m', model);
+  }
+
+  // Prompt handling
+  let promptForStdin: string | null = null;
+  const resumeId = config.resumeSessionId;
+
+  if (resumeId) {
+    args.push('resume', resumeId);
+    logger.info(`${logPrefix} Resuming session: ${resumeId}`);
+  } else if (config.investigationMode) {
+    const outputType = config.investigationOutputType ?? 'research';
+    const headline = INVESTIGATION_HEADLINES[outputType] ?? INVESTIGATION_HEADLINES.research;
+    args.push(headline);
+    promptForStdin = prompt;
+  } else {
+    args.push(prompt);
+  }
+
+  return { args, promptForStdin };
+}
+
+/** Cleanup functions for process timers */
+interface ProcessTimers {
+  cleanupIdle: () => void;
+  cleanupTimeout: () => void;
+  updateLastOutputTime: () => void;
+  markOutputReceived: () => void;
+}
+
+/**
+ * Create idle and timeout check intervals for process monitoring.
+ */
+function createProcessTimers(
+  state: ProcessRunnerState,
+  callbacks: ProcessRunnerCallbacks,
+  startTime: number,
+  timeout: number,
+  resolve: (result: AgentExecutionResult) => void,
+): ProcessTimers {
+  const { logPrefix } = callbacks;
+  let lastOutputTime = Date.now();
+  let hasReceivedAnyOutput = false;
+
+  const idleCheckInterval = setInterval(() => {
+    const idleTime = Date.now() - lastOutputTime;
+    const totalElapsed = Date.now() - startTime;
+
+    if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
+      logger.warn(`${logPrefix} No output received after ${Math.floor(totalElapsed / 1000)}s`);
+      callbacks.emitOutput(
+        `\n[情報] ${Math.floor(totalElapsed / 1000)}秒経過: Codex は内部処理中です。応答をお待ちください。タイムアウトは ${Math.floor(timeout / 1000)}秒です。\n`,
+      );
+      hasReceivedAnyOutput = true;
+    }
+
+    if (idleTime > OUTPUT_IDLE_TIMEOUT && state.lineBuffer.trim()) {
+      logger.info(`${logPrefix} Holding partial stdout line while waiting for newline`);
+    }
+  }, IDLE_CHECK_INTERVAL_MS);
+
+  const timeoutCheckInterval = setInterval(() => {
+    if (state.process && !state.process.killed) {
+      if (Date.now() - lastOutputTime >= timeout) {
+        clearInterval(timeoutCheckInterval);
+        clearInterval(idleCheckInterval);
+        callbacks.emitOutput(
+          `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
+          true,
+        );
+        state.process.kill('SIGTERM');
+        state.status = 'failed';
+        callbacks.onStatusChange('failed');
+        resolve({
+          success: false,
+          output: state.outputBuffer,
+          errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
+          executionTimeMs: Date.now() - startTime,
+        });
+      }
+    }
+  }, TIMEOUT_CHECK_INTERVAL_MS);
+
+  return {
+    cleanupIdle: () => clearInterval(idleCheckInterval),
+    cleanupTimeout: () => clearInterval(timeoutCheckInterval),
+    updateLastOutputTime: () => {
+      lastOutputTime = Date.now();
+    },
+    markOutputReceived: () => {
+      if (!hasReceivedAnyOutput) {
+        hasReceivedAnyOutput = true;
+        logger.info(`${logPrefix} First stdout after ${Date.now() - startTime}ms`);
+      }
+    },
+  };
+}
+
+/** Line handler for stdout processing */
+type StdoutLineHandler = (line: string) => void;
+
+/**
+ * Create stdout line handler based on mode.
+ */
+function createStdoutLineHandler(
+  config: CodexCliAgentConfig,
+  state: ProcessRunnerState,
+  callbacks: ProcessRunnerCallbacks,
+): StdoutLineHandler {
+  const { logPrefix } = callbacks;
+
+  const appendRawLine = (line: string) => {
+    // Investigation mode: keep ALL bytes for post-handler parsing
+    if (config.investigationMode) {
+      state.outputBuffer += line + '\n';
+      callbacks.emitOutput(line + '\n');
+      return;
+    }
+    // Implementation mode: filter and truncate
+    if (shouldHideRawCliLine(line)) return;
+    const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
+    state.outputBuffer += displayLine + '\n';
+    callbacks.emitOutput(displayLine + '\n');
+  };
+
+  return (line: string) => {
+    if (!line.trim()) return;
+
+    try {
+      const json = JSON.parse(line);
+      logger.info(`${logPrefix} Event: ${json.type}`);
+      processJsonEvent(json, state, callbacks, config, logPrefix);
+    } catch {
+      // Filter non-JSON output (e.g., chcp on Windows)
+      const trimmed = line.trim();
+      if (
+        !trimmed ||
+        /^Active code page:/i.test(trimmed) ||
+        /^現在のコード ページ:/i.test(trimmed) ||
+        /^chcp\s/i.test(trimmed)
+      ) {
+        logger.info(`${logPrefix} Filtered non-JSON: ${trimmed.substring(0, 100)}`);
+        return;
+      }
+      logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
+      appendRawLine(line);
+    }
+  };
+}
+
+/**
+ * Build execution result from process close.
+ */
+function buildCloseResult(
+  code: number | null,
+  state: ProcessRunnerState,
+  config: CodexCliAgentConfig,
+  startTime: number,
+  parseArtifacts: (output: string) => AgentArtifact[],
+  parseCommits: (output: string) => GitCommitInfo[],
+): AgentExecutionResult {
+  const executionTimeMs = Date.now() - startTime;
+  const artifacts = parseArtifacts(state.outputBuffer);
+  const commits = parseCommits(state.outputBuffer);
+  const { hasQuestion, question, questionKey, questionDetails } = state.detectedQuestion;
+  const questionType = tolegacyQuestionType(state.detectedQuestion.questionType);
+
+  if (hasQuestion) {
+    return {
+      success: true,
+      output: state.outputBuffer,
+      artifacts,
+      commits,
+      executionTimeMs,
+      waitingForInput: true,
+      question,
+      questionType,
+      questionDetails,
+      questionKey,
+      claudeSessionId: state.codexSessionId || undefined,
+      modelName: state.actualModel || config.model,
+    };
+  }
+
+  let errorMessage: string | undefined;
+  if (code !== 0) {
+    const parts = [`プロセスがコード ${code} で終了しました`];
+    if (state.errorBuffer.trim()) parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
+    if (state.outputBuffer.trim()) parts.push(`\n${state.outputBuffer.trim().slice(-1000)}`);
+    errorMessage = parts.join('');
+  }
+
+  return {
+    success: code === 0,
+    output: state.outputBuffer,
+    artifacts,
+    commits,
+    executionTimeMs,
+    waitingForInput: false,
+    claudeSessionId: state.codexSessionId || undefined,
+    modelName: state.actualModel || config.model,
+    errorMessage,
+  };
+}
+
+/**
  * Spawn the Codex CLI process and wire up all event handlers.
  * Resolves with an AgentExecutionResult when the process exits.
- *
- * @param config - Agent configuration / エージェント設定
- * @param workDir - Working directory for execution / 実行用の作業ディレクトリ
- * @param prompt - Prompt string to pass as argument / 引数として渡すプロンプト文字列
- * @param state - Shared mutable runner state / 共有される可変ランナー状態
- * @param callbacks - Callbacks into the owning agent / 所有エージェントへのコールバック
- * @param startTime - Timestamp when execution started / 実行開始のタイムスタンプ
- * @param parseArtifacts - Function to extract artifacts from output / 出力からアーティファクトを抽出する関数
- * @param parseCommits - Function to extract commits from output / 出力からコミットを抽出する関数
- * @returns Promise resolving to AgentExecutionResult / AgentExecutionResultに解決するPromise
  */
 export async function spawnCodexProcess(
   config: CodexCliAgentConfig,
@@ -147,141 +405,25 @@ export async function spawnCodexProcess(
   const { logPrefix } = callbacks;
   const timeout = config.timeout ?? 900000;
 
-  // Ensure the parent dir of --output-last-message exists BEFORE spawn so
-  // codex doesn't silently skip the write (ENOENT was the symptom seen
-  // when researchTempOutputFile pointed to a non-existent dir).
-  if (config.outputLastMessageFile) {
-    try {
-      const fs = await import('node:fs/promises');
-      const path = await import('node:path');
-      await fs.mkdir(path.dirname(config.outputLastMessageFile), { recursive: true });
-    } catch {
-      // Best-effort; spawn may still succeed if dir was created by another
-      // path (e.g. execute-route already created .rapitas/).
-    }
-  }
+  // Ensure output directory exists
+  await ensureOutputDirectory(config.outputLastMessageFile);
 
   return new Promise((resolve) => {
-    // CRITICAL: Per `codex exec --help`, the prompt MUST be the final
-    // positional argument AFTER all OPTIONS:
-    //   codex exec [OPTIONS] [PROMPT]
-    // Putting the prompt right after `exec` (before --sandbox / --json /
-    // -o flags) confuses codex's argument parser and the agent ends up
-    // treating the prompt as a confirmation request — which is why we saw
-    // "了解しました。調査対象を指定してください" replies.
-    // We accumulate FLAGS first and append PROMPT (or `resume <id>`) last.
-    const args: string[] = ['exec'];
-
-    // NOTE: --json switches stdout to JSONL events (used in implementation
-    // mode for live UI streaming). Investigation mode SKIPS --json so codex
-    // returns plain markdown straight to stdout — easier to parse, and
-    // prior bug: --json combined with --output-last-message on some codex
-    // versions exited with code 2 before the agent ran any reasoning.
-    if (!config.investigationMode) {
-      args.push('--json');
-    }
-    args.push('--cd', workDir);
-
-    // NOTE: Investigation mode (research/plan/review phases) — codex MUST NOT
-    // modify code. `codex exec` is non-interactive by default. We use:
-    //   --sandbox=read-only        → no file writes anywhere (OS guaranteed)
-    //   --skip-git-repo-check      → tolerate worktrees that aren't recognized
-    //                                as git repos
-    // We deliberately DO NOT use `--output-last-message`. That flag would
-    // require granting write permission to a path inside the read-only
-    // sandbox (via writable_roots or similar), which complicates security
-    // guarantees. Instead we rely on codex's documented behavior: the final
-    // assistant message goes to STDOUT. The Rapitas backend (parent process,
-    // full permissions) captures stdout and writes research.md / plan.md /
-    // verify.md to ~/.rapitas/workflows/ itself. codex never needs file-write
-    // access for the workflow output to be saved.
-    if (config.investigationMode) {
-      args.push('--sandbox', 'read-only');
-      args.push('--skip-git-repo-check');
-      logger.info(
-        `${logPrefix} Investigation mode: --sandbox=read-only, --skip-git-repo-check, NO --json, NO --output-last-message (final message captured from stdout by parent process)`,
-      );
-    } else if (config.yolo) {
-      args.push('--dangerously-bypass-approvals-and-sandbox');
-    } else if (config.sandboxMode) {
-      // Explicit per-execution overrides. `codex exec` doesn't accept
-      // `--ask-for-approval`, so approvalPolicy is ignored here too.
-      args.push('--sandbox', config.sandboxMode);
-      if (config.outputLastMessageFile) {
-        args.push('--output-last-message', config.outputLastMessageFile);
-      }
-    } else {
-      // Default for the implementation phase: workspace-write sandbox, no
-      // prompts. Same as the long-standing rapitas behavior.
-      args.push('--full-auto');
-    }
-
-    // NOTE: Skip explicit `-m <model>` in investigation mode. Some codex
-    // CLI versions reject specific model IDs (e.g. gpt-5.5) when paired
-    // with --sandbox=read-only and exit with code 2 before the agent runs.
-    // Falling back to the user's codex config default (~/.codex/config.toml)
-    // is more robust for the read-only investigation path.
-    if (config.model && !config.investigationMode) {
-      const model = normalizeCodexModel(
-        config.model,
-        !!config.apiKey || !!process.env.OPENAI_API_KEY,
-      );
-      args.push('-m', model);
-    }
-
-    // Prompt handling differs by mode:
-    //   - resume: append `resume <id>` (positional) — keep existing behavior
-    //   - investigation: pass a SHORT imperative as positional + the LONG
-    //     markdown body via STDIN. Long Markdown bodies passed as positional
-    //     args were sometimes interpreted by codex as a request to clarify
-    //     the task. The CLI explicitly supports prompt-plus-stdin: a short
-    //     imperative arg + body on stdin works reliably.
-    //   - implementation: pass full prompt as positional (legacy behavior)
-    const resumeId = config.resumeSessionId;
-    let promptForStdin: string | null = null;
-    if (resumeId) {
-      args.push('resume', resumeId);
-      logger.info(`${logPrefix} Resuming session: ${resumeId}`);
-    } else if (config.investigationMode) {
-      // Phase-aware headline. The orchestrator passes the role's output
-      // type so plan / review phases don't get force-started with a
-      // "# 調査レポート" requirement (which previously caused planner
-      // outputs to be saved as plan.md but with the wrong heading and
-      // missing required sections).
-      const outputType = config.investigationOutputType ?? 'research';
-      const headlineByType: Record<NonNullable<typeof outputType>, string> = {
-        research:
-          '次の標準入力に含まれる調査タスクを実行し、最終回答を必ず "# 調査レポート" から始めてください。前置きは不要です。',
-        plan: '次の標準入力に含まれる実装計画タスクを実行し、最終回答を必ず "# 実装計画" から始めてください。前置きは不要です。"## 設計判断の根拠" と "## 実装チェックリスト" のセクションを必ず含めてください。',
-        review:
-          '次の標準入力に含まれるレビュータスクを実行し、最終回答を必ず "# レビュー指摘" から始めてください。前置きは不要です。',
-        verify:
-          '次の標準入力に含まれる検証タスクを実行し、最終回答を必ず "# 検証結果" から始めてください。前置きは不要です。',
-      };
-      const headline = headlineByType[outputType];
-      args.push(headline);
-      promptForStdin = prompt;
-    } else {
-      args.push(prompt);
-    }
+    // Build CLI arguments
+    const { args, promptForStdin } = buildCodexArgs(config, workDir, prompt, logPrefix);
 
     const isWindows = process.platform === 'win32';
     const codexPath = resolveCliPath(
       process.env.CODEX_CLI_PATH || (isWindows ? 'codex.cmd' : 'codex'),
     );
 
-    logger.info(`${logPrefix} Platform: ${process.platform}, Codex: ${codexPath}`);
-    logger.info(`${logPrefix} Timeout: ${timeout}ms, Prompt: ${prompt.length} chars`);
-
-    // Diagnostic: print the FULL spawn args (with prompt truncated for log
-    // hygiene) so we can verify codex receives `exec [OPTIONS] PROMPT` in
-    // the correct order. The spawn line is the single most important data
-    // point when an agent comes back with "了解しました" — it tells us if
-    // OPTIONS landed before the positional PROMPT.
+    // Log spawn info
     const argsForLog = args.map((a, i) => {
       if (i === args.length - 1 && a.length > 100) return `<prompt:${a.length}chars>`;
       return a;
     });
+    logger.info(`${logPrefix} Platform: ${process.platform}, Codex: ${codexPath}`);
+    logger.info(`${logPrefix} Timeout: ${timeout}ms, Prompt: ${prompt.length} chars`);
     logger.info(`${logPrefix} Spawn argv: ${JSON.stringify([codexPath, ...argsForLog])}`);
     logger.info(`${logPrefix} Spawn cwd: ${workDir}`);
 
@@ -299,7 +441,7 @@ export async function spawnCodexProcess(
       state.process = spawn(finalCommand, finalArgs, {
         cwd: workDir,
         shell: true,
-        windowsHide: true, // NOTE: Prevents TCP handle inheritance — stops CLI process from inheriting port 3001 socket
+        windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
       });
@@ -310,8 +452,7 @@ export async function spawnCodexProcess(
       logger.info(`${logPrefix} Process spawned with PID: ${state.process.pid}`);
       callbacks.emitOutput(`${logPrefix} Process PID: ${state.process.pid}\n`);
 
-      // Investigation mode: pipe the long Markdown prompt body into stdin.
-      // Implementation mode: prompt is fully on the args, close stdin.
+      // Write prompt to stdin for investigation mode
       if (state.process.stdin) {
         if (promptForStdin) {
           try {
@@ -329,114 +470,31 @@ export async function spawnCodexProcess(
 
       state.lineBuffer = '';
 
-      let lastOutputTime = Date.now();
-      let hasReceivedAnyOutput = false;
+      // Setup process timers
+      const timers = createProcessTimers(state, callbacks, startTime, timeout, resolve);
+      const handleStdoutLine = createStdoutLineHandler(config, state, callbacks);
 
-      const idleCheckInterval = setInterval(() => {
-        const idleTime = Date.now() - lastOutputTime;
-        const totalElapsed = Date.now() - startTime;
-
-        if (!hasReceivedAnyOutput && totalElapsed > INITIAL_OUTPUT_TIMEOUT) {
-          logger.warn(`${logPrefix} No output received after ${Math.floor(totalElapsed / 1000)}s`);
-          callbacks.emitOutput(
-            `\n[情報] ${Math.floor(totalElapsed / 1000)}秒経過: Codex は内部処理中です (調査・計画立案中)。応答が来るまでお待ちください。タイムアウトは ${Math.floor(timeout / 1000)}秒です。\n`,
-          );
-          hasReceivedAnyOutput = true;
-        }
-
-        if (idleTime > OUTPUT_IDLE_TIMEOUT && state.lineBuffer.trim()) {
-          logger.info(`${logPrefix} Holding partial stdout line while waiting for newline`);
-        }
-      }, IDLE_CHECK_INTERVAL_MS);
-
-      const cleanupIdleCheck = () => clearInterval(idleCheckInterval);
-
-      const timeoutCheckInterval = setInterval(() => {
-        if (state.process && !state.process.killed) {
-          if (Date.now() - lastOutputTime >= timeout) {
-            clearInterval(timeoutCheckInterval);
-            cleanupIdleCheck();
-            callbacks.emitOutput(
-              `\n${logPrefix} Execution timed out (no output for ${timeout / 1000}s)\n`,
-              true,
-            );
-            state.process.kill('SIGTERM');
-            state.status = 'failed';
-            callbacks.onStatusChange('failed');
-            resolve({
-              success: false,
-              output: state.outputBuffer,
-              errorMessage: `Execution timed out (no output for ${timeout / 1000}s)`,
-              executionTimeMs: Date.now() - startTime,
-            });
-          }
-        }
-      }, TIMEOUT_CHECK_INTERVAL_MS);
-
-      const cleanupTimeoutCheck = () => clearInterval(timeoutCheckInterval);
-
-      const appendRawStdoutLine = (line: string) => {
-        // CRITICAL: in investigation mode the deliverable IS the stdout
-        // markdown. Do NOT filter and do NOT truncate — the post-handler
-        // slices `# 調査レポート` out of the full buffer, so we must keep
-        // EVERY byte that the agent emits. Implementation mode keeps the
-        // existing filter/truncate behavior to preserve UI log hygiene.
-        if (config.investigationMode) {
-          state.outputBuffer += line + '\n';
-          callbacks.emitOutput(line + '\n');
-          return;
-        }
-        if (shouldHideRawCliLine(line)) return;
-        const displayLine = line.length > 240 ? `${line.slice(0, 237)}...` : line;
-        state.outputBuffer += displayLine + '\n';
-        callbacks.emitOutput(displayLine + '\n');
-      };
-
-      const handleStdoutLine = (line: string) => {
-        if (!line.trim()) return;
-        try {
-          const json = JSON.parse(line);
-          logger.info(`${logPrefix} Event: ${json.type}`);
-          processJsonEvent(json, state, callbacks, config, logPrefix);
-        } catch {
-          // NOTE: Filter non-JSON output (e.g., chcp command output on Windows)
-          const trimmed = line.trim();
-          if (
-            !trimmed ||
-            /^Active code page:/i.test(trimmed) ||
-            /^現在のコード ページ:/i.test(trimmed) ||
-            /^chcp\s/i.test(trimmed)
-          ) {
-            logger.info(`${logPrefix} Filtered non-JSON: ${trimmed.substring(0, 100)}`);
-            return;
-          }
-          logger.info(`${logPrefix} Raw output: ${line.substring(0, 200)}`);
-          appendRawStdoutLine(line);
-        }
-      };
-
+      // Handle stdout
       state.process.stdout?.on('data', (data: Buffer) => {
         const chunk = data.toString();
         state.lineBuffer += chunk;
-        lastOutputTime = Date.now();
-
-        if (!hasReceivedAnyOutput) {
-          hasReceivedAnyOutput = true;
-          logger.info(`${logPrefix} First stdout after ${Date.now() - startTime}ms`);
-        }
+        timers.updateLastOutputTime();
+        timers.markOutputReceived();
 
         const lines = state.lineBuffer.split('\n');
         state.lineBuffer = lines.pop() || '';
-
         for (const line of lines) handleStdoutLine(line);
       });
 
+      // Handle stderr
       state.process.stderr?.on('data', (data: Buffer) => {
         const output = data.toString();
         state.errorBuffer += output;
-        lastOutputTime = Date.now();
+        timers.updateLastOutputTime();
+
         const modelMatch = output.match(/(?:^|\n)model:\s*([^\r\n]+)/i);
         if (modelMatch?.[1]) state.actualModel = modelMatch[1].trim();
+
         const filtered = filterCliDiagnosticOutput(output, { provider: 'codex' });
         if (filtered.display) {
           state.outputBuffer += filtered.display;
@@ -444,27 +502,23 @@ export async function spawnCodexProcess(
         }
       });
 
+      // Handle close
       state.process.on('close', (code: number | null) => {
-        cleanupTimeoutCheck();
-        cleanupIdleCheck();
+        timers.cleanupTimeout();
+        timers.cleanupIdle();
         const executionTimeMs = Date.now() - startTime;
 
+        // Process any remaining buffered line
         if (state.lineBuffer.trim()) {
           handleStdoutLine(state.lineBuffer);
         }
 
         logger.info(`${logPrefix} Closed with code: ${code}, time: ${executionTimeMs}ms`);
 
-        // CRITICAL diagnostic: when codex exits non-zero, dump the FULL
-        // stderr buffer + the args we used. Exit code 2 typically means
-        // CLI-arg misuse (unknown flag / bad value) and the explanation
-        // lives in stderr — but our existing filter pipeline drops it.
-        // This bypasses the filter and surfaces the raw bytes.
+        // Log diagnostic for non-zero exit
         if (code !== null && code !== 0) {
           const stderrSample =
-            state.errorBuffer && state.errorBuffer.length > 0
-              ? state.errorBuffer.slice(-4096)
-              : '(stderr was empty)';
+            state.errorBuffer?.length > 0 ? state.errorBuffer.slice(-4096) : '(stderr was empty)';
           logger.error(
             {
               exitCode: code,
@@ -481,6 +535,7 @@ export async function spawnCodexProcess(
           );
         }
 
+        // Handle cancelled state
         if (state.status === 'cancelled') {
           resolve({
             success: false,
@@ -492,68 +547,42 @@ export async function spawnCodexProcess(
         }
         if (state.status === 'failed') return;
 
-        const artifacts = parseArtifacts(state.outputBuffer);
-        const commits = parseCommits(state.outputBuffer);
-        const { hasQuestion, question, questionKey, questionDetails } = state.detectedQuestion;
-        const questionType = tolegacyQuestionType(state.detectedQuestion.questionType);
+        // Build and return result
+        const result = buildCloseResult(
+          code,
+          state,
+          config,
+          startTime,
+          parseArtifacts,
+          parseCommits,
+        );
 
-        if (hasQuestion) {
+        if (result.waitingForInput) {
           state.status = 'waiting_for_input';
           callbacks.onStatusChange('waiting_for_input');
           callbacks.emitOutput(`\n${logPrefix} 回答を待っています...\n`);
-          resolve({
-            success: true,
-            output: state.outputBuffer,
-            artifacts,
-            commits,
-            executionTimeMs,
-            waitingForInput: true,
-            question,
-            questionType,
-            questionDetails,
-            questionKey,
-            claudeSessionId: state.codexSessionId || undefined,
-            modelName: state.actualModel || config.model,
-          });
-          return;
+        } else {
+          const newStatus = code === 0 ? 'completed' : 'failed';
+          state.status = newStatus;
+          callbacks.onStatusChange(newStatus);
         }
 
-        const newStatus = code === 0 ? 'completed' : 'failed';
-        state.status = newStatus;
-        callbacks.onStatusChange(newStatus);
-
-        let errorMessage: string | undefined;
-        if (code !== 0) {
-          const parts = [`プロセスがコード ${code} で終了しました`];
-          if (state.errorBuffer.trim())
-            parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
-          if (state.outputBuffer.trim()) parts.push(`\n${state.outputBuffer.trim().slice(-1000)}`);
-          errorMessage = parts.join('');
-        }
-
-        resolve({
-          success: code === 0,
-          output: state.outputBuffer,
-          artifacts,
-          commits,
-          executionTimeMs,
-          waitingForInput: false,
-          claudeSessionId: state.codexSessionId || undefined,
-          modelName: state.actualModel || config.model,
-          errorMessage,
-        });
+        resolve(result);
       });
 
+      // Handle error
       state.process.on('error', (error: Error) => {
-        cleanupTimeoutCheck();
-        cleanupIdleCheck();
+        timers.cleanupTimeout();
+        timers.cleanupIdle();
         state.status = 'failed';
         callbacks.onStatusChange('failed');
         logger.error({ err: error }, `${logPrefix} Process error`);
         callbacks.emitOutput(`${logPrefix} Error: ${error.message}\n`, true);
+
         const parts = [`プロセス起動エラー: ${error.message}`];
         if (state.errorBuffer.trim())
           parts.push(`\n\n【標準エラー出力】\n${state.errorBuffer.trim()}`);
+
         resolve({
           success: false,
           output: state.outputBuffer,

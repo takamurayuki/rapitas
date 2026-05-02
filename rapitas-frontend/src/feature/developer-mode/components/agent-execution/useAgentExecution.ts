@@ -21,6 +21,112 @@ export type {
   UseAgentExecutionReturn,
 } from './agent-execution-types';
 
+// ────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compute question state from polling data.
+ */
+function computeQuestionState(
+  isTerminalStatus: boolean,
+  pollingWaitingForInput: boolean,
+  pollingQuestion: string | undefined,
+  pollingQuestionType: string | undefined,
+): { hasQuestion: boolean; question: string; questionType: QuestionType } {
+  if (!isTerminalStatus && pollingWaitingForInput && pollingQuestion) {
+    return {
+      hasQuestion: true,
+      question: pollingQuestion,
+      questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
+    };
+  }
+  return { hasQuestion: false, question: '', questionType: 'none' };
+}
+
+/**
+ * Parse question options from structured or text-based format.
+ */
+function parseQuestionWithDetails(
+  question: string | undefined,
+  pollingQuestionDetails: { options?: { label: string }[] } | undefined,
+): ParsedQuestion | null {
+  if (!question) return null;
+
+  // Use structured questionDetails when available (from AskUserQuestion tool calls)
+  if (pollingQuestionDetails?.options && pollingQuestionDetails.options.length > 0) {
+    return {
+      text: question,
+      options: pollingQuestionDetails.options.map((opt) => opt.label),
+    };
+  }
+
+  // Fallback to text-based parsing for legacy support
+  return parseQuestionOptions(question);
+}
+
+/** Status flags for execution state. */
+type StatusFlags = {
+  isCompleted: boolean;
+  isCancelled: boolean;
+  isFailed: boolean;
+  isRunning: boolean;
+};
+
+/**
+ * Compute derived status flags from execution state.
+ */
+function computeStatusFlags(params: {
+  finalStatus: string;
+  isPollingRunning: boolean;
+  isSseRunning: boolean;
+  isWaitingForInput: boolean;
+  isRestoredTerminal: boolean;
+  executionResult: { success?: boolean } | null;
+  isExecuting: boolean;
+  pollingStatus: string;
+  sseStatus: string;
+  error: string | null;
+  pollingError: string | null;
+  sseError: string | null;
+}): StatusFlags {
+  const {
+    finalStatus,
+    isPollingRunning,
+    isSseRunning,
+    isWaitingForInput,
+    isRestoredTerminal,
+    executionResult,
+    isExecuting,
+    pollingStatus,
+    sseStatus,
+    error,
+    pollingError,
+    sseError,
+  } = params;
+
+  const isCompleted =
+    (finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput) ||
+    (isRestoredTerminal && executionResult?.success === true);
+
+  const isCancelled = finalStatus === 'cancelled';
+
+  const isFailed =
+    !!(finalStatus === 'failed' || error || pollingError || sseError) ||
+    (isRestoredTerminal && executionResult?.success === false);
+
+  const isRunning =
+    !isRestoredTerminal &&
+    (isExecuting ||
+      isPollingRunning ||
+      isSseRunning ||
+      pollingStatus === 'running' ||
+      sseStatus === 'running' ||
+      isWaitingForInput);
+
+  return { isCompleted, isCancelled, isFailed, isRunning };
+}
+
 /**
  * Core hook for AgentExecutionPanel state and side effects.
  *
@@ -112,36 +218,22 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     !isTerminalStatus && (pollingStatus === 'waiting_for_input' || pollingWaitingForInput);
 
   // NOTE: Question detection uses only API state
-  const { hasQuestion, question, questionType } = useMemo((): {
-    hasQuestion: boolean;
-    question: string;
-    questionType: QuestionType;
-  } => {
-    if (!isTerminalStatus && pollingWaitingForInput && pollingQuestion) {
-      return {
-        hasQuestion: true,
-        question: pollingQuestion,
-        questionType: pollingQuestionType === 'tool_call' ? 'tool_call' : 'none',
-      };
-    }
-    return { hasQuestion: false, question: '', questionType: 'none' };
-  }, [pollingWaitingForInput, pollingQuestion, pollingQuestionType, isTerminalStatus]);
+  const { hasQuestion, question, questionType } = useMemo(
+    () =>
+      computeQuestionState(
+        isTerminalStatus,
+        pollingWaitingForInput,
+        pollingQuestion,
+        pollingQuestionType,
+      ),
+    [pollingWaitingForInput, pollingQuestion, pollingQuestionType, isTerminalStatus],
+  );
 
   // NOTE: Prefer structured questionDetails from AskUserQuestion tool calls over text parsing
-  const questionParsed = useMemo((): ParsedQuestion | null => {
-    if (!question) return null;
-
-    // Use structured questionDetails when available (from AskUserQuestion tool calls)
-    if (pollingQuestionDetails?.options && pollingQuestionDetails.options.length > 0) {
-      return {
-        text: question,
-        options: pollingQuestionDetails.options.map((opt) => opt.label),
-      };
-    }
-
-    // Fallback to text-based parsing for legacy support
-    return parseQuestionOptions(question);
-  }, [question, pollingQuestionDetails]);
+  const questionParsed = useMemo(
+    () => parseQuestionWithDetails(question, pollingQuestionDetails),
+    [question, pollingQuestionDetails],
+  );
   const hasOptions = !!(questionParsed && questionParsed.options.length >= 2);
   const isConfirmedQuestion = questionType === 'tool_call';
 
@@ -259,23 +351,21 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
   const isRestoredTerminal =
     !hasExecutedRef.current && executionResult?.success !== undefined && !isExecuting;
 
-  // NOTE: waiting_for_input is NOT considered completed
-  // For restored terminal executions, derive status immediately from executionResult.
-  const isCompleted =
-    (finalStatus === 'completed' && !isPollingRunning && !isSseRunning && !isWaitingForInput) ||
-    (isRestoredTerminal && executionResult?.success === true);
-  const isCancelled = finalStatus === 'cancelled';
-  const isFailed =
-    !!(finalStatus === 'failed' || error || pollingError || sseError) ||
-    (isRestoredTerminal && executionResult?.success === false);
-  const isRunning =
-    !isRestoredTerminal &&
-    (isExecuting ||
-      isPollingRunning ||
-      isSseRunning ||
-      pollingStatus === 'running' ||
-      sseStatus === 'running' ||
-      isWaitingForInput);
+  // Compute all status flags using helper
+  const { isCompleted, isCancelled, isFailed, isRunning } = computeStatusFlags({
+    finalStatus,
+    isPollingRunning,
+    isSseRunning,
+    isWaitingForInput,
+    isRestoredTerminal,
+    executionResult,
+    isExecuting,
+    pollingStatus,
+    sseStatus,
+    error,
+    pollingError,
+    sseError,
+  });
 
   const hasSubtaskTabs = !!(subtasks && subtasks.length > 0 && parallelSessionId);
 

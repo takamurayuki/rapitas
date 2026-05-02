@@ -20,6 +20,152 @@ import type {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
+// ────────────────────────────────────────────────────────────────────────────
+// Silence Detection Configuration
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Configuration for silence detection. */
+const SILENCE_CONFIG = {
+  /** Byte frequency average threshold (0-255 scale) */
+  THRESHOLD: 5,
+  /** RMS threshold for time-domain data */
+  RMS_THRESHOLD: 0.005,
+  /** Silence duration before auto-send (ms) */
+  DURATION_MS: 1500,
+  /** Polling interval for silence check (ms) */
+  CHECK_INTERVAL_MS: 100,
+} as const;
+
+// ────────────────────────────────────────────────────────────────────────────
+// Transcription API Helper
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Result from transcription API. */
+interface TranscriptionResult {
+  text: string;
+  rawText?: string;
+}
+
+/** Error result from transcription API. */
+interface TranscriptionError {
+  error?: string;
+}
+
+/**
+ * Send audio blob to backend for transcription.
+ *
+ * @param audioBlob - WAV audio blob to transcribe
+ * @param langCode - Language code (e.g., 'ja')
+ * @returns Transcription result or null on error
+ */
+async function transcribeAudioBlob(
+  audioBlob: Blob,
+  langCode: string,
+): Promise<{ success: true; result: TranscriptionResult } | { success: false; error: string }> {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'audio.wav');
+  formData.append('language', langCode);
+
+  const response = await fetch(`${BACKEND_URL}/transcribe`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: 'Unknown error' }));
+    return {
+      success: false,
+      error: (data as TranscriptionError).error || '文字起こしに失敗しました',
+    };
+  }
+
+  const result = (await response.json()) as TranscriptionResult;
+  return { success: true, result };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Audio Processing Helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Create AudioContext with connected analyser for silence detection.
+ */
+function createAudioAnalyser(stream: MediaStream): {
+  audioCtx: AudioContext;
+  analyser: AnalyserNode;
+} {
+  const audioCtx = new AudioContext();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  source.connect(analyser);
+  return { audioCtx, analyser };
+}
+
+/**
+ * Calculate audio levels from analyser node.
+ */
+function calculateAudioLevels(analyser: AnalyserNode): { freqAvg: number; rms: number } {
+  const freqData = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(freqData);
+  let sum = 0;
+  for (let i = 0; i < freqData.length; i++) sum += freqData[i];
+  const freqAvg = sum / freqData.length;
+
+  const timeData = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(timeData);
+  let rmsSum = 0;
+  for (let i = 0; i < timeData.length; i++) rmsSum += timeData[i] * timeData[i];
+  const rms = Math.sqrt(rmsSum / timeData.length);
+
+  return { freqAvg, rms };
+}
+
+/**
+ * Check if audio levels indicate sound (not silence).
+ */
+function hasSound(freqAvg: number, rms: number): boolean {
+  return freqAvg > SILENCE_CONFIG.THRESHOLD || rms > SILENCE_CONFIG.RMS_THRESHOLD;
+}
+
+/**
+ * Convert recorded audio blob to 16kHz WAV.
+ */
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+  const arrayBuffer = await audioBlob.arrayBuffer();
+  const decodeCtx = new AudioContext();
+  const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
+  await decodeCtx.close();
+
+  const pcmData = audioBuffer.getChannelData(0);
+  const nativeRate = audioBuffer.sampleRate;
+  const resampled = nativeRate === 16000 ? pcmData : resamplePcm(pcmData, nativeRate, 16000);
+  return encodeWav(
+    resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
+    16000,
+  );
+}
+
+/**
+ * Format interim transcript with audio level info.
+ */
+function formatInterimTranscript(
+  hasSpoken: boolean,
+  freqAvg: number,
+  rms: number,
+  silenceMs: number,
+): string {
+  const levelInfo = `(音量:${freqAvg.toFixed(0)} rms:${(rms * 1000).toFixed(0)}`;
+  if (hasSpoken) {
+    return `録音中... ${levelInfo} 無音:${(silenceMs / 1000).toFixed(1)}s)`;
+  }
+  return `話してください... ${levelInfo})`;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Hook Types
+// ────────────────────────────────────────────────────────────────────────────
+
 /** Hook return type. */
 interface UseSpeechRecognitionReturn {
   isListening: boolean;
@@ -90,6 +236,7 @@ export function useSpeechRecognition(
         return;
       }
 
+      // Merge PCM chunks
       const merged = new Float32Array(totalLength);
       let off = 0;
       for (const chunk of pcmChunks) {
@@ -105,29 +252,13 @@ export function useSpeechRecognition(
       setInterimTranscript('文字起こし中...');
 
       try {
-        const formData = new FormData();
-        formData.append('audio', wavBlob, 'audio.wav');
-        formData.append('language', lang.split('-')[0]);
-
-        const response = await fetch(`${BACKEND_URL}/transcribe`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-          setError((data as { error?: string }).error || '文字起こしに失敗しました');
-          return;
-        }
-
-        const result = (await response.json()) as {
-          text: string;
-          rawText?: string;
-        };
-        if (result.text.trim()) {
-          lastRawTextRef.current = result.rawText || result.text;
-          setTranscript((prev) => prev + result.text);
-          onResultRef.current?.(result.text);
+        const result = await transcribeAudioBlob(wavBlob, lang.split('-')[0]);
+        if (result.success && result.result.text.trim()) {
+          lastRawTextRef.current = result.result.rawText || result.result.text;
+          setTranscript((prev) => prev + result.result.text);
+          onResultRef.current?.(result.result.text);
+        } else if (!result.success) {
+          setError(result.error);
         }
       } catch {
         setError('文字起こしサーバーへの接続に失敗しました。');
@@ -157,13 +288,7 @@ export function useSpeechRecognition(
       streamRef.current = stream;
       setActiveStream(stream);
 
-      // NOTE: Use MediaRecorder for reliable audio capture (ScriptProcessorNode is unreliable).
-      // Use AnalyserNode separately for silence detection.
-      const audioCtx = new AudioContext();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
+      const { audioCtx, analyser } = createAudioAnalyser(stream);
 
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -175,60 +300,43 @@ export function useSpeechRecognition(
         if (e.data.size > 0) chunks.push(e.data);
       };
 
-      // Silence detection via AnalyserNode polling
-      const SILENCE_THRESHOLD = 5; // byte frequency average (0-255 scale)
-      const SILENCE_DURATION_MS = 1500;
-      const state = { lastSoundTime: 0, hasSpoken: false, sent: false };
-      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      // Silence detection state
+      const silenceState = { lastSoundTime: 0, hasSpoken: false, sent: false };
 
       const silenceCheckInterval = setInterval(() => {
-        if (state.sent) {
+        if (silenceState.sent) {
           clearInterval(silenceCheckInterval);
           return;
         }
 
-        analyser.getByteFrequencyData(freqData);
-        let sum = 0;
-        for (let i = 0; i < freqData.length; i++) sum += freqData[i];
-        const avg = sum / freqData.length;
+        const { freqAvg, rms } = calculateAudioLevels(analyser);
+        const soundDetected = hasSound(freqAvg, rms);
 
-        // Also check time-domain data for any signal
-        const timeData = new Float32Array(analyser.fftSize);
-        analyser.getFloatTimeDomainData(timeData);
-        let rms = 0;
-        for (let i = 0; i < timeData.length; i++) rms += timeData[i] * timeData[i];
-        rms = Math.sqrt(rms / timeData.length);
-
-        const hasSound = avg > SILENCE_THRESHOLD || rms > 0.005;
-
-        if (hasSound) {
-          state.lastSoundTime = Date.now();
-          if (!state.hasSpoken) {
-            state.hasSpoken = true;
-          }
+        if (soundDetected) {
+          silenceState.lastSoundTime = Date.now();
+          silenceState.hasSpoken = true;
         }
 
-        // Always show current audio level for debugging
-        const silenceMs = state.lastSoundTime > 0 ? Date.now() - state.lastSoundTime : 0;
+        const silenceMs =
+          silenceState.lastSoundTime > 0 ? Date.now() - silenceState.lastSoundTime : 0;
         setInterimTranscript(
-          state.hasSpoken
-            ? `録音中... (音量:${avg.toFixed(0)} rms:${(rms * 1000).toFixed(0)} 無音:${(silenceMs / 1000).toFixed(1)}s)`
-            : `話してください... (音量:${avg.toFixed(0)} rms:${(rms * 1000).toFixed(0)})`,
+          formatInterimTranscript(silenceState.hasSpoken, freqAvg, rms, silenceMs),
         );
 
         // Auto-send after silence following speech
         if (
-          state.hasSpoken &&
-          state.lastSoundTime > 0 &&
-          Date.now() - state.lastSoundTime > SILENCE_DURATION_MS
+          silenceState.hasSpoken &&
+          silenceState.lastSoundTime > 0 &&
+          silenceMs > SILENCE_CONFIG.DURATION_MS
         ) {
-          state.sent = true;
+          silenceState.sent = true;
           clearInterval(silenceCheckInterval);
           mediaRecorder.stop();
         }
-      }, 100);
+      }, SILENCE_CONFIG.CHECK_INTERVAL_MS);
 
       mediaRecorder.onstop = async () => {
+        // Cleanup resources
         stream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setActiveStream(null);
@@ -243,48 +351,21 @@ export function useSpeechRecognition(
           return;
         }
 
-        // Decode webm to PCM using OfflineAudioContext
+        // Process and transcribe
         setIsTranscribing(true);
         setIsListening(false);
         setInterimTranscript('文字起こし中...');
 
         try {
-          const arrayBuffer = await audioBlob.arrayBuffer();
-          const decodeCtx = new AudioContext();
-          const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-          await decodeCtx.close();
+          const wavBlob = await convertToWav(audioBlob);
+          const result = await transcribeAudioBlob(wavBlob, lang.split('-')[0]);
 
-          const pcmData = audioBuffer.getChannelData(0);
-          const nativeRate = audioBuffer.sampleRate;
-          const resampled =
-            nativeRate === 16000 ? pcmData : resamplePcm(pcmData, nativeRate, 16000);
-          const wavBlob = encodeWav(
-            resampled instanceof Float32Array ? resampled : new Float32Array(resampled),
-            16000,
-          );
-
-          const formData = new FormData();
-          formData.append('audio', wavBlob, 'audio.wav');
-          formData.append('language', lang.split('-')[0]);
-
-          const response = await fetch(`${BACKEND_URL}/transcribe`, {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (response.ok) {
-            const result = (await response.json()) as {
-              text: string;
-              rawText?: string;
-            };
-            if (result.text.trim()) {
-              lastRawTextRef.current = result.rawText || result.text;
-              setTranscript((prev) => prev + result.text);
-              onResultRef.current?.(result.text);
-            }
-          } else {
-            const data = await response.json().catch(() => ({ error: 'Unknown error' }));
-            setError((data as { error?: string }).error || '文字起こしに失敗しました');
+          if (result.success && result.result.text.trim()) {
+            lastRawTextRef.current = result.result.rawText || result.result.text;
+            setTranscript((prev) => prev + result.result.text);
+            onResultRef.current?.(result.result.text);
+          } else if (!result.success) {
+            setError(result.error);
           }
         } catch (decodeErr) {
           setError(`音声処理エラー: ${decodeErr instanceof Error ? decodeErr.message : 'Unknown'}`);
@@ -295,10 +376,8 @@ export function useSpeechRecognition(
       };
 
       mediaRecorder.start(500);
-
       audioCtxRef.current = audioCtx;
       mediaRecorderRef.current = mediaRecorder;
-
       setIsListening(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';

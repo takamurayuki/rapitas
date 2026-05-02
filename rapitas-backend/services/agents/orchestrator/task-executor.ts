@@ -5,7 +5,7 @@
  */
 import { agentFactory } from '../agent-factory';
 import type { AgentConfigInput } from '../agent-factory';
-import type { AgentTask, AgentExecutionResult } from '../base-agent';
+import type { AgentTask, AgentExecutionResult, BaseAgent } from '../base-agent';
 import { ExecutionFileLogger } from '../execution-file-logger';
 import { createLogger } from '../../../config/logger';
 import type {
@@ -21,6 +21,7 @@ import {
   saveExecutionResult,
   emitResultEvent,
   handleExecutionError,
+  type LogChunkManager,
 } from './execution-helpers';
 
 import { appendEvent } from '../../memory/timeline';
@@ -29,15 +30,19 @@ import { buildTaskRAGContext } from '../../memory/rag/context-builder';
 
 const logger = createLogger('task-executor');
 
+/** Result of resolving agent configuration */
+interface ResolvedAgentConfig {
+  agentConfig: AgentConfigInput;
+  resolvedAgentConfigId: number | undefined;
+}
+
 /**
- * Execute a task.
+ * Resolve agent configuration from options or database defaults.
  */
-export async function executeTask(
+async function resolveAgentConfig(
   ctx: OrchestratorContext,
-  task: AgentTask,
   options: ExecutionOptions,
-): Promise<AgentExecutionResult> {
-  // eslint-disable-next-line prefer-const
+): Promise<ResolvedAgentConfig> {
   let agentConfig: AgentConfigInput = {
     type: 'claude-code',
     name: 'Claude Code Agent',
@@ -69,14 +74,12 @@ export async function executeTask(
       logger.info(`[TaskExecutor] No default agent in DB, falling back to Claude Code`);
     }
   }
+
   if (options.modelIdOverride) {
     agentConfig = { ...agentConfig, modelId: options.modelIdOverride };
   }
-  // Forward investigation-mode flags onto the agent config so the factory
-  // can pass them to claude-code / codex / gemini uniformly. Without this,
-  // claude-code researcher/planner runs spawn with full Bash/Edit/Write
-  // permissions and the agent bypasses the workflow API contract by
-  // calling `curl PUT /workflow/...` directly.
+
+  // Forward investigation-mode flags onto the agent config
   if (options.investigationMode || options.investigationOutputType) {
     agentConfig = {
       ...agentConfig,
@@ -87,8 +90,29 @@ export async function executeTask(
     };
   }
 
-  const agent = agentFactory.createAgent(agentConfig);
+  return { agentConfig, resolvedAgentConfigId };
+}
 
+/** Execution setup result containing all initialized resources */
+interface ExecutionSetup {
+  execution: { id: number };
+  state: ExecutionState;
+  agentInfo: ActiveAgentInfo;
+  fileLogger: ExecutionFileLogger;
+  logManager: LogChunkManager;
+}
+
+/**
+ * Create execution record, state, and logger resources.
+ */
+async function createExecutionResources(
+  ctx: OrchestratorContext,
+  agent: BaseAgent,
+  agentConfig: AgentConfigInput,
+  resolvedAgentConfigId: number | undefined,
+  task: AgentTask,
+  options: ExecutionOptions,
+): Promise<ExecutionSetup> {
   const execution = await ctx.prisma.agentExecution.create({
     data: {
       sessionId: options.sessionId,
@@ -118,6 +142,7 @@ export async function executeTask(
     agentConfig.name,
     agentConfig.modelId,
   );
+
   fileLogger.logExecutionStart(task.description || task.title, {
     workingDirectory: options.workingDirectory,
     timeout: options.timeout,
@@ -138,13 +163,25 @@ export async function executeTask(
   };
   ctx.activeAgents.set(execution.id, agentInfo);
 
-  if (ctx.isShuttingDown) {
-    ctx.activeAgents.delete(execution.id);
-    ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot start new execution');
-    await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot start new execution');
-  }
+  const logManager = createLogChunkManager({
+    prisma: ctx.prisma,
+    executionId: execution.id,
+    initialSequenceNumber: 0,
+  });
+
+  return { execution, state, agentInfo, fileLogger, logManager };
+}
+
+/**
+ * Setup event handlers for agent output and question detection.
+ */
+function setupAgentHandlers(
+  ctx: OrchestratorContext,
+  agent: BaseAgent,
+  setup: ExecutionSetup,
+  options: ExecutionOptions,
+): void {
+  const { execution, state, agentInfo, fileLogger, logManager } = setup;
 
   setupQuestionDetectedHandler(agent, {
     prisma: ctx.prisma,
@@ -156,12 +193,6 @@ export async function executeTask(
     emitEvent: (event) => ctx.emitEvent(event),
     startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
     getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
-  });
-
-  const logManager = createLogChunkManager({
-    prisma: ctx.prisma,
-    executionId: execution.id,
-    initialSequenceNumber: 0,
   });
 
   setupOutputHandler(
@@ -179,9 +210,374 @@ export async function executeTask(
     },
     logManager,
   );
+}
 
+/**
+ * Load previous execution output for continuation mode.
+ */
+async function loadPreviousOutput(
+  ctx: OrchestratorContext,
+  executionId: number,
+  options: ExecutionOptions,
+): Promise<string> {
+  if (!options.continueFromPrevious || !options.sessionId) {
+    return '';
+  }
+
+  try {
+    const previousExecution = await ctx.prisma.agentExecution.findFirst({
+      where: {
+        sessionId: options.sessionId,
+        id: { not: executionId },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { output: true },
+    });
+
+    if (previousExecution?.output) {
+      logger.info(
+        `[TaskExecutor] Previous execution output loaded for continuation (${previousExecution.output.length} chars)`,
+      );
+      return previousExecution.output;
+    }
+  } catch (error) {
+    logger.error({ err: error }, '[TaskExecutor] Failed to load previous execution output');
+  }
+
+  return '';
+}
+
+/**
+ * Build the initial message shown at execution start.
+ */
+function buildInitialMessage(
+  agentConfig: AgentConfigInput,
+  previousOutput: string,
+  continueFromPrevious?: boolean,
+): string {
+  const agentLabel = agentConfig.modelId
+    ? `${agentConfig.name} (${agentConfig.type}, model: ${agentConfig.modelId})`
+    : `${agentConfig.name} (${agentConfig.type})`;
+
+  if (continueFromPrevious && previousOutput) {
+    return previousOutput + '\n[継続実行] 追加指示の実行を開始します...\n';
+  }
+
+  return `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
+}
+
+/**
+ * Build task with RAG context and analysis info.
+ */
+async function buildTaskWithContext(
+  task: AgentTask,
+  options: ExecutionOptions,
+): Promise<AgentTask> {
+  let ragContext = '';
+  try {
+    ragContext = await buildTaskRAGContext({
+      title: task.title,
+      description: task.description,
+      themeId: task.themeId,
+    });
+  } catch (err) {
+    logger.debug({ err }, '[TaskExecutor] RAG context build failed, continuing without');
+  }
+
+  const taskWithAnalysis: AgentTask = {
+    ...task,
+    analysisInfo: options.analysisInfo,
+    ...(ragContext ? { description: `${task.description ?? ''}\n\n${ragContext}` } : {}),
+    investigationMode: options.investigationMode ?? task.investigationMode,
+    investigationOutputType: options.investigationOutputType ?? task.investigationOutputType,
+    outputLastMessageFile: options.outputLastMessageFile ?? task.outputLastMessageFile,
+  };
+
+  if (options.analysisInfo) {
+    logger.info(`[TaskExecutor] AI task analysis enabled`);
+    logger.info(
+      `[TaskExecutor] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`,
+    );
+    logger.info(`[TaskExecutor] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`);
+  } else {
+    logger.info(`[TaskExecutor] AI task analysis not provided`);
+  }
+
+  return taskWithAnalysis;
+}
+
+/** Context for fallback execution */
+interface FallbackContext {
+  ctx: OrchestratorContext;
+  execution: { id: number };
+  state: ExecutionState;
+  agentInfo: ActiveAgentInfo;
+  fileLogger: ExecutionFileLogger;
+  logManager: LogChunkManager;
+  options: ExecutionOptions;
+  taskWithAnalysis: AgentTask;
+}
+
+/**
+ * Check if execution needs fallback based on result and output.
+ */
+async function checkNeedsFallback(
+  result: AgentExecutionResult,
+  agentType: string,
+  disableFallback?: boolean,
+  executionId?: number,
+): Promise<{ needsFallback: boolean; errorBlob: string }> {
+  const successOutput = typeof result.output === 'string' ? result.output : '';
+  const errorBlob = `${result.errorMessage ?? ''}\n${successOutput.slice(-4000)}`;
+  let needsFallback = !result.success;
+
+  if (!needsFallback && !disableFallback) {
+    const { classifyAgentError } = await import('../../ai/agent-error-classifier');
+    const { agentTypeToProvider } = await import('../../ai/agent-fallback');
+    const hint = agentTypeToProvider(agentType) ?? undefined;
+    const classified = classifyAgentError(errorBlob, { hint, strict: true });
+
+    if (classified?.retryWithFallback) {
+      needsFallback = true;
+      logger.warn(
+        {
+          executionId,
+          agentType,
+          classifiedAs: classified.reason,
+          providerImplicated: classified.provider,
+        },
+        '[TaskExecutor] Detected provider error in successful output — forcing fallback',
+      );
+    }
+  }
+
+  return { needsFallback, errorBlob };
+}
+
+/**
+ * Execute with a fallback agent after primary agent failure.
+ */
+async function executeWithFallbackAgent(
+  fallbackCtx: FallbackContext,
+  errorBlob: string,
+  originalAgentConfig: AgentConfigInput,
+): Promise<{
+  result: AgentExecutionResult;
+  fallbackSucceeded: boolean;
+  newAgentConfig?: AgentConfigInput;
+  newConfigId?: number;
+}> {
+  const { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis } =
+    fallbackCtx;
+
+  const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
+  const fallback = await findFallbackAgentConfig(errorBlob, originalAgentConfig.type);
+
+  if (!fallback?.agentConfig) {
+    return { result: {} as AgentExecutionResult, fallbackSucceeded: false };
+  }
+
+  const fbType = (fallback.agentConfig as { agentType: string }).agentType;
+  const fbName = (fallback.agentConfig as { name: string }).name;
+  const fbId = (fallback.agentConfig as { id: number }).id;
+
+  logger.warn(
+    {
+      originalAgent: originalAgentConfig.name,
+      originalType: originalAgentConfig.type,
+      fallbackAgent: fbName,
+      fallbackType: fbType,
+      cooledProvider: fallback.classified.provider,
+      reason: fallback.classified.reason,
+    },
+    '[TaskExecutor] Provider failed — retrying with alternative agent config',
+  );
+
+  // Emit fallback banner
+  const banner = `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`;
+  state.output += banner;
+  fileLogger.logOutput(banner, false);
+  logManager.addChunk(banner, false);
+  ctx.emitEvent({
+    type: 'execution_output',
+    executionId: execution.id,
+    sessionId: options.sessionId,
+    taskId: options.taskId,
+    data: { output: banner, isError: false },
+    timestamp: new Date(),
+  });
+
+  const newAgentConfig = await ctx.buildAgentConfigFromDb(fallback.agentConfig as never, options);
+  const newAgent = agentFactory.createAgent(newAgentConfig);
+
+  try {
+    // Wire handlers onto fallback agent
+    setupQuestionDetectedHandler(newAgent, {
+      prisma: ctx.prisma,
+      executionId: execution.id,
+      sessionId: options.sessionId,
+      taskId: options.taskId,
+      state,
+      fileLogger,
+      emitEvent: (event) => ctx.emitEvent(event),
+      startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
+      getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
+    });
+
+    setupOutputHandler(
+      newAgent,
+      {
+        prisma: ctx.prisma,
+        executionId: execution.id,
+        sessionId: options.sessionId,
+        taskId: options.taskId,
+        state,
+        agentInfo,
+        fileLogger,
+        onOutput: options.onOutput,
+        emitEvent: (event) => ctx.emitEvent(event),
+      },
+      logManager,
+    );
+
+    // Update references
+    agentInfo.agent = newAgent;
+    await ctx.prisma.agentExecution.update({
+      where: { id: execution.id },
+      data: { agentConfigId: fbId },
+    });
+
+    ctx.emitEvent({
+      type: 'execution_started',
+      executionId: execution.id,
+      sessionId: options.sessionId,
+      taskId: options.taskId,
+      data: {
+        agentType: newAgentConfig.type,
+        agentName: newAgentConfig.name,
+        modelId: newAgentConfig.modelId,
+        fallbackFrom: fallback.classified.provider,
+      },
+      timestamp: new Date(),
+    });
+
+    const retryResult = await newAgent.execute(taskWithAnalysis);
+
+    // Check if retry also failed
+    const retryBlob = `${retryResult.errorMessage ?? ''}\n${
+      typeof retryResult.output === 'string' ? retryResult.output.slice(-4000) : ''
+    }`;
+    const { classifyAgentError: reclassify } = await import('../../ai/agent-error-classifier');
+    const { agentTypeToProvider } = await import('../../ai/agent-fallback');
+    const retryHint = agentTypeToProvider(newAgentConfig.type) ?? undefined;
+    const retryHasError = !!reclassify(retryBlob, { hint: retryHint, strict: true })
+      ?.retryWithFallback;
+    const retryActuallySucceeded = retryResult.success && !retryHasError;
+
+    return {
+      result: retryResult,
+      fallbackSucceeded: retryActuallySucceeded,
+      newAgentConfig,
+      newConfigId: fbId,
+    };
+  } finally {
+    await agentFactory.removeAgent(newAgent.id);
+  }
+}
+
+/**
+ * Handle successful execution - memory system and auto-complete.
+ */
+function handleExecutionSuccess(
+  ctx: OrchestratorContext,
+  execution: { id: number },
+  result: AgentExecutionResult,
+  agentType: string,
+  options: ExecutionOptions,
+): void {
+  const { investigationMode, autoCompleteTask, taskId } = options;
+
+  // Memory system: timeline event + distillation
+  if (result.success && investigationMode) {
+    logger.info(
+      { executionId: execution.id, taskId },
+      '[TaskExecutor] Investigation mode: deferring agent_execution_completed timeline event to post-handler',
+    );
+  } else {
+    const eventType = result.success ? 'agent_execution_completed' : 'agent_execution_failed';
+    appendEvent({
+      eventType,
+      actorType: 'agent',
+      actorId: agentType,
+      payload: { executionId: execution.id, taskId, success: result.success },
+      correlationId: `execution_${execution.id}`,
+    }).catch((err) => logger.debug({ err }, '[TaskExecutor] Timeline event failed'));
+  }
+
+  if (!result.success) return;
+
+  // Enqueue distillation
+  memoryTaskQueue.enqueue('distill', { executionId: execution.id }, 1).catch((err) => {
+    logger.debug({ err }, '[TaskExecutor] Distillation enqueue failed');
+  });
+
+  // Auto-complete task
+  const shouldAutoComplete = autoCompleteTask !== false && taskId && !result.waitingForInput;
+  if (shouldAutoComplete) {
+    ctx.prisma.task
+      .update({
+        where: { id: taskId },
+        data: { status: 'done', completedAt: new Date() },
+      })
+      .then(() => {
+        logger.info(
+          { taskId, executionId: execution.id },
+          '[TaskExecutor] Task auto-completed on successful agent execution',
+        );
+      })
+      .catch((err) => {
+        logger.warn({ err, taskId }, '[TaskExecutor] Failed to auto-complete task');
+      });
+  }
+}
+
+/**
+ * Execute a task.
+ */
+export async function executeTask(
+  ctx: OrchestratorContext,
+  task: AgentTask,
+  options: ExecutionOptions,
+): Promise<AgentExecutionResult> {
+  // Resolve agent configuration
+  let { agentConfig, resolvedAgentConfigId } = await resolveAgentConfig(ctx, options);
+  const agent = agentFactory.createAgent(agentConfig);
+
+  // Create execution resources
+  const setup = await createExecutionResources(
+    ctx,
+    agent,
+    agentConfig,
+    resolvedAgentConfigId,
+    task,
+    options,
+  );
+  const { execution, state, agentInfo, fileLogger, logManager } = setup;
+
+  // Check for shutdown
+  if (ctx.isShuttingDown) {
+    ctx.activeAgents.delete(execution.id);
+    ctx.activeExecutions.delete(execution.id);
+    fileLogger.logError('Server is shutting down, cannot start new execution');
+    await fileLogger.flush();
+    throw new Error('Server is shutting down, cannot start new execution');
+  }
+
+  // Setup handlers
+  setupAgentHandlers(ctx, agent, setup, options);
   const cleanupLogHandler = logManager.cleanup;
 
+  // Emit start event
   ctx.emitEvent({
     type: 'execution_started',
     executionId: execution.id,
@@ -195,251 +591,56 @@ export async function executeTask(
     timestamp: new Date(),
   });
 
-  let previousOutput = '';
-  if (options.continueFromPrevious && options.sessionId) {
-    try {
-      const previousExecution = await ctx.prisma.agentExecution.findFirst({
-        where: {
-          sessionId: options.sessionId,
-          id: { not: execution.id },
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { output: true },
-      });
-
-      if (previousExecution?.output) {
-        previousOutput = previousExecution.output;
-        logger.info(
-          `[TaskExecutor] Previous execution output loaded for continuation (${previousOutput.length} chars)`,
-        );
-      }
-    } catch (error) {
-      logger.error({ err: error }, '[TaskExecutor] Failed to load previous execution output');
-    }
-  }
-
-  const agentLabel = agentConfig.modelId
-    ? `${agentConfig.name} (${agentConfig.type}, model: ${agentConfig.modelId})`
-    : `${agentConfig.name} (${agentConfig.type})`;
-
-  const initialMessage =
-    options.continueFromPrevious && previousOutput
-      ? previousOutput + '\n[継続実行] 追加指示の実行を開始します...\n'
-      : `[実行開始] タスクの実行を開始します...\n[エージェント] ${agentLabel}\n`;
-
+  // Load previous output for continuation
+  const previousOutput = await loadPreviousOutput(ctx, execution.id, options);
+  const initialMessage = buildInitialMessage(
+    agentConfig,
+    previousOutput,
+    options.continueFromPrevious,
+  );
   state.output = initialMessage;
 
   await ctx.prisma.agentExecution.update({
     where: { id: execution.id },
-    data: {
-      status: 'running',
-      startedAt: new Date(),
-      output: initialMessage,
-    },
+    data: { status: 'running', startedAt: new Date(), output: initialMessage },
   });
 
   try {
-    let ragContext = '';
-    try {
-      ragContext = await buildTaskRAGContext({
-        title: task.title,
-        description: task.description,
-        themeId: task.themeId,
-      });
-    } catch (err) {
-      logger.debug({ err }, '[TaskExecutor] RAG context build failed, continuing without');
-    }
+    // Build task with context
+    const taskWithAnalysis = await buildTaskWithContext(task, options);
 
-    const taskWithAnalysis: AgentTask = {
-      ...task,
-      analysisInfo: options.analysisInfo,
-      ...(ragContext ? { description: `${task.description ?? ''}\n\n${ragContext}` } : {}),
-      // Forward investigation-mode flags from ExecutionOptions onto the task
-      // so codex (or any other agent) can pick them up at spawn time.
-      investigationMode: options.investigationMode ?? task.investigationMode,
-      investigationOutputType: options.investigationOutputType ?? task.investigationOutputType,
-      outputLastMessageFile: options.outputLastMessageFile ?? task.outputLastMessageFile,
-    };
-
-    if (options.analysisInfo) {
-      logger.info(`[TaskExecutor] AI task analysis enabled`);
-      logger.info(
-        `[TaskExecutor] Analysis summary: ${options.analysisInfo.summary?.substring(0, 100)}`,
-      );
-      logger.info(`[TaskExecutor] Subtasks count: ${options.analysisInfo.subtasks?.length || 0}`);
-    } else {
-      logger.info(`[TaskExecutor] AI task analysis not provided`);
-    }
-
+    // Execute agent
     let result = await agent.execute(taskWithAnalysis);
-
     logger.info(
       `[TaskExecutor] Execution result - success: ${result.success}, waitingForInput: ${result.waitingForInput}, questionType: ${result.questionType}, question: ${result.question?.substring(0, 100)}`,
     );
 
-    // If the agent failed — OR succeeded but its output contains a known
-    // provider-quota / rate-limit error — classify, place that provider
-    // into cooldown, and retry once with a different active AIAgentConfig.
-    //
-    // Why we also inspect successful output: some CLIs (notably Codex)
-    // print "ERROR: You've hit your usage limit..." but still exit with
-    // code 0, so result.success would be true. The user sees the error in
-    // the log panel without any automatic recovery. Treating that as a
-    // failure for fallback purposes plugs that gap.
-    const successOutput = typeof result.output === 'string' ? result.output : '';
-    const errorBlob = `${result.errorMessage ?? ''}\n${successOutput.slice(-4000)}`;
-    let needsFallback = !result.success;
-    if (!needsFallback && !options.disableFallback) {
-      const { classifyAgentError } = await import('../../ai/agent-error-classifier');
-      const { agentTypeToProvider } = await import('../../ai/agent-fallback');
-      const hint = agentTypeToProvider(agentConfig.type) ?? undefined;
-      // Strict mode: only specific named provider error patterns count when
-      // the agent reports success. Bare keywords like "credit" or
-      // "rate-limit" can appear in normal output (code review of rate
-      // limiting logic, summaries giving credit, etc.) and would otherwise
-      // false-positive a successful run as failed.
-      const classified = classifyAgentError(errorBlob, { hint, strict: true });
-      if (classified?.retryWithFallback) {
-        needsFallback = true;
-        logger.warn(
-          {
-            executionId: execution.id,
-            agentType: agentConfig.type,
-            classifiedAs: classified.reason,
-            providerImplicated: classified.provider,
-          },
-          '[TaskExecutor] Detected provider error in successful output — forcing fallback',
-        );
-      }
-    }
+    // Check for fallback need
+    const { needsFallback, errorBlob } = await checkNeedsFallback(
+      result,
+      agentConfig.type,
+      options.disableFallback,
+      execution.id,
+    );
 
+    // Execute fallback if needed
     let fallbackSucceeded = false;
     if (needsFallback && !options.disableFallback) {
-      const { findFallbackAgentConfig } = await import('../../ai/agent-fallback');
-      const fallback = await findFallbackAgentConfig(errorBlob, agentConfig.type);
-      if (fallback?.agentConfig) {
-        const fbType = (fallback.agentConfig as { agentType: string }).agentType;
-        const fbName = (fallback.agentConfig as { name: string }).name;
-        const fbId = (fallback.agentConfig as { id: number }).id;
-        logger.warn(
-          {
-            originalAgent: agentConfig.name,
-            originalType: agentConfig.type,
-            fallbackAgent: fbName,
-            fallbackType: fbType,
-            cooledProvider: fallback.classified.provider,
-            reason: fallback.classified.reason,
-          },
-          '[TaskExecutor] Provider failed — retrying with alternative agent config',
-        );
+      const fallbackResult = await executeWithFallbackAgent(
+        { ctx, execution, state, agentInfo, fileLogger, logManager, options, taskWithAnalysis },
+        errorBlob,
+        agentConfig,
+      );
 
-        // Synthesize a banner line that flows through the same pipeline as
-        // ordinary agent output so it appears in the live log panel, the
-        // DB-persisted output column, and the per-execution log file.
-        const banner = `\n[フォールバック] ${fallback.classified.reason} を検出。${fbName} (${fbType}) で再実行します...\n`;
-        state.output += banner;
-        fileLogger.logOutput(banner, false);
-        logManager.addChunk(banner, false);
-        ctx.emitEvent({
-          type: 'execution_output',
-          executionId: execution.id,
-          sessionId: options.sessionId,
-          taskId: options.taskId,
-          data: { output: banner, isError: false },
-          timestamp: new Date(),
-        });
-
-        // Build a new agentConfig from the fallback DB record and run the
-        // same task with `disableFallback` so we never recurse more than once.
-        const newAgentConfig = await ctx.buildAgentConfigFromDb(
-          fallback.agentConfig as never,
-          options,
-        );
-        const newAgent = agentFactory.createAgent(newAgentConfig);
-        try {
-          // Wire the same handlers onto the fallback agent so its output
-          // continues to flow into state.output / log file / DB log chunks /
-          // SSE feed. Without this the user would see no logs after the
-          // banner above — the new agent would run silently from the UI's
-          // perspective.
-          setupQuestionDetectedHandler(newAgent, {
-            prisma: ctx.prisma,
-            executionId: execution.id,
-            sessionId: options.sessionId,
-            taskId: options.taskId,
-            state,
-            fileLogger,
-            emitEvent: (event) => ctx.emitEvent(event),
-            startQuestionTimeout: (eid, tid, qk) => ctx.startQuestionTimeout(eid, tid, qk),
-            getQuestionTimeoutInfo: (eid) => ctx.getQuestionTimeoutInfo(eid),
-          });
-          setupOutputHandler(
-            newAgent,
-            {
-              prisma: ctx.prisma,
-              executionId: execution.id,
-              sessionId: options.sessionId,
-              taskId: options.taskId,
-              state,
-              agentInfo,
-              fileLogger,
-              onOutput: options.onOutput,
-              emitEvent: (event) => ctx.emitEvent(event),
-            },
-            logManager,
-          );
-
-          // Update the active agent reference + the executions row so the
-          // observation dashboard, agent-availability UI, and resumable
-          // executions panel all reflect the actual running agent.
-          agentInfo.agent = newAgent;
-          agentConfig = newAgentConfig;
-          resolvedAgentConfigId = fbId;
-          await ctx.prisma.agentExecution.update({
-            where: { id: execution.id },
-            data: { agentConfigId: fbId },
-          });
-          // Re-emit a started event so the UI updates the running agent label.
-          ctx.emitEvent({
-            type: 'execution_started',
-            executionId: execution.id,
-            sessionId: options.sessionId,
-            taskId: options.taskId,
-            data: {
-              agentType: newAgentConfig.type,
-              agentName: newAgentConfig.name,
-              modelId: newAgentConfig.modelId,
-              fallbackFrom: fallback.classified.provider,
-            },
-            timestamp: new Date(),
-          });
-
-          const retryResult = await newAgent.execute(taskWithAnalysis);
-
-          // Re-classify the retry's own output (strict): a second consecutive
-          // quota hit (e.g. Codex → Claude → also rate-limited) should still
-          // be surfaced as a failure rather than masquerading as success.
-          // Strict mode prevents false positives from innocent uses of
-          // "credit" / "rate limit" in successful output.
-          const retryBlob = `${retryResult.errorMessage ?? ''}\n${
-            typeof retryResult.output === 'string' ? retryResult.output.slice(-4000) : ''
-          }`;
-          const { classifyAgentError: reclassify } =
-            await import('../../ai/agent-error-classifier');
-          const retryHint =
-            (await import('../../ai/agent-fallback')).agentTypeToProvider(newAgentConfig.type) ??
-            undefined;
-          const retryHasError = !!reclassify(retryBlob, { hint: retryHint, strict: true })
-            ?.retryWithFallback;
-          const retryActuallySucceeded = retryResult.success && !retryHasError;
-
-          result = retryResult;
-          fallbackSucceeded = retryActuallySucceeded;
-        } finally {
-          await agentFactory.removeAgent(newAgent.id);
-        }
+      if (fallbackResult.newAgentConfig) {
+        result = fallbackResult.result;
+        fallbackSucceeded = fallbackResult.fallbackSucceeded;
+        agentConfig = fallbackResult.newAgentConfig;
+        resolvedAgentConfigId = fallbackResult.newConfigId;
       }
     }
+
+    // Mark as failed if fallback didn't succeed
     if (needsFallback && !fallbackSucceeded) {
       result = {
         ...result,
@@ -450,6 +651,7 @@ export async function executeTask(
       };
     }
 
+    // Save result
     await saveExecutionResult(
       ctx.prisma,
       execution.id,
@@ -464,56 +666,8 @@ export async function executeTask(
       ctx.emitEvent(event),
     );
 
-    // Memory system: timeline event + distillation.
-    // RESEARCH MODE: skip the success timeline event here. Codex exiting 0
-    // does NOT mean the research phase is done — research.md still has to
-    // be sliced from stdout, validated, and saved by the post-handler. The
-    // post-handler emits `agent_execution_completed` itself once the file
-    // is persisted and the workflow has been advanced to the next phase.
-    // Failure paths still fire here so visible errors aren't suppressed.
-    if (result.success && options.investigationMode) {
-      logger.info(
-        { executionId: execution.id, taskId: options.taskId },
-        '[TaskExecutor] Investigation mode: deferring agent_execution_completed timeline event to post-handler (after research.md save + workflow advance)',
-      );
-    } else {
-      const eventType = result.success ? 'agent_execution_completed' : 'agent_execution_failed';
-      appendEvent({
-        eventType,
-        actorType: 'agent',
-        actorId: agentConfig.type,
-        payload: { executionId: execution.id, taskId: options.taskId, success: result.success },
-        correlationId: `execution_${execution.id}`,
-      }).catch((err) => logger.debug({ err }, '[TaskExecutor] Timeline event failed'));
-    }
-
-    if (result.success) {
-      memoryTaskQueue.enqueue('distill', { executionId: execution.id }, 1).catch((err) => {
-        logger.debug({ err }, '[TaskExecutor] Distillation enqueue failed');
-      });
-
-      // NOTE: Auto-complete task when agent execution succeeds — connects AgentExecution → Task.status.
-      const shouldAutoCompleteTask = options.autoCompleteTask !== false;
-      if (shouldAutoCompleteTask && options.taskId && !result.waitingForInput) {
-        ctx.prisma.task
-          .update({
-            where: { id: options.taskId },
-            data: { status: 'done', completedAt: new Date() },
-          })
-          .then(() => {
-            logger.info(
-              { taskId: options.taskId, executionId: execution.id },
-              '[TaskExecutor] Task auto-completed on successful agent execution',
-            );
-          })
-          .catch((err) => {
-            logger.warn(
-              { err, taskId: options.taskId },
-              '[TaskExecutor] Failed to auto-complete task',
-            );
-          });
-      }
-    }
+    // Handle success (memory, auto-complete)
+    handleExecutionSuccess(ctx, execution, result, agentConfig.type, options);
 
     return result;
   } catch (error) {
