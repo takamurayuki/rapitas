@@ -65,7 +65,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "@vitest/coverage-v8": "4.0.18",
     "baseline-browser-mapping": "^2.10.25",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.0.1",
     "jsdom": "^28.1.0",
