@@ -621,6 +621,114 @@ const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
 
 /**
+ * 残留 bun プロセスを安全に kill する。
+ *
+ * 必要性: dev サーバの異常終了や Tauri restart で bun.exe が orphan として残ると、
+ * `node_modules/.prisma/client/query_engine-windows.dll.node` を握ったままになり、
+ * 次回の `prisma generate` が EPERM (rename failed) で落ちる。
+ *
+ * 安全策:
+ *   - 全 bun を無差別に kill しない。**rapitas-* ディレクトリ配下のものだけ** に絞る。
+ *   - Windows: wmic で CommandLine + ExecutablePath を取得し "rapitas" を含むものだけ kill。
+ *   - macOS/Linux: ps -eo pid,args | grep -i rapitas で同等処理。
+ *   - kill 後に 500ms 待機して OS のファイルハンドル解放を確実にする。
+ *
+ * @returns 強制終了したプロセス数
+ */
+function killStrayBunProcesses() {
+  console.log("\nKilling stray bun processes (rapitas-scoped)...");
+  const killed =
+    process.platform === "win32" ? killStrayBunWindows() : killStrayBunPosix();
+  if (killed > 0) {
+    // OS がファイルロックを解放するまで少し待つ。これがないと直後の
+    // prisma generate で EPERM が発生する。
+    const waitMs = 700;
+    console.log(`  Waiting ${waitMs}ms for OS to release file handles...`);
+    const until = Date.now() + waitMs;
+    // 同期 sleep（スクリプトの直列性を維持）
+    while (Date.now() < until) {
+      // busy wait: 短時間なので問題なし
+    }
+  }
+  return killed;
+}
+
+function killStrayBunWindows() {
+  try {
+    // wmic は CSV で 1 プロセス 1 行（先頭/末尾に空行混入することがある）
+    const csv = execSync(
+      'wmic process where "name=\'bun.exe\'" get ProcessId,CommandLine,ExecutablePath /format:csv',
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+    const lines = csv
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith("Node,"));
+    let killed = 0;
+    for (const line of lines) {
+      // CSV 形式: Node,CommandLine,ExecutablePath,ProcessId
+      const cols = line.split(",");
+      if (cols.length < 4) continue;
+      const pid = cols[cols.length - 1];
+      if (!/^\d+$/.test(pid)) continue;
+      const inspectable = cols.slice(1, -1).join(",");
+      // rapitas-backend / rapitas-desktop / rapitas-frontend いずれかを含むもののみ対象
+      if (!/rapitas[-_/\\]/i.test(inspectable)) continue;
+      try {
+        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+        console.log(`  Killed bun PID ${pid} (rapitas-related)`);
+        killed++;
+      } catch (err) {
+        // 既に死んでいるケース等は無視
+        const msg = err.stderr ? err.stderr.toString() : err.message || "";
+        if (!/not found|見つかりません/i.test(msg)) {
+          console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
+        }
+      }
+    }
+    if (killed === 0) console.log("  No stray bun processes found.");
+    return killed;
+  } catch (err) {
+    console.warn(`  Could not enumerate bun processes: ${err.message}`);
+    return 0;
+  }
+}
+
+function killStrayBunPosix() {
+  let stdout = "";
+  try {
+    stdout = execSync("ps -eo pid,args", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch (err) {
+    console.warn(`  Could not list processes: ${err.message}`);
+    return 0;
+  }
+  const targets = stdout
+    .split("\n")
+    .filter((l) => /\bbun\b/.test(l) && /rapitas[-_/\\]/i.test(l));
+  let killed = 0;
+  for (const line of targets) {
+    const m = line.trim().match(/^(\d+)\s+/);
+    if (!m) continue;
+    const pid = parseInt(m[1], 10);
+    try {
+      process.kill(pid, "SIGKILL");
+      console.log(`  Killed bun PID ${pid} (rapitas-related)`);
+      killed++;
+    } catch (err) {
+      // ESRCH = already dead
+      if (err.code !== "ESRCH") {
+        console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
+      }
+    }
+  }
+  if (killed === 0) console.log("  No stray bun processes found.");
+  return killed;
+}
+
+/**
  * .agent-pids/ ディレクトリを走査し、前回クラッシュ時の残存エージェントプロセスをkillする。
  * ポート3001をLISTENしているプロセスは保護（CLAUDE.md制約遵守）。
  */
@@ -1264,12 +1372,34 @@ async function main() {
   console.log("\nCleaning up agent zombie processes...");
   cleanupAgentPidFiles();
 
+  // 残留 bun プロセスの安全 kill (Prisma DLL ロック対策)
+  // ※ ポート kill 後に行うと LISTEN してない bun (テスト・スクリプト orphan) を取り逃すため、
+  //   ポート確保より先に実行する。
+  killStrayBunProcesses();
+
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
   actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
 
-  syncDatabaseAndGenerateClient();
+  // syncDatabaseAndGenerateClient が EPERM で失敗した場合、bun が再び DLL を握っている
+  // 可能性があるので 1 度だけリトライする。
+  try {
+    syncDatabaseAndGenerateClient();
+  } catch (err) {
+    const msg = String(err && err.message ? err.message : err);
+    if (/EPERM|operation not permitted/i.test(msg)) {
+      console.warn(
+        "\n⚠️  Prisma generate hit EPERM (DLL locked). Retrying after extra bun kill...",
+      );
+      killStrayBunProcesses();
+      // ポートを再確保（リトライ前に何かが立ち上がった可能性）
+      actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
+      syncDatabaseAndGenerateClient();
+    } else {
+      throw err;
+    }
+  }
   startBackend();
 
   // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）
