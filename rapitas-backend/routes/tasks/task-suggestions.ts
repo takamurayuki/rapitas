@@ -44,15 +44,25 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
         AND: andConditions,
       };
 
-      // Multi-word search (title + optional description)
+      // Multi-word search (title + optional description).
+      // NOTE: `mode: 'insensitive'` is Postgres-only — SQLite Prisma client
+      // omits the field from StringFilter. We attach it conditionally so the
+      // shared codebase compiles against either generated client. SQLite
+      // defaults to case-sensitive contains; for case-insensitive desktop
+      // search we should add a separate lowercased column (TODO).
+      const isPostgres = (process.env.RAPITAS_DB_PROVIDER ?? 'postgresql') !== 'sqlite';
+      const insensitive = isPostgres ? ({ mode: 'insensitive' } as const) : {};
       const searchConditions = words.map((word) => {
         const conditions: Prisma.TaskWhereInput[] = [
-          { title: { contains: word, mode: 'insensitive' } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { title: { contains: word, ...insensitive } as any },
         ];
 
-        // Include description in search when searchDescription is true
         if (searchDescription === 'true') {
-          conditions.push({ description: { contains: word, mode: 'insensitive' } });
+          conditions.push({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            description: { contains: word, ...insensitive } as any,
+          });
         }
 
         return { OR: conditions };
