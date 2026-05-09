@@ -1,0 +1,56 @@
+name: Prompt Evolution (weekly)
+
+# 週次で実行し、ロール別成功率が閾値を割ったプロンプトに進化候補レコードを残す。
+# 実行ログは GitHub Actions の Run Summary で確認できる。
+on:
+  schedule:
+    # JST 月曜 04:00 (UTC 19:00 日曜)
+    - cron: '0 19 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'dry run (do not write PromptEvolution rows)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  run-evolution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      RAPITAS_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend deps
+        working-directory: rapitas-backend
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        working-directory: rapitas-backend
+        run: bunx prisma generate
+
+      - name: Run prompt evolution
+        working-directory: rapitas-backend
+        run: bun run services/self-learning/prompt-evolution-runner.ts
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompt-evolution-log-${{ github.run_id }}
+          path: rapitas-backend/.logs/
+          if-no-files-found: ignore
+          retention-days: 30
