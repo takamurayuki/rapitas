@@ -240,14 +240,26 @@ export default function IdeasClient() {
     setShowQuickAdd(false);
   }, [resetForm]);
 
-  const handleDelete = useCallback(async (id: number) => {
-    try {
-      await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
-      setIdeas((prev) => prev.filter((i) => i.id !== id));
-    } catch {
-      /* non-critical */
-    }
-  }, []);
+  const handleDelete = useCallback(
+    async (id: number) => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
+        if (!res.ok) return;
+        // 楽観的に即削除して反応を即時化
+        setIdeas((prev) => prev.filter((i) => i.id !== id));
+        // 削除後ページが空になる場合は1ページ戻す（戻した先で fetchIdeas が走る）
+        // それ以外は同じページで再取得し、次ページから1件繰り上げて itemsPerPage 件を保つ
+        if (ideas.length - 1 === 0 && currentPage > 1) {
+          setCurrentPage((p) => p - 1);
+        } else {
+          await fetchIdeas();
+        }
+      } catch {
+        /* non-critical */
+      }
+    },
+    [ideas.length, currentPage, fetchIdeas],
+  );
 
   const executeAiConvert = useCallback(
     async (idea: Idea, themeId: number) => {

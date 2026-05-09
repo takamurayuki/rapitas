@@ -21,8 +21,20 @@ export type WorkflowStatus =
   | 'plan_created'
   | 'plan_approved'
   | 'in_progress'
+  // NOTE: question.md が保存されてユーザー回答待ちの過渡状態。
+  // 直前の status を記憶して、回答後に元 status に戻すことで再実行を継続させる。
+  | 'awaiting_question'
   | 'verify_done'
   | 'completed';
+
+/**
+ * `awaiting_question` の前段にあった status を保持する型。
+ * 質問が解消された際にこの値へ戻す。
+ */
+export type ResumableWorkflowStatus = Exclude<
+  WorkflowStatus,
+  'awaiting_question' | 'completed' | 'verify_done'
+>;
 
 export type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 

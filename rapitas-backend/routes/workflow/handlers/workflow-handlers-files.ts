@@ -125,6 +125,8 @@ export async function handleSaveFile({
       plan_created: new Set(['plan', 'question']),
       plan_approved: new Set(['question']),
       in_progress: new Set(['verify', 'question']),
+      // 質問待ち中も同じファイルが書ける（質問解消は別 API か question.md 削除で行う）
+      awaiting_question: new Set(['research', 'plan', 'verify', 'question']),
       verify_done: new Set([]),
       completed: new Set([]),
     };
@@ -186,6 +188,19 @@ export async function handleSaveFile({
       newStatus = 'research_done';
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
       newStatus = 'plan_created';
+    } else if (
+      fileType === 'question' &&
+      currentStatus &&
+      currentStatus !== 'awaiting_question' &&
+      currentStatus !== 'completed' &&
+      currentStatus !== 'verify_done'
+    ) {
+      // 質問.md が保存されたらユーザー回答待ち状態に遷移する。
+      // 復帰先 status は transition log の metadata.previousStatus に保存しておき、
+      // 回答後に呼ばれる resume API（routes/workflow/handlers/workflow-handlers-resume.ts）が
+      // この値を読み出して元状態に戻す。
+      log.info(`[Workflow] Question saved: transitioning ${currentStatus} → awaiting_question`);
+      newStatus = 'awaiting_question';
     } else if (fileType === 'verify') {
       // Run the verify validator (catches "claims all-pass but body says
       // failed" hallucinations + explicit ❌ markers). When validation
@@ -240,6 +255,13 @@ export async function handleSaveFile({
       // violations but DO NOT throw — the file was already saved on disk
       // and rolling back would create a worse "ghost" state.
       const violations = await checkWorkflowInvariants(taskId);
+      // awaiting_question への遷移時のみ、復帰先 status を metadata に保存する
+      const transitionMetadata: Record<string, unknown> = {
+        sizeBytes: savedContent.length,
+      };
+      if (newStatus === 'awaiting_question' && currentStatus) {
+        transitionMetadata.previousStatus = currentStatus;
+      }
       await recordTransition({
         taskId,
         fromStatus: currentStatus ?? null,
@@ -247,7 +269,7 @@ export async function handleSaveFile({
         actor: 'system',
         cause: `file_saved:${fileType}`,
         phase: fileType,
-        metadata: { sizeBytes: savedContent.length },
+        metadata: transitionMetadata,
         invariantViolation: violations.length > 0,
         invariantMessage:
           violations.length > 0
