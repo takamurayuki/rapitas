@@ -4,6 +4,9 @@
   "description": "階層型タスク管理システム",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup.cjs",
+    "setup:desktop": "node scripts/setup.cjs --desktop",
+    "setup:skip-db": "node scripts/setup.cjs --skip-db",
     "predev": "node scripts/preflight-check.cjs",
     "dev": "concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",
     "dev:skip-check": "concurrently --kill-others-on-fail \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan,magenta\"",

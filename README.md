@@ -46,6 +46,66 @@ rapitas/
 └── [開発スクリプト]
 ```
 
+## ⚙️ 初回セットアップ
+
+プロジェクトをクローンした後、以下のコマンドで自動セットアップを実行してください：
+
+### Desktop 版（SQLite）の場合（推奨）
+
+```bash
+# Desktop/SQLite モード用の自動セットアップ
+npm run setup:desktop
+```
+
+このコマンドは以下を自動的に実行します：
+- 🗄️ DATABASE_URL を `file:./dev.db` に設定（SQLite モード）
+- 🔐 ENCRYPTION_KEY と ADMIN_SECRET を自動生成
+- 📦 すべての依存関係をインストール
+- ⚙️ SQLite 初期化スクリプトを準備
+
+### Web 版（PostgreSQL）の場合
+
+```bash
+# 通常セットアップ（対話形式で設定）
+npm run setup
+```
+
+このスクリプトは以下を自動的に実行します：
+
+1. ✅ **前提条件チェック**: Node.js、Bun、pnpm、PostgreSQL のインストール確認
+2. 📦 **依存関係インストール**: すべてのサブプロジェクトの依存パッケージをインストール（pnpm ビルドスクリプト問題を自動解決）
+3. 🔧 **.env ファイル作成**: `.env.example` から `.env` を作成し、設定をガイド
+4. 🗄️ **データベース初期化**: Prisma のセットアップ（generate + db push）
+
+### オプション
+
+```bash
+# データベース初期化をスキップ（後で手動設定する場合）
+npm run setup:skip-db
+```
+
+### 手動セットアップ（上級者向け）
+
+自動セットアップを使用しない場合は、以下の手順を実行してください：
+
+1. **依存関係のインストール**
+   ```bash
+   npm run install:all
+   ```
+
+2. **.env ファイルの作成**
+   ```bash
+   cp rapitas-backend/.env.example rapitas-backend/.env
+   # .env を編集して DATABASE_URL などを設定
+   ```
+
+3. **データベースのセットアップ**
+   ```bash
+   cd rapitas-backend
+   npx prisma generate
+   npx prisma db push
+   ```
+
 ## 🚀 クイックスタート
 
 ### 方法 1: 統合開発環境（推奨）
@@ -120,6 +180,19 @@ npm run tauri
 - **Prisma Studio** (DB管理): http://localhost:5555
 
 ## 🛠️ 利用可能なコマンド
+
+### ⚙️ 初期セットアップコマンド
+
+```bash
+# 自動セットアップ（推奨）
+npm run setup
+
+# データベース初期化をスキップ
+npm run setup:skip-db
+
+# 依存関係を一括インストールのみ
+npm run install:all
+```
 
 ### 🚀 開発環境コマンド
 
