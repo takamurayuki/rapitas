@@ -18,8 +18,17 @@ import type { Task } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
+import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type ExecutionSectionProps = {
+  /**
+   * Capability state. When not `ready`, the body renders an inline setup
+   * guide instead of the execution UI, and the header "実行" button is
+   * disabled. Defaults to `ready` for backward compatibility.
+   */
+  capability?: ExecutionCapability;
+  /** Theme ID for deep-linking the capability guide. */
+  themeId?: number | null;
   isExpanded: boolean;
   onToggle: () => void;
   // Status flags
@@ -83,6 +92,8 @@ export type ExecutionSectionProps = {
  * @param props - All derived state and event handlers from the parent component.
  */
 export function ExecutionSection({
+  capability = 'ready',
+  themeId,
   isExpanded,
   onToggle,
   isRunning,
@@ -284,10 +295,15 @@ export function ExecutionSection({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onExecute();
+                if (capability === 'ready') onExecute();
               }}
-              disabled={isExecuting}
-              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+              disabled={isExecuting || capability !== 'ready'}
+              title={
+                capability !== 'ready'
+                  ? 'タスクの設定が完了するとエージェントを実行できます'
+                  : '実行開始'
+              }
+              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="実行開始"
             >
               <Play className="w-2.5 h-2.5" />
@@ -302,7 +318,13 @@ export function ExecutionSection({
         </div>
       </div>
 
-      {isExpanded && (
+      {isExpanded && capability !== 'ready' && (
+        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+          <ExecutionCapabilityGuide capability={capability} themeId={themeId} />
+        </div>
+      )}
+
+      {isExpanded && capability === 'ready' && (
         <div id="execution-section-content" className="px-4 pb-3 space-y-3">
           <ExecutionBody
             isRunning={isRunning}

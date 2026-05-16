@@ -66,6 +66,7 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     resources,
     setResources,
     globalSettings,
+    cliAvailability,
     showAIAssistant,
     setShowAIAssistant,
     refreshTask,
@@ -231,19 +232,17 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     return <TaskDetailErrorState error={error} onBackToHome={() => router.push('/')} />;
   }
 
-  const showAIPanel =
-    task.theme?.isDevelopment === true &&
-    (showAIAssistant ||
-      devModeConfig?.isEnabled === true ||
-      isExecuting ||
-      isParallelExecutionRunning ||
-      executionResult !== null ||
-      analysisResult !== null ||
-      isTaskExecutingInStore ||
-      isRestoringState);
+  // NOTE: The AI agent execution accordion is always rendered for every task.
+  // Inside, TaskAISection shows a capability-aware body that tells the user
+  // what to set up (theme / workingDirectory / API key) when the task can't
+  // actually execute. The old gate hid the UI behind isDevelopment + activity
+  // flags, which made the feature invisible on fresh tasks.
+  const showAIPanel = true;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   const aiSectionProps = {
+    globalSettings,
+    cliAvailability,
     devModeConfig,
     isAnalyzing,
     analysisResult,

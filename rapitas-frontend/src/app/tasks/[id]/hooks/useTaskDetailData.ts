@@ -13,6 +13,7 @@ import { preloadTaskDetails } from '@/lib/task-api';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { createLogger } from '@/lib/logger';
 import { useTranslations } from 'next-intl';
+import type { CliAvailability } from '@/feature/developer-mode/components/ai-accordion-panel/ExecutionCapabilityGuide';
 
 const logger = createLogger('useTaskDetailData');
 
@@ -36,6 +37,12 @@ export interface UseTaskDetailDataResult {
   resources: Resource[];
   setResources: React.Dispatch<React.SetStateAction<Resource[]>>;
   globalSettings: UserSettings | null;
+  /**
+   * CLI availability snapshot from `/agent-availability?cliOnly=1`. Used by
+   * the agent execution capability guide. Null when the probe hasn't returned
+   * yet or failed — callers should treat null as "unknown" (optimistic).
+   */
+  cliAvailability: CliAvailability | null;
   showAIAssistant: boolean;
   setShowAIAssistant: React.Dispatch<React.SetStateAction<boolean>>;
   refreshTask: () => Promise<void>;
@@ -61,6 +68,7 @@ export function useTaskDetailData({
   const [comments, setComments] = useState<Comment[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [globalSettings, setGlobalSettings] = useState<UserSettings | null>(null);
+  const [cliAvailability, setCliAvailability] = useState<CliAvailability | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   const skeletonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -168,6 +176,22 @@ export function useTaskDetailData({
       }
     };
 
+    // NOTE: Probe whether claude / codex / gemini CLIs are reachable.
+    // The backend caches this for 5 minutes so polling per-task is cheap.
+    // A failure leaves cliAvailability=null which the capability guide
+    // treats as "unknown / optimistic ready" — execution itself will surface
+    // a clear error if no CLI is actually installed.
+    const fetchCliAvailability = async () => {
+      try {
+        const data = await apiFetch<CliAvailability>('/agent-availability?cliOnly=1', {
+          cacheTime: 60 * 1000,
+        });
+        setCliAvailability(data);
+      } catch (err) {
+        logger.error('Failed to fetch CLI availability:', err);
+      }
+    };
+
     if (resolvedTaskId) {
       Promise.all([
         fetchTask(isInitialLoad),
@@ -175,6 +199,7 @@ export function useTaskDetailData({
         fetchComments(),
         fetchResources(),
         fetchGlobalSettings(),
+        fetchCliAvailability(),
       ]);
     }
 
@@ -216,6 +241,7 @@ export function useTaskDetailData({
     resources,
     setResources,
     globalSettings,
+    cliAvailability,
     showAIAssistant,
     setShowAIAssistant,
     refreshTask,

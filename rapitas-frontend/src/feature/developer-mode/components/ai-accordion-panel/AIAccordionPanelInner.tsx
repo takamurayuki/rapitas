@@ -33,6 +33,8 @@ export function AIAccordionPanelInner({
   onPromptGenerated,
   onSubtasksCreated,
   showAgentPanel,
+  executionCapability = 'ready',
+  themeId,
   isExecuting,
   executionStatus,
   executionResult,
@@ -182,6 +184,8 @@ export function AIAccordionPanelInner({
     >
       {showAgentPanel && (
         <ExecutionSection
+          capability={executionCapability}
+          themeId={themeId}
           isExpanded={expandedSection === 'execution'}
           onToggle={() => toggleSection('execution')}
           isRunning={exec.isRunning}

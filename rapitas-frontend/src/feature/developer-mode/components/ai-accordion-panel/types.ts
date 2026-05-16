@@ -14,6 +14,7 @@ import type {
 } from '@/types';
 import type { ExecutionStatus, ExecutionResult } from '../../hooks/useDeveloperMode';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type PromptClarificationQuestion = {
   id: string;
@@ -62,6 +63,14 @@ export type AIAccordionPanelProps = {
   onSubtasksCreated?: () => void;
   // AgentExecutionPanel props
   showAgentPanel: boolean;
+  /**
+   * Capability state for the agent execution accordion. When not `ready`,
+   * the body renders an ExecutionCapabilityGuide instead of ExecutionBody,
+   * and the header "実行" button is disabled.
+   */
+  executionCapability?: ExecutionCapability;
+  /** Theme ID for deep-linking the capability guide to the theme edit screen. */
+  themeId?: number | null;
   isExecuting: boolean;
   executionStatus: ExecutionStatus;
   executionResult: ExecutionResult | null;

@@ -57,11 +57,24 @@ export const categoriesRoutes = new Elysia({ prefix: '/categories' })
           });
           await prisma.category.delete({ where: { id: dup.id } });
         }
-        // Ensure mode is set for existing default categories
-        if (keep.mode !== def.mode) {
+        // Backfill missing/legacy fields on existing default categories so that
+        // categories created before icon/description/etc. were seeded still
+        // surface the proper defaults. User-customized values are preserved:
+        // only null/empty fields and the Prisma color default are overwritten.
+        const updateData: Record<string, unknown> = {};
+        if (!keep.icon) updateData.icon = def.icon;
+        if (!keep.description) updateData.description = def.description;
+        // NOTE: '#6366F1' is the Prisma schema default — treat it as "unset"
+        // so that legacy rows pick up the brand color from DEFAULT_CATEGORIES.
+        if (!keep.color || keep.color === '#6366F1') updateData.color = def.color;
+        if (keep.sortOrder === 0 && def.sortOrder !== 0) updateData.sortOrder = def.sortOrder;
+        if (!keep.isDefault) updateData.isDefault = true;
+        if (keep.mode !== def.mode) updateData.mode = def.mode;
+
+        if (Object.keys(updateData).length > 0) {
           const updated = await prisma.category.update({
             where: { id: keep.id },
-            data: { mode: def.mode },
+            data: updateData,
             include: { _count: { select: { themes: true } } },
           });
           results.push(updated);

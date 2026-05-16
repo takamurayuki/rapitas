@@ -1,11 +1,43 @@
 'use client';
 // TaskAISection
 import { useEffect, useRef } from 'react';
-import type { Task, Resource, DeveloperModeConfig } from '@/types';
+import type { Task, Resource, DeveloperModeConfig, UserSettings } from '@/types';
 import { AIAccordionPanel } from '@/feature/developer-mode/components/AIAccordionPanel';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
 import { createLogger } from '@/lib/logger';
+import type {
+  ExecutionCapability,
+  CliAvailability,
+} from '@/feature/developer-mode/components/ai-accordion-panel/ExecutionCapabilityGuide';
+
+/** Provider ids that map to user-runnable CLIs (claude-code, codex, gemini). */
+const RUNNABLE_CLI_PROVIDERS = new Set(['claude', 'openai', 'gemini']);
+
+/**
+ * Computes whether the task can actually run an agent right now.
+ *
+ * Capability priority: theme > working directory > usable CLI. When the CLI
+ * probe hasn't returned (cliAvailability=null) we stay optimistic and
+ * surface `ready` — execution itself will throw a clear error if no CLI is
+ * actually installed.
+ *
+ * @param task - The task being viewed.
+ * @param cli - Probe result from `/agent-availability?cliOnly=1`.
+ * @returns The capability state consumed by ExecutionCapabilityGuide.
+ */
+function deriveExecutionCapability(
+  task: Task,
+  cli: CliAvailability | null,
+): ExecutionCapability {
+  if (!task.themeId || !task.theme) return 'no-theme';
+  if (!task.theme.workingDirectory) return 'no-working-directory';
+  if (cli === null) return 'ready';
+  const hasUsableCli = cli.providers.some(
+    (p) => RUNNABLE_CLI_PROVIDERS.has(p.provider) && p.available,
+  );
+  return hasUsableCli ? 'ready' : 'no-cli-available';
+}
 
 const logger = createLogger('TaskAISection');
 const API_BASE = API_BASE_URL;
@@ -19,6 +51,10 @@ export interface TaskAISectionProps {
   task: Task;
   taskId: number;
   resolvedTaskId: string;
+  /** Reserved for future settings-driven flags. */
+  globalSettings: UserSettings | null;
+  /** Snapshot of claude / codex / gemini CLI availability. */
+  cliAvailability: CliAvailability | null;
   devModeConfig: DeveloperModeConfig | null;
   isAnalyzing: boolean;
   analysisResult: unknown;
@@ -69,6 +105,8 @@ export default function TaskAISection({
   task,
   taskId,
   resolvedTaskId,
+  globalSettings: _globalSettings,
+  cliAvailability,
   devModeConfig,
   isAnalyzing,
   analysisResult,
@@ -272,7 +310,9 @@ export default function TaskAISection({
       isApproving={isApproving}
       onPromptGenerated={onPromptGenerated}
       onSubtasksCreated={handleSubtasksCreated}
-      showAgentPanel={devModeConfig?.isEnabled === true || isExecuting || !!executionResult}
+      showAgentPanel={true}
+      executionCapability={deriveExecutionCapability(task, cliAvailability)}
+      themeId={task.themeId}
       isExecuting={isExecuting}
       executionStatus={executionStatus as Parameters<typeof AIAccordionPanel>[0]['executionStatus']}
       executionResult={executionResult as Parameters<typeof AIAccordionPanel>[0]['executionResult']}

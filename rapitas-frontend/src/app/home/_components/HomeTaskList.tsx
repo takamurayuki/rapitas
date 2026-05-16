@@ -122,31 +122,26 @@ export function HomeTaskList({
   return (
     <>
       {/* NOTE: grid-cols-1 (= minmax(0, 1fr)) を明示しないとカラムが content-sized になり、
-          長いタイトルがコンテナ幅を押し広げて truncate が効かなくなる。min-w-0 と併せて指定する。 */}
-      <div className="grid grid-cols-1 gap-3 min-w-0">
-        {paginatedTasks.map((task, index) => (
-          <div
+          長いタイトルがコンテナ幅を押し広げて truncate が効かなくなる。min-w-0 と併せて指定する。
+          NOTE: 以前は各カードに slide-in-bottom + animationDelay (index * 0.02s) を付けていたが、
+          フィルタ/ソート/ステータス変更のたびにカードが再マウントされてカスケードが再生され、
+          ちらつきとして体感されていた。コンテナレベルの単発 fade-in に置き換え。 */}
+      <div className="grid grid-cols-1 gap-3 min-w-0 animate-in fade-in-0 duration-150">
+        {paginatedTasks.map((task) => (
+          <TaskCard
             key={task.id}
-            className="slide-in-bottom min-w-0"
-            style={{
-              animationDelay: `${index * 0.02}s`,
-              animationFillMode: 'both',
+            task={task}
+            isSelected={selectedTasks.has(task.id)}
+            isSelectionMode={isSelectionMode}
+            onTaskClick={onTaskClick}
+            onStatusChange={(taskId: number, status: Status, cardElement?: HTMLElement) => {
+              onStatusChange(taskId, status, cardElement);
             }}
-          >
-            <TaskCard
-              task={task}
-              isSelected={selectedTasks.has(task.id)}
-              isSelectionMode={isSelectionMode}
-              onTaskClick={onTaskClick}
-              onStatusChange={(taskId: number, status: Status, cardElement?: HTMLElement) => {
-                onStatusChange(taskId, status, cardElement);
-              }}
-              onToggleSelect={onToggleSelect}
-              onTaskUpdated={onTaskUpdated}
-              onOpenInPage={onOpenInPage}
-              sweepingTaskId={sweepingTaskId}
-            />
-          </div>
+            onToggleSelect={onToggleSelect}
+            onTaskUpdated={onTaskUpdated}
+            onOpenInPage={onOpenInPage}
+            sweepingTaskId={sweepingTaskId}
+          />
         ))}
       </div>
 

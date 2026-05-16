@@ -160,6 +160,10 @@ export default function TaskDetailViewBody({
           taskDescription={task.description}
           onTaskUpdated={onTaskUpdated}
         >
+          {/* NOTE: Always render the agent execution accordion. The component
+              itself shows a capability-aware body when the task lacks a theme,
+              workingDirectory, or API key. The legacy showAIPanel gate is
+              kept as a kill-switch but defaults to true. */}
           {showAIPanel && (
             <ErrorBoundary section="エージェント実行">
               <TaskAISection

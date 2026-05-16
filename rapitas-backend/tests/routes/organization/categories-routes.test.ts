@@ -298,3 +298,224 @@ describe('DELETE /categories/:id', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('POST /categories/seed-defaults', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('既存カテゴリが無いときデフォルトを新規作成すること', async () => {
+    mockPrisma.category.findMany.mockResolvedValue([]);
+    mockPrisma.category.create.mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+      Promise.resolve({ id: 99, ...data, _count: { themes: 0 } }),
+    );
+
+    const res = await app.handle(
+      new Request('http://localhost/categories/seed-defaults', { method: 'POST' }),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.length).toBe(2);
+    expect(mockPrisma.category.create).toHaveBeenCalledTimes(2);
+    const firstCall = mockPrisma.category.create.mock.calls[0][0];
+    expect(firstCall.data.name).toBe('開発');
+    expect(firstCall.data.icon).toBe('Code');
+    expect(firstCall.data.isDefault).toBe(true);
+  });
+
+  test('既存カテゴリの icon/description が null のとき DEFAULT 値で補完すること', async () => {
+    mockPrisma.category.findMany.mockImplementation(({ where }: { where: { name: string } }) => {
+      if (where.name === '開発') {
+        return Promise.resolve([
+          {
+            id: 10,
+            name: '開発',
+            icon: null,
+            description: null,
+            color: '#6366F1',
+            mode: 'development',
+            sortOrder: 0,
+            isDefault: false,
+            _count: { themes: 0 },
+          },
+        ]);
+      }
+      return Promise.resolve([
+        {
+          id: 11,
+          name: '学習',
+          icon: 'BookOpen',
+          description: '学習に関するテーマ',
+          color: '#10B981',
+          mode: 'learning',
+          sortOrder: 1,
+          isDefault: true,
+          _count: { themes: 0 },
+        },
+      ]);
+    });
+    mockPrisma.category.update.mockImplementation(
+      ({ where, data }: { where: { id: number }; data: Record<string, unknown> }) =>
+        Promise.resolve({ id: where.id, ...data, _count: { themes: 0 } }),
+    );
+
+    const res = await app.handle(
+      new Request('http://localhost/categories/seed-defaults', { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    // Only the 開発 row needs to be patched; 学習 is fully populated.
+    expect(mockPrisma.category.update).toHaveBeenCalledTimes(1);
+    const updateCall = mockPrisma.category.update.mock.calls[0][0];
+    expect(updateCall.where).toEqual({ id: 10 });
+    expect(updateCall.data.icon).toBe('Code');
+    expect(updateCall.data.description).toBe('開発プロジェクトに関するテーマ');
+    expect(updateCall.data.color).toBe('#3B82F6');
+    expect(updateCall.data.isDefault).toBe(true);
+  });
+
+  test('ユーザーがカスタマイズした icon/color は上書きしないこと', async () => {
+    mockPrisma.category.findMany.mockImplementation(({ where }: { where: { name: string } }) => {
+      const base =
+        where.name === '開発'
+          ? {
+              id: 20,
+              name: '開発',
+              icon: 'Star',
+              description: 'カスタム説明',
+              color: '#ABCDEF',
+              mode: 'development',
+              sortOrder: 0,
+              isDefault: true,
+              _count: { themes: 0 },
+            }
+          : {
+              id: 21,
+              name: '学習',
+              icon: 'Heart',
+              description: 'カスタム学習',
+              color: '#FEDCBA',
+              mode: 'learning',
+              sortOrder: 1,
+              isDefault: true,
+              _count: { themes: 0 },
+            };
+      return Promise.resolve([base]);
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/categories/seed-defaults', { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.category.update).not.toHaveBeenCalled();
+  });
+
+  test('mode のみ差分がある場合は mode だけ更新すること', async () => {
+    mockPrisma.category.findMany.mockImplementation(({ where }: { where: { name: string } }) => {
+      if (where.name === '開発') {
+        return Promise.resolve([
+          {
+            id: 30,
+            name: '開発',
+            icon: 'Code',
+            description: '開発プロジェクトに関するテーマ',
+            color: '#3B82F6',
+            mode: 'both',
+            sortOrder: 0,
+            isDefault: true,
+            _count: { themes: 0 },
+          },
+        ]);
+      }
+      return Promise.resolve([
+        {
+          id: 31,
+          name: '学習',
+          icon: 'BookOpen',
+          description: '学習に関するテーマ',
+          color: '#10B981',
+          mode: 'learning',
+          sortOrder: 1,
+          isDefault: true,
+          _count: { themes: 0 },
+        },
+      ]);
+    });
+    mockPrisma.category.update.mockImplementation(
+      ({ where, data }: { where: { id: number }; data: Record<string, unknown> }) =>
+        Promise.resolve({ id: where.id, ...data, _count: { themes: 0 } }),
+    );
+
+    const res = await app.handle(
+      new Request('http://localhost/categories/seed-defaults', { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.category.update).toHaveBeenCalledTimes(1);
+    const updateCall = mockPrisma.category.update.mock.calls[0][0];
+    expect(updateCall.where).toEqual({ id: 30 });
+    expect(updateCall.data).toEqual({ mode: 'development' });
+  });
+
+  test('同名の重複カテゴリを統合してテーマを reassign すること', async () => {
+    mockPrisma.category.findMany.mockImplementation(({ where }: { where: { name: string } }) => {
+      if (where.name === '開発') {
+        return Promise.resolve([
+          {
+            id: 40,
+            name: '開発',
+            icon: 'Code',
+            description: '開発プロジェクトに関するテーマ',
+            color: '#3B82F6',
+            mode: 'development',
+            sortOrder: 0,
+            isDefault: true,
+            _count: { themes: 0 },
+          },
+          {
+            id: 41,
+            name: '開発',
+            icon: null,
+            description: null,
+            color: '#6366F1',
+            mode: 'both',
+            sortOrder: 0,
+            isDefault: false,
+            _count: { themes: 0 },
+          },
+        ]);
+      }
+      return Promise.resolve([
+        {
+          id: 42,
+          name: '学習',
+          icon: 'BookOpen',
+          description: '学習に関するテーマ',
+          color: '#10B981',
+          mode: 'learning',
+          sortOrder: 1,
+          isDefault: true,
+          _count: { themes: 0 },
+        },
+      ]);
+    });
+
+    const res = await app.handle(
+      new Request('http://localhost/categories/seed-defaults', { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(200);
+    // duplicates: themes reassigned then duplicate category deleted
+    expect(mockPrisma.theme.updateMany).toHaveBeenCalledWith({
+      where: { categoryId: 41 },
+      data: { categoryId: 40 },
+    });
+    expect(mockPrisma.category.delete).toHaveBeenCalledWith({ where: { id: 41 } });
+  });
+});

@@ -171,15 +171,17 @@ export default function SearchClient() {
         )}
 
         {!loading && results.length > 0 && (
-          <div className="space-y-3 animate-in fade-in-0 duration-300">
-            {results.map((result, index) => (
-              <div
+          // NOTE: 以前は各結果カードに animationDelay (index * 50ms) を付けたカスケード
+          // フェードインだったが、検索クエリ変更ごとに全結果が再マウントされて毎回
+          // 上から順に流れていくのが「ちらつき」になっていた。コンテナの単発 fade-in
+          // のみに統一。
+          <div className="space-y-3 animate-in fade-in-0 duration-200">
+            {results.map((result) => (
+              <SearchResultCard
                 key={`${result.type}-${result.id}`}
-                className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <SearchResultCard result={result} query={query} />
-              </div>
+                result={result}
+                query={query}
+              />
             ))}
           </div>
         )}
