@@ -66,6 +66,7 @@
     "protobufjs"
   ],
   "overrides": {
+    "sharp": "^0.34.5",
     "protobufjs": "^7.5.5",
     "defu": "^6.1.5",
     "minimatch": "^9.0.7",

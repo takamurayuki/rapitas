@@ -166,6 +166,7 @@ export function useKanbanBoard(
 
   return {
     tasks,
+    taskCacheInitialized,
     taskCacheLoading,
     loading,
     selectedTaskId,

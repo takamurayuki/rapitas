@@ -78,6 +78,7 @@ export default function KanbanPage() {
 
   const {
     tasks,
+    taskCacheInitialized,
     taskCacheLoading,
     loading,
     selectedTaskId,
@@ -164,7 +165,7 @@ export default function KanbanPage() {
           t={t}
         />
 
-        {(loading || taskCacheLoading) && tasks.length === 0 ? (
+        {(!taskCacheInitialized || loading || taskCacheLoading) && tasks.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-3">

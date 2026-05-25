@@ -41,6 +41,15 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
   const executingTasksSize = useExecutionStateStore((s) => s.executingTasks.size);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // NOTE: Read executingTasksSize through a ref so the sync effects don't list it
+  // as a dependency. Listing it directly tore down and rebuilt the 30s interval
+  // every time useExecutingTasksPolling (5s cadence) mutated the executing set, so
+  // the 30s sync never actually fired.
+  const executingTasksSizeRef = useRef(executingTasksSize);
+  useEffect(() => {
+    executingTasksSizeRef.current = executingTasksSize;
+  }, [executingTasksSize]);
+
   useEffect(() => {
     // Do nothing if disabled or not initialized
     if (!enabled || !initialized) {
@@ -54,7 +63,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     // Set up periodic updates
     intervalRef.current = setInterval(() => {
       // Skip updates if AI agent is executing and skip is enabled
-      if (skipDuringExecution && executingTasksSize > 0) {
+      if (skipDuringExecution && executingTasksSizeRef.current > 0) {
         logger.debug('Skipping sync due to executing tasks');
         return;
       }
@@ -75,7 +84,6 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     interval,
     silent,
     skipDuringExecution,
-    executingTasksSize,
     fetchUpdates,
   ]);
 
@@ -85,7 +93,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     const handleFocus = () => {
       // Skip updates if AI agent is executing and skip is enabled
-      if (skipDuringExecution && executingTasksSize > 0) {
+      if (skipDuringExecution && executingTasksSizeRef.current > 0) {
         logger.debug('Skipping focus sync due to executing tasks');
         return;
       }
@@ -95,7 +103,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [enabled, initialized, silent, skipDuringExecution, executingTasksSize, fetchUpdates]);
+  }, [enabled, initialized, silent, skipDuringExecution, fetchUpdates]);
 
   // When page becomes visible (Page Visibility API)
   useEffect(() => {
@@ -104,7 +112,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         // Skip updates if AI agent is executing and skip is enabled
-        if (skipDuringExecution && executingTasksSize > 0) {
+        if (skipDuringExecution && executingTasksSizeRef.current > 0) {
           logger.debug('Skipping visibility sync due to executing tasks');
           return;
         }
@@ -115,5 +123,5 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [enabled, initialized, silent, skipDuringExecution, executingTasksSize, fetchUpdates]);
+  }, [enabled, initialized, silent, skipDuringExecution, fetchUpdates]);
 }

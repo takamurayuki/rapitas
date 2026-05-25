@@ -336,6 +336,7 @@ function HomeClientPage() {
           paginatedTasks={paginatedTasks}
           sortedTasksCount={sortedTasks.length}
           isLoading={taskCacheLoading}
+          initialized={taskCacheInitialized}
           categoryFilter={categoryFilter}
           themesInCategoryCount={themesInCategoryCount}
           themeFilter={themeFilter}
