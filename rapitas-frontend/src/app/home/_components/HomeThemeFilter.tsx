@@ -109,7 +109,8 @@ export function HomeThemeFilter({
               </button>
             </div>
           ) : (
-            filteredThemes.map((theme) => {
+            <>
+              {filteredThemes.map((theme) => {
               const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
               const isActive = themeFilter === theme.id;
               return (
@@ -130,8 +131,18 @@ export function HomeThemeFilter({
                   {theme.name}
                   {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
                 </button>
-              );
-            })
+                );
+              })}
+              {/* Theme add — amber dashed pill, distinct from the category add (slate folder icon). */}
+              <button
+                onClick={() => router.push('/themes')}
+                title="テーマを追加"
+                aria-label="テーマを追加"
+                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm border border-dashed border-amber-400/60 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 dark:hover:bg-amber-500/20 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
 
