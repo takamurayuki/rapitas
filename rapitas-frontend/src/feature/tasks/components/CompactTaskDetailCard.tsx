@@ -14,7 +14,7 @@ import {
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import MemoSection from '@/feature/tasks/components/MemoSection';
-import { Clock, Calendar, Tag, FileText, Info, Paperclip, StickyNote, Repeat } from 'lucide-react';
+import { Clock, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -179,34 +179,6 @@ export default function CompactTaskDetailCard({
           </AccordionItem>
         )}
 
-        {/* Details with AI Features - Collapsible */}
-        <AccordionItem id="details">
-          <AccordionTrigger
-            id="details"
-            icon={<Info className="w-4 h-4" />}
-            badge={
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                更新: {new Date(task.updatedAt).toLocaleDateString(dateLocale)}
-              </span>
-            }
-          >
-            詳細情報
-          </AccordionTrigger>
-          <AccordionContent id="details">
-            {/* Timestamps */}
-            <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>作成: {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>更新: {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
         {/* Recurrence Settings - Collapsible */}
         <AccordionItem id="recurrence">
           <AccordionTrigger
@@ -286,6 +258,13 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Created / updated timestamps — quiet meta footer, not worth its own section. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-400 dark:text-zinc-500">
+        <span>作成 {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
+        <span aria-hidden>·</span>
+        <span>更新 {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
+      </div>
     </div>
   );
 }
