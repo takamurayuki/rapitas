@@ -10,7 +10,6 @@ import { getWorkflowTabs } from './workflow-viewer-utils';
 import {
   PlanApprovalBanner,
   VerifyDoneBanner,
-  AsyncExecutionBanner,
   NextPhaseButton,
   AdvanceErrorBanner,
   FetchErrorBanner,
@@ -151,9 +150,6 @@ export default function WorkflowViewer({
           onCompleteRequest={onCompleteRequest}
         />
       )}
-
-      {/* Async execution in progress banner */}
-      {isPolling && <AsyncExecutionBanner />}
 
       {/* Next phase execution button */}
       {effectiveStatus &&

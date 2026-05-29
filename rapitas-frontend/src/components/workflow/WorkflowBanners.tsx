@@ -90,25 +90,6 @@ export function VerifyDoneBanner({ onNavigateToVerify, onCompleteRequest }: Veri
   );
 }
 
-/**
- * Banner shown while an async AI agent execution is in progress.
- */
-export function AsyncExecutionBanner() {
-  return (
-    <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/50">
-      <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
-      <div>
-        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-          AIエージェントが実行中です...
-        </p>
-        <p className="text-xs text-blue-600 dark:text-blue-400">
-          完了すると自動的に表示が更新されます
-        </p>
-      </div>
-    </div>
-  );
-}
-
 interface NextPhaseButtonProps {
   effectiveStatus: WorkflowStatus;
   workflowMode: WorkflowMode;
