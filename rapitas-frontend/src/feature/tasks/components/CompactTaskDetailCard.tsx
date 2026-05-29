@@ -1,6 +1,6 @@
 'use client';
 
-import { type Task, type Label, type Resource, type Comment } from '@/types';
+import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -15,7 +15,7 @@ import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector'
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import MemoSection from '@/feature/tasks/components/MemoSection';
 import { Clock, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -96,7 +96,7 @@ export default function CompactTaskDetailCard({
    * @param field - Field to update / 更新するフィールド
    * @param value - New value / 新しい値
    */
-  const saveField = async (field: 'title' | 'description', value: string) => {
+  const saveField = async (field: 'title' | 'description' | 'priority', value: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
         method: 'PATCH',
@@ -125,7 +125,10 @@ export default function CompactTaskDetailCard({
               ariaLabel="タスクのタイトル"
               className="flex-1 min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
             />
-            <PriorityIcon priority={task.priority} size="md" />
+            <PriorityInlineSelect
+              value={task.priority as Priority}
+              onChange={(p) => saveField('priority', p)}
+            />
           </div>
 
           {/* Status Buttons - Compact inline with title */}
