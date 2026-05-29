@@ -71,12 +71,19 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
       let skippedTables = 0;
       let createdIndexes = 0;
       let indexErrors = 0;
+      let addedColumns = 0;
       for (const stmt of statements) {
         const tableMatch = stmt.match(/^CREATE TABLE\s+"([^"]+)"/i);
         if (tableMatch) {
           const tableName = tableMatch[1];
           if (existingTables.has(tableName)) {
             skippedTables++;
+            // Table exists but may be missing columns added in later commits.
+            // Self-heal them — the init SQL's `CREATE TABLE IF NOT EXISTS`
+            // semantics never ALTER an existing table, which is how new
+            // columns (e.g. `Task.goals`) ended up absent and produced
+            // `The column main.Task.goals does not exist` / HTTP 500.
+            addedColumns += addMissingColumns(database, tableName, stmt, databasePath);
             continue;
           }
           try {
@@ -108,10 +115,10 @@ export async function ensureDesktopSqliteDatabase(): Promise<void> {
           }
         }
       }
-      if (createdTables > 0 || createdIndexes > 0) {
+      if (createdTables > 0 || createdIndexes > 0 || addedColumns > 0) {
         log.info(
-          { databasePath, createdTables, skippedTables, createdIndexes, indexErrors },
-          'Desktop SQLite database self-healed missing tables',
+          { databasePath, createdTables, skippedTables, createdIndexes, indexErrors, addedColumns },
+          'Desktop SQLite database self-healed missing tables/columns',
         );
       } else {
         log.info({ databasePath, skippedTables }, 'Desktop SQLite database is up to date');
@@ -174,4 +181,99 @@ function splitInitSqlIntoStatements(sql: string): string[] {
       return lines.join('\n').trim();
     })
     .filter((s) => s.length > 0);
+}
+
+/** Table-level constraint keywords that are NOT column definitions. */
+const TABLE_CONSTRAINT_PREFIXES = /^(CONSTRAINT|PRIMARY|FOREIGN|UNIQUE|CHECK)\b/i;
+
+/**
+ * Extracts column definitions from a `CREATE TABLE "X" (...)` statement.
+ * Splits the parenthesized body on top-level commas (ignoring commas nested in
+ * `(...)`, e.g. a `DEFAULT (expr)`), and keeps only quoted column entries —
+ * table-level constraints (FOREIGN KEY, PRIMARY KEY, …) are skipped.
+ *
+ * @param createTableStmt - A single CREATE TABLE statement / 単一の CREATE TABLE 文
+ * @returns Column name → full column definition / カラム名と完全な定義
+ */
+export function parseColumnDefs(createTableStmt: string): Array<{ name: string; def: string }> {
+  const open = createTableStmt.indexOf('(');
+  if (open === -1) return [];
+  // Walk to the matching close paren of the table body.
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < createTableStmt.length; i++) {
+    const ch = createTableStmt[i];
+    if (ch === '(') depth++;
+    else if (ch === ')' && --depth === 0) {
+      close = i;
+      break;
+    }
+  }
+  if (close === -1) return [];
+
+  const body = createTableStmt.slice(open + 1, close);
+  const parts: string[] = [];
+  let current = '';
+  depth = 0;
+  for (const ch of body) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) parts.push(current);
+
+  const columns: Array<{ name: string; def: string }> = [];
+  for (const raw of parts) {
+    const def = raw.trim();
+    if (!def.startsWith('"') || TABLE_CONSTRAINT_PREFIXES.test(def)) continue;
+    const name = def.slice(1, def.indexOf('"', 1));
+    if (name) columns.push({ name, def });
+  }
+  return columns;
+}
+
+/**
+ * Adds columns present in the init SQL but missing from an existing table.
+ *
+ * Only additive `ALTER TABLE ADD COLUMN` is performed; failures (e.g. a NOT
+ * NULL column without a constant default, which SQLite rejects) are logged and
+ * skipped rather than aborting startup — mirroring the index self-heal.
+ *
+ * @param database - Open SQLite database / オープン中の SQLite データベース
+ * @param tableName - Target existing table / 対象の既存テーブル
+ * @param createTableStmt - The table's CREATE statement from the init SQL / init SQL 内の CREATE 文
+ * @param databasePath - DB path for log context / ログ用の DB パス
+ * @returns Number of columns successfully added / 追加に成功したカラム数
+ */
+export function addMissingColumns(
+  database: import('bun:sqlite').Database,
+  tableName: string,
+  createTableStmt: string,
+  databasePath: string,
+): number {
+  const existingCols = new Set<string>(
+    (database.query(`PRAGMA table_info("${tableName}")`).all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    ),
+  );
+  let added = 0;
+  for (const { name, def } of parseColumnDefs(createTableStmt)) {
+    if (existingCols.has(name)) continue;
+    try {
+      database.exec(`ALTER TABLE "${tableName}" ADD COLUMN ${def}`);
+      added++;
+      log.info({ databasePath, table: tableName, column: name }, 'Added missing SQLite column');
+    } catch (err) {
+      log.warn(
+        { err, table: tableName, column: name },
+        'Failed to add missing SQLite column (continuing)',
+      );
+    }
+  }
+  return added;
 }
