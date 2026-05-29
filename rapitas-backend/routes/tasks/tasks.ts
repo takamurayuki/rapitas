@@ -217,6 +217,9 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         examGoalId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
+        goals: t.Optional(t.Array(t.String())),
+        constraints: t.Optional(t.Array(t.String())),
+        acceptanceCriteria: t.Optional(t.Array(t.String())),
       }),
     },
   )

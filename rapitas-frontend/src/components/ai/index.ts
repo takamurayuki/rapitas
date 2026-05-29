@@ -5,4 +5,3 @@
  */
 
 export { default as AIAssistantPanel } from './AIAssistantPanel';
-export { IntentCreator } from './IntentCreator';

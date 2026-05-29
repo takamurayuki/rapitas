@@ -445,6 +445,22 @@ export const executeRoute = new Elysia().post(
     // writer for the persistent research.md.
     const researchTempOutputFile = null;
 
+    // Parse the JSON-array spec columns (goals/constraints/acceptanceCriteria) for injection.
+    const parseSpecArray = (s: string | null | undefined): string[] => {
+      if (!s) return [];
+      try {
+        const v = JSON.parse(s);
+        return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+      } catch {
+        return [];
+      }
+    };
+    const taskSpec = {
+      goals: parseSpecArray(task.goals),
+      constraints: parseSpecArray(task.constraints),
+      acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
+    };
+
     const fullInstruction = effectiveResearchMode
       ? buildResearchPrompt(task.title, task.description ?? '', worktreePath)
       : buildFullInstruction({
@@ -456,6 +472,7 @@ export const executeRoute = new Elysia().post(
           workingDirectory: worktreePath,
           taskId: taskIdNum,
           enforceWorkflow,
+          taskSpec,
         });
 
     const analysisInfo =

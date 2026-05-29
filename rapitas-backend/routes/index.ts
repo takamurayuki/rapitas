@@ -87,7 +87,7 @@ export { workflowRoutes } from './workflow/core/workflow';
 export { workflowRolesRoutes } from './workflow/core/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
-export { intentRoutes } from './workflow/intent-routes';
+export { taskSpecRoutes } from './tasks/task-spec-routes';
 
 // Social
 export { commentsRoutes } from './social/comments';

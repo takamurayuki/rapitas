@@ -24,8 +24,22 @@ export interface TaskPayloadValues {
   dueDate: string;
   workflowMode: WorkflowMode;
   isWorkflowModeOverride: boolean;
+  /** Newline-separated goals (one per line) / 改行区切りのゴール */
+  goals: string;
+  /** Newline-separated constraints / 改行区切りの制約 */
+  constraints: string;
+  /** Newline-separated acceptance criteria / 改行区切りの受入基準 */
+  acceptanceCriteria: string;
   selectedTheme: Theme | null;
   globalSettings: UserSettings | null;
+}
+
+/** Splits a newline-separated block into trimmed, non-empty items. */
+function toLines(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -122,6 +136,9 @@ export function useTaskSubmit(
           dueDate: v.dueDate || undefined,
           workflowMode: v.workflowMode,
           workflowModeOverride: v.isWorkflowModeOverride,
+          goals: toLines(v.goals),
+          constraints: toLines(v.constraints),
+          acceptanceCriteria: toLines(v.acceptanceCriteria),
         }),
       });
       if (!res.ok) throw new Error(t('createFailed'));
@@ -164,6 +181,9 @@ export function useTaskSubmit(
           dueDate: v.dueDate || undefined,
           workflowMode: v.workflowMode,
           workflowModeOverride: v.isWorkflowModeOverride,
+          goals: toLines(v.goals),
+          constraints: toLines(v.constraints),
+          acceptanceCriteria: toLines(v.acceptanceCriteria),
         }),
       });
       if (!res.ok) throw new Error(t('createFailed'));

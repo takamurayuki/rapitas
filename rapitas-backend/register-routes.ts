@@ -79,7 +79,7 @@ import {
   directoriesRoutes,
   experimentsRoutes,
   learningRoutes,
-  intentRoutes,
+  taskSpecRoutes,
   aiChatRoutes,
   copilotChatRoutes,
   promptsRoutes,
@@ -177,7 +177,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(transcribeRouter);
   app.use(mcpRoutes);
   app.use(directoriesRoutes);
-  app.use(intentRoutes);
+  app.use(taskSpecRoutes);
   app.use(exportRoutes);
   app.use(importRoutes);
 

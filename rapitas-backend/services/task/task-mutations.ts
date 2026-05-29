@@ -51,6 +51,10 @@ export interface CreateTaskInput {
   examGoalId?: number;
   isDeveloperMode?: boolean;
   isAiTaskAnalysis?: boolean;
+  /** Structured spec — stored as JSON-array strings (mirrors `labels`). */
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
 }
 
 /**
@@ -119,6 +123,9 @@ export interface UpdateTaskInput {
   milestoneId?: number;
   examGoalId?: number;
   autoApprovePlan?: boolean;
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
 }
 
 /**
@@ -174,6 +181,12 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.milestoneId !== undefined && { milestoneId: fields.milestoneId }),
       ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
+      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+      ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
+      ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),
+      ...(fields.acceptanceCriteria !== undefined && {
+        acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
+      }),
     },
   });
 

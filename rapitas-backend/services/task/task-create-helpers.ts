@@ -86,6 +86,14 @@ export async function createSubtask(
           ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
           ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
           ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+          // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+          ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+          ...(data.constraints &&
+            data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+          ...(data.acceptanceCriteria &&
+            data.acceptanceCriteria.length > 0 && {
+              acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+            }),
         },
       });
 
@@ -135,6 +143,14 @@ export async function createParentTask(
       ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
       ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
       ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+      ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+      ...(data.constraints &&
+        data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+      ...(data.acceptanceCriteria &&
+        data.acceptanceCriteria.length > 0 && {
+          acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+        }),
     },
   });
 
