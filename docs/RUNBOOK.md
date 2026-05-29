@@ -23,6 +23,7 @@ commands at the bottom of each section only as a last resort.
 | Workflow files (research.md / plan.md) missing | [§8 Workflow API not used](#8-workflow-files-missing-or-out-of-sync) |
 | Tauri sidecar binary not found | [§9 Backend binary missing in CI](#9-backend-sidecar-binary-missing-in-tauri-build) |
 | `make`/`npm` says scripts not found | [§10 Stale node_modules](#10-stale-node_modules-after-package-changes) |
+| API 500 `column ... does not exist` after a schema change | [§11 Dev schema not applied](#11-dev-schema-change-not-applied-column-does-not-exist) |
 
 ---
 
@@ -257,6 +258,51 @@ If only the root tools are broken:
 rm -rf node_modules package-lock.json
 npm install
 ```
+
+---
+
+## 11. Dev schema change not applied (`column ... does not exist`)
+
+**Symptom:** After adding a column/table to `prisma/schema/` and restarting,
+every API call touching it returns HTTP 500, e.g.
+`The column main.Task.goals does not exist in the current database`.
+(A `main.*` prefix means the running DB is **SQLite**.)
+
+**Diagnosis:** The dev schema sync did not reach the active database. The runtime
+Prisma client knew the column (its SQL referenced it) but the DB table lacked it.
+Two distinct causes by launcher (full analysis:
+[docs/design/dev-schema-sync.md](design/dev-schema-sync.md)):
+
+- **`dev.ts` (backend, `bun run dev`)**: the startup `prisma db push` ran without
+  `RAPITAS_DB_PROVIDER`, defaulted to the PostgreSQL schema while
+  `DATABASE_URL=file:...` (SQLite), failed on the mismatch, and the non-zero exit
+  was swallowed. Fixed in `scripts/dev/prisma-sync.ts`.
+- **`dev.js` (desktop/Tauri)**: applies schema only via the startup init-SQL
+  self-heal, which created missing **tables** but never `ALTER`ed an existing
+  table to add a new **column**. Fixed by the column-level self-heal in
+  `config/desktop-sqlite.ts` (`addMissingColumns`).
+
+**Both are now fixed** — a normal restart self-heals the DB. If you still hit it
+on an already-drifted DB, apply the nullable columns directly (non-destructive,
+no restart needed — the running client already knows them):
+
+```bash
+# Desktop SQLite DB (no prisma, no restart)
+bun -e "const {Database}=require('bun:sqlite'); const db=new Database('rapitas-desktop/.data/rapitas-dev.db'); for (const c of ['goals','constraints','acceptanceCriteria']) { try { db.run('ALTER TABLE \"Task\" ADD COLUMN \"'+c+'\" TEXT'); } catch {} }"
+```
+
+```bash
+# PostgreSQL dev DB
+cd rapitas-backend
+RAPITAS_DB_PROVIDER=postgresql bunx prisma db push --skip-generate
+```
+
+> ⚠️ **CLAUDE.md §1:** AI agents must NOT run `prisma db push`/`generate`. The
+> raw additive `ALTER` above touches neither — it is safe for nullable columns
+> and re-syncs the DB to the already-generated client.
+>
+> **Never hand-edit `prisma/schema.desktop/`** — it is regenerated from
+> `prisma/schema/`. Edit the source folder only.
 
 ---
 
