@@ -229,6 +229,8 @@
     "subtaskEstimatedHours": "Est. hours",
     "deselect": "Deselect",
     "select": "Select",
+    "bulkSelect": "Bulk select",
+    "selecting": "Selecting ({count})",
     "deselectAll": "Deselect all",
     "selectAll": "Select all",
     "deleteCount": "Delete {count}",
