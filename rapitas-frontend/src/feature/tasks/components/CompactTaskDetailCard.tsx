@@ -19,6 +19,9 @@ import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { API_BASE_URL } from '@/utils/api';
+import { clearApiCache } from '@/lib/api-client';
+import InlineEditableText from '@/feature/tasks/components/InlineEditableText';
 
 /**
  * Wrapper for RecurrenceSelector that can close the accordion
@@ -86,6 +89,28 @@ export default function CompactTaskDetailCard({
   );
   const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
 
+  /**
+   * Persists a single inline-edited field (title/description) via PATCH, then
+   * refreshes the task. Mirrors the full-edit save path.
+   *
+   * @param field - Field to update / 更新するフィールド
+   * @param value - New value / 新しい値
+   */
+  const saveField = async (field: 'title' | 'description', value: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) throw new Error('update failed');
+      clearApiCache(`/tasks/${task.id}`);
+      onTaskUpdated?.();
+    } catch {
+      alert('保存に失敗しました');
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
@@ -93,9 +118,13 @@ export default function CompactTaskDetailCard({
         <div className="flex items-center justify-between gap-3">
           {/* Title with Priority Icon */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate">
-              {task.title}
-            </h1>
+            <InlineEditableText
+              value={task.title}
+              onSave={(v) => saveField('title', v)}
+              required
+              ariaLabel="タスクのタイトル"
+              className="flex-1 min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
+            />
             <PriorityIcon priority={task.priority} size="md" />
           </div>
 
@@ -126,23 +155,27 @@ export default function CompactTaskDetailCard({
         allowMultiple={true}
         className="border-t border-zinc-100 dark:border-zinc-800"
       >
-        {/* Description - Default expanded */}
-        {task.description && (
-          <AccordionItem id="description">
-            <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
-              説明
-            </AccordionTrigger>
-            <AccordionContent id="description">
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
-                <TaskDescription
-                  description={task.description}
-                  isCompact={true}
-                  maxInitialLength={300}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+        {/* Description - Default expanded; double-click to edit, blur to save */}
+        <AccordionItem id="description">
+          <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
+            説明
+          </AccordionTrigger>
+          <AccordionContent id="description">
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
+              <InlineEditableText
+                value={task.description ?? ''}
+                onSave={(v) => saveField('description', v)}
+                multiline
+                placeholder="説明を追加（ダブルクリックで編集）"
+                ariaLabel="タスクの説明"
+                className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"
+                renderDisplay={(v) => (
+                  <TaskDescription description={v} isCompact={true} maxInitialLength={300} />
+                )}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
         {/* Meta Information - Collapsible */}
         {hasMetaInfo && (
