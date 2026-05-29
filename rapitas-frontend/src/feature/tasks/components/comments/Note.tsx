@@ -97,7 +97,7 @@ export const Note = memo(function Note({
                 <textarea
                   value={editText}
                   onChange={(e) => onEditText(e.target.value)}
-                  className="w-full p-2 text-xs bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30"
+                  className="w-full p-2 text-xs bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg resize-none outline-none focus:border-blue-400 focus:ring-1 focus:ring-indigo-400/30"
                   rows={3}
                   autoFocus
                 />

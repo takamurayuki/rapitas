@@ -122,7 +122,7 @@ export default function CommentsSection({
                 }
               }}
               placeholder="メモを追加（Shift+Enterで改行）"
-              className="flex-1 px-2.5 py-2 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 placeholder:text-zinc-400 resize-none transition-colors"
+              className="flex-1 px-2.5 py-2 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:ring-1 focus:ring-indigo-400/30 placeholder:text-zinc-400 resize-none transition-colors"
               disabled={isAddingComment}
               rows={2}
             />
