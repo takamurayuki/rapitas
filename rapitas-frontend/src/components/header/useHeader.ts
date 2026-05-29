@@ -111,7 +111,6 @@ export function useHeader(): UseHeaderReturn {
   const tc = useTranslations('common');
 
   // Click-outside handlers — stable references required by useClickOutside dep array
-  const closeMenu = useCallback(() => setIsMenuOpen(false), []);
   const closeMoreMenu = useCallback(() => setIsMoreMenuOpen(false), []);
   const closeUserMenu = useCallback(() => setIsUserMenuOpen(false), []);
 
@@ -125,6 +124,21 @@ export function useHeader(): UseHeaderReturn {
   );
   useClickOutside(moreMenuRef, closeMoreMenu, isMoreMenuOpen);
   useClickOutside(userMenuRef, closeUserMenu, isUserMenuOpen);
+
+  // Escape closes transient menus — a baseline keyboard expectation. The pinned
+  // side nav is intentionally persistent, so Escape leaves it open (matching the
+  // click-outside guard above).
+  useEffect(() => {
+    if (!isMenuOpen && !isMoreMenuOpen && !isUserMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (isMoreMenuOpen) setIsMoreMenuOpen(false);
+      if (isUserMenuOpen) setIsUserMenuOpen(false);
+      if (isMenuOpen && !isMenuPinned) setIsMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMenuOpen, isMoreMenuOpen, isUserMenuOpen, isMenuPinned]);
 
   /**
    * Converts a shortcut binding id into a displayable key combination string.
