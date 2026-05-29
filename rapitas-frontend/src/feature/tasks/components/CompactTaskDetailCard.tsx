@@ -87,7 +87,7 @@ export default function CompactTaskDetailCard({
   const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
@@ -133,7 +133,7 @@ export default function CompactTaskDetailCard({
               説明
             </AccordionTrigger>
             <AccordionContent id="description">
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
+              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
                 <TaskDescription
                   description={task.description}
                   isCompact={true}

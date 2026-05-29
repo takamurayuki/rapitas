@@ -3,7 +3,7 @@
 
 import { useEffect } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
-import { FolderOpen, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import CompactWorkflowSelector, { type WorkflowMode } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
@@ -58,7 +58,6 @@ export default function WorkflowViewer({
     isLoading,
     error,
     refetch,
-    workflowPath,
     effectiveStatus,
     isAdvancing,
     advanceError,
@@ -111,13 +110,9 @@ export default function WorkflowViewer({
 
   return (
     <div className={className}>
-      {/* Path information */}
-      {workflowPath && (
-        <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-100 dark:border-zinc-800">
-          <FolderOpen className="h-3 w-3" />
-          <span>{workflowPath.dir}</span>
-        </div>
-      )}
+      {/* NOTE: The workflow file path (e.g. tasks/1/17) is intentionally not
+          shown — it is an internal reference only. workflowPath is still
+          provided by useWorkflowViewer for internal use. */}
 
       {/* Workflow mode selection section */}
       {showWorkflowMode && (
