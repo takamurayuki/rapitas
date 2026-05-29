@@ -517,5 +517,25 @@ describe('taskCacheStore', () => {
       await useTaskCacheStore.getState().fetchAll();
       expect(useTaskCacheStore.getState().tasks).toEqual(mockTasks);
     });
+
+    it('should not infinitely recurse when retried after failure (initialized, no lastFetchedAt)', async () => {
+      // A failed fetchAll leaves initialized=true but lastFetchedAt=null.
+      vi.mocked(fetchWithRetry).mockRejectedValueOnce(new Error('HTTP 500'));
+      await useTaskCacheStore.getState().fetchAll();
+      expect(useTaskCacheStore.getState().initialized).toBe(true);
+      expect(useTaskCacheStore.getState().lastFetchedAt).toBeNull();
+
+      // Retrying must do a real full fetch, NOT bounce fetchAll → fetchUpdates
+      // → fetchAll forever (previously a RangeError: stack overflow).
+      const mockTasks = [{ id: 1, title: 'Task 1' }];
+      vi.mocked(fetchWithRetry).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockTasks),
+      } as Response);
+
+      await expect(useTaskCacheStore.getState().fetchAll()).resolves.toBeUndefined();
+      expect(useTaskCacheStore.getState().tasks).toEqual(mockTasks);
+      expect(useTaskCacheStore.getState().lastFetchedAt).not.toBeNull();
+    });
   });
 });

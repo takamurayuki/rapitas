@@ -41,8 +41,12 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   lastError: null,
 
   fetchAll: async () => {
-    // If already initialized, use fetchUpdates
-    if (get().initialized) {
+    // Delegate to the incremental path only when we have a baseline to diff
+    // against. NOTE: a failed fetchAll leaves `initialized=true` but
+    // `lastFetchedAt=null`; without the lastFetchedAt guard, fetchAll →
+    // fetchUpdates → fetchAll recurses infinitely (stack overflow) whenever
+    // GET /tasks keeps failing. Requiring lastFetchedAt breaks that loop.
+    if (get().initialized && get().lastFetchedAt) {
       logger.debug('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
       return get().fetchUpdates();
     }
