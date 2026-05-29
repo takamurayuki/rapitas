@@ -133,12 +133,12 @@ export function HomeThemeFilter({
                 </button>
                 );
               })}
-              {/* Theme add — amber dashed pill, distinct from the category add (slate folder icon). */}
+              {/* Theme add — solid amber pill, distinct from the category add (slate folder tab). */}
               <button
                 onClick={() => router.push('/themes')}
                 title="テーマを追加"
                 aria-label="テーマを追加"
-                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm border border-dashed border-amber-400/60 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 dark:hover:bg-amber-500/20 transition-colors"
+                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>

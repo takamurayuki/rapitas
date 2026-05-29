@@ -55,9 +55,8 @@ export function HomeCategoryFilter({
   });
 
   return (
-    <div className="flex items-center bg-slate-50 dark:bg-slate-800/50">
-      <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent flex-1">
-        {visibleCategories.map((cat) => {
+    <div className="flex items-center overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent bg-slate-50 dark:bg-slate-800/50">
+      {visibleCategories.map((cat) => {
         const CatIcon = getIconComponent(cat.icon || '') || FolderKanban;
         const isActive = categoryFilter === cat.id;
         return (
@@ -82,12 +81,12 @@ export function HomeCategoryFilter({
           </button>
         );
       })}
-      </div>
+      {/* Category add — sits immediately right of the tabs (not pinned to the far edge). */}
       <Link
         href="/categories"
         title="カテゴリを追加"
         aria-label="カテゴリを追加"
-        className="shrink-0 flex items-center justify-center px-3 py-2 border-l border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
+        className="shrink-0 flex items-center justify-center px-3 py-2 border-r border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
       >
         <FolderPlus className="w-4 h-4" />
       </Link>
