@@ -21,6 +21,7 @@ import type { QuestionWaitingState } from '../question-detection';
 import type { WorkerOutputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
+import { prisma } from '../../../config/database';
 import { checkClaudeAvailable } from './cli-utils';
 import { handleWorkerMessage } from './worker-message-handler';
 import type { WorkerResultUsageSnapshot } from './worker-message-handler';
@@ -170,6 +171,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     workDir: string,
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
+    taskId?: number,
   ): () => void {
     return buildResolveAfterParse(
       this as unknown as Parameters<typeof buildResolveAfterParse>[0],
@@ -179,6 +181,20 @@ export class ClaudeCodeAgent extends BaseAgent {
       resolve,
       () => this.workerArtifacts,
       () => this.workerCommits,
+      // A plan saved via the workflow API flips workflowStatus to plan_created;
+      // treat that as "awaiting approval" rather than a do-nothing failure.
+      async () => {
+        if (!taskId) return false;
+        try {
+          const t = await prisma.task.findUnique({
+            where: { id: taskId },
+            select: { workflowStatus: true },
+          });
+          return t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved';
+        } catch {
+          return false;
+        }
+      },
     );
   }
 
@@ -239,7 +255,7 @@ export class ClaudeCodeAgent extends BaseAgent {
 
     return new Promise((resolve) => {
       runClaudeExecution(this, task, workDir, startTime, timeout, resolve, (code, wd, st, res) =>
-        this.buildResolveAfterParse(code, wd, st, res),
+        this.buildResolveAfterParse(code, wd, st, res, task.id),
       );
     });
   }

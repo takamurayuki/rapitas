@@ -53,6 +53,9 @@ export interface ResolverContext {
  * @param resolve - Promise resolver from execute() / execute()のPromiseリゾルバー
  * @param getArtifacts - Lazy getter for the parsed artifacts / アーティファクト取得
  * @param getCommits - Lazy getter for the parsed commits / コミット取得
+ * @param checkPlanCreated - Async check for whether the agent created a plan
+ *   awaiting approval (so "no code changes" is a pause, not a failure) /
+ *   承認待ちのプランを作成したか（コード変更なしを失敗ではなく一時停止として扱うため）
  * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
  */
 export function buildResolveAfterParse(
@@ -63,6 +66,7 @@ export function buildResolveAfterParse(
   resolve: (result: AgentExecutionResult) => void,
   getArtifacts: () => AgentArtifact[],
   getCommits: () => GitCommitInfo[],
+  checkPlanCreated?: () => Promise<boolean>,
 ): () => void {
   return () => {
     const artifacts = getArtifacts();
@@ -237,7 +241,7 @@ export function buildResolveAfterParse(
     logger.info(`${ctx.logPrefix} hasFileModifyingToolCalls: ${ctx.hasFileModifyingToolCalls}`);
 
     checkGitDiff(workDir, ctx.logPrefix)
-      .then((hasChanges) => {
+      .then(async (hasChanges) => {
         if (hasChanges) {
           logger.info(`${ctx.logPrefix} Git diff confirmed changes, setting status to completed`);
           ctx.status = 'completed';
@@ -256,6 +260,24 @@ export function buildResolveAfterParse(
           // (rare case, e.g. agent committed & reset). Trust tool usage as completed.
           logger.info(
             `${ctx.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
+          );
+          ctx.status = 'completed';
+          resolve({
+            success: true,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+            ...usageFields,
+          });
+        } else if (checkPlanCreated && (await checkPlanCreated().catch(() => false))) {
+          // A plan was saved and the task is awaiting approval. The agent
+          // correctly stopped at the approval gate, so this is a successful
+          // pause — not a failure. The approval workflow drives the next step.
+          logger.info(
+            `${ctx.logPrefix} No code changes, but a plan was created — awaiting approval (treating as success, not failure)`,
           );
           ctx.status = 'completed';
           resolve({
