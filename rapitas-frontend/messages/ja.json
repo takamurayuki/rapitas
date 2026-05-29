@@ -229,7 +229,7 @@
     "subtaskEstimatedHours": "見積もり時間",
     "deselect": "選択解除",
     "select": "選択",
-    "bulkSelect": "一括選択",
+    "bulkSelect": "一括",
     "selecting": "選択中 ({count}件)",
     "deselectAll": "全解除",
     "selectAll": "全選択",
