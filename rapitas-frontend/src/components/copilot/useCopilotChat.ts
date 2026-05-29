@@ -104,6 +104,7 @@ export function useCopilotChat(taskId?: number) {
         execute: 'エージェント実行を開始中...',
         create_subtasks: 'サブタスクを作成中...',
         update_status: 'ステータスを更新中...',
+        update_estimate: '見積もりを反映中...',
         get_execution_status: '実行状態を確認中...',
       };
 

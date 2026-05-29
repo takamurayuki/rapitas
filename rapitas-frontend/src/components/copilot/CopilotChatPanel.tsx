@@ -56,6 +56,7 @@ export function CopilotChatPanel({
         'execute',
         'create_subtasks',
         'update_status',
+        'update_estimate',
         'get_execution_status',
       ];
       if (copilotActions.includes(actionType)) {

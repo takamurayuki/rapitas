@@ -21,6 +21,7 @@ export type CopilotActionType =
   | 'execute'
   | 'create_subtasks'
   | 'update_status'
+  | 'update_estimate'
   | 'get_execution_status';
 
 export interface CopilotActionRequest {
@@ -58,6 +59,8 @@ export async function executeCopilotAction(
       return handleCreateSubtasks(taskId, params);
     case 'update_status':
       return handleUpdateStatus(taskId, params);
+    case 'update_estimate':
+      return handleUpdateEstimate(taskId, params);
     case 'get_execution_status':
       return handleGetExecutionStatus(taskId);
     default:
@@ -233,6 +236,45 @@ async function handleUpdateStatus(
       action: 'update_status',
       data: null,
       message: `ステータス更新に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** Apply an estimated-hours value to the task (e.g. from an analysis result). */
+async function handleUpdateEstimate(
+  taskId: number,
+  params?: Record<string, unknown>,
+): Promise<CopilotActionResult> {
+  const raw = params?.estimatedHours;
+  const estimatedHours = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(estimatedHours) || estimatedHours < 0) {
+    return {
+      success: false,
+      action: 'update_estimate',
+      data: null,
+      message: '有効な見積もり時間を指定してください',
+    };
+  }
+
+  try {
+    const updated = await prisma.task.update({
+      where: { id: taskId },
+      data: { estimatedHours },
+      select: { id: true, title: true, estimatedHours: true },
+    });
+    return {
+      success: true,
+      action: 'update_estimate',
+      data: updated,
+      message: `見積もりを ${estimatedHours} 時間に設定しました`,
+    };
+  } catch (err) {
+    log.error({ err, taskId }, 'Estimate update failed');
+    return {
+      success: false,
+      action: 'update_estimate',
+      data: null,
+      message: `見積もり更新に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
