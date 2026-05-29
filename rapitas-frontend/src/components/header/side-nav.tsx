@@ -8,7 +8,6 @@
 
 import { usePathname } from 'next/navigation';
 import { Keyboard, Pin, PinOff } from 'lucide-react';
-import AppIcon from '@/components/common/app-icon';
 import { OPEN_SHORTCUTS_EVENT } from '@/components/common/KeyboardShortcuts';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
@@ -68,36 +67,45 @@ export function SideNav({
   };
 
   return (
-    <nav
-      ref={menuRef}
-      className={`fixed left-0 top-0 h-full w-72 flex flex-col bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
-        isMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
-    >
-      <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-400 shadow-md">
-            <AppIcon size={20} className="text-white" />
-          </div>
-          <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
-            Rapi+
-          </span>
-        </div>
-        <button
-          onClick={() => setIsMenuPinned(!isMenuPinned)}
-          className={`p-2 rounded-lg transition-colors ${
-            isMenuPinned
-              ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
-              : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-          }`}
-          aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
-          title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
-        >
-          {isMenuPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
-        </button>
-      </div>
+    <>
+      {/* Dim the page behind the panel for focus. Hidden when pinned so the
+          page stays usable alongside the nav. Sits below the header (top-16)
+          so the header remains interactive. */}
+      <div
+        onClick={() => setIsMenuOpen(false)}
+        aria-hidden
+        className={`fixed inset-x-0 top-16 bottom-0 z-90 bg-zinc-900/20 backdrop-blur-[1px] transition-opacity duration-300 ${
+          isMenuOpen && !isMenuPinned ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      />
 
-      <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
+      <nav
+        ref={menuRef}
+        className={`fixed left-0 top-16 bottom-0 w-72 flex flex-col bg-white dark:bg-indigo-dark-900 border-r border-zinc-200 dark:border-zinc-800 shadow-lg z-100 transform transition-transform duration-300 ${
+          isMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Slim bar: section label + pin toggle. The app name/icon live in the
+            header, so they are intentionally not repeated here. */}
+        <div className="flex items-center justify-between h-12 px-4 border-b border-zinc-200 dark:border-zinc-800">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            {t('menu')}
+          </span>
+          <button
+            onClick={() => setIsMenuPinned(!isMenuPinned)}
+            className={`p-2 rounded-lg transition-colors ${
+              isMenuPinned
+                ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+                : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+            aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
+            title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
+          >
+            {isMenuPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
         <div className="p-4 space-y-1 flex-1">
           {filteredNavItems.map((item) => (
             <NavItemRenderer
@@ -133,7 +141,8 @@ export function SideNav({
             </kbd>
           </button>
         </div>
-      </div>
-    </nav>
+        </div>
+      </nav>
+    </>
   );
 }

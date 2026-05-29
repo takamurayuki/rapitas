@@ -264,10 +264,10 @@ export default function Header() {
 
               <Link href="/" className="flex items-center gap-2 group">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-400 rounded-lg shadow-md">
+                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
                     <AppIcon size={20} className="text-white" />
                   </div>
-                  <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
+                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                     Rapi+
                   </span>
                 </div>
