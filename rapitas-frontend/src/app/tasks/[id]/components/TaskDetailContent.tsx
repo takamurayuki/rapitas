@@ -110,8 +110,15 @@ export default function TaskDetailContent({
   return (
     <div
       ref={containerRef}
-      className={`h-[calc(100vh-5rem)] bg-background scrollbar-thin transition-opacity duration-200 ${
-        contentReady ? 'overflow-auto opacity-100' : 'overflow-hidden opacity-0'
+      // In page mode this is the scroll container (fixed viewport height). In
+      // panel mode the parent panel scrolls, so we drop the height/overflow here
+      // to avoid a nested second scrollbar.
+      className={`bg-background scrollbar-thin transition-opacity duration-200 ${
+        isPageMode ? 'h-[calc(100vh-5rem)]' : ''
+      } ${
+        contentReady
+          ? `opacity-100 ${isPageMode ? 'overflow-auto' : ''}`
+          : `opacity-0 ${isPageMode ? 'overflow-hidden' : ''}`
       }`}
     >
       <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 sm:pt-8 pb-4">
