@@ -106,6 +106,7 @@ Track each screen/component as it is brought in line, so coverage is visible.
 | Date | Area | Change | Tells fixed |
 |------|------|--------|-------------|
 | 2026-05-29 | Header / side nav | Nav moved below header; removed duplicated app name/icon; slim "メニュー" bar + pin; backdrop dim; softened shadow (`shadow-2xl`→`shadow-lg`); logo gradient-text → solid; dropped logo chip shadow. **Kept** the expand draw-in animation (signature — see §7) | #1, #2, #3, #10 |
+| 2026-05-29 | Task detail | Flatten the primary cards (task meta, subtasks, workflow) onto the surface system: `rounded-2xl shadow-xl` → `rounded-lg`, no shadow, unified border; one content radius. Hid the internal workflow file path (`tasks/1/17`). Focus rings → indigo (earlier). | #1, #3, #6 |
 
 ### Candidate next steps (not yet done — pick one at a time)
 - **Dashboard** (`app/dashboard`): 7+ equally-loud widgets, no hierarchy → lead with one focal area, group the rest (tell #6, #8).
@@ -140,3 +141,37 @@ intentional. Add to this list when the team blesses a new signature.
   (expand) rather than being ambient decoration, and it gives the nav a small,
   recognizable character. Keep it short and gated on the expand; honor
   `prefers-reduced-motion` if added later.
+
+---
+
+## 8. Surface system (content sections & cards)
+
+Default to **flat sections, not nested cards**. "Everything is a rounded,
+shadowed card" is a primary AI-ish tell (#6) and reads as undifferentiated.
+Organize content with dividers, headings, and whitespace; reserve a surface
+only for blocks that genuinely need to feel distinct (interactive/input areas).
+
+**The three surface roles — use exactly these, nothing else:**
+
+1. **Section (default)** — *flat*. A thin top divider + a small label, then
+   content with vertical breathing room. No box, border, radius, or shadow.
+   - separator: `border-t border-zinc-200 dark:border-zinc-800`
+   - label: `text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400`
+   - spacing: `py-5` / `py-6` between sections
+2. **Interactive block** — a *subtle fill*, no border, no shadow. For add-forms,
+   editors, config/option panels — things the user acts on.
+   - `bg-zinc-50 dark:bg-zinc-900/40 rounded-lg p-3/4`
+3. **Overlay** — the *only* place elevation is allowed. Menus, popovers, modals,
+   the task slide panel.
+   - `rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800`
+
+**Radius:** one content radius — `rounded-lg`. `rounded-full` only for
+pills / avatars / icon chips. **No `rounded-md` / `rounded-xl` / `rounded-2xl`**
+on content surfaces.
+
+**Shadow:** **none on content.** Shadows live on overlays only. Remove
+`shadow-sm`/`md`/`lg`/`xl`/`2xl` from in-page sections and cards.
+
+> Migration: the task detail mixed `rounded-md/lg/xl/2xl`, five shadow weights,
+> and 117 borders. We are converging it onto this system incrementally, starting
+> with the most prominent sections. Track each in §5.
