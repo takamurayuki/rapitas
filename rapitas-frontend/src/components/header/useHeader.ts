@@ -13,6 +13,7 @@ import { isTauri } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useAppModeStore } from '@/stores/app-mode-store';
+import { useNavStore } from '@/stores/nav-store';
 import { useNoteStore } from '@/stores/note-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
@@ -261,6 +262,13 @@ export function useHeader(): UseHeaderReturn {
   useEffect(() => {
     localStorage.setItem('menuPinned', isMenuPinned.toString());
   }, [isMenuPinned]);
+
+  // Mirror the pin state into the shared store so the content wrapper can make
+  // room for the pinned panel (see AppContent).
+  const setNavPinned = useNavStore((state) => state.setMenuPinned);
+  useEffect(() => {
+    setNavPinned(isMenuPinned);
+  }, [isMenuPinned, setNavPinned]);
 
   // Debounced search → URL sync
   useEffect(() => {
