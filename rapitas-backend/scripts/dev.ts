@@ -8,13 +8,13 @@
  *   - dev/watcher.ts       — TS/Prisma file watchers and deferred restart logic
  */
 
-import { spawn } from 'bun';
 import { readFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { createLogger } from '../config/logger';
 import { findAvailablePort } from '../utils/common/find-port';
-import { serverProcess, log, ROOT_DIR, setServerPort, startServer } from './dev/server-manager';
+import { serverProcess, log, setServerPort, startServer } from './dev/server-manager';
 import { watchTypeScriptFiles, watchPrismaSchema } from './dev/watcher';
+import { syncDevSchema } from './dev/prisma-sync';
 
 const pinoLog = createLogger('dev');
 
@@ -115,12 +115,13 @@ async function main() {
   }
 
   log.info('Initial startup: syncing Prisma schema...');
-  const pushResult = spawn({
-    cmd: ['bunx', 'prisma', 'db', 'push'],
-    cwd: ROOT_DIR,
-    stdio: ['inherit', 'inherit', 'inherit'],
-  });
-  await pushResult.exited;
+  // NOTE: syncDevSchema() resolves the provider (sqlite vs postgresql) from
+  // DATABASE_URL and pushes against the matching schema. A failure here means
+  // the dev DB is out of sync; we warn loudly but still start the server so the
+  // unaffected routes remain usable while the schema error is fixed.
+  if (!(await syncDevSchema())) {
+    log.warn('Continuing startup with an OUT-OF-SYNC schema — see the error above.');
+  }
 
   watchTypeScriptFiles();
   watchPrismaSchema();
