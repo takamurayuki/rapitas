@@ -4,7 +4,6 @@ import { useRef, useState, useEffect } from 'react';
 import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
 import TaskDetailHeader from './TaskDetailHeader';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
-import TaskEditForm from './TaskEditForm';
 import TaskDetailModals from './TaskDetailModals';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
@@ -124,14 +123,10 @@ export default function TaskDetailContent({
       <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 sm:pt-8 pb-4">
         <TaskDetailHeader
           task={task}
-          isEditing={taskActions.isEditing}
           isPageMode={isPageMode}
           isThisTaskTimer={isThisTaskTimer}
           pomodoroState={pomodoroState}
           onBack={onBack}
-          onStartEditing={taskActions.startEditing}
-          onSaveTask={taskActions.saveTask}
-          onCancelEditing={taskActions.cancelEditing}
           onDuplicateTask={taskActions.duplicateTask}
           onDeleteTask={taskActions.deleteTask}
           onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
@@ -141,30 +136,13 @@ export default function TaskDetailContent({
 
       {/* Main content — single column */}
       <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pb-8">
-        {taskActions.isEditing ? (
-          <TaskEditForm
-            editTitle={taskActions.editTitle}
-            setEditTitle={taskActions.setEditTitle}
-            editStatus={taskActions.editStatus}
-            setEditStatus={taskActions.setEditStatus}
-            editDescription={taskActions.editDescription}
-            setEditDescription={taskActions.setEditDescription}
-            editLabelIds={taskActions.editLabelIds}
-            setEditLabelIds={taskActions.setEditLabelIds}
-            editPriority={taskActions.editPriority}
-            setEditPriority={taskActions.setEditPriority}
-            editEstimatedHours={taskActions.editEstimatedHours}
-            setEditEstimatedHours={taskActions.setEditEstimatedHours}
-          />
-        ) : (
-          <TaskDetailViewBody
-            task={task}
-            taskId={taskId}
-            resolvedTaskId={resolvedTaskId}
-            taskActions={taskActions}
-            {...viewBodyProps}
-          />
-        )}
+        <TaskDetailViewBody
+          task={task}
+          taskId={taskId}
+          resolvedTaskId={resolvedTaskId}
+          taskActions={taskActions}
+          {...viewBodyProps}
+        />
       </div>
 
       <TaskDetailModals
