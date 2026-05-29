@@ -124,7 +124,7 @@ function NewTaskClient() {
                 el.style.height = `${Math.max(el.scrollHeight, 84)}px`;
               }}
               placeholder={t('taskDetailPlaceholder')}
-              className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="w-full min-h-[84px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-3 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
             />
           </CompactAccordionGroup>
 
@@ -172,7 +172,7 @@ function NewTaskClient() {
                     onChange={(e) => f.onChange(e.target.value)}
                     placeholder={t('specItemPlaceholder')}
                     rows={3}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-4 py-2.5 text-sm border-none outline-none resize-y focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
                   />
                 </div>
               ))}
@@ -197,7 +197,7 @@ function NewTaskClient() {
                       type="datetime-local"
                       value={form.dueDate}
                       onChange={(e) => form.setDueDate(e.target.value)}
-                      className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all dark:scheme:dark"
+                      className="flex-1 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all dark:scheme:dark"
                     />
                     {form.dueDate && (
                       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 shrink-0">
@@ -224,7 +224,7 @@ function NewTaskClient() {
                       value={form.estimatedHours}
                       onChange={(e) => form.setEstimatedHours(e.target.value)}
                       placeholder="0"
-                      className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      className="w-16 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 text-sm border-none outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">{tc('hours')}</span>
                   </div>
