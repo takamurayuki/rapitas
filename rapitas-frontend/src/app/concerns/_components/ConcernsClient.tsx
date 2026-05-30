@@ -15,7 +15,7 @@ import {
   ShieldAlert,
   Gauge,
   CircleDot,
-  Flame,
+  FolderOpen,
   Plus,
   ListPlus,
   Trash2,
@@ -23,8 +23,10 @@ import {
   Loader2,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
 type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
@@ -92,6 +94,13 @@ const SEVERITY_META: Record<ConcernSeverity, { label: string; badge: string; act
   },
 };
 const SEVERITY_ORDER: ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
+/** Severity = how serious / urgent the concern is. Shown via PriorityIcon. */
+const SEVERITY_HINT: Record<ConcernSeverity, string> = {
+  urgent: '緊急 — 早急に対処すべき',
+  high: '高 — 影響が大きい',
+  medium: '中 — 着実に対処したい',
+  low: '低 — あれば直したい',
+};
 
 const STATUS_TABS: { value: ConcernStatus | 'all'; label: string }[] = [
   { value: 'open', label: '未対応' },
@@ -117,6 +126,15 @@ export default function ConcernsClient() {
   const [newType, setNewType] = useState<ConcernType>('bug');
   const [newSeverity, setNewSeverity] = useState<ConcernSeverity>('medium');
   const [newLocation, setNewLocation] = useState('');
+  // Concerns are always about a specific project — no "global" scope; pick
+  // category (to narrow themes) then theme. Only themeId is persisted.
+  const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
+  const [newThemeId, setNewThemeId] = useState<number | null>(null);
+
+  const { categories, themes } = useFilterDataStore();
+  const filteredThemes = newCategoryId
+    ? themes.filter((t) => t.categoryId === newCategoryId)
+    : themes;
 
   const totalPages = Math.ceil(total / itemsPerPage);
 
@@ -156,6 +174,8 @@ export default function ConcernsClient() {
     setNewType('bug');
     setNewSeverity('medium');
     setNewLocation('');
+    setNewCategoryId(null);
+    setNewThemeId(null);
   };
 
   const handleSubmit = useCallback(async () => {
@@ -170,6 +190,7 @@ export default function ConcernsClient() {
           type: newType,
           severity: newSeverity,
           location: newLocation.trim() || undefined,
+          themeId: newThemeId ?? undefined,
         }),
       });
       if (!res.ok) return;
@@ -180,7 +201,7 @@ export default function ConcernsClient() {
     } catch {
       /* error */
     }
-  }, [newTitle, newDetail, newType, newSeverity, newLocation, fetchConcerns]);
+  }, [newTitle, newDetail, newType, newSeverity, newLocation, newThemeId, fetchConcerns]);
 
   const handleConvert = useCallback(
     async (id: number) => {
@@ -265,23 +286,26 @@ export default function ConcernsClient() {
         title={
           <span className="flex items-center gap-3">
             懸念を追加
-            <span className="flex items-center gap-1" title="重大度（将来の影響の大きさ）">
-              <Flame className="h-3 w-3 text-zinc-400" />
-              <span className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-                {SEVERITY_ORDER.map((sv) => (
-                  <button
-                    key={sv}
-                    onClick={() => setNewSeverity(sv)}
-                    className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      newSeverity === sv
-                        ? SEVERITY_META[sv].active
-                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    {SEVERITY_META[sv].label}
-                  </button>
-                ))}
-              </span>
+            {/* Severity — same priority icons as the idea box / task list */}
+            <span
+              className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+              title="重大度（将来の影響の大きさ）"
+            >
+              {SEVERITY_ORDER.map((sv) => (
+                <button
+                  key={sv}
+                  type="button"
+                  onClick={() => setNewSeverity(sv)}
+                  title={SEVERITY_HINT[sv]}
+                  className={`px-2 py-1 transition-colors ${
+                    newSeverity === sv
+                      ? 'bg-zinc-100 dark:bg-zinc-800'
+                      : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <PriorityIcon priority={sv} size="sm" showTitle />
+                </button>
+              ))}
             </span>
           </span>
         }
@@ -343,11 +367,43 @@ export default function ConcernsClient() {
                 );
               })}
             </div>
+            {/* Project (category → theme) — concerns are always project-scoped */}
+            <span className="flex items-center gap-1 text-zinc-400" title="対象プロジェクト">
+              <FolderOpen className="h-3 w-3" />
+            </span>
+            <select
+              value={newCategoryId ?? ''}
+              onChange={(e) => {
+                const id = e.target.value ? parseInt(e.target.value) : null;
+                setNewCategoryId(id);
+                setNewThemeId(null);
+              }}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <option value="">カテゴリ</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={newThemeId ?? ''}
+              onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              <option value="">テーマ</option>
+              {filteredThemes.map((th) => (
+                <option key={th.id} value={th.id}>
+                  {th.name}
+                </option>
+              ))}
+            </select>
             <input
               value={newLocation}
               onChange={(e) => setNewLocation(e.target.value)}
               placeholder="対象箇所 (任意, 例: src/auth/token.ts:42)"
-              className="min-w-[12rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-rose-400 dark:border-zinc-700"
+              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-rose-400 dark:border-zinc-700"
             />
           </div>
         </div>
