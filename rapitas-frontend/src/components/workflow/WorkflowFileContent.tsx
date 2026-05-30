@@ -1,7 +1,7 @@
 'use client';
 // WorkflowFileContent
 
-import { isValidElement, useMemo, type ReactNode } from 'react';
+import { isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Loader2, List } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -138,6 +138,29 @@ export function WorkflowFileContent({
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
 
+  // The TOC is sticky and vertical, so its height varies with the heading count.
+  // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
+  // links land *below* the sticky bar instead of behind it. 44px = the nav's own
+  // sticky offset (top-11, which already clears the task-detail toolbar above).
+  const tocRef = useRef<HTMLElement | null>(null);
+  const [tocHeight, setTocHeight] = useState(0);
+  useEffect(() => {
+    const el = tocRef.current;
+    if (!el) {
+      setTocHeight(0);
+      return;
+    }
+    const update = () => setTocHeight(el.offsetHeight);
+    update();
+    // ResizeObserver is absent in jsdom/older runtimes; the one-shot measure above
+    // still gives a usable offset there.
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [headings]);
+  const scrollMarginTop = tocHeight > 0 ? tocHeight + 44 + 8 : 112;
+
   if (isLoading && !activeFile) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -164,7 +187,10 @@ export function WorkflowFileContent({
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card; top-11 sits clearly below the task-detail toolbar. */}
       {headings.length > 0 && (
-        <nav className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900">
+        <nav
+          ref={tocRef}
+          className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
+        >
           <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
             <List className="h-3.5 w-3.5" />
             目次
@@ -215,7 +241,8 @@ export function WorkflowFileContent({
             h2: ({ children, ...props }) => (
               <h2
                 id={headingId(nodeToText(children))}
-                className="scroll-mt-28 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
+                style={{ scrollMarginTop }}
+                className="!mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
                 {...props}
               >
                 {children}
