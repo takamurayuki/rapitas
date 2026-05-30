@@ -36,6 +36,7 @@ import {
   MessageSquare,
   Sparkles,
   Lightbulb,
+  Bug,
   NotebookTabs,
   Package,
   BookMarked,
@@ -108,6 +109,11 @@ export default function Header() {
       href: '/ideas',
       label: 'アイデアボックス',
       icon: Lightbulb,
+    },
+    {
+      href: '/concerns',
+      label: '懸念バックログ',
+      icon: Bug,
     },
     {
       href: '/dashboard',
