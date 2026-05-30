@@ -140,8 +140,8 @@ export function WorkflowFileContent({
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
-  // links land *below* the sticky bar instead of behind it. 44px = the nav's own
-  // sticky offset (top-11, which already clears the task-detail toolbar above).
+  // links land *below* the sticky bars instead of behind them. 88px = the stack
+  // above the TOC: task-detail toolbar (44px) + sticky workflow tab bar (44px).
   const tocRef = useRef<HTMLElement | null>(null);
   const [tocHeight, setTocHeight] = useState(0);
   // Collapsible so the sticky TOC can shrink to just its label when not in use.
@@ -162,7 +162,7 @@ export function WorkflowFileContent({
     ro.observe(el);
     return () => ro.disconnect();
   }, [headings, tocOpen]);
-  const scrollMarginTop = tocHeight > 0 ? tocHeight + 44 + 8 : 112;
+  const scrollMarginTop = tocHeight > 0 ? tocHeight + 88 + 8 : 132;
 
   if (isLoading && !activeFile) {
     return (
@@ -188,11 +188,12 @@ export function WorkflowFileContent({
     <div className="space-y-3">
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
-          spans the card; top-11 sits clearly below the task-detail toolbar. */}
+          spans the card; top-[5.5rem] (88px) sits just below the sticky tab bar
+          (which itself sits below the task-detail toolbar). */}
       {headings.length > 0 && (
         <nav
           ref={tocRef}
-          className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
+          className="sticky top-[5.5rem] z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
         >
           <button
             type="button"

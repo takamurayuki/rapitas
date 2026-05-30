@@ -44,7 +44,9 @@ export function WorkflowTabBar({
   isRefetching,
 }: WorkflowTabBarProps) {
   return (
-    <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-700">
+    // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
+    // while scrolling the file; the in-file TOC sticks just beneath this bar.
+    <div className="sticky top-11 z-[6] flex items-center justify-between border-b border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
       <nav className="flex">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
