@@ -81,11 +81,6 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
-  const MODE_LABELS: Record<string, string> = {
-    lightweight: '軽量',
-    standard: '標準',
-    comprehensive: '詳細',
-  };
   // Colour + icon the complexity chip by workflow mode so the tier is legible
   // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
   // mode-specific icon also avoids clashing with the auto-approve chip's dot.
@@ -104,7 +99,6 @@ export default function TaskWorkflowSection({
     },
   };
   const complexity = task?.complexityScore;
-  const modeLabel = task?.workflowMode ? (MODE_LABELS[task.workflowMode] ?? '') : '';
   const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
@@ -129,7 +123,6 @@ export default function TaskWorkflowSection({
               >
                 <ComplexityIcon className="h-3.5 w-3.5" />
                 複雑度 {Math.round(complexity)}
-                {modeLabel ? ` · ${modeLabel}` : ''}
               </span>
             )}
             <span
