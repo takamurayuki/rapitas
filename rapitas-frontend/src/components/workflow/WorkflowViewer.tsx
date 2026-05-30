@@ -3,7 +3,6 @@
 
 import { useEffect } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
-import { Lock } from 'lucide-react';
 import { type WorkflowMode } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
@@ -40,13 +39,10 @@ export default function WorkflowViewer({
   workflowStatus,
   workflowMode = null,
   workflowModeOverride = false,
-  autoApprovePlan = false,
-  autoApprovePlanSource,
   onPlanApprovalRequest,
   onCompleteRequest,
   onStatusChange,
   onWorkflowModeChange,
-  showWorkflowMode = true,
   className = '',
 }: WorkflowViewerProps) {
   const {
@@ -109,15 +105,6 @@ export default function WorkflowViewer({
       {/* NOTE: The workflow file path (e.g. tasks/1/17) is intentionally not
           shown — it is an internal reference only. workflowPath is still
           provided by useWorkflowViewer for internal use. */}
-
-      {/* Auto-approval status (read-only — managed in task settings). The
-          workflow mode is fixed from the task's complexity at creation, so the
-          manual mode selector is intentionally not shown here. */}
-      {showWorkflowMode && (
-        <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-100 dark:border-zinc-800">
-          <AutoApproveStatusIndicator enabled={autoApprovePlan} source={autoApprovePlanSource} />
-        </div>
-      )}
 
       {/* Approval pending banner (always shown during plan_created) */}
       {isPlanAwaitingApproval && onPlanApprovalRequest && (
@@ -184,77 +171,3 @@ export default function WorkflowViewer({
   );
 }
 
-/**
- * Read-only "auto-approve plan" indicator. The setting itself is owned by the
- * task settings page; here we just surface the *effective* state so users
- * can see at a glance whether plan.md will need manual approval. The
- * effective value should already be the OR of `task.autoApprovePlan`,
- * `userSettings.autoApprovePlan`, and the subtask-specific flag — the
- * caller is responsible for computing it.
- */
-function AutoApproveStatusIndicator({
-  enabled,
-  source,
-}: {
-  enabled: boolean;
-  /** Where the ON state comes from, surfaced as a small tag. */
-  source?: 'task' | 'global' | 'subtask-global';
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
-        enabled
-          ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-900/20'
-          : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/40'
-      }`}
-      role="status"
-      aria-label="計画自動承認の状態"
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <span
-          className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-            enabled ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-zinc-300 dark:bg-zinc-600'
-          }`}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-              計画自動承認
-            </span>
-            <span
-              className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                enabled
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-zinc-300 text-zinc-700 dark:bg-zinc-600 dark:text-zinc-200'
-              }`}
-            >
-              {enabled ? 'ON' : 'OFF'}
-            </span>
-            {enabled && source && (
-              <span className="text-[9px] text-zinc-500 dark:text-zinc-400">
-                {source === 'task'
-                  ? '（タスク個別設定）'
-                  : source === 'subtask-global'
-                    ? '（サブタスク用グローバル設定）'
-                    : '（グローバル設定）'}
-              </span>
-            )}
-          </div>
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-            {enabled
-              ? 'plan.md 保存時に承認待ちをスキップして自動的に進行します'
-              : 'plan.md 保存後に手動で承認が必要です'}
-          </p>
-        </div>
-      </div>
-      <span
-        className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500 shrink-0"
-        title="設定はタスクの設定画面または /settings から変更できます"
-      >
-        <Lock className="h-2.5 w-2.5" />
-        設定で変更
-      </span>
-    </div>
-  );
-}
