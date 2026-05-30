@@ -2,7 +2,7 @@
 // WorkflowFileContent
 
 import { useMemo, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, List } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { WorkflowTab } from './workflow-viewer-utils';
@@ -117,9 +117,13 @@ export function WorkflowFileContent({
     <div className="space-y-3">
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
-          spans the card; top-8 clears the task-detail toolbar. */}
+          spans the card; top-11 sits clearly below the task-detail toolbar. */}
       {headings.length > 0 && (
-        <nav className="sticky top-8 z-[5] -mx-5 -mt-5 flex flex-wrap items-center gap-1 border-b border-zinc-100 bg-white px-5 py-2 dark:border-zinc-700/50 dark:bg-indigo-dark-900">
+        <nav className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-wrap items-center gap-1.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900">
+          <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+            <List className="h-3.5 w-3.5" />
+            目次
+          </span>
           {headings.map((h) => (
             <button
               key={h.id}
@@ -130,7 +134,7 @@ export function WorkflowFileContent({
                   ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }
               title={h.text}
-              className="max-w-[14rem] truncate rounded px-2 py-0.5 text-xs text-zinc-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+              className="max-w-[14rem] shrink-0 truncate rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-indigo-100 hover:text-indigo-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
             >
               {h.text}
             </button>
@@ -166,7 +170,7 @@ export function WorkflowFileContent({
             h2: ({ children, ...props }) => (
               <h2
                 id={`wf-h-${headingIdxRef.current++}`}
-                className="scroll-mt-20 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
+                className="scroll-mt-28 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
                 {...props}
               >
                 {children}
