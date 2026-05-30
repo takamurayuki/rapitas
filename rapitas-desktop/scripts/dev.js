@@ -24,6 +24,9 @@ const fs = require("fs");
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
+// Local LLM sidecar (llama-server). Reclaimed on every (re)start so orphaned
+// instances from a previous run don't accumulate and peg the CPU.
+const LLAMA_SERVER_PORT = 8922;
 
 // ─── ユーティリティ ───
 
@@ -1382,6 +1385,13 @@ async function main() {
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
   actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
 
+  // Reclaim the local-LLM sidecar port so a llama-server orphaned by a previous
+  // crash/restart (which keeps a CPU core busy) is killed before we start again.
+  if (isPortListening(LLAMA_SERVER_PORT)) {
+    console.log(`  Port ${LLAMA_SERVER_PORT} (llama-server) in use, killing leftover...`);
+    forceKillAllOnPort(LLAMA_SERVER_PORT);
+  }
+
   // syncDatabaseAndGenerateClient が EPERM で失敗した場合、bun が再び DLL を握っている
   // 可能性があるので 1 度だけリトライする。
   try {
@@ -1515,6 +1525,7 @@ function cleanupSync() {
     actualFrontendPort,
     BACKEND_PORT,
     FRONTEND_PORT,
+    LLAMA_SERVER_PORT,
   ]);
 
   for (const port of portsToClean) {

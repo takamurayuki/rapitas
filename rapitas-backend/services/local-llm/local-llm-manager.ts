@@ -23,6 +23,35 @@ const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
 const LLAMA_SERVER_PORT = 8922;
 const LLAMA_SERVER_URL = `http://localhost:${LLAMA_SERVER_PORT}`;
 
+// The local model is a tiny 0.5B router used for trivial queries. Capping the
+// thread count keeps inference from pegging half the machine; a fixed small
+// number is plenty and bounds CPU on many-core hosts.
+const LLAMA_THREADS = Math.max(2, Math.min(4, Math.floor((cpus().length || 4) / 2)));
+
+// Stop the idle sidecar to free CPU/RAM; it auto-restarts on next use.
+const LLAMA_IDLE_SHUTDOWN_MS = 5 * 60 * 1000;
+const LLAMA_IDLE_CHECK_MS = 60 * 1000;
+let lastLlamaActivityAt = Date.now();
+let llamaIdleTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Marks the sidecar as recently used so the idle monitor keeps it alive. */
+function markLlamaActivity(): void {
+  lastLlamaActivityAt = Date.now();
+}
+
+/** Starts a monitor that stops the sidecar after a period of inactivity. */
+function startIdleMonitor(): void {
+  if (llamaIdleTimer) return;
+  llamaIdleTimer = setInterval(() => {
+    if (llamaServerProcess && Date.now() - lastLlamaActivityAt > LLAMA_IDLE_SHUTDOWN_MS) {
+      log.info('llama-server idle; stopping to free CPU/RAM (auto-restarts on next use)');
+      stopLlamaServer();
+    }
+  }, LLAMA_IDLE_CHECK_MS);
+  // Don't keep the event loop alive solely for this timer.
+  llamaIdleTimer.unref?.();
+}
+
 export type LocalLLMStatus = {
   available: boolean;
   source: 'ollama' | 'llama-server' | 'none';
@@ -110,7 +139,12 @@ async function startLlamaServer(modelPath: string): Promise<boolean> {
         '--n-gpu-layers',
         '0', // CPU only for portability
         '--threads',
-        String(Math.max(2, Math.floor((cpus().length || 4) / 2))),
+        String(LLAMA_THREADS),
+        // Single request slot — this sidecar serves one trivial query at a time.
+        '--parallel',
+        '1',
+        // Skip the startup warmup inference that briefly pegs every thread.
+        '--no-warmup',
       ],
       {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -147,6 +181,8 @@ async function startLlamaServer(modelPath: string): Promise<boolean> {
       llamaServerReady = false;
     });
 
+    markLlamaActivity();
+    startIdleMonitor();
     return waitForLlamaServer();
   } catch (error) {
     log.error({ err: error }, 'Failed to spawn llama-server');
@@ -188,6 +224,10 @@ async function waitForLlamaServer(timeoutMs = 30000): Promise<boolean> {
  * Stop the llama-server process.
  */
 export function stopLlamaServer(): void {
+  if (llamaIdleTimer) {
+    clearInterval(llamaIdleTimer);
+    llamaIdleTimer = null;
+  }
   if (llamaServerProcess) {
     log.info('Stopping llama-server');
     llamaServerProcess.kill('SIGTERM');
@@ -297,6 +337,8 @@ export async function ensureLocalLLM(
   const started = await startLlamaServer(modelPath);
   if (started) {
     log.info('[ensureLocalLLM] llama-server is ready');
+    // A caller is about to use the sidecar — keep it alive past the idle window.
+    markLlamaActivity();
     return { url: LLAMA_SERVER_URL, model: 'qwen2.5-0.5b-instruct' };
   }
 
