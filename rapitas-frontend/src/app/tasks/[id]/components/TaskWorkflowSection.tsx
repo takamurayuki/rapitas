@@ -86,8 +86,29 @@ export default function TaskWorkflowSection({
     standard: '標準',
     comprehensive: '詳細',
   };
+  // Colour the complexity chip by workflow mode so the tier is legible at a
+  // glance (low→high = emerald→amber→rose) instead of a flat grey pill.
+  const MODE_STYLES: Record<string, { chip: string; dot: string }> = {
+    lightweight: {
+      chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+      dot: 'bg-emerald-500',
+    },
+    standard: {
+      chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      dot: 'bg-amber-500',
+    },
+    comprehensive: {
+      chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+      dot: 'bg-rose-500',
+    },
+  };
   const complexity = task?.complexityScore;
   const modeLabel = task?.workflowMode ? (MODE_LABELS[task.workflowMode] ?? '') : '';
+  const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
+  // Brand-coloured fallback keeps the chip visible when the mode is unknown.
+  const complexityChipClass =
+    modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+  const complexityDotClass = modeStyle?.dot ?? 'bg-indigo-500';
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
@@ -96,10 +117,16 @@ export default function TaskWorkflowSection({
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
+            {/* Loading spinner lives on the left so the right chips end flush
+                with the card padding (matching the title's left inset). */}
+            {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
           </div>
           <div className="flex items-center gap-2">
             {complexity != null && (
-              <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+              <span
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
+              >
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${complexityDotClass}`} />
                 複雑度 {Math.round(complexity)}
                 {modeLabel ? ` · ${modeLabel}` : ''}
               </span>
@@ -117,9 +144,6 @@ export default function TaskWorkflowSection({
               />
               自動承認 {effectiveAutoApprove ? 'ON' : 'OFF'}
             </span>
-            <Loader2
-              className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`}
-            />
           </div>
         </div>
       </div>
