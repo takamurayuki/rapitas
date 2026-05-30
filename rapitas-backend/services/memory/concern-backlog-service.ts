@@ -17,12 +17,12 @@ const log = createLogger('memory:concern-backlog');
 /** What kind of concern this is. */
 export type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
 /** How serious / urgent the concern is. */
-export type ConcernSeverity = 'high' | 'medium' | 'low';
+export type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
 /** Lifecycle state of a concern. */
 export type ConcernStatus = 'open' | 'task_created' | 'dismissed';
 
 const VALID_TYPES: readonly ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
-const VALID_SEVERITIES: readonly ConcernSeverity[] = ['high', 'medium', 'low'];
+const VALID_SEVERITIES: readonly ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
 
 /** Coerces an arbitrary value to a valid concern type (default 'bug'). */
 export function normalizeConcernType(value: unknown): ConcernType {
@@ -36,7 +36,12 @@ export function normalizeConcernSeverity(value: unknown): ConcernSeverity {
 }
 
 /** Severity → numeric weight, used for ordering (higher = surfaces first). */
-const SEVERITY_WEIGHT: Record<ConcernSeverity, number> = { high: 0.9, medium: 0.6, low: 0.3 };
+const SEVERITY_WEIGHT: Record<ConcernSeverity, number> = {
+  urgent: 0.95,
+  high: 0.9,
+  medium: 0.6,
+  low: 0.3,
+};
 
 export interface ConcernEntry {
   id: number;
@@ -243,7 +248,8 @@ export async function deleteConcern(concernId: number): Promise<boolean> {
 }
 
 /** Severity → task priority. */
-const SEVERITY_TO_PRIORITY: Record<ConcernSeverity, 'high' | 'medium' | 'low'> = {
+const SEVERITY_TO_PRIORITY: Record<ConcernSeverity, 'urgent' | 'high' | 'medium' | 'low'> = {
+  urgent: 'urgent',
   high: 'high',
   medium: 'medium',
   low: 'low',

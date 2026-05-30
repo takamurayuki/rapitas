@@ -27,7 +27,7 @@ import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
 
 type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
-type ConcernSeverity = 'high' | 'medium' | 'low';
+type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
 type ConcernStatus = 'open' | 'task_created' | 'dismissed';
 
 interface Concern {
@@ -70,6 +70,11 @@ const TYPE_META: Record<ConcernType, { label: string; icon: typeof Bug; badge: s
 const TYPE_ORDER: ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
 
 const SEVERITY_META: Record<ConcernSeverity, { label: string; badge: string; active: string }> = {
+  urgent: {
+    label: '緊急',
+    badge: 'bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700',
+    active: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-200',
+  },
   high: {
     label: '高',
     badge: 'bg-rose-50 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-800',
@@ -86,7 +91,7 @@ const SEVERITY_META: Record<ConcernSeverity, { label: string; badge: string; act
     active: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   },
 };
-const SEVERITY_ORDER: ConcernSeverity[] = ['high', 'medium', 'low'];
+const SEVERITY_ORDER: ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
 
 const STATUS_TABS: { value: ConcernStatus | 'all'; label: string }[] = [
   { value: 'open', label: '未対応' },
@@ -257,8 +262,50 @@ export default function ConcernsClient() {
           setShowAdd(false);
         }}
         icon={<Bug className="h-4 w-4 text-rose-500" />}
-        title="懸念を追加"
-        maxWidthClass="max-w-xl"
+        title={
+          <span className="flex items-center gap-3">
+            懸念を追加
+            <span className="flex items-center gap-1" title="重大度（将来の影響の大きさ）">
+              <Flame className="h-3 w-3 text-zinc-400" />
+              <span className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                {SEVERITY_ORDER.map((sv) => (
+                  <button
+                    key={sv}
+                    onClick={() => setNewSeverity(sv)}
+                    className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      newSeverity === sv
+                        ? SEVERITY_META[sv].active
+                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {SEVERITY_META[sv].label}
+                  </button>
+                ))}
+              </span>
+            </span>
+          </span>
+        }
+        maxWidthClass="max-w-2xl"
+        footer={
+          <>
+            <button
+              onClick={() => {
+                resetForm();
+                setShowAdd(false);
+              }}
+              className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!newTitle.trim() || !newDetail.trim()}
+              className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-600 disabled:opacity-40"
+            >
+              登録
+            </button>
+          </>
+        }
       >
         <div>
           <input
@@ -296,52 +343,12 @@ export default function ConcernsClient() {
                 );
               })}
             </div>
-            {/* Severity */}
-            <div
-              className="flex items-center gap-1"
-              title="重大度（将来の影響の大きさ）"
-            >
-              <Flame className="h-3 w-3 text-zinc-400" />
-              <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-                {SEVERITY_ORDER.map((sv) => (
-                  <button
-                    key={sv}
-                    onClick={() => setNewSeverity(sv)}
-                    className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      newSeverity === sv
-                        ? SEVERITY_META[sv].active
-                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    {SEVERITY_META[sv].label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <input
               value={newLocation}
               onChange={(e) => setNewLocation(e.target.value)}
               placeholder="対象箇所 (任意, 例: src/auth/token.ts:42)"
               className="min-w-[12rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-rose-400 dark:border-zinc-700"
             />
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => {
-                  resetForm();
-                  setShowAdd(false);
-                }}
-                className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={!newTitle.trim() || !newDetail.trim()}
-                className="rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-600 disabled:opacity-40"
-              >
-                登録
-              </button>
-            </div>
           </div>
         </div>
       </Modal>

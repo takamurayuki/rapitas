@@ -39,9 +39,9 @@ export type IdeaScope = 'global' | 'project';
  * How much the idea would innovate or raise the app's value if built. Conveys
  * the idea's "temperature": high = transformative, low = nice-to-have.
  */
-export type IdeaPriority = 'high' | 'medium' | 'low';
+export type IdeaPriority = 'urgent' | 'high' | 'medium' | 'low';
 
-const VALID_PRIORITIES: readonly IdeaPriority[] = ['high', 'medium', 'low'];
+const VALID_PRIORITIES: readonly IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
 
 /** Coerces an arbitrary value to a valid priority, defaulting to medium. */
 export function normalizeIdeaPriority(value: unknown): IdeaPriority {

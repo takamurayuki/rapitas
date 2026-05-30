@@ -26,7 +26,7 @@ import { Modal } from '@/components/ui/modal/Modal';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 type IdeaScope = 'global' | 'project';
-type IdeaPriority = 'high' | 'medium' | 'low';
+type IdeaPriority = 'urgent' | 'high' | 'medium' | 'low';
 
 interface Idea {
   id: number;
@@ -51,8 +51,9 @@ interface IdeaStats {
  * Idea priority = how much it would innovate / raise the app's value if built.
  * Rendered with the same PriorityIcon as the task list for consistency.
  */
-const PRIORITY_ORDER: IdeaPriority[] = ['high', 'medium', 'low'];
+const PRIORITY_ORDER: IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
 const PRIORITY_HINT: Record<IdeaPriority, string> = {
+  urgent: '最優先で取り組むべき',
   high: '革新的・アプリ価値を大きく底上げ',
   medium: '着実に価値を高める',
   low: '小さな改善・あれば良い',
@@ -484,7 +485,57 @@ export default function IdeasClient() {
           open={showQuickAdd}
           onClose={handleCancel}
           icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
-          title={editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
+          maxWidthClass="max-w-2xl"
+          title={
+            <span className="flex items-center gap-3">
+              {editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
+              {/* Priority — moved next to the title; same icons as the task list */}
+              <span
+                className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                title="優先度（アプリへの革新性・価値の底上げ度合い）"
+              >
+                {PRIORITY_ORDER.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setNewPriority(p)}
+                    title={PRIORITY_HINT[p]}
+                    className={`px-2 py-1 transition-colors ${
+                      newPriority === p
+                        ? 'bg-zinc-100 dark:bg-zinc-800'
+                        : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <PriorityIcon priority={p} size="sm" showTitle />
+                  </button>
+                ))}
+              </span>
+            </span>
+          }
+          footer={
+            <>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!newTitle.trim() || isSubmitting}
+                className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : editingId !== null ? (
+                  <Pencil className="h-3 w-3" />
+                ) : (
+                  <Lightbulb className="h-3 w-3" />
+                )}
+                {editingId !== null ? '更新' : '保存'}
+              </button>
+            </>
+          }
         >
             <div className="space-y-3">
               <input
@@ -507,104 +558,57 @@ export default function IdeasClient() {
                 className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
                 style={{ overflowY: 'auto' }}
               />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Scope toggle */}
-                  <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <button
-                      onClick={() => setNewScope('global')}
-                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'global' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-                    >
-                      <Globe className="h-3 w-3" />
-                      グローバル
-                    </button>
-                    <button
-                      onClick={() => setNewScope('project')}
-                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'project' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-                    >
-                      <FolderOpen className="h-3 w-3" />
-                      プロジェクト
-                    </button>
-                  </div>
-                  {/* Priority — same icons as the task list */}
-                  <div
-                    className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
-                    title="優先度（アプリへの革新性・価値の底上げ度合い）"
-                  >
-                    {PRIORITY_ORDER.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setNewPriority(p)}
-                        title={PRIORITY_HINT[p]}
-                        className={`px-2 py-1 transition-colors ${
-                          newPriority === p
-                            ? 'bg-zinc-100 dark:bg-zinc-800'
-                            : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                        }`}
-                      >
-                        <PriorityIcon priority={p} size="sm" showTitle />
-                      </button>
-                    ))}
-                  </div>
-                  {/* Category → Theme selector (project scope only) */}
-                  {newScope === 'project' && (
-                    <>
-                      <select
-                        value={newCategoryId ?? ''}
-                        onChange={(e) => {
-                          const id = e.target.value ? parseInt(e.target.value) : null;
-                          setNewCategoryId(id);
-                          setNewThemeId(null);
-                        }}
-                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                      >
-                        <option value="">カテゴリ</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={newThemeId ?? ''}
-                        onChange={(e) =>
-                          setNewThemeId(e.target.value ? parseInt(e.target.value) : null)
-                        }
-                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                      >
-                        <option value="">テーマ</option>
-                        {filteredThemes.map((th) => (
-                          <option key={th.id} value={th.id}>
-                            {th.name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Scope toggle */}
+                <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
                   <button
-                    onClick={handleCancel}
-                    className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    onClick={() => setNewScope('global')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'global' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
                   >
-                    キャンセル
+                    <Globe className="h-3 w-3" />
+                    グローバル
                   </button>
                   <button
-                    onClick={handleSubmit}
-                    disabled={!newTitle.trim() || isSubmitting}
-                    className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                    onClick={() => setNewScope('project')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'project' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
                   >
-                    {isSubmitting ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : editingId !== null ? (
-                      <Pencil className="h-3 w-3" />
-                    ) : (
-                      <Lightbulb className="h-3 w-3" />
-                    )}
-                    {editingId !== null ? '更新' : '保存'}
+                    <FolderOpen className="h-3 w-3" />
+                    プロジェクト
                   </button>
                 </div>
+                {/* Category → Theme selector (project scope only) */}
+                {newScope === 'project' && (
+                  <>
+                    <select
+                      value={newCategoryId ?? ''}
+                      onChange={(e) => {
+                        const id = e.target.value ? parseInt(e.target.value) : null;
+                        setNewCategoryId(id);
+                        setNewThemeId(null);
+                      }}
+                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                      <option value="">カテゴリ</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={newThemeId ?? ''}
+                      onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                    >
+                      <option value="">テーマ</option>
+                      {filteredThemes.map((th) => (
+                        <option key={th.id} value={th.id}>
+                          {th.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             </div>
         </Modal>
