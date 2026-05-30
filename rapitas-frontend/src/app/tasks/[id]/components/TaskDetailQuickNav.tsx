@@ -61,6 +61,10 @@ export function TaskDetailQuickNav({
 
   // Scroll-spy: highlight the chip for the section currently at the top.
   const [activeId, setActiveId] = useState<string | null>(null);
+  // When the content fits without a scrollbar, jumping is pointless — the chips
+  // are disabled and show no active state.
+  const [isScrollable, setIsScrollable] = useState(true);
+  const navRef = useRef<HTMLDivElement>(null);
   const sectionIds = sections.map((s) => s.id).join(',');
   // While a chip-triggered scroll is animating, the click optimistically owns the
   // active state so a short section (e.g. workflow) isn't overridden back by the
@@ -100,6 +104,31 @@ export function TaskDetailQuickNav({
     return () => observer.disconnect();
   }, [sectionIds]);
 
+  // Track whether the scroll container actually overflows. Re-measured whenever
+  // the content grows/shrinks (subtasks load, workflow expands, window resize).
+  useEffect(() => {
+    const content = navRef.current?.parentElement ?? null;
+    if (!content) return;
+    // Nearest scrollable ancestor; fall back to the document scroller.
+    let scroller: HTMLElement | null = content;
+    while (scroller) {
+      const overflowY = getComputedStyle(scroller).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') break;
+      scroller = scroller.parentElement;
+    }
+    const measure = () => {
+      const el = scroller ?? document.documentElement;
+      // +1 tolerates sub-pixel rounding that would otherwise read as scrollable.
+      setIsScrollable(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(content);
+    if (scroller) ro.observe(scroller);
+    return () => ro.disconnect();
+  }, [sectionIds]);
+
   const jumpTo = (id: string) => {
     setActiveId(id); // optimistic: the pressed chip is active immediately
     programmaticUntilRef.current = Date.now() + 800;
@@ -107,7 +136,10 @@ export function TaskDetailQuickNav({
   };
 
   return (
-    <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+    <div
+      ref={navRef}
+      className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+    >
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4 md:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-thin">
           {isPageMode && (
@@ -121,23 +153,29 @@ export function TaskDetailQuickNav({
               <ArrowLeft className="h-4 w-4" />
             </button>
           )}
-          {sections.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => jumpTo(id)}
-              title={label}
-              aria-current={activeId === id ? 'true' : undefined}
-              className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                activeId === id
-                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
+          {sections.map(({ id, label, icon: Icon }) => {
+            const isActive = isScrollable && activeId === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => jumpTo(id)}
+                disabled={!isScrollable}
+                title={label}
+                aria-current={isActive ? 'true' : undefined}
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  !isScrollable
+                    ? 'cursor-default text-zinc-400 opacity-60 dark:text-zinc-500'
+                    : isActive
+                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            );
+          })}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <TaskPomodoroButton
