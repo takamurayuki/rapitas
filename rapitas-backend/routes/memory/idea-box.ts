@@ -13,6 +13,7 @@ import {
   deleteIdea,
   getIdeaStats,
   markIdeaAsUsed,
+  normalizeIdeaPriority,
 } from '../../services/memory/idea-box-service';
 import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
@@ -63,6 +64,7 @@ export const ideaBoxRoutes = new Elysia()
           content: body.content.trim(),
           category: body.category ?? 'improvement',
           scope: (body.scope as 'global' | 'project') ?? 'global',
+          priority: normalizeIdeaPriority(body.priority),
           themeId: body.themeId ?? undefined,
           tags: body.tags ?? [],
           source: 'user',
@@ -81,6 +83,7 @@ export const ideaBoxRoutes = new Elysia()
         content: t.String({ minLength: 1 }),
         category: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         themeId: t.Optional(t.Number()),
         tags: t.Optional(t.Array(t.String())),
       }),
@@ -128,6 +131,7 @@ export const ideaBoxRoutes = new Elysia()
           content: body.content,
           category: body.category,
           scope: body.scope as 'global' | 'project' | undefined,
+          priority: body.priority === undefined ? undefined : normalizeIdeaPriority(body.priority),
           // null clears themeId, undefined leaves it as-is
           themeId:
             body.themeId === undefined ? undefined : body.themeId === null ? null : body.themeId,
@@ -151,6 +155,7 @@ export const ideaBoxRoutes = new Elysia()
         content: t.Optional(t.String()),
         category: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         themeId: t.Optional(t.Union([t.Number(), t.Null()])),
         tags: t.Optional(t.Array(t.String())),
       }),

@@ -7,6 +7,7 @@ import {
   Loader2,
   Globe,
   FolderOpen,
+  Flame,
   Sparkles,
   Bot,
   MessageSquare,
@@ -24,6 +25,7 @@ import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 
 type IdeaScope = 'global' | 'project';
+type IdeaPriority = 'high' | 'medium' | 'low';
 
 interface Idea {
   id: number;
@@ -31,6 +33,7 @@ interface Idea {
   content: string;
   category: string;
   scope: IdeaScope;
+  priority: IdeaPriority;
   tags: string[];
   themeId: number | null;
   source: string;
@@ -42,6 +45,38 @@ interface IdeaStats {
   total: number;
   unused: number;
 }
+
+/**
+ * Idea priority = how much it would innovate / raise the app's value if built
+ * (the idea's "temperature": high = transformative, low = nice-to-have).
+ */
+const PRIORITY_META: Record<
+  IdeaPriority,
+  { label: string; hint: string; active: string; badge: string }
+> = {
+  high: {
+    label: '高',
+    hint: '革新的・アプリ価値を大きく底上げ',
+    active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+    badge:
+      'bg-rose-50 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-800',
+  },
+  medium: {
+    label: '中',
+    hint: '着実に価値を高める',
+    active: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    badge:
+      'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800',
+  },
+  low: {
+    label: '低',
+    hint: '小さな改善・あれば良い',
+    active: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+    badge:
+      'bg-sky-50 text-sky-600 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:ring-sky-800',
+  },
+};
+const PRIORITY_ORDER: IdeaPriority[] = ['high', 'medium', 'low'];
 
 const SOURCE_ICONS: Record<string, typeof User> = {
   user: User,
@@ -72,6 +107,7 @@ export default function IdeasClient() {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newScope, setNewScope] = useState<IdeaScope>('global');
+  const [newPriority, setNewPriority] = useState<IdeaPriority>('medium');
   const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,6 +217,7 @@ export default function IdeasClient() {
     setNewTitle('');
     setNewContent('');
     setNewScope('global');
+    setNewPriority('medium');
     setNewCategoryId(null);
     setNewThemeId(null);
   }, []);
@@ -192,6 +229,7 @@ export default function IdeasClient() {
       title: newTitle.trim(),
       content: newContent.trim() || newTitle.trim(),
       scope: newScope,
+      priority: newPriority,
       // Send null for global scope so PATCH clears any prior themeId.
       themeId: newScope === 'project' ? (newThemeId ?? null) : null,
     };
@@ -226,6 +264,7 @@ export default function IdeasClient() {
       content: payload.content,
       category: 'improvement',
       scope: newScope,
+      priority: newPriority,
       tags: [],
       themeId: payload.themeId,
       source: 'user',
@@ -251,7 +290,7 @@ export default function IdeasClient() {
       // Roll back the optimistic entry if the submission failed.
       setIdeas((prev) => prev.filter((i) => i.id !== tempId));
     }
-  }, [editingId, newTitle, newContent, newScope, newThemeId, fetchIdeas, resetForm]);
+  }, [editingId, newTitle, newContent, newScope, newPriority, newThemeId, fetchIdeas, resetForm]);
 
   const handleEdit = useCallback(
     (idea: Idea) => {
@@ -259,6 +298,7 @@ export default function IdeasClient() {
       setNewTitle(idea.title);
       setNewContent(idea.content === idea.title ? '' : idea.content);
       setNewScope(idea.scope);
+      setNewPriority(idea.priority);
       const theme = themes.find((t) => t.id === idea.themeId);
       setNewCategoryId(theme?.categoryId ?? null);
       setNewThemeId(idea.themeId);
@@ -501,6 +541,30 @@ export default function IdeasClient() {
                       プロジェクト
                     </button>
                   </div>
+                  {/* Priority (温度感) — how innovative / value-boosting the idea is */}
+                  <div
+                    className="flex items-center gap-1"
+                    title="アプリへの革新性・価値の底上げ度合い（温度感）"
+                  >
+                    <Flame className="h-3 w-3 text-zinc-400" />
+                    <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                      {PRIORITY_ORDER.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setNewPriority(p)}
+                          title={PRIORITY_META[p].hint}
+                          className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            newPriority === p
+                              ? PRIORITY_META[p].active
+                              : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                          }`}
+                        >
+                          {PRIORITY_META[p].label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   {/* Category → Theme selector (project scope only) */}
                   {newScope === 'project' && (
                     <>
@@ -632,6 +696,8 @@ export default function IdeasClient() {
               <div className="space-y-2">
                 {paginatedFiltered.map((idea) => {
                   const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
+                  // Tolerate ideas without a priority (legacy / partial data).
+                  const priorityMeta = PRIORITY_META[idea.priority] ?? PRIORITY_META.medium;
                   return (
                     <div
                       key={idea.id}
@@ -667,6 +733,14 @@ export default function IdeasClient() {
                                 );
                               })()
                             )}
+                            {/* Priority (温度感) badge */}
+                            <span
+                              className={`ml-auto flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${priorityMeta.badge}`}
+                              title={`優先度: ${priorityMeta.label} — ${priorityMeta.hint}`}
+                            >
+                              {idea.priority === 'high' && <Flame className="h-2.5 w-2.5" />}
+                              {priorityMeta.label}
+                            </span>
                           </div>
                           {idea.content !== idea.title && (
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">

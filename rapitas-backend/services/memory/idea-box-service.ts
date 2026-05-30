@@ -35,12 +35,27 @@ async function getThemeIdsForCategory(categoryId: number): Promise<number[]> {
 
 export type IdeaScope = 'global' | 'project';
 
+/**
+ * How much the idea would innovate or raise the app's value if built. Conveys
+ * the idea's "temperature": high = transformative, low = nice-to-have.
+ */
+export type IdeaPriority = 'high' | 'medium' | 'low';
+
+const VALID_PRIORITIES: readonly IdeaPriority[] = ['high', 'medium', 'low'];
+
+/** Coerces an arbitrary value to a valid priority, defaulting to medium. */
+export function normalizeIdeaPriority(value: unknown): IdeaPriority {
+  return VALID_PRIORITIES.includes(value as IdeaPriority) ? (value as IdeaPriority) : 'medium';
+}
+
 export interface IdeaBoxEntry {
   id: number;
   title: string;
   content: string;
   category: string;
   scope: IdeaScope;
+  /** Innovation / value-uplift priority (idea "temperature"). */
+  priority: IdeaPriority;
   tags: string[];
   confidence: number;
   themeId: number | null;
@@ -56,6 +71,8 @@ export interface SubmitIdeaInput {
   category?: string;
   /** "global" for cross-project ideas, "project" for project-specific */
   scope?: IdeaScope;
+  /** Innovation / value-uplift priority (idea "temperature"). */
+  priority?: IdeaPriority;
   themeId?: number;
   taskId?: number;
   tags?: string[];
@@ -85,7 +102,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   }
 
   const scope = input.scope ?? (input.themeId ? 'project' : 'global');
-  const allTags = [...(input.tags ?? []), `scope:${scope}`];
+  const priority = normalizeIdeaPriority(input.priority);
+  const allTags = [...(input.tags ?? []), `scope:${scope}`, `priority:${priority}`];
 
   const entry = await prisma.knowledgeEntry.create({
     data: {
@@ -206,6 +224,8 @@ export interface UpdateIdeaInput {
   content?: string;
   category?: string;
   scope?: IdeaScope;
+  /** Innovation / value-uplift priority. Omit to keep the current value. */
+  priority?: IdeaPriority;
   /** Pass null to clear the existing themeId; undefined to leave unchanged. */
   themeId?: number | null;
   tags?: string[];
@@ -249,10 +269,17 @@ export async function updateIdea(ideaId: number, input: UpdateIdeaInput): Promis
   // Reconcile scope tag with the new themeId. Explicit scope wins, otherwise
   // derive from themeId presence.
   const existingTags = JSON.parse(existing.tags || '[]') as string[];
-  const userTags = (input.tags ?? existingTags).filter((t) => !t.startsWith('scope:'));
+  const userTags = (input.tags ?? existingTags).filter(
+    (t) => !t.startsWith('scope:') && !t.startsWith('priority:'),
+  );
   const nextScope: IdeaScope =
     input.scope ?? (nextThemeId !== null && nextThemeId !== undefined ? 'project' : 'global');
-  const nextTags = [...userTags, `scope:${nextScope}`];
+  // Keep the existing priority unless explicitly changed.
+  const existingPriorityTag = existingTags.find((t) => t.startsWith('priority:'));
+  const nextPriority = normalizeIdeaPriority(
+    input.priority ?? existingPriorityTag?.slice('priority:'.length),
+  );
+  const nextTags = [...userTags, `scope:${nextScope}`, `priority:${nextPriority}`];
 
   const nextHash = createContentHash(`${nextTitle}:${nextContent}`);
 
@@ -419,13 +446,17 @@ function toIdeaBoxEntry(entry: {
   const parsedTags = JSON.parse(entry.tags || '[]') as string[];
   const scopeTag = parsedTags.find((t) => t.startsWith('scope:'));
   const scope: IdeaScope = scopeTag === 'scope:project' ? 'project' : 'global';
+  const priorityTag = parsedTags.find((t) => t.startsWith('priority:'));
+  const priority = normalizeIdeaPriority(priorityTag?.slice('priority:'.length));
   return {
     id: entry.id,
     title: entry.title,
     content: entry.content,
     category: entry.category,
     scope,
-    tags: parsedTags.filter((t) => !t.startsWith('scope:')),
+    priority,
+    // Hide internal scope:/priority: markers from the FE-visible tag list.
+    tags: parsedTags.filter((t) => !t.startsWith('scope:') && !t.startsWith('priority:')),
     confidence: entry.confidence,
     themeId: entry.themeId,
     taskId: entry.taskId,
