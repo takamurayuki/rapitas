@@ -23,6 +23,7 @@ import { useFilterDataStore } from '@/stores/filter-data-store';
 import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
+import { Modal } from '@/components/ui/modal/Modal';
 
 type IdeaScope = 'global' | 'project';
 type IdeaPriority = 'high' | 'medium' | 'low';
@@ -273,7 +274,8 @@ export default function IdeasClient() {
     };
     setIdeas((prev) => [optimistic, ...prev]);
     resetForm();
-    setShowQuickAdd(false);
+    // Keep the modal open (cleared) so the user can add another right away.
+    setTimeout(() => titleRef.current?.focus(), 0);
 
     try {
       // POST does not accept themeId=null, so omit it for global.
@@ -498,9 +500,13 @@ export default function IdeasClient() {
           }}
         />
 
-        {/* Quick Add — inline card that appears at the top */}
-        {showQuickAdd && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+        {/* Quick Add — modal so adding keeps you on the page (continuous adding) */}
+        <Modal
+          open={showQuickAdd}
+          onClose={handleCancel}
+          icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+          title={editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
+        >
             <div className="space-y-3">
               <input
                 ref={titleRef}
@@ -625,11 +631,10 @@ export default function IdeasClient() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+        </Modal>
 
-        {/* 編集中・追加フォーム表示中は一覧・フィルタ・ページネーションを隠して、入力 UI に集中させる */}
-        {editingId === null && !showQuickAdd && (
+        {/* List + filters + pagination (always visible; the add/edit modal overlays). */}
+        {(
           <>
             {/* Filters — three dropdowns: scope / category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">

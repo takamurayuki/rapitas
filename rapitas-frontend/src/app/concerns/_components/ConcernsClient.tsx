@@ -8,7 +8,7 @@
  * and lets you turn each into a dedicated task or dismiss it.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Bug,
   Wrench,
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import Pagination from '@/components/ui/pagination/Pagination';
+import { Modal } from '@/components/ui/modal/Modal';
 
 type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
 type ConcernSeverity = 'high' | 'medium' | 'low';
@@ -105,6 +106,7 @@ export default function ConcernsClient() {
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const [showAdd, setShowAdd] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDetail, setNewDetail] = useState('');
   const [newType, setNewType] = useState<ConcernType>('bug');
@@ -167,7 +169,8 @@ export default function ConcernsClient() {
       });
       if (!res.ok) return;
       resetForm();
-      setShowAdd(false);
+      // Keep the modal open (cleared) so the user can file another right away.
+      setTimeout(() => titleRef.current?.focus(), 0);
       await fetchConcerns();
     } catch {
       /* error */
@@ -246,10 +249,20 @@ export default function ConcernsClient() {
         </button>
       </div>
 
-      {/* Add form */}
-      {showAdd && (
-        <div className="mb-4 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+      {/* Add form — modal so filing keeps you on the page (continuous adding) */}
+      <Modal
+        open={showAdd}
+        onClose={() => {
+          resetForm();
+          setShowAdd(false);
+        }}
+        icon={<Bug className="h-4 w-4 text-rose-500" />}
+        title="懸念を追加"
+        maxWidthClass="max-w-xl"
+      >
+        <div>
           <input
+            ref={titleRef}
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="懸念をひとことで（例: 認証トークンが失効しても再ログインされない）"
@@ -331,7 +344,7 @@ export default function ConcernsClient() {
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
       {/* Filters */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
