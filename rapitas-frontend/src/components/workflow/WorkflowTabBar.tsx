@@ -1,7 +1,7 @@
 'use client';
 // WorkflowTabBar
 
-import { Clock, RefreshCw, CheckCircle2, Circle } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
 
@@ -75,10 +75,10 @@ export function WorkflowTabBar({
                 // A filled check reads as "this phase is done" — the previous
                 // solid green dot looked like a live/active status light.
                 <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              ) : (
-                // Hollow circle = phase not produced yet (no file).
-                <Circle className="h-3.5 w-3.5 text-zinc-300 dark:text-zinc-600" />
-              )}
+              ) : null
+              // Not produced yet: show nothing — an in-progress phase surfaces
+              // its own loading indicator elsewhere.
+              }
             </button>
           );
         })}
