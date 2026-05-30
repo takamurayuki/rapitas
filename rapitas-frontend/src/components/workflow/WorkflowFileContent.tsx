@@ -223,6 +223,9 @@ export function WorkflowFileContent({
           'prose-li:text-zinc-700 dark:prose-li:text-zinc-300 prose-li:my-0.5',
           'prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100',
           'prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline',
+          // Typography injects literal backtick quotes around inline code via
+          // ::before/::after — strip them so only the Jira-style chip shows.
+          'prose-code:before:content-none prose-code:after:content-none',
         ].join(' ')}
       >
         <ReactMarkdown
@@ -360,6 +363,9 @@ export function WorkflowFileContent({
               return <input type={type} {...props} />;
             },
             // Code — distinct styling for inline vs fenced blocks.
+            // NOTE: react-markdown already strips the surrounding backticks, so
+            // only the inner text is rendered here. Inline code mirrors the
+            // Jira/Confluence "code" mark — neutral grey chip, mono, subtle border.
             code: ({ className: codeClassName, children, ...props }) => {
               const isBlock = (codeClassName || '').includes('language-');
               if (isBlock) {
@@ -371,7 +377,7 @@ export function WorkflowFileContent({
               }
               return (
                 <code
-                  className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono border border-indigo-100 dark:border-indigo-800/50"
+                  className="rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[0.85em] text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                   {...props}
                 >
                   {children}
