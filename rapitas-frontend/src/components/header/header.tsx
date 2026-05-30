@@ -37,7 +37,7 @@ import {
   Sparkles,
   Lightbulb,
   Bug,
-  Layers,
+  Inbox,
   NotebookTabs,
   Package,
   BookMarked,
@@ -109,7 +109,7 @@ export default function Header() {
     {
       href: '#',
       label: 'バックログ',
-      icon: Layers,
+      icon: Inbox,
       children: [
         { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
         { href: '/concerns', label: '懸念バックログ', icon: Bug },

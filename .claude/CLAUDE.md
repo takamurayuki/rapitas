@@ -330,3 +330,7 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 ## 9. Folder Organization Policy
 
 @FOLDER_ORGANIZATION_POLICY.md
+
+## 10. Icon Consistency Policy
+
+@ICON_POLICY.md
