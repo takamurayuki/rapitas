@@ -224,8 +224,10 @@ export function WorkflowFileContent({
           'prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100',
           'prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline',
           // Typography injects literal backtick quotes around inline code via
-          // ::before/::after — strip them so only the Jira-style chip shows.
-          'prose-code:before:content-none prose-code:after:content-none',
+          // ::before/::after. The prose-code: variant ties its specificity and
+          // loses on source order, so target `code` directly — `.x code::before`
+          // outranks `.prose :where(code)::before` and reliably wins.
+          '[&_code]:before:content-none [&_code]:after:content-none',
         ].join(' ')}
       >
         <ReactMarkdown
