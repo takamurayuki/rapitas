@@ -372,6 +372,25 @@ ${
     fullPrompt += `${cliT.prohibitions}\n${cliT.mandatory}`;
   }
 
+  // Concern Backlog: agents must FILE out-of-scope issues, never fix them inline.
+  // This is what stops "not my task → ignore it" for bugs/risks spotted in passing.
+  const port = process.env.PORT || '3001';
+  fullPrompt += `
+
+## 懸念バックログ（重要 / Concern Backlog）
+作業中に、今回のタスクのスコープ外で次のいずれかに気づいた場合:
+- バグ / 将来重大なエラーにつながりかねないコード
+- セキュリティ・パフォーマンス上のリスク
+- リファクタすべき箇所
+
+**その場で修正しないでください（スコープ外の変更は禁止）。** 代わりに、必ず懸念バックログへ起票してください（修正は起票されたタスクで別途行います）:
+\`\`\`bash
+curl -X POST http://localhost:${port}/concerns \\
+  -H 'Content-Type: application/json' \\
+  -d '{"title":"簡潔な要約","detail":"何が問題で、なぜ重要か","type":"bug|refactor|security|perf|other","severity":"high|medium|low","location":"path/to/file.ts:行 など","originTaskId":${taskId}}'
+\`\`\`
+気づきが無ければ何もしなくて構いません。`;
+
   const result = await orchestrator.executeTask(
     {
       id: taskId,
