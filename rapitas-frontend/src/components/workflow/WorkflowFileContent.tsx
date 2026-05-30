@@ -1,10 +1,50 @@
 'use client';
 // WorkflowFileContent
 
+import { useMemo, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { WorkflowTab } from './workflow-viewer-utils';
+
+/** A heading extracted from markdown for the in-file table of contents. */
+interface TocHeading {
+  id: string;
+  level: number;
+  text: string;
+}
+
+/**
+ * Extracts H1–H3 headings (skipping fenced code) in document order, assigning
+ * each a sequential id that matches the order the heading components render so
+ * the TOC links resolve to the right element. / 本文の見出しを順番に抽出。
+ *
+ * @param md - Raw markdown source / Markdown原文
+ * @returns Ordered headings with stable ids / 安定idつきの見出し一覧
+ */
+function extractHeadings(md: string): TocHeading[] {
+  const out: TocHeading[] = [];
+  let inFence = false;
+  let idx = 0;
+  for (const raw of md.split('\n')) {
+    if (/^\s*(```|~~~)/.test(raw)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const m = raw.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
+    if (!m) continue;
+    const text = m[2]
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .trim();
+    out.push({ id: `wf-h-${idx}`, level: m[1].length, text });
+    idx++;
+  }
+  return out;
+}
 
 interface WorkflowFile {
   exists: boolean;
@@ -47,6 +87,11 @@ export function WorkflowFileContent({
   onPlanApprovalRequest,
   onCompleteRequest,
 }: WorkflowFileContentProps) {
+  const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
+  // Reset before each render so the heading components below number in sync.
+  const headingIdxRef = useRef(0);
+  headingIdxRef.current = 0;
+
   if (isLoading && !activeFile) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -69,6 +114,27 @@ export function WorkflowFileContent({
 
   return (
     <div className="space-y-3">
+      {/* In-file table of contents — jump to a section heading. */}
+      {headings.length > 0 && (
+        <nav className="flex flex-wrap items-center gap-1 border-b border-zinc-100 pb-2 dark:border-zinc-700/50">
+          {headings.map((h) => (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById(h.id)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              title={h.text}
+              className="max-w-[14rem] truncate rounded px-2 py-0.5 text-xs text-zinc-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-400 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+            >
+              {h.text}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {/* Markdown body */}
       <div
         className={[
@@ -88,7 +154,8 @@ export function WorkflowFileContent({
             // logical block reads as its own card-like section.
             h1: ({ children, ...props }) => (
               <h1
-                className="!mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
+                id={`wf-h-${headingIdxRef.current++}`}
+                className="scroll-mt-20 !mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
                 {...props}
               >
                 {children}
@@ -96,7 +163,8 @@ export function WorkflowFileContent({
             ),
             h2: ({ children, ...props }) => (
               <h2
-                className="!mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
+                id={`wf-h-${headingIdxRef.current++}`}
+                className="scroll-mt-20 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
                 {...props}
               >
                 {children}
@@ -104,7 +172,8 @@ export function WorkflowFileContent({
             ),
             h3: ({ children, ...props }) => (
               <h3
-                className="!mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
+                id={`wf-h-${headingIdxRef.current++}`}
+                className="scroll-mt-20 !mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
                 {...props}
               >
                 {children}
