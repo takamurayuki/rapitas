@@ -507,8 +507,8 @@ export default function IdeasClient() {
                 className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
                 style={{ overflowY: 'auto' }}
               />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Scope toggle */}
                   <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
                     <button
