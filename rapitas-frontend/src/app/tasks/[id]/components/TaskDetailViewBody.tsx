@@ -127,6 +127,18 @@ export default function TaskDetailViewBody({
 }: TaskDetailViewBodyProps) {
   const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
+  // Context for the copilot's "next action" recommender (rule-based, see
+  // next-action-recommender.ts). canRunAgent mirrors the execute-route gate.
+  const subtasks = task.subtasks ?? [];
+  const nextActionContext = {
+    status: task.status,
+    subtaskTotal: subtasks.length,
+    subtaskDone: subtasks.filter((s) => s.status === 'done').length,
+    complexityScore: task.complexityScore ?? null,
+    estimatedHours: task.estimatedHours ?? null,
+    canRunAgent: !!(task.theme?.isDevelopment && task.theme?.workingDirectory),
+  };
+
   return (
     <>
       <div id="td-info" className="mb-6 scroll-mt-16">
@@ -159,6 +171,7 @@ export default function TaskDetailViewBody({
           taskStatus={task.status}
           taskDescription={task.description}
           onTaskUpdated={onTaskUpdated}
+          nextActionContext={nextActionContext}
         >
           {/* NOTE: Always render the agent execution accordion. The component
               itself shows a capability-aware body when the task lacks a theme,
