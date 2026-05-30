@@ -5,6 +5,8 @@ import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } fro
 import TaskDetailHeader from './TaskDetailHeader';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
+import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
+import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -106,6 +108,16 @@ export default function TaskDetailContent({
     }
   }, [showSkeleton]);
 
+  // Quick-jump targets — must match the section ids in TaskDetailViewBody.
+  const quickNavSections: QuickNavSection[] = [
+    { id: 'td-info', label: '詳細', icon: Info },
+    { id: 'td-ai', label: 'AI', icon: Bot },
+    ...(task.theme?.isDevelopment === true
+      ? [{ id: 'td-workflow', label: 'ワークフロー', icon: GitBranch }]
+      : []),
+    { id: 'td-subtasks', label: 'サブタスク', icon: ListTodo },
+  ];
+
   return (
     <div
       ref={containerRef}
@@ -133,6 +145,8 @@ export default function TaskDetailContent({
           onOpenPomodoro={() => setShowPomodoroModal(true)}
         />
       </div>
+
+      <TaskDetailQuickNav sections={quickNavSections} />
 
       {/* Main content — single column */}
       <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pb-8">

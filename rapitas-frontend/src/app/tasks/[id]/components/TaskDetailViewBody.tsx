@@ -129,7 +129,7 @@ export default function TaskDetailViewBody({
 
   return (
     <>
-      <div className="mb-6">
+      <div id="td-info" className="mb-6 scroll-mt-16">
         <CompactTaskDetailCard
           task={task}
           onStatusUpdate={taskActions.updateStatus}
@@ -152,7 +152,7 @@ export default function TaskDetailViewBody({
       </div>
 
       {/* Unified AI panel — copilot with execution inside */}
-      <div className="mb-6">
+      <div id="td-ai" className="mb-6 scroll-mt-16">
         <CopilotChatPanel
           taskId={taskId}
           taskTitle={task.title}
@@ -178,7 +178,8 @@ export default function TaskDetailViewBody({
       </div>
 
       {task.theme?.isDevelopment === true && (
-        <TaskWorkflowSection
+        <div id="td-workflow" className="scroll-mt-16">
+          <TaskWorkflowSection
           task={task}
           taskId={taskId}
           currentWorkflowStatus={currentWorkflowStatus}
@@ -189,10 +190,12 @@ export default function TaskDetailViewBody({
           onWorkflowComplete={onWorkflowComplete}
           onTaskUpdated={onTaskUpdated}
           setTask={setTask}
-        />
+          />
+        </div>
       )}
 
-      <SubtaskSection
+      <div id="td-subtasks" className="scroll-mt-16">
+        <SubtaskSection
         subtasks={task.subtasks || []}
         isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
         selectedSubtaskIds={taskActions.selectedSubtaskIds}
@@ -233,7 +236,8 @@ export default function TaskDetailViewBody({
         onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
         onAddSubtask={taskActions.addSubtask}
         onCancelAddSubtask={taskActions.cancelAddSubtask}
-      />
+        />
+      </div>
     </>
   );
 }
