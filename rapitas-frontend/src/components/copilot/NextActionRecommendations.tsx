@@ -8,6 +8,7 @@
  * by the parent (CopilotChatPanel).
  */
 
+import { useEffect, useState } from 'react';
 import {
   Sparkles,
   SplitSquareVertical,
@@ -48,6 +49,12 @@ export function NextActionRecommendations({
   onSelect,
   isBusy,
 }: NextActionRecommendationsProps) {
+  // Track which card was clicked so only IT shows a spinner (not all of them).
+  const [activeId, setActiveId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isBusy) setActiveId(null);
+  }, [isBusy]);
+
   if (actions.length === 0) {
     return (
       <p className="rounded-lg border border-zinc-200 px-3 py-4 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
@@ -62,13 +69,19 @@ export function NextActionRecommendations({
       {actions.map((a) => {
         const Icon = ICONS[a.icon];
         const isPrimary = a.tone === 'primary';
+        const isActive = activeId === a.id;
         return (
           <button
             key={a.id}
             type="button"
             disabled={isBusy}
-            onClick={() => onSelect(a)}
-            className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:opacity-50 ${
+            onClick={() => {
+              setActiveId(a.id);
+              onSelect(a);
+            }}
+            className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+              isBusy && !isActive ? 'opacity-50' : ''
+            } ${
               isPrimary
                 ? 'border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40'
                 : 'border-zinc-200 hover:border-indigo-300 hover:bg-indigo-50/40 dark:border-zinc-700 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/15'
@@ -79,7 +92,7 @@ export function NextActionRecommendations({
                 isPrimary ? 'text-indigo-600 dark:text-indigo-400' : 'text-indigo-500'
               }`}
             >
-              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+              {isActive ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
             </span>
             <span className="min-w-0">
               <span

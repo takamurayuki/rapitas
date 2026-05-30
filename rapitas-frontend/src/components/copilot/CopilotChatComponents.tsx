@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { CopilotMessage } from './useCopilotChat';
 import type { AnalysisData } from './copilot-chat-types';
+import { MarkdownView } from '../markdown/MarkdownView';
 
 /**
  * Badge showing the AI tier used (local, haiku, sonnet) or cache indicator.
@@ -242,8 +243,13 @@ export function MessageBubble({
       >
         {isAnalysis ? (
           <AnalysisResultCard data={msg.actionData!.data as AnalysisData} onAction={onAction} />
-        ) : (
+        ) : isUser ? (
+          // User input is plain text, not markdown.
           <p className="whitespace-pre-wrap">{msg.content}</p>
+        ) : (
+          // Assistant content (incl. the retrospective) is markdown — render it
+          // with the same styling as the workflow file viewer.
+          <MarkdownView content={msg.content} />
         )}
         {!isUser && !isAnalysis && (
           <div className="mt-2 flex items-center justify-between">
