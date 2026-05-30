@@ -188,12 +188,14 @@ export function WorkflowFileContent({
     <div className="space-y-3">
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
-          spans the card; top-[5.5rem] (88px) sits just below the sticky tab bar
-          (which itself sits below the task-detail toolbar). */}
+          spans the card. top:88px (inline, not an arbitrary class which may not
+          be generated) sits just below the sticky tab bar, which itself sits
+          below the task-detail toolbar. */}
       {headings.length > 0 && (
         <nav
           ref={tocRef}
-          className="sticky top-[5.5rem] z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
+          style={{ top: 88 }}
+          className="sticky z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
         >
           <button
             type="button"
