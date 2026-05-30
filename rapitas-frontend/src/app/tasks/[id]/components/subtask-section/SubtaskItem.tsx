@@ -7,7 +7,7 @@
  * or delegates to SubtaskEditForm when this item is being edited.
  */
 
-import { Circle, Check, Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
+import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
 import {
   SubtaskTitleIndicator,
   type ParallelExecutionStatus,
@@ -121,42 +121,21 @@ export function SubtaskItem({
               ) : (
                 !isSelectionMode && (
                   <div className="shrink-0">
-                    {subtask.status === 'done' ? (
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                    ) : subtask.status === 'in-progress' ? (
-                      <div className="relative w-5 h-5 rounded-md bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                        <svg
-                          className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
-                          viewBox="0 0 32 32"
-                          fill="none"
+                    {(() => {
+                      // Mirror the task-list status icon (StatusConfig colours +
+                      // renderStatusIcon glyph in a bordered rounded box).
+                      const cfg =
+                        sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
+                        sharedStatusConfig.todo;
+                      return (
+                        <div
+                          className={`flex w-6 h-6 items-center justify-center rounded-md border-2 ${cfg.color} ${cfg.bgColor} ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
+                          aria-label={cfg.label}
                         >
-                          <rect
-                            x="1"
-                            y="1"
-                            width="30"
-                            height="30"
-                            rx="7"
-                            stroke="#3b82f6"
-                            strokeWidth="2"
-                            strokeDasharray="20 87.96"
-                            strokeLinecap="round"
-                            fill="none"
-                            style={{
-                              animation: 'icon-outer-border-spin 1.5s linear infinite',
-                              willChange: 'stroke-dashoffset',
-                              transform: 'translateZ(0)',
-                            }}
-                          />
-                        </svg>
-                        <Circle className="w-3 h-3" />
-                      </div>
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                        <Circle className="w-3 h-3 text-zinc-400" />
-                      </div>
-                    )}
+                          {renderStatusIcon(subtask.status)}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )
               )}
