@@ -7,7 +7,6 @@ import {
   Loader2,
   Globe,
   FolderOpen,
-  Flame,
   Sparkles,
   Bot,
   MessageSquare,
@@ -24,6 +23,7 @@ import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 type IdeaScope = 'global' | 'project';
 type IdeaPriority = 'high' | 'medium' | 'low';
@@ -48,36 +48,15 @@ interface IdeaStats {
 }
 
 /**
- * Idea priority = how much it would innovate / raise the app's value if built
- * (the idea's "temperature": high = transformative, low = nice-to-have).
+ * Idea priority = how much it would innovate / raise the app's value if built.
+ * Rendered with the same PriorityIcon as the task list for consistency.
  */
-const PRIORITY_META: Record<
-  IdeaPriority,
-  { label: string; hint: string; active: string; badge: string }
-> = {
-  high: {
-    label: '高',
-    hint: '革新的・アプリ価値を大きく底上げ',
-    active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-    badge:
-      'bg-rose-50 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-800',
-  },
-  medium: {
-    label: '中',
-    hint: '着実に価値を高める',
-    active: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-    badge:
-      'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800',
-  },
-  low: {
-    label: '低',
-    hint: '小さな改善・あれば良い',
-    active: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
-    badge:
-      'bg-sky-50 text-sky-600 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:ring-sky-800',
-  },
-};
 const PRIORITY_ORDER: IdeaPriority[] = ['high', 'medium', 'low'];
+const PRIORITY_HINT: Record<IdeaPriority, string> = {
+  high: '革新的・アプリ価値を大きく底上げ',
+  medium: '着実に価値を高める',
+  low: '小さな改善・あれば良い',
+};
 
 const SOURCE_ICONS: Record<string, typeof User> = {
   user: User,
@@ -547,29 +526,26 @@ export default function IdeasClient() {
                       プロジェクト
                     </button>
                   </div>
-                  {/* Priority (温度感) — how innovative / value-boosting the idea is */}
+                  {/* Priority — same icons as the task list */}
                   <div
-                    className="flex items-center gap-1"
-                    title="アプリへの革新性・価値の底上げ度合い（温度感）"
+                    className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                    title="優先度（アプリへの革新性・価値の底上げ度合い）"
                   >
-                    <Flame className="h-3 w-3 text-zinc-400" />
-                    <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                      {PRIORITY_ORDER.map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          onClick={() => setNewPriority(p)}
-                          title={PRIORITY_META[p].hint}
-                          className={`px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                            newPriority === p
-                              ? PRIORITY_META[p].active
-                              : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                          }`}
-                        >
-                          {PRIORITY_META[p].label}
-                        </button>
-                      ))}
-                    </div>
+                    {PRIORITY_ORDER.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setNewPriority(p)}
+                        title={PRIORITY_HINT[p]}
+                        className={`px-2 py-1 transition-colors ${
+                          newPriority === p
+                            ? 'bg-zinc-100 dark:bg-zinc-800'
+                            : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <PriorityIcon priority={p} size="sm" showTitle />
+                      </button>
+                    ))}
                   </div>
                   {/* Category → Theme selector (project scope only) */}
                   {newScope === 'project' && (
@@ -701,8 +677,6 @@ export default function IdeasClient() {
               <div className="space-y-2">
                 {paginatedFiltered.map((idea) => {
                   const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
-                  // Tolerate ideas without a priority (legacy / partial data).
-                  const priorityMeta = PRIORITY_META[idea.priority] ?? PRIORITY_META.medium;
                   return (
                     <div
                       key={idea.id}
@@ -738,13 +712,12 @@ export default function IdeasClient() {
                                 );
                               })()
                             )}
-                            {/* Priority (温度感) badge */}
+                            {/* Priority — same display as the task list */}
                             <span
-                              className={`ml-auto flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${priorityMeta.badge}`}
-                              title={`優先度: ${priorityMeta.label} — ${priorityMeta.hint}`}
+                              className="ml-auto shrink-0"
+                              title={`優先度: ${PRIORITY_HINT[idea.priority]}`}
                             >
-                              {idea.priority === 'high' && <Flame className="h-2.5 w-2.5" />}
-                              {priorityMeta.label}
+                              <PriorityIcon priority={idea.priority} size="sm" showTitle />
                             </span>
                           </div>
                           {idea.content !== idea.title && (

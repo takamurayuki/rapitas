@@ -58,7 +58,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[8vh]"
+      className="fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto bg-black/50 p-4"
       onClick={onClose}
       role="presentation"
     >
