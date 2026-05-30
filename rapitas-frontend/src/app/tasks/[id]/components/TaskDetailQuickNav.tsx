@@ -7,6 +7,7 @@
  * right-aligned. It is the first element in the scroll area, so it sits directly
  * below the header in both the slide panel and the full-page view.
  */
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, Copy, FileStack, Trash2, type LucideIcon } from 'lucide-react';
 import type { Task } from '@/types';
@@ -58,6 +59,41 @@ export function TaskDetailQuickNav({
   const t = useTranslations('task');
   const tc = useTranslations('common');
 
+  // Scroll-spy: highlight the chip for the section currently at the top.
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sectionIds = sections.map((s) => s.id).join(',');
+
+  useEffect(() => {
+    const els = sectionIds
+      .split(',')
+      .filter(Boolean)
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (els.length === 0) return;
+
+    // Observe against the nearest scrollable ancestor (panel content or page scroller).
+    let root: HTMLElement | null = els[0].parentElement;
+    while (root) {
+      const overflowY = getComputedStyle(root).overflowY;
+      if ((overflowY === 'auto' || overflowY === 'scroll') && root.scrollHeight > root.clientHeight) {
+        break;
+      }
+      root = root.parentElement;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id);
+      },
+      { root, rootMargin: '-48px 0px -65% 0px', threshold: 0 },
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [sectionIds]);
+
   const jumpTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -82,7 +118,12 @@ export function TaskDetailQuickNav({
               type="button"
               onClick={() => jumpTo(id)}
               title={label}
-              className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              aria-current={activeId === id ? 'true' : undefined}
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                activeId === id
+                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
+              }`}
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -99,6 +140,7 @@ export function TaskDetailQuickNav({
             onClick={onOpenPomodoro}
           />
           <DropdownMenu
+            variant="ghost"
             items={[
               {
                 label: t('duplicateTask'),
