@@ -3,7 +3,7 @@ import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
 import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Feather, Gauge, Layers, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -86,20 +86,21 @@ export default function TaskWorkflowSection({
     standard: '標準',
     comprehensive: '詳細',
   };
-  // Colour the complexity chip by workflow mode so the tier is legible at a
-  // glance (low→high = emerald→amber→rose) instead of a flat grey pill.
-  const MODE_STYLES: Record<string, { chip: string; dot: string }> = {
+  // Colour + icon the complexity chip by workflow mode so the tier is legible
+  // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
+  // mode-specific icon also avoids clashing with the auto-approve chip's dot.
+  const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
     lightweight: {
       chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-      dot: 'bg-emerald-500',
+      icon: Feather,
     },
     standard: {
       chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      dot: 'bg-amber-500',
+      icon: Gauge,
     },
     comprehensive: {
       chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-      dot: 'bg-rose-500',
+      icon: Layers,
     },
   };
   const complexity = task?.complexityScore;
@@ -108,7 +109,7 @@ export default function TaskWorkflowSection({
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
     modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
-  const complexityDotClass = modeStyle?.dot ?? 'bg-indigo-500';
+  const ComplexityIcon = modeStyle?.icon ?? Gauge;
 
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
@@ -126,7 +127,7 @@ export default function TaskWorkflowSection({
               <span
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
               >
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${complexityDotClass}`} />
+                <ComplexityIcon className="h-3.5 w-3.5" />
                 複雑度 {Math.round(complexity)}
                 {modeLabel ? ` · ${modeLabel}` : ''}
               </span>
