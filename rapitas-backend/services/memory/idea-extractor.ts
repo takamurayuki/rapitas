@@ -10,6 +10,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
+import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
 import { submitIdea } from './idea-box-service';
 
@@ -379,7 +380,7 @@ async function callLLM(
 
   const response = await sendAIMessage({
     provider: useLocal ? 'ollama' : 'claude',
-    model: useLocal ? 'llama3.2' : 'claude-haiku-4-5-20251001',
+    model: useLocal ? await getBestLocalModel() : 'claude-haiku-4-5-20251001',
     messages: [{ role: 'user', content: prompt }],
     maxTokens,
   });

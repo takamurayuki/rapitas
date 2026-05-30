@@ -17,6 +17,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { getLocalLLMStatus } from '../local-llm';
+import { pickBestLocalModel } from '../local-llm/local-model-selector';
 import {
   getCachedResponse,
   setCachedResponse,
@@ -168,10 +169,17 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
   const localStatus = await getLocalLLMStatus().catch(() => ({
     available: false,
   }));
-  const { provider, model, tier } = selectModelTier(
-    message,
-    (localStatus as { available: boolean }).available,
-  );
+  const {
+    provider,
+    model: routedModel,
+    tier,
+  } = selectModelTier(message, (localStatus as { available: boolean }).available);
+  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
+  // name, so quality improves automatically when the user pulls a bigger model.
+  const model =
+    provider === 'ollama'
+      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
+      : routedModel;
 
   log.info({ provider, model, tier, messageLength: message.length }, 'Copilot routing');
 
@@ -239,10 +247,17 @@ export async function streamCopilotMessage(
   const localStatus = await getLocalLLMStatus().catch(() => ({
     available: false,
   }));
-  const { provider, model, tier } = selectModelTier(
-    message,
-    (localStatus as { available: boolean }).available,
-  );
+  const {
+    provider,
+    model: routedModel,
+    tier,
+  } = selectModelTier(message, (localStatus as { available: boolean }).available);
+  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
+  // name, so quality improves automatically when the user pulls a bigger model.
+  const model =
+    provider === 'ollama'
+      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
+      : routedModel;
 
   const messages: AIMessage[] = [
     ...conversationHistory.map((m) => ({

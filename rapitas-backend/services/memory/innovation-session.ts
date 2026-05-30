@@ -12,6 +12,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
 import { getLocalLLMStatus } from '../local-llm';
+import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { submitIdea } from './idea-box-service';
 
 const log = createLogger('memory:innovation-session');
@@ -135,7 +136,7 @@ export async function runInnovationSession(): Promise<number> {
   try {
     const response = await sendAIMessage({
       provider: useLocal ? 'ollama' : 'claude',
-      model: useLocal ? 'llama3.2' : 'claude-haiku-4-5-20251001',
+      model: useLocal ? await getBestLocalModel() : 'claude-haiku-4-5-20251001',
       messages: [{ role: 'user', content: prompt }],
       maxTokens: 800,
     });

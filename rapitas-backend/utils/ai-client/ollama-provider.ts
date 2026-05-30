@@ -16,6 +16,13 @@ const log = createLogger('ai-client:ollama');
 // bounds the CPU footprint and keeps the server responsive under load.
 const localInference = new Semaphore(1);
 
+/** Port of the bundled llama-server sidecar (it only speaks the OpenAI API). */
+const LLAMA_SERVER_PORT = 8922;
+/** Keep the Ollama model resident this long so calls don't reload it (speed). */
+const OLLAMA_KEEP_ALIVE = '30m';
+/** Context window for local calls — enough for our prompts, modest on RAM. */
+const OLLAMA_NUM_CTX = 4096;
+
 /**
  * Check connectivity to a local LLM server.
  */
@@ -84,6 +91,21 @@ export async function callOllama(
 
   log.info(`Calling local LLM at ${baseUrl} with model ${model}`);
 
+  // Ollama exposes a native /api/chat that accepts keep_alive (keep the model
+  // resident → no per-call reload) and tuning options. The bundled llama-server
+  // sidecar only speaks the OpenAI-compatible /v1 API, so branch on its port.
+  const isLlamaServer = baseUrl.includes(`:${LLAMA_SERVER_PORT}`);
+  const url = isLlamaServer ? `${baseUrl}/v1/chat/completions` : `${baseUrl}/api/chat`;
+  const body = isLlamaServer
+    ? JSON.stringify({ model, messages: chatMessages, max_tokens: maxTokens || 256, temperature: 0.7 })
+    : JSON.stringify({
+        model,
+        messages: chatMessages,
+        stream: false,
+        keep_alive: OLLAMA_KEEP_ALIVE,
+        options: { num_ctx: OLLAMA_NUM_CTX, num_predict: maxTokens || 256, temperature: 0.7 },
+      });
+
   // Run under the global limiter so concurrent callers queue instead of all
   // hammering the CPU-bound local model at once.
   return localInference.run(async () => {
@@ -93,33 +115,36 @@ export async function callOllama(
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: chatMessages,
-          max_tokens: maxTokens || 256,
-          temperature: 0.7,
-        }),
+        body,
         signal: AbortSignal.timeout(60000),
       });
 
       if (response.ok) {
         const data = (await response.json()) as {
+          // OpenAI-compatible (llama-server)
           choices?: Array<{ message?: { content: string } }>;
           usage?: { total_tokens?: number };
+          // Ollama native (/api/chat)
+          message?: { content?: string };
+          eval_count?: number;
+          prompt_eval_count?: number;
         };
 
-        const content = data.choices?.[0]?.message?.content;
+        const content = isLlamaServer
+          ? data.choices?.[0]?.message?.content
+          : data.message?.content;
         if (!content) {
           throw new Error('Local LLM returned empty response');
         }
 
-        return {
-          content,
-          tokensUsed: data.usage?.total_tokens || 0,
-        };
+        const tokensUsed = isLlamaServer
+          ? data.usage?.total_tokens || 0
+          : (data.eval_count || 0) + (data.prompt_eval_count || 0);
+
+        return { content, tokensUsed };
       }
 
       // Retry on 503 (model loading) — don't fall back to paid API yet
