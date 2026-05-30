@@ -7,7 +7,7 @@
  * right-aligned. It is the first element in the scroll area, so it sits directly
  * below the header in both the slide panel and the full-page view.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, Copy, FileStack, Trash2, type LucideIcon } from 'lucide-react';
 import type { Task } from '@/types';
@@ -62,6 +62,10 @@ export function TaskDetailQuickNav({
   // Scroll-spy: highlight the chip for the section currently at the top.
   const [activeId, setActiveId] = useState<string | null>(null);
   const sectionIds = sections.map((s) => s.id).join(',');
+  // While a chip-triggered scroll is animating, the click optimistically owns the
+  // active state so a short section (e.g. workflow) isn't overridden back by the
+  // observer when it can't reach the top.
+  const programmaticUntilRef = useRef(0);
 
   useEffect(() => {
     const els = sectionIds
@@ -83,6 +87,8 @@ export function TaskDetailQuickNav({
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // A recent chip click owns the active state — don't override it.
+        if (Date.now() < programmaticUntilRef.current) return;
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -94,8 +100,11 @@ export function TaskDetailQuickNav({
     return () => observer.disconnect();
   }, [sectionIds]);
 
-  const jumpTo = (id: string) =>
+  const jumpTo = (id: string) => {
+    setActiveId(id); // optimistic: the pressed chip is active immediately
+    programmaticUntilRef.current = Date.now() + 800;
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
