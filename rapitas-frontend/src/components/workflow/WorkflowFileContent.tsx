@@ -1,7 +1,7 @@
 'use client';
 // WorkflowFileContent
 
-import { useMemo, useRef } from 'react';
+import { isValidElement, useMemo, useRef, type ReactNode } from 'react';
 import { Loader2, List } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -15,9 +15,55 @@ interface TocHeading {
 }
 
 /**
+ * Builds a stable element id from heading text. Matched on BOTH sides (TOC link
+ * + rendered <h2>) so links resolve by content, not document position — setext
+ * or blockquote headings can no longer desync the numbering.
+ *
+ * @param text - Plain heading text / 見出しの素テキスト
+ * @returns URL-safe slug (CJK preserved) / CJKを保持したスラッグ
+ */
+function slugifyHeading(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      // Keep letters (incl. CJK via \p{L}) and numbers; drop punctuation.
+      .replace(/[^\p{L}\p{N}-]+/gu, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'section'
+  );
+}
+
+/**
+ * Disambiguates a slug against earlier occurrences so duplicate-named headings
+ * get distinct ids. Mutates `counts`. Must be applied identically on both sides.
+ *
+ * @param base - Base slug / 基本スラッグ
+ * @param counts - Per-render occurrence map / レンダー単位の出現回数マップ
+ * @returns Final element id / 最終的な要素id
+ */
+function uniqueHeadingId(base: string, counts: Map<string, number>): string {
+  const n = counts.get(base) ?? 0;
+  counts.set(base, n + 1);
+  return n === 0 ? `wf-h-${base}` : `wf-h-${base}-${n}`;
+}
+
+/** Flattens a ReactMarkdown heading's children into plain text. / 子要素を素テキスト化。 */
+function nodeToText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return '';
+  if (typeof node === 'string') return node;
+  if (typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeToText).join('');
+  if (isValidElement(node)) {
+    return nodeToText((node.props as { children?: ReactNode }).children);
+  }
+  return '';
+}
+
+/**
  * Extracts only H2 headings — the "section" titles rendered with the vertical
- * indigo bar — in document order (skipping fenced code). Each gets a sequential
- * id matching the order the H2 component renders so TOC links resolve correctly.
+ * indigo bar — in document order (skipping fenced code). Ids are derived from
+ * heading text (slug), so they match the rendered <h2> regardless of position.
  * Finer-grained headings (H1/H3+) are intentionally excluded. / h2見出しのみ抽出。
  *
  * @param md - Raw markdown source / Markdown原文
@@ -25,8 +71,8 @@ interface TocHeading {
  */
 function extractHeadings(md: string): TocHeading[] {
   const out: TocHeading[] = [];
+  const counts = new Map<string, number>();
   let inFence = false;
-  let idx = 0;
   for (const raw of md.split('\n')) {
     if (/^\s*(```|~~~)/.test(raw)) {
       inFence = !inFence;
@@ -41,8 +87,7 @@ function extractHeadings(md: string): TocHeading[] {
       .replace(/\*([^*]+)\*/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .trim();
-    out.push({ id: `wf-h-${idx}`, level: m[1].length, text });
-    idx++;
+    out.push({ id: uniqueHeadingId(slugifyHeading(text), counts), level: m[1].length, text });
   }
   return out;
 }
@@ -89,9 +134,9 @@ export function WorkflowFileContent({
   onCompleteRequest,
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
-  // Reset before each render so the heading components below number in sync.
-  const headingIdxRef = useRef(0);
-  headingIdxRef.current = 0;
+  // Reset before each render so the rendered <h2> ids dedupe in sync with the TOC.
+  const slugCountRef = useRef<Map<string, number>>(new Map());
+  slugCountRef.current = new Map();
 
   if (isLoading && !activeFile) {
     return (
@@ -119,8 +164,8 @@ export function WorkflowFileContent({
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card; top-11 sits clearly below the task-detail toolbar. */}
       {headings.length > 0 && (
-        <nav className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-wrap items-center gap-1.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900">
-          <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+        <nav className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900">
+          <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
             <List className="h-3.5 w-3.5" />
             目次
           </span>
@@ -134,7 +179,7 @@ export function WorkflowFileContent({
                   ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }
               title={h.text}
-              className="max-w-[14rem] shrink-0 truncate rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-indigo-100 hover:text-indigo-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300"
+              className="flex items-center gap-1.5 truncate rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-600 transition-colors before:h-3 before:w-0.5 before:shrink-0 before:rounded-full before:bg-indigo-400/70 hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-300 dark:before:bg-indigo-400/60 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
             >
               {h.text}
             </button>
@@ -169,7 +214,7 @@ export function WorkflowFileContent({
             ),
             h2: ({ children, ...props }) => (
               <h2
-                id={`wf-h-${headingIdxRef.current++}`}
+                id={uniqueHeadingId(slugifyHeading(nodeToText(children)), slugCountRef.current)}
                 className="scroll-mt-28 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
                 {...props}
               >
