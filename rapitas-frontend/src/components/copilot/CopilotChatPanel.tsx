@@ -7,7 +7,7 @@
  * Supports quick prompts, message history, and contextual insights.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { Send, Loader2, Sparkles, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
 import {
@@ -108,14 +108,14 @@ export function CopilotChatPanel({
           </h3>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-zinc-400">cache→local→haiku→sonnet</span>
           {messages.length > 0 && (
             <button
               onClick={clearChat}
-              aria-label="チャットをクリア"
+              aria-label="最初に戻る"
+              title="会話を最初に戻す"
               className="rounded p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
