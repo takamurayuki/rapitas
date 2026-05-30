@@ -29,10 +29,16 @@ function renderContent(content: string) {
   );
 }
 
+/** The TOC is collapsed by default; click its label to reveal the link list. */
+function openToc(container: HTMLElement) {
+  fireEvent.click(container.querySelector('nav > button')!);
+}
+
 describe('WorkflowFileContent TOC', () => {
   it('gives each rendered <h2> the same id the TOC link targets', () => {
     const md = ['# Title', '', '## 概要', 'body', '', '## 詳細設計', 'body'].join('\n');
     const { container } = renderContent(md);
+    openToc(container);
 
     const navButtons = Array.from(container.querySelectorAll('nav div button'));
     expect(navButtons.map((b) => b.textContent)).toEqual(['概要', '詳細設計']);
@@ -56,15 +62,19 @@ describe('WorkflowFileContent TOC', () => {
   it('ignores ## inside fenced code blocks', () => {
     const md = ['## Real', '', '```', '## Fake', '```'].join('\n');
     const { container } = renderContent(md);
+    openToc(container);
 
     const navButtons = Array.from(container.querySelectorAll('nav div button'));
     expect(navButtons.map((b) => b.textContent)).toEqual(['Real']);
   });
 
-  it('collapses the TOC list when the label is toggled', () => {
+  it('starts collapsed and toggles the TOC list open/closed', () => {
     const md = ['## 概要', 'a', '', '## 詳細', 'b'].join('\n');
     const { container } = renderContent(md);
 
+    // Collapsed by default — only the label button, no link list.
+    expect(container.querySelectorAll('nav div button')).toHaveLength(0);
+    openToc(container);
     expect(container.querySelectorAll('nav div button')).toHaveLength(2);
     fireEvent.click(container.querySelector('nav > button')!);
     expect(container.querySelectorAll('nav div button')).toHaveLength(0);
@@ -73,6 +83,7 @@ describe('WorkflowFileContent TOC', () => {
   it('lists one TOC entry for duplicate-named headings', () => {
     const md = ['## 受け入れ基準', 'a', '', '## 受け入れ基準', 'b'].join('\n');
     const { container } = renderContent(md);
+    openToc(container);
 
     const navButtons = Array.from(container.querySelectorAll('nav div button'));
     expect(navButtons).toHaveLength(1);

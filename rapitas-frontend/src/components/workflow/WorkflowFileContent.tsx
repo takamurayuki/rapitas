@@ -145,7 +145,8 @@ export function WorkflowFileContent({
   const tocRef = useRef<HTMLElement | null>(null);
   const [tocHeight, setTocHeight] = useState(0);
   // Collapsible so the sticky TOC can shrink to just its label when not in use.
-  const [tocOpen, setTocOpen] = useState(true);
+  // Default closed — it expands on demand and keeps the content area uncluttered.
+  const [tocOpen, setTocOpen] = useState(false);
   useEffect(() => {
     const el = tocRef.current;
     if (!el) {
