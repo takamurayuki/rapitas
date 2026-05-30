@@ -52,8 +52,10 @@ OS の環境変数として設定します（Windows はシステム環境変数
 | `OLLAMA_KV_CACHE_TYPE`    | `q8_0`  | KVキャッシュを量子化しメモリ約半減（長文で効く）   |
 | `OLLAMA_NUM_PARALLEL`     | `1`     | 普通PCは同時実行1で安定（アプリ側も直列化済み）    |
 
-> アプリのローカル呼び出しは Ollama ネイティブ API 経由で `keep_alive=30m` と
-> `num_ctx=4096` を**自動付与**します（`utils/ai-client/ollama-provider.ts`）。
+> アプリのローカル呼び出しは Ollama ネイティブ API 経由で `keep_alive=30m`・
+> `num_ctx=4096`・`num_thread=コア数/2` を**自動付与**します
+> （`utils/ai-client/ollama-provider.ts`）。スレッドを半分に抑えることで、
+> 推論がCPUを占有してバックエンド（低コア機で特に重要）を止めるのを防ぎます。
 > 上の `OLLAMA_KEEP_ALIVE` はサーバ全体の既定値で、二重の保険になります。
 
 ---

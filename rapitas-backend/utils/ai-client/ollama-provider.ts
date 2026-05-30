@@ -4,6 +4,7 @@
  * Supports both Ollama and llama-server.
  * Both expose the /v1/chat/completions endpoint.
  */
+import { cpus } from 'os';
 import { createLogger } from '../../config/logger';
 import { Semaphore } from '../common/semaphore';
 import type { AIMessage, AIResponse } from './types';
@@ -22,6 +23,10 @@ const LLAMA_SERVER_PORT = 8922;
 const OLLAMA_KEEP_ALIVE = '30m';
 /** Context window for local calls — enough for our prompts, modest on RAM. */
 const OLLAMA_NUM_CTX = 4096;
+// Cap inference threads to roughly half the cores so local LLM inference never
+// grabs the whole machine and starves the (single-threaded) backend event loop.
+// Critical on low-core CPU-only PCs running a 3B model.
+const OLLAMA_NUM_THREAD = Math.max(1, Math.floor((cpus().length || 4) / 2));
 
 /**
  * Check connectivity to a local LLM server.
@@ -103,7 +108,12 @@ export async function callOllama(
         messages: chatMessages,
         stream: false,
         keep_alive: OLLAMA_KEEP_ALIVE,
-        options: { num_ctx: OLLAMA_NUM_CTX, num_predict: maxTokens || 256, temperature: 0.7 },
+        options: {
+          num_ctx: OLLAMA_NUM_CTX,
+          num_predict: maxTokens || 256,
+          num_thread: OLLAMA_NUM_THREAD,
+          temperature: 0.7,
+        },
       });
 
   // Run under the global limiter so concurrent callers queue instead of all
