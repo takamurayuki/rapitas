@@ -1,7 +1,7 @@
 'use client';
 // WorkflowFileContent
 
-import { isValidElement, useMemo, useRef, type ReactNode } from 'react';
+import { isValidElement, useMemo, type ReactNode } from 'react';
 import { Loader2, List } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -35,17 +35,16 @@ function slugifyHeading(text: string): string {
 }
 
 /**
- * Disambiguates a slug against earlier occurrences so duplicate-named headings
- * get distinct ids. Mutates `counts`. Must be applied identically on both sides.
+ * Builds the element id for a heading purely from its text. Deliberately has no
+ * occurrence counter: a shared counter double-increments under React StrictMode's
+ * double render, desyncing the rendered <h2> ids from the once-computed TOC ids.
+ * Duplicate-named headings therefore share an id; links resolve to the first.
  *
- * @param base - Base slug / 基本スラッグ
- * @param counts - Per-render occurrence map / レンダー単位の出現回数マップ
- * @returns Final element id / 最終的な要素id
+ * @param text - Plain heading text / 見出しの素テキスト
+ * @returns Element id / 要素id
  */
-function uniqueHeadingId(base: string, counts: Map<string, number>): string {
-  const n = counts.get(base) ?? 0;
-  counts.set(base, n + 1);
-  return n === 0 ? `wf-h-${base}` : `wf-h-${base}-${n}`;
+function headingId(text: string): string {
+  return `wf-h-${slugifyHeading(text)}`;
 }
 
 /** Flattens a ReactMarkdown heading's children into plain text. / 子要素を素テキスト化。 */
@@ -71,7 +70,7 @@ function nodeToText(node: ReactNode): string {
  */
 function extractHeadings(md: string): TocHeading[] {
   const out: TocHeading[] = [];
-  const counts = new Map<string, number>();
+  const seen = new Set<string>();
   let inFence = false;
   for (const raw of md.split('\n')) {
     if (/^\s*(```|~~~)/.test(raw)) {
@@ -87,7 +86,11 @@ function extractHeadings(md: string): TocHeading[] {
       .replace(/\*([^*]+)\*/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
       .trim();
-    out.push({ id: uniqueHeadingId(slugifyHeading(text), counts), level: m[1].length, text });
+    const id = headingId(text);
+    // Drop later duplicates so the TOC has one entry per id (links hit the first).
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, level: m[1].length, text });
   }
   return out;
 }
@@ -134,9 +137,6 @@ export function WorkflowFileContent({
   onCompleteRequest,
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
-  // Reset before each render so the rendered <h2> ids dedupe in sync with the TOC.
-  const slugCountRef = useRef<Map<string, number>>(new Map());
-  slugCountRef.current = new Map();
 
   if (isLoading && !activeFile) {
     return (
@@ -214,7 +214,7 @@ export function WorkflowFileContent({
             ),
             h2: ({ children, ...props }) => (
               <h2
-                id={uniqueHeadingId(slugifyHeading(nodeToText(children)), slugCountRef.current)}
+                id={headingId(nodeToText(children))}
                 className="scroll-mt-28 !mt-8 !mb-3 pb-1.5 border-b border-zinc-200 dark:border-zinc-700 text-lg flex items-center gap-2 before:content-[''] before:block before:w-1 before:h-5 before:rounded-sm before:bg-indigo-500 dark:before:bg-indigo-400"
                 {...props}
               >
