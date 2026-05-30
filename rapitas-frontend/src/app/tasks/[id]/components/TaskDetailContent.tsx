@@ -2,7 +2,6 @@
 // TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
 import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
-import TaskDetailHeader from './TaskDetailHeader';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
@@ -132,24 +131,21 @@ export default function TaskDetailContent({
           : `opacity-0 ${isPageMode ? 'overflow-hidden' : ''}`
       }`}
     >
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 sm:pt-8 pb-4">
-        <TaskDetailHeader
-          task={task}
-          isPageMode={isPageMode}
-          isThisTaskTimer={isThisTaskTimer}
-          pomodoroState={pomodoroState}
-          onBack={onBack}
-          onDuplicateTask={taskActions.duplicateTask}
-          onDeleteTask={taskActions.deleteTask}
-          onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
-          onOpenPomodoro={() => setShowPomodoroModal(true)}
-        />
-      </div>
-
-      <TaskDetailQuickNav sections={quickNavSections} />
+      <TaskDetailQuickNav
+        sections={quickNavSections}
+        task={task}
+        isPageMode={isPageMode}
+        isThisTaskTimer={isThisTaskTimer}
+        pomodoroState={pomodoroState}
+        onBack={onBack}
+        onOpenPomodoro={() => setShowPomodoroModal(true)}
+        onDuplicateTask={taskActions.duplicateTask}
+        onDeleteTask={taskActions.deleteTask}
+        onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
+      />
 
       {/* Main content — single column */}
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pb-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 pb-8">
         <TaskDetailViewBody
           task={task}
           taskId={taskId}
