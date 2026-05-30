@@ -186,38 +186,69 @@ export default function IdeasClient() {
 
   const handleSubmit = useCallback(async () => {
     if (!newTitle.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        title: newTitle.trim(),
-        content: newContent.trim() || newTitle.trim(),
-        scope: newScope,
-        // Send null for global scope so PATCH clears any prior themeId.
-        themeId: newScope === 'project' ? (newThemeId ?? null) : null,
-      };
-      if (editingId !== null) {
+
+    const payload = {
+      title: newTitle.trim(),
+      content: newContent.trim() || newTitle.trim(),
+      scope: newScope,
+      // Send null for global scope so PATCH clears any prior themeId.
+      themeId: newScope === 'project' ? (newThemeId ?? null) : null,
+    };
+
+    // Edit path keeps the simple await-then-refetch flow.
+    if (editingId !== null) {
+      setIsSubmitting(true);
+      try {
         await fetch(`${API_BASE_URL}/idea-box/${editingId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-      } else {
-        // POST does not accept themeId=null, so omit it for global.
-        const { themeId, ...rest } = payload;
-        const body = themeId !== null ? { ...rest, themeId } : rest;
-        await fetch(`${API_BASE_URL}/idea-box`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+        resetForm();
+        setShowQuickAdd(false);
+        await fetchIdeas();
+      } catch {
+        /* error */
+      } finally {
+        setIsSubmitting(false);
       }
-      resetForm();
-      setShowQuickAdd(false);
+      return;
+    }
+
+    // Add path: show the idea optimistically so it appears instantly regardless
+    // of request/refetch latency, then reconcile with the server in the
+    // background (and roll back on failure).
+    const tempId = -Date.now();
+    const optimistic: Idea = {
+      id: tempId,
+      title: payload.title,
+      content: payload.content,
+      category: 'improvement',
+      scope: newScope,
+      tags: [],
+      themeId: payload.themeId,
+      source: 'user',
+      usedInTaskId: null,
+      createdAt: new Date().toISOString(),
+    };
+    setIdeas((prev) => [optimistic, ...prev]);
+    resetForm();
+    setShowQuickAdd(false);
+
+    try {
+      // POST does not accept themeId=null, so omit it for global.
+      const { themeId, ...rest } = payload;
+      const body = themeId !== null ? { ...rest, themeId } : rest;
+      const res = await fetch(`${API_BASE_URL}/idea-box`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchIdeas();
     } catch {
-      /* error */
-    } finally {
-      setIsSubmitting(false);
+      // Roll back the optimistic entry if the submission failed.
+      setIdeas((prev) => prev.filter((i) => i.id !== tempId));
     }
   }, [editingId, newTitle, newContent, newScope, newThemeId, fetchIdeas, resetForm]);
 
