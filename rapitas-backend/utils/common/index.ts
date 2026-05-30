@@ -10,4 +10,5 @@ export * from './encryption';
 export * from './find-port';
 export * from './mojibake-detector';
 export * from './response';
+export * from './semaphore';
 export * from './spec-array';

@@ -5,9 +5,16 @@
  * Both expose the /v1/chat/completions endpoint.
  */
 import { createLogger } from '../../config/logger';
+import { Semaphore } from '../common/semaphore';
 import type { AIMessage, AIResponse } from './types';
 
 const log = createLogger('ai-client:ollama');
+
+// Serialize local LLM inference app-wide. The model is CPU-bound, so letting
+// multiple subsystems (copilot, idea enrichment, idea generation) infer at once
+// saturates the machine and starves foreground HTTP requests. One at a time
+// bounds the CPU footprint and keeps the server responsive under load.
+const localInference = new Semaphore(1);
 
 /**
  * Check connectivity to a local LLM server.
@@ -77,54 +84,58 @@ export async function callOllama(
 
   log.info(`Calling local LLM at ${baseUrl} with model ${model}`);
 
-  // NOTE: llama-server returns 503 while loading a model. Retry up to 3 times
-  // with exponential backoff to avoid falling back to paid API unnecessarily.
-  const MAX_RETRIES = 3;
-  let lastError: Error | null = null;
+  // Run under the global limiter so concurrent callers queue instead of all
+  // hammering the CPU-bound local model at once.
+  return localInference.run(async () => {
+    // NOTE: llama-server returns 503 while loading a model. Retry up to 3 times
+    // with exponential backoff to avoid falling back to paid API unnecessarily.
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: chatMessages,
-        max_tokens: maxTokens || 256,
-        temperature: 0.7,
-      }),
-      signal: AbortSignal.timeout(60000),
-    });
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: chatMessages,
+          max_tokens: maxTokens || 256,
+          temperature: 0.7,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
 
-    if (response.ok) {
-      const data = (await response.json()) as {
-        choices?: Array<{ message?: { content: string } }>;
-        usage?: { total_tokens?: number };
-      };
+      if (response.ok) {
+        const data = (await response.json()) as {
+          choices?: Array<{ message?: { content: string } }>;
+          usage?: { total_tokens?: number };
+        };
 
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('Local LLM returned empty response');
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+          throw new Error('Local LLM returned empty response');
+        }
+
+        return {
+          content,
+          tokensUsed: data.usage?.total_tokens || 0,
+        };
       }
 
-      return {
-        content,
-        tokensUsed: data.usage?.total_tokens || 0,
-      };
+      // Retry on 503 (model loading) — don't fall back to paid API yet
+      if (response.status === 503 && attempt < MAX_RETRIES) {
+        const waitMs = 2000 * (attempt + 1);
+        log.info({ attempt: attempt + 1, waitMs }, 'Local LLM loading model, retrying...');
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
+      const errorText = await response.text();
+      lastError = new Error(`Local LLM API error (${response.status}): ${errorText}`);
     }
 
-    // Retry on 503 (model loading) — don't fall back to paid API yet
-    if (response.status === 503 && attempt < MAX_RETRIES) {
-      const waitMs = 2000 * (attempt + 1);
-      log.info({ attempt: attempt + 1, waitMs }, 'Local LLM loading model, retrying...');
-      await new Promise((r) => setTimeout(r, waitMs));
-      continue;
-    }
-
-    const errorText = await response.text();
-    lastError = new Error(`Local LLM API error (${response.status}): ${errorText}`);
-  }
-
-  throw lastError ?? new Error('Local LLM failed after retries');
+    throw lastError ?? new Error('Local LLM failed after retries');
+  });
 }
 
 /**
