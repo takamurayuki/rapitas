@@ -90,7 +90,7 @@ export default function TaskWorkflowSection({
   const modeLabel = task?.workflowMode ? (MODE_LABELS[task.workflowMode] ?? '') : '';
 
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">

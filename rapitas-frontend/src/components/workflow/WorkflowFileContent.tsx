@@ -15,12 +15,13 @@ interface TocHeading {
 }
 
 /**
- * Extracts H1–H3 headings (skipping fenced code) in document order, assigning
- * each a sequential id that matches the order the heading components render so
- * the TOC links resolve to the right element. / 本文の見出しを順番に抽出。
+ * Extracts only H2 headings — the "section" titles rendered with the vertical
+ * indigo bar — in document order (skipping fenced code). Each gets a sequential
+ * id matching the order the H2 component renders so TOC links resolve correctly.
+ * Finer-grained headings (H1/H3+) are intentionally excluded. / h2見出しのみ抽出。
  *
  * @param md - Raw markdown source / Markdown原文
- * @returns Ordered headings with stable ids / 安定idつきの見出し一覧
+ * @returns Ordered H2 headings with stable ids / 安定idつきのh2見出し一覧
  */
 function extractHeadings(md: string): TocHeading[] {
   const out: TocHeading[] = [];
@@ -32,7 +33,7 @@ function extractHeadings(md: string): TocHeading[] {
       continue;
     }
     if (inFence) continue;
-    const m = raw.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
+    const m = raw.match(/^(##)\s+(.+?)\s*#*\s*$/);
     if (!m) continue;
     const text = m[2]
       .replace(/`([^`]+)`/g, '$1')
@@ -114,9 +115,11 @@ export function WorkflowFileContent({
 
   return (
     <div className="space-y-3">
-      {/* In-file table of contents — jump to a section heading. */}
+      {/* In-file table of contents — sticky so it stays clickable after the
+          content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
+          spans the card; top-8 clears the task-detail toolbar. */}
       {headings.length > 0 && (
-        <nav className="flex flex-wrap items-center gap-1 border-b border-zinc-100 pb-2 dark:border-zinc-700/50">
+        <nav className="sticky top-8 z-[5] -mx-5 -mt-5 flex flex-wrap items-center gap-1 border-b border-zinc-100 bg-white px-5 py-2 dark:border-zinc-700/50 dark:bg-indigo-dark-900">
           {headings.map((h) => (
             <button
               key={h.id}
@@ -154,8 +157,7 @@ export function WorkflowFileContent({
             // logical block reads as its own card-like section.
             h1: ({ children, ...props }) => (
               <h1
-                id={`wf-h-${headingIdxRef.current++}`}
-                className="scroll-mt-20 !mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
+                className="!mt-0 !mb-4 pb-2 border-b-2 border-indigo-200 dark:border-indigo-800/60 text-xl !font-bold"
                 {...props}
               >
                 {children}
@@ -172,8 +174,7 @@ export function WorkflowFileContent({
             ),
             h3: ({ children, ...props }) => (
               <h3
-                id={`wf-h-${headingIdxRef.current++}`}
-                className="scroll-mt-20 !mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
+                className="!mt-5 !mb-2 text-base !font-semibold text-indigo-700 dark:text-indigo-300"
                 {...props}
               >
                 {children}
