@@ -7,7 +7,7 @@
  */
 
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole } from '@/types';
-import { Search, FileText, CheckCircle, MessageSquare, Code } from 'lucide-react';
+import { Search, FileText, FlaskConical, MessageSquare, Code } from 'lucide-react';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 
 export interface WorkflowTab {
@@ -46,7 +46,7 @@ export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
     {
       id: 'verify',
       label: '検証',
-      icon: CheckCircle,
+      icon: FlaskConical,
       emptyText: '実装完了後にAIエージェントがverify.mdを生成します',
     },
   ];
@@ -94,7 +94,7 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
     in_progress: {
       role: 'auto_verifier',
       label: '自動検証実行',
-      icon: CheckCircle,
+      icon: FlaskConical,
     },
   };
 
@@ -107,7 +107,7 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
       icon: MessageSquare,
     },
     plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
+    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
   };
 
   const comprehensiveMode: Record<string, NextRoleInfo> = {
@@ -119,7 +119,7 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
       icon: MessageSquare,
     },
     plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
+    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
   };
 
   switch (workflowMode) {
