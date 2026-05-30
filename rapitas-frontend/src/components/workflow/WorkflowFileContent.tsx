@@ -350,7 +350,7 @@ export function WorkflowFileContent({
             // Lists — tighten spacing and add custom markers.
             ul: ({ children, ...props }) => (
               <ul
-                className="!my-2 !pl-5 list-disc marker:text-indigo-500 dark:marker:text-indigo-400"
+                className="!my-2 !pl-5 list-disc marker:text-zinc-900 dark:marker:text-zinc-100"
                 {...props}
               >
                 {children}
@@ -358,7 +358,7 @@ export function WorkflowFileContent({
             ),
             ol: ({ children, ...props }) => (
               <ol
-                className="!my-2 !pl-5 list-decimal marker:text-indigo-600 dark:marker:text-indigo-400 marker:font-semibold"
+                className="!my-2 !pl-5 list-decimal marker:text-zinc-900 dark:marker:text-zinc-100 marker:font-semibold"
                 {...props}
               >
                 {children}
