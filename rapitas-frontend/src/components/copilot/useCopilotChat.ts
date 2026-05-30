@@ -177,10 +177,61 @@ export function useCopilotChat(taskId?: number) {
     [taskId, isLoading],
   );
 
+  /**
+   * Runs a grounded retrospective: the backend reads the task's workflow
+   * artifacts (research/plan/verify.md), deep-dives the learnings, and saves
+   * carry-forward lessons to the knowledge OS. The result is shown as a message.
+   */
+  const runRetrospective = useCallback(async () => {
+    if (!taskId || isLoading) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    const pendingMsg: CopilotMessage = {
+      id: `retro-${Date.now()}`,
+      role: 'system',
+      content: '成果物を分析して振り返りを生成中...',
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, pendingMsg]);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/copilot/tasks/${taskId}/retrospective`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+
+      const data = (await res.json()) as {
+        markdown: string;
+        savedLessons: number;
+        usedArtifacts: string[];
+      };
+
+      const resultMsg: CopilotMessage = {
+        id: `retro-result-${Date.now()}`,
+        role: 'assistant',
+        content: data.markdown,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '振り返りの生成に失敗しました');
+      setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [taskId, isLoading]);
+
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, executeAction, clearChat };
+  return { messages, isLoading, error, sendMessage, executeAction, runRetrospective, clearChat };
 }

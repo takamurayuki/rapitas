@@ -13,6 +13,7 @@ import {
   executeCopilotAction,
   type CopilotActionType,
 } from '../../services/ai/copilot-action-service';
+import { generateTaskRetrospective } from '../../services/ai/retrospective-service';
 
 const log = createLogger('routes:copilot-chat');
 
@@ -133,6 +134,31 @@ export const copilotChatRoutes = new Elysia()
         taskId: t.Number(),
         params: t.Optional(t.Record(t.String(), t.Any())),
       }),
+    },
+  )
+
+  /**
+   * Generate a grounded retrospective for a task (reads research/plan/verify.md,
+   * deep-dives the learnings, and saves carry-forward lessons to the knowledge OS).
+   */
+  .post(
+    '/copilot/tasks/:taskId/retrospective',
+    async ({ params, set }) => {
+      const taskId = parseInt(params.taskId);
+      if (isNaN(taskId)) {
+        set.status = 400;
+        return { error: '無効なタスクIDです' };
+      }
+      try {
+        return await generateTaskRetrospective(taskId);
+      } catch (err) {
+        log.error({ err, taskId }, 'Retrospective generation error');
+        set.status = 500;
+        return { error: err instanceof Error ? err.message : '振り返りの生成に失敗しました' };
+      }
+    },
+    {
+      params: t.Object({ taskId: t.String() }),
     },
   )
 

@@ -47,6 +47,8 @@ export interface RecommendedAction {
   params?: Record<string, unknown>;
   /** Chat prompt to send, when this is a conversational recommendation. */
   prompt?: string;
+  /** Runs the grounded retrospective (artifacts → learnings → knowledge OS). */
+  runRetrospective?: boolean;
   icon: NextActionIcon;
   tone: 'primary' | 'normal';
 }
@@ -70,9 +72,8 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
       {
         id: 'reflect',
         label: '振り返りをする',
-        reason: 'うまくいった点・改善点・次に活かせる学びをAIがまとめます',
-        prompt:
-          'このタスクの振り返りをしてください。うまくいった点、改善点、次に活かせる学びを簡潔にまとめてください。',
+        reason: '成果物(調査/計画/検証)を深掘りし、学びをナレッジに蓄積します',
+        runRetrospective: true,
         icon: 'reflect',
         tone: 'primary',
       },

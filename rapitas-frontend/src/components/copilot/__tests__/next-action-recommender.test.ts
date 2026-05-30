@@ -12,11 +12,11 @@ const ctx = (over: Partial<NextActionContext> = {}): NextActionContext => ({
 });
 
 describe('getNextActions', () => {
-  it('offers a retrospective (chat prompt) for a done task', () => {
+  it('offers a grounded retrospective for a done task', () => {
     const actions = getNextActions(ctx({ status: 'done' }));
     expect(actions).toHaveLength(1);
     expect(actions[0].id).toBe('reflect');
-    expect(actions[0].prompt).toBeTruthy();
+    expect(actions[0].runRetrospective).toBe(true);
     expect(actions[0].actionType).toBeUndefined();
   });
 

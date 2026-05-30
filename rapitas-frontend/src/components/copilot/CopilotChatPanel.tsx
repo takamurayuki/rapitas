@@ -25,7 +25,7 @@ export function CopilotChatPanel({
   embedded = false,
   children,
 }: CopilotChatPanelProps) {
-  const { messages, isLoading, error, sendMessage, executeAction, clearChat } =
+  const { messages, isLoading, error, sendMessage, executeAction, runRetrospective, clearChat } =
     useCopilotChat(taskId);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -65,13 +65,15 @@ export function CopilotChatPanel({
   // post-completion retrospective). Dispatch to the right handler.
   const handleSelect = useCallback(
     (action: RecommendedAction) => {
-      if (action.prompt) {
+      if (action.runRetrospective) {
+        runRetrospective();
+      } else if (action.prompt) {
         sendMessage(action.prompt);
       } else if (action.actionType) {
         handleAction(action.actionType, action.params);
       }
     },
-    [sendMessage, handleAction],
+    [runRetrospective, sendMessage, handleAction],
   );
 
   if (isCollapsed && !embedded) {
