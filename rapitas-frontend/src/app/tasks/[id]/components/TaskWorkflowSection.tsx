@@ -83,6 +83,14 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
+  const MODE_LABELS: Record<string, string> = {
+    lightweight: '軽量',
+    standard: '標準',
+    comprehensive: '詳細',
+  };
+  const complexity = task?.complexityScore;
+  const modeLabel = task?.workflowMode ? (MODE_LABELS[task.workflowMode] ?? '') : '';
+
   return (
     <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
@@ -91,9 +99,17 @@ export default function TaskWorkflowSection({
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
           </div>
-          <Loader2
-            className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`}
-          />
+          <div className="flex items-center gap-2">
+            {complexity != null && (
+              <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                複雑度 {Math.round(complexity)}
+                {modeLabel ? ` · ${modeLabel}` : ''}
+              </span>
+            )}
+            <Loader2
+              className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`}
+            />
+          </div>
         </div>
         {currentWorkflowStatus && (
           <div className="mt-3">

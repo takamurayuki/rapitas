@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import { Lock } from 'lucide-react';
-import CompactWorkflowSelector, { type WorkflowMode } from './CompactWorkflowSelector';
+import { type WorkflowMode } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
 import {
@@ -39,7 +39,6 @@ export default function WorkflowViewer({
   taskId,
   workflowStatus,
   workflowMode = null,
-  complexityScore = null,
   workflowModeOverride = false,
   autoApprovePlan = false,
   autoApprovePlanSource,
@@ -62,12 +61,10 @@ export default function WorkflowViewer({
     advanceError,
     setAdvanceError,
     roles,
-    autoComplexityAnalysis,
     isPolling,
     activeFile,
     tabStatus,
     handleAdvance,
-    handleAnalysisComplete,
   } = useWorkflowViewer({
     taskId,
     workflowStatus,
@@ -113,25 +110,12 @@ export default function WorkflowViewer({
           shown — it is an internal reference only. workflowPath is still
           provided by useWorkflowViewer for internal use. */}
 
-      {/* Workflow mode selection section */}
+      {/* Auto-approval status (read-only — managed in task settings). The
+          workflow mode is fixed from the task's complexity at creation, so the
+          manual mode selector is intentionally not shown here. */}
       {showWorkflowMode && (
         <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-100 dark:border-zinc-800">
-          <CompactWorkflowSelector
-            taskId={taskId}
-            currentMode={workflowMode}
-            isOverridden={workflowModeOverride}
-            complexityScore={complexityScore}
-            autoComplexityAnalysis={autoComplexityAnalysis}
-            onModeChange={onWorkflowModeChange}
-            onAnalysisComplete={handleAnalysisComplete}
-            disabled={effectiveStatus === 'in_progress' || effectiveStatus === 'completed'}
-            showAnalyzeButton={true}
-          />
-
-          {/* Auto-approval status indicator (read-only — managed in task settings) */}
-          <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-            <AutoApproveStatusIndicator enabled={autoApprovePlan} source={autoApprovePlanSource} />
-          </div>
+          <AutoApproveStatusIndicator enabled={autoApprovePlan} source={autoApprovePlanSource} />
         </div>
       )}
 
