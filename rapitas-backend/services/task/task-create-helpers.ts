@@ -175,7 +175,13 @@ export async function createParentTask(
         description: data.description || undefined,
         estimatedHours: data.estimatedHours || undefined,
         priority: (data.priority as 'low' | 'medium' | 'high' | 'urgent') || 'medium',
-        labels: [],
+        // Real label names + theme + structured spec so every factor (and the
+        // learning lookup) gets meaningful input instead of neutral defaults.
+        labels: createdTask.taskLabels?.map((tl) => tl.label.name) ?? [],
+        themeId: data.themeId,
+        goals: data.goals,
+        constraints: data.constraints,
+        acceptanceCriteria: data.acceptanceCriteria,
       };
       const analysis = await analyzeTaskComplexityWithLearning(complexityInput);
 

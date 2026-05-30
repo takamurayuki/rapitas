@@ -23,6 +23,7 @@ export {
   analyzeEstimatedTime,
   analyzePriority,
   analyzeLabels,
+  analyzeScope,
   getRecommendedMode,
   calculateEstimatedExecutionTime,
   calculateConfidence,

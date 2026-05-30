@@ -19,6 +19,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { analyzeTaskComplexity } from '../../../services/workflow/complexity-analyzer';
+import { parseSpecArray } from '../../../utils/common';
 import { agentRateLimiter } from '../../../middleware/rate-limiter';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleExecuteResult } from './execute-post-handler';
@@ -125,9 +126,12 @@ export const executeRoute = new Elysia().post(
           title: task.title,
           description: task.description,
           estimatedHours: task.estimatedHours,
-          labels: task.labels ? JSON.parse(task.labels) : [],
+          labels: parseSpecArray(task.labels),
           priority: task.priority,
           themeId: task.themeId,
+          goals: parseSpecArray(task.goals),
+          constraints: parseSpecArray(task.constraints),
+          acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
         };
         const analysisResult = analyzeTaskComplexity(complexityInput);
         await prisma.task.update({
@@ -446,15 +450,6 @@ export const executeRoute = new Elysia().post(
     const researchTempOutputFile = null;
 
     // Parse the JSON-array spec columns (goals/constraints/acceptanceCriteria) for injection.
-    const parseSpecArray = (s: string | null | undefined): string[] => {
-      if (!s) return [];
-      try {
-        const v = JSON.parse(s);
-        return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-      } catch {
-        return [];
-      }
-    };
     const taskSpec = {
       goals: parseSpecArray(task.goals),
       constraints: parseSpecArray(task.constraints),

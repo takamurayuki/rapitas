@@ -83,6 +83,8 @@ export const taskQuickCreateRoutes = new Elysia({ prefix: '/tasks' })
               estimatedHours: task.estimatedHours || undefined,
               priority: task.priority,
               labels: [],
+              // Pass the theme so theme-scoped learning data can apply.
+              themeId: task.themeId ?? themeId,
             });
 
             const provider = await getDefaultProvider();

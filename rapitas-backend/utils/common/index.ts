@@ -10,3 +10,4 @@ export * from './encryption';
 export * from './find-port';
 export * from './mojibake-detector';
 export * from './response';
+export * from './spec-array';

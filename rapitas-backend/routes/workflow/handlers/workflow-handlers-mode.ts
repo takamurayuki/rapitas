@@ -13,6 +13,7 @@ import {
   type TaskComplexityInput,
 } from '../../../services/workflow/complexity-analyzer';
 import { createLogger } from '../../../config/logger';
+import { parseSpecArray } from '../../../utils/common';
 
 const log = createLogger('routes:workflow:handlers:mode');
 
@@ -124,6 +125,9 @@ export async function handleAnalyzeComplexity({
       labels: task.taskLabels.map((tl) => tl.label.name),
       priority: task.priority,
       themeId: task.themeId,
+      goals: parseSpecArray(task.goals),
+      constraints: parseSpecArray(task.constraints),
+      acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
     };
 
     const analysisResult = await analyzeTaskComplexityWithLearning(complexityInput);

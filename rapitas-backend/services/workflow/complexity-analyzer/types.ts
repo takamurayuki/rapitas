@@ -12,6 +12,10 @@ export interface TaskComplexityInput {
   labels?: string[]; // Label array
   priority?: string; // low, medium, high, urgent
   themeId?: number | null;
+  // Structured spec — strong difficulty signals (more items ⇒ harder task).
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
 }
 
 export interface ComplexityAnalysisResult {
@@ -23,6 +27,7 @@ export interface ComplexityAnalysisResult {
     timeScore: number;
     priorityScore: number;
     labelScore: number;
+    scopeScore: number;
     reasons: string[];
   };
   estimatedExecutionTime: number; // Estimated execution time (minutes)
