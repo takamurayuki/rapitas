@@ -86,13 +86,14 @@ describe('IdeasClient', () => {
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ ideas: mockIdeas, total: 50 }),
+        json: () => Promise.resolve({ ideas: mockIdeas, total: 40 }),
       });
     }) as unknown as typeof fetch;
 
     render(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
-    // 総数50、itemsPerPage=15なので4ページ => ページネーション表示される
+    // 総数40、itemsPerPage=10なので4ページ => ページネーション表示される
+    // (4 はページサイズ候補[5,10,15]に無く一意に取れる)
     expect(screen.getByText('4')).toBeInTheDocument(); // 最後のページ番号
   });
 
@@ -115,6 +116,6 @@ describe('IdeasClient', () => {
     await waitFor(() => screen.getByText('テストアイデア'));
 
     // 初期APIコールを確認
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('limit=15&offset=0'));
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('limit=10&offset=0'));
   });
 });

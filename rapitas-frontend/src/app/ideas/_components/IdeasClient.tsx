@@ -57,7 +57,8 @@ export default function IdeasClient() {
 
   // ページネーション状態
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('ideaBox.itemsPerPage', 15);
+  // Default 10 per page to match the task list pagination.
+  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('ideaBox.itemsPerPage', 10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalIdeas, setTotalIdeas] = useState(0);
 
@@ -745,7 +746,6 @@ export default function IdeasClient() {
                 itemsPerPage={itemsPerPage}
                 onPageChange={handlePageChange}
                 onItemsPerPageChange={handleItemsPerPageChange}
-                itemsPerPageOptions={[5, 10, 15]}
               />
             )}
           </>
