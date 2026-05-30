@@ -2,7 +2,7 @@
 // WorkflowFileContent
 
 import { isValidElement, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Loader2, List } from 'lucide-react';
+import { Loader2, List, ChevronDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { WorkflowTab } from './workflow-viewer-utils';
@@ -144,6 +144,8 @@ export function WorkflowFileContent({
   // sticky offset (top-11, which already clears the task-detail toolbar above).
   const tocRef = useRef<HTMLElement | null>(null);
   const [tocHeight, setTocHeight] = useState(0);
+  // Collapsible so the sticky TOC can shrink to just its label when not in use.
+  const [tocOpen, setTocOpen] = useState(true);
   useEffect(() => {
     const el = tocRef.current;
     if (!el) {
@@ -158,7 +160,7 @@ export function WorkflowFileContent({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [headings]);
+  }, [headings, tocOpen]);
   const scrollMarginTop = tocHeight > 0 ? tocHeight + 44 + 8 : 112;
 
   if (isLoading && !activeFile) {
@@ -191,25 +193,38 @@ export function WorkflowFileContent({
           ref={tocRef}
           className="sticky top-11 z-[5] -mx-5 -mt-5 flex flex-col gap-0.5 border-b border-zinc-200 bg-white px-5 py-2.5 dark:border-zinc-700 dark:bg-indigo-dark-900"
         >
-          <span className="mb-1 flex items-center gap-1 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
+          <button
+            type="button"
+            onClick={() => setTocOpen((open) => !open)}
+            aria-expanded={tocOpen}
+            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 transition-colors hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+          >
             <List className="h-3.5 w-3.5" />
-            目次
-          </span>
-          {headings.map((h) => (
-            <button
-              key={h.id}
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById(h.id)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-              title={h.text}
-              className="flex items-center gap-1.5 truncate rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-600 transition-colors before:h-3 before:w-0.5 before:shrink-0 before:rounded-full before:bg-indigo-400/70 hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-300 dark:before:bg-indigo-400/60 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
-            >
-              {h.text}
-            </button>
-          ))}
+            <span>目次</span>
+            <span className="text-zinc-400/70 dark:text-zinc-500/70">({headings.length})</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${tocOpen ? '' : '-rotate-90'}`}
+            />
+          </button>
+          {tocOpen && (
+            <div className="mt-1 flex flex-col gap-0.5">
+              {headings.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById(h.id)
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                  title={h.text}
+                  className="flex items-center gap-1.5 truncate rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-600 transition-colors before:h-3 before:w-0.5 before:shrink-0 before:rounded-full before:bg-indigo-400/70 hover:bg-indigo-50 hover:text-indigo-700 dark:text-zinc-300 dark:before:bg-indigo-400/60 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+                >
+                  {h.text}
+                </button>
+              ))}
+            </div>
+          )}
         </nav>
       )}
 
