@@ -126,35 +126,32 @@ export default function GlobalPomodoroWidget() {
 
   const remainingTime = getRemainingTimeLocal();
 
-  // Icon mirrors TaskPomodoroButton — no colour class, inherits the button text
-  // colour so the two pomodoro displays look identical.
+  // Select icon based on current status
   const getIcon = () => {
     if (isBreakTime) {
-      return <Coffee className="w-4 h-4" />;
+      return <Coffee className="w-4 h-4 text-green-500" />;
     } else if (isPaused) {
-      return <Pause className="w-4 h-4" />;
+      return <Pause className="w-4 h-4 text-orange-500" />;
     } else {
-      return <Hourglass className="w-4 h-4 animate-pulse" />;
+      return <Hourglass className="w-4 h-4 text-blue-500 animate-pulse" />;
     }
   };
 
-  // Flat (borderless) state-tinted style, matching TaskPomodoroButton.
   const getButtonStyle = () => {
-    const base =
-      'flex items-center gap-2 px-3 py-2 text-xs font-black font-mono tracking-tight rounded-lg transition-colors text-zinc-700 dark:text-zinc-300';
     if (isBreakTime) {
-      return `${base} bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900`;
+      return 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700';
     } else if (isPaused) {
-      return `${base} bg-orange-50 dark:bg-orange-950 hover:bg-orange-100 dark:hover:bg-orange-900`;
+      return 'bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700';
     }
-    return `${base} bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 dark:hover:bg-blue-900`;
+    // Working (active) state
+    return 'bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700';
   };
 
   return (
     <>
       <button
         onClick={() => setShowModal(true)}
-        className={getButtonStyle()}
+        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors ${getButtonStyle()}`}
         title={`${taskTitle} - ${t('timeManagement')}`}
       >
         {getIcon()}

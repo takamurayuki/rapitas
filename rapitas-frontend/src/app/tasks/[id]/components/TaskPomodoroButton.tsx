@@ -21,21 +21,22 @@ export interface TaskPomodoroButtonProps {
  * Get the timer button style based on pomodoro state
  */
 function getTimerButtonStyle(isThisTaskTimer: boolean, pomodoroState: PomodoroButtonState): string {
-  // No outline/shadow — flat by default; active states keep a tinted background
-  // as the only timer indicator.
+  // Matches the header GlobalPomodoroWidget — bordered, text-sm/font-medium,
+  // with a state-tinted background + border.
   const baseStyle =
-    'flex items-center gap-2 px-3 py-2 text-xs font-black font-mono tracking-tight rounded-lg transition-colors text-zinc-700 dark:text-zinc-300';
+    'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors';
 
   if (isThisTaskTimer && pomodoroState.isTimerRunning) {
     if (pomodoroState.isBreakTime) {
-      return `${baseStyle} bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900`;
+      return `${baseStyle} bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700`;
     } else if (pomodoroState.isPaused) {
-      return `${baseStyle} bg-orange-50 dark:bg-orange-950 hover:bg-orange-100 dark:hover:bg-orange-900`;
+      return `${baseStyle} bg-orange-50 dark:bg-orange-950 border-orange-300 dark:border-orange-700`;
     } else {
-      return `${baseStyle} bg-blue-50 dark:bg-blue-950 hover:bg-blue-100 dark:hover:bg-blue-900`;
+      return `${baseStyle} bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-700`;
     }
   } else {
-    return `${baseStyle} text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800`;
+    // Idle (task-detail only; the header widget only renders while running).
+    return `${baseStyle} border-zinc-200 dark:border-zinc-700`;
   }
 }
 
@@ -48,11 +49,11 @@ function getTimerIcon(
 ): React.ReactNode {
   if (isThisTaskTimer && pomodoroState.isTimerRunning) {
     if (pomodoroState.isBreakTime) {
-      return <Coffee className="w-4 h-4" />;
+      return <Coffee className="w-4 h-4 text-green-500" />;
     } else if (pomodoroState.isPaused) {
-      return <Pause className="w-4 h-4" />;
+      return <Pause className="w-4 h-4 text-orange-500" />;
     } else {
-      return <Hourglass className="w-4 h-4 animate-pulse" />;
+      return <Hourglass className="w-4 h-4 text-blue-500 animate-pulse" />;
     }
   } else {
     return <Timer className="w-4 h-4" />;
