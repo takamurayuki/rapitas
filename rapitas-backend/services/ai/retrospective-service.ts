@@ -229,7 +229,9 @@ export async function generateTaskRetrospective(taskId: number): Promise<Retrosp
   const parsed = parseJsonLoose(response.content);
   if (!parsed) {
     log.warn({ taskId }, 'Retrospective JSON parse failed; returning raw content');
-    return { markdown: response.content.trim(), savedLessons: 0, usedArtifacts };
+    const raw = response.content.trim();
+    await saveRetrospectiveMessage(taskId, raw);
+    return { markdown: raw, savedLessons: 0, usedArtifacts };
   }
 
   const savedLessons = await persistLessons(parsed.carryForward ?? [], taskId, themeId, task.title);
@@ -243,6 +245,19 @@ export async function generateTaskRetrospective(taskId: number): Promise<Retrosp
       '\n\n> 注: ワークフロー成果物（research/plan/verify.md）が見つからなかったため、タスク情報のみから生成しています。';
   }
 
+  // Persist the retrospective as a copilot message so it re-appears in the
+  // panel history on subsequent visits.
+  await saveRetrospectiveMessage(taskId, markdown);
+
   log.info({ taskId, savedLessons, usedArtifacts }, 'Generated task retrospective');
   return { markdown, savedLessons, usedArtifacts };
+}
+
+/** Saves the retrospective as an assistant copilot message (non-fatal on error). */
+async function saveRetrospectiveMessage(taskId: number, content: string): Promise<void> {
+  try {
+    await prisma.copilotMessage.create({ data: { taskId, role: 'assistant', content } });
+  } catch (err) {
+    log.warn({ err, taskId }, 'Failed to persist retrospective message');
+  }
 }

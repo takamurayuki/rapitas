@@ -7,7 +7,7 @@
  * Supports quick prompts, message history, and contextual insights.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Loader2, Sparkles, RotateCcw } from 'lucide-react';
+import { Sparkles, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
 import { type CopilotChatPanelProps } from './copilot-chat-types';
@@ -25,8 +25,17 @@ export function CopilotChatPanel({
   embedded = false,
   children,
 }: CopilotChatPanelProps) {
-  const { messages, isLoading, error, sendMessage, executeAction, runRetrospective, clearChat } =
-    useCopilotChat(taskId);
+  const {
+    messages,
+    isLoading,
+    error,
+    isRetrospecting,
+    sendMessage,
+    executeAction,
+    runRetrospective,
+    cancelRetrospective,
+    clearChat,
+  } = useCopilotChat(taskId);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const nextActions = nextActionContext ? getNextActions(nextActionContext) : [];
@@ -129,10 +138,13 @@ export function CopilotChatPanel({
         className="flex-1 overflow-y-auto px-4 py-3"
         style={{ minHeight: '200px', maxHeight: 'calc(100vh - 16rem)' }}
       >
-        {messages.length === 0 && !isLoading && (
+        {/* Show the passive insight only when there are no recommendations to
+            avoid a duplicate prompt; hide recommendations while an action runs
+            (the pending message is the single loading indicator). */}
+        {messages.length === 0 && !isLoading && nextActions.length === 0 && (
           <ProactiveInsight taskStatus={taskStatus} taskTitle={taskTitle} />
         )}
-        {nextActions.length > 0 && (
+        {nextActions.length > 0 && !isLoading && (
           <div className="mb-3">
             <NextActionRecommendations
               actions={nextActions}
@@ -144,11 +156,15 @@ export function CopilotChatPanel({
         {messages.map((msg) => (
           <MessageBubble key={msg.id} msg={msg} onAction={handleAction} />
         ))}
-        {isLoading && (
-          <div className="flex justify-start mb-3">
-            <div className="rounded-xl bg-zinc-100 px-4 py-3 dark:bg-zinc-800">
-              <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-            </div>
+        {isRetrospecting && (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              onClick={cancelRetrospective}
+              className="rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              キャンセル
+            </button>
           </div>
         )}
         {error && (

@@ -1,6 +1,6 @@
 'use client';
 // useCopilotChat — hook for the AI copilot chat panel.
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 
 export interface CopilotMessage {
@@ -27,6 +27,41 @@ export function useCopilotChat(taskId?: number) {
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tracks an in-flight retrospective so it can be cancelled mid-generation.
+  const [isRetrospecting, setIsRetrospecting] = useState(false);
+  const retroAbortRef = useRef<AbortController | null>(null);
+
+  // Seed the panel with persisted copilot history (past chats + retrospectives)
+  // so previously generated content re-appears when the task is reopened.
+  useEffect(() => {
+    if (!taskId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/copilot/chat/${taskId}/history`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          messages?: Array<{ id: number; role: string; content: string; createdAt: string }>;
+        };
+        if (cancelled || !Array.isArray(data.messages) || data.messages.length === 0) return;
+        setMessages((prev) =>
+          prev.length === 0
+            ? data.messages!.map((m) => ({
+                id: `hist-${m.id}`,
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content,
+                createdAt: m.createdAt,
+              }))
+            : prev,
+        );
+      } catch {
+        /* non-fatal — start with an empty panel */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
 
   const sendMessage = useCallback(
     async (message: string) => {
@@ -185,7 +220,10 @@ export function useCopilotChat(taskId?: number) {
   const runRetrospective = useCallback(async () => {
     if (!taskId || isLoading) return;
 
+    const controller = new AbortController();
+    retroAbortRef.current = controller;
     setIsLoading(true);
+    setIsRetrospecting(true);
     setError(null);
 
     const pendingMsg: CopilotMessage = {
@@ -200,6 +238,7 @@ export function useCopilotChat(taskId?: number) {
       const res = await fetch(`${API_BASE_URL}/copilot/tasks/${taskId}/retrospective`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -221,17 +260,37 @@ export function useCopilotChat(taskId?: number) {
       };
       setMessages((prev) => prev.map((m) => (m.id === pendingMsg.id ? resultMsg : m)));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '振り返りの生成に失敗しました');
+      // Cancellation is not an error — just drop the pending message.
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        setError(err instanceof Error ? err.message : '振り返りの生成に失敗しました');
+      }
       setMessages((prev) => prev.filter((m) => m.id !== pendingMsg.id));
     } finally {
       setIsLoading(false);
+      setIsRetrospecting(false);
+      retroAbortRef.current = null;
     }
   }, [taskId, isLoading]);
+
+  /** Aborts an in-flight retrospective generation. */
+  const cancelRetrospective = useCallback(() => {
+    retroAbortRef.current?.abort();
+  }, []);
 
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
   }, []);
 
-  return { messages, isLoading, error, sendMessage, executeAction, runRetrospective, clearChat };
+  return {
+    messages,
+    isLoading,
+    error,
+    isRetrospecting,
+    sendMessage,
+    executeAction,
+    runRetrospective,
+    cancelRetrospective,
+    clearChat,
+  };
 }
