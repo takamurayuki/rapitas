@@ -184,13 +184,24 @@ async function getTaskThemeId(taskId: number): Promise<number | null> {
 const MIN_ACTIONABILITY = 0.4;
 const MIN_SPECIFICITY = 0.4;
 
-/** Run the full enrich → review pipeline as fire-and-forget. */
-function runEnrichAndReview(id: number, title: string, content: string): void {
-  enrichIdea(id, title, content)
-    .then((enriched) => {
-      if (!enriched.kept) return;
-      return reviewIdea(id);
-    })
+// Serial enrichment queue. A burst of new ideas (e.g. a scheduled innovation
+// session submitting several at once) otherwise fires many concurrent local-LLM
+// enrichment calls, spiking CPU and starving foreground requests. Chaining the
+// pipeline keeps it to one enrich/review at a time, spreading the load.
+let enrichChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs the enrich → review pipeline for an idea, serialised through a global
+ * queue. Fire-and-forget (never throws to the caller).
+ *
+ * @param id - Idea (knowledge entry) id / アイデアID
+ * @param title - Idea title / タイトル
+ * @param content - Idea content / 本文
+ */
+export function runEnrichAndReview(id: number, title: string, content: string): void {
+  enrichChain = enrichChain
+    .then(() => enrichIdea(id, title, content))
+    .then((enriched) => (enriched.kept ? reviewIdea(id) : undefined))
     .catch(() => {});
 }
 

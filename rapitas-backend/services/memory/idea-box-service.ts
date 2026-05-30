@@ -107,13 +107,11 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
 
   log.info({ id: entry.id, title: input.title }, 'Idea submitted');
 
-  // Pipeline: enrich (Ollama) → review (Haiku) asynchronously
+  // Pipeline: enrich (Ollama) → review (Haiku) asynchronously, serialised via
+  // the shared enrichment queue so bursts of submissions don't fire concurrent
+  // local-LLM calls (which can spike CPU and starve foreground requests).
   import('./idea-extractor')
-    .then(({ enrichIdea }) =>
-      enrichIdea(entry.id, input.title, input.content).then(() =>
-        import('./idea-extractor').then(({ reviewIdea }) => reviewIdea(entry.id)),
-      ),
-    )
+    .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
     .catch(() => {});
 
   return entry.id;
