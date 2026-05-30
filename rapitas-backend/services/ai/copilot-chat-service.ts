@@ -107,7 +107,7 @@ function selectModelTier(
   // Tier 3: Sonnet for complex analysis
   return {
     provider: 'claude',
-    model: 'claude-sonnet-4-6-20250610',
+    model: 'claude-sonnet-4-6',
     tier: 'standard',
   };
 }

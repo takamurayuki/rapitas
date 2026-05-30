@@ -13,11 +13,17 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile } from '../workflow/workflow-file-utils';
 import { sendAIMessage } from '../../utils/ai-client';
+import type { AIProvider } from '../../utils/ai-client';
+import { selectBestModel } from './model-discovery';
 
 const log = createLogger('retrospective-service');
 
-/** Capable model — a retrospective deserves the strong tier, not local/haiku. */
-const RETRO_MODEL = 'claude-sonnet-4-6-20250610';
+/**
+ * Last-resort model id, used ONLY when live discovery returns nothing. We do not
+ * hardcode the primary model — see selectBestModel below — because static ids
+ * break when the provider's snapshot date changes.
+ */
+const RETRO_FALLBACK_MODEL = 'claude-haiku-4-5-20251001';
 /** Cap on lessons persisted per retrospective to avoid knowledge-base noise. */
 const MAX_LESSONS_SAVED = 5;
 /** Per-artifact char budget injected into the prompt. */
@@ -51,6 +57,11 @@ const SYSTEM_PROMPT = `あなたはソフトウェア開発の振り返り（レ
   "carryForward": ["次のタスクで活かせる、具体的で再利用可能な教訓", ...]
 }
 日本語で、各配列は最大5項目、各項目は簡潔かつ具体的に。`;
+
+/** Maps a discovery Provider to the ai-client's AIProvider (openai → chatgpt). */
+function toAIProvider(p: 'claude' | 'openai' | 'gemini' | 'ollama'): AIProvider {
+  return p === 'openai' ? 'chatgpt' : p;
+}
 
 /** Truncates long text with an elision marker. */
 function clip(s: string | null | undefined, n: number): string {
@@ -190,13 +201,30 @@ export async function generateTaskRetrospective(taskId: number): Promise<Retrosp
     .filter(Boolean)
     .join('\n')}\n\n上記のタスクの振り返りを、指定のJSON形式で出力してください。`;
 
-  const response = await sendAIMessage({
-    provider: 'claude',
-    model: RETRO_MODEL,
-    messages: [{ role: 'user', content: userPrompt }],
+  const aiBase = {
+    messages: [{ role: 'user' as const, content: userPrompt }],
     systemPrompt: SYSTEM_PROMPT,
     maxTokens: 1500,
-  });
+  };
+  // Pick a model that the configured keys actually expose right now (probed
+  // live and cached), preferring a strong Claude tier. Discovery auto-downgrades
+  // tiers/providers, so this never sends a stale hardcoded id.
+  const picked = await selectBestModel({ desiredTier: 'standard', preferredProvider: 'claude' });
+  let response;
+  try {
+    if (!picked) throw new Error('利用可能なモデルが見つかりません');
+    response = await sendAIMessage({
+      ...aiBase,
+      provider: toAIProvider(picked.model.provider),
+      model: picked.model.id,
+    });
+  } catch (err) {
+    log.warn(
+      { err, taskId, fallback: RETRO_FALLBACK_MODEL },
+      'Model selection failed; using last-resort fallback',
+    );
+    response = await sendAIMessage({ ...aiBase, provider: 'claude', model: RETRO_FALLBACK_MODEL });
+  }
 
   const parsed = parseJsonLoose(response.content);
   if (!parsed) {
