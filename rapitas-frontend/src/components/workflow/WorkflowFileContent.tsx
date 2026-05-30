@@ -1,7 +1,7 @@
 'use client';
 // WorkflowFileContent
 
-import { Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { WorkflowTab } from './workflow-viewer-utils';
@@ -21,8 +21,6 @@ interface WorkflowFileContentProps {
   showApprovalButton: boolean;
   /** Whether to show the inline verification-complete CTA */
   showCompleteButton: boolean;
-  isRefetching: boolean;
-  onRefetch: () => void;
   onPlanApprovalRequest?: () => void;
   onCompleteRequest?: () => void;
 }
@@ -46,8 +44,6 @@ export function WorkflowFileContent({
   activeTabConfig,
   showApprovalButton,
   showCompleteButton,
-  isRefetching,
-  onRefetch,
   onPlanApprovalRequest,
   onCompleteRequest,
 }: WorkflowFileContentProps) {
@@ -73,27 +69,6 @@ export function WorkflowFileContent({
 
   return (
     <div className="space-y-3">
-      {/* File metadata row */}
-      <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 pb-2 border-b border-zinc-100 dark:border-zinc-700/50">
-        <span>
-          更新:{' '}
-          {activeFile.lastModified
-            ? new Date(activeFile.lastModified).toLocaleString('ja-JP')
-            : '不明'}
-        </span>
-        <div className="flex items-center gap-3">
-          <span>{activeFile.size ? `${(activeFile.size / 1024).toFixed(1)}KB` : ''}</span>
-          <button
-            onClick={onRefetch}
-            disabled={isRefetching}
-            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            title="再読み込み"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </div>
-
       {/* Markdown body */}
       <div
         className={[

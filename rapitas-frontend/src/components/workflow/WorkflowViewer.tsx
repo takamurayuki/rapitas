@@ -151,6 +151,9 @@ export default function WorkflowViewer({
         tabStatus={tabStatus}
         effectiveStatus={effectiveStatus}
         onTabChange={setActiveTab}
+        lastModified={activeFile?.exists ? activeFile.lastModified : undefined}
+        onRefetch={refetch}
+        isRefetching={isLoading}
       />
 
       {/* Content area */}
@@ -161,8 +164,6 @@ export default function WorkflowViewer({
           activeTabConfig={activeTabConfig ?? workflowTabs[0]}
           showApprovalButton={!!showApprovalButton}
           showCompleteButton={!!showCompleteButton}
-          isRefetching={isLoading}
-          onRefetch={refetch}
           onPlanApprovalRequest={onPlanApprovalRequest}
           onCompleteRequest={onCompleteRequest}
         />
