@@ -11,7 +11,7 @@ import { Loader2, Sparkles, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
 import { type CopilotChatPanelProps } from './copilot-chat-types';
-import { getNextActions } from './next-action-recommender';
+import { getNextActions, type RecommendedAction } from './next-action-recommender';
 import { NextActionRecommendations } from './NextActionRecommendations';
 
 export function CopilotChatPanel({
@@ -25,7 +25,8 @@ export function CopilotChatPanel({
   embedded = false,
   children,
 }: CopilotChatPanelProps) {
-  const { messages, isLoading, error, executeAction, clearChat } = useCopilotChat(taskId);
+  const { messages, isLoading, error, sendMessage, executeAction, clearChat } =
+    useCopilotChat(taskId);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const nextActions = nextActionContext ? getNextActions(nextActionContext) : [];
@@ -58,6 +59,19 @@ export function CopilotChatPanel({
       }
     },
     [taskId, onTaskUpdated, executeAction],
+  );
+
+  // A recommendation is either a one-click action or a chat prompt (e.g. the
+  // post-completion retrospective). Dispatch to the right handler.
+  const handleSelect = useCallback(
+    (action: RecommendedAction) => {
+      if (action.prompt) {
+        sendMessage(action.prompt);
+      } else if (action.actionType) {
+        handleAction(action.actionType, action.params);
+      }
+    },
+    [sendMessage, handleAction],
   );
 
   if (isCollapsed && !embedded) {
@@ -120,7 +134,7 @@ export function CopilotChatPanel({
           <div className="mb-3">
             <NextActionRecommendations
               actions={nextActions}
-              onExecute={handleAction}
+              onSelect={handleSelect}
               isBusy={isLoading}
             />
           </div>

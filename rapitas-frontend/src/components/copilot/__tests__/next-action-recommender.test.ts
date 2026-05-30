@@ -12,8 +12,12 @@ const ctx = (over: Partial<NextActionContext> = {}): NextActionContext => ({
 });
 
 describe('getNextActions', () => {
-  it('returns nothing for a done task', () => {
-    expect(getNextActions(ctx({ status: 'done' }))).toEqual([]);
+  it('offers a retrospective (chat prompt) for a done task', () => {
+    const actions = getNextActions(ctx({ status: 'done' }));
+    expect(actions).toHaveLength(1);
+    expect(actions[0].id).toBe('reflect');
+    expect(actions[0].prompt).toBeTruthy();
+    expect(actions[0].actionType).toBeUndefined();
   });
 
   it('recommends starting a simple non-dev todo', () => {

@@ -63,6 +63,18 @@ describe('CopilotChatPanel', () => {
     });
   });
 
+  it('sends a retrospective chat prompt for a done task', async () => {
+    const ctxDone: NextActionContext = { ...ctxTodoManual, status: 'done' };
+    render(
+      <CopilotChatPanel taskId={1} taskTitle="test" taskStatus="done" nextActionContext={ctxDone} />,
+    );
+    fireEvent.click(screen.getByText('振り返りをする'));
+    await waitFor(() => {
+      const calls = vi.mocked(global.fetch).mock.calls;
+      expect(calls.some((c) => String(c[0]).includes('/copilot/chat'))).toBe(true);
+    });
+  });
+
   it('renders message log with aria-live attribute', () => {
     const { container } = render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
     const log = container.querySelector('[role="log"]');

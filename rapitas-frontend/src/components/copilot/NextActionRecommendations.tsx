@@ -8,7 +8,15 @@
  * by the parent (CopilotChatPanel).
  */
 
-import { Sparkles, SplitSquareVertical, Play, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import {
+  Sparkles,
+  SplitSquareVertical,
+  Play,
+  CheckCircle2,
+  Clock,
+  NotebookPen,
+  Loader2,
+} from 'lucide-react';
 import type { RecommendedAction, NextActionIcon } from './next-action-recommender';
 
 const ICONS: Record<NextActionIcon, typeof Sparkles> = {
@@ -17,12 +25,13 @@ const ICONS: Record<NextActionIcon, typeof Sparkles> = {
   play: Play,
   check: CheckCircle2,
   estimate: Clock,
+  reflect: NotebookPen,
 };
 
 interface NextActionRecommendationsProps {
   actions: RecommendedAction[];
-  /** Executes the action's underlying copilot action. */
-  onExecute: (actionType: string, params?: Record<string, unknown>) => void;
+  /** Dispatches the selected recommendation (action or chat prompt). */
+  onSelect: (action: RecommendedAction) => void;
   /** True while an action is running (disables the cards). */
   isBusy: boolean;
 }
@@ -36,7 +45,7 @@ interface NextActionRecommendationsProps {
  */
 export function NextActionRecommendations({
   actions,
-  onExecute,
+  onSelect,
   isBusy,
 }: NextActionRecommendationsProps) {
   if (actions.length === 0) {
@@ -58,7 +67,7 @@ export function NextActionRecommendations({
             key={a.id}
             type="button"
             disabled={isBusy}
-            onClick={() => onExecute(a.actionType, a.params)}
+            onClick={() => onSelect(a)}
             className={`flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:opacity-50 ${
               isPrimary
                 ? 'border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40'

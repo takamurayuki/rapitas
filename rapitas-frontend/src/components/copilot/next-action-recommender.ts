@@ -32,15 +32,21 @@ export interface NextActionContext {
 }
 
 /** Icon key resolved to a concrete lucide icon by the view. */
-export type NextActionIcon = 'analyze' | 'split' | 'play' | 'check' | 'estimate';
+export type NextActionIcon = 'analyze' | 'split' | 'play' | 'check' | 'estimate' | 'reflect';
 
-/** A single recommended next action. */
+/**
+ * A single recommended next action. Carries EITHER `actionType` (one-click
+ * copilot action) OR `prompt` (a message sent to the copilot chat), never both.
+ */
 export interface RecommendedAction {
   id: string;
   label: string;
   reason: string;
-  actionType: NextActionType;
+  /** Copilot action to execute, when this is an action recommendation. */
+  actionType?: NextActionType;
   params?: Record<string, unknown>;
+  /** Chat prompt to send, when this is a conversational recommendation. */
+  prompt?: string;
   icon: NextActionIcon;
   tone: 'primary' | 'normal';
 }
@@ -58,7 +64,20 @@ const MAX_RECOMMENDATIONS = 3;
  * @returns Up to three recommended actions (empty when the task is done) / 推奨アクション（最大3件、完了タスクは空）
  */
 export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
-  if (ctx.status === 'done') return [];
+  // Completed task → offer a knowledge-building retrospective (chat prompt).
+  if (ctx.status === 'done') {
+    return [
+      {
+        id: 'reflect',
+        label: '振り返りをする',
+        reason: 'うまくいった点・改善点・次に活かせる学びをAIがまとめます',
+        prompt:
+          'このタスクの振り返りをしてください。うまくいった点、改善点、次に活かせる学びを簡潔にまとめてください。',
+        icon: 'reflect',
+        tone: 'primary',
+      },
+    ];
+  }
 
   const out: RecommendedAction[] = [];
   const allSubtasksDone = ctx.subtaskTotal > 0 && ctx.subtaskDone === ctx.subtaskTotal;
