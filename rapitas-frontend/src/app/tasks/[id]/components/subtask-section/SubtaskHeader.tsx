@@ -7,7 +7,7 @@
  * Owns no state — all callbacks are passed from the parent.
  */
 
-import { CheckCircle2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { ListTodo, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { Task } from '@/types';
 
@@ -50,7 +50,9 @@ export function SubtaskHeader({
     <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-50 flex-1">
-          <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+          {/* ListTodo (matches the quick-nav subtask icon) reads as "subtasks",
+              unlike a check mark which implies the section is complete. */}
+          <ListTodo className="w-5 h-5 text-emerald-500" />
           <h2 className="text-lg font-bold">{t('subtasks')}</h2>
           {hasSubtasks ? (
             <>
