@@ -9,7 +9,7 @@
 import { prisma } from '../../config/database';
 
 /** Periodic backlog jobs that can be scheduled. */
-export type BacklogJobKind = 'innovation' | 'vuln_scan';
+export type BacklogJobKind = 'innovation' | 'vuln_scan' | 'health_check';
 /** How often a job runs. */
 export type BacklogFrequency = 'daily' | 'weekly';
 
@@ -25,7 +25,11 @@ export interface BacklogScheduleConfig {
 }
 
 /** All schedulable job kinds, in display order. */
-export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = ['innovation', 'vuln_scan'];
+export const BACKLOG_JOB_KINDS: readonly BacklogJobKind[] = [
+  'innovation',
+  'vuln_scan',
+  'health_check',
+];
 
 /**
  * Per-kind defaults used to seed missing rows. Innovation defaults ON to
@@ -38,6 +42,7 @@ const DEFAULTS: Record<
 > = {
   innovation: { enabled: true, frequency: 'daily', hour: 3, weekday: 1 },
   vuln_scan: { enabled: false, frequency: 'weekly', hour: 4, weekday: 1 },
+  health_check: { enabled: true, frequency: 'daily', hour: 5, weekday: 1 },
 };
 
 /** Coerces an arbitrary value to a valid job kind, or null if unknown. */

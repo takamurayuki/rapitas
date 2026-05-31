@@ -19,6 +19,7 @@ import {
 } from './backlog-schedule-service';
 import { runInnovationSession } from '../memory/innovation-session';
 import { runVulnerabilityScan } from '../memory/vulnerability-scan';
+import { runLogHealthCheck } from '../system/log-health-check';
 
 const log = createLogger('scheduling:backlog');
 
@@ -29,6 +30,7 @@ const POLL_INTERVAL_MS = 60_000;
 const HANDLERS: Record<BacklogJobKind, () => Promise<number>> = {
   innovation: runInnovationSession,
   vuln_scan: runVulnerabilityScan,
+  health_check: runLogHealthCheck,
 };
 
 // In-memory guard so a slow job (LLM calls take tens of seconds) is never

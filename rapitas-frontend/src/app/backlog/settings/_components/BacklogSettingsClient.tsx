@@ -10,10 +10,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Lightbulb, Bug, Play, Loader2, CalendarClock } from 'lucide-react';
+import { Lightbulb, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
-type JobKind = 'innovation' | 'vuln_scan';
+type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
 type Frequency = 'daily' | 'weekly';
 
 interface Schedule {
@@ -40,6 +40,12 @@ const JOB_META: Record<
     icon: Bug,
     color: 'text-rose-500',
     desc: '各テーマの直近のコード変更をAIがレビューし、バグ・セキュリティ上の懸念を懸念バックログに起票します（依存の既知脆弱性も bun audit で確認）。',
+  },
+  health_check: {
+    label: 'ログヘルスチェック',
+    icon: Activity,
+    color: 'text-sky-500',
+    desc: 'その日のバックエンドログから warning / error を抽出し、種類ごとにまとめて懸念バックログに起票します。',
   },
 };
 
