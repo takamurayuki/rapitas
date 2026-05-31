@@ -606,11 +606,15 @@ CREATE TABLE "WorkflowOptimizationRule" (
 CREATE TABLE "PromptEvolution" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "experimentId" INTEGER,
-    "category" TEXT NOT NULL,
-    "beforePrompt" TEXT NOT NULL,
-    "afterPrompt" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT '',
+    "beforePrompt" TEXT NOT NULL DEFAULT '',
+    "afterPrompt" TEXT NOT NULL DEFAULT '',
     "improvement" TEXT,
     "performanceDelta" REAL NOT NULL DEFAULT 0,
+    "basePromptKey" TEXT,
+    "reason" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'completed',
+    "evidenceJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "PromptEvolution_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -1454,6 +1458,9 @@ CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");
 
 -- CreateIndex
 CREATE INDEX "PromptEvolution_performanceDelta_idx" ON "PromptEvolution"("performanceDelta");
+
+-- CreateIndex
+CREATE INDEX "PromptEvolution_status_idx" ON "PromptEvolution"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GitHubIntegration_repositoryUrl_key" ON "GitHubIntegration"("repositoryUrl");
