@@ -1,57 +1,68 @@
 /**
  * Log Health Check
  *
- * Daily job: reads TODAY's backend warn/error log file (written by the pino
- * file sink in config/logger.ts), groups entries by a stable signature, and
- * files the distinct problems into the concern backlog. Stable titles/details
- * mean a recurring error is filed once (deduped by submitConcern), not re-added
- * every day. Also prunes log files older than the retention window.
+ * Daily job. Extracts today's warning/error log entries and files the distinct
+ * problems into the concern backlog. Two sources:
+ *   1. Global — rapitas's own backend log (the pino file sink in config/logger.ts).
+ *   2. Per-project — for each theme that opted in (ThemeBacklogSchedule
+ *      health_check with a logDir + format), scans that project's logs.
+ * Stable titles/details mean a recurring error is filed once (deduped by
+ * submitConcern), not re-added every day. Also prunes the global log files.
  *
- * Not responsible for capturing logs (that's the logger) or fixing issues.
+ * Not responsible for capturing logs (the logger / each project does) or fixing.
  */
-import { readFileSync, readdirSync, unlinkSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, statSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
+import { prisma } from '../../config/database';
 import { submitConcern, type ConcernSeverity } from '../memory/concern-backlog-service';
+import {
+  getHealthCheckTargets,
+  type LogFormat,
+} from '../scheduling/theme-backlog-override-service';
+import { parseLogEntries, type ParsedLogEntry } from './log-format-parser';
 
 const log = createLogger('system:log-health-check');
 
-/** Max distinct problems filed per run (errors prioritised over warnings). */
+/** Max distinct problems filed per source per run (errors prioritised). */
 const MAX_CONCERNS = 20;
-/** Only the last N lines are scanned, to bound work on a noisy day. */
+/** Only the last N lines of a file are scanned, to bound work on a noisy day. */
 const MAX_LINES = 5_000;
-/** Delete daily log files older than this many days. */
+/** Max files scanned per project log directory. */
+const MAX_FILES_PER_THEME = 20;
+/** Max parsed entries kept per project, to bound memory/work. */
+const MAX_ENTRIES_PER_THEME = 4_000;
+/** Delete daily backend log files older than this many days. */
 const RETENTION_DAYS = 14;
-
-interface LogLine {
-  level: number;
-  time?: number;
-  name?: string;
-  msg?: string;
-  err?: { message?: string; stack?: string };
-}
 
 interface Grouped {
   signature: string;
-  level: number; // highest pino level seen for this signature
+  level: number; // highest level seen for this signature
   name: string;
   normalizedMsg: string;
   sampleStack?: string;
   count: number;
 }
 
-/** pino numeric level → concern severity. */
+/** Numeric level → concern severity. */
 export function levelToSeverity(level: number): ConcernSeverity {
   if (level >= 60) return 'urgent'; // fatal
   if (level >= 50) return 'high'; // error
   return 'medium'; // warn
 }
 
-/** pino numeric level → short label. */
+/** Numeric level → short label. */
 function levelLabel(level: number): string {
   if (level >= 60) return 'FATAL';
   if (level >= 50) return 'ERROR';
   return 'WARN';
+}
+
+/** Start of the local day in epoch ms. */
+function startOfTodayMs(): number {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 /**
@@ -69,28 +80,17 @@ function normalizeMessage(raw: string): string {
 }
 
 /**
- * Groups raw NDJSON log lines (warn+) by a stable signature. Pure — the
- * health check's testable core.
+ * Groups parsed warn+ entries by a stable signature. Pure — the health check's
+ * testable core.
  *
- * @param rawLines - NDJSON log lines / NDJSONログ行
+ * @param entries - Parsed log entries / 解析済みエントリ
  * @returns Distinct problem groups / 問題のグループ
  */
-export function groupLogLines(rawLines: string[]): Grouped[] {
-  const lines = rawLines.length > MAX_LINES ? rawLines.slice(-MAX_LINES) : rawLines;
-
+export function groupEntries(entries: ParsedLogEntry[]): Grouped[] {
   const groups = new Map<string, Grouped>();
-  for (const line of lines) {
-    if (!line) continue;
-    let entry: LogLine;
-    try {
-      entry = JSON.parse(line) as LogLine;
-    } catch {
-      continue; // skip non-JSON / partial lines
-    }
-    if (typeof entry.level !== 'number' || entry.level < 40) continue;
-
-    const baseMsg = entry.err?.message || entry.msg || '(メッセージなし)';
-    const normalizedMsg = normalizeMessage(baseMsg);
+  for (const entry of entries) {
+    if (entry.level < 40) continue;
+    const normalizedMsg = normalizeMessage(entry.msg || '(メッセージなし)');
     const name = entry.name || 'app';
     const bucket = entry.level >= 50 ? 'error' : 'warn';
     const signature = `${name}|${bucket}|${normalizedMsg}`;
@@ -99,35 +99,117 @@ export function groupLogLines(rawLines: string[]): Grouped[] {
     if (existing) {
       existing.count++;
       existing.level = Math.max(existing.level, entry.level);
-      if (!existing.sampleStack && entry.err?.stack) existing.sampleStack = entry.err.stack;
+      if (!existing.sampleStack && entry.stack) existing.sampleStack = entry.stack;
     } else {
       groups.set(signature, {
         signature,
         level: entry.level,
         name,
         normalizedMsg,
-        sampleStack: entry.err?.stack,
+        sampleStack: entry.stack,
         count: 1,
       });
     }
   }
-
   return [...groups.values()];
 }
 
-/** Reads today's log file and groups it (returns [] if the file is absent). */
-function groupTodayLogs(): Grouped[] {
+/** Files grouped problems as concerns (stable title/detail → deduped). */
+async function fileGroupedConcerns(
+  groups: Grouped[],
+  opts: { themeId?: number; projectLabel?: string },
+): Promise<number> {
+  groups.sort((a, b) => b.level - a.level || b.count - a.count);
+  const top = groups.slice(0, MAX_CONCERNS);
+
+  let filed = 0;
+  for (const g of top) {
+    const label = levelLabel(g.level);
+    const prefix = opts.projectLabel ? `(${opts.projectLabel}) ` : '';
+    const title = `[ログ:${label}] ${prefix}${g.normalizedMsg.slice(0, 100)}`;
+    const detailParts = [
+      `ロガー: ${g.name}`,
+      `レベル: ${label}`,
+      opts.projectLabel ? `プロジェクト: ${opts.projectLabel}` : 'ソース: rapitas バックエンド',
+      '',
+      'ログから検出された warning/error です。頻発する場合は原因調査を推奨します。',
+    ];
+    if (g.sampleStack) detailParts.push('', '例:', g.sampleStack.slice(0, 800));
+
+    await submitConcern({
+      title,
+      detail: detailParts.join('\n'),
+      type: g.level >= 50 ? 'bug' : 'other',
+      severity: levelToSeverity(g.level),
+      themeId: opts.themeId,
+      source: 'log_health',
+    });
+    filed++;
+  }
+  return filed;
+}
+
+/** Reads + parses rapitas's own backend log for today (pino NDJSON). */
+function readGlobalEntries(): ParsedLogEntry[] {
   const path = getBackendLogFilePath();
   if (!existsSync(path)) return [];
   try {
-    return groupLogLines(readFileSync(path, 'utf-8').split('\n').filter(Boolean));
+    const lines = readFileSync(path, 'utf-8').split('\n');
+    const content = (lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines).join('\n');
+    return parseLogEntries(content, 'pino');
   } catch (err) {
-    log.warn({ err }, 'Failed to read log file');
+    log.warn({ err }, 'Failed to read backend log file');
     return [];
   }
 }
 
-/** Deletes daily log files older than the retention window (best-effort). */
+/** Reads today's log files in a project's directory and parses them. */
+function readThemeEntries(dir: string, format: LogFormat): ParsedLogEntry[] {
+  if (!existsSync(dir)) {
+    log.warn({ dir }, 'Project log directory missing — skipping');
+    return [];
+  }
+  let files: string[];
+  try {
+    files = readdirSync(dir);
+  } catch (err) {
+    log.warn({ err, dir }, 'Failed to read project log directory');
+    return [];
+  }
+
+  const since = startOfTodayMs();
+  const entries: ParsedLogEntry[] = [];
+  let scanned = 0;
+  for (const file of files) {
+    if (scanned >= MAX_FILES_PER_THEME || entries.length >= MAX_ENTRIES_PER_THEME) break;
+    const full = join(dir, file);
+    let st;
+    try {
+      st = statSync(full);
+    } catch {
+      continue;
+    }
+    if (!st.isFile() || st.mtimeMs < since) continue; // only files written today
+    scanned++;
+    let content: string;
+    try {
+      content = readFileSync(full, 'utf-8');
+    } catch {
+      continue;
+    }
+    const lines = content.split('\n');
+    const trimmed = (lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines).join('\n');
+    // When entries carry a timestamp, keep only today's; text logs (no time)
+    // are already bounded by the file's mtime.
+    const parsed = parseLogEntries(trimmed, format).filter(
+      (e) => e.time === undefined || e.time >= since,
+    );
+    entries.push(...parsed);
+  }
+  return entries.slice(0, MAX_ENTRIES_PER_THEME);
+}
+
+/** Deletes daily backend log files older than the retention window. */
 function pruneOldLogs(): void {
   const dir = join(getBackendLogFilePath(), '..');
   let files: string[];
@@ -152,50 +234,40 @@ function pruneOldLogs(): void {
 }
 
 /**
- * Run the daily log health check: file today's distinct warnings/errors as
- * concerns, then prune old log files.
+ * Run the daily log health check across rapitas's backend log and every opted-in
+ * project's logs, filing distinct problems as concerns; then prune old logs.
  *
  * @returns Number of concerns filed / 起票された懸念の数
  */
 export async function runLogHealthCheck(): Promise<number> {
   log.info('Starting log health check');
-
-  const groups = groupTodayLogs();
-  if (groups.length === 0) {
-    log.info('No warnings/errors in today log — backend healthy');
-    pruneOldLogs();
-    return 0;
-  }
-
-  // Errors before warnings; within a level, the most frequent first.
-  groups.sort((a, b) => b.level - a.level || b.count - a.count);
-  const top = groups.slice(0, MAX_CONCERNS);
-
   let filed = 0;
-  for (const g of top) {
-    const label = levelLabel(g.level);
-    // Stable title/detail → submitConcern dedups, so a recurring error is filed
-    // once rather than re-added every day.
-    const title = `[ログ:${label}] ${g.normalizedMsg.slice(0, 100)}`;
-    const detailParts = [
-      `ロガー: ${g.name}`,
-      `レベル: ${label}`,
-      '',
-      'バックエンドのログから検出された warning/error です。頻発する場合は原因調査を推奨します。',
-    ];
-    if (g.sampleStack) detailParts.push('', '例:', g.sampleStack.slice(0, 800));
 
-    await submitConcern({
-      title,
-      detail: detailParts.join('\n'),
-      type: g.level >= 50 ? 'bug' : 'other',
-      severity: levelToSeverity(g.level),
-      source: 'log_health',
+  // 1. Global: rapitas's own backend.
+  filed += await fileGroupedConcerns(groupEntries(readGlobalEntries()), {});
+
+  // 2. Per-project: each theme that opted in with a log dir + format.
+  const targets = await getHealthCheckTargets();
+  if (targets.length > 0) {
+    const themes = await prisma.theme.findMany({
+      where: { id: { in: targets.map((t) => t.themeId) } },
+      select: { id: true, name: true },
     });
-    filed++;
+    const nameById = new Map(themes.map((t) => [t.id, t.name]));
+    for (const target of targets) {
+      try {
+        const entries = readThemeEntries(target.logDir, target.logFormat);
+        filed += await fileGroupedConcerns(groupEntries(entries), {
+          themeId: target.themeId,
+          projectLabel: nameById.get(target.themeId) ?? `theme#${target.themeId}`,
+        });
+      } catch (err) {
+        log.warn({ err, themeId: target.themeId }, 'Project log scan failed (non-fatal)');
+      }
+    }
   }
 
   pruneOldLogs();
-  log.info({ filed, distinct: groups.length }, 'Log health check complete');
+  log.info({ filed, projects: targets.length }, 'Log health check complete');
   return filed;
 }

@@ -14,6 +14,7 @@ import { sendAIMessage } from '../../utils/ai-client';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { submitIdea } from './idea-box-service';
+import { getDisabledThemeIds } from '../scheduling/theme-backlog-override-service';
 
 const log = createLogger('memory:innovation-session');
 
@@ -87,14 +88,22 @@ export async function runInnovationSession(): Promise<number> {
   const now = new Date();
   const since = lastRunAt ?? new Date(now.getTime() - SESSION_INTERVAL_MS);
 
+  // Exclude completed tasks from themes the user disabled for innovation.
+  // Keep null-theme tasks (notIn alone would drop them in SQL).
+  const disabled = await getDisabledThemeIds('innovation');
+  const themeFilter =
+    disabled.size > 0
+      ? { OR: [{ themeId: null }, { themeId: { notIn: [...disabled] } }] }
+      : {};
+  const completedWhere = {
+    status: { in: ['done', 'completed'] },
+    completedAt: { gte: since },
+    parentId: null,
+    ...themeFilter,
+  };
+
   // Check if enough work has been done since last session
-  const recentCount = await prisma.task.count({
-    where: {
-      status: { in: ['done', 'completed'] },
-      completedAt: { gte: since },
-      parentId: null,
-    },
-  });
+  const recentCount = await prisma.task.count({ where: completedWhere });
 
   if (recentCount < MIN_NEW_COMPLETIONS) {
     log.info({ recentCount }, 'Not enough completions since last session, skipping');
@@ -105,11 +114,7 @@ export async function runInnovationSession(): Promise<number> {
   // Gather context
   const [recentTasks, existingIdeas] = await Promise.all([
     prisma.task.findMany({
-      where: {
-        status: { in: ['done', 'completed'] },
-        completedAt: { gte: since },
-        parentId: null,
-      },
+      where: completedWhere,
       select: { title: true, description: true, theme: { select: { name: true } } },
       orderBy: { completedAt: 'desc' },
       take: 15,

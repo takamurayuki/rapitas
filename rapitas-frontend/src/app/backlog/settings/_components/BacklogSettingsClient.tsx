@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import ProjectOverridesSection from './ProjectOverridesSection';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
 type Frequency = 'daily' | 'weekly';
@@ -254,6 +255,8 @@ export default function BacklogSettingsClient() {
           );
         })}
       </div>
+
+      <ProjectOverridesSection />
     </div>
   );
 }

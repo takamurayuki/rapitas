@@ -12,3 +12,4 @@ export * from './calendar-service';
 export * from './worktree-cleanup-scheduler';
 export * from './backlog-schedule-service';
 export * from './backlog-scheduler';
+export * from './theme-backlog-override-service';
