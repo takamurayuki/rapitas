@@ -258,6 +258,25 @@ const SEVERITY_TO_PRIORITY: Record<ConcernSeverity, 'urgent' | 'high' | 'medium'
   low: 'low',
 };
 
+/**
+ * Resolves the fallback theme for concerns with no explicit theme (rapitas's own
+ * backend-log health check, or a user filing without picking a theme).
+ *
+ * NOTE: the home task list filters tasks by the selected category via their
+ * theme, so a theme-less task is silently invisible there. Attributing such
+ * concerns to the user's default theme keeps the resulting task category-scoped
+ * and therefore visible.
+ *
+ * @returns Default theme id, or null when none is marked default / 既定テーマID
+ */
+export async function resolveDefaultThemeId(): Promise<number | null> {
+  const theme = await prisma.theme.findFirst({
+    where: { isDefault: true },
+    select: { id: true },
+  });
+  return theme?.id ?? null;
+}
+
 /** Type → task title prefix. */
 const TYPE_PREFIX: Record<ConcernType, string> = {
   bug: '[Bug]',
@@ -290,12 +309,19 @@ export async function convertConcernToTask(concernId: number): Promise<number | 
   if (concern.originTaskId) descriptionParts.push(`発見元タスク: #${concern.originTaskId}`);
   descriptionParts.push(`種別: ${concern.type} / 重大度: ${concern.severity}`);
 
+  // Fall back to the default theme so the task is never theme-less (and thus
+  // hidden from the category-filtered home task list). See resolveDefaultThemeId.
+  const themeId = concern.themeId ?? (await resolveDefaultThemeId()) ?? undefined;
+  if (concern.themeId == null && themeId != null) {
+    log.info({ concernId, themeId }, 'Concern had no theme — assigning default theme on conversion');
+  }
+
   const task = await createTask(prisma, {
     title: `${TYPE_PREFIX[concern.type]} ${concern.title}`.slice(0, 200),
     description: descriptionParts.join('\n'),
     priority: SEVERITY_TO_PRIORITY[concern.severity],
     status: 'todo',
-    themeId: concern.themeId ?? undefined,
+    themeId,
   });
   if (!task) return null;
 

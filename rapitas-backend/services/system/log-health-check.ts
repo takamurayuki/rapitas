@@ -15,7 +15,11 @@ import { readFileSync, readdirSync, statSync, unlinkSync, existsSync } from 'fs'
 import { join } from 'path';
 import { createLogger, getBackendLogFilePath } from '../../config/logger';
 import { prisma } from '../../config/database';
-import { submitConcern, type ConcernSeverity } from '../memory/concern-backlog-service';
+import {
+  submitConcern,
+  resolveDefaultThemeId,
+  type ConcernSeverity,
+} from '../memory/concern-backlog-service';
 import {
   getHealthCheckTargets,
   type LogFormat,
@@ -243,8 +247,18 @@ export async function runLogHealthCheck(): Promise<number> {
   log.info('Starting log health check');
   let filed = 0;
 
-  // 1. Global: rapitas's own backend.
-  filed += await fileGroupedConcerns(groupEntries(readGlobalEntries()), {});
+  // 1. Global: rapitas's own backend. Attribute to the default theme so the
+  // resulting concerns (and any task created from them) are theme-scoped — a
+  // theme-less task is invisible in the category-filtered home task list.
+  const defaultThemeId = await resolveDefaultThemeId();
+  if (defaultThemeId === null) {
+    log.warn(
+      'No default theme set — global backend-log concerns stay theme-less and will be hidden from the category-filtered task list',
+    );
+  }
+  filed += await fileGroupedConcerns(groupEntries(readGlobalEntries()), {
+    themeId: defaultThemeId ?? undefined,
+  });
 
   // 2. Per-project: each theme that opted in with a log dir + format.
   const targets = await getHealthCheckTargets();
