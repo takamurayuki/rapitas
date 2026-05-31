@@ -7,7 +7,7 @@
  * Supports quick prompts, message history, and contextual insights.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Sparkles, RotateCcw } from 'lucide-react';
+import { Bot, RotateCcw } from 'lucide-react';
 import { useCopilotChat } from './useCopilotChat';
 import { MessageBubble, ProactiveInsight } from './CopilotChatComponents';
 import { type CopilotChatPanelProps } from './copilot-chat-types';
@@ -91,8 +91,8 @@ export function CopilotChatPanel({
         onClick={() => setIsCollapsed(false)}
         className={`flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800 ${className}`}
       >
-        <Sparkles className="h-4 w-4 text-indigo-500" />
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">AI コパイロット</span>
+        <Bot className="h-4 w-4 text-indigo-500" />
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">AIアシスタント</span>
         {messages.length > 0 && (
           <span className="rounded-full bg-indigo-100 px-1.5 text-[10px] font-medium text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
             {messages.length}
@@ -112,9 +112,9 @@ export function CopilotChatPanel({
     >
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-indigo-500" />
+          <Bot className="h-4 w-4 text-indigo-500" />
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            AI コパイロット
+            AIアシスタント
           </h3>
         </div>
         <div className="flex items-center gap-1">

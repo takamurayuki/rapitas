@@ -26,7 +26,7 @@ describe('CopilotChatPanel', () => {
 
   it('renders the panel header', () => {
     render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
-    expect(screen.getByText('AI コパイロット')).toBeInTheDocument();
+    expect(screen.getByText('AIアシスタント')).toBeInTheDocument();
   });
 
   it('renders proactive insight for todo status', () => {

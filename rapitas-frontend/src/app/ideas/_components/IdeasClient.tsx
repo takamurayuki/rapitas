@@ -739,7 +739,7 @@ export default function IdeasClient() {
                                 : idea.source === 'agent_execution'
                                   ? 'エージェント'
                                   : idea.source === 'copilot'
-                                    ? 'コパイロット'
+                                    ? 'AIアシスタント'
                                     : idea.source}
                             </span>
                             <span>{new Date(idea.createdAt).toLocaleDateString('ja-JP')}</span>
