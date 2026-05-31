@@ -86,7 +86,6 @@ export default function IdeasClient() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newScope, setNewScope] = useState<IdeaScope>('global');
   const [newPriority, setNewPriority] = useState<IdeaPriority>('medium');
   const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
@@ -195,7 +194,6 @@ export default function IdeasClient() {
     setEditingId(null);
     setNewTitle('');
     setNewContent('');
-    setNewScope('global');
     setNewPriority('medium');
     setNewCategoryId(null);
     setNewThemeId(null);
@@ -207,10 +205,10 @@ export default function IdeasClient() {
     const payload = {
       title: newTitle.trim(),
       content: newContent.trim() || newTitle.trim(),
-      scope: newScope,
+      scope: 'project' as IdeaScope,
       priority: newPriority,
-      // Send null for global scope so PATCH clears any prior themeId.
-      themeId: newScope === 'project' ? (newThemeId ?? null) : null,
+      // Ideas are always project-scoped now; null themeId = unassigned project.
+      themeId: newThemeId ?? null,
     };
 
     // Edit path keeps the simple await-then-refetch flow.
@@ -242,7 +240,7 @@ export default function IdeasClient() {
       title: payload.title,
       content: payload.content,
       category: 'improvement',
-      scope: newScope,
+      scope: 'project',
       priority: newPriority,
       tags: [],
       themeId: payload.themeId,
@@ -270,14 +268,13 @@ export default function IdeasClient() {
       // Roll back the optimistic entry if the submission failed.
       setIdeas((prev) => prev.filter((i) => i.id !== tempId));
     }
-  }, [editingId, newTitle, newContent, newScope, newPriority, newThemeId, fetchIdeas, resetForm]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm]);
 
   const handleEdit = useCallback(
     (idea: Idea) => {
       setEditingId(idea.id);
       setNewTitle(idea.title);
       setNewContent(idea.content === idea.title ? '' : idea.content);
-      setNewScope(idea.scope);
       setNewPriority(idea.priority);
       const theme = themes.find((t) => t.id === idea.themeId);
       setNewCategoryId(theme?.categoryId ?? null);
@@ -484,32 +481,7 @@ export default function IdeasClient() {
           onClose={handleCancel}
           icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
           maxWidthClass="max-w-2xl"
-          title={
-            <span className="flex items-center gap-3">
-              {editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
-              {/* Priority — moved next to the title; same icons as the task list */}
-              <span
-                className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
-                title="優先度（アプリへの革新性・価値の底上げ度合い）"
-              >
-                {PRIORITY_ORDER.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setNewPriority(p)}
-                    title={PRIORITY_HINT[p]}
-                    className={`px-2 py-1 transition-colors ${
-                      newPriority === p
-                        ? 'bg-zinc-100 dark:bg-zinc-800'
-                        : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                    }`}
-                  >
-                    <PriorityIcon priority={p} size="sm" showTitle />
-                  </button>
-                ))}
-              </span>
-            </span>
-          }
+          title={editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
           footer={
             <>
               <button
@@ -557,56 +529,59 @@ export default function IdeasClient() {
                 style={{ overflowY: 'auto' }}
               />
               <div className="flex flex-wrap items-center gap-2">
-                {/* Scope toggle */}
-                <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                  <button
-                    onClick={() => setNewScope('global')}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'global' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
+                {/* Priority — moved below the title */}
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400">優先度</span>
+                  <span
+                    className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                    title="優先度（アプリへの革新性・価値の底上げ度合い）"
                   >
-                    <Globe className="h-3 w-3" />
-                    グローバル
-                  </button>
-                  <button
-                    onClick={() => setNewScope('project')}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'project' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-                  >
-                    <FolderOpen className="h-3 w-3" />
-                    プロジェクト
-                  </button>
-                </div>
-                {/* Category → Theme selector (project scope only) */}
-                {newScope === 'project' && (
-                  <>
-                    <select
-                      value={newCategoryId ?? ''}
-                      onChange={(e) => {
-                        const id = e.target.value ? parseInt(e.target.value) : null;
-                        setNewCategoryId(id);
-                        setNewThemeId(null);
-                      }}
-                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                    >
-                      <option value="">カテゴリ</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={newThemeId ?? ''}
-                      onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                    >
-                      <option value="">テーマ</option>
-                      {filteredThemes.map((th) => (
-                        <option key={th.id} value={th.id}>
-                          {th.name}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
+                    {PRIORITY_ORDER.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setNewPriority(p)}
+                        title={PRIORITY_HINT[p]}
+                        className={`px-2 py-1 transition-colors ${
+                          newPriority === p
+                            ? 'bg-zinc-100 dark:bg-zinc-800'
+                            : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <PriorityIcon priority={p} size="sm" showTitle />
+                      </button>
+                    ))}
+                  </span>
+                </span>
+                {/* Category → Theme — ideas are always project-scoped */}
+                <select
+                  value={newCategoryId ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value ? parseInt(e.target.value) : null;
+                    setNewCategoryId(id);
+                    setNewThemeId(null);
+                  }}
+                  className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                  <option value="">カテゴリ</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={newThemeId ?? ''}
+                  onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+                  className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                >
+                  <option value="">テーマ</option>
+                  {filteredThemes.map((th) => (
+                    <option key={th.id} value={th.id}>
+                      {th.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
         </Modal>
