@@ -1,7 +1,7 @@
 'use client';
 // AutoExecutionMode — category-scoped auto task generation with IdeaBox integration.
 import { useState, useCallback } from 'react';
-import { Bot, Loader2, Sparkles, CheckCircle2, AlertCircle, AlertTriangle, X } from 'lucide-react';
+import { Loader2, Orbit, CheckCircle2, AlertCircle, AlertTriangle, X } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 
 interface GeneratedTask {
@@ -88,9 +88,8 @@ export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
         disabled={isGenerating}
         className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
       >
-        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-        {isGenerating ? 'AIがタスクを分析中...' : '自動実行モード'}
-        <Sparkles className="h-3 w-3 text-indigo-400" />
+        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Orbit className="h-4 w-4" />}
+        {isGenerating ? 'AIがタスクを分析中...' : 'タスク自動実行'}
       </button>
 
       {error && (

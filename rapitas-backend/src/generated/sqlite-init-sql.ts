@@ -1096,6 +1096,18 @@ CREATE TABLE "BacklogSchedule" (
 );
 
 -- CreateTable
+CREATE TABLE "ThemeBacklogSchedule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "kind" TEXT NOT NULL,
+    "themeId" INTEGER NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "logDir" TEXT,
+    "logFormat" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "username" TEXT NOT NULL,
@@ -1583,6 +1595,9 @@ CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalanc
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThemeBacklogSchedule_kind_themeId_key" ON "ThemeBacklogSchedule"("kind", "themeId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
