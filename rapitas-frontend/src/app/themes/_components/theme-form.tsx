@@ -197,8 +197,8 @@ export function ThemeForm({
         </div>
       </div>
 
-      {/* Category selector */}
-      {categories.length > 0 && (
+      {/* Category selector — hidden while editing: the active category tab already shows it. */}
+      {!isEdit && categories.length > 0 && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
           <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
             {t('belongsToCategory')} <span className="text-red-500">*</span>
