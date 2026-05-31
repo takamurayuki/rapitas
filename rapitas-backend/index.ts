@@ -148,6 +148,12 @@ startBacklogScheduler();
 import { startBackupScheduler } from './services/system/backup-scheduler';
 startBackupScheduler();
 
+// Start orphaned-worktree cleanup scheduler (defaults to a 30-min interval).
+// NOTE: previously defined but never started, so abandoned agent worktrees
+// accumulated in .git/worktrees/ with no automatic cleanup.
+import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
+startWorktreeCleanupScheduler();
+
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
 app.listen({

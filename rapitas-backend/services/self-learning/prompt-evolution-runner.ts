@@ -162,8 +162,11 @@ async function main(): Promise<void> {
   }
 }
 
-// ESM-style entry guard (Bun): 直接 bun で起動された場合のみ main() を呼ぶ。
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
-  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+// Entry guard (Bun): only run main() when invoked directly (e.g. by the weekly
+// GitHub Actions cron). NOTE: previously compared import.meta.url to a hand-built
+// `file://${argv[1]}` string, which never matched on Windows (file:///C:/... vs
+// file://C:/...), so `bun run runner.ts` was a silent no-op there. import.meta.main
+// is cross-platform and already used by other scripts in this repo.
+if (import.meta.main) {
   main();
 }
