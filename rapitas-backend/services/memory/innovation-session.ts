@@ -1,9 +1,11 @@
 /**
  * Innovation Session
  *
- * Periodically generates novel, cross-cutting ideas by analyzing completed
- * tasks, existing features, and global ideas from a "product innovator"
- * perspective. Runs on a configurable schedule (default: twice daily).
+ * Periodically generates novel, cross-cutting ideas by analyzing each project's
+ * recently completed tasks from a "product innovator" perspective. Runs once
+ * per theme so every generated idea is tied to a specific project (scope
+ * 'project' + themeId) rather than a vague global bucket. Only themes with a
+ * working directory are processed (periodic jobs target configured projects).
  *
  * Unlike the improvement-focused idea extractor, this module specifically
  * targets creative recombination and latent user needs.
@@ -19,25 +21,28 @@ import { getDisabledThemeIds } from '../scheduling/theme-backlog-override-servic
 const log = createLogger('memory:innovation-session');
 
 /**
- * Look-back window (ms) used to size the "recent completions" query when this
- * is the first run after boot. Timing of WHEN sessions run is owned by the
- * backlog-scheduler (see services/scheduling/backlog-scheduler.ts), not here.
+ * Look-back window (ms) for the "recent completions" query on the first run
+ * after boot. Timing of WHEN sessions run is owned by the backlog-scheduler.
  */
 const SESSION_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
-/** Minimum completed tasks since last session to justify running. */
-const MIN_NEW_COMPLETIONS = 2;
+/** Min recently-completed tasks a theme needs before we generate ideas for it. */
+const MIN_COMPLETIONS_PER_THEME = 1;
+/** Max projects processed per run — bounds LLM cost. */
+const MAX_THEMES = 5;
+/** Max ideas kept per project per run. */
+const IDEAS_PER_THEME = 2;
 
 let lastRunAt: Date | null = null;
 
 const INNOVATION_PROMPT = `あなたはプロダクトイノベーターです。
-以下のプロジェクト情報から、既存機能の「組み合わせ」や「転用」で生まれる
+対象プロジェクトの情報から、既存機能の「組み合わせ」や「転用」で生まれる
 新しい価値を提案してください。改善やバグ修正ではなく、斬新なアイデアを求めています。
 
 ## 思考フレームワーク
 - 既存機能AをBの文脈で使うとどうなるか？（機能の転用）
 - ユーザーがまだ気づいていない潜在ニーズは？
-- 競合アプリ（Todoist, Linear, Notion）にない、このアプリだからこそ可能な体験は？
+- 競合にない、このプロジェクトだからこそ可能な体験は？
 - 「もし〇〇ができたら」という仮説的な提案
 - 異分野（ゲーム、SNS、教育、ヘルスケア）のパターンを取り入れられないか？
 
@@ -46,39 +51,83 @@ const INNOVATION_PROMPT = `あなたはプロダクトイノベーターです�
 - 既に存在する機能の繰り返し
 - 抽象的すぎて実行できない提案（「AIを活用する」等）
 
-## 最近完了したタスク
+## 対象プロジェクト
+{project}
+
+## このプロジェクトで最近完了したタスク
 {recentTasks}
 
-## 現在のアプリの主要機能
-{features}
-
-## IdeaBoxの既存アイデア（重複回避）
+## このプロジェクトの既存アイデア（重複回避）
 {existingIdeas}
 
-新しいアイデアを2〜3件、JSON配列で返してください（他のテキスト不要）:
+新しいアイデアを1〜2件、JSON配列で返してください（他のテキスト不要）:
 [{"title":"斬新なタイトル","content":"具体的な説明。何が新しく、なぜユーザーに価値があるか"}]
 
 本当に新しいアイデアがなければ空配列 [] を返してください。無理に数を合わせないでください。`;
 
-/** Core feature list — injected into the prompt for cross-pollination. */
-const APP_FEATURES = [
-  'AIコパイロット（チャット + タスク分析 + エージェント実行）',
-  'アイデアボックス（改善・革新アイデアの蓄積）',
-  'デイリーブリーフィング（AI朝の計画提案）',
-  'ポモドーロ + フォーカスモード',
-  '音声入力でタスク登録',
-  'ナレッジベース + 知識グラフ',
-  'ワークフロー学習（パターン認識 + 工数推定）',
-  'ガントチャート + 依存関係グラフ',
-  '自動実行モード（IdeaBox連携タスク生成）',
-  '学習機能（フラッシュカード + 学習目標 + 試験対策）',
-  'GitHub連携（Issue同期 + PR管理）',
-  'ダッシュボード（バーンアップ + ヒートマップ + コスト最適化）',
-].join('\n- ');
+interface LocalModel {
+  provider: 'ollama' | 'claude';
+  name: string;
+}
+
+/** Generates and files project-scoped ideas for one theme. Returns the count. */
+async function generateForTheme(
+  theme: { id: number; name: string },
+  recentTasks: Array<{ title: string; description: string | null }>,
+  existingIdeas: Array<{ title: string }>,
+  model: LocalModel,
+): Promise<number> {
+  const recentTasksText = recentTasks.map((t) => `- ${t.title}`).join('\n') || '(なし)';
+  const existingIdeasText = existingIdeas.map((i) => `- ${i.title}`).join('\n') || '(なし)';
+  const prompt = INNOVATION_PROMPT.replace('{project}', theme.name)
+    .replace('{recentTasks}', recentTasksText)
+    .replace('{existingIdeas}', existingIdeasText);
+
+  let response;
+  try {
+    response = await sendAIMessage({
+      provider: model.provider,
+      model: model.name,
+      messages: [{ role: 'user', content: prompt }],
+      maxTokens: 700,
+    });
+  } catch (err) {
+    log.warn({ err, themeId: theme.id }, 'Innovation generation failed for theme');
+    return 0;
+  }
+
+  const jsonMatch = response.content.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return 0;
+
+  let ideas: Array<{ title: string; content: string }>;
+  try {
+    ideas = (JSON.parse(jsonMatch[0]) as Array<{ title: string; content: string }>)
+      .filter((i) => i.title && i.content)
+      .slice(0, IDEAS_PER_THEME);
+  } catch {
+    return 0;
+  }
+
+  let created = 0;
+  for (const idea of ideas) {
+    // themeId → submitIdea derives scope 'project', so the idea is tied to this
+    // project rather than the old global bucket.
+    await submitIdea({
+      title: idea.title,
+      content: idea.content,
+      source: 'innovation_session',
+      scope: 'project',
+      themeId: theme.id,
+      confidence: 0.75,
+    });
+    created++;
+  }
+  return created;
+}
 
 /**
- * Run a single innovation session.
- * Gathers context, calls LLM, and submits novel ideas to the IdeaBox.
+ * Run an innovation session across each eligible project. Every idea produced
+ * is tied to its project (no global ideas).
  *
  * @returns Number of ideas generated / 生成されたアイデア数
  */
@@ -88,99 +137,61 @@ export async function runInnovationSession(): Promise<number> {
   const now = new Date();
   const since = lastRunAt ?? new Date(now.getTime() - SESSION_INTERVAL_MS);
 
-  // Exclude completed tasks from themes the user disabled for innovation.
-  // Keep null-theme tasks (notIn alone would drop them in SQL).
+  // Only configured projects (working directory) that aren't disabled for
+  // innovation. Periodic jobs target specified repositories, and every idea
+  // must tie to a theme — so theme-less / unconfigured work is not used here.
   const disabled = await getDisabledThemeIds('innovation');
-  const themeFilter =
-    disabled.size > 0
-      ? { OR: [{ themeId: null }, { themeId: { notIn: [...disabled] } }] }
-      : {};
-  const completedWhere = {
-    status: { in: ['done', 'completed'] },
-    completedAt: { gte: since },
-    parentId: null,
-    ...themeFilter,
-  };
-
-  // Check if enough work has been done since last session
-  const recentCount = await prisma.task.count({ where: completedWhere });
-
-  if (recentCount < MIN_NEW_COMPLETIONS) {
-    log.info({ recentCount }, 'Not enough completions since last session, skipping');
+  const themes = await prisma.theme.findMany({
+    where: {
+      workingDirectory: { not: null },
+      ...(disabled.size > 0 ? { id: { notIn: [...disabled] } } : {}),
+    },
+    select: { id: true, name: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+  if (themes.length === 0) {
+    log.info('No eligible projects for innovation');
     lastRunAt = now;
     return 0;
   }
 
-  // Gather context
-  const [recentTasks, existingIdeas] = await Promise.all([
-    prisma.task.findMany({
-      where: completedWhere,
-      select: { title: true, description: true, theme: { select: { name: true } } },
+  const localStatus = await getLocalLLMStatus().catch(() => ({ available: false }));
+  const useLocal = (localStatus as { available: boolean }).available;
+  const model: LocalModel = useLocal
+    ? { provider: 'ollama', name: await getBestLocalModel() }
+    : { provider: 'claude', name: 'claude-haiku-4-5-20251001' };
+
+  let created = 0;
+  let processed = 0;
+  for (const theme of themes) {
+    if (processed >= MAX_THEMES) break;
+
+    const recentTasks = await prisma.task.findMany({
+      where: {
+        status: { in: ['done', 'completed'] },
+        completedAt: { gte: since },
+        parentId: null,
+        themeId: theme.id,
+      },
+      select: { title: true, description: true },
       orderBy: { completedAt: 'desc' },
       take: 15,
-    }),
-    prisma.knowledgeEntry.findMany({
-      where: { sourceType: 'idea_box', forgettingStage: 'active' },
+    });
+    if (recentTasks.length < MIN_COMPLETIONS_PER_THEME) continue;
+    processed++;
+
+    const existingIdeas = await prisma.knowledgeEntry.findMany({
+      where: { sourceType: 'idea_box', forgettingStage: 'active', themeId: theme.id },
       select: { title: true },
       orderBy: { createdAt: 'desc' },
       take: 20,
-    }),
-  ]);
-
-  const recentTasksText =
-    recentTasks.map((t) => `- ${t.title}${t.theme?.name ? ` [${t.theme.name}]` : ''}`).join('\n') ||
-    '(なし)';
-
-  const existingIdeasText = existingIdeas.map((i) => `- ${i.title}`).join('\n') || '(なし)';
-
-  const prompt = INNOVATION_PROMPT.replace('{recentTasks}', recentTasksText)
-    .replace('{features}', APP_FEATURES)
-    .replace('{existingIdeas}', existingIdeasText);
-
-  // Use Haiku for innovation — needs stronger reasoning than local LLM
-  const localStatus = await getLocalLLMStatus().catch(() => ({ available: false }));
-  const useLocal = (localStatus as { available: boolean }).available;
-
-  try {
-    const response = await sendAIMessage({
-      provider: useLocal ? 'ollama' : 'claude',
-      model: useLocal ? await getBestLocalModel() : 'claude-haiku-4-5-20251001',
-      messages: [{ role: 'user', content: prompt }],
-      maxTokens: 800,
     });
 
-    const jsonMatch = response.content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      log.info('No innovation ideas generated');
-      lastRunAt = now;
-      return 0;
-    }
-
-    const ideas = (JSON.parse(jsonMatch[0]) as Array<{ title: string; content: string }>)
-      .filter((i) => i.title && i.content)
-      .slice(0, 3);
-
-    let created = 0;
-    for (const idea of ideas) {
-      await submitIdea({
-        title: idea.title,
-        content: idea.content,
-        source: 'innovation_session',
-        scope: 'global',
-        confidence: 0.75,
-      });
-      created++;
-    }
-
-    // Enrich + review pipeline runs automatically via submitIdea
-
-    log.info({ created, recentCount }, 'Innovation session complete');
-    lastRunAt = now;
-    return created;
-  } catch (err) {
-    log.warn({ err }, 'Innovation session failed (non-critical)');
-    lastRunAt = now;
-    return 0;
+    created += await generateForTheme(theme, recentTasks, existingIdeas, model);
   }
+
+  log.info({ created, projects: processed }, 'Innovation session complete');
+  lastRunAt = now;
+  return created;
 }
 
