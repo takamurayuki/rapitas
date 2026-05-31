@@ -91,10 +91,10 @@ export function ApiKeySection({
             type={showApiKey ? 'text' : 'password'}
             value={apiKey}
             onChange={(e) => onApiKeyChange(e.target.value)}
-            className={`w-full px-3 py-2 pr-10 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:border-transparent ${
+            className={`w-full px-3 py-2 pr-10 border rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none ${
               fieldErrors.apiKey
-                ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
-                : 'border-zinc-300 dark:border-zinc-600 focus:ring-indigo-500'
+                ? 'border-red-400 dark:border-red-600 focus:border-red-500'
+                : 'border-zinc-300 dark:border-zinc-600 focus:border-blue-400'
             }`}
             placeholder={
               ['claudeCodeLocalCli', 'codexLocalCli', 'geminiLocalCli', 'apiKeyGeneric'].includes(

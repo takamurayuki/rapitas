@@ -89,7 +89,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                     value={key}
                     onChange={(e) => setKey(e.target.value)}
                     placeholder={t('keyPlaceholder')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400 font-mono text-sm"
                     required
                   />
                   <p className="text-xs text-zinc-400 mt-1">{t('keyHint')}</p>
@@ -101,7 +101,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
                   >
                     {Object.entries(CATEGORY_LABELS).map(([value, { labelKey }]) => (
                       <option key={value} value={value}>
@@ -120,7 +120,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={t('namePlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
                   required
                 />
               </div>
@@ -133,7 +133,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder={t('descriptionPlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
                 />
               </div>
               <div>
@@ -145,7 +145,7 @@ export function AddPromptModal({ onClose, onSuccess }: AddPromptModalProps) {
                   onChange={(e) => setContent(e.target.value)}
                   rows={10}
                   placeholder={t('contentPlaceholder')}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
+                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-mono text-sm focus:border-blue-400 resize-y"
                   required
                 />
               </div>
