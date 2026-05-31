@@ -15,6 +15,10 @@ import { getLocalLLMStatus } from '../../../services/local-llm';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { createCommit } from '../../../services/agents/orchestrator/git-operations/core-ops';
 import { createPullRequest } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import {
+  runAutomatedVerification,
+  renderVerificationMarkdown,
+} from '../../../services/agents/verification/automated-verifier';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -204,6 +208,40 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
+  // 1.5 Automated verification gate — run REAL lint + typecheck on the agent's
+  // changes (not the agent's prose claims). Block commit/PR if the agent
+  // introduced new lint/type errors in the files it touched. A crash in the
+  // verifier itself is non-fatal (skips the gate rather than blocking on tooling
+  // problems). See services/agents/verification/automated-verifier.ts.
+  const verification = await runAutomatedVerification(executionDir).catch((err) => {
+    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
+    return null;
+  });
+  if (verification && !verification.ok) {
+    log.error(
+      { taskId, sessionId, summary: verification.summary },
+      'Automated verification failed — blocking commit/PR',
+    );
+    await prisma.task
+      .update({ where: { id: taskId }, data: { status: 'blocked' } })
+      .catch((err) => log.warn({ err, taskId }, 'Failed to update task to blocked'));
+    await prisma.agentSession
+      .update({
+        where: { id: sessionId },
+        data: {
+          status: 'failed',
+          completedAt: new Date(),
+          errorMessage: `自動検証に失敗しました（${verification.summary}）。エージェントの変更が新たな lint/型エラーを混入しています。worktree は保持しています。\n\n${renderVerificationMarkdown(verification)}`,
+        },
+      })
+      .catch((err) => log.warn({ err, sessionId }, 'Failed to update session to failed'));
+    // Worktree preserved so the user (or a Phase-2 retry) can fix and re-run.
+    return;
+  }
+  if (verification) {
+    log.info({ taskId, summary: verification.summary }, 'Automated verification passed');
+  }
+
   // 2. AI Review
   const review = await runAIReview(taskTitle, diff);
   if (!review) {
@@ -236,6 +274,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     `## ${review.summary}`,
     '',
     `Task: #${taskId}`,
+    '',
+    `自動検証: ${verification ? verification.summary.replace(/^自動検証:\s*/, '') : 'スキップ'}`,
     '',
     '---',
     '🤖 AI-reviewed and auto-committed by Rapitas',
