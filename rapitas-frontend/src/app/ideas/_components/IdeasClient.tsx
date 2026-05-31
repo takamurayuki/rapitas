@@ -80,6 +80,8 @@ export default function IdeasClient() {
 
   const [filterCategoryId, setFilterCategoryId] = useState<number | null>(null);
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'open' | 'used' | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | IdeaPriority>('all');
   const searchParams = useSearchParams();
   const searchQuery = searchParams?.get('search')?.trim() ?? '';
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -146,6 +148,8 @@ export default function IdeasClient() {
       if (filterCategoryId) params.set('categoryId', String(filterCategoryId));
       // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
       if (filterThemeId) params.set('themeId', String(filterThemeId));
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
       const [ideasRes, statsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/idea-box?${params}`),
@@ -164,7 +168,7 @@ export default function IdeasClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
+  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchIdeas();
@@ -173,7 +177,7 @@ export default function IdeasClient() {
   // フィルタ変更時のページリセット
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterCategoryId, filterThemeId, searchQuery]);
+  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, searchQuery]);
 
   // ページネーションハンドラー
   const handlePageChange = useCallback((page: number) => {
@@ -517,15 +521,15 @@ export default function IdeasClient() {
                   if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
                   if (e.key === 'Escape') handleCancel();
                 }}
-                placeholder="💡 アイデアをひとことで..."
-                className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+                placeholder="アイデアをひとことで..."
+                className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
               />
               <textarea
                 ref={contentTextareaRef}
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 placeholder="詳細（任意）"
-                className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
+                className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
                 style={{ overflowY: 'auto' }}
               />
               <div className="flex flex-wrap items-center gap-2">
@@ -589,8 +593,42 @@ export default function IdeasClient() {
         {/* List + filters + pagination (always visible; the add/edit modal overlays). */}
         {(
           <>
-            {/* Filters — category / theme */}
+            {/* Filters — status / priority / category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
+              {/* Status */}
+              <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                {(
+                  [
+                    { value: 'open', label: '未対応' },
+                    { value: 'used', label: 'タスク化済み' },
+                    { value: 'all', label: 'すべて' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setStatusFilter(tab.value)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      statusFilter === tab.value
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {/* Priority */}
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="all">すべての優先度</option>
+                <option value="urgent">緊急</option>
+                <option value="high">高</option>
+                <option value="medium">中</option>
+                <option value="low">低</option>
+              </select>
               <select
                 value={filterCategoryId ?? ''}
                 onChange={(e) => {

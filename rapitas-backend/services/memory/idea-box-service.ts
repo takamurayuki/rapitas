@@ -146,12 +146,25 @@ export async function listIdeas(options: {
   themeId?: number;
   unusedOnly?: boolean;
   scope?: IdeaScope;
+  /** Lifecycle filter: open = not yet turned into a task, used = already turned. */
+  status?: 'open' | 'used' | 'all';
+  /** Filter by priority level (urgent | high | medium | low). */
+  priority?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
-  const { categoryId, themeId, unusedOnly = false, scope, limit = 20, offset = 0 } = options;
+  const {
+    categoryId,
+    themeId,
+    unusedOnly = false,
+    scope,
+    status,
+    priority,
+    limit = 20,
+    offset = 0,
+  } = options;
 
-  const where = await buildWhereClause(categoryId, themeId, unusedOnly, scope);
+  const where = await buildWhereClause({ categoryId, themeId, unusedOnly, scope, status, priority });
 
   // PERF: project the FE-shown columns only. The default Prisma select
   // pulls every column from KnowledgeEntry — including `content` (often
@@ -380,12 +393,15 @@ export async function getIdeaStats(categoryId?: number): Promise<{
 }
 
 /** Build Prisma where clause for idea queries. */
-async function buildWhereClause(
-  categoryId?: number,
-  themeId?: number,
-  unusedOnly?: boolean,
-  scope?: IdeaScope,
-) {
+async function buildWhereClause(opts: {
+  categoryId?: number;
+  themeId?: number;
+  unusedOnly?: boolean;
+  scope?: IdeaScope;
+  status?: 'open' | 'used' | 'all';
+  priority?: string;
+}) {
+  const { categoryId, themeId, unusedOnly, scope, status, priority } = opts;
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
   let themeFilter: Record<string, unknown> = {};
   if (themeId) {
@@ -420,12 +436,26 @@ async function buildWhereClause(
     scopeFilter = { themeId: -1 };
   }
 
+  // Lifecycle: an idea is "used" once it has been turned into a task
+  // (markIdeaAsUsed sets sourceId to `used_task_<id>`). `status` takes
+  // precedence over the legacy `unusedOnly` flag.
+  const usedCond = { sourceId: { startsWith: 'used_task_' } };
+  let statusFilter: Record<string, unknown> = {};
+  if (status === 'used') statusFilter = usedCond;
+  else if (status === 'open') statusFilter = { NOT: usedCond };
+  else if (unusedOnly) statusFilter = { NOT: usedCond };
+
+  // Priority is stored as a `priority:<level>` tag. Only filter when a specific
+  // level is requested, so the default ("all") avoids the tag substring scan.
+  const priorityFilter = priority ? { tags: { contains: `priority:${priority}` } } : {};
+
   return {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
-    ...(unusedOnly ? { NOT: { sourceId: { startsWith: 'used_task_' } } } : {}),
+    ...statusFilter,
     ...themeFilter,
     ...scopeFilter,
+    ...priorityFilter,
   };
 }
 

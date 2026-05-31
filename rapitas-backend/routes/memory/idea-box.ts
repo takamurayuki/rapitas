@@ -31,10 +31,24 @@ export const ideaBoxRoutes = new Elysia()
       const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const unusedOnly = query.unusedOnly === 'true';
       const scope = query.scope as 'global' | 'project' | undefined;
+      const status =
+        query.status === 'open' || query.status === 'used' || query.status === 'all'
+          ? query.status
+          : undefined;
+      const priority = query.priority || undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
 
-      const result = await listIdeas({ categoryId, themeId, unusedOnly, scope, limit, offset });
+      const result = await listIdeas({
+        categoryId,
+        themeId,
+        unusedOnly,
+        scope,
+        status,
+        priority,
+        limit,
+        offset,
+      });
       return result;
     },
     {
@@ -43,6 +57,8 @@ export const ideaBoxRoutes = new Elysia()
         themeId: t.Optional(t.String()),
         unusedOnly: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),
       }),
