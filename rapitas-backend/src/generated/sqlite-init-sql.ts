@@ -1083,6 +1083,19 @@ CREATE TABLE "UserSettings" (
 );
 
 -- CreateTable
+CREATE TABLE "BacklogSchedule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "kind" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT false,
+    "frequency" TEXT NOT NULL DEFAULT 'weekly',
+    "hour" INTEGER NOT NULL DEFAULT 3,
+    "weekday" INTEGER NOT NULL DEFAULT 1,
+    "lastRunAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "username" TEXT NOT NULL,
@@ -1567,6 +1580,9 @@ CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
