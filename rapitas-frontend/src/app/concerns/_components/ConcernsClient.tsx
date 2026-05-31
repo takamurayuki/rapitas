@@ -15,7 +15,6 @@ import {
   ShieldAlert,
   Gauge,
   CircleDot,
-  FolderOpen,
   Plus,
   ListPlus,
   Trash2,
@@ -314,22 +313,22 @@ export default function ConcernsClient() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="懸念をひとことで（例: 認証トークンが失効しても再ログインされない）"
-            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
+            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
           />
           <textarea
             value={newDetail}
             onChange={(e) => setNewDetail(e.target.value)}
             placeholder="何が問題で、なぜ重要か"
             rows={3}
-            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
+            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
           />
           <div className="flex flex-wrap items-center gap-2">
-            {/* Severity — moved below the title (icons like the task list) */}
+            {/* Priority — moved below the title (icons like the task list) */}
             <span className="flex items-center gap-1.5">
-              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">重大度</span>
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">優先度</span>
               <span
                 className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
-                title="重大度（将来の影響の大きさ）"
+                title="優先度（将来の影響の大きさ）"
               >
                 {SEVERITY_ORDER.map((sv) => (
                   <button
@@ -352,7 +351,7 @@ export default function ConcernsClient() {
             <select
               value={newType}
               onChange={(e) => setNewType(e.target.value as ConcernType)}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
             >
               {TYPE_ORDER.map((ty) => (
                 <option key={ty} value={ty}>
@@ -360,43 +359,42 @@ export default function ConcernsClient() {
                 </option>
               ))}
             </select>
-            {/* Project (category → theme) — concerns are always project-scoped */}
-            <span className="flex items-center gap-1 text-zinc-400" title="対象プロジェクト">
-              <FolderOpen className="h-3 w-3" />
+            {/* Project (category → theme) on one line — always project-scoped */}
+            <span className="flex items-center gap-2">
+              <select
+                value={newCategoryId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value ? parseInt(e.target.value) : null;
+                  setNewCategoryId(id);
+                  setNewThemeId(null);
+                }}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">カテゴリ</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={newThemeId ?? ''}
+                onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">テーマ</option>
+                {filteredThemes.map((th) => (
+                  <option key={th.id} value={th.id}>
+                    {th.name}
+                  </option>
+                ))}
+              </select>
             </span>
-            <select
-              value={newCategoryId ?? ''}
-              onChange={(e) => {
-                const id = e.target.value ? parseInt(e.target.value) : null;
-                setNewCategoryId(id);
-                setNewThemeId(null);
-              }}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              <option value="">カテゴリ</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={newThemeId ?? ''}
-              onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-            >
-              <option value="">テーマ</option>
-              {filteredThemes.map((th) => (
-                <option key={th.id} value={th.id}>
-                  {th.name}
-                </option>
-              ))}
-            </select>
             <input
               value={newLocation}
               onChange={(e) => setNewLocation(e.target.value)}
               placeholder="対象箇所 (任意, 例: src/auth/token.ts:42)"
-              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700"
+              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
             />
           </div>
         </div>
@@ -422,7 +420,7 @@ export default function ConcernsClient() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ConcernType | 'all')}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
         >
           <option value="all">すべての種別</option>
           {TYPE_ORDER.map((ty) => (
@@ -434,9 +432,9 @@ export default function ConcernsClient() {
         <select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
         >
-          <option value="all">すべての重大度</option>
+          <option value="all">すべての優先度</option>
           {SEVERITY_ORDER.map((sv) => (
             <option key={sv} value={sv}>
               {SEVERITY_META[sv].label}
@@ -476,7 +474,7 @@ export default function ConcernsClient() {
                       <span
                         className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_META[c.severity].badge}`}
                       >
-                        重大度 {SEVERITY_META[c.severity].label}
+                        優先度 {SEVERITY_META[c.severity].label}
                       </span>
                       {c.status === 'task_created' && c.createdTaskId && (
                         <a
