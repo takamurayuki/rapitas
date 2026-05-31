@@ -25,8 +25,9 @@
 **Rapitas (Rapi+)** is a hierarchical task management system with AI-powered features:
 
 - **Core Purpose**: High-performance task management with AI agent integration for task analysis, subtask generation, and code automation
-- **Target Users**: Individual developers, software teams, project managers, and students
-- **Key Differentiator**: Built-in Claude Code integration for AI-assisted development workflows
+- **Target Users (ICP)**: Solo developers and small teams who run AI coding agents **locally** — especially those who cannot or prefer not to send their source/generation process to a cloud SaaS
+- **Key Differentiator**: Three combined, hard-to-copy properties — (1) multi-CLI agent execution (Claude Code / Codex / Gemini) with fallback, (2) local-first / private execution (Tauri + local LLM + response cache), and (3) a **pre-PR quality gate** that blocks agent-introduced lint/type errors before they ever become a pull request
+- **Where it does *not* compete (yet)**: cross-team project-management hub and bidirectional issue/PR sync — Linear / GitHub remain stronger there (see README "誰のための、なぜ rapitas か")
 
 ### 1.2 Key Features
 
