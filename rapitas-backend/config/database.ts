@@ -1,13 +1,44 @@
 /**
  * Database Configuration
- * Prisma client initialization with PostgreSQL
+ *
+ * Prisma client initialization. Supports PostgreSQL (web) and SQLite (desktop)
+ * selected by DATABASE_URL.
  */
 import { PrismaClient } from '@prisma/client';
+import { resolve } from 'path';
 import { createLogger } from './logger';
 
 const log = createLogger('database');
 
-log.info('Connecting to PostgreSQL');
+/**
+ * Rewrites a relative SQLite `file:` DATABASE_URL to an absolute path before the
+ * client is constructed.
+ *
+ * NOTE: Prisma resolves a relative `file:` path against the schema-folder
+ * directory, whereas ensureDesktopSqliteDatabase resolves it against
+ * process.cwd(). A relative DATABASE_URL therefore made the initializer and the
+ * client target DIFFERENT files — leaving the client on an empty DB that throws
+ * `The table 'main.X' does not exist`. Making it absolute forces both to agree.
+ * No-op for absolute file: paths and for postgres URLs, so production (dev.js
+ * passes an absolute path) is unaffected.
+ */
+function normalizeSqliteDatabaseUrl(): void {
+  const url = process.env.DATABASE_URL;
+  if (!url || !url.startsWith('file:')) return;
+  const rawPath = url.slice('file:'.length);
+  // Already absolute (POSIX `/...` or Windows `C:\...` / `C:/...`).
+  if (rawPath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(rawPath)) return;
+  process.env.DATABASE_URL = `file:${resolve(rawPath)}`;
+  log.warn(
+    { from: url, to: process.env.DATABASE_URL },
+    'Normalized relative SQLite DATABASE_URL to an absolute path so init and Prisma agree',
+  );
+}
+
+normalizeSqliteDatabaseUrl();
+
+const dbProvider = process.env.DATABASE_URL?.startsWith('file:') ? 'SQLite' : 'PostgreSQL';
+log.info(`Connecting to ${dbProvider}`);
 
 export const prisma = new PrismaClient();
 
@@ -19,7 +50,7 @@ export async function ensureDatabaseConnection(maxRetries = 5, retryDelayMs = 10
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await prisma.$connect();
-      log.info('PostgreSQL connection established');
+      log.info(`${dbProvider} connection established`);
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -7,9 +7,15 @@ import { repairCorruptedDecimals } from '../scripts/repair-corrupted-decimals';
 const log = createLogger('desktop-sqlite');
 
 function isDesktopSqlite(): boolean {
+  // A `file:` DATABASE_URL unambiguously means SQLite — matches the detection
+  // used elsewhere (routes/system/setup.ts, services/system/backup-service.ts).
+  // Previously this also required TAURI_BUILD, so a plain `bun run` with a file:
+  // URL skipped initialization entirely and left the DB empty ("table does not
+  // exist"). The DATABASE_URL is normalized to an absolute path in
+  // config/database.ts so this initializer and the Prisma client agree.
   return (
     process.env.RAPITAS_DB_PROVIDER === 'sqlite' ||
-    (process.env.TAURI_BUILD === 'true' && process.env.DATABASE_URL?.startsWith('file:') === true)
+    process.env.DATABASE_URL?.startsWith('file:') === true
   );
 }
 
