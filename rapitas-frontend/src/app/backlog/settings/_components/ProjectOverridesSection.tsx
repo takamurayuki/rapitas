@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
 type LogFormat = 'pino' | 'json' | 'text';
@@ -194,26 +195,30 @@ export default function ProjectOverridesSection() {
                       </div>
                       {/* health_check log source config */}
                       {job.hasLogConfig && enabled && (
-                        <div className="mt-2 flex flex-wrap items-center gap-2 pl-5">
-                          <input
-                            defaultValue={ov?.logDir ?? ''}
-                            onBlur={(e) => patch(job.kind, theme.id, { logDir: e.target.value })}
-                            placeholder="ログ出力ディレクトリ (例: C:\\proj\\logs)"
-                            className="min-w-[16rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-sky-400 dark:border-zinc-700"
+                        <div className="mt-2 space-y-2 pl-5">
+                          <DirectoryPicker
+                            value={ov?.logDir ?? ''}
+                            onChange={(path) => patch(job.kind, theme.id, { logDir: path })}
+                            placeholder="ログ出力ディレクトリを入力または参照で選択"
                           />
-                          <select
-                            value={ov?.logFormat ?? 'text'}
-                            onChange={(e) =>
-                              patch(job.kind, theme.id, { logFormat: e.target.value as LogFormat })
-                            }
-                            className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                          >
-                            {LOG_FORMATS.map((f) => (
-                              <option key={f.value} value={f.value}>
-                                {f.label}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                              ログ形式
+                            </span>
+                            <select
+                              value={ov?.logFormat ?? 'text'}
+                              onChange={(e) =>
+                                patch(job.kind, theme.id, { logFormat: e.target.value as LogFormat })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+                            >
+                              {LOG_FORMATS.map((f) => (
+                                <option key={f.value} value={f.value}>
+                                  {f.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       )}
                     </div>
