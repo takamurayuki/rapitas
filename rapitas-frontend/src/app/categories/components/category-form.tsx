@@ -57,8 +57,8 @@ interface CategoryFormProps {
   iconSearchQuery: string;
   /** Setter for icon search query / アイコン検索クエリのセッター */
   setIconSearchQuery: (q: string) => void;
-  /** Icons matching the current search query (max 50) / 検索結果のアイコン一覧 */
-  filteredIcons: { name: string }[];
+  /** Icon names matching the current search query (max 50) / 検索結果のアイコン名一覧 */
+  filteredIcons: string[];
   /** Debounced icon search query used to detect the 50-result cap / デバウンス済みクエリ */
   debouncedIconSearchQuery: string;
   /** Called when the user cancels the form / キャンセル時のコールバック */
@@ -176,7 +176,7 @@ export function CategoryForm({
           )}
           <div className="grid grid-cols-8 gap-1 p-2">
             <IconGrid
-              icons={filteredIcons.map((i) => i.name)}
+              icons={filteredIcons}
               selectedIcon={formData.icon}
               onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
               renderIcon={renderIcon}
