@@ -313,14 +313,14 @@ export default function ConcernsClient() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="懸念をひとことで（例: 認証トークンが失効しても再ログインされない）"
-            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
+            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
           />
           <textarea
             value={newDetail}
             onChange={(e) => setNewDetail(e.target.value)}
             placeholder="何が問題で、なぜ重要か"
             rows={3}
-            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
+            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
           />
           <div className="flex flex-wrap items-center gap-2">
             {/* Priority — moved below the title (icons like the task list) */}
@@ -351,7 +351,7 @@ export default function ConcernsClient() {
             <select
               value={newType}
               onChange={(e) => setNewType(e.target.value as ConcernType)}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
             >
               {TYPE_ORDER.map((ty) => (
                 <option key={ty} value={ty}>
@@ -368,7 +368,7 @@ export default function ConcernsClient() {
                   setNewCategoryId(id);
                   setNewThemeId(null);
                 }}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">カテゴリ</option>
                 {categories.map((cat) => (
@@ -380,7 +380,7 @@ export default function ConcernsClient() {
               <select
                 value={newThemeId ?? ''}
                 onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">テーマ</option>
                 {filteredThemes.map((th) => (
@@ -394,7 +394,7 @@ export default function ConcernsClient() {
               value={newLocation}
               onChange={(e) => setNewLocation(e.target.value)}
               placeholder="対象箇所 (任意, 例: src/auth/token.ts:42)"
-              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700"
+              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700"
             />
           </div>
         </div>
@@ -420,7 +420,7 @@ export default function ConcernsClient() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as ConcernType | 'all')}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
         >
           <option value="all">すべての種別</option>
           {TYPE_ORDER.map((ty) => (
@@ -432,7 +432,7 @@ export default function ConcernsClient() {
         <select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800"
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
         >
           <option value="all">すべての優先度</option>
           {SEVERITY_ORDER.map((sv) => (
