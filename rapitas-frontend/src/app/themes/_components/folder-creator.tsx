@@ -79,7 +79,7 @@ export function FolderCreator({
                   if (e.key === 'Enter') onCreateNewFolder();
                 }}
                 placeholder={t('folderNamePlaceholder')}
-                className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                className="flex-1 px-2 py-1 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded focus:outline-none focus:border-blue-400"
                 disabled={isCreatingDir}
               />
               <button

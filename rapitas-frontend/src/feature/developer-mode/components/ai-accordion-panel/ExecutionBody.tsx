@@ -294,7 +294,7 @@ function IdleExecutionForm({
           value={instruction}
           onChange={(e) => onSetInstruction(e.target.value)}
           placeholder="追加指示があれば入力...（任意）"
-          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-blue-400"
           aria-label="追加の実装指示"
         />
       </div>
@@ -335,7 +335,7 @@ function IdleExecutionForm({
               value={branchName}
               onChange={(e) => onSetBranchName(e.target.value)}
               placeholder="自動生成されます"
-              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-blue-400"
               aria-label="ブランチ名"
             />
           </div>

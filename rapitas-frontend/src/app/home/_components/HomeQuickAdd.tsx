@@ -40,7 +40,7 @@ export function HomeQuickAdd({
             if (e.key === 'Escape') onCancel();
           }}
           placeholder={t('taskTitlePlaceholder')}
-          className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="text-sm px-2 flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 focus:outline-none focus:border-blue-400"
           autoFocus
         />
         <button

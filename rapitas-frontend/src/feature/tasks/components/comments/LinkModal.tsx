@@ -98,7 +98,7 @@ export const LinkModal = memo(function LinkModal({
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="メモを検索..."
-              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:ring-1 focus:ring-indigo-400/30 transition-colors"
+              className="w-full pl-7 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg outline-none focus:border-blue-400 focus:border-blue-400 transition-colors"
               autoFocus
             />
           </div>

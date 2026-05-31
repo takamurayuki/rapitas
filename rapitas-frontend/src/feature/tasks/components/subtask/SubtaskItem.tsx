@@ -179,14 +179,14 @@ export default function SubtaskItem({
         <div className="space-y-3">
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
             value={editingTitle}
             onChange={(e) => onEditingTitleChange(e.target.value)}
             placeholder={t('subtaskTitle')}
             autoFocus
           />
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
             value={editingDescription}
             onChange={(e) => onEditingDescriptionChange(e.target.value)}
             placeholder={t('descriptionMarkdown')}

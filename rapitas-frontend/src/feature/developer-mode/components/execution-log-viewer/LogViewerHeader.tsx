@@ -120,7 +120,7 @@ export const LogViewerHeader: React.FC<LogViewerHeaderProps> = ({
                   onChange={onSearchQueryChange}
                   onKeyDown={onSearchKeyDown}
                   placeholder="検索..."
-                  className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:ring-1 focus:ring-yellow-500/30 focus:w-56 transition-all"
+                  className="w-40 px-3 py-1 pl-7 bg-zinc-900 border border-zinc-600 rounded text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-yellow-500/50 focus:border-blue-400 focus:w-56 transition-all"
                 />
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
               </div>

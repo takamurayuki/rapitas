@@ -128,7 +128,7 @@ export function GlobalShortcutSection({
         <select
           value={globalKey}
           onChange={(e) => onKeyChange(e.target.value)}
-          className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none"
+          className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100 focus:border-blue-400 appearance-none"
         >
           {AVAILABLE_KEYS.filter((k) => k !== '/').map((key) => (
             <option key={key} value={key}>

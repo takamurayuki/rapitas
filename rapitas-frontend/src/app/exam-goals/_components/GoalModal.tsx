@@ -53,7 +53,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 value={formData.name}
                 onChange={(e) => set({ name: e.target.value })}
                 placeholder={t('examNameExample')}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 required
               />
             </div>
@@ -66,7 +66,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 type="date"
                 value={formData.examDate}
                 onChange={(e) => set({ examDate: e.target.value })}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 required
               />
             </div>
@@ -80,7 +80,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 value={formData.targetScore}
                 onChange={(e) => set({ targetScore: e.target.value })}
                 placeholder={t('scoreExample')}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
               />
             </div>
 
@@ -93,7 +93,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                 onChange={(e) => set({ description: e.target.value })}
                 placeholder={t('descriptionPlaceholder')}
                 rows={2}
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
               />
             </div>
 
@@ -138,7 +138,7 @@ export function GoalModal({ isEditing, formData, onChange, onSubmit, onClose }: 
                     value={iconSearch}
                     onChange={(e) => setIconSearch(e.target.value)}
                     placeholder={tc('searchIcon')}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-sm mb-2 focus:outline-none focus:border-blue-400"
                   />
                   <div className="grid grid-cols-6 gap-1 max-h-40 overflow-y-auto">
                     {filteredIcons.map((iconName) => (

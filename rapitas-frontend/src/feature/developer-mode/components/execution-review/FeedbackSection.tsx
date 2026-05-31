@@ -164,7 +164,7 @@ export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProp
               <select
                 value={newCommentType}
                 onChange={(e) => setNewCommentType(e.target.value as ReviewComment['type'])}
-                className="px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                className="px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:border-blue-400"
               >
                 <option value="change_request">修正依頼</option>
                 <option value="comment">コメント</option>
@@ -173,7 +173,7 @@ export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProp
               <select
                 value={newCommentFile}
                 onChange={(e) => setNewCommentFile(e.target.value)}
-                className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:border-blue-400"
               >
                 <option value="">全体に対して</option>
                 {files.map((file) => (
@@ -189,7 +189,7 @@ export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProp
                 onChange={(e) => setNewCommentContent(e.target.value)}
                 placeholder="具体的な修正内容や質問を入力..."
                 rows={2}
-                className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
+                className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:border-blue-400 resize-none"
               />
               <button
                 onClick={addComment}
@@ -211,7 +211,7 @@ export function FeedbackSection({ files, onRequestChanges }: FeedbackSectionProp
               onChange={(e) => setFeedbackText(e.target.value)}
               placeholder="実装全体に対するフィードバックや追加の指示を入力..."
               rows={3}
-              className="w-full px-4 py-3 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
+              className="w-full px-4 py-3 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
             />
           </div>
 

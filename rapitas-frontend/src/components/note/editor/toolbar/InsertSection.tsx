@@ -82,7 +82,7 @@ export function InsertSection({
                 }}
                 placeholder="URLを入力..."
                 autoFocus
-                className="flex-1 min-w-0 px-2 py-1 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="flex-1 min-w-0 px-2 py-1 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-blue-400"
               />
               <button
                 onClick={onInsertLink}
@@ -164,7 +164,7 @@ export function InsertSection({
             <select
               value={codeLanguage}
               onChange={(e) => setCodeLanguage(e.target.value)}
-              className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-2"
+              className="w-full px-2 py-1.5 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400 mb-2"
             >
               {programmingLanguages.map((lang) => (
                 <option key={lang.value} value={lang.value}>

@@ -56,7 +56,7 @@ export default function TaskDetail({
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <input
                 type="text"
-                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 min-w-0 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-lg font-bold shadow-sm focus:outline-none focus:border-blue-400"
                 value={editTitle}
                 onChange={(e) => onEditTitleChange(e.target.value)}
                 required
@@ -85,7 +85,7 @@ export default function TaskDetail({
               説明
             </label>
             <textarea
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-blue-400 font-mono text-sm"
               rows={14}
               value={editDescription}
               onChange={(e) => onEditDescriptionChange(e.target.value)}
@@ -103,7 +103,7 @@ export default function TaskDetail({
               </label>
               <input
                 type="text"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-blue-400"
                 placeholder="カンマ区切りで入力"
                 value={editLabels}
                 onChange={(e) => onEditLabelsChange(e.target.value)}
@@ -118,7 +118,7 @@ export default function TaskDetail({
                 type="number"
                 step="0.5"
                 min="0"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 shadow-sm focus:outline-none focus:border-blue-400"
                 placeholder="時間"
                 value={editEstimatedHours}
                 onChange={(e) => onEditEstimatedHoursChange(e.target.value)}

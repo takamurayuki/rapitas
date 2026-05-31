@@ -53,7 +53,7 @@ export function SubtaskForm({
         <div>
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             onKeyDown={(e) => {
@@ -71,7 +71,7 @@ export function SubtaskForm({
         {/* Description */}
         <div>
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             value={description}
             onChange={(e) => onDescriptionChange(e.target.value)}
             placeholder={t('subtaskDescriptionPlaceholder')}
@@ -103,7 +103,7 @@ export function SubtaskForm({
               type="number"
               step="0.5"
               min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
               placeholder="0"
               value={estimatedHours}
               onChange={(e) => onEstimatedHoursChange(e.target.value)}
@@ -117,7 +117,7 @@ export function SubtaskForm({
             </label>
             <input
               type="text"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
               placeholder={t('labelsCommaSeparated')}
               value={labels}
               onChange={(e) => onLabelsChange(e.target.value)}

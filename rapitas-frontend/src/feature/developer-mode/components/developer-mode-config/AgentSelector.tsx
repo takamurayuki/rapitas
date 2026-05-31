@@ -179,7 +179,7 @@ export function AgentSelector({
             const val = e.target.value;
             onSelect(val ? Number(val) : null);
           }}
-          className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+          className="flex-1 px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
         >
           <option value="">モデルを選択...</option>
           {agents.map((agent) => {

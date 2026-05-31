@@ -116,7 +116,7 @@ export function ScreenshotCaptureForm({
           value={captureBaseUrl}
           onChange={(e) => onCaptureBaseUrlChange(e.target.value)}
           placeholder={detectedProject ? detectedProject.baseUrl : 'http://localhost:3000'}
-          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:border-blue-400"
         />
         {detectedProject && (
           <p className="mt-1 text-xs text-zinc-400">検出されたポート: {detectedProject.devPort}</p>
@@ -153,7 +153,7 @@ export function ScreenshotCaptureForm({
             value={newPagePath}
             onChange={(e) => setNewPagePath(e.target.value)}
             placeholder="/dashboard"
-            className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="flex-1 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm font-mono focus:outline-none focus:border-blue-400"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -166,7 +166,7 @@ export function ScreenshotCaptureForm({
             value={newPageLabel}
             onChange={(e) => setNewPageLabel(e.target.value)}
             placeholder="ラベル"
-            className="w-24 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="w-24 px-3 py-1.5 bg-white dark:bg-indigo-dark-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-sm focus:outline-none focus:border-blue-400"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();

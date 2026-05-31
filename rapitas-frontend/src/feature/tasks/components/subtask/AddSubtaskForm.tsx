@@ -65,7 +65,7 @@ export default function AddSubtaskForm({
         <div>
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             placeholder={t('subtaskTitleRequired')}
             value={subtaskTitle}
             onChange={(e) => onSubtaskTitleChange(e.target.value)}
@@ -75,7 +75,7 @@ export default function AddSubtaskForm({
 
         <div>
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
             placeholder={t('descriptionMarkdown')}
             value={subtaskDescription}
             onChange={(e) => onSubtaskDescriptionChange(e.target.value)}
@@ -86,7 +86,7 @@ export default function AddSubtaskForm({
         <div className="grid grid-cols-2 gap-2">
           <input
             type="text"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             placeholder={t('labelsCommaSeparated')}
             value={subtaskLabels}
             onChange={(e) => onSubtaskLabelsChange(e.target.value)}
@@ -95,7 +95,7 @@ export default function AddSubtaskForm({
             type="number"
             step="0.5"
             min="0"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             placeholder={t('estimatedHours')}
             value={subtaskEstimatedHours}
             onChange={(e) => onSubtaskEstimatedHoursChange(e.target.value)}

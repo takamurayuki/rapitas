@@ -841,7 +841,7 @@ export default function IdeasClient() {
                   type="text"
                   value={manualTitle}
                   onChange={(e) => setManualTitle(e.target.value)}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                   placeholder="タスクのタイトル"
                 />
               </div>
@@ -853,7 +853,7 @@ export default function IdeasClient() {
                   value={manualDescription}
                   onChange={(e) => setManualDescription(e.target.value)}
                   rows={5}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                   placeholder="タスクの詳細"
                 />
               </div>
@@ -865,7 +865,7 @@ export default function IdeasClient() {
                   <select
                     value={manualPriority}
                     onChange={(e) => setManualPriority(e.target.value as typeof manualPriority)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                   >
                     <option value="low">低</option>
                     <option value="medium">中</option>
@@ -883,7 +883,7 @@ export default function IdeasClient() {
                     step={0.5}
                     value={manualEstimatedHours}
                     onChange={(e) => setManualEstimatedHours(e.target.value)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                     placeholder="任意"
                   />
                 </div>
@@ -897,7 +897,7 @@ export default function IdeasClient() {
                   onChange={(e) =>
                     setManualThemeId(e.target.value ? parseInt(e.target.value) : null)
                   }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">テーマを選択してください</option>
                   {themes.map((th) => (
@@ -978,7 +978,7 @@ export default function IdeasClient() {
                     setThemePickerCategoryId(value);
                     setThemePickerThemeId(null);
                   }}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">すべて</option>
                   {categories.map((c) => (
@@ -997,7 +997,7 @@ export default function IdeasClient() {
                   onChange={(e) =>
                     setThemePickerThemeId(e.target.value ? parseInt(e.target.value) : null)
                   }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">テーマを選択してください</option>
                   {themePickerThemes.map((th) => (

@@ -213,7 +213,7 @@ export function AgentExecutionTab({
           <select
             value={branchStrategy}
             onChange={(e) => setBranchStrategy(e.target.value as BranchStrategy)}
-            className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+            className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
           >
             <option value="auto">自動（推奨）</option>
             <option value="manual">手動</option>
@@ -229,7 +229,7 @@ export function AgentExecutionTab({
             type="text"
             value={branchPrefix}
             onChange={(e) => setBranchPrefix(e.target.value)}
-            className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+            className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
             placeholder="feature/"
           />
         </div>
@@ -301,7 +301,7 @@ export function AgentExecutionTab({
             <select
               value={reviewScope}
               onChange={(e) => setReviewScope(e.target.value as ReviewScope)}
-              className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+              className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
             >
               <option value="changes">変更箇所のみ</option>
               <option value="full">全体</option>
@@ -346,7 +346,7 @@ export function AgentExecutionTab({
           value={additionalInstructions}
           onChange={(e) => setAdditionalInstructions(e.target.value)}
           rows={6}
-          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 resize-vertical"
+          className="w-full px-3 py-2 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 resize-vertical"
           placeholder="例: ファイルを修正する際は必ずバックアップを作成すること&#10;コミット前に必ずテストを実行すること&#10;セキュリティリスクを慎重に検討すること"
         />
       </div>

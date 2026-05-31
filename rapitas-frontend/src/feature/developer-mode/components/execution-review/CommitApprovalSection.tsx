@@ -73,7 +73,7 @@ export function CommitApprovalSection({
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="feat: 機能の説明..."
               rows={3}
-              className="w-full px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none"
+              className="w-full px-4 py-3 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
             />
           </div>
 
@@ -91,7 +91,7 @@ export function CommitApprovalSection({
               value={baseBranch}
               onChange={(e) => setBaseBranch(e.target.value)}
               placeholder="main"
-              className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
+              className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400 transition-all"
             />
           </div>
         </div>
