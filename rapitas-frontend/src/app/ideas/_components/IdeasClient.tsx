@@ -78,7 +78,6 @@ export default function IdeasClient() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalIdeas, setTotalIdeas] = useState(0);
 
-  const [scopeFilter, setScopeFilter] = useState<IdeaScope | 'all'>('all');
   const [filterCategoryId, setFilterCategoryId] = useState<number | null>(null);
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
   const searchParams = useSearchParams();
@@ -145,7 +144,6 @@ export default function IdeasClient() {
         limit: String(itemsPerPage),
         offset: String((currentPage - 1) * itemsPerPage),
       });
-      if (scopeFilter !== 'all') params.set('scope', scopeFilter);
       if (filterCategoryId) params.set('categoryId', String(filterCategoryId));
       // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
       if (filterThemeId) params.set('themeId', String(filterThemeId));
@@ -167,7 +165,7 @@ export default function IdeasClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [scopeFilter, filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
+  }, [filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchIdeas();
@@ -176,7 +174,7 @@ export default function IdeasClient() {
   // フィルタ変更時のページリセット
   useEffect(() => {
     setCurrentPage(1);
-  }, [scopeFilter, filterCategoryId, filterThemeId, searchQuery]);
+  }, [filterCategoryId, filterThemeId, searchQuery]);
 
   // ページネーションハンドラー
   const handlePageChange = useCallback((page: number) => {
@@ -616,17 +614,8 @@ export default function IdeasClient() {
         {/* List + filters + pagination (always visible; the add/edit modal overlays). */}
         {(
           <>
-            {/* Filters — three dropdowns: scope / category / theme */}
+            {/* Filters — category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <select
-                value={scopeFilter}
-                onChange={(e) => setScopeFilter(e.target.value as IdeaScope | 'all')}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
-              >
-                <option value="all">すべて</option>
-                <option value="global">グローバル</option>
-                <option value="project">プロジェクト</option>
-              </select>
               <select
                 value={filterCategoryId ?? ''}
                 onChange={(e) => {
@@ -694,34 +683,34 @@ export default function IdeasClient() {
                         <Lightbulb className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                            {/* Title — single line, ellipsis when it overflows */}
+                            <span className="min-w-0 flex-1 truncate font-medium text-sm text-zinc-900 dark:text-zinc-100">
                               {idea.title}
                             </span>
-                            {idea.scope === 'global' ? (
-                              <Globe className="h-3 w-3 text-indigo-400" />
-                            ) : (
-                              (() => {
-                                const currentTheme = themes.find((t) => t.id === idea.themeId);
-                                const ThemeIcon =
-                                  getIconComponent(currentTheme?.icon || '') || FolderOpen;
-                                const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
-                                return (
-                                  <span
-                                    className="flex items-center gap-0.5 text-[9px]"
-                                    style={{ color: themeColor }}
-                                  >
-                                    <ThemeIcon className="h-3 w-3" />
-                                    {currentTheme?.name ?? 'プロジェクト'}
-                                  </span>
-                                );
-                              })()
-                            )}
-                            {/* Priority — same display as the task list */}
-                            <span
-                              className="ml-auto shrink-0"
-                              title={`優先度: ${PRIORITY_HINT[idea.priority]}`}
-                            >
-                              <PriorityIcon priority={idea.priority} size="sm" showTitle />
+                            {/* Theme, then priority icon immediately to its right */}
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              {idea.scope === 'global' ? (
+                                <Globe className="h-3 w-3 text-indigo-400" />
+                              ) : (
+                                (() => {
+                                  const currentTheme = themes.find((t) => t.id === idea.themeId);
+                                  const ThemeIcon =
+                                    getIconComponent(currentTheme?.icon || '') || FolderOpen;
+                                  const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
+                                  return (
+                                    <span
+                                      className="flex items-center gap-0.5 text-[9px]"
+                                      style={{ color: themeColor }}
+                                    >
+                                      <ThemeIcon className="h-3 w-3" />
+                                      {currentTheme?.name ?? 'プロジェクト'}
+                                    </span>
+                                  );
+                                })()
+                              )}
+                              <span title={`優先度: ${PRIORITY_HINT[idea.priority]}`}>
+                                <PriorityIcon priority={idea.priority} size="sm" />
+                              </span>
                             </span>
                           </div>
                           {idea.content !== idea.title && (
