@@ -26,6 +26,7 @@ import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
@@ -505,6 +506,12 @@ export const executeRoute = new Elysia().post(
       );
     }
 
+    // Resolve the EFFECTIVE auto-approve (task OR global OR subtask) so the
+    // prompt's "proceed to implementation vs. stop and wait" branch matches what
+    // maybeAutoApprovePlan will actually do. Without this, a globally-enabled
+    // auto-approve left the prompt saying "stop", so the run ended at plan.md.
+    const effectiveAutoApprovePlan = await resolveEffectiveAutoApprovePlan(taskIdNum);
+
     // NOTE: Execute in worktree directory for git isolation. We launch the
     // agent CLI immediately (no install gate) for fast UI feedback. The agent
     // worker spawns the codex/claude CLI process and the user starts seeing
@@ -517,7 +524,7 @@ export const executeRoute = new Elysia().post(
           description: fullInstruction,
           context: task.executionInstructions || undefined,
           workingDirectory: executionDir,
-          autoApprovePlan: task.autoApprovePlan || false,
+          autoApprovePlan: effectiveAutoApprovePlan,
           // Research mode: codex must run with --sandbox=read-only and
           // capture its final message via -o <tempfile>.
           investigationMode: effectiveResearchMode || undefined,
