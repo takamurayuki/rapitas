@@ -187,14 +187,17 @@ const CONCERN_SELECT = {
 export async function listConcerns(options: {
   status?: ConcernStatus | 'all';
   type?: ConcernType;
+  severity?: ConcernSeverity;
   themeId?: number;
   limit?: number;
   offset?: number;
 }): Promise<{ concerns: ConcernEntry[]; total: number }> {
-  const { status = 'open', type, themeId, limit = 20, offset = 0 } = options;
+  const { status = 'open', type, severity, themeId, limit = 20, offset = 0 } = options;
 
   const where: Record<string, unknown> = { sourceType: 'concern', forgettingStage: 'active' };
   if (type) where.category = type;
+  // Severity is stored as a `severity:<level>` tag (always set by submitConcern).
+  if (severity) where.tags = { contains: `severity:${severity}` };
   if (themeId) where.themeId = themeId;
   if (status === 'open') where.sourceId = 'open';
   else if (status === 'task_created') where.sourceId = { startsWith: 'task_' };

@@ -114,6 +114,7 @@ export default function ConcernsClient() {
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<ConcernStatus | 'all'>('open');
   const [typeFilter, setTypeFilter] = useState<ConcernType | 'all'>('all');
+  const [severityFilter, setSeverityFilter] = useState<ConcernSeverity | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,6 +148,7 @@ export default function ConcernsClient() {
         offset: String((currentPage - 1) * itemsPerPage),
       });
       if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (severityFilter !== 'all') params.set('severity', severityFilter);
       const res = await fetch(`${API_BASE_URL}/concerns?${params.toString()}`);
       if (res.ok) {
         const data = (await res.json()) as { concerns: Concern[]; total: number };
@@ -158,7 +160,7 @@ export default function ConcernsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, typeFilter, currentPage, itemsPerPage]);
+  }, [statusFilter, typeFilter, severityFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchConcerns();
@@ -166,7 +168,7 @@ export default function ConcernsClient() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter]);
+  }, [statusFilter, typeFilter, severityFilter]);
 
   const resetForm = () => {
     setNewTitle('');
@@ -283,32 +285,7 @@ export default function ConcernsClient() {
           setShowAdd(false);
         }}
         icon={<Bug className="h-4 w-4 text-rose-500" />}
-        title={
-          <span className="flex items-center gap-3">
-            懸念を追加
-            {/* Severity — same priority icons as the idea box / task list */}
-            <span
-              className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
-              title="重大度（将来の影響の大きさ）"
-            >
-              {SEVERITY_ORDER.map((sv) => (
-                <button
-                  key={sv}
-                  type="button"
-                  onClick={() => setNewSeverity(sv)}
-                  title={SEVERITY_HINT[sv]}
-                  className={`px-2 py-1 transition-colors ${
-                    newSeverity === sv
-                      ? 'bg-zinc-100 dark:bg-zinc-800'
-                      : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  <PriorityIcon priority={sv} size="sm" showTitle />
-                </button>
-              ))}
-            </span>
-          </span>
-        }
+        title="懸念を追加"
         maxWidthClass="max-w-2xl"
         footer={
           <>
@@ -337,36 +314,52 @@ export default function ConcernsClient() {
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             placeholder="懸念をひとことで（例: 認証トークンが失効しても再ログインされない）"
-            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-rose-400 dark:border-zinc-700"
+            className="mb-2 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
           />
           <textarea
             value={newDetail}
             onChange={(e) => setNewDetail(e.target.value)}
             placeholder="何が問題で、なぜ重要か"
             rows={3}
-            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-rose-400 dark:border-zinc-700"
+            className="mb-2 w-full resize-none rounded-lg border border-zinc-200 bg-transparent px-3 py-1.5 text-sm outline-none focus:border-blue-400 dark:border-zinc-700"
           />
           <div className="flex flex-wrap items-center gap-2">
-            {/* Type */}
-            <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-              {TYPE_ORDER.map((ty) => {
-                const TyIcon = TYPE_META[ty].icon;
-                return (
+            {/* Severity — moved below the title (icons like the task list) */}
+            <span className="flex items-center gap-1.5">
+              <span className="text-[11px] text-zinc-500 dark:text-zinc-400">重大度</span>
+              <span
+                className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                title="重大度（将来の影響の大きさ）"
+              >
+                {SEVERITY_ORDER.map((sv) => (
                   <button
-                    key={ty}
-                    onClick={() => setNewType(ty)}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      newType === ty
-                        ? TYPE_META[ty].badge
-                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                    key={sv}
+                    type="button"
+                    onClick={() => setNewSeverity(sv)}
+                    title={SEVERITY_HINT[sv]}
+                    className={`px-2 py-1 transition-colors ${
+                      newSeverity === sv
+                        ? 'bg-zinc-100 dark:bg-zinc-800'
+                        : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                     }`}
                   >
-                    <TyIcon className="h-3 w-3" />
-                    {TYPE_META[ty].label}
+                    <PriorityIcon priority={sv} size="sm" showTitle />
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </span>
+            </span>
+            {/* Type — pulldown to keep the row compact */}
+            <select
+              value={newType}
+              onChange={(e) => setNewType(e.target.value as ConcernType)}
+              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
+            >
+              {TYPE_ORDER.map((ty) => (
+                <option key={ty} value={ty}>
+                  {TYPE_META[ty].label}
+                </option>
+              ))}
+            </select>
             {/* Project (category → theme) — concerns are always project-scoped */}
             <span className="flex items-center gap-1 text-zinc-400" title="対象プロジェクト">
               <FolderOpen className="h-3 w-3" />
@@ -403,7 +396,7 @@ export default function ConcernsClient() {
               value={newLocation}
               onChange={(e) => setNewLocation(e.target.value)}
               placeholder="対象箇所 (任意, 例: src/auth/token.ts:42)"
-              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-rose-400 dark:border-zinc-700"
+              className="min-w-[10rem] flex-1 rounded-lg border border-zinc-200 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700"
             />
           </div>
         </div>
@@ -435,6 +428,18 @@ export default function ConcernsClient() {
           {TYPE_ORDER.map((ty) => (
             <option key={ty} value={ty}>
               {TYPE_META[ty].label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={severityFilter}
+          onChange={(e) => setSeverityFilter(e.target.value as ConcernSeverity | 'all')}
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+        >
+          <option value="all">すべての重大度</option>
+          {SEVERITY_ORDER.map((sv) => (
+            <option key={sv} value={sv}>
+              {SEVERITY_META[sv].label}
             </option>
           ))}
         </select>
