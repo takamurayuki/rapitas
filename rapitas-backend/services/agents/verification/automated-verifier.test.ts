@@ -67,4 +67,29 @@ describe('renderVerificationMarkdown', () => {
     expect(md).toContain('typecheck: ✅ OK');
     expect(md).toContain('対象変更ファイル: 2件');
   });
+
+  it('renders an unverifiable result as fail-closed and shows its details', () => {
+    const result: VerificationResult = {
+      ok: false,
+      unverifiable: true,
+      changedFiles: ['src/a.ts'],
+      checks: [
+        { name: 'lint', ran: false, ok: true, errorCount: 0, details: 'lint: not applicable' },
+        {
+          name: 'typecheck',
+          ran: false,
+          ok: false,
+          errorCount: 0,
+          details: 'tsconfig.json is present but the tsc binary could not be resolved.',
+          unverifiable: true,
+        },
+      ],
+      summary: '自動検証: lint=skip / typecheck=UNVERIFIED',
+    };
+    const md = renderVerificationMarkdown(result);
+    expect(md).toContain('⚠️ 未検証（ツールを実行できず fail-closed）');
+    expect(md).toContain('typecheck: ⚠️ 未検証（ツール実行不可）');
+    // details surfaced even though the check did not "run"
+    expect(md).toContain('could not be resolved');
+  });
 });

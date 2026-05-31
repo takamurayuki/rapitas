@@ -36,6 +36,11 @@ export interface VerificationCheck {
   errorCount: number;
   /** Truncated, human-readable evidence (real command output). */
   details: string;
+  /**
+   * True when the check SHOULD have run (tooling configured) but could not
+   * execute — the gate fails closed instead of silently treating it as passed.
+   */
+  unverifiable?: boolean;
 }
 
 export interface VerificationResult {
@@ -46,6 +51,11 @@ export interface VerificationResult {
   checks: VerificationCheck[];
   /** One-line human summary. */
   summary: string;
+  /**
+   * True when at least one check was unverifiable (configured tooling could not
+   * run). Distinct from a normal failure: self-repair retries cannot fix it.
+   */
+  unverifiable?: boolean;
 }
 
 interface CmdResult {
@@ -186,21 +196,81 @@ export function parseTscErrorFiles(output: string): string[] {
   return files;
 }
 
+/** ESLint config filenames that signal "this project is supposed to be linted". */
+const ESLINT_CONFIG_FILES = [
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'eslint.config.ts',
+  'eslint.config.mts',
+  'eslint.config.cts',
+  '.eslintrc',
+  '.eslintrc.js',
+  '.eslintrc.cjs',
+  '.eslintrc.json',
+  '.eslintrc.yml',
+  '.eslintrc.yaml',
+];
+
+/**
+ * True when an ESLint config exists at projectRoot or any ancestor up to workdir
+ * — i.e. the project is expected to lint. Flat config resolves upward, so we walk
+ * up rather than checking only the immediate root.
+ */
+function hasEslintConfig(projectRoot: string, workdir: string): boolean {
+  const top = resolve(workdir);
+  let dir = resolve(projectRoot);
+  for (;;) {
+    if (ESLINT_CONFIG_FILES.some((f) => existsSync(join(dir, f)))) return true;
+    if (dir === top) break;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
+}
+
+/**
+ * Builds a check marking that a verification SHOULD have run (tooling configured)
+ * but could not execute, so the gate must fail closed rather than silently pass.
+ */
+function unverifiableCheck(name: 'lint' | 'typecheck', details: string): VerificationCheck {
+  return { name, ran: false, ok: false, errorCount: 0, details, unverifiable: true };
+}
+
 /** Lints a project's changed files; gates on error (not warning) count. */
 async function lintProject(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
 ): Promise<VerificationCheck | null> {
+  const configured = hasEslintConfig(projectRoot, workdir);
   const bin = resolveBin(projectRoot, workdir, 'eslint');
-  if (!bin) return null;
+  if (!bin) {
+    // No eslint configured anywhere → legitimately skip. Configured but the
+    // binary is missing (e.g. a worktree without linked node_modules) → fail
+    // closed so a broken setup can't masquerade as "passed".
+    return configured
+      ? unverifiableCheck(
+          'lint',
+          'eslint is configured but its binary could not be resolved (worktree node_modules missing?).',
+        )
+      : null;
+  }
   // Pass files relative to the project root.
   const args = relFiles
     .map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`)
     .join(' ');
   const res = await runCmd(`"${bin}" --format json ${args}`, projectRoot);
   const parsed = parseEslintErrorCount(res.stdout);
-  if (!parsed.ok) return null; // eslint crashed / config error — treat as not run
+  if (!parsed.ok) {
+    // eslint is present but produced no parseable JSON (config error / crash).
+    // It tried and failed — that is unverifiable, not "not applicable".
+    return unverifiableCheck(
+      'lint',
+      `eslint could not produce parseable output:\n${(res.stderr || res.stdout).slice(0, MAX_DETAIL_CHARS)}`,
+    );
+  }
   return {
     name: 'lint',
     ran: true,
@@ -221,7 +291,13 @@ async function typecheckProject(
 ): Promise<VerificationCheck | null> {
   if (!existsSync(join(projectRoot, 'tsconfig.json'))) return null;
   const bin = resolveBin(projectRoot, workdir, 'tsc');
-  if (!bin) return null;
+  if (!bin) {
+    // tsconfig.json present but tsc unresolved → broken setup, fail closed.
+    return unverifiableCheck(
+      'typecheck',
+      'tsconfig.json is present but the tsc binary could not be resolved (worktree node_modules missing?).',
+    );
+  }
   const res = await runCmd(`"${bin}" --noEmit --pretty false`, projectRoot);
   const errorFiles = parseTscErrorFiles(`${res.stdout}\n${res.stderr}`);
   // Only count errors located in the files the agent changed (avoids gating on
@@ -248,17 +324,28 @@ async function typecheckProject(
 
 /** Merges per-project checks of the same kind into one aggregate check. */
 function mergeChecks(name: 'lint' | 'typecheck', parts: VerificationCheck[]): VerificationCheck {
+  const unverifiable = parts.filter((p) => p.unverifiable);
   const ran = parts.filter((p) => p.ran);
-  if (ran.length === 0) {
+  if (ran.length === 0 && unverifiable.length === 0) {
     return { name, ran: false, ok: true, errorCount: 0, details: `${name}: not applicable` };
   }
   const errorCount = ran.reduce((s, p) => s + p.errorCount, 0);
-  const details = ran
-    .filter((p) => !p.ok)
-    .map((p) => p.details)
+  // Any unverifiable part fails the merged check (fail closed).
+  const ok = unverifiable.length === 0 && errorCount === 0;
+  const details = [
+    ...unverifiable.map((p) => p.details),
+    ...ran.filter((p) => !p.ok).map((p) => p.details),
+  ]
     .join('\n\n')
     .slice(0, MAX_DETAIL_CHARS);
-  return { name, ran: true, ok: errorCount === 0, errorCount, details: details || `${name}: ok` };
+  return {
+    name,
+    ran: ran.length > 0,
+    ok,
+    errorCount,
+    details: details || `${name}: ok`,
+    unverifiable: unverifiable.length > 0 || undefined,
+  };
 }
 
 /**
@@ -270,7 +357,13 @@ function mergeChecks(name: 'lint' | 'typecheck', parts: VerificationCheck[]): Ve
 export async function runAutomatedVerification(workdir: string): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir);
   if (changedFiles.length === 0) {
-    return { ok: true, changedFiles: [], checks: [], summary: '自動検証: 対象のコード変更なし' };
+    return {
+      ok: true,
+      changedFiles: [],
+      checks: [],
+      summary: '自動検証: 対象のコード変更なし',
+      unverifiable: false,
+    };
   }
 
   const groups = groupByProjectRoot(workdir, changedFiles);
@@ -286,25 +379,41 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
   }
 
   const checks = [mergeChecks('lint', lintParts), mergeChecks('typecheck', typeParts)];
+  const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.every((c) => c.ok);
   const summary = checks
-    .map((c) => (!c.ran ? `${c.name}=skip` : c.ok ? `${c.name}=ok` : `${c.name}=NG(${c.errorCount})`))
+    .map((c) =>
+      c.unverifiable
+        ? `${c.name}=UNVERIFIED`
+        : !c.ran
+          ? `${c.name}=skip`
+          : c.ok
+            ? `${c.name}=ok`
+            : `${c.name}=NG(${c.errorCount})`,
+    )
     .join(' / ');
 
-  return { ok, changedFiles, checks, summary: `自動検証: ${summary}` };
+  return { ok, changedFiles, checks, summary: `自動検証: ${summary}`, unverifiable };
 }
 
 /** Renders a verification result as a Markdown block for verify.md / reports. */
 export function renderVerificationMarkdown(result: VerificationResult): string {
-  const lines = [
-    '## 自動検証結果（lint / 型チェック）',
-    '',
-    `- 判定: ${result.ok ? '✅ 合格' : '❌ 失敗（新規エラー検出）'}`,
-  ];
+  const verdict = result.unverifiable
+    ? '⚠️ 未検証（ツールを実行できず fail-closed）'
+    : result.ok
+      ? '✅ 合格'
+      : '❌ 失敗（新規エラー検出）';
+  const lines = ['## 自動検証結果（lint / 型チェック）', '', `- 判定: ${verdict}`];
   for (const c of result.checks) {
-    const status = !c.ran ? '対象外' : c.ok ? '✅ OK' : `❌ ${c.errorCount}件`;
+    const status = c.unverifiable
+      ? '⚠️ 未検証（ツール実行不可）'
+      : !c.ran
+        ? '対象外'
+        : c.ok
+          ? '✅ OK'
+          : `❌ ${c.errorCount}件`;
     lines.push(`- ${c.name}: ${status}`);
-    if (c.ran && !c.ok) lines.push('', '```', c.details, '```');
+    if (!c.ok && c.details) lines.push('', '```', c.details, '```');
   }
   lines.push('', `対象変更ファイル: ${result.changedFiles.length}件`);
   return lines.join('\n');

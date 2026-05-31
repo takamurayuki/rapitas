@@ -84,6 +84,15 @@ export interface RetryParams {
 export async function retryOrBlock(params: RetryParams): Promise<{ retried: boolean }> {
   const { taskId, sessionId, taskTitle, executionDir, result, onReverify } = params;
 
+  // An "unverifiable" result means the tooling itself could not run (e.g. a
+  // worktree without linked node_modules) — self-repair cannot fix that, so
+  // block immediately instead of burning retry attempts on the agent.
+  if (result.unverifiable) {
+    log.error({ taskId, sessionId }, 'Verification unrunnable (tooling) — blocking without retry');
+    await blockTaskForVerification(taskId, result, sessionId);
+    return { retried: false };
+  }
+
   const session = await prisma.agentSession
     .findUnique({ where: { id: sessionId }, select: { metadata: true } })
     .catch(() => null);
