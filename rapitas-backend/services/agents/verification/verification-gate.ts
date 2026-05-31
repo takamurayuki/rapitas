@@ -49,6 +49,24 @@ export async function runVerificationGate(
     return { ok: true, result };
   }
 
+  await blockTaskForVerification(taskId, result, sessionId);
+  return { ok: false, result };
+}
+
+/**
+ * Marks a task blocked (and its session failed with the verification evidence)
+ * after the automated checks found new lint/type errors. Exposed so the retry
+ * loop can use it once retries are exhausted.
+ *
+ * @param taskId - Task to block / ブロックするタスク
+ * @param result - The failing verification result / 失敗した検証結果
+ * @param sessionId - Session to fail, if known / 失敗にするセッション
+ */
+export async function blockTaskForVerification(
+  taskId: number,
+  result: VerificationResult,
+  sessionId?: number,
+): Promise<void> {
   log.error({ taskId, sessionId, summary: result.summary }, 'Automated verification failed — blocking');
   await prisma.task
     .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
@@ -65,5 +83,4 @@ export async function runVerificationGate(
       })
       .catch((err) => log.warn({ err, sessionId }, 'Failed to mark session failed'));
   }
-  return { ok: false, result };
 }

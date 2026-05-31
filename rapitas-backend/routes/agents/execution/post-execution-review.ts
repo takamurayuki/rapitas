@@ -15,7 +15,8 @@ import { getLocalLLMStatus } from '../../../services/local-llm';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { createCommit } from '../../../services/agents/orchestrator/git-operations/core-ops';
 import { createPullRequest } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
-import { runVerificationGate } from '../../../services/agents/verification/verification-gate';
+import { runAutomatedVerification } from '../../../services/agents/verification/automated-verifier';
+import { retryOrBlock } from '../../../services/agents/verification/verification-retry';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -210,12 +211,24 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   // session=failed with evidence) if the agent introduced new lint/type errors.
   // A verifier crash is non-fatal (gate opens). Shared with the verify.md auto-PR
   // path. See services/agents/verification/verification-gate.ts.
-  const gate = await runVerificationGate(taskId, executionDir, sessionId);
-  if (!gate.ok) {
-    // Worktree preserved so the user (or a Phase-2 retry) can fix and re-run.
+  const verification = await runAutomatedVerification(executionDir).catch((err) => {
+    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
+    return null;
+  });
+  if (verification && !verification.ok) {
+    // Self-repair: feed the lint/type errors back to the implementer and re-run
+    // on the same worktree; block only after retries are exhausted. After the
+    // fix attempt we re-enter this pipeline (onReverify) to re-verify.
+    await retryOrBlock({
+      taskId,
+      sessionId,
+      taskTitle,
+      executionDir,
+      result: verification,
+      onReverify: () => reviewAndCommitWorktree(params),
+    });
     return;
   }
-  const verification = gate.result;
 
   // 2. AI Review
   const review = await runAIReview(taskTitle, diff);
