@@ -17,10 +17,15 @@ import {
 const log = createLogger('routes:backlog-theme-override');
 
 export const backlogThemeOverrideRoutes = new Elysia({ prefix: '/backlog' })
-  /** Themes + their per-job overrides (for the per-project settings UI). */
+  /**
+   * Themes + their per-job overrides (for the per-project settings UI). Only
+   * themes with a working directory are returned — without one there is nothing
+   * to periodically scan, so they are neither shown nor run.
+   */
   .get('/theme-overrides', async () => {
     const [themes, overrides] = await Promise.all([
       prisma.theme.findMany({
+        where: { workingDirectory: { not: null } },
         select: { id: true, name: true, workingDirectory: true },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       }),

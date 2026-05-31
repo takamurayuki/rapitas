@@ -36,7 +36,6 @@ const PROJECT_JOBS: {
   icon: typeof Lightbulb;
   color: string;
   defaultEnabled: boolean;
-  needsWorkingDir?: boolean;
   hasLogConfig?: boolean;
 }[] = [
   { kind: 'innovation', label: 'イノベーション', icon: Lightbulb, color: 'text-amber-500', defaultEnabled: true },
@@ -46,7 +45,6 @@ const PROJECT_JOBS: {
     icon: Bug,
     color: 'text-rose-500',
     defaultEnabled: true,
-    needsWorkingDir: true,
   },
   {
     kind: 'health_check',
@@ -107,7 +105,8 @@ export default function ProjectOverridesSection() {
         const res = await fetch(`${API_BASE_URL}/backlog/theme-overrides`);
         if (res.ok) {
           const data = (await res.json()) as { themes: ThemeRow[]; overrides: Override[] };
-          setThemes(data.themes);
+          // Only projects with a working directory are schedulable.
+          setThemes(data.themes.filter((t) => t.workingDirectory));
           setOverrides(new Map(data.overrides.map((o) => [keyOf(o.kind, o.themeId), o])));
         }
       } catch {
@@ -159,12 +158,12 @@ export default function ProjectOverridesSection() {
         プロジェクト別設定
       </div>
       <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-        プロジェクト（テーマ）ごとに各ジョブの有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。
+作業ディレクトリを設定したプロジェクト（テーマ）のみ対象です。ジョブごとに有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。
       </p>
 
       {themes.length === 0 ? (
         <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-4 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400">
-          テーマがありません。テーマを作成すると、ここでプロジェクト別の設定ができます。
+          作業ディレクトリを設定したプロジェクトがありません。テーマに作業ディレクトリを設定すると、ここでプロジェクト別の設定ができます。
         </p>
       ) : (
         <div className="space-y-3">
@@ -175,28 +174,20 @@ export default function ProjectOverridesSection() {
             >
               <div className="mb-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
                 {theme.name}
-                {!theme.workingDirectory && (
-                  <span className="ml-2 text-[10px] text-zinc-400">作業ディレクトリ未設定</span>
-                )}
               </div>
               <div className="space-y-2">
                 {PROJECT_JOBS.map((job) => {
                   const ov = overrides.get(keyOf(job.kind, theme.id));
                   const enabled = ov ? ov.enabled : job.defaultEnabled;
                   const Icon = job.icon;
-                  const blockedNoWd = job.needsWorkingDir && !theme.workingDirectory;
                   return (
                     <div key={job.kind}>
                       <div className="flex items-center gap-2">
                         <Icon className={`h-3.5 w-3.5 ${job.color}`} />
                         <span className="text-xs text-zinc-700 dark:text-zinc-300">{job.label}</span>
-                        {blockedNoWd && (
-                          <span className="text-[10px] text-zinc-400">（要作業ディレクトリ）</span>
-                        )}
                         <span className="ml-auto">
                           <Toggle
-                            on={enabled && !blockedNoWd}
-                            disabled={blockedNoWd}
+                            on={enabled}
                             onClick={() => patch(job.kind, theme.id, { enabled: !enabled })}
                           />
                         </span>
