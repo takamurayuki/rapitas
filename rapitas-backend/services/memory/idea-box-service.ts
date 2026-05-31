@@ -445,9 +445,18 @@ async function buildWhereClause(opts: {
   else if (status === 'open') statusFilter = { NOT: usedCond };
   else if (unusedOnly) statusFilter = { NOT: usedCond };
 
-  // Priority is stored as a `priority:<level>` tag. Only filter when a specific
-  // level is requested, so the default ("all") avoids the tag substring scan.
-  const priorityFilter = priority ? { tags: { contains: `priority:${priority}` } } : {};
+  // Priority is stored as a `priority:<level>` tag; ideas with no such tag are
+  // shown as 'medium' (see toIdeaBoxEntry). To make the filter match what the UI
+  // shows, 'medium' also matches ideas that have no priority tag at all. Other
+  // levels match their explicit tag. Only filter when a level is requested.
+  let priorityFilter: Record<string, unknown> = {};
+  if (priority === 'medium') {
+    priorityFilter = {
+      OR: [{ tags: { contains: 'priority:medium' } }, { NOT: { tags: { contains: 'priority:' } } }],
+    };
+  } else if (priority) {
+    priorityFilter = { tags: { contains: `priority:${priority}` } };
+  }
 
   return {
     sourceType: 'idea_box' as const,
