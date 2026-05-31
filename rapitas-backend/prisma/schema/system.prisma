@@ -56,6 +56,25 @@ model UserSettings {
   updatedAt                   DateTime  @updatedAt
 }
 
+/**
+ * BacklogSchedule
+ *
+ * Per-job timing config for the backlog's periodic AI jobs (innovation session
+ * for the idea box; vulnerability/bug scan for the concern backlog). One row per
+ * `kind`. `lastRunAt` is persisted so the once-per-day guard survives restarts.
+ */
+model BacklogSchedule {
+  id         Int       @id @default(autoincrement())
+  kind       String    @unique // 'innovation' | 'vuln_scan'
+  enabled    Boolean   @default(false)
+  frequency  String    @default("weekly") // 'daily' | 'weekly'
+  hour       Int       @default(3) // 0-23, local hour the job fires
+  weekday    Int       @default(1) // 0-6 (Sun-Sat); used when frequency='weekly'
+  lastRunAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
 // User authentication system
 model User {
   id                Int       @id @default(autoincrement())

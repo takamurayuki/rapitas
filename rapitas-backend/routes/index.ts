@@ -110,6 +110,7 @@ export { memorySystemRoutes } from './memory/memory-system';
 export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
 export { ideaBoxRoutes } from './memory/idea-box';
 export { concernBacklogRoutes } from './memory/concern-backlog';
+export { backlogScheduleRoutes } from './backlog';
 
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';

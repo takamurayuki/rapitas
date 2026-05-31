@@ -17,13 +17,16 @@ import { submitIdea } from './idea-box-service';
 
 const log = createLogger('memory:innovation-session');
 
-/** How often sessions run (ms). Default: every 12 hours. */
+/**
+ * Look-back window (ms) used to size the "recent completions" query when this
+ * is the first run after boot. Timing of WHEN sessions run is owned by the
+ * backlog-scheduler (see services/scheduling/backlog-scheduler.ts), not here.
+ */
 const SESSION_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
 /** Minimum completed tasks since last session to justify running. */
 const MIN_NEW_COMPLETIONS = 2;
 
-let intervalHandle: ReturnType<typeof setInterval> | null = null;
 let lastRunAt: Date | null = null;
 
 const INNOVATION_PROMPT = `あなたはプロダクトイノベーターです。
@@ -176,32 +179,3 @@ export async function runInnovationSession(): Promise<number> {
   }
 }
 
-/**
- * Start the periodic innovation session scheduler.
- * Safe to call multiple times — only one interval will be active.
- */
-export function startInnovationScheduler(): void {
-  if (intervalHandle) return;
-
-  log.info({ intervalHours: SESSION_INTERVAL_MS / 3600000 }, 'Innovation scheduler started');
-
-  // Run first session after a short delay (let the server warm up)
-  setTimeout(() => {
-    runInnovationSession().catch(() => {});
-  }, 60_000);
-
-  intervalHandle = setInterval(() => {
-    runInnovationSession().catch(() => {});
-  }, SESSION_INTERVAL_MS);
-}
-
-/**
- * Stop the periodic innovation session scheduler.
- */
-export function stopInnovationScheduler(): void {
-  if (intervalHandle) {
-    clearInterval(intervalHandle);
-    intervalHandle = null;
-    log.info('Innovation scheduler stopped');
-  }
-}

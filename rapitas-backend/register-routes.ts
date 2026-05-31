@@ -86,6 +86,7 @@ import {
   systemPromptsRoutes,
   ideaBoxRoutes,
   concernBacklogRoutes,
+  backlogScheduleRoutes,
   exportRoutes,
   importRoutes,
 } from './routes';
@@ -149,6 +150,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(crossProjectKnowledgeRoutes);
   app.use(ideaBoxRoutes);
   app.use(concernBacklogRoutes);
+  app.use(backlogScheduleRoutes);
 
   // Workflow
   app.use(workflowRoutes);

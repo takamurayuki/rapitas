@@ -24,6 +24,7 @@ import {
   Brain,
   FileText,
   Calendar,
+  CalendarClock,
   Clock,
   GraduationCap,
   Bot,
@@ -113,6 +114,7 @@ export default function Header() {
       children: [
         { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
         { href: '/concerns', label: '懸念バックログ', icon: Bug },
+        { href: '/backlog/settings', label: '設定', icon: CalendarClock },
       ],
     },
     {

@@ -139,9 +139,10 @@ workerManager.initialize().catch((error) => {
   log.error({ err: error }, 'Failed to initialize Agent Worker Manager');
 });
 
-// Start innovation session scheduler (generates novel ideas twice daily)
-import { startInnovationScheduler } from './services/memory/innovation-session';
-startInnovationScheduler();
+// Start backlog scheduler (innovation session + vulnerability/bug scan).
+// Timing is user-configurable via /backlog/schedules (BacklogSchedule table).
+import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
+startBacklogScheduler();
 
 // Start weekly DB backup scheduler (~/.rapitas/backups/, 8-week retention).
 import { startBackupScheduler } from './services/system/backup-scheduler';
