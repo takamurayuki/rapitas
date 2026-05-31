@@ -16,6 +16,7 @@ import {
   logAutoMerge,
   logAutoMergeFailure,
 } from './workflow-activity-logger';
+import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -129,6 +130,21 @@ export async function performAutoCommitAndPR(
         { taskId, workingDirectory, branchName },
         '[Workflow] No worktree on session — git operations will run on the dev project root (NOT isolated)',
       );
+    }
+
+    // Automated verification gate — do NOT auto-commit/PR if the agent
+    // introduced new lint/type errors. Mirrors the post-execution-review gate so
+    // BOTH auto-PR paths are protected (closes the verify.md-triggered gap).
+    const gate = await runVerificationGate(taskId, gitCwd, latestSession?.id);
+    if (!gate.ok) {
+      log.error(
+        { taskId, summary: gate.result?.summary },
+        '[Workflow] Automated verification failed — aborting auto-commit/PR',
+      );
+      return {
+        ...result,
+        error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。auto-commit/PR を中止し、タスクをブロックしました。`,
+      };
     }
 
     const orchestrator = AgentOrchestrator.getInstance(prisma);
