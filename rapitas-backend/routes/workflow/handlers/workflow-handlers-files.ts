@@ -368,10 +368,26 @@ export async function handleSaveFile({
     // path (workflow-cli-executor) and this HTTP path stay in sync.
     let autoApproved = false;
     if (fileType === 'plan' && newStatus === 'plan_created') {
-      const approval = await maybeAutoApprovePlan(taskId, fileLanguage);
+      // When the plan was split into subtasks the parent must NOT advance to its
+      // own implementer phase — the subtasks do the work. Approve without
+      // auto-advancing the parent, then enqueue the subtasks for sequential run.
+      const approval = await maybeAutoApprovePlan(taskId, fileLanguage, {
+        autoAdvance: !splitResult,
+      });
       if (approval.autoApproved) {
         newStatus = 'plan_approved';
         autoApproved = true;
+        if (splitResult && splitResult.subtaskIds.length > 0) {
+          try {
+            const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
+            await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
+          } catch (enqErr) {
+            log.error(
+              { err: enqErr, taskId },
+              '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
+            );
+          }
+        }
       }
     }
 

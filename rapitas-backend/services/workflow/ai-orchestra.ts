@@ -445,6 +445,44 @@ export class AIOrchestra {
   }
 
   /**
+   * Enqueue all not-yet-done subtasks of a parent for SEQUENTIAL execution
+   * (ascending id = creation order). The queue's sibling guard runs them one at
+   * a time. Used after a parent plan is approved and split into subtasks: the
+   * parent never implements directly — its subtasks do, and completing the last
+   * one triggers the parent's integration verify.md (→ PR → parent done).
+   *
+   * @param parentTaskId - The split parent task. / 分割された親タスク
+   * @returns Number of subtasks enqueued. / enqueue したサブタスク数
+   */
+  async enqueueSubtasksForExecution(parentTaskId: number): Promise<number> {
+    const subtasks = await prisma.task.findMany({
+      where: {
+        parentId: parentTaskId,
+        status: { notIn: ['done', 'cancelled', 'archived'] },
+      },
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    });
+    let enqueued = 0;
+    for (const st of subtasks) {
+      try {
+        const res = await this.enqueueTask({ taskId: st.id });
+        if (res.success) enqueued++;
+      } catch (err) {
+        // enqueue throws on a duplicate (already queued/running) — non-fatal.
+        log.warn({ err, subtaskId: st.id, parentTaskId }, '[AIOrchestra] Subtask enqueue skipped');
+      }
+    }
+    if (enqueued > 0) {
+      log.info(
+        { parentTaskId, enqueued },
+        '[AIOrchestra] Enqueued subtasks for sequential execution',
+      );
+    }
+    return enqueued;
+  }
+
+  /**
    * Resume queue processing after plan approval.
    */
   async handlePlanApproved(taskId: number): Promise<void> {

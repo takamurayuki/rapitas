@@ -80,27 +80,39 @@ export async function handleApprovePlan({
     if (parsedBody.approved) {
       try {
         const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
-        AIOrchestra.getInstance()
-          .handlePlanApproved(taskId)
-          .catch((err) => {
+        const orchestra = AIOrchestra.getInstance();
+
+        // If the plan was split into subtasks, the parent does NOT implement
+        // directly — enqueue the subtasks for sequential execution instead of
+        // advancing the parent to its own implementer phase. Completing the last
+        // subtask triggers the parent's integration verify.md (→ PR → done).
+        const pendingSubtasks = await prisma.task.count({
+          where: { parentId: taskId, status: { notIn: ['done', 'cancelled', 'archived'] } },
+        });
+
+        if (pendingSubtasks > 0) {
+          await orchestra.enqueueSubtasksForExecution(taskId);
+        } else {
+          orchestra.handlePlanApproved(taskId).catch((err) => {
             log.warn(
               { err },
               `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`,
             );
           });
 
-        const { WorkflowOrchestrator } =
-          await import('../../../services/workflow/workflow-orchestrator');
-        WorkflowOrchestrator.getInstance()
-          .advanceWorkflow(taskId, language)
-          .then((result) => {
-            log.info(
-              `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
-            );
-          })
-          .catch((err) => {
-            log.error({ err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
-          });
+          const { WorkflowOrchestrator } =
+            await import('../../../services/workflow/workflow-orchestrator');
+          WorkflowOrchestrator.getInstance()
+            .advanceWorkflow(taskId, language)
+            .then((result) => {
+              log.info(
+                `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
+              );
+            })
+            .catch((err) => {
+              log.error({ err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
+            });
+        }
       } catch (err) {
         log.error({ err }, '[Workflow] Failed to auto-advance after approval');
       }
