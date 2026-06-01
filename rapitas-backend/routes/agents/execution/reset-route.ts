@@ -64,6 +64,11 @@ export const resetRoute = new Elysia().post(
           where: { id: taskId },
           data: {
             status: 'todo',
+            // Reset the workflow too. Without this a prior terminal/advanced
+            // workflowStatus (completed / verify_done / plan_approved) lingered,
+            // so the UI still treated the task as done and the run button stayed
+            // unavailable after a reset.
+            workflowStatus: 'draft',
             startedAt: null,
             completedAt: null,
           },
@@ -176,6 +181,9 @@ export const resetRoute = new Elysia().post(
         where: { id: taskId },
         data: {
           status: 'todo',
+          // Reset the workflow so the task runs from the start again (see note
+          // in the no-config branch above).
+          workflowStatus: 'draft',
           startedAt: null,
           completedAt: null,
         },
