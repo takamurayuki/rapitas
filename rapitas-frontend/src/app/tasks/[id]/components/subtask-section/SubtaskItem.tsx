@@ -14,6 +14,7 @@ import {
 } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
   statusConfig as sharedStatusConfig,
   renderStatusIcon,
@@ -80,6 +81,12 @@ export function SubtaskItem({
 }: SubtaskItemProps) {
   const t = useTranslations('task');
 
+  // Live agent-execution state for THIS subtask (from GET /tasks/executing polling).
+  // Sequential subtasks each run their own agent, so the running one shows a spinner.
+  const liveExecStatus = useExecutionStateStore((s) => s.getExecutingTaskStatus(subtask.id));
+  const showRunning =
+    liveExecStatus !== null || (isParallelExecutionRunning && executionStatus === 'running');
+
   return (
     <div
       className={`transition-colors ${
@@ -116,8 +123,11 @@ export function SubtaskItem({
                   )}
                 </button>
               )}
-              {!isSelectionMode && isParallelExecutionRunning && executionStatus ? (
-                <SubtaskTitleIndicator executionStatus={executionStatus} size="sm" />
+              {!isSelectionMode && showRunning ? (
+                <SubtaskTitleIndicator
+                  executionStatus={liveExecStatus !== null ? 'running' : (executionStatus ?? 'running')}
+                  size="sm"
+                />
               ) : (
                 !isSelectionMode && (
                   <div className="shrink-0">
