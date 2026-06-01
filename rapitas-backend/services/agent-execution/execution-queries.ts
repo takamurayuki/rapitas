@@ -117,7 +117,9 @@ export async function resetExecutionState(prisma: PrismaClient, taskId: number):
   await prisma.agentExecution.update({
     where: { id: latestExecution.id },
     data: {
-      status: 'cancelled',
+      // 'reset' (not 'cancelled') — keep a deliberate reset distinct from a
+      // mid-run cancel. Restore treats it as idle so the task can run again.
+      status: 'reset',
       completedAt: new Date(),
     },
   });

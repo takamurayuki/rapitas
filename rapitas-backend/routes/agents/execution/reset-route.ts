@@ -96,9 +96,12 @@ export const resetRoute = new Elysia().post(
           await prisma.agentExecution.updateMany({
             where: { id: { in: executionIds } },
             data: {
-              status: 'cancelled',
+              // 'reset' (not 'cancelled') so a deliberate reset is distinguishable
+              // from a mid-run cancel — clearer in history and avoids "キャンセル"
+              // wording when the previous run had actually completed.
+              status: 'reset',
               output: '',
-              errorMessage: 'Reset by user',
+              errorMessage: 'リセットされました',
               question: null,
               questionType: null,
               questionDetails: null,
@@ -140,9 +143,9 @@ export const resetRoute = new Elysia().post(
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: {
-            status: 'cancelled',
+            status: 'reset',
             completedAt: new Date(),
-            errorMessage: 'Reset by user',
+            errorMessage: 'リセットされました',
             worktreePath: null,
           },
         });
