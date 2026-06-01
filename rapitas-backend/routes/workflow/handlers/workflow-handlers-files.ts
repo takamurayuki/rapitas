@@ -349,7 +349,7 @@ export async function handleSaveFile({
             /* no research.md — non-fatal */
           }
 
-          const result = await createSubtasksFromPlan(taskId, analysis, researchContent);
+          const result = await createSubtasksFromPlan(taskId, analysis, researchContent, content);
           if (result.success) {
             splitResult = {
               subtasksCreated: result.subtasksCreated,
