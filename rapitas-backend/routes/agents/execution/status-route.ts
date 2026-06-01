@@ -55,6 +55,16 @@ export const statusRoute = new Elysia().get(
       }
 
       const latestSession = config.agentSessions[0];
+
+      // A cancelled session is terminal/abandoned — most commonly because the
+      // user pressed Reset, which cancels the run and reverts the worktree.
+      // Restoring it as a live "cancelled" state leaves the panel stuck (the
+      // execute button hides on isCancelled). Report idle so the task presents
+      // as ready-to-run again.
+      if (latestSession.status === 'cancelled') {
+        return { status: 'none', message: 'No active execution (previous run was reset or cancelled)' };
+      }
+
       const latestExecution = latestSession.agentExecutions[0];
       const execExtras = latestExecution as typeof latestExecution & AgentExecutionWithExtras;
 
