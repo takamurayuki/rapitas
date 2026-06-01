@@ -43,6 +43,7 @@ export default function WorkflowViewer({
   onCompleteRequest,
   onStatusChange,
   onWorkflowModeChange,
+  autoApprovePlan = false,
   className = '',
 }: WorkflowViewerProps) {
   const {
@@ -86,9 +87,14 @@ export default function WorkflowViewer({
 
   const activeTabConfig = workflowTabs.find((t) => t.id === validActiveTab)!;
 
-  // Always show approval banner during plan_created
+  // Show the approval banner/button during plan_created — UNLESS auto-approve is
+  // effective, in which case the plan is approved automatically and no manual
+  // approval prompt should appear.
   const isPlanAwaitingApproval =
-    tabStatus.plan && effectiveStatus === 'plan_created' && !!onPlanApprovalRequest;
+    tabStatus.plan &&
+    effectiveStatus === 'plan_created' &&
+    !!onPlanApprovalRequest &&
+    !autoApprovePlan;
 
   // Approval button within plan tab
   const showApprovalButton = activeTab === 'plan' && isPlanAwaitingApproval;
