@@ -332,11 +332,15 @@ export interface ReplacementLossResult {
  * @returns Detection result with run statistics. / 検出結果
  */
 export function detectReplacementLoss(text: string): ReplacementLossResult {
-  const matches = text.match(/\?{2,}/g) ?? [];
+  // Match runs of 3+ consecutive '?'. NOTE: we intentionally IGNORE 2-'?' runs —
+  // "a ?? b" (nullish coalescing) and similar are common in code/markdown and
+  // produced false positives. UTF-8 -> '?' mojibake collapses multi-char words
+  // into runs of 3+ '?', so a 3+ threshold still catches real corruption.
+  const matches = text.match(/\?{3,}/g) ?? [];
   const runs = matches.length;
   const count = matches.reduce((sum, m) => sum + m.length, 0);
   const longest = matches.reduce((max, m) => Math.max(max, m.length), 0);
-  // >= 3 multi-'?' runs, or a single run of 6+, is a confident corruption signal.
-  const detected = runs >= 3 || longest >= 6;
+  // Several 3+ runs, or one long run, is a confident corruption signal.
+  const detected = runs >= 3 || longest >= 8;
   return { detected, runs, count, longest };
 }

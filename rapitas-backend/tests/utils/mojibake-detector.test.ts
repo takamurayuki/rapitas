@@ -417,7 +417,17 @@ describe("detectReplacementLoss ('?' UTF-8→ASCII loss)", () => {
     expect(detectReplacementLoss(code).detected).toBe(false);
   });
 
-  test('1 つの長い ? 連続（6+）でも検出する', () => {
+  test('?? (nullish) を多用したコードを誤検出しない', () => {
+    const code = [
+      'const a = x ?? 0;',
+      'const b = y ?? z ?? 1;',
+      'return cfg?.value ?? def ?? fallback ?? null;',
+      'const c = p ?? q;',
+    ].join('\n');
+    expect(detectReplacementLoss(code).detected).toBe(false);
+  });
+
+  test('1 つの長い ? 連続（8+）でも検出する', () => {
     expect(detectReplacementLoss('見出し: ????????').detected).toBe(true);
   });
 });
