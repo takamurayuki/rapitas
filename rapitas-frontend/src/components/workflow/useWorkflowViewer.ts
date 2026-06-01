@@ -161,6 +161,25 @@ export function useWorkflowViewer({
     return () => stopPolling();
   }, [stopPolling]);
 
+  // Keep the viewer live during an ACTIVE workflow so md files saved by the
+  // agent (research/plan/verify) reflect without a manual reload. Polling stops
+  // automatically once the workflow reaches a terminal state.
+  useEffect(() => {
+    const ACTIVE_STATUSES = new Set<WorkflowStatus>([
+      'draft',
+      'research_done',
+      'plan_created',
+      'plan_approved',
+      'in_progress',
+    ]);
+    const status = (effectiveStatus ?? fetchedStatus ?? workflowStatus) as WorkflowStatus | null;
+    if (status && ACTIVE_STATUSES.has(status)) {
+      startPolling(3000);
+      return () => stopPolling();
+    }
+    stopPolling();
+  }, [effectiveStatus, fetchedStatus, workflowStatus, startPolling, stopPolling]);
+
   const handleAdvance = useCallback(async () => {
     setIsAdvancing(true);
     setAdvanceError(null);
