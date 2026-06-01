@@ -1,8 +1,8 @@
 /**
  * Tests for installWorktreeDependencies.
  *
- * Verifies that the installer correctly enumerates package.json + pnpm-lock.yaml
- * pairs and runs pnpm install in each, and that failures are surfaced.
+ * Verifies that the linker delegates to scripts/setup-worktree.cjs (NEVER an
+ * installer), skips when the script is absent, and surfaces failures.
  */
 
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
@@ -44,28 +44,32 @@ const {
 
 const TMP_ROOT = resolve('.tmp-tests/dependency-installer');
 
-async function makePackageDir(dir: string): Promise<void> {
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'package.json'), '{"name":"test"}');
-  await writeFile(join(dir, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n');
+/** Create a worktree that carries the (tracked) setup-worktree.cjs script. */
+async function makeWorktreeWithSetup(dir: string): Promise<void> {
+  await mkdir(join(dir, 'scripts'), { recursive: true });
+  await writeFile(join(dir, 'scripts', 'setup-worktree.cjs'), '// stub setup-worktree');
+}
+
+function resetMockOk(): void {
+  mockExec.mockReset();
+  mockExec.mockImplementation(
+    (
+      _command: string,
+      options: unknown,
+      callback?: (error: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      const cb = (typeof options === 'function' ? options : callback) as
+        | ((error: Error | null, stdout: string, stderr: string) => void)
+        | undefined;
+      cb?.(null, '', '');
+      return { kill: mock(() => undefined) };
+    },
+  );
 }
 
 describe('installWorktreeDependencies', () => {
   beforeEach(async () => {
-    mockExec.mockReset();
-    mockExec.mockImplementation(
-      (
-        _command: string,
-        options: unknown,
-        callback?: (error: Error | null, stdout: string, stderr: string) => void,
-      ) => {
-        const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, stdout: string, stderr: string) => void)
-          | undefined;
-        cb?.(null, '', '');
-        return { kill: mock(() => undefined) };
-      },
-    );
+    resetMockOk();
     await rm(TMP_ROOT, { recursive: true, force: true });
     await mkdir(TMP_ROOT, { recursive: true });
   });
@@ -74,110 +78,26 @@ describe('installWorktreeDependencies', () => {
     await rm(TMP_ROOT, { recursive: true, force: true });
   });
 
-  test('installs in every subdirectory containing package.json + pnpm-lock.yaml', async () => {
+  test('links via setup-worktree.cjs at the worktree root (never an installer)', async () => {
     const worktree = join(TMP_ROOT, 'wt1');
-    await mkdir(worktree, { recursive: true });
-    await makePackageDir(join(worktree, 'rapitas-frontend'));
-    await makePackageDir(join(worktree, 'rapitas-backend'));
+    await makeWorktreeWithSetup(worktree);
 
     await installWorktreeDependencies(worktree);
 
-    const cwds = mockExec.mock.calls.map((call) => {
-      const opts = call[1] as { cwd?: string } | undefined;
-      return opts?.cwd;
-    });
-    expect(cwds).toContain(join(worktree, 'rapitas-frontend'));
-    expect(cwds).toContain(join(worktree, 'rapitas-backend'));
-    expect(mockExec).toHaveBeenCalledTimes(2);
-  });
-
-  test('also installs at the worktree root when it has package.json + pnpm-lock.yaml', async () => {
-    const worktree = join(TMP_ROOT, 'wt-root');
-    await makePackageDir(worktree);
-
-    await installWorktreeDependencies(worktree);
-
-    const cwds = mockExec.mock.calls.map((call) => {
-      const opts = call[1] as { cwd?: string } | undefined;
-      return opts?.cwd;
-    });
-    expect(cwds).toContain(worktree);
-  });
-
-  test('skips directories missing pnpm-lock.yaml', async () => {
-    const worktree = join(TMP_ROOT, 'wt-partial');
-    await mkdir(worktree, { recursive: true });
-    const noLock = join(worktree, 'no-lock');
-    await mkdir(noLock, { recursive: true });
-    await writeFile(join(noLock, 'package.json'), '{"name":"x"}');
-    await makePackageDir(join(worktree, 'with-lock'));
-
-    await installWorktreeDependencies(worktree);
-
-    const cwds = mockExec.mock.calls.map((call) => {
-      const opts = call[1] as { cwd?: string } | undefined;
-      return opts?.cwd;
-    });
-    expect(cwds).toContain(join(worktree, 'with-lock'));
-    expect(cwds).not.toContain(noLock);
-  });
-
-  test('ignores dotfiles, node_modules, and nested-only manifests', async () => {
-    const worktree = join(TMP_ROOT, 'wt-skip');
-    await mkdir(worktree, { recursive: true });
-    await makePackageDir(join(worktree, '.cache'));
-    await makePackageDir(join(worktree, 'node_modules'));
-    await makePackageDir(join(worktree, 'rapitas-frontend', 'nested'));
-    await makePackageDir(join(worktree, 'rapitas-frontend'));
-
-    await installWorktreeDependencies(worktree);
-
-    const cwds = mockExec.mock.calls.map((call) => {
-      const opts = call[1] as { cwd?: string } | undefined;
-      return opts?.cwd;
-    });
-    expect(cwds).toContain(join(worktree, 'rapitas-frontend'));
-    expect(cwds).not.toContain(join(worktree, '.cache'));
-    expect(cwds).not.toContain(join(worktree, 'node_modules'));
-    expect(cwds).not.toContain(join(worktree, 'rapitas-frontend', 'nested'));
-  });
-
-  test('runs pnpm install with offline + frozen-lockfile flags', async () => {
-    const worktree = join(TMP_ROOT, 'wt-flags');
-    await makePackageDir(worktree);
-
-    await installWorktreeDependencies(worktree);
-
+    expect(mockExec).toHaveBeenCalledTimes(1);
     const command = mockExec.mock.calls[0]?.[0] as string;
-    expect(command).toContain('pnpm install');
-    expect(command).toContain('--offline');
-    expect(command).toContain('--prefer-offline');
-    expect(command).toContain('--frozen-lockfile');
+    expect(command).toContain('setup-worktree.cjs');
+    expect(command).toContain('node');
+    expect(command).not.toContain('pnpm install');
+    expect(command).not.toContain('npm install');
+    expect(command).not.toContain('bun install');
+
+    const opts = mockExec.mock.calls[0]?.[1] as { cwd?: string } | undefined;
+    expect(opts?.cwd).toBe(worktree);
   });
 
-  test('throws when pnpm install fails', async () => {
-    const worktree = join(TMP_ROOT, 'wt-fail');
-    await makePackageDir(worktree);
-
-    mockExec.mockImplementation(
-      (
-        _command: string,
-        options: unknown,
-        callback?: (error: Error | null, stdout: string, stderr: string) => void,
-      ) => {
-        const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, stdout: string, stderr: string) => void)
-          | undefined;
-        cb?.(new Error('lockfile mismatch'), '', '');
-        return { kill: mock(() => undefined) };
-      },
-    );
-
-    await expect(installWorktreeDependencies(worktree)).rejects.toThrow(/pnpm install failed/);
-  });
-
-  test('no-ops when no installable manifest is found', async () => {
-    const worktree = join(TMP_ROOT, 'wt-empty');
+  test('skips (no exec) when setup-worktree.cjs is absent', async () => {
+    const worktree = join(TMP_ROOT, 'wt-noscript');
     await mkdir(worktree, { recursive: true });
 
     await installWorktreeDependencies(worktree);
@@ -185,15 +105,10 @@ describe('installWorktreeDependencies', () => {
     expect(mockExec).not.toHaveBeenCalled();
   });
 
-  test('runs all directory installs in parallel', async () => {
-    const worktree = join(TMP_ROOT, 'wt-parallel');
-    await mkdir(worktree, { recursive: true });
-    await makePackageDir(join(worktree, 'a'));
-    await makePackageDir(join(worktree, 'b'));
-    await makePackageDir(join(worktree, 'c'));
+  test('throws when setup-worktree.cjs fails', async () => {
+    const worktree = join(TMP_ROOT, 'wt-fail');
+    await makeWorktreeWithSetup(worktree);
 
-    let inflight = 0;
-    let maxInflight = 0;
     mockExec.mockImplementation(
       (
         _command: string,
@@ -203,39 +118,18 @@ describe('installWorktreeDependencies', () => {
         const cb = (typeof options === 'function' ? options : callback) as
           | ((error: Error | null, stdout: string, stderr: string) => void)
           | undefined;
-        inflight += 1;
-        maxInflight = Math.max(maxInflight, inflight);
-        setTimeout(() => {
-          inflight -= 1;
-          cb?.(null, '', '');
-        }, 30);
+        cb?.(new Error('link failed'), '', '');
         return { kill: mock(() => undefined) };
       },
     );
 
-    await installWorktreeDependencies(worktree);
-
-    // All three installs ran concurrently (not sequentially).
-    expect(maxInflight).toBe(3);
+    await expect(installWorktreeDependencies(worktree)).rejects.toThrow(/setup-worktree\.cjs failed/);
   });
 });
 
 describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
   beforeEach(async () => {
-    mockExec.mockReset();
-    mockExec.mockImplementation(
-      (
-        _command: string,
-        options: unknown,
-        callback?: (error: Error | null, stdout: string, stderr: string) => void,
-      ) => {
-        const cb = (typeof options === 'function' ? options : callback) as
-          | ((error: Error | null, stdout: string, stderr: string) => void)
-          | undefined;
-        cb?.(null, '', '');
-        return { kill: mock(() => undefined) };
-      },
-    );
+    resetMockOk();
     await rm(TMP_ROOT, { recursive: true, force: true });
     await mkdir(TMP_ROOT, { recursive: true });
   });
@@ -244,9 +138,9 @@ describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
     await rm(TMP_ROOT, { recursive: true, force: true });
   });
 
-  test('multiple callers share a single in-flight install', async () => {
+  test('multiple callers share a single in-flight setup', async () => {
     const worktree = join(TMP_ROOT, 'wt-shared');
-    await makePackageDir(worktree);
+    await makeWorktreeWithSetup(worktree);
 
     const p1 = startWorktreeDependenciesInstall(worktree);
     const p2 = startWorktreeDependenciesInstall(worktree);
@@ -256,15 +150,15 @@ describe('startWorktreeDependenciesInstall / awaitWorktreeDependencies', () => {
     expect(p2).toBe(p3);
 
     await Promise.all([p1, p2, p3]);
-    // Only one install was triggered for the shared worktree.
+    // Only one setup was triggered for the shared worktree.
     expect(mockExec).toHaveBeenCalledTimes(1);
 
     clearWorktreeDependenciesTracking(worktree);
   });
 
-  test('clear() lets a subsequent install run again', async () => {
+  test('clear() lets a subsequent setup run again', async () => {
     const worktree = join(TMP_ROOT, 'wt-clear');
-    await makePackageDir(worktree);
+    await makeWorktreeWithSetup(worktree);
 
     await startWorktreeDependenciesInstall(worktree);
     expect(mockExec).toHaveBeenCalledTimes(1);

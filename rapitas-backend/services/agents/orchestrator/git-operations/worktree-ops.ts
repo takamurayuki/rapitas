@@ -185,6 +185,22 @@ export async function removeWorktree(
     }
   }
 
+  // Unlink the junctions/symlinks (node_modules, etc.) that setup-worktree.cjs
+  // created BEFORE removing the worktree. On Windows, leftover junctions confuse
+  // `git worktree remove` and `rm -rf`, surfacing as "Filename too long" / EPERM.
+  const teardownScript = join(worktreePath, 'scripts', 'setup-worktree.cjs');
+  if (existsSync(teardownScript)) {
+    try {
+      await execAsync(`node "${teardownScript}" --teardown`, {
+        cwd: worktreePath,
+        encoding: 'utf8',
+      });
+      logger.info('[removeWorktree] Unlinked shared resources via setup-worktree.cjs --teardown');
+    } catch (tdErr) {
+      logger.debug({ err: tdErr }, '[removeWorktree] setup-worktree.cjs --teardown failed (non-fatal)');
+    }
+  }
+
   // NOTE: Always run `git worktree prune` BEFORE attempting remove. This
   // clears stale entries left behind by previous failed removes (commonly
   // happens when a long-running codex/install process held a file handle
