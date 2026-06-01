@@ -133,6 +133,46 @@ export class WorkflowQueueService {
           if (incompleteDeps > 0) continue;
         }
 
+        // Strict sequential execution for sibling subtasks (same parent): run
+        // ONE at a time, in creation (id) order. Plan-split subtasks share the
+        // parent's git worktree and often build on each other, so running them
+        // concurrently risks conflicts and lower quality — hold a candidate back
+        // while any sibling is active, or while an earlier-created sibling is
+        // still pending. Non-subtasks (no parentId) are unaffected.
+        const candidateTask = await prisma.task.findUnique({
+          where: { id: candidate.taskId },
+          select: { parentId: true },
+        });
+        if (candidateTask?.parentId != null) {
+          const siblings = await prisma.task.findMany({
+            where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },
+            select: { id: true },
+          });
+          const siblingIds = siblings.map((s) => s.id);
+          if (siblingIds.length > 0) {
+            const activeSibling = await prisma.workflowQueueItem.count({
+              where: {
+                taskId: { in: siblingIds },
+                orchestraSessionId: candidate.orchestraSessionId,
+                status: { in: ['running', 'waiting_approval'] },
+              },
+            });
+            if (activeSibling > 0) continue; // a sibling is already running
+
+            const earlierIds = siblingIds.filter((id) => id < candidate.taskId);
+            if (earlierIds.length > 0) {
+              const earlierPending = await prisma.workflowQueueItem.count({
+                where: {
+                  taskId: { in: earlierIds },
+                  orchestraSessionId: candidate.orchestraSessionId,
+                  status: { in: ['queued', 'running', 'waiting_approval'] },
+                },
+              });
+              if (earlierPending > 0) continue; // earlier-created sibling goes first
+            }
+          }
+        }
+
         // Start execution (transaction prevents race conditions)
         const updated = await prisma.$transaction(async (tx) => {
           // Re-check status (another worker may have acquired it)

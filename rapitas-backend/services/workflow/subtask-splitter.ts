@@ -11,7 +11,6 @@ import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
-import { sendAIMessage } from '../../utils/ai-client';
 
 const log = createLogger('subtask-splitter');
 
@@ -156,6 +155,9 @@ async function generateSubtasksWithAI(
   researchContent?: string,
 ): Promise<PlannedSubtask[] | null> {
   try {
+    // Dynamic import keeps the ai-client (and its config dependencies) off the
+    // module-load path, avoiding a circular-import edge through config/index.
+    const { sendAIMessage } = await import('../../utils/ai-client');
     const parts = ['# plan.md', planContent];
     if (researchContent) parts.push('\n# research.md（参考）', researchContent.slice(0, 4000));
     const res = await sendAIMessage({
