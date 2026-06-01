@@ -8,6 +8,7 @@ import {
   detectMojibake,
   fixMojibake,
   sanitizeMarkdownContent,
+  detectReplacementLoss,
   type MojibakeDetectionResult,
   type SanitizeResult,
 } from '../../utils/common/mojibake-detector';
@@ -390,5 +391,33 @@ describe('Edge Cases', () => {
     const result = sanitizeMarkdownContent('   \t   ');
     expect(result.content).toBe('   \t   '); // No mojibake detected, so no processing
     expect(result.wasFixed).toBe(false); // No mojibake fix applied
+  });
+});
+
+describe("detectReplacementLoss ('?' UTF-8→ASCII loss)", () => {
+  test('日本語が ? に全置換された文書を検出する', () => {
+    const garbled = [
+      '# ????',
+      '## ????: ?????????/???????',
+      '- `service.ts` - convertConcernToTask ? resolveDefaultThemeId ????????(??)',
+      '- POST /concerns/:id/convert-to-task ???????(????????)(??)',
+    ].join('\n');
+    const r = detectReplacementLoss(garbled);
+    expect(r.detected).toBe(true);
+    expect(r.runs).toBeGreaterThanOrEqual(3);
+  });
+
+  test('正常な日本語（? が散発）は誤検出しない', () => {
+    const clean = '# 調査結果\n## 影響範囲: これは正常な日本語です。本当に大丈夫?';
+    expect(detectReplacementLoss(clean).detected).toBe(false);
+  });
+
+  test('コードの ?? / optional? を誤検出しない', () => {
+    const code = 'const x = a ?? b; // is it optional? yes';
+    expect(detectReplacementLoss(code).detected).toBe(false);
+  });
+
+  test('1 つの長い ? 連続（6+）でも検出する', () => {
+    expect(detectReplacementLoss('見出し: ????????').detected).toBe(true);
   });
 });

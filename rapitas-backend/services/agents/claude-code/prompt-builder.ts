@@ -64,7 +64,12 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
       : `4. Implement after approval`,
     `5. Save verify.md`,
     ``,
-    `**ファイル保存API**: \`curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
+    `**ファイル保存API（UTF-8厳守）**:`,
+    `1. 保存内容を Write ツールで UTF-8 の一時ファイルに書き出す（例: \`${workDir}/.wf-tmp.md\`。プロジェクトルートには作らない）`,
+    `2. 生ファイルを送信: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
+    `3. 2xx 応答後に一時ファイルを削除`,
+    `- **重要**: Windows では PowerShell のパイプや \`-d\` のインライン文字列で curl に渡さない（既定の US-ASCII で日本語が "?" に化ける）。必ず上記の一時ファイル+\`--data-binary\` 方式・\`curl.exe\` を使う。`,
+    `- 文字化け("?"置換)を検出すると保存APIは HTTP 422 で拒否する。その場合は UTF-8 で再送信する。`,
     ``,
     `## Question Format (MANDATORY)`,
     `When asking questions via AskUserQuestion, you MUST provide multiple-choice options.`,
@@ -207,41 +212,30 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   );
   sections.push('5. **Verification**: Save implementation results as verify.md');
   sections.push('');
-  sections.push('### How to Save Workflow Files');
+  sections.push('### How to Save Workflow Files (UTF-8 — IMPORTANT)');
   sections.push(
-    '**Important**: Workflow files must be saved using the following API. Do not create them directly on the filesystem with mkdir/Write etc.',
+    'Save each workflow file via the API below. To avoid character corruption (Japanese turning into "?"), DO NOT inline the content into the shell command.',
   );
   sections.push('');
-  sections.push('**Prohibited Actions**:');
-  sections.push('- **Never create files in the project root. Temporary files are no exception.**');
+  sections.push('**Procedure (per file):**');
   sections.push(
-    '- File creation in project root using Write tool or Bash tool (mkdir/echo) is prohibited.',
+    `1. Write the markdown to a UTF-8 temp file with your Write tool inside the working directory (e.g. \`${workDir}/.wf-tmp.md\`) — NOT in the project root.`,
   );
   sections.push(
-    '- **Do not create temporary files like implementation_*.md, temp_*.md, *_content.json, etc.**',
+    `2. Send the raw file as the body: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
   );
+  sections.push('3. Delete the temp file after a successful (2xx) response.');
   sections.push('');
-  sections.push('```bash');
-  sections.push(`# Save research.md`);
+  sections.push('**Rules:**');
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# Research Results\\n..."}'`,
+    '- On Windows, NEVER pipe content to curl in PowerShell and NEVER use `-d` with inline Japanese — PowerShell\'s default US-ASCII OutputEncoding corrupts it to "?". Always use the temp-file + `--data-binary` method above, with `curl.exe` (not the PowerShell `curl` alias).',
   );
-  sections.push('');
-  sections.push(`# Save question.md`);
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/question -H 'Content-Type: application/json' -d '{"content":"# Unclear Points\\n..."}'`,
+    '- If the content is corrupted ("?" replacement), the API rejects the save with HTTP 422 — re-send as UTF-8 using the method above.',
   );
-  sections.push('');
-  sections.push(`# Save plan.md`);
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/plan -H 'Content-Type: application/json' -d '{"content":"# Implementation Plan\\n..."}'`,
+    '- The ONLY file you may create outside the proper output is the single transmission temp file above (inside the working directory). Never create files in the project root.',
   );
-  sections.push('');
-  sections.push(`# Save verify.md`);
-  sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/verify -H 'Content-Type: application/json' -d '{"content":"# Verification Report\\n..."}'`,
-  );
-  sections.push('```');
   sections.push('');
 
   sections.push('## Execution Instructions');

@@ -19,6 +19,7 @@ import {
   getFileInfo,
 } from '../core/workflow-helpers';
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
@@ -166,16 +167,61 @@ export async function handleSaveFile({
     }
 
     const { dir } = resolved;
-    const parsedBody = body as { content: string; language?: 'ja' | 'en' };
-    if (!parsedBody?.content && parsedBody?.content !== '') {
-      throw new ValidationError('content is required');
+
+    // Accept either a JSON body { content, language } OR a raw text/markdown body.
+    // NOTE: agents on Windows used to inline the content into a PowerShell pipeline,
+    // where $OutputEncoding defaults to US-ASCII — collapsing every Japanese
+    // character to '?' (irreversible). The raw-body path lets the agent write the
+    // markdown to a UTF-8 temp file and `curl --data-binary @file`, bypassing shell
+    // string encoding entirely. See prompt-builder.ts for the agent-facing steps.
+    let content: string;
+    let fileLanguage: 'ja' | 'en' = 'ja';
+    if (typeof body === 'string') {
+      content = body;
+    } else {
+      const parsedBody = body as { content?: string; language?: 'ja' | 'en' };
+      if (parsedBody?.content === undefined || parsedBody?.content === null) {
+        throw new ValidationError('content is required');
+      }
+      content = parsedBody.content;
+      fileLanguage = parsedBody.language === 'en' ? 'en' : 'ja';
     }
-    const fileLanguage = (parsedBody?.language === 'en' ? 'en' : 'ja') as 'ja' | 'en';
+
+    // Reject irreversible UTF-8 → '?' replacement mojibake. The original bytes are
+    // gone, so there is nothing to "sanitise" — saving it would silently persist
+    // garbage. Fail the save and tell the agent to re-send as UTF-8 (the
+    // detect → make-it-fix step).
+    const loss = detectReplacementLoss(content);
+    if (loss.detected) {
+      log.warn(
+        { taskId, fileType, runs: loss.runs, count: loss.count, longest: loss.longest },
+        "[Workflow] Rejected workflow file save: '?'-replacement mojibake detected",
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'mojibake_rejected',
+        phase: fileType,
+        metadata: { runs: loss.runs, count: loss.count, longest: loss.longest },
+        invariantViolation: true,
+        invariantMessage: `${fileType}.md rejected: non-ASCII text was replaced by '?' (encoding loss)`,
+      });
+      set.status = 422;
+      return {
+        error:
+          `保存内容が文字化けしています（日本語が '?' に置換され復元不可）。UTF-8 で再送信してください。` +
+          `Windows では PowerShell のパイプ/インライン文字列で curl に渡さないでください（既定の US-ASCII で '?' に潰れます）。` +
+          `内容を一時ファイルに UTF-8 で書き出し、'curl.exe -X PUT <url> --data-binary @<file>.md -H "Content-Type: text/markdown; charset=utf-8"' で送ってください。`,
+        mojibake: { runs: loss.runs, count: loss.count, longest: loss.longest },
+      };
+    }
 
     // Delegate to writeWorkflowFile so the previous version is archived to
     // `_archive/<ts>/` and a `WorkflowFile` metadata row is upserted. Mojibake
     // sanitisation runs inside writeWorkflowFile.
-    const savedContent = await writeWorkflowFile(dir, fileType, parsedBody.content, taskId);
+    const savedContent = await writeWorkflowFile(dir, fileType, content, taskId);
 
     // Auto-update workflowStatus
     let newStatus: string | undefined;
@@ -290,7 +336,7 @@ export async function handleSaveFile({
       try {
         const { analyzePlanForSplitting, createSubtasksFromPlan } =
           await import('../../../services/workflow/subtask-splitter');
-        const analysis = analyzePlanForSplitting(parsedBody.content);
+        const analysis = analyzePlanForSplitting(content);
         if (analysis.shouldSplit) {
           log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
           // Load research.md for context inheritance
