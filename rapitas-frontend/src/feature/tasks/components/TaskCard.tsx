@@ -65,7 +65,7 @@ const TaskCard = memo(function TaskCard({
           : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900`
       } ${
         !isSelected
-          ? 'hover:border-zinc-400 dark:hover:border-zinc-500'
+          ? 'hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30'
           : ''
       } ${
         tc.executionClasses?.borderColor === 'blue'
