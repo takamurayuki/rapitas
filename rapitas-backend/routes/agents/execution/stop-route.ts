@@ -78,7 +78,17 @@ export const stopRoute = new Elysia().post(
             include: { session: { select: { id: true, worktreePath: true } } },
           });
 
-          const stopped = await orchestrator.stopExecution(runningExecution.id).catch(() => false);
+          // The agent runs INSIDE the worker process — only the worker holds the
+          // spawned CLI handle and can taskkill it. The main-process orchestrator
+          // has no record of a worker-run execution, so route the stop through the
+          // worker first (this previously hit only the main orchestrator, leaving
+          // the CLI running while the DB was marked cancelled).
+          const workerStopped = await agentWorkerManager
+            .stopExecution(runningExecution.id)
+            .catch(() => false);
+          const stopped =
+            workerStopped ||
+            (await orchestrator.stopExecution(runningExecution.id).catch(() => false));
 
           try {
             await prisma.agentExecutionLog.deleteMany({
@@ -177,6 +187,9 @@ export const stopRoute = new Elysia().post(
 
       for (const execution of pendingExecutions) {
         try {
+          // Worker first — it owns the spawned CLI process; the main orchestrator
+          // cannot kill a worker-run execution.
+          await agentWorkerManager.stopExecution(execution.id).catch(() => false);
           await orchestrator.stopExecution(execution.id).catch(() => false);
           await prisma.agentExecutionLog.deleteMany({
             where: { executionId: execution.id },
