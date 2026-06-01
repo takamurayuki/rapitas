@@ -61,11 +61,11 @@ const TaskCard = memo(function TaskCard({
       onMouseEnter={tc.handleMouseEnter}
       className={`group relative z-0 w-full min-w-0 rounded-lg border-l-4 border-t border-r border-b transition-all duration-300 ease-out hover:duration-200 ${
         isSelected
-          ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600 shadow-lg shadow-purple-200/50 dark:shadow-purple-900/50'
+          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-400 dark:border-indigo-600 ring-1 ring-indigo-500/40 dark:ring-indigo-400/40'
           : `${tc.cardBorderColor} border-zinc-200 dark:border-zinc-800 ${tc.currentStatus.bgColor} dark:bg-indigo-dark-900`
       } ${
         !isSelected
-          ? 'hover:shadow-xl hover:scale-[1.02] hover:-translate-y-0.5 hover:border-opacity-80 dark:hover:shadow-2xl dark:hover:shadow-black/30'
+          ? 'hover:border-zinc-400 dark:hover:border-zinc-500'
           : ''
       } ${
         tc.executionClasses?.borderColor === 'blue'

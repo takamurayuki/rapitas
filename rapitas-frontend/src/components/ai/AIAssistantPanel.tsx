@@ -41,7 +41,7 @@ const ChatMessage = ({ message }: { message: AIChatMessage }) => {
       <div
         className={`max-w-[70%] rounded-2xl px-4 py-3 ${
           isUser
-            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-br-md'
+            ? 'bg-indigo-600 dark:bg-indigo-500 text-white rounded-br-md'
             : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-bl-md shadow-md'
         }`}
       >
@@ -146,7 +146,7 @@ export default function AIAssistantPanel() {
         <div className="bg-white dark:bg-zinc-800 rounded-t-2xl border border-zinc-200 dark:border-zinc-700 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
+              <div className="p-2 bg-indigo-600 dark:bg-indigo-500 rounded-md">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -222,7 +222,7 @@ export default function AIAssistantPanel() {
                           disabled={!isConfigured}
                           className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                             isSelected
-                              ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md'
+                              ? 'bg-indigo-600 dark:bg-indigo-500 text-white shadow-sm'
                               : isConfigured
                                 ? 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-300 dark:border-zinc-600'
                                 : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 cursor-not-allowed'
@@ -360,7 +360,7 @@ export default function AIAssistantPanel() {
             <button
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isLoading}
-              className="px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-zinc-300 disabled:to-zinc-300 dark:disabled:from-zinc-700 dark:disabled:to-zinc-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

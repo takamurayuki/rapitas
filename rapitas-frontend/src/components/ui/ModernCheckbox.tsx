@@ -32,11 +32,11 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
         border-2 border-slate-300 dark:border-slate-600
         bg-white dark:bg-slate-900
         transition-all duration-300 ease-out
-        hover:border-purple-400 dark:hover:border-purple-500
-        hover:shadow-[0_0_0_3px_rgba(168,85,247,0.1)] dark:hover:shadow-[0_0_0_3px_rgba(168,85,247,0.2)]
+        hover:border-indigo-400 dark:hover:border-indigo-500
+        hover:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] dark:hover:shadow-[0_0_0_3px_rgba(99,102,241,0.2)]
         hover:scale-110
-        focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:ring-offset-0
-        ${checked ? 'border-purple-500 dark:border-purple-400 bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-400 dark:to-purple-500' : ''}
+        focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0
+        ${checked ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-600 dark:bg-indigo-500' : ''}
         ${className}
       `}
     >
@@ -77,7 +77,7 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
       <span
         className={`
           absolute inset-0 rounded-lg
-          ${checked ? 'bg-purple-600/20' : 'bg-purple-500/10'}
+          ${checked ? 'bg-indigo-600/20' : 'bg-indigo-500/10'}
           opacity-0 hover:opacity-100
           transition-opacity duration-300
           pointer-events-none
