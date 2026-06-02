@@ -44,13 +44,15 @@ type WorkflowStatus =
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
 // NOTE: Research is mandatory across ALL workflow modes. The read-only
-// research pipeline runs as the first step regardless of complexity, then:
-//   - lightweight skips plan/review and goes straight to implementation
-//   - standard adds plan + review
-//   - comprehensive matches standard at this point (kept distinct for
-//     future divergence in scope / depth)
+// research pipeline runs first regardless of complexity. The three modes then
+// genuinely diverge by ceremony (each tier = a DIFFERENT set of phases):
+//   - lightweight (低): research → implement → auto-verify  (no plan, no review)
+//   - standard    (中): research → plan → implement → verify (plan, no review)
+//   - comprehensive(高): research → plan → review → implement → verify (full)
+// Previously standard and comprehensive were identical (review in both), so the
+// 3-tier complexity score only produced 2 distinct behaviours.
 
-// Comprehensive mode - 5-step workflow (research → plan → review → impl → verify)
+// Comprehensive mode (高) - full 5-phase: research → plan → review → impl → verify
 const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
@@ -59,11 +61,12 @@ const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };
 
-// Standard mode - 5-step (research now mandatory)
+// Standard mode (中) - 4-phase: research → plan → implement → verify (NO review).
+// The separate plan-review pass is reserved for comprehensive; standard plans
+// then goes straight to approval/implementation.
 const STANDARD_MODE: Record<string, RoleTransition> = {
   draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
   research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
-  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
   plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
   in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
 };

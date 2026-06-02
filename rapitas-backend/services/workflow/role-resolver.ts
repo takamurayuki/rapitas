@@ -52,8 +52,9 @@ type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
  *
  * NOTE: Research is mandatory across ALL modes — the read-only research
  * pipeline (codex with --sandbox=read-only, stdout → research.md) runs
- * regardless of complexity. lightweight skips plan/review; standard adds
- * them back. This mirrors the frontend's getWorkflowTabs / getStatusToNextRole.
+ * regardless of complexity. Tiers diverge by ceremony: lightweight skips
+ * plan + review; standard adds plan (no review); comprehensive adds the
+ * plan-review pass too. Mirrors getWorkflowTabs / getStatusToNextRole (FE).
  */
 const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, WorkflowRole>>> = {
   comprehensive: {
@@ -63,10 +64,12 @@ const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, Workfl
     plan_approved: 'implementer',
     in_progress: 'verifier',
   },
+  // Standard (中) skips the separate plan-review pass — plan goes straight to
+  // approval/implementation. Keep in sync with STANDARD_MODE in
+  // workflow-orchestrator.ts.
   standard: {
     draft: 'researcher',
     research_done: 'planner',
-    plan_created: 'reviewer',
     plan_approved: 'implementer',
     in_progress: 'verifier',
   },
