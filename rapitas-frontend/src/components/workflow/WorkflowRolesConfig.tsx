@@ -13,10 +13,14 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
-import { Toggle } from '@/components/ui/Toggle';
 import { createLogger } from '@/lib/logger';
 import { WorkflowRoleCard } from './WorkflowRoleCard';
-import { ROLE_CONFIG, type ModelOption, type SystemPrompt } from './workflow-role-constants';
+import {
+  ROLE_CONFIG,
+  type ModelOption,
+  type SystemPrompt,
+  type RoleConfigItem,
+} from './workflow-role-constants';
 
 const logger = createLogger('WorkflowRolesConfig');
 
@@ -49,6 +53,33 @@ function rolesForMode(s: ModeSettings): WorkflowRole[] {
   r.push('implementer');
   r.push(s.autoVerify ? 'auto_verifier' : 'verifier');
   return r;
+}
+
+/**
+ * Adapt a role's input/description to the active tier. The implementer and the
+ * verifier consume different artifacts depending on which phases the tier runs
+ * (e.g. lightweight has no plan.md — the implementer works from research.md and
+ * outputs code; the verifier checks the diff against research, not a plan).
+ *
+ * @param roleKey - The role being rendered. / 対象ロール
+ * @param s - The active tier's settings. / ティア設定
+ * @returns A (possibly overridden) role config for display. / 表示用ロール設定
+ */
+function roleConfigForMode(roleKey: WorkflowRole, s: ModeSettings): RoleConfigItem {
+  const base = ROLE_CONFIG[roleKey];
+  if (roleKey === 'implementer') {
+    if (!s.includePlan) {
+      return { ...base, inputLabel: 'research.md', description: '調査結果を基にコードを実装' };
+    }
+    if (!s.includeReview) {
+      return { ...base, inputLabel: 'plan.md', description: '承認された計画に従いコードを実装' };
+    }
+    return base; // plan + review → default input 'plan.md + question.md'
+  }
+  if ((roleKey === 'verifier' || roleKey === 'auto_verifier') && !s.includePlan) {
+    return { ...base, inputLabel: 'research.md + diff' };
+  }
+  return base;
 }
 
 interface WorkflowRolesConfigProps {
@@ -226,7 +257,6 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                   : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
               }`}
             >
-              <span className="mr-1 text-xs opacity-70">{meta.tier}</span>
               {meta.label}
             </button>
           );
@@ -235,56 +265,19 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
 
       {activeMode && (
         <>
-          {/* Mode settings for the active tier */}
+          {/* Mode settings for the active tier — complexity range only.
+              The phase composition per tier is fixed (shown by the role cards
+              below); only the complexity range that selects this tier is set here. */}
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                <span className="font-semibold">
-                  複雑度 {MODE_META[activeTab].tier}（{MODE_META[activeTab].label}）
-                </span>
-                <span className="ml-2 text-[11px] text-zinc-400">{MODE_META[activeTab].desc}</span>
-                {savingMode === activeTab && (
-                  <span className="ml-2 text-[10px] text-zinc-400">保存中...</span>
-                )}
-              </div>
-              <Toggle
-                checked={activeMode.isEnabled}
-                onChange={(v) => saveMode(activeTab, { isEnabled: v })}
-                srLabel="このモードを有効化"
-                color="green"
-              />
+            <div className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
+              <span className="font-semibold">{MODE_META[activeTab].label}</span>
+              <span className="ml-2 text-[11px] text-zinc-400">{MODE_META[activeTab].desc}</span>
+              {savingMode === activeTab && (
+                <span className="ml-2 text-[10px] text-zinc-400">保存中...</span>
+              )}
             </div>
-
-            <div className="grid gap-2 sm:grid-cols-3 mb-3">
-              <Toggle
-                checked={activeMode.includePlan}
-                onChange={(v) =>
-                  saveMode(
-                    activeTab,
-                    v ? { includePlan: true } : { includePlan: false, includeReview: false },
-                  )
-                }
-                label="計画フェーズ"
-                size="sm"
-              />
-              <Toggle
-                checked={activeMode.includeReview}
-                onChange={(v) => saveMode(activeTab, { includeReview: v })}
-                label="レビューフェーズ"
-                description={!activeMode.includePlan ? '計画フェーズが必要' : undefined}
-                disabled={!activeMode.includePlan}
-                size="sm"
-              />
-              <Toggle
-                checked={activeMode.autoVerify}
-                onChange={(v) => saveMode(activeTab, { autoVerify: v })}
-                label="自動検証"
-                size="sm"
-              />
-            </div>
-
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-              <span>複雑度範囲</span>
+              <span>このワークフローを適用する複雑度範囲</span>
               <input
                 type="number"
                 min={0}
@@ -317,7 +310,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 key={roleKey}
                 roleKey={roleKey}
                 index={index}
-                config={ROLE_CONFIG[roleKey]}
+                config={roleConfigForMode(roleKey, activeMode)}
                 roleData={roles.find((r) => r.role === roleKey)}
                 models={getModelsForRole(roleKey)}
                 systemPrompts={systemPrompts}
