@@ -230,17 +230,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       }
     }
 
-    // Subtask completion: check if all siblings are done → generate parent verify.md
-    if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
-      import('../workflow/subtask-completion-handler')
-        .then(({ onSubtaskCompleted }) => {
-          onSubtaskCompleted(taskId).catch((err) => {
-            logger.warn({ err, taskId }, 'Failed to handle subtask completion');
-          });
-        })
-        .catch(() => {});
-    }
-
     if (
       fields.title ||
       fields.description !== undefined ||
@@ -260,6 +249,22 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         },
       });
     }
+  }
+
+  // Subtask completion: when a SUBTASK (has parentId) is marked done via the
+  // task API, check whether all siblings are done and finalize the parent.
+  // NOTE: this MUST live outside the `!currentTask?.parentId` (parent-only)
+  // block above — it was previously nested inside it with a contradictory
+  // `currentTask?.parentId` guard, making it dead code that never ran, so a
+  // split parent was never driven to completion after its subtasks finished.
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+    import('../workflow/subtask-completion-handler')
+      .then(({ onSubtaskCompleted }) => {
+        onSubtaskCompleted(taskId).catch((err) => {
+          logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+        });
+      })
+      .catch(() => {});
   }
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.

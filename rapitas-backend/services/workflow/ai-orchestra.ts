@@ -463,6 +463,27 @@ export class AIOrchestra {
       orderBy: { id: 'asc' },
       select: { id: true },
     });
+
+    // The parent never implements directly — its subtasks do. Move it to
+    // `in_progress` so (a) the UI shows it actively running its subtasks
+    // instead of being stuck at plan_approved, and (b) the workflow file
+    // guard later accepts the parent's integration verify.md (which is
+    // rejected at plan_approved). Without this the parent was orphaned at
+    // plan_approved and never completed after its subtasks finished.
+    if (subtasks.length > 0) {
+      await prisma.task
+        .update({
+          where: { id: parentTaskId },
+          data: { workflowStatus: 'in_progress', status: 'in-progress' },
+        })
+        .catch((err) => {
+          log.warn(
+            { err, parentTaskId },
+            '[AIOrchestra] Failed to move split parent to in_progress before enqueue',
+          );
+        });
+    }
+
     let enqueued = 0;
     for (const st of subtasks) {
       try {

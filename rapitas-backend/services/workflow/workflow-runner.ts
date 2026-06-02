@@ -176,6 +176,21 @@ export class WorkflowRunner {
             result: JSON.stringify({ completedAt: new Date().toISOString() }),
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
+
+          // Propagate completion to the parent when this was a subtask. The
+          // subtask reaches its terminal state here (queue-driven), not via the
+          // task API, so this is the path that must notify the parent. The
+          // handler no-ops for non-subtasks (parentId === null).
+          if (task.parentId) {
+            const { onSubtaskCompleted } = await import('./subtask-completion-handler');
+            onSubtaskCompleted(item.taskId).catch((err) => {
+              log.warn(
+                { err, taskId: item.taskId, parentId: task.parentId },
+                '[WorkflowRunner] Failed to propagate subtask completion to parent',
+              );
+            });
+          }
+
           continueLoop = false;
           break;
         }
@@ -243,8 +258,15 @@ export class WorkflowRunner {
         const result = await Promise.race([executionPromise, timeoutPromise]);
 
         if (!result.success) {
-          // Check if retry is possible
-          const retried = await this.queue.retryIfPossible(item.id);
+          // Surface WHY the phase failed. This used to be swallowed — only the
+          // generic "Max retries (3) exceeded" surfaced — which hid root causes
+          // like "role has no agent assigned" behind a silent retry loop.
+          log.warn(
+            { taskId: item.taskId, phase: currentStatus, role: result.role, error: result.error },
+            `[WorkflowRunner] Phase failed for task ${item.taskId}: ${result.error ?? 'unknown error'}`,
+          );
+          // Persist the reason on the queue item so it is visible after retries.
+          const retried = await this.queue.retryIfPossible(item.id, result.error ?? undefined);
           if (!retried) {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
           } else {
@@ -283,7 +305,7 @@ export class WorkflowRunner {
       log.error(`[WorkflowRunner] Execution error for task ${item.taskId}: ${errorMsg}`);
 
       try {
-        const retried = await this.queue.retryIfPossible(item.id);
+        const retried = await this.queue.retryIfPossible(item.id, errorMsg);
         if (!retried) {
           await this.queue.updateStatus(item.id, 'failed', { errorMessage: errorMsg });
         }

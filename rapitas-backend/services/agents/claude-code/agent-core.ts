@@ -190,7 +190,16 @@ export class ClaudeCodeAgent extends BaseAgent {
             where: { id: taskId },
             select: { workflowStatus: true },
           });
-          return t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved';
+          if (t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved') {
+            return true;
+          }
+          // A plan that was split into subtasks delegates all implementation
+          // to those subtasks, so the parent's own run legitimately produces
+          // no code — and by then it has already auto-advanced to in_progress.
+          // Without this, a split parent was reported as a "no code changes"
+          // failure even though splitting was the correct outcome.
+          const subtaskCount = await prisma.task.count({ where: { parentId: taskId } });
+          return subtaskCount > 0;
         } catch {
           return false;
         }

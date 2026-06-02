@@ -237,13 +237,17 @@ export class WorkflowQueueService {
   /**
    * Check if retry is possible and execute retry.
    */
-  async retryIfPossible(itemId: number): Promise<boolean> {
+  async retryIfPossible(itemId: number, reason?: string): Promise<boolean> {
     const item = await prisma.workflowQueueItem.findUnique({ where: { id: itemId } });
     if (!item) return false;
 
     if (item.retryCount >= item.maxRetries) {
+      // Preserve the underlying failure reason instead of masking every
+      // failure behind the generic "Max retries exceeded" message.
       await this.updateStatus(itemId, 'failed', {
-        errorMessage: `Max retries (${item.maxRetries}) exceeded`,
+        errorMessage: reason
+          ? `Max retries (${item.maxRetries}) exceeded — last error: ${reason}`
+          : `Max retries (${item.maxRetries}) exceeded`,
       });
       return false;
     }
@@ -254,7 +258,8 @@ export class WorkflowQueueService {
         status: 'queued',
         retryCount: item.retryCount + 1,
         startedAt: null,
-        errorMessage: null,
+        // Keep the latest failure reason visible while queued for the retry.
+        errorMessage: reason ?? null,
       },
     });
     log.info(`[WorkflowQueue] Retry ${item.retryCount + 1}/${item.maxRetries} for item ${itemId}`);
