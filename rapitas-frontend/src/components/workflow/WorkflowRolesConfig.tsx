@@ -243,6 +243,34 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
 
   const tabRoles = activeMode ? rolesForMode(activeMode) : [];
 
+  // Complexity partition is contiguous and derived from two editable
+  // boundaries: lightweight's END and comprehensive's START. Lightweight always
+  // starts at 0; comprehensive always ends at 100; standard fills the middle and
+  // is computed (display-only).
+  const lightMax = modes.find((m) => m.mode === 'lightweight')?.complexityMax ?? 35;
+  const compMin = modes.find((m) => m.mode === 'comprehensive')?.complexityMin ?? 71;
+  const stdMin = lightMax + 1;
+  const stdMax = compMin - 1;
+
+  /** Set lightweight's end (and standard's derived start). */
+  const setLightMax = (v: number) => {
+    const max = Math.max(0, Math.min(98, v));
+    saveMode('lightweight', { complexityMin: 0, complexityMax: max });
+    saveMode('standard', { complexityMin: max + 1 });
+  };
+  /** Set comprehensive's start (and standard's derived end). */
+  const setCompMin = (v: number) => {
+    const min = Math.max(1, Math.min(100, v));
+    saveMode('comprehensive', { complexityMin: min, complexityMax: 100 });
+    saveMode('standard', { complexityMax: min - 1 });
+  };
+
+  const readonlyBox = (val: number | string) => (
+    <span className="w-16 px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center text-zinc-500 dark:text-zinc-400">
+      {val}
+    </span>
+  );
+
   return (
     <div>
       {/* Complexity-tier tabs */}
@@ -281,25 +309,46 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
             </div>
             <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
               <span>このワークフローを適用する複雑度範囲</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={activeMode.complexityMin}
-                onChange={(e) => saveMode(activeTab, { complexityMin: Number(e.target.value) })}
-                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                aria-label="複雑度下限"
-              />
-              <span>〜</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={activeMode.complexityMax}
-                onChange={(e) => saveMode(activeTab, { complexityMax: Number(e.target.value) })}
-                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
-                aria-label="複雑度上限"
-              />
+              {activeTab === 'lightweight' && (
+                <>
+                  {readonlyBox(0)}
+                  <span>〜</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={98}
+                    value={activeMode.complexityMax}
+                    onChange={(e) => setLightMax(Number(e.target.value))}
+                    className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
+                    aria-label="軽量の複雑度上限"
+                  />
+                </>
+              )}
+              {activeTab === 'standard' && (
+                <>
+                  {readonlyBox(stdMin)}
+                  <span>〜</span>
+                  {readonlyBox(stdMax)}
+                  <span className="text-zinc-400 dark:text-zinc-500">
+                    （軽量・詳細の設定から自動算出）
+                  </span>
+                </>
+              )}
+              {activeTab === 'comprehensive' && (
+                <>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={activeMode.complexityMin}
+                    onChange={(e) => setCompMin(Number(e.target.value))}
+                    className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
+                    aria-label="詳細の複雑度下限"
+                  />
+                  <span>〜</span>
+                  {readonlyBox(100)}
+                </>
+              )}
             </div>
           </div>
 
