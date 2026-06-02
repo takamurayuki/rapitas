@@ -253,11 +253,34 @@ export async function enrichIdea(
       return { kept: false };
     }
 
-    const tags = await getAndFilterTags(ideaId, ['actionability:', 'specificity:', 'impact:']);
+    // Map the enrichment signal to the idea's priority ("temperature"). Until
+    // now `impact` was only recorded as a tag, so every auto-extracted idea
+    // kept the submit-time default of `priority:medium`. Drive priority from
+    // impact, elevating an immediately-actionable high-impact idea to urgent.
+    const derivedPriority = deriveIdeaPriority(e.impact, actionability);
+
+    // Respect a user's explicitly chosen priority — only auto-derive for
+    // machine-extracted ideas (source !== 'user').
+    const entryMeta = await prisma.knowledgeEntry.findUnique({
+      where: { id: ideaId },
+      select: { sourceId: true, tags: true },
+    });
+    const existingTags = JSON.parse(entryMeta?.tags ?? '[]') as string[];
+    const existingPriority = existingTags
+      .find((t) => t.startsWith('priority:'))
+      ?.slice('priority:'.length);
+    const finalPriority =
+      entryMeta?.sourceId === 'user' && existingPriority ? existingPriority : derivedPriority;
+
+    const tags = existingTags.filter(
+      (t) =>
+        !['actionability:', 'specificity:', 'impact:', 'priority:'].some((p) => t.startsWith(p)),
+    );
     tags.push(
       `actionability:${actionability.toFixed(2)}`,
       `specificity:${specificity.toFixed(2)}`,
       `impact:${e.impact ?? 'medium'}`,
+      `priority:${finalPriority}`,
     );
 
     await prisma.knowledgeEntry.update({
@@ -389,6 +412,29 @@ async function callLLM(
 
 function clamp(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+/**
+ * Derive an idea's priority ("temperature") from the enrichment signal.
+ * `impact` is the primary driver; a high-impact idea that is also immediately
+ * actionable is elevated to `urgent`.
+ *
+ * @param impact - Enrichment impact estimate (low | medium | high). / 影響度
+ * @param actionability - 0..1 how readily it can be acted on. / 着手しやすさ
+ * @returns A valid IdeaBox priority string. / IdeaBox の優先度
+ */
+function deriveIdeaPriority(
+  impact: string | undefined,
+  actionability: number,
+): 'urgent' | 'high' | 'medium' | 'low' {
+  switch ((impact ?? 'medium').toLowerCase()) {
+    case 'high':
+      return actionability >= 0.8 ? 'urgent' : 'high';
+    case 'low':
+      return 'low';
+    default:
+      return 'medium';
+  }
 }
 
 /** Get existing tags and filter out prefixes that will be replaced. */
