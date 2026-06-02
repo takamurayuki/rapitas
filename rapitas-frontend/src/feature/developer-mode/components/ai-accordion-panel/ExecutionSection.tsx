@@ -74,9 +74,12 @@ export type ExecutionSectionProps = {
   optimizedPrompt?: string | null;
   instruction: string;
   branchName: string;
+  baseBranch: string;
+  baseBranches: string[];
   isGeneratingBranchName: boolean;
   onSetInstruction: (v: string) => void;
   onSetBranchName: (v: string) => void;
+  onSetBaseBranch: (v: string) => void;
   onGenerateBranchName: () => Promise<void>;
   // Action handlers
   onExecute: () => Promise<void>;
@@ -129,9 +132,12 @@ export function ExecutionSection({
   optimizedPrompt,
   instruction,
   branchName,
+  baseBranch,
+  baseBranches,
   isGeneratingBranchName,
   onSetInstruction,
   onSetBranchName,
+  onSetBaseBranch,
   onGenerateBranchName,
   onExecute,
   onStop,
@@ -358,9 +364,12 @@ export function ExecutionSection({
             optimizedPrompt={optimizedPrompt}
             instruction={instruction}
             branchName={branchName}
+            baseBranch={baseBranch}
+            baseBranches={baseBranches}
             isGeneratingBranchName={isGeneratingBranchName}
             onSetInstruction={onSetInstruction}
             onSetBranchName={onSetBranchName}
+            onSetBaseBranch={onSetBaseBranch}
             onGenerateBranchName={onGenerateBranchName}
           />
         </div>

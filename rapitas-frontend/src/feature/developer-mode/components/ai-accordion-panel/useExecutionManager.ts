@@ -48,6 +48,10 @@ export function useExecutionManager({
   const [instruction, setInstruction] = useState('');
   const [branchName, setBranchName] = useState('');
   const [isGeneratingBranchName, setIsGeneratingBranchName] = useState(false);
+  // Base branch the feature branch is cut from and the PR targets. Populated
+  // from the task's origin branches; defaults to the theme's default branch.
+  const [baseBranch, setBaseBranch] = useState('');
+  const [baseBranches, setBaseBranches] = useState<string[]>([]);
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -96,6 +100,27 @@ export function useExecutionManager({
     clearSseLogs();
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
+
+  // Load the selectable base branches (origin branches) for this task and
+  // pre-select the theme's default branch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/base-branches`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { branches?: string[]; defaultBranch?: string | null };
+        if (cancelled) return;
+        setBaseBranches(data.branches ?? []);
+        setBaseBranch((prev) => prev || data.defaultBranch || data.branches?.[0] || '');
+      } catch {
+        /* non-critical — the field falls back to the theme default server-side */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
 
   // Reset per-task state when the panel switches to a different task
   useEffect(() => {
@@ -266,6 +291,7 @@ export function useExecutionManager({
     const result = await onExecute({
       instruction: instruction.trim() || undefined,
       branchName: branchName.trim() || undefined,
+      baseBranch: baseBranch.trim() || undefined,
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
       agentConfigId: agentConfigId ?? undefined,
@@ -410,6 +436,9 @@ export function useExecutionManager({
     setInstruction,
     branchName,
     setBranchName,
+    baseBranch,
+    setBaseBranch,
+    baseBranches,
     isGeneratingBranchName,
     userResponse,
     setUserResponse,

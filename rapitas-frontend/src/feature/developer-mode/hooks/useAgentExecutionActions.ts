@@ -87,6 +87,7 @@ interface UseAgentExecutionActionsReturn {
   executeAgent: (options?: {
     instruction?: string;
     branchName?: string;
+    baseBranch?: string;
     workingDirectory?: string;
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
@@ -154,6 +155,7 @@ export function useAgentExecutionActions(
     async (options?: {
       instruction?: string;
       branchName?: string;
+      baseBranch?: string;
       workingDirectory?: string;
       useTaskAnalysis?: boolean;
       optimizedPrompt?: string;
