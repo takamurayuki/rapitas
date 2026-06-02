@@ -50,17 +50,30 @@ async function resolveAgentConfig(
     timeout: options.timeout,
     dangerouslySkipPermissions: true,
   };
-  let resolvedAgentConfigId = options.agentConfigId;
+  // Only a positive id can be a real AIAgentConfig FK. Synthetic/built-in ids
+  // (e.g. -1) and 0 must NOT be persisted as the FK — they'd violate the
+  // foreign key on agentExecution.create.
+  let resolvedAgentConfigId =
+    options.agentConfigId && options.agentConfigId > 0 ? options.agentConfigId : undefined;
 
-  if (options.agentConfigId) {
+  if (options.agentConfigId && options.agentConfigId > 0) {
     const dbConfig = await ctx.prisma.aIAgentConfig.findUnique({
       where: { id: options.agentConfigId },
     });
     if (dbConfig) {
       agentConfig = await ctx.buildAgentConfigFromDb(dbConfig, options);
       resolvedAgentConfigId = dbConfig.id;
+    } else {
+      // A since-deleted config id. Keep the built-in Claude Code agentConfig
+      // above and NULL the FK so agentExecution.create() doesn't blow up.
+      logger.warn(
+        `[TaskExecutor] agentConfigId ${options.agentConfigId} not found — falling back to built-in Claude Code (null FK)`,
+      );
+      resolvedAgentConfigId = undefined;
     }
   } else {
+    // No usable explicit id (unset, 0, or a synthetic/built-in negative id):
+    // prefer the DB default agent, else the built-in Claude Code with null FK.
     const defaultDbConfig = await ctx.prisma.aIAgentConfig.findFirst({
       where: { isDefault: true, isActive: true },
     });
@@ -71,7 +84,8 @@ async function resolveAgentConfig(
         `[TaskExecutor] Using default agent from DB: ${defaultDbConfig.name} (type: ${defaultDbConfig.agentType})`,
       );
     } else {
-      logger.info(`[TaskExecutor] No default agent in DB, falling back to Claude Code`);
+      logger.info(`[TaskExecutor] No default agent in DB, falling back to built-in Claude Code`);
+      resolvedAgentConfigId = undefined;
     }
   }
 

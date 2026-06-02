@@ -152,15 +152,8 @@ export class WorkflowOrchestrator {
       where: { role: transition.role },
       include: { agentConfig: true },
     });
-    if (!roleConfig || !roleConfig.agentConfigId || !roleConfig.agentConfig) {
-      return {
-        success: false,
-        role: transition.role,
-        status: currentStatus as WorkflowStatus,
-        error: `ロール "${transition.role}" にエージェントが割り当てられていません。エージェント管理ページで設定してください。`,
-      };
-    }
-    if (!roleConfig.isEnabled) {
+    // An explicitly DISABLED role is a deliberate stop — respect it.
+    if (roleConfig && !roleConfig.isEnabled) {
       return {
         success: false,
         role: transition.role,
@@ -168,10 +161,70 @@ export class WorkflowOrchestrator {
         error: `ロール "${transition.role}" は無効化されています`,
       };
     }
+    // Resolve the agent for this role. When WorkflowRoleConfig has no agent
+    // assigned, fall back to the capability-based recommender — the SAME path
+    // execute-route uses. Without this fallback, queue-driven tasks (e.g. split
+    // subtasks) hard-failed at the very first phase whenever the user had not
+    // manually wired every role in the agent-management page, exhausting all
+    // retries in ~30ms with no agent ever spawned.
+    let agentConfig: {
+      id: number;
+      agentType: string;
+      name: string;
+      modelId: string | null;
+      apiKeyEncrypted: string | null;
+      endpoint: string | null;
+    } | null = roleConfig?.agentConfig ?? null;
+    if (!agentConfig) {
+      const { recommendAgentForRole } = await import('./role-recommender');
+      const recommended = await recommendAgentForRole(transition.role).catch(() => null);
+      if (recommended?.agentConfigId) {
+        agentConfig = await prisma.aIAgentConfig
+          .findUnique({ where: { id: recommended.agentConfigId } })
+          .catch(() => null);
+      }
+      if (agentConfig) {
+        log.info(
+          { taskId, role: transition.role, agentId: agentConfig.id, agentName: agentConfig.name },
+          '[WorkflowOrchestrator] No agent assigned to role — using capability-recommended agent',
+        );
+      }
+    }
+    if (!agentConfig) {
+      // Last resort: the built-in Claude Code agent (id: -1). This is the SAME
+      // default execute-route uses, so a workflow can run even when the DB has
+      // zero AIAgentConfig rows and every role is unassigned. The execution
+      // layer (task-executor) maps the unknown id back to the built-in and
+      // nulls the agentConfig FK so AgentExecution creation does not fail.
+      const { getDefaultAgent } = await import('../agent-config/defaults');
+      const builtIn = await getDefaultAgent().catch(() => null);
+      if (builtIn) {
+        agentConfig = {
+          id: builtIn.id,
+          agentType: builtIn.agentType,
+          name: builtIn.name,
+          modelId: builtIn.modelId ?? null,
+          apiKeyEncrypted: builtIn.apiKeyEncrypted ?? null,
+          endpoint: builtIn.endpoint ?? null,
+        };
+        log.info(
+          { taskId, role: transition.role, agentName: agentConfig.name },
+          '[WorkflowOrchestrator] No assigned/recommended agent — using built-in default agent',
+        );
+      }
+    }
+    if (!agentConfig) {
+      return {
+        success: false,
+        role: transition.role,
+        status: currentStatus as WorkflowStatus,
+        error: `ロール "${transition.role}" にエージェントが割り当てられていません。エージェント管理ページで設定してください。`,
+      };
+    }
 
     // Get system prompt
     let systemPromptContent = '';
-    if (roleConfig.systemPromptKey) {
+    if (roleConfig?.systemPromptKey) {
       const sp = await prisma.systemPrompt.findUnique({
         where: { key: roleConfig.systemPromptKey },
       });
@@ -217,9 +270,9 @@ export class WorkflowOrchestrator {
       language,
     );
 
-    const agentConfig = roleConfig.agentConfig;
+    // agentConfig is resolved above (role assignment or capability fallback).
     // Model resolution: role override → agent default → smart auto-select
-    const roleModelId = (roleConfig as { modelId?: string | null }).modelId;
+    const roleModelId = (roleConfig as { modelId?: string | null } | null)?.modelId ?? null;
     let effectiveModelId = roleModelId || agentConfig.modelId;
 
     // Auto-select: when modelId is 'auto' or unset, use Smart Model Router.
