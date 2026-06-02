@@ -7,7 +7,6 @@ import { Activity, Brain } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
-import WorkflowModesConfig from '@/components/workflow/WorkflowModesConfig';
 import { GlobalProviderPreference } from './_components/GlobalProviderPreference';
 import { SkipPermissionToggle } from './_components/SkipPermissionToggle';
 import { createLogger } from '@/lib/logger';
@@ -174,22 +173,6 @@ export default function AgentsPage() {
             </div>
             <div className="p-6">
               <WorkflowRolesConfig agents={agents} availableModels={availableModels} />
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <div className="bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                ワークフローモード設定
-              </h2>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                複雑度に応じて適用するワークフロー（フェーズ構成・複雑度範囲）を編集します。
-              </p>
-            </div>
-            <div className="p-6">
-              <WorkflowModesConfig />
             </div>
           </div>
         </div>

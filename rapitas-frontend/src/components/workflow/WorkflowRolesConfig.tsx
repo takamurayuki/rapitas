@@ -3,25 +3,53 @@
 /**
  * WorkflowRolesConfig
  *
- * Configuration panel for workflow roles: researcher, planner, reviewer,
- * implementer, and verifier. Each role can be configured with an AI agent,
- * model, and system prompt, or set to auto-select mode.
+ * Unified workflow configuration, organised by complexity tier (低/中/高) as
+ * tabs. Each tab shows that tier's workflow-mode settings (which phases run +
+ * the complexity range) and the agent/model configuration for ONLY the roles
+ * that tier actually uses. Replaces the separate roles + modes panels.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import type { AIAgentConfig, WorkflowRole } from '@/types';
 import { useWorkflowRoles } from '@/hooks/workflow/useWorkflowRoles';
 import { API_BASE_URL } from '@/utils/api';
+import { Toggle } from '@/components/ui/Toggle';
 import { createLogger } from '@/lib/logger';
 import { WorkflowRoleCard } from './WorkflowRoleCard';
-import {
-  ROLE_CONFIG,
-  ROLE_ORDER,
-  type ModelOption,
-  type SystemPrompt,
-} from './workflow-role-constants';
+import { ROLE_CONFIG, type ModelOption, type SystemPrompt } from './workflow-role-constants';
 
 const logger = createLogger('WorkflowRolesConfig');
+
+type ModeKey = 'lightweight' | 'standard' | 'comprehensive';
+
+interface ModeSettings {
+  mode: ModeKey;
+  includePlan: boolean;
+  includeReview: boolean;
+  autoVerify: boolean;
+  complexityMin: number;
+  complexityMax: number;
+  isEnabled: boolean;
+}
+
+const MODE_ORDER: ModeKey[] = ['lightweight', 'standard', 'comprehensive'];
+const MODE_META: Record<ModeKey, { label: string; tier: string; desc: string }> = {
+  lightweight: { label: '軽量', tier: '低', desc: 'バグ修正・UI調整・軽微な変更' },
+  standard: { label: '標準', tier: '中', desc: '中規模の機能追加・リファクタリング' },
+  comprehensive: { label: '詳細', tier: '高', desc: '大規模機能・アーキテクチャ変更' },
+};
+
+/** Roles a mode runs, in execution order, derived from its phase toggles. */
+function rolesForMode(s: ModeSettings): WorkflowRole[] {
+  const r: WorkflowRole[] = ['researcher'];
+  if (s.includePlan) {
+    r.push('planner');
+    if (s.includeReview) r.push('reviewer');
+  }
+  r.push('implementer');
+  r.push(s.autoVerify ? 'auto_verifier' : 'verifier');
+  return r;
+}
 
 interface WorkflowRolesConfigProps {
   agents: AIAgentConfig[];
@@ -35,14 +63,15 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
   const [saveSuccess, setSaveSuccess] = useState<WorkflowRole | null>(null);
   const [expandedRole, setExpandedRole] = useState<WorkflowRole | null>(null);
 
+  const [modes, setModes] = useState<ModeSettings[]>([]);
+  const [activeTab, setActiveTab] = useState<ModeKey>('standard');
+  const [savingMode, setSavingMode] = useState<ModeKey | null>(null);
+
   useEffect(() => {
     const fetchPrompts = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/system-prompts?category=workflow`);
-        if (res.ok) {
-          const data = await res.json();
-          setSystemPrompts(data);
-        }
+        if (res.ok) setSystemPrompts(await res.json());
       } catch (err) {
         logger.error('Failed to fetch system prompts:', err);
       }
@@ -50,7 +79,42 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
     fetchPrompts();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/workflow-modes`);
+        if (res.ok) {
+          const data = await res.json();
+          setModes(data.modes ?? []);
+        }
+      } catch (err) {
+        logger.error('Failed to fetch workflow modes:', err);
+      }
+    })();
+  }, []);
+
   const activeAgents = useMemo(() => agents.filter((a) => a.isActive), [agents]);
+  const activeMode = modes.find((m) => m.mode === activeTab);
+
+  const saveMode = useCallback(async (mode: ModeKey, patch: Partial<ModeSettings>) => {
+    setSavingMode(mode);
+    setModes((prev) => prev.map((m) => (m.mode === mode ? { ...m, ...patch } : m)));
+    try {
+      const res = await fetch(`${API_BASE_URL}/workflow-modes/${mode}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mode) setModes((prev) => prev.map((m) => (m.mode === mode ? data.mode : m)));
+      }
+    } catch (err) {
+      logger.error('Failed to save workflow mode:', err);
+    } finally {
+      setSavingMode(null);
+    }
+  }, []);
 
   const handleAgentChange = async (role: WorkflowRole, agentConfigId: number | null) => {
     setSavingRole(role);
@@ -143,37 +207,137 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
     );
   }
 
-  return (
-    <div className="space-y-0">
-      {ROLE_ORDER.map((roleKey, index) => {
-        const config = ROLE_CONFIG[roleKey];
-        const roleData = roles.find((r) => r.role === roleKey);
-        const models = getModelsForRole(roleKey);
+  const tabRoles = activeMode ? rolesForMode(activeMode) : [];
 
-        return (
-          <WorkflowRoleCard
-            key={roleKey}
-            roleKey={roleKey}
-            index={index}
-            config={config}
-            roleData={roleData}
-            models={models}
-            systemPrompts={systemPrompts}
-            activeAgents={activeAgents}
-            availableModels={availableModels}
-            isSaving={savingRole === roleKey}
-            isSaved={saveSuccess === roleKey}
-            isExpanded={expandedRole === roleKey}
-            onToggleExpand={() => setExpandedRole(expandedRole === roleKey ? null : roleKey)}
-            onAgentChange={(id) => handleAgentChange(roleKey, id)}
-            onModelChange={(id) => handleModelChange(roleKey, id)}
-            onPreferredProviderChange={(p) => handlePreferredProviderChange(roleKey, p)}
-            onPromptChange={(k) => handlePromptChange(roleKey, k)}
-            onToggleEnabled={(e) => handleToggleEnabled(roleKey, e)}
-            onManualSetup={(aid, mid) => handleManualSetup(roleKey, aid, mid)}
-          />
-        );
-      })}
+  return (
+    <div>
+      {/* Complexity-tier tabs */}
+      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-4">
+        {MODE_ORDER.map((mode) => {
+          const meta = MODE_META[mode];
+          const isActive = activeTab === mode;
+          return (
+            <button
+              key={mode}
+              onClick={() => setActiveTab(mode)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                isActive
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              <span className="mr-1 text-xs opacity-70">{meta.tier}</span>
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeMode && (
+        <>
+          {/* Mode settings for the active tier */}
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                <span className="font-semibold">
+                  複雑度 {MODE_META[activeTab].tier}（{MODE_META[activeTab].label}）
+                </span>
+                <span className="ml-2 text-[11px] text-zinc-400">{MODE_META[activeTab].desc}</span>
+                {savingMode === activeTab && (
+                  <span className="ml-2 text-[10px] text-zinc-400">保存中...</span>
+                )}
+              </div>
+              <Toggle
+                checked={activeMode.isEnabled}
+                onChange={(v) => saveMode(activeTab, { isEnabled: v })}
+                srLabel="このモードを有効化"
+                color="green"
+              />
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-3 mb-3">
+              <Toggle
+                checked={activeMode.includePlan}
+                onChange={(v) =>
+                  saveMode(
+                    activeTab,
+                    v ? { includePlan: true } : { includePlan: false, includeReview: false },
+                  )
+                }
+                label="計画フェーズ"
+                size="sm"
+              />
+              <Toggle
+                checked={activeMode.includeReview}
+                onChange={(v) => saveMode(activeTab, { includeReview: v })}
+                label="レビューフェーズ"
+                description={!activeMode.includePlan ? '計画フェーズが必要' : undefined}
+                disabled={!activeMode.includePlan}
+                size="sm"
+              />
+              <Toggle
+                checked={activeMode.autoVerify}
+                onChange={(v) => saveMode(activeTab, { autoVerify: v })}
+                label="自動検証"
+                size="sm"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+              <span>複雑度範囲</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={activeMode.complexityMin}
+                onChange={(e) => saveMode(activeTab, { complexityMin: Number(e.target.value) })}
+                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
+                aria-label="複雑度下限"
+              />
+              <span>〜</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={activeMode.complexityMax}
+                onChange={(e) => saveMode(activeTab, { complexityMax: Number(e.target.value) })}
+                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-center"
+                aria-label="複雑度上限"
+              />
+            </div>
+          </div>
+
+          {/* Roles used by this tier (in execution order) */}
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
+            このティアで実行するロール（{tabRoles.length}フェーズ）
+          </p>
+          <div className="space-y-0">
+            {tabRoles.map((roleKey, index) => (
+              <WorkflowRoleCard
+                key={roleKey}
+                roleKey={roleKey}
+                index={index}
+                config={ROLE_CONFIG[roleKey]}
+                roleData={roles.find((r) => r.role === roleKey)}
+                models={getModelsForRole(roleKey)}
+                systemPrompts={systemPrompts}
+                activeAgents={activeAgents}
+                availableModels={availableModels}
+                isSaving={savingRole === roleKey}
+                isSaved={saveSuccess === roleKey}
+                isExpanded={expandedRole === roleKey}
+                onToggleExpand={() => setExpandedRole(expandedRole === roleKey ? null : roleKey)}
+                onAgentChange={(id) => handleAgentChange(roleKey, id)}
+                onModelChange={(id) => handleModelChange(roleKey, id)}
+                onPreferredProviderChange={(p) => handlePreferredProviderChange(roleKey, p)}
+                onPromptChange={(k) => handlePromptChange(roleKey, k)}
+                onToggleEnabled={(e) => handleToggleEnabled(roleKey, e)}
+                onManualSetup={(aid, mid) => handleManualSetup(roleKey, aid, mid)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
