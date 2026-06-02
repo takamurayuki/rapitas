@@ -29,20 +29,33 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
       }}
       className={`
         relative w-6 h-6 rounded-lg
-        border-2 border-slate-300 dark:border-slate-600
-        bg-white dark:bg-slate-900
+        border-2
         transition-all duration-300 ease-out
         hover:border-indigo-400 dark:hover:border-indigo-500
         hover:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] dark:hover:shadow-[0_0_0_3px_rgba(99,102,241,0.2)]
         hover:scale-110
         focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-0
-        ${checked ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-600 dark:bg-indigo-500' : ''}
+        ${
+          checked
+            ? // Light indigo fill + indigo border. The check itself is indigo
+              // (not white) so it stays visible against the light/white card.
+              // Background is fully conditional to avoid a bg-white vs bg-indigo
+              // Tailwind conflict that previously left the box white.
+              'border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900'
+        }
         ${className}
       `}
     >
-      <AnimatePresence>
+      {/* NOTE: keyed child + a statically-drawn check path. The previous version
+          animated `pathLength` from 0→1 inside an unkeyed AnimatePresence, which
+          could leave the stroke stuck at length 0 (invisible checkmark) when the
+          parent re-rendered — the checkbox then looked empty while checked. The
+          check is now always drawn when `checked`; only the container pops in. */}
+      <AnimatePresence initial={false}>
         {checked && (
           <motion.div
+            key="checkmark"
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
@@ -54,20 +67,13 @@ export const ModernCheckbox: React.FC<ModernCheckboxProps> = ({
             className="absolute inset-0 flex items-center justify-center"
           >
             <svg
-              className="w-3.5 h-3.5 text-white"
+              className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
               strokeWidth={3}
             >
-              <motion.path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </motion.div>
         )}
