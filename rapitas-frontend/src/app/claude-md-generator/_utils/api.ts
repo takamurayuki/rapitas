@@ -118,34 +118,3 @@ export async function generateClaudeMd(
   }
   return data;
 }
-
-/**
- * Fetches AI-generated suggestions for sub-genres or elements.
- *
- * @param type - suggestion category / 提案カテゴリ
- * @param genre - selected genre id / 選択済みジャンルID
- * @param subs - selected sub-genre ids (for elements suggestions) / 選択済みサブジャンルID一覧
- * @returns array of DynamicItem or null when the request fails / 失敗時はnull
- */
-export async function fetchSuggestions(
-  type: 'sub_genres' | 'elements',
-  genre: string,
-  subs?: string[],
-): Promise<DynamicItem[] | null> {
-  try {
-    const response = await fetch('/api/generate-suggestions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, genre, subs }),
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data.suggestions && data.suggestions.length > 0) {
-        return data.suggestions as DynamicItem[];
-      }
-    }
-  } catch {
-    // Fall through to null on any network/parse error
-  }
-  return null;
-}

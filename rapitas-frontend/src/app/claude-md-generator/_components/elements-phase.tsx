@@ -1,11 +1,13 @@
 'use client';
 // elements-phase
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { DynamicItem } from '../_types/types';
 import { ELEMENTS } from '../_utils/constants';
 import { PageWrap } from './page-wrap';
 import { CheckIcon } from './icons';
+import { CustomOptionInput } from './custom-option-input';
+import { WizardIcon } from './wizard-icons';
 
 interface ElementsPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -13,12 +15,12 @@ interface ElementsPhaseProps {
   t: (key: string) => string;
   /** Currently selected element ids / 選択済み要素ID一覧 */
   selectedElements: string[];
-  /** AI-generated element items; falls back to static list when empty / AIが生成した要素一覧 */
+  /** Element options (static catalog + user-added custom items) / 機能要素の選択肢（静的＋自由入力） */
   dynamicElements: DynamicItem[];
-  /** True while AI suggestions are loading / AI提案取得中はtrue */
-  elementsLoading: boolean;
   /** Toggles an element selection by id / IDで要素選択を切り替える */
   onToggle: (id: string) => void;
+  /** Adds a user-typed custom element / 自由入力の機能要素を追加 */
+  onAddCustom: (label: string) => void;
   /** Advances to platform phase / プラットフォームフェーズへ進む */
   onNext: () => void;
   /** Returns to sub-genre phase / サブジャンルフェーズへ戻る */
@@ -26,7 +28,9 @@ interface ElementsPhaseProps {
 }
 
 /**
- * Elements multi-select grid wrapped in the shared PageWrap layout.
+ * Elements multi-select grid with a free-input field for custom entries,
+ * wrapped in the shared PageWrap layout. Options come from the local static
+ * catalog — no per-selection AI call.
  *
  * @param props - ElementsPhaseProps / ElementsPhaseProps参照
  */
@@ -35,8 +39,8 @@ export function ElementsPhase({
   t,
   selectedElements,
   dynamicElements,
-  elementsLoading,
   onToggle,
+  onAddCustom,
   onNext,
   onBack,
 }: ElementsPhaseProps) {
@@ -48,6 +52,13 @@ export function ElementsPhase({
           icon: e.icon,
           label: t(`elem_${e.id}`),
         }));
+
+  const [pulse, setPulse] = useState(false);
+  const handleAdd = (label: string) => {
+    onAddCustom(label);
+    setPulse(true);
+    setTimeout(() => setPulse(false), 400);
+  };
 
   return (
     <PageWrap
@@ -67,63 +78,43 @@ export function ElementsPhase({
           display: 'grid',
           gridTemplateColumns: 'repeat(2,1fr)',
           gap: 10,
-          marginBottom: 32,
+          marginBottom: 16,
         }}
       >
-        {elementsLoading
-          ? Array.from({ length: 10 }, (_, i) => (
+        {elements.map((e) => {
+          const isSel = selectedElements.includes(e.id);
+          const isCustom = e.id.startsWith('custom_');
+          return (
+            <div
+              key={e.id}
+              className={`card ${isSel ? 'sel' : ''}`}
+              style={pulse && isCustom ? { borderColor: 'var(--accent)' } : undefined}
+              onClick={() => onToggle(e.id)}
+            >
+              <div className="card-checkb">{isSel && <CheckIcon />}</div>
               <div
-                key={`skeleton-${i}`}
-                className="card"
-                style={{ opacity: 0.6, pointerEvents: 'none' }}
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
               >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <span>⏳</span>
-                  <span
-                    style={{
-                      background: 'var(--border)',
-                      borderRadius: 4,
-                      height: 16,
-                      width: 90,
-                    }}
-                  >
-                    &nbsp;
-                  </span>
-                </div>
+                <WizardIcon name={e.icon} size={16} />
+                <span>{e.label || t('elem_' + e.id)}</span>
               </div>
-            ))
-          : elements.map((e) => {
-              const isSel = selectedElements.includes(e.id);
-              return (
-                <div
-                  key={e.id}
-                  className={`card ${isSel ? 'sel' : ''}`}
-                  onClick={() => onToggle(e.id)}
-                >
-                  <div className="card-checkb">{isSel && <CheckIcon />}</div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    <span>{e.icon}</span>
-                    <span>{e.label || t('elem_' + e.id)}</span>
-                  </div>
-                </div>
-              );
-            })}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <CustomOptionInput
+          placeholder={t('customElementPlaceholder')}
+          addLabel={t('addCustom')}
+          onAdd={handleAdd}
+        />
       </div>
     </PageWrap>
   );

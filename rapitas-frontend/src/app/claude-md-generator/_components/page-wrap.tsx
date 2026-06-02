@@ -43,13 +43,11 @@ export function PageWrap({
   canNext = true,
   children,
 }: PageWrapProps) {
-  const progress = ((step - 1) / total) * 100;
-
   return (
     <div
       className="cmd-gen"
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 4rem - 1px)',
         background: 'var(--bg)',
         padding: '40px 20px',
         fontFamily: "'Outfit',sans-serif",
@@ -57,25 +55,26 @@ export function PageWrap({
     >
       <style>{GLOBAL_CSS}</style>
       <div style={{ maxWidth: 680, margin: '0 auto' }} className="fade" ref={topRef}>
-        {/* Progress */}
-        <div style={{ marginBottom: 36 }}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 11,
-              color: 'var(--muted)',
-              marginBottom: 10,
-              fontFamily: "'JetBrains Mono',monospace",
-            }}
-          >
-            <span style={{ color: 'var(--accent)', letterSpacing: '.1em' }}>
-              STEP {step} / {total}
-            </span>
-            <span>{Math.round(progress)}%</span>
+        {/* Step indicator — simple segmented bar; one filled segment per
+            completed/current step. Intentionally plain (no mono font, no
+            percentage) to feel intuitive rather than machine-generated. */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {Array.from({ length: total }, (_, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 6,
+                  borderRadius: 99,
+                  background: i < step ? 'var(--accent)' : 'var(--s3)',
+                  transition: 'background .3s ease',
+                }}
+              />
+            ))}
           </div>
-          <div className="prog">
-            <div className="prog-f" style={{ width: `${progress}%` }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>
+            {step} / {total}
           </div>
         </div>
 

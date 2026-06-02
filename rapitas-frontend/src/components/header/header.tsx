@@ -24,6 +24,7 @@ import {
   Flame,
   Brain,
   FileText,
+  FileCog,
   Calendar,
   CalendarClock,
   Clock,
@@ -220,7 +221,6 @@ export default function Header() {
             },
           ],
         },
-        { href: '/orchestra', label: t('orchestra'), icon: Bot },
         { href: '/approvals', label: t('approvals'), icon: CheckCircle },
         {
           href: '/system-prompts',
@@ -230,7 +230,7 @@ export default function Header() {
         {
           href: '/claude-md-generator',
           label: t('claudeGeneration'),
-          icon: Sparkles,
+          icon: FileCog,
         },
       ],
     },

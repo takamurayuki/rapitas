@@ -2,6 +2,7 @@
 // proposals-phase
 
 import React from 'react';
+import { Star } from 'lucide-react';
 import type { AppProposal } from '../_types/types';
 import { GLOBAL_CSS } from '../_utils/styles';
 import { CheckIcon } from './icons';
@@ -49,7 +50,7 @@ export function ProposalsPhase({
     <div
       className="cmd-gen"
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 4rem - 1px)',
         background: 'var(--bg)',
         padding: '40px 20px',
         fontFamily: "'Outfit',sans-serif",
@@ -204,7 +205,7 @@ export function ProposalsPhase({
                 <p
                   style={{
                     fontSize: 13,
-                    color: '#c0c0d8',
+                    color: 'var(--muted)',
                     lineHeight: 1.7,
                     marginBottom: 10,
                   }}
@@ -216,9 +217,13 @@ export function ProposalsPhase({
                     fontSize: 12,
                     color: 'var(--accent2)',
                     marginBottom: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
                   }}
                 >
-                  ✦ {p.unique}
+                  <Star size={13} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+                  <span>{p.unique}</span>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {(p.tech_hint || []).map((hint) => (

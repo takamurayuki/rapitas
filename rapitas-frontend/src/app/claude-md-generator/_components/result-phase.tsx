@@ -1,10 +1,12 @@
 'use client';
 // result-phase
 
-import React from 'react';
-import type { AppProposal, GenerateResult } from '../_types/types';
+import React, { useMemo, useState } from 'react';
+import { CheckCircle2, XCircle } from 'lucide-react';
+import type { AppProposal, DocKind, GenerateResult } from '../_types/types';
 import type { SetupPhase } from '../_hooks/useWizard';
 import { GLOBAL_CSS } from '../_utils/styles';
+import { AGENT_TARGETS } from '../_utils/constants';
 import { ScoreRing } from './score-ring';
 
 interface ResultPhaseProps {
@@ -13,18 +15,29 @@ interface ResultPhaseProps {
   t: (key: string) => string;
   pickedProp: AppProposal | null;
   result: GenerateResult | null;
-  copied: boolean;
   setupPhase: SetupPhase;
+  /** id of the primary agent the repo targets / 対象エージェントID */
+  agentTargetId: string;
+  /** Selects the primary agent (decides the guide file name/path) / 対象エージェントを選択 */
+  onSetAgentTarget: (id: string) => void;
   createdThemePath: string | null;
   setupError: string | null;
-  onCopy: () => void;
   onRestart: () => void;
   onCreateTheme: () => void;
   onResetSetup: () => void;
 }
 
+interface DocTab {
+  kind: DocKind;
+  label: string;
+  filename: string;
+  content: string;
+}
+
 /**
- * Result screen showing the generated CLAUDE.md with copy, restart, and theme-creation actions.
+ * Result screen presenting the generated 3-document package (requirements,
+ * design, CLAUDE.md) in tabs with per-tab copy, plus the theme-creation action
+ * that scaffolds and git-inits the repository.
  *
  * @param props - ResultPhaseProps / ResultPhaseProps参照
  */
@@ -33,34 +46,71 @@ export function ResultPhase({
   t,
   pickedProp,
   result,
-  copied,
   setupPhase,
+  agentTargetId,
+  onSetAgentTarget,
   createdThemePath,
   setupError,
-  onCopy,
   onRestart,
   onCreateTheme,
   onResetSetup,
 }: ResultPhaseProps) {
+  const agentTarget = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
+  // The agent guide's tab label/path follow the chosen primary agent.
+  const agentFileName = agentTarget.path.split('/').pop() || agentTarget.path;
+
+  // Only surface docs that were actually generated; requirements/design are
+  // optional (e.g. on the error fallback path).
+  const tabs = useMemo<DocTab[]>(() => {
+    const defs: DocTab[] = [
+      {
+        kind: 'requirements',
+        label: t('tabRequirements'),
+        filename: 'docs/requirements.md',
+        content: result?.requirements || '',
+      },
+      {
+        kind: 'design',
+        label: t('tabDesign'),
+        filename: 'docs/design.md',
+        content: result?.design || '',
+      },
+      {
+        kind: 'claude_md',
+        label: agentFileName,
+        filename: agentTarget.path,
+        content: result?.claude_md || '',
+      },
+    ];
+    return defs.filter((d) => d.content.trim().length > 0);
+  }, [result, t, agentFileName, agentTarget.path]);
+
+  const [activeKind, setActiveKind] = useState<DocKind>('requirements');
+  const [copied, setCopied] = useState(false);
+
+  const active = tabs.find((d) => d.kind === activeKind) || tabs[tabs.length - 1];
+
+  const handleCopyActive = () => {
+    if (!active) return;
+    navigator.clipboard.writeText(active.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div
       className="cmd-gen"
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        padding: '40px 20px',
-        fontFamily: "'Outfit',sans-serif",
-      }}
+      style={{ minHeight: 'calc(100vh - 4rem - 1px)', background: 'var(--bg)', padding: '40px 20px' }}
     >
       <style>{GLOBAL_CSS}</style>
-      <div style={{ maxWidth: 760, margin: '0 auto' }} className="fade" ref={topRef}>
+      <div style={{ maxWidth: 820, margin: '0 auto' }} className="fade" ref={topRef}>
         {/* Header row */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'flex-start',
-            marginBottom: 32,
+            marginBottom: 28,
             flexWrap: 'wrap',
             gap: 16,
           }}
@@ -76,14 +126,7 @@ export function ResultPhase({
             >
               {t('resultLabel')}
             </div>
-            <h2
-              style={{
-                fontFamily: "'Outfit',sans-serif",
-                fontSize: 26,
-                fontWeight: 800,
-                whiteSpace: 'pre-line',
-              }}
-            >
+            <h2 style={{ fontSize: 26, fontWeight: 800, whiteSpace: 'pre-line' }}>
               {(t as (k: string, v?: Record<string, unknown>) => string)('resultTitle', {
                 name: pickedProp?.name ?? '',
               })}
@@ -92,8 +135,8 @@ export function ResultPhase({
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               className="btn btn-p"
-              onClick={onCopy}
-              style={{ background: copied ? '#059669' : undefined }}
+              onClick={handleCopyActive}
+              style={{ background: copied ? 'var(--green)' : undefined }}
             >
               {copied ? t('copyDone') : t('copy')}
             </button>
@@ -125,13 +168,62 @@ export function ResultPhase({
             >
               {t('techRationale')}
             </div>
-            <p style={{ color: '#c0c0d8', fontSize: 13, lineHeight: 1.85 }}>
+            <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.85 }}>
               {result.tech_rationale}
             </p>
           </div>
         )}
 
-        <div className="codebox">{result?.claude_md}</div>
+        {/* Document tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            borderBottom: '1px solid var(--border)',
+            marginBottom: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          {tabs.map((tab) => {
+            const isActive = active?.kind === tab.kind;
+            return (
+              <button
+                key={tab.kind}
+                onClick={() => setActiveKind(tab.kind)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
+                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: 13,
+                  padding: '10px 16px',
+                  cursor: 'pointer',
+                  marginBottom: -1,
+                  transition: 'color .15s,border-color .15s',
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {active && (
+          <>
+            <div
+              style={{
+                fontSize: 11,
+                fontFamily: "'JetBrains Mono',ui-monospace,monospace",
+                color: 'var(--accent2)',
+                marginBottom: 8,
+              }}
+            >
+              {active.filename}
+            </div>
+            <div className="codebox">{active.content}</div>
+          </>
+        )}
 
         {/* Theme creation section */}
         <div
@@ -153,29 +245,67 @@ export function ResultPhase({
           >
             {t('createThemeSection')}
           </div>
-          <p
-            style={{
-              color: 'var(--text)',
-              fontSize: 14,
-              lineHeight: 1.6,
-              marginBottom: 16,
-            }}
-          >
+          <p style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
             {t('createThemeDescription')}
           </p>
 
           {setupPhase === 'idle' && (
-            <button
-              className="btn btn-p"
-              onClick={onCreateTheme}
-              style={{
-                background: '#10b981',
-                fontSize: 14,
-                padding: '12px 24px',
-              }}
-            >
-              {t('createTheme')}
-            </button>
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--muted)',
+                    marginBottom: 8,
+                  }}
+                >
+                  {t('targetAgentLabel')}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                  {AGENT_TARGETS.map((a) => {
+                    const sel = a.id === agentTargetId;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => onSetAgentTarget(a.id)}
+                        style={{
+                          background: sel ? 'rgba(99,102,241,.12)' : 'transparent',
+                          border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                          color: sel ? 'var(--accent2)' : 'var(--muted)',
+                          borderRadius: 9,
+                          padding: '8px 14px',
+                          fontSize: 13,
+                          fontWeight: sel ? 700 : 500,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          transition: 'all .15s',
+                        }}
+                      >
+                        {a.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "'JetBrains Mono',ui-monospace,monospace",
+                    color: 'var(--accent2)',
+                  }}
+                >
+                  {agentTarget.path}
+                </div>
+              </div>
+
+              <button
+                className="btn btn-p"
+                onClick={onCreateTheme}
+                style={{ background: 'var(--green)', fontSize: 14, padding: '12px 24px' }}
+              >
+                {t('createTheme')}
+              </button>
+            </>
           )}
 
           {setupPhase === 'loading' && (
@@ -189,21 +319,18 @@ export function ResultPhase({
             <div>
               <div
                 style={{
-                  color: '#10b981',
+                  color: 'var(--green)',
                   fontSize: 14,
                   marginBottom: 8,
                   fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                ✅ {t('themeCreated')}
+                <CheckCircle2 size={16} strokeWidth={1.75} /> {t('themeCreated')}
               </div>
-              <p
-                style={{
-                  color: 'var(--muted)',
-                  fontSize: 12,
-                  marginBottom: 12,
-                }}
-              >
+              <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
                 {t('themeCreatedDescription')}
               </p>
               {createdThemePath && (
@@ -213,7 +340,7 @@ export function ResultPhase({
                     padding: '8px 12px',
                     borderRadius: 6,
                     fontSize: 11,
-                    fontFamily: "'JetBrains Mono',monospace",
+                    fontFamily: "'JetBrains Mono',ui-monospace,monospace",
                     color: 'var(--accent2)',
                     marginBottom: 12,
                   }}
@@ -235,24 +362,19 @@ export function ResultPhase({
             <div>
               <div
                 style={{
-                  color: '#f87171',
+                  color: 'var(--red)',
                   fontSize: 14,
                   marginBottom: 8,
                   fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                ❌ {t('themeCreateError')}
+                <XCircle size={16} strokeWidth={1.75} /> {t('themeCreateError')}
               </div>
               {setupError && (
-                <p
-                  style={{
-                    color: 'var(--muted)',
-                    fontSize: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  {setupError}
-                </p>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>{setupError}</p>
               )}
               <button
                 className="btn btn-outline"
@@ -271,11 +393,10 @@ export function ResultPhase({
             fontSize: 11,
             marginTop: 14,
             textAlign: 'center',
-            fontFamily: "'JetBrains Mono',monospace",
+            fontFamily: "'JetBrains Mono',ui-monospace,monospace",
           }}
         >
-          {t('saveInstruction')} <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
-          {t('saveInstructionSuffix')}
+          {t('saveInstruction')}
         </p>
       </div>
     </div>

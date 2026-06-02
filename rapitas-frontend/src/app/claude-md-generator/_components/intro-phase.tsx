@@ -24,7 +24,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
     <div
       className="cmd-gen"
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 4rem - 1px)',
         background: 'var(--bg)',
         display: 'flex',
         alignItems: 'center',
@@ -78,7 +78,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
             lineHeight: 1.1,
             letterSpacing: '-.03em',
             marginBottom: 20,
-            background: 'linear-gradient(135deg, #eeeef5 20%, var(--accent2) 80%)',
+            background: 'linear-gradient(135deg, var(--text) 20%, var(--accent2) 80%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             whiteSpace: 'pre-line',
@@ -99,7 +99,7 @@ export function IntroPhase({ topRef, t, onStart }: IntroPhaseProps) {
           {t('heroDescription')}
           <span style={{ color: 'var(--text)' }}>{t('heroHighlight')}</span>
           <br />
-          {t('heroPerfect')} <code style={{ color: 'var(--accent2)' }}>CLAUDE.md</code>{' '}
+          {t('heroPerfect')} <code style={{ color: 'var(--accent2)' }}>{t('heroDocSet')}</code>{' '}
           {t('heroSuffix')}
         </p>
 
