@@ -55,26 +55,6 @@ function rolesForMode(s: ModeSettings): WorkflowRole[] {
   return r;
 }
 
-/**
- * Ordered execution flow for display, with the user-approval gate placed where
- * it actually fires: right AFTER the plan (and review) and BEFORE implementation
- * — the approval reviews plan.md. Tiers without a plan have no approval gate.
- *
- * @param s - The active tier's settings. / ティア設定
- * @returns Ordered flow steps. / 実行フロー
- */
-function phaseFlow(s: ModeSettings): { label: string; kind: 'phase' | 'approval' }[] {
-  const flow: { label: string; kind: 'phase' | 'approval' }[] = [{ label: '調査', kind: 'phase' }];
-  if (s.includePlan) {
-    flow.push({ label: '計画', kind: 'phase' });
-    if (s.includeReview) flow.push({ label: 'レビュー', kind: 'phase' });
-    flow.push({ label: 'ユーザー承認', kind: 'approval' });
-  }
-  flow.push({ label: '実装', kind: 'phase' });
-  flow.push({ label: '検証', kind: 'phase' });
-  flow.push({ label: '完了', kind: 'phase' });
-  return flow;
-}
 
 /**
  * Adapt a role's input/description to the active tier. The implementer and the
@@ -321,29 +301,6 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
             </div>
           </div>
 
-          {/* Execution flow — shows the order and where user approval occurs.
-              Approval reviews plan.md, so it sits after 計画/レビュー and before
-              実装 (tiers without a plan have no approval gate). */}
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 mb-4">
-            <div className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">実行フロー</div>
-            <div className="flex flex-wrap items-center gap-1">
-              {phaseFlow(activeMode).map((p, i) => (
-                <span key={`${p.label}-${i}`} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-zinc-300 dark:text-zinc-600 text-xs">→</span>}
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] ${
-                      p.kind === 'approval'
-                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium'
-                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                    }`}
-                  >
-                    {p.kind === 'approval' ? `👤 ${p.label}` : p.label}
-                  </span>
-                </span>
-              ))}
-            </div>
-          </div>
-
           {/* Roles used by this tier (in execution order) */}
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-2">
             このティアで実行するロール（{tabRoles.length}フェーズ）
@@ -363,6 +320,12 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 isSaving={savingRole === roleKey}
                 isSaved={saveSuccess === roleKey}
                 isExpanded={expandedRole === roleKey}
+                isLast={index === tabRoles.length - 1}
+                // Approval gate (reviews plan.md) sits right before 実装 — only
+                // when this tier has a plan.
+                approvalAfter={
+                  activeMode.includePlan && tabRoles[index + 1] === 'implementer'
+                }
                 onToggleExpand={() => setExpandedRole(expandedRole === roleKey ? null : roleKey)}
                 onAgentChange={(id) => handleAgentChange(roleKey, id)}
                 onModelChange={(id) => handleModelChange(roleKey, id)}

@@ -4,7 +4,7 @@
  * @module workflow-role-constants
  */
 import type { LucideIcon } from 'lucide-react';
-import { Search, FileText, MessageSquare, Code, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Search, FileText, MessageSquare, Code, FlaskConical } from 'lucide-react';
 import type { WorkflowRole } from '@/types';
 
 export type SystemPrompt = {
@@ -90,7 +90,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
   },
   verifier: {
     label: '検証',
-    icon: CheckCircle,
+    icon: FlaskConical,
     color: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     borderColor: 'border-emerald-200 dark:border-emerald-800',
@@ -101,7 +101,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
   },
   auto_verifier: {
     label: '検証',
-    icon: ShieldCheck,
+    icon: FlaskConical,
     color: 'text-teal-600 dark:text-teal-400',
     bgColor: 'bg-teal-50 dark:bg-teal-900/20',
     borderColor: 'border-teal-200 dark:border-teal-800',

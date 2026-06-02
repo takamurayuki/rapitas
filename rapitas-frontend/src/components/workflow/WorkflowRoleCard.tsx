@@ -9,8 +9,6 @@ import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu } from 'lucide-
 import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';
 import {
-  ROLE_CONFIG,
-  ROLE_ORDER,
   ROLES_SUPPORTING_CROSS_PROVIDER,
   type ModelOption,
   type SystemPrompt,
@@ -29,6 +27,10 @@ interface WorkflowRoleCardProps {
   isSaving: boolean;
   isSaved: boolean;
   isExpanded: boolean;
+  /** Last card in the current tier — suppresses the trailing baton arrow. */
+  isLast?: boolean;
+  /** Show the user-approval gate in the arrow AFTER this card (before 実装). */
+  approvalAfter?: boolean;
   onToggleExpand: () => void;
   onAgentChange: (agentConfigId: number | null) => void;
   onModelChange: (modelId: string | null) => void;
@@ -53,6 +55,8 @@ export function WorkflowRoleCard({
   isSaving,
   isSaved,
   isExpanded,
+  isLast = false,
+  approvalAfter = false,
   onToggleExpand,
   onAgentChange,
   onModelChange,
@@ -318,12 +322,15 @@ export function WorkflowRoleCard({
         )}
       </div>
 
-      {/* Baton arrow (except last role) */}
-      {index < ROLE_ORDER.length - 1 && (
+      {/* Baton arrow between phases. Suppressed after the last phase of the
+          tier (no trailing arrow after 検証). When this card precedes 実装 and
+          the tier has a plan, the gap is the user-approval gate (reviews
+          plan.md) — otherwise it shows this phase's output artifact. */}
+      {!isLast && (
         <div className="flex items-center justify-center py-1.5">
           <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
             <ArrowDown className="h-4 w-4" />
-            {index === 2 ? (
+            {approvalAfter ? (
               <span className="flex items-center gap-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
                 <span className="text-indigo-500 dark:text-indigo-400 font-medium">
@@ -331,7 +338,7 @@ export function WorkflowRoleCard({
                 </span>
               </span>
             ) : (
-              <span>{ROLE_CONFIG[ROLE_ORDER[index]].outputFile}</span>
+              <span>{config.outputFile}</span>
             )}
             <ArrowDown className="h-4 w-4" />
           </div>
