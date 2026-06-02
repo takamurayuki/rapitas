@@ -39,6 +39,15 @@ export const agentDiscoveryRouter = new Elysia()
     return allModels;
   })
 
+  // Auto-register agent configs for ONLY the currently-available providers
+  // (detected installed CLI / reachable API). Idempotent; sets a default.
+  .post('/agents/auto-register', async () => {
+    const { autoRegisterAvailableAgents } = await import(
+      '../../../services/agents/agent-auto-register'
+    );
+    return await autoRegisterAvailableAgents();
+  })
+
   // Set development agent configuration (find-or-create + set as default)
   .post(
     '/agents/development',

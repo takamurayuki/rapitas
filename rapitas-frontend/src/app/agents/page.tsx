@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { Activity, Brain } from 'lucide-react';
+import { Activity, Brain, Loader2, Plus } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
@@ -68,6 +68,37 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [_loading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  /**
+   * Register agent configs for ONLY the currently-available providers
+   * (detected installed CLI / reachable API), then refresh the list. This is
+   * how a fresh DB with zero agents gets populated with valid agents.
+   */
+  const handleAutoRegister = useCallback(async () => {
+    setIsRegistering(true);
+    try {
+      await fetch(`${API_BASE_URL}/agents/auto-register`, { method: 'POST' });
+      const [agentsRes, modelsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/agents/all`),
+        fetch(`${API_BASE_URL}/agents/models`),
+      ]);
+      if (agentsRes.ok) {
+        const d = await agentsRes.json();
+        setAgents(d);
+        setCachedData(CACHE_KEYS.agents, d);
+      }
+      if (modelsRes.ok) {
+        const d = await modelsRes.json();
+        setAvailableModels(d);
+        setCachedData(CACHE_KEYS.models, d);
+      }
+    } catch (err) {
+      logger.error('Auto-register agents failed:', err);
+    } finally {
+      setIsRegistering(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -141,6 +172,19 @@ export default function AgentsPage() {
               <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={handleAutoRegister}
+                disabled={isRegistering}
+                title="インストール済み/接続可能なプロバイダのみをエージェントとして登録します"
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isRegistering ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                利用可能なエージェントを登録
+              </button>
               <Link
                 href="/agents/memory"
                 className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
