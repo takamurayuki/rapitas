@@ -295,6 +295,10 @@ export async function createSubtasksFromPlan(
           themeId: parentTask.themeId,
           priority: parentTask.priority,
           status: 'todo',
+          // Always seed a workflowStatus so the task never sits with a null
+          // workflow state (the runner treats null as draft, but an explicit
+          // value keeps status displays and queries consistent).
+          workflowStatus: 'draft',
           isDeveloperMode: true,
           workflowMode: 'lightweight',
           autoApprovePlan: true,
