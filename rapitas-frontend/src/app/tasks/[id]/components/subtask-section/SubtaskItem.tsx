@@ -8,16 +8,14 @@
  */
 
 import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
-import {
-  SubtaskTitleIndicator,
-  type ParallelExecutionStatus,
-} from '@/feature/tasks/components/SubtaskExecutionStatus';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
   statusConfig as sharedStatusConfig,
   renderStatusIcon,
+  isInProgressStatus,
 } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -123,31 +121,57 @@ export function SubtaskItem({
                   )}
                 </button>
               )}
-              {!isSelectionMode && showRunning ? (
-                <SubtaskTitleIndicator
-                  executionStatus={liveExecStatus !== null ? 'running' : (executionStatus ?? 'running')}
-                  size="sm"
-                />
-              ) : (
-                !isSelectionMode && (
-                  <div className="shrink-0">
-                    {(() => {
-                      // Mirror the task-list status icon (StatusConfig colours +
-                      // renderStatusIcon glyph in a bordered rounded box).
-                      const cfg =
-                        sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
-                        sharedStatusConfig.todo;
-                      return (
-                        <div
-                          className={`flex w-6 h-6 items-center justify-center rounded-md border-2 ${cfg.color} ${cfg.bgColor} ${cfg.borderColor.replaceAll('border-l-', 'border-')}`}
-                          aria-label={cfg.label}
-                        >
-                          {renderStatusIcon(subtask.status)}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )
+              {!isSelectionMode && (
+                <div className="shrink-0">
+                  {(() => {
+                    // Mirror the task-list status icon exactly: StatusConfig colours
+                    // + renderStatusIcon glyph in a rounded box, and — when the
+                    // subtask is in-progress/running — the same outer-border
+                    // spinning loader the task list uses (icon-outer-border-spin).
+                    const cfg =
+                      sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
+                      sharedStatusConfig.todo;
+                    const inProgress = isInProgressStatus(subtask.status) || showRunning;
+                    return (
+                      <div
+                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} ${
+                          inProgress
+                            ? ''
+                            : `border-2 ${cfg.borderColor.replaceAll('border-l-', 'border-')}`
+                        }`}
+                        aria-label={cfg.label}
+                      >
+                        {inProgress && (
+                          <svg
+                            className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+                            viewBox="0 0 32 32"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <rect
+                              x="1"
+                              y="1"
+                              width="30"
+                              height="30"
+                              rx="7"
+                              stroke="#3b82f6"
+                              strokeWidth="2"
+                              strokeDasharray="20 87.96"
+                              strokeLinecap="round"
+                              fill="none"
+                              style={{
+                                animation: 'icon-outer-border-spin 1.5s linear infinite',
+                                willChange: 'stroke-dashoffset',
+                                transform: 'translateZ(0)',
+                              }}
+                            />
+                          </svg>
+                        )}
+                        {renderStatusIcon(subtask.status)}
+                      </div>
+                    );
+                  })()}
+                </div>
               )}
               <span
                 className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-400 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
