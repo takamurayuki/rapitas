@@ -2,17 +2,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ExamGoal, StudyStreak } from '@/types';
-import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp, Award } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
-import { KnowledgeReminderWidget } from '@/feature/intelligence/components/KnowledgeReminderWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
-import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
-import { ProgressSummaryWidget } from '@/components/widgets/ProgressSummaryWidget';
-import { CostOptimizationWidget } from '@/components/widgets/CostOptimizationWidget';
-import SelfObservationWidget from '@/components/widgets/SelfObservationWidget';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -181,16 +176,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* AI Insights Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <ProgressSummaryWidget />
-        <CostOptimizationWidget />
-      </div>
-
-      <div className="mb-6">
-        <SelfObservationWidget />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
           <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
@@ -296,54 +281,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
-          <Award className="w-5 h-5" />
-          {t('weeklySummary')}
-        </h2>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.tasks.weekCompleted || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('completedTasks')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.studyTime.weekHours || 0}h
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('studyHours')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {streakInfo?.currentStreak || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('consecutiveDays')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.upcomingExams?.length || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('controllingExams')}</div>
-          </div>
-        </div>
-      </div>
-
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SuggestedTasksWidget />
-        <KnowledgeReminderWidget />
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProductivityHeatmap />
-        <WorkflowLearningPanel />
       </div>
 
-      <div className="mt-4">
+      <div className="mt-6">
         <BurnupChart days={14} />
       </div>
     </div>

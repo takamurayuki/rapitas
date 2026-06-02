@@ -10,7 +10,8 @@ import { MetricsOverviewCards } from './_components/MetricsOverviewCards';
 import { MetricsFilters } from './_components/MetricsFilters';
 import { MetricsCharts } from './_components/MetricsCharts';
 import { MetricsTable } from './_components/MetricsTable';
-import { SelfObservationWidget } from '@/components/widgets';
+import { SelfObservationWidget, CostOptimizationWidget } from '@/components/widgets';
+import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
 
 function AgentMetricsPage() {
   const t = useTranslations('agents');
@@ -81,6 +82,13 @@ function AgentMetricsPage() {
 
         <div className="my-6">
           <SelfObservationWidget />
+        </div>
+
+        {/* AI operational widgets moved here from the dashboard (they describe
+            agent operation, not the user's study/task progress). */}
+        <div className="my-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CostOptimizationWidget />
+          <WorkflowLearningPanel />
         </div>
 
         <MetricsCharts
