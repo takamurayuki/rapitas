@@ -9,6 +9,13 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (count: number) => void;
   itemsPerPageOptions?: number[];
+  /**
+   * Render the control even when there is only a single page. The page-navigation
+   * arrows are then omitted, leaving just the items-per-page selector so the
+   * pagination UI stays visible/discoverable. Defaults to true (always shown);
+   * pass false to hide the control entirely on single-page lists. / 1ページでも表示する
+   */
+  alwaysShow?: boolean;
 }
 
 export default function Pagination({
@@ -18,8 +25,13 @@ export default function Pagination({
   onPageChange,
   onItemsPerPageChange,
   itemsPerPageOptions = [5, 10, 15],
+  alwaysShow = true,
 }: PaginationProps) {
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && !alwaysShow) return null;
+
+  // With a single page there's nothing to navigate — show only the page-size
+  // selector (no arrows / page numbers).
+  const showNav = totalPages > 1;
 
   return (
     <div className="mt-6 flex items-center justify-center gap-3">
@@ -43,9 +55,10 @@ export default function Pagination({
         ))}
       </div>
 
-      <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700"></div>
+      {showNav && <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700"></div>}
 
       {/* Pagination controls */}
+      {showNav && (
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(1)}
@@ -152,6 +165,7 @@ export default function Pagination({
           </svg>
         </button>
       </div>
+      )}
     </div>
   );
 }

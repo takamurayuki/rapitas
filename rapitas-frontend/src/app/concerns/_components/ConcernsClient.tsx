@@ -563,7 +563,7 @@ export default function ConcernsClient() {
         </div>
       )}
 
-      {!isLoading && totalPages > 1 && (
+      {!isLoading && totalPages >= 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

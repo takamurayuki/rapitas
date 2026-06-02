@@ -804,6 +804,7 @@ export default function IdeasClient() {
                 itemsPerPage={itemsPerPage}
                 onPageChange={handlePageChange}
                 onItemsPerPageChange={handleItemsPerPageChange}
+                alwaysShow
               />
             )}
           </>

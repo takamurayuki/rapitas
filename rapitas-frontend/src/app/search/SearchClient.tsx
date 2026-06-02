@@ -204,7 +204,7 @@ export default function SearchClient() {
         )}
       </div>
 
-      {!loading && totalPages > 1 && (
+      {!loading && totalPages >= 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
