@@ -23,7 +23,8 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
 
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-    const taskWhere = {
+    // HACK(agent): any cast — Prisma client was generated from the SQLite schema; mode:'insensitive' validation fails for typed where clauses. Root cause: db:generate:sqlite overwrites the PG client (tracked in task-33).
+    const taskWhere: any = {
       AND: words.map((word) => ({
         OR: [
           { title: { contains: word, mode: 'insensitive' as const } },
@@ -45,7 +46,8 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
       orderBy: { updatedAt: 'desc' },
     });
 
-    const commentWhere = {
+    // HACK(agent): any cast — Prisma client was generated from the SQLite schema; mode:'insensitive' validation fails for typed where clauses. Root cause: db:generate:sqlite overwrites the PG client (tracked in task-33).
+    const commentWhere: any = {
       AND: words.map((word) => ({
         content: { contains: word, mode: 'insensitive' as const },
       })),
