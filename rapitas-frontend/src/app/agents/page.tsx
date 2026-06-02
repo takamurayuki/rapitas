@@ -126,8 +126,11 @@ export default function AgentsPage() {
     fetchData();
   }, [fetchData]);
 
+    // NOTE: No inner fixed-height overflow container. The header is `sticky
+    // top-0`, so a single document-level scroll keeps it pinned — adding an
+    // inner `h-[calc(100vh-Nrem)] overflow-auto` produced a SECOND scrollbar.
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
+    <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <div className="flex items-center justify-between">

@@ -89,7 +89,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'plan.md + question.md',
   },
   verifier: {
-    label: '検証者',
+    label: '検証',
     icon: CheckCircle,
     color: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
@@ -100,7 +100,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'plan.md + diff',
   },
   auto_verifier: {
-    label: '自動検証',
+    label: '検証',
     icon: ShieldCheck,
     color: 'text-teal-600 dark:text-teal-400',
     bgColor: 'bg-teal-50 dark:bg-teal-900/20',
