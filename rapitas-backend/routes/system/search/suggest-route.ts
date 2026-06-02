@@ -23,12 +23,22 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
 
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-    // HACK(agent): any cast — Prisma client was generated from the SQLite schema; mode:'insensitive' validation fails for typed where clauses. Root cause: db:generate:sqlite overwrites the PG client (tracked in task-33).
+    // `mode: 'insensitive'` is Postgres-only; the SQLite (desktop) Prisma client
+    // rejects it at runtime (PrismaClientValidationError). Attach it conditionally
+    // per the active DB provider — same pattern as task-suggestions.ts / search-route.ts.
+    // Detect SQLite via a `file:` DATABASE_URL (mirrors config/database.ts), so
+    // this works whether the SQLite or Postgres client is active.
+    const isPostgres =
+      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
+      !process.env.DATABASE_URL?.startsWith('file:');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
+    const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
+
     const taskWhere: any = {
       AND: words.map((word) => ({
         OR: [
-          { title: { contains: word, mode: 'insensitive' as const } },
-          { description: { contains: word, mode: 'insensitive' as const } },
+          { title: { contains: word, ...insensitive } },
+          { description: { contains: word, ...insensitive } },
         ],
       })),
     };
@@ -46,10 +56,9 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
       orderBy: { updatedAt: 'desc' },
     });
 
-    // HACK(agent): any cast — Prisma client was generated from the SQLite schema; mode:'insensitive' validation fails for typed where clauses. Root cause: db:generate:sqlite overwrites the PG client (tracked in task-33).
     const commentWhere: any = {
       AND: words.map((word) => ({
-        content: { contains: word, mode: 'insensitive' as const },
+        content: { contains: word, ...insensitive },
       })),
     };
 
