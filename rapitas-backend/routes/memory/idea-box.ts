@@ -23,6 +23,18 @@ const log = createLogger('routes:idea-box');
 
 export const ideaBoxRoutes = new Elysia()
 
+  /**
+   * One-time maintenance: reclassify existing ideas. Moves concern-type items
+   * (bugs/refactors/perf) into the Concern Backlog and re-derives priorities.
+   * Runs in the background (serialised LLM enrichment); returns the queued count.
+   */
+  .post('/idea-box/reclassify', async () => {
+    const { reclassifyExistingIdeas } = await import('../../services/memory/idea-extractor');
+    const queued = await reclassifyExistingIdeas();
+    log.info({ queued }, 'Idea reclassification backfill triggered');
+    return { success: true, queued };
+  })
+
   /** List ideas with optional filters. */
   .get(
     '/idea-box',
