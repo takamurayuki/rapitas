@@ -2,7 +2,7 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import { statusConfig } from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
@@ -94,12 +94,21 @@ export function useTaskCard(
 
   const { showToast } = useToast();
 
-  const executionStatus = useExecutionStateStore((state) => state.getExecutingTaskStatus(task.id));
+  const storeExecutionStatus = useExecutionStateStore((state) =>
+    state.getExecutingTaskStatus(task.id),
+  );
 
   // Sync localSubtasks when the prop changes
   useEffect(() => {
     setLocalSubtasks(task.subtasks || []);
   }, [task.subtasks]);
+
+  // Subtasks run in the background via the orchestra queue, so they are NOT in
+  // the execution-state-store. Treat "any subtask in-progress" as the parent
+  // running so the card shows the live progress animation. Without this, a
+  // split parent showed no activity while its subtasks were executing.
+  const hasRunningSubtask = localSubtasks.some((s) => s.status === 'in-progress');
+  const executionStatus = storeExecutionStatus ?? (hasRunningSubtask ? 'running' : null);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -124,7 +133,7 @@ export function useTaskCard(
     onStatusChange(subtaskId, newStatus as Status);
   };
 
-  const currentStatus = statusConfig[task.status as keyof typeof statusConfig] || statusConfig.todo;
+  const currentStatus = resolveStatusConfig(task.status);
 
   const completionRate = localSubtasks.length
     ? Math.round(

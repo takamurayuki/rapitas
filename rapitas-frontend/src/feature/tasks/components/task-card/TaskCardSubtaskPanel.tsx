@@ -44,14 +44,43 @@ export default function TaskCardSubtaskPanel({
             className={`flex items-center gap-2 p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor} dark:bg-indigo-dark-900`}
           >
             <div
-              className={`flex items-center justify-center w-6 h-6 rounded ${
+              className={`relative flex items-center justify-center w-6 h-6 rounded ${
                 subtaskStatus.color
-              } ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace(
-                'border-l-',
-                'border-',
-              )} shrink-0`}
+              } ${subtaskStatus.bgColor} ${
+                subtask.status === 'in-progress'
+                  ? ''
+                  : `border ${subtaskStatus.borderColor.replace('border-l-', 'border-')}`
+              } shrink-0`}
               aria-label={subtaskStatus.label}
             >
+              {/* In-progress subtasks spin the same outer-border loader the task
+                  list uses for running tasks, so subtask progress reads the same. */}
+              {subtask.status === 'in-progress' && (
+                <svg
+                  className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+                  viewBox="0 0 32 32"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="1"
+                    y="1"
+                    width="30"
+                    height="30"
+                    rx="7"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeDasharray="20 87.96"
+                    strokeLinecap="round"
+                    fill="none"
+                    style={{
+                      animation: 'icon-outer-border-spin 1.5s linear infinite',
+                      willChange: 'stroke-dashoffset',
+                      transform: 'translateZ(0)',
+                    }}
+                  />
+                </svg>
+              )}
               {renderStatusIcon(subtask.status)}
             </div>
             <span

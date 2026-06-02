@@ -82,7 +82,14 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         prisma.task.findMany({
           where: {
             ...baseWhere,
-            updatedAt: { gt: sinceDate },
+            // Surface a parent when EITHER it changed OR any of its subtasks
+            // changed. A subtask status change does not bump the parent's
+            // updatedAt, so without the subtask clause the parent's nested
+            // `subtasks` (and the card's progress bar / status) never refreshed.
+            OR: [
+              { updatedAt: { gt: sinceDate } },
+              { subtasks: { some: { updatedAt: { gt: sinceDate } } } },
+            ],
           },
           include: {
             subtasks: {
