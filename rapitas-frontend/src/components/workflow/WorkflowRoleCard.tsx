@@ -162,29 +162,19 @@ export function WorkflowRoleCard({
                     onModelChange(null);
                     return;
                   }
-                  // Toggle OFF → manual: seed a concrete modelId so the state
-                  // actually flips. Prefer a configured agent's model, else the
-                  // first model from the catalog (`models`). This works even
-                  // with NO configured agents (the run uses the built-in agent
-                  // resolved from the model's provider), so the toggle is no
-                  // longer a no-op when the agent list is empty.
-                  if (selectedAgent) {
-                    const m =
-                      selectedAgent.modelId ||
-                      (availableModels[selectedAgent.agentType] ?? [])[0]?.value ||
-                      models[0]?.value ||
-                      null;
-                    if (m) onModelChange(m);
-                    return;
-                  }
-                  const targetAgent = activeAgents[0] ?? null;
-                  const seedModel = models[0]?.value || null;
-                  if (targetAgent && seedModel) {
-                    onManualSetup(targetAgent.id, seedModel);
-                  } else if (seedModel) {
-                    // No configured agent — pin just the model (agent resolves
-                    // to the built-in for that provider at execution time).
-                    onModelChange(seedModel);
+                  // Toggle OFF → manual: seed a concrete modelId from the
+                  // selected agent (or the first active agent). Models are
+                  // agent-scoped, so a configured agent is required.
+                  const targetAgent = selectedAgent ?? activeAgents[0] ?? null;
+                  const targetAgentModels = targetAgent
+                    ? (availableModels[targetAgent.agentType] ?? [])
+                    : [];
+                  const targetModelId = targetAgent?.modelId || targetAgentModels[0]?.value || null;
+                  if (!targetModelId || !targetAgent) return;
+                  if (!selectedAgent) {
+                    onManualSetup(targetAgent.id, targetModelId);
+                  } else {
+                    onModelChange(targetModelId);
                   }
                 }}
                 disabled={isSaving}
@@ -266,11 +256,15 @@ export function WorkflowRoleCard({
                         const val = e.target.value;
                         onModelChange(val || null);
                       }}
-                      disabled={isSaving || models.length === 0}
+                      disabled={isSaving || !selectedAgent || models.length === 0}
                       className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                     >
                       <option value="" disabled>
-                        {models.length === 0 ? '利用可能なモデルなし' : 'モデルを選択'}
+                        {!selectedAgent
+                          ? 'エージェント未選択'
+                          : models.length === 0
+                            ? '利用可能なモデルなし'
+                            : 'モデルを選択'}
                       </option>
                       {models.map((model) => (
                         <option key={model.value} value={model.value}>

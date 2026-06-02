@@ -128,23 +128,6 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
   const activeAgents = useMemo(() => agents.filter((a) => a.isActive), [agents]);
   const activeMode = modes.find((m) => m.mode === activeTab);
 
-  // Full model catalog (all providers), de-duped. Used as the manual-mode model
-  // list when no AIAgentConfig is configured — the workflow runs on the built-in
-  // Claude Code agent, so model selection must not require a saved agent row.
-  const allCatalogModels = useMemo(() => {
-    const seen = new Set<string>();
-    const out: ModelOption[] = [];
-    for (const list of Object.values(availableModels)) {
-      for (const m of list) {
-        if (!seen.has(m.value)) {
-          seen.add(m.value);
-          out.push(m);
-        }
-      }
-    }
-    return out;
-  }, [availableModels]);
-
   const saveMode = useCallback(async (mode: ModeKey, patch: Partial<ModeSettings>) => {
     setSavingMode(mode);
     setModes((prev) => prev.map((m) => (m.mode === mode ? { ...m, ...patch } : m)));
@@ -230,10 +213,10 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
 
   const getModelsForRole = (roleKey: WorkflowRole): ModelOption[] => {
     const roleData = roles.find((r) => r.role === roleKey);
-    // With a configured agent, scope to that agent's provider; otherwise fall
-    // back to the full catalog so manual model selection still works.
-    if (roleData?.agentConfig) return availableModels[roleData.agentConfig.agentType] || [];
-    return allCatalogModels;
+    // Models are scoped to the role's configured agent. No agent → no models
+    // (the model dropdown stays empty until an agent is selected).
+    if (!roleData?.agentConfig) return [];
+    return availableModels[roleData.agentConfig.agentType] || [];
   };
 
   if (isLoading) {

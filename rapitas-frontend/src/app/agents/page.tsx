@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
-import { Activity, Brain, Loader2, Plus } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
@@ -68,37 +66,6 @@ export default function AgentsPage() {
   const [agents, setAgents] = useState<AIAgentConfig[]>([]);
   const [_loading, setLoading] = useState(true);
   const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
-  const [isRegistering, setIsRegistering] = useState(false);
-
-  /**
-   * Register agent configs for ONLY the currently-available providers
-   * (detected installed CLI / reachable API), then refresh the list. This is
-   * how a fresh DB with zero agents gets populated with valid agents.
-   */
-  const handleAutoRegister = useCallback(async () => {
-    setIsRegistering(true);
-    try {
-      await fetch(`${API_BASE_URL}/agents/auto-register`, { method: 'POST' });
-      const [agentsRes, modelsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/agents/all`),
-        fetch(`${API_BASE_URL}/agents/models`),
-      ]);
-      if (agentsRes.ok) {
-        const d = await agentsRes.json();
-        setAgents(d);
-        setCachedData(CACHE_KEYS.agents, d);
-      }
-      if (modelsRes.ok) {
-        const d = await modelsRes.json();
-        setAvailableModels(d);
-        setCachedData(CACHE_KEYS.models, d);
-      }
-    } catch (err) {
-      logger.error('Auto-register agents failed:', err);
-    } finally {
-      setIsRegistering(false);
-    }
-  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -164,43 +131,8 @@ export default function AgentsPage() {
     <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                {t('pageTitle')}
-              </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleAutoRegister}
-                disabled={isRegistering}
-                title="インストール済み/接続可能なプロバイダのみをエージェントとして登録します"
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isRegistering ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-                利用可能なエージェントを登録
-              </button>
-              <Link
-                href="/agents/memory"
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                <Brain className="w-4 h-4" />
-                記憶
-              </Link>
-              <Link
-                href="/agents/metrics"
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <Activity className="w-4 h-4" />
-                {t('metrics')}
-              </Link>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('pageTitle')}</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
         </div>
 
         <div className="mb-6 space-y-3">
