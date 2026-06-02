@@ -8,7 +8,6 @@ import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
 import {
   PlanApprovalBanner,
-  VerifyDoneBanner,
   NextPhaseButton,
   AdvanceErrorBanner,
   FetchErrorBanner,
@@ -120,13 +119,11 @@ export default function WorkflowViewer({
         />
       )}
 
-      {/* Verification complete banner (shown during verify_done) */}
-      {effectiveStatus === 'verify_done' && tabStatus.verify && onCompleteRequest && (
-        <VerifyDoneBanner
-          onNavigateToVerify={() => setActiveTab('verify')}
-          onCompleteRequest={onCompleteRequest}
-        />
-      )}
+      {/* NOTE: The verify_done banner with the "検証結果を確認" button was removed.
+          Verification now auto-completes the task on success (see the verify
+          handler in workflow-handlers-files.ts); on failure the task is flagged
+          for re-verification. The in-content "実装完了" fallback remains for the
+          rare case a task is left at verify_done. */}
 
       {/* Next phase execution button */}
       {effectiveStatus &&

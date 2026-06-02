@@ -393,62 +393,43 @@ export async function handleSaveFile({
 
     // Auto commit and PR creation when saving verify.md.
     //
-    // NOTE: workflowStatus="verify_done" means verification has been written.
-    // The task itself is marked done, and workflowStatus becomes "completed",
-    // only after the downstream commit/PR/merge gate succeeds.
+    // NOTE: reaching here means verify.md passed validation (the failure branch
+    // above holds the task at `in_progress`/`blocked` and leaves newStatus
+    // undefined). Per the user's request — "verify.md を保存し、問題がなければ
+    // ステータスを完了に" — a passing verification now completes the task
+    // directly. Auto-commit / PR / merge still run as a BEST-EFFORT side effect
+    // (so branches with real changes still get a PR), but completion no longer
+    // depends on a PR being published.
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
     if (fileType === 'verify' && newStatus === 'verify_done') {
-      autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent);
-
-      // Decide whether to mark the Task itself as done.
-      //
-      // Hardened rule (per user request: "ステータスの完了をPR作成後にする"):
-      // status='done' is set ONLY when a PR has been published. The user
-      // can still get auto-merge to terminal completion via auto-merge,
-      // but a verify-pass alone never marks done — verification without
-      // a PR is just "ready for PR review" and stays in_progress.
-      //
-      //   - merge attempted → require merge.success
-      //   - pr  attempted   → require pr.success
-      //   - merge / pr NOT attempted → never auto-done; user must trigger
-      //     PR via the existing /agents/parallel-execution/pr-routes
-      //     endpoint, which marks done after merge.
+      // Best-effort commit/PR/merge — never block completion on its outcome.
+      autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
+        log.warn({ err, taskId }, '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway');
+        return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
+      });
       const commit = autoCommitPRResult.autoCommitResult;
       const pr = autoCommitPRResult.autoPRResult;
       const merge = autoCommitPRResult.autoMergeResult;
-      const requested = autoCommitPRResult.requested;
-      let automationSucceeded = false;
-      if (requested?.autoMergePR) automationSucceeded = merge?.success === true;
-      else if (requested?.autoCreatePR) automationSucceeded = pr?.success === true;
 
-      if (automationSucceeded) {
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-        });
-        taskMarkedDone = true;
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'completed',
-          actor: 'system',
-          cause: requested?.autoMergePR ? 'auto_merge_succeeded' : 'auto_pr_succeeded',
-          phase: 'verify',
-          metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-        });
-      } else {
-        log.info(
-          {
-            taskId,
-            requested,
-            commitOk: commit?.success,
-            prOk: pr?.success,
-            mergeOk: merge?.success,
-          },
-          '[Workflow] verify.md saved — task remains in_progress until a PR is created (auto or manual). Status will be marked done after PR.',
-        );
-      }
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+      });
+      taskMarkedDone = true;
+      await recordTransition({
+        taskId,
+        fromStatus: 'verify_done',
+        toStatus: 'completed',
+        actor: 'system',
+        cause: 'verify_passed',
+        phase: 'verify',
+        metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+      });
+      log.info(
+        { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+        '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
+      );
 
       // Collect workflow learning data asynchronously (fire-and-forget)
       recordWorkflowCompletion(taskId).catch((err) => {
