@@ -7,6 +7,7 @@ import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { createLogger } from '@/lib/logger';
+import { API_BASE_URL } from '@/utils/api';
 
 // Extracted hooks
 import { useTaskActions } from './hooks/useTaskActions';
@@ -142,7 +143,29 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   const parallelSessionId: string | null = null;
   const isParallelExecutionRunning = false;
   const getSubtaskStatus = (_id: number) => undefined;
-  const startSession = async () => {};
+  // Run (or re-run) the subtasks of a split parent. The execute button routes
+  // here whenever the task has subtasks (see useExecutionManager.handleExecute).
+  // This used to be a no-op stub, so pressing 実行 on a split task did nothing —
+  // the cause of "リセット後に実行できない".
+  const startSession = async () => {
+    if (!taskId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/workflow/orchestra/run-subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+      if (!res.ok) {
+        logger.error('Failed to start subtask execution:', res.status);
+        return;
+      }
+      // Pick up the parent's in_progress transition and subtask status changes.
+      refreshTask();
+      refetchWorkflowFiles();
+    } catch (error) {
+      logger.error('Error starting subtask execution:', error);
+    }
+  };
   const subtaskLogs:
     | Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>
     | undefined = undefined;
