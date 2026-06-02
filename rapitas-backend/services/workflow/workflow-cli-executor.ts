@@ -30,6 +30,22 @@ import { maybeAutoApprovePlan } from './plan-auto-approve';
 const log = createLogger('workflow-cli-executor');
 
 /**
+ * Linear rank of each workflow status, used to advance status FORWARD only.
+ * The HTTP file-save handler may have already advanced the task (e.g. plan
+ * auto-approved, or verify auto-completed); the executor must not regress it
+ * back to the phase's nominal nextStatus afterwards.
+ */
+const WF_STATUS_RANK: Record<string, number> = {
+  draft: 0,
+  research_done: 1,
+  plan_created: 2,
+  plan_approved: 3,
+  in_progress: 4,
+  verify_done: 5,
+  completed: 6,
+};
+
+/**
  * Execute a CLI agent (claude-code, codex, gemini) via AgentOrchestrator.
  *
  * The agent is given a prompt that includes language instructions and a curl
@@ -496,7 +512,56 @@ curl -X POST http://localhost:${port}/concerns \\
         );
       }
 
-      if (currentWfStatus !== transition.nextStatus) {
+      const isVerifyPhase = transition.outputFile === 'verify';
+      const curRank = WF_STATUS_RANK[currentWfStatus] ?? 0;
+      const nextRank = WF_STATUS_RANK[transition.nextStatus] ?? 0;
+
+      if (isVerifyPhase) {
+        // Verify phase: mirror the HTTP file-save auto-complete so orchestrator
+        // / queue-driven runs (subtasks) don't get stuck at verify_done with
+        // task.status still 'in-progress'. A passing verify completes the task;
+        // a hard validation failure blocks it for fix + re-verify.
+        const hardFail = !validation.ok && validation.severity >= 80;
+        if (currentWfStatus === 'completed') {
+          // The HTTP handler already completed it — don't touch / regress.
+          phaseStatus = 'completed';
+        } else if (hardFail) {
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: currentWfStatus,
+            toStatus: currentWfStatus,
+            actor: transition.role as TransitionActor,
+            cause: 'verify_validation_failed',
+            phase: 'verify',
+            sessionId: session.id,
+            metadata: { reason: validation.summary },
+            invariantViolation: true,
+            invariantMessage: validation.summary,
+          });
+          phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+        } else {
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+          });
+          await recordTransition({
+            taskId,
+            fromStatus: currentWfStatus,
+            toStatus: 'completed',
+            actor: transition.role as TransitionActor,
+            cause: 'verify_passed',
+            phase: 'verify',
+            sessionId: session.id,
+            metadata: { chars: typeof fileContent === 'string' ? fileContent.length : 0 },
+          });
+          phaseStatus = 'completed';
+        }
+      } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {
+        // Advance FORWARD only. Never regress a status the HTTP handler already
+        // advanced (e.g. plan auto-approved → plan_approved).
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: transition.nextStatus },
@@ -537,6 +602,9 @@ curl -X POST http://localhost:${port}/concerns \\
             phaseStatus = 'plan_approved';
           }
         }
+      } else {
+        // Already at/past this phase's nextStatus (HTTP handler advanced it).
+        phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
       }
       if (!effectiveSuccess) {
         log.info(
