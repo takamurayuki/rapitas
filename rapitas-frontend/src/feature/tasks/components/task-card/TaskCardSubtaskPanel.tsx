@@ -2,7 +2,11 @@
 // TaskCardSubtaskPanel
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  statusConfig,
+  renderStatusIcon,
+  isInProgressStatus,
+} from '@/feature/tasks/config/StatusConfig';
 
 interface TaskCardSubtaskPanelProps {
   subtasks: Task[];
@@ -28,6 +32,7 @@ export default function TaskCardSubtaskPanel({
       {subtasks.map((subtask, index) => {
         const subtaskStatus =
           statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
+        const inProgress = isInProgressStatus(subtask.status);
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =
@@ -47,7 +52,7 @@ export default function TaskCardSubtaskPanel({
               className={`relative flex items-center justify-center w-6 h-6 rounded ${
                 subtaskStatus.color
               } ${subtaskStatus.bgColor} ${
-                subtask.status === 'in-progress'
+                inProgress
                   ? ''
                   : `border ${subtaskStatus.borderColor.replace('border-l-', 'border-')}`
               } shrink-0`}
@@ -55,7 +60,7 @@ export default function TaskCardSubtaskPanel({
             >
               {/* In-progress subtasks spin the same outer-border loader the task
                   list uses for running tasks, so subtask progress reads the same. */}
-              {subtask.status === 'in-progress' && (
+              {inProgress && (
                 <svg
                   className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
                   viewBox="0 0 32 32"

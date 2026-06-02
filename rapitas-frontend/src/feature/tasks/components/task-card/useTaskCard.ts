@@ -2,7 +2,11 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import { statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
+import {
+  statusConfig,
+  resolveStatusConfig,
+  isInProgressStatus,
+} from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
@@ -107,7 +111,7 @@ export function useTaskCard(
   // the execution-state-store. Treat "any subtask in-progress" as the parent
   // running so the card shows the live progress animation. Without this, a
   // split parent showed no activity while its subtasks were executing.
-  const hasRunningSubtask = localSubtasks.some((s) => s.status === 'in-progress');
+  const hasRunningSubtask = localSubtasks.some((s) => isInProgressStatus(s.status));
   const executionStatus = storeExecutionStatus ?? (hasRunningSubtask ? 'running' : null);
 
   // Close context menu on outside click

@@ -17,15 +17,27 @@ export const statusConfig = {
     borderColor: 'border-l-green-500 dark:border-l-green-400',
     label: '完了',
   },
-  // 'blocked' is set by the workflow when verification fails (needs a fix +
-  // re-verify). Without an entry here the badge/icon rendered blank.
+  // 'blocked' is an internal workflow state (waiting-for-input / verification
+  // pending / transient failure during a run). Per UX request it is surfaced as
+  // "進行中" — same look as in-progress — rather than a distinct ⚠ badge.
   blocked: {
-    color: 'text-amber-700 dark:text-amber-300',
-    bgColor: 'bg-amber-50 dark:bg-amber-900/40',
-    borderColor: 'border-l-amber-500 dark:border-l-amber-400',
-    label: '要対応',
+    color: 'text-blue-700 dark:text-blue-300',
+    bgColor: 'bg-blue-50 dark:bg-blue-900/40',
+    borderColor: 'border-l-blue-500 dark:border-l-blue-400',
+    label: '進行中',
   },
 };
+
+/**
+ * Whether a status should be presented as "in progress" (drives the spinning
+ * loader). `blocked` is treated as in-progress per UX request — a task in that
+ * state is still mid-workflow, not a separate ⚠ state.
+ *
+ * @param status - Raw task status string. / タスクのステータス文字列
+ * @returns True when the status should read as in-progress. / 進行中扱いか
+ */
+export const isInProgressStatus = (status: string | null | undefined): boolean =>
+  status === 'in-progress' || status === 'blocked';
 
 /**
  * Resolve a status config entry, falling back to `todo` for any unknown status
@@ -54,7 +66,9 @@ export const renderStatusIcon = (status: string) => {
           />
         </svg>
       );
+    // 'blocked' renders the same glyph as in-progress (surfaced as 進行中).
     case 'in-progress':
+    case 'blocked':
       return (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24">
           <rect
@@ -74,18 +88,6 @@ export const renderStatusIcon = (status: string) => {
       return (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-        </svg>
-      );
-    case 'blocked':
-      // Alert triangle — needs attention / re-verification.
-      return (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-          />
         </svg>
       );
     default:
