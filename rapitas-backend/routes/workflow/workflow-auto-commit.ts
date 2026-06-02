@@ -108,7 +108,7 @@ export async function performAutoCommitAndPR(
     const targetBranch =
       ((execConfig as Record<string, unknown>).targetBranch as string) ||
       task.theme?.defaultBranch ||
-      'master';
+      'develop';
 
     // CRITICAL: git commit / push / PR commands MUST run inside the
     // per-task worktree, not the dev project root. Earlier code passed

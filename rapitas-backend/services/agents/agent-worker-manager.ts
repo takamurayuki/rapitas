@@ -184,8 +184,16 @@ export class AgentWorkerManager {
     branchName: string,
     taskId?: number,
     repositoryUrl?: string | null,
+    baseBranch?: string | null,
   ): Promise<string> {
-    return git.createWorktree(this.ipc.bind(this), baseDir, branchName, taskId, repositoryUrl);
+    return git.createWorktree(
+      this.ipc.bind(this),
+      baseDir,
+      branchName,
+      taskId,
+      repositoryUrl,
+      baseBranch,
+    );
   }
 
   /**

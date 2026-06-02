@@ -37,6 +37,8 @@ export interface ExecuteSetupParams {
   existingConfig: { id: number } | null;
   sessionId?: number;
   branchName?: string;
+  /** Base branch to cut the feature branch from (origin/<baseBranch>). */
+  baseBranch?: string | null;
   workDir: string;
 }
 
@@ -57,6 +59,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
     existingConfig,
     sessionId,
     branchName,
+    baseBranch,
     workDir,
   } = params;
 
@@ -124,6 +127,7 @@ export async function executeSetup(params: ExecuteSetupParams): Promise<SetupRes
       finalBranchName,
       taskIdNum,
       taskThemeRepositoryUrl || null,
+      baseBranch || null,
     );
     log.info(`[setup] Created worktree at ${worktreePath}`);
   } catch (worktreeError) {

@@ -55,6 +55,13 @@ export const executeRoute = new Elysia().post(
       timeout?: number;
       instruction?: string;
       branchName?: string;
+      /**
+       * Base branch the new feature branch is cut FROM and the PR targets.
+       * When omitted, falls back to the theme's defaultBranch (then 'develop').
+       * The new branch is created from `origin/<baseBranch>` and the PR is
+       * opened against the same branch (branch-from === PR-into).
+       */
+      baseBranch?: string;
       useTaskAnalysis?: boolean;
       optimizedPrompt?: string;
       sessionId?: number;
@@ -76,6 +83,7 @@ export const executeRoute = new Elysia().post(
       timeout,
       instruction,
       branchName,
+      baseBranch,
       useTaskAnalysis,
       optimizedPrompt,
       sessionId,
@@ -177,6 +185,18 @@ export const executeRoute = new Elysia().post(
 
     log.info(`[API] Executing task ${taskIdNum} in working directory: ${workDir}`);
 
+    // Resolve the base branch: explicit request value → theme default → develop.
+    // It is used both as the branch-from base (worktree) AND the PR target, so
+    // the two always match. Persisting it to agentExecutionConfig.targetBranch
+    // is what makes the later auto-PR open against the chosen base.
+    const resolvedBaseBranch =
+      (typeof baseBranch === 'string' && baseBranch.trim()) ||
+      task.theme?.defaultBranch ||
+      'develop';
+    await prisma.agentExecutionConfig
+      .updateMany({ where: { taskId: taskIdNum }, data: { targetBranch: resolvedBaseBranch } })
+      .catch((err) => log.warn({ err, taskIdNum }, '[API] Failed to persist targetBranch'));
+
     let setupResult;
     try {
       setupResult = await executeSetup({
@@ -187,6 +207,7 @@ export const executeRoute = new Elysia().post(
         existingConfig: task.developerModeConfig,
         sessionId,
         branchName,
+        baseBranch: resolvedBaseBranch,
         workDir,
       });
     } catch (setupError) {

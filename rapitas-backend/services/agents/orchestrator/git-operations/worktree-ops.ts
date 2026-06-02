@@ -38,6 +38,7 @@ export async function createWorktree(
   branchName: string,
   taskId?: number,
   repositoryUrl?: string | null,
+  baseBranch?: string | null,
 ): Promise<string> {
   const isRepo = await ensureGitRepository(baseDir, repositoryUrl);
   if (!isRepo) {
@@ -93,20 +94,56 @@ export async function createWorktree(
       });
     } else {
       let parentBranch = 'develop';
-      try {
-        const { stdout: developCheck } = await execAsync('git branch --list develop', {
+      // Prefer the explicitly chosen base branch (from the execute form /
+      // theme default). Cut from origin/<base> when present so the feature
+      // branch starts at the up-to-date remote tip; else the local branch.
+      // Fall back to the develop→main→master heuristic when the chosen base
+      // can't be resolved (keeps branch-from === PR-into for the common case).
+      let resolvedBase: string | null = null;
+      if (baseBranch) {
+        const originRef = `origin/${baseBranch}`;
+        const originExists = await execAsync(`git branch -r --list "${originRef}"`, {
           cwd: baseDir,
           encoding: 'utf8',
-        });
-        if (!developCheck.trim()) {
-          const { stdout: mainCheck } = await execAsync('git branch --list main', {
+        })
+          .then((r) => !!r.stdout.trim())
+          .catch(() => false);
+        if (originExists) {
+          resolvedBase = originRef;
+        } else {
+          const localExists = await execAsync(`git branch --list "${baseBranch}"`, {
+            cwd: baseDir,
+            encoding: 'utf8',
+          })
+            .then((r) => !!r.stdout.trim())
+            .catch(() => false);
+          if (localExists) resolvedBase = baseBranch;
+        }
+        if (!resolvedBase) {
+          logger.warn(
+            `[createWorktree] Requested base branch "${baseBranch}" not found (origin or local); falling back to default detection`,
+          );
+        }
+      }
+
+      if (resolvedBase) {
+        parentBranch = resolvedBase;
+      } else {
+        try {
+          const { stdout: developCheck } = await execAsync('git branch --list develop', {
             cwd: baseDir,
             encoding: 'utf8',
           });
-          parentBranch = mainCheck.trim() ? 'main' : 'master';
+          if (!developCheck.trim()) {
+            const { stdout: mainCheck } = await execAsync('git branch --list main', {
+              cwd: baseDir,
+              encoding: 'utf8',
+            });
+            parentBranch = mainCheck.trim() ? 'main' : 'master';
+          }
+        } catch {
+          parentBranch = 'main';
         }
-      } catch {
-        parentBranch = 'main';
       }
 
       logger.info(
