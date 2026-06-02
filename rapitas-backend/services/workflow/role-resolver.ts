@@ -47,38 +47,9 @@ type WorkflowStatus =
 
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
-/**
- * Role that owns each workflow status, per workflow mode.
- *
- * NOTE: Research is mandatory across ALL modes — the read-only research
- * pipeline (codex with --sandbox=read-only, stdout → research.md) runs
- * regardless of complexity. Tiers diverge by ceremony: lightweight skips
- * plan + review; standard adds plan (no review); comprehensive adds the
- * plan-review pass too. Mirrors getWorkflowTabs / getStatusToNextRole (FE).
- */
-const ROLE_BY_STATUS: Record<WorkflowMode, Partial<Record<WorkflowStatus, WorkflowRole>>> = {
-  comprehensive: {
-    draft: 'researcher',
-    research_done: 'planner',
-    plan_created: 'reviewer',
-    plan_approved: 'implementer',
-    in_progress: 'verifier',
-  },
-  // Standard (中) skips the separate plan-review pass — plan goes straight to
-  // approval/implementation. Keep in sync with STANDARD_MODE in
-  // workflow-orchestrator.ts.
-  standard: {
-    draft: 'researcher',
-    research_done: 'planner',
-    plan_approved: 'implementer',
-    in_progress: 'verifier',
-  },
-  lightweight: {
-    draft: 'researcher',
-    research_done: 'implementer',
-    in_progress: 'auto_verifier',
-  },
-};
+// NOTE: The status→role map is now derived from the DB-backed, UI-editable
+// mode config (workflow-mode-config.ts) — the single source of truth shared
+// with the orchestrator and the frontend. No more hardcoded per-mode table.
 
 export interface ResolvedRoleAgent {
   role: WorkflowRole;
@@ -113,7 +84,8 @@ export async function resolveAgentForTask(taskId: number): Promise<ResolvedRoleA
   if (status === 'verify_done' || status === 'completed') return null;
 
   const mode: WorkflowMode = (task.workflowMode as WorkflowMode | null) ?? 'comprehensive';
-  const role = ROLE_BY_STATUS[mode]?.[status];
+  const { getModeSettings, buildRoleByStatus } = await import('./workflow-mode-config');
+  const role = buildRoleByStatus(await getModeSettings(mode))[status];
   if (!role) {
     log.debug({ taskId, status, mode }, 'No role mapped for current workflow status');
     return null;

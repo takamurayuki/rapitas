@@ -143,15 +143,23 @@ export const executeRoute = new Elysia().post(
           acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
         };
         const analysisResult = analyzeTaskComplexity(complexityInput);
+        // Map the score to a mode using the DB-configured complexity ranges
+        // (UI-editable) rather than the hardcoded 35/70 split.
+        const { getAllModeSettings, recommendModeFromSettings } =
+          await import('../../../services/workflow/workflow-mode-config');
+        const recommendedMode = recommendModeFromSettings(
+          analysisResult.complexityScore,
+          await getAllModeSettings(),
+        );
         await prisma.task.update({
           where: { id: taskIdNum },
           data: {
             complexityScore: analysisResult.complexityScore,
-            workflowMode: analysisResult.recommendedMode,
+            workflowMode: recommendedMode,
           },
         });
         task.complexityScore = analysisResult.complexityScore;
-        task.workflowMode = analysisResult.recommendedMode;
+        task.workflowMode = recommendedMode;
       } catch (error) {
         log.error({ err: error }, `[API] Failed to analyze task complexity for task ${taskIdNum}`);
       }

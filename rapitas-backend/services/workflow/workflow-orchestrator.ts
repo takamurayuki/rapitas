@@ -43,40 +43,10 @@ type WorkflowStatus =
   | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
-// NOTE: Research is mandatory across ALL workflow modes. The read-only
-// research pipeline runs first regardless of complexity. The three modes then
-// genuinely diverge by ceremony (each tier = a DIFFERENT set of phases):
-//   - lightweight (低): research → implement → auto-verify  (no plan, no review)
-//   - standard    (中): research → plan → implement → verify (plan, no review)
-//   - comprehensive(高): research → plan → review → implement → verify (full)
-// Previously standard and comprehensive were identical (review in both), so the
-// 3-tier complexity score only produced 2 distinct behaviours.
-
-// Comprehensive mode (高) - full 5-phase: research → plan → review → impl → verify
-const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
-  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
-  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
-
-// Standard mode (中) - 4-phase: research → plan → implement → verify (NO review).
-// The separate plan-review pass is reserved for comprehensive; standard plans
-// then goes straight to approval/implementation.
-const STANDARD_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
-  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
-
-// Lightweight mode - 3-step (research → implement → auto-verify)
-const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
+// NOTE: The per-mode transition tables were moved to workflow-mode-config.ts,
+// which builds them from DB-backed, UI-editable settings (single source of
+// truth, shared with role-resolver and the frontend). Research is mandatory in
+// every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
 
@@ -130,14 +100,12 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // Select the appropriate transition map based on workflow mode
+    // Build the transition table from the (DB-backed, UI-editable) mode config.
+    // Single source of truth — see workflow-mode-config.ts.
     const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
-    const modeTransitions =
-      workflowMode === 'lightweight'
-        ? LIGHTWEIGHT_MODE
-        : workflowMode === 'standard'
-          ? STANDARD_MODE
-          : COMPREHENSIVE_MODE;
+    const { getModeSettings, buildTransitions } = await import('./workflow-mode-config');
+    const modeSettings = await getModeSettings(workflowMode);
+    const modeTransitions = buildTransitions(modeSettings);
 
     const currentStatus = (task.workflowStatus as string) || 'draft';
     const transition = modeTransitions[currentStatus];

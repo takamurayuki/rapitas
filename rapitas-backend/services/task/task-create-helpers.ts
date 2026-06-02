@@ -185,15 +185,25 @@ export async function createParentTask(
       };
       const analysis = await analyzeTaskComplexityWithLearning(complexityInput);
 
+      // Map the score to a mode via the DB-configured complexity ranges
+      // (UI-editable) instead of the hardcoded 35/70 split.
+      const { getAllModeSettings, recommendModeFromSettings } = await import(
+        '../workflow/workflow-mode-config'
+      );
+      const recommendedMode = recommendModeFromSettings(
+        analysis.complexityScore,
+        await getAllModeSettings(),
+      );
+
       await prisma.task.update({
         where: { id: createdTask.id },
         data: {
-          workflowMode: analysis.recommendedMode,
+          workflowMode: recommendedMode,
           complexityScore: analysis.complexityScore,
         },
       });
       logger.info(
-        `[task-create-helpers] Auto-assigned workflow mode: ${analysis.recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
+        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
       );
     } catch (err) {
       // NOTE: Complexity analysis failure should not block task creation
