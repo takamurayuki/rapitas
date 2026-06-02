@@ -20,6 +20,7 @@ import {
   FolderKanban,
   Target,
   BarChart3,
+  GanttChartSquare,
   Flame,
   Brain,
   FileText,
@@ -85,7 +86,7 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
-        { href: '/gantt', label: 'ガントチャート', icon: BarChart3 },
+        { href: '/gantt', label: 'ガントチャート', icon: GanttChartSquare },
         {
           href: '#',
           label: t('category'),

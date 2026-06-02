@@ -21,6 +21,7 @@ import {
   notificationsRoutes,
   settingsRoutes,
   tasksRoutes,
+  ganttDataRoute,
   examGoalsRoutes,
   studyStreaksRoutes,
   resourcesRoutes,
@@ -152,6 +153,7 @@ app.use(commentsRoutes);
 app.use(notificationsRoutes);
 app.use(settingsRoutes);
 app.use(tasksRoutes);
+app.use(ganttDataRoute);
 app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);

@@ -10,6 +10,7 @@ import {
   milestonesRoutes,
   templatesRoutes,
   tasksRoutes,
+  ganttDataRoute,
   taskSuggestionRoutes,
   taskQuickCreateRoutes,
   taskAutoGenerateRoutes,
@@ -105,6 +106,7 @@ export function registerAllRoutes(app: Elysia): void {
 
   // Tasks
   app.use(tasksRoutes);
+  app.use(ganttDataRoute);
   app.use(taskSuggestionRoutes);
   app.use(taskQuickCreateRoutes);
   app.use(taskAutoGenerateRoutes);
