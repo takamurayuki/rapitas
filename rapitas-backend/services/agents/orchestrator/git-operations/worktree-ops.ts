@@ -122,6 +122,34 @@ export async function createWorktree(
       `[createWorktree] Worktree created: ${worktreePath} (branch: ${effectiveBranchName})`,
     );
 
+    // Ignore the agent's transient workflow temp file. claude-code writes
+    // `.wf-tmp.md` into the working dir and curl's it to the workflow API
+    // (see prompt-builder.ts); the file then lingered in the worktree and
+    // showed up as the ONLY "changed file" in verify reports / auto-commits
+    // (e.g. "変更: 1件 + .wf-tmp.md"). Adding it to the worktree-local git
+    // exclude keeps it out of status / diff / `git add .` entirely.
+    try {
+      const { stdout: excludeRel } = await execAsync('git rev-parse --git-path info/exclude', {
+        cwd: worktreePath,
+        encoding: 'utf8',
+      });
+      let excludePath = excludeRel.trim();
+      if (!excludePath.match(/^([a-zA-Z]:[\\/]|[\\/])/)) {
+        excludePath = join(worktreePath, excludePath);
+      }
+      await fsPromises.mkdir(join(excludePath, '..'), { recursive: true });
+      await fsPromises.appendFile(
+        excludePath,
+        '\n# rapitas agent transient files\n.wf-tmp.md\n.wf-tmp*\n',
+        'utf8',
+      );
+    } catch (excErr) {
+      logger.warn(
+        { err: excErr, worktreePath },
+        '[createWorktree] Failed to add .wf-tmp.md to git exclude (non-fatal)',
+      );
+    }
+
     // NOTE: Dependency install is intentionally NOT awaited here. The caller
     // (executeRoute) decides whether/when to install based on task heuristics
     // and awaits via `awaitWorktreeDependencies(worktreePath)` just before

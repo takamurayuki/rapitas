@@ -17,17 +17,20 @@ import { API_BASE_URL } from '@/utils/api';
 
 const logger = createLogger('ExecutionStream');
 
-/** Workflow phase completion messages keyed by sessionMode */
+// Workflow phase completion messages keyed by sessionMode.
+// NOTE: researcher/planner/reviewer are auto-advancing phases — the orchestrator
+// proceeds to the next phase automatically (planner/reviewer also auto-approve
+// when the setting is on). The messages must NOT imply a hard manual stop, which
+// previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
 const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-  'workflow-researcher':
-    '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
+  'workflow-researcher': '[調査完了] リサーチフェーズが完了しました。計画フェーズへ自動で進みます...',
   'workflow-planner':
-    '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
+    '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-reviewer':
-    '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
+    '[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
   'workflow-verifier':
-    '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
+    '[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。',
 };
 
 export type PollRefs = {
