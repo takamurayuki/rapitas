@@ -234,6 +234,22 @@ export const executeRoute = new Elysia().post(
     let resolvedAgentConfigId = agentConfigId;
     let resolvedModelOverride: string | undefined;
     const roleAgent = await resolveAgentForTask(taskIdNum);
+
+    // Tag the session with its workflow role (e.g. workflow-researcher). The
+    // execute-route's run otherwise had a null session mode, so the FE could
+    // not tell it was an auto-advancing phase: it showed "[完了] 実行が完了
+    // しました" and stopped polling the moment this phase finished — even though
+    // the orchestrator auto-advances to implement → verify (the agent keeps
+    // running). With the mode set, the FE treats researcher/planner/reviewer/
+    // implementer as auto-advancing and keeps following the workflow until it
+    // actually completes (verify → PR → done).
+    if (roleAgent?.role) {
+      await prisma.agentSession
+        .update({ where: { id: session.id }, data: { mode: `workflow-${roleAgent.role}` } })
+        .catch((err) =>
+          log.warn({ err, taskIdNum, role: roleAgent.role }, '[API] Failed to set session mode'),
+        );
+    }
     if (roleAgent?.agentConfigId) {
       if (resolvedAgentConfigId !== roleAgent.agentConfigId) {
         log.info(
