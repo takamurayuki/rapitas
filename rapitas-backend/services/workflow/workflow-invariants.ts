@@ -93,5 +93,22 @@ export async function checkWorkflowInvariants(taskId: number): Promise<Violation
     });
   }
 
+  // A split parent must not be terminal while any subtask is still non-terminal.
+  // Catches the premature-completion regression where the HTTP verify path
+  // finalized a parent (e.g. task #71) with subtasks still 'todo'.
+  if (wf === 'completed' || wf === 'verify_done') {
+    const openSubtasks = await prisma.task
+      .count({
+        where: { parentId: taskId, status: { notIn: ['done', 'failed', 'cancelled', 'archived'] } },
+      })
+      .catch(() => 0);
+    if (openSubtasks > 0) {
+      violations.push({
+        code: 'incomplete_subtasks',
+        message: `workflowStatus="${wf}" but ${openSubtasks} subtask(s) are still non-terminal`,
+      });
+    }
+  }
+
   return violations;
 }

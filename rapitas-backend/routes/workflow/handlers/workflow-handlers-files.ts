@@ -166,6 +166,49 @@ export async function handleSaveFile({
       );
     }
 
+    // A split parent must never be verified/completed while any of its subtasks
+    // is still non-terminal. The parent's integration verify.md and terminal
+    // status are driven exclusively by subtask-completion-handler once EVERY
+    // subtask reaches a terminal state. Accepting a verify.md here (an agent
+    // curling it directly, or a "run" button that advanced the parent to
+    // in_progress) is exactly what marked task #71 completed with 3 subtasks
+    // still 'todo'. Reject before writing anything so no premature verify.md
+    // lands on disk.
+    if (fileType === 'verify') {
+      const TERMINAL = new Set(['done', 'failed', 'cancelled', 'archived']);
+      const subtasks = await prisma.task.findMany({
+        where: { parentId: taskId },
+        select: { id: true, status: true },
+      });
+      const openSubtasks = subtasks.filter((s) => !TERMINAL.has(s.status));
+      if (openSubtasks.length > 0) {
+        log.warn(
+          { taskId, total: subtasks.length, openIds: openSubtasks.map((s) => s.id) },
+          '[Workflow] Rejected verify.md save: parent has non-terminal subtasks',
+        );
+        await recordTransition({
+          taskId,
+          fromStatus: currentStatusForGuard,
+          toStatus: currentStatusForGuard,
+          actor: 'system',
+          cause: 'verify_blocked_incomplete_subtasks',
+          phase: 'verify',
+          metadata: {
+            totalSubtasks: subtasks.length,
+            openSubtaskIds: openSubtasks.map((s) => s.id),
+          },
+          invariantViolation: true,
+          invariantMessage: `verify.md rejected: ${openSubtasks.length}/${subtasks.length} subtasks not terminal`,
+        });
+        throw new ValidationError(
+          `この親タスクには未完了のサブタスクが ${openSubtasks.length} 件あります（#${openSubtasks
+            .map((s) => s.id)
+            .join(', #')}）。分割タスクの完了は全サブタスクの完了後に自動で行われます。` +
+            `verify.md を親タスクに直接保存して完了させることはできません。`,
+        );
+      }
+    }
+
     const { dir } = resolved;
 
     // Accept either a JSON body { content, language } OR a raw text/markdown body.
@@ -405,7 +448,10 @@ export async function handleSaveFile({
     if (fileType === 'verify' && newStatus === 'verify_done') {
       // Best-effort commit/PR/merge — never block completion on its outcome.
       autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
-        log.warn({ err, taskId }, '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway');
+        log.warn(
+          { err, taskId },
+          '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway',
+        );
         return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
       });
       const commit = autoCommitPRResult.autoCommitResult;
