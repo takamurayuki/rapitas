@@ -164,9 +164,14 @@ app.listen({
 });
 log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
 
-// Set server stop callback for proper port release during graceful shutdown
+// Set server stop callback for proper port release during graceful shutdown.
+// NOTE: stop(true) force-closes ALL active connections, not just the listener.
+// Long-lived frontend connections (SSE, executing-tasks polling, health checks)
+// never finish on their own; a graceful stop() leaves them half-open and they
+// orphan as CLOSE_WAIT sockets under the dying PID — the root cause of the
+// port-3001 zombie-socket lockups that previously required a Windows reboot.
 setServerStopCallback(() => {
-  app.stop();
+  app.stop(true);
 });
 
 // Signal handling from bun --watch (for dev:simple mode)
@@ -185,10 +190,14 @@ const handleProcessSignal = async (signal: string) => {
   }, 8000);
 
   try {
-    // Step 1: First close the listening socket (reject new connections)
-    log.info('Step 1: Stopping listener (no new connections)...');
+    // Step 1: Close the listener AND force-close every active connection.
+    // stop(true) is critical: a plain stop() only rejects new connections and
+    // waits for in-flight ones to finish, but the frontend's persistent polling /
+    // SSE connections never finish, so they would be left half-open and orphan as
+    // CLOSE_WAIT sockets when the process exits (zombie-socket port lockup).
+    log.info('Step 1: Stopping listener + force-closing active connections...');
     try {
-      app.stop();
+      app.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
     }
@@ -261,6 +270,54 @@ const handleProcessSignal = async (signal: string) => {
 
 process.on('SIGTERM', () => handleProcessSignal('SIGTERM'));
 process.on('SIGINT', () => handleProcessSignal('SIGINT'));
+// Windows: SIGBREAK fires on Ctrl+Break and (often) console-window close; SIGHUP
+// covers parent-terminated / hangup paths. Registering them is a no-op where the
+// signal never fires, so it is safe cross-platform.
+process.on('SIGBREAK', () => handleProcessSignal('SIGBREAK'));
+process.on('SIGHUP', () => handleProcessSignal('SIGHUP'));
+
+// Last-resort synchronous safety net. If the process exits through a path that
+// bypassed the async handler above (e.g. an unexpected process.exit()), still
+// force-close the listener + active connections so nothing is left in CLOSE_WAIT
+// on port 3001. Bun's server.stop(true) is synchronous-safe to call here.
+process.on('exit', () => {
+  try {
+    app.server?.stop(true);
+  } catch {
+    /* best-effort: nothing more we can do during exit */
+  }
+});
+
+// Parent-liveness watchdog. Under `tauri dev` (and some Windows terminal-close
+// paths) the parent kills this process WITHOUT delivering SIGINT/SIGTERM — so the
+// graceful handler above never runs and the frontend's persistent connections
+// orphan as CLOSE_WAIT zombie sockets on port 3001 (the lockup that needed a
+// reboot). Polling the parent PID guarantees we still run the graceful shutdown
+// (which force-closes every connection) the instant the parent disappears, with
+// no dependency on signal delivery.
+const PARENT_PID = process.ppid;
+if (PARENT_PID && PARENT_PID > 1) {
+  const parentWatch = setInterval(() => {
+    let parentAlive = true;
+    try {
+      // signal 0 only probes existence; it never actually signals the process.
+      process.kill(PARENT_PID, 0);
+    } catch (err) {
+      // EPERM = process exists but we lack permission (still alive). Anything
+      // else (ESRCH) = the parent is gone.
+      parentAlive = (err as NodeJS.ErrnoException).code === 'EPERM';
+    }
+    if (!parentAlive && !isShuttingDown) {
+      clearInterval(parentWatch);
+      log.warn(
+        `Parent process ${PARENT_PID} exited — initiating graceful shutdown to avoid zombie sockets`,
+      );
+      handleProcessSignal('parent-exit');
+    }
+  }, 3000);
+  // Don't keep the event loop alive solely for this watchdog.
+  parentWatch.unref?.();
+}
 
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
