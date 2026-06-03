@@ -122,7 +122,7 @@ them at generate time. They cluster as follows:
 |---|---|---|
 | **Core tasks** | `Category`, `Theme`, `Project`, `Milestone`, `Task`, `Comment`, `Label` | Hierarchical: Category → Theme → Project → Task → Subtask |
 | **Time tracking** | `TimeEntry`, `PomodoroSession`, `ActivityLog`, `DailyScheduleBlock` | |
-| **Learning** | `ExamGoal`, `LearningGoal`, `Habit`, `HabitLog`, `Resource`, `FlashcardDeck`, `Flashcard` | Spaced repetition via `ts-fsrs` |
+| **Learning** | `ExamGoal`, `LearningGoal`, `Habit`, `HabitLog`, `Resource`, `StudyStreak` | |
 | **AI orchestration** | `AgentSession`, `AgentExecution`, `AgentExecutionLog`, `AIAgentConfig`, `WorkflowQueueItem`, `OrchestraSession` | Multi-provider (Claude/OpenAI/Gemini/Local) |
 | **Knowledge / memory** | `KnowledgeEntry`, `KnowledgeGraphNode`, `KnowledgeGraphEdge`, `EpisodeMemory`, `MemoryJournalEntry`, `ConsolidationRun` | Long-term agent memory |
 | **GitHub integration** | `GitHubIntegration`, `GitHubPullRequest`, `GitHubPRReview`, `GitHubIssue`, `GitCommit` | Bidirectional sync (planned) |
@@ -135,7 +135,7 @@ them at generate time. They cluster as follows:
 > ├── _generators.prisma   # generator + datasource
 > ├── core.prisma          # 11 models (Category, Theme, Project, Milestone, Task, …)
 > ├── time.prisma          # 4 models (TimeEntry, PomodoroSession, …)
-> ├── learning.prisma      # 8 models (ExamGoal, Habit, Flashcard, …)
+> ├── learning.prisma      # 6 models (ExamGoal, Habit, Resource, …)
 > ├── behavior.prisma      # 5 models (UserBehavior, TaskPattern, …)
 > ├── agents.prisma        # 10 models (AgentSession, AgentExecution, …)
 > ├── workflow.prisma      # 4 models (OrchestraSession, WorkflowQueueItem, …)

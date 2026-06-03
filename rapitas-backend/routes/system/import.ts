@@ -25,8 +25,6 @@ function validateBackupStructure(data: unknown): data is {
     themes?: unknown[];
     habits?: unknown[];
     habitLogs?: unknown[];
-    flashcardDecks?: unknown[];
-    flashcards?: unknown[];
     examGoals?: unknown[];
     learningGoals?: unknown[];
     studyStreaks?: unknown[];
@@ -287,22 +285,6 @@ export const importRoutes = new Elysia({ prefix: '/import' })
           });
         },
         async (goal) => prisma.examGoal.findFirst({ where: { name: goal.name } }),
-      );
-
-      // Import flashcard decks
-      await importEntities(
-        'flashcardDecks',
-        data.flashcardDecks as Array<{ name: string; description?: string; color?: string }>,
-        async (deck) => {
-          await prisma.flashcardDeck.create({
-            data: {
-              name: deck.name,
-              description: deck.description,
-              color: deck.color,
-            },
-          });
-        },
-        async (deck) => prisma.flashcardDeck.findFirst({ where: { name: deck.name } }),
       );
 
       log.info(

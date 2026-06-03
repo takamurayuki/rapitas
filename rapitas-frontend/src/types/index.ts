@@ -33,8 +33,6 @@ export type {
   Habit,
   HabitLog,
   Resource,
-  FlashcardDeck,
-  Flashcard,
 } from './learning.types';
 
 export type {

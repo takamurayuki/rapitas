@@ -26,7 +26,7 @@
 | 🧠 **Self-evolving Prompts** | `PromptEvolution` モデルで A/B テスト結果からシステムプロンプトを自動進化 |
 | 📦 **Local-first + Web** | Tauri 2 + SQLite で完全ローカル動作、Web 版で PostgreSQL に切替可 |
 | 📋 **階層タスク** | Category / Theme / Task / Subtask の 4 段階構造、`WorkflowTransition` による append-only 監査ログ |
-| ⏱️ **生産性ツール内蔵** | Pomodoro、Habit、Calendar、Flashcard、Knowledge Graph、Idea Box（音声書き起こし対応） |
+| ⏱️ **生産性ツール内蔵** | Pomodoro、Habit、Calendar、Knowledge Graph、Idea Box（音声書き起こし対応） |
 | 🔐 **0 Critical / 0 High** 脆弱性 | `bun audit` / `pnpm audit` 双方クリア（2026-05 時点） |
 
 ---
