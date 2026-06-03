@@ -144,3 +144,24 @@ model UserSession {
   @@index([sessionToken])
   @@index([expiresAt])
 }
+
+/**
+ * SearchMiss
+ *
+ * 探索→発見→創造→再探索ループを支えるゼロ件検索の記録。
+ * 検索してもヒットしなかったクエリを蓄積し、不足コンテンツの発見とタスク提案に活用する。
+ */
+model SearchMiss {
+  id                  Int       @id @default(autoincrement())
+  query               String    @unique
+  hitCount            Int       @default(0)
+  lastSearchedAt      DateTime  @default(now())
+  status              String    @default("open")
+  suggestedTaskId     Int?
+  resolvedAt          DateTime?
+  resolvedResultCount Int?
+  createdAt           DateTime  @default(now())
+
+  @@index([status])
+  @@index([hitCount])
+}
