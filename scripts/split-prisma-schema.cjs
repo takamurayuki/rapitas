@@ -61,15 +61,13 @@ const MAPPING = {
   ActivityLog: 'time',
   DailyScheduleBlock: 'time',
 
-  // ─── learning: study, habits, spaced repetition ───────────────────────
+  // ─── learning: study, habits ──────────────────────────────────────────
   ExamGoal: 'learning',
   StudyStreak: 'learning',
   LearningGoal: 'learning',
   Habit: 'learning',
   HabitLog: 'learning',
   Resource: 'learning',
-  FlashcardDeck: 'learning',
-  Flashcard: 'learning',
 
   // ─── behavior: user behavior analytics ────────────────────────────────
   UserBehavior: 'behavior',
@@ -107,6 +105,7 @@ const MAPPING = {
   KnowledgeGraphNode: 'memory',
   KnowledgeGraphEdge: 'memory',
   EpisodeMemory: 'memory',
+  DecisionLog: 'memory',
 
   // ─── experiments: self-improvement research ───────────────────────────
   Experiment: 'experiments',

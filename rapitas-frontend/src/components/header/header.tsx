@@ -45,6 +45,7 @@ import {
   Package,
   BookMarked,
   Keyboard,
+  Scale,
 } from 'lucide-react';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -116,6 +117,7 @@ export default function Header() {
       children: [
         { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
         { href: '/concerns', label: '懸念バックログ', icon: Bug },
+        { href: '/decisions', label: 'デシジョンジャーナル', icon: Scale },
         { href: '/backlog/settings', label: '設定', icon: CalendarClock },
       ],
     },
@@ -137,7 +139,6 @@ export default function Header() {
           icon: BookMarked,
         },
         { href: '/exam-goals', label: t('examGoals'), icon: Target },
-        { href: '/flashcards', label: t('flashcards'), icon: Brain },
       ],
     },
     {

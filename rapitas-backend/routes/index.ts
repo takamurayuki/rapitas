@@ -52,7 +52,6 @@ export { timeEntriesRoutes } from './scheduling/time-entries';
 export { examGoalsRoutes } from './learning/exam-goals';
 export { studyStreaksRoutes } from './learning/study-streaks';
 export { learningGoalsRoutes } from './learning/learning-goals';
-export { flashcardsRoutes } from './learning/flashcards';
 export { resourcesRoutes } from './learning/resources';
 export { learningDashboardRouter } from './learning/learning-dashboard';
 
@@ -111,6 +110,7 @@ export { memorySystemRoutes } from './memory/memory-system';
 export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
 export { ideaBoxRoutes } from './memory/idea-box';
 export { concernBacklogRoutes } from './memory/concern-backlog';
+export { decisionJournalRoutes } from './memory/decision-journal';
 export { backlogScheduleRoutes, backlogThemeOverrideRoutes } from './backlog';
 
 // Self-Learning

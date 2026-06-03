@@ -76,7 +76,6 @@ import {
   resourcesRoutes,
   learningGoalsRoutes,
   learningDashboardRouter,
-  flashcardsRoutes,
   directoriesRoutes,
   experimentsRoutes,
   learningRoutes,
@@ -87,6 +86,7 @@ import {
   systemPromptsRoutes,
   ideaBoxRoutes,
   concernBacklogRoutes,
+  decisionJournalRoutes,
   backlogScheduleRoutes,
   backlogThemeOverrideRoutes,
   exportRoutes,
@@ -153,6 +153,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(crossProjectKnowledgeRoutes);
   app.use(ideaBoxRoutes);
   app.use(concernBacklogRoutes);
+  app.use(decisionJournalRoutes);
   app.use(backlogScheduleRoutes);
   app.use(backlogThemeOverrideRoutes);
 
@@ -205,7 +206,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(resourcesRoutes);
   app.use(learningGoalsRoutes);
   app.use(learningDashboardRouter);
-  app.use(flashcardsRoutes);
   app.use(templatesRoutes);
   app.use(experimentsRoutes);
   app.use(learningRoutes);

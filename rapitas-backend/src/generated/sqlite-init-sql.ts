@@ -810,39 +810,6 @@ CREATE TABLE "Resource" (
 );
 
 -- CreateTable
-CREATE TABLE "FlashcardDeck" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "color" TEXT NOT NULL DEFAULT '#3B82F6',
-    "taskId" INTEGER,
-    "learningGoalId" INTEGER,
-    "phaseIndex" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "Flashcard" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "deckId" INTEGER NOT NULL,
-    "front" TEXT NOT NULL,
-    "back" TEXT NOT NULL,
-    "nextReview" DATETIME,
-    "interval" INTEGER NOT NULL DEFAULT 1,
-    "easeFactor" REAL NOT NULL DEFAULT 2.5,
-    "reviewCount" INTEGER NOT NULL DEFAULT 0,
-    "stability" REAL NOT NULL DEFAULT 0,
-    "difficulty" REAL NOT NULL DEFAULT 0,
-    "state" INTEGER NOT NULL DEFAULT 0,
-    "lapses" INTEGER NOT NULL DEFAULT 0,
-    "lastReview" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Flashcard_deckId_fkey" FOREIGN KEY ("deckId") REFERENCES "FlashcardDeck" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
 CREATE TABLE "KnowledgeEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "sourceType" TEXT NOT NULL,
@@ -987,6 +954,25 @@ CREATE TABLE "KnowledgeGraphEdge" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "KnowledgeGraphEdge_fromNodeId_fkey" FOREIGN KEY ("fromNodeId") REFERENCES "KnowledgeGraphNode" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "KnowledgeGraphEdge_toNodeId_fkey" FOREIGN KEY ("toNodeId") REFERENCES "KnowledgeGraphNode" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "DecisionLog" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "decision" TEXT NOT NULL,
+    "context" TEXT NOT NULL,
+    "rationale" TEXT,
+    "predictedOutcome" TEXT NOT NULL,
+    "confidence" REAL NOT NULL DEFAULT 0.5,
+    "reviewDate" DATETIME,
+    "actualOutcome" TEXT,
+    "calibration" TEXT NOT NULL DEFAULT 'pending',
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "themeId" INTEGER,
+    "taskId" INTEGER,
+    "reviewedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
@@ -1146,6 +1132,19 @@ CREATE TABLE "UserSession" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "SearchMiss" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "query" TEXT NOT NULL,
+    "hitCount" INTEGER NOT NULL DEFAULT 0,
+    "lastSearchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "suggestedTaskId" INTEGER,
+    "resolvedAt" DATETIME,
+    "resolvedResultCount" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1571,6 +1570,15 @@ CREATE INDEX "KnowledgeGraphEdge_edgeType_idx" ON "KnowledgeGraphEdge"("edgeType
 CREATE UNIQUE INDEX "KnowledgeGraphEdge_fromNodeId_toNodeId_edgeType_key" ON "KnowledgeGraphEdge"("fromNodeId", "toNodeId", "edgeType");
 
 -- CreateIndex
+CREATE INDEX "DecisionLog_status_reviewDate_idx" ON "DecisionLog"("status", "reviewDate");
+
+-- CreateIndex
+CREATE INDEX "DecisionLog_calibration_idx" ON "DecisionLog"("calibration");
+
+-- CreateIndex
+CREATE INDEX "DecisionLog_themeId_idx" ON "DecisionLog"("themeId");
+
+-- CreateIndex
 CREATE INDEX "EpisodeMemory_experimentId_idx" ON "EpisodeMemory"("experimentId");
 
 -- CreateIndex
@@ -1638,6 +1646,15 @@ CREATE INDEX "UserSession_sessionToken_idx" ON "UserSession"("sessionToken");
 
 -- CreateIndex
 CREATE INDEX "UserSession_expiresAt_idx" ON "UserSession"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SearchMiss_query_key" ON "SearchMiss"("query");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_status_idx" ON "SearchMiss"("status");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
