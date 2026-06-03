@@ -56,6 +56,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `PriorityIcon` (chevrons) | タスク/アイデアの優先度                  |
 | `Globe`                   | スコープ「グローバル」                   |
 | `FolderOpen`              | プロジェクト / カテゴリ                  |
+| `Scale`                   | 意思決定 / デシジョンジャーナル          |
 
 ### Known collisions — resolve when you next touch them
 

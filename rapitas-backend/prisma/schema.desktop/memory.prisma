@@ -208,6 +208,37 @@ model KnowledgeGraphEdge {
   @@index([edgeType])
 }
 
+// Decision Journal — records a deliberate decision with its rationale and a
+// predicted outcome + confidence, so the user can later review it against the
+// actual outcome and calibrate their judgment over time. Distinct from the
+// KnowledgeEntry-backed idea-box/concern features: review/calibration are
+// first-class columns here to support "due for review" queries and accuracy stats.
+model DecisionLog {
+  id               Int       @id @default(autoincrement())
+  decision         String    // The decision made (acts as the title)
+  context          String    // Situation / why a decision was needed
+  rationale        String?   // Reasoning behind the choice
+  predictedOutcome String    // What the user expects to happen
+  confidence       Float     @default(0.5) // Predicted-outcome confidence, 0.0-1.0
+  reviewDate       DateTime? // When to revisit this decision
+  actualOutcome    String?   // Filled in at review time
+  // Verdict comparing prediction vs reality, set at review time.
+  calibration      String    @default("pending") // "pending" | "correct" | "partial" | "wrong"
+  status           String    @default("open")    // "open" | "reviewed" | "archived"
+  themeId          Int?
+  taskId           Int?      // Set when a follow-up task is spun off
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Hot path: "open decisions whose reviewDate has arrived", ordered for the
+  // "今日のレビュー" queue.
+  @@index([status, reviewDate])
+  // Calibration accuracy aggregation.
+  @@index([calibration])
+  @@index([themeId])
+}
+
 // Episodic memory - detailed experiment records
 model EpisodeMemory {
   id            Int       @id @default(autoincrement())
