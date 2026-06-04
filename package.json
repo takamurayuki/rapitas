@@ -65,6 +65,9 @@
       "prettier --write",
       "eslint --fix --no-warn-ignored --max-warnings=9999 --config rapitas-frontend/eslint.config.mjs"
     ],
+    "rapitas-backend/prisma/**/*.prisma": [
+      "node scripts/prisma-generate-hook.cjs"
+    ],
     "rapitas-backend/**/*.ts": [
       "prettier --write"
     ]
