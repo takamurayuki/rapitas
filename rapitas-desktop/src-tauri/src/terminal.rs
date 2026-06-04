@@ -231,11 +231,14 @@ pub fn terminal_create(
         let _ = app_reader.emit("terminal-exit", TerminalExit { id: id_reader });
     });
 
-    state
-        .sessions
-        .lock()
-        .unwrap()
-        .insert(id, TerminalSession { master: pair.master, writer, child });
+    state.sessions.lock().unwrap().insert(
+        id,
+        TerminalSession {
+            master: pair.master,
+            writer,
+            child,
+        },
+    );
     Ok(())
 }
 
@@ -254,7 +257,10 @@ pub fn terminal_write(
         .writer
         .write_all(data.as_bytes())
         .map_err(|e| format!("write failed: {e}"))?;
-    session.writer.flush().map_err(|e| format!("flush failed: {e}"))?;
+    session
+        .writer
+        .flush()
+        .map_err(|e| format!("flush failed: {e}"))?;
     Ok(())
 }
 
