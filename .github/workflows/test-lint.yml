@@ -173,6 +173,7 @@ jobs:
           src/feature/knowledge/hooks/__tests__/useContradictions.test.ts
           src/feature/knowledge/hooks/__tests__/useKnowledgeSearch.test.ts
           src/feature/developer-mode/components/__tests__/formatLogLine.test.ts
+          src/feature/developer-mode/hooks/__tests__/execution-poll-handlers.test.ts
           src/feature/tasks/components/gantt/gantt-utils.test.ts
           src/feature/tasks/hooks/__tests__/formatLogData.test.ts
 

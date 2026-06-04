@@ -23,7 +23,8 @@ const logger = createLogger('ExecutionStream');
 // when the setting is on). The messages must NOT imply a hard manual stop, which
 // previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
 const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-  'workflow-researcher': '[調査完了] リサーチフェーズが完了しました。計画フェーズへ自動で進みます...',
+  'workflow-researcher':
+    '[調査完了] リサーチフェーズが完了しました。計画フェーズへ自動で進みます...',
   'workflow-planner':
     '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-reviewer':
@@ -102,16 +103,13 @@ export function handleCompleted(
       '\n';
   }
 
-  // PHASE-COMPLETE BUT NOT TASK-COMPLETE: when an auto-advancing workflow
-  // phase ends (researcher/planner/reviewer/implementer), reset internal
-  // tracking so the NEXT phase's execution can be picked up by the same
-  // polling loop without a page reload. The caller (`executePoll`) checks
-  // `isAutoAdvancing` to decide whether to call `stopPolling()`.
-  if (isAutoAdvancingPhase(sessionMode)) {
-    refs.lastProcessedStatusRef.current = null;
-    refs.hasAddedFinalLogRef.current = false;
-    refs.lastProcessedQuestionRef.current = null;
-  }
+  // PHASE-COMPLETE BUT NOT TASK-COMPLETE: do NOT reset the dedup refs here.
+  // Resetting on every 'completed' poll made this handler re-run and re-emit the
+  // phase-completion message on EVERY subsequent poll while the same completed
+  // execution row persisted (the "[調査完了]…自動で進みます" spam when the next
+  // phase hadn't spawned yet). The NEXT phase is detected by the executionId
+  // rollover check in executePoll(), which resets these refs when a genuinely
+  // new AgentExecution appears — so the same completed phase is logged once.
 
   return (prev) => ({
     ...prev,
