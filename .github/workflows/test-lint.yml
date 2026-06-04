@@ -157,6 +157,9 @@ jobs:
           src/stores/__tests__/task-cache-store.test.ts
           src/stores/__tests__/task-detail-visibility-store.test.ts
           src/stores/__tests__/ui-mode-store.test.ts
+          src/stores/__tests__/server-restart-store.test.ts
+          src/feature/terminal/__tests__/terminal-store.test.ts
+          src/feature/terminal/__tests__/terminal-context-store.test.ts
           src/utils/__tests__/api.test.ts
           src/utils/__tests__/date.test.ts
           src/utils/__tests__/external-links.test.ts
