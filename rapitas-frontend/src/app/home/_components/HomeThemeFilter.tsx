@@ -70,10 +70,14 @@ export function HomeThemeFilter({
   const router = useRouter();
   const t = useTranslations('home');
 
-  // Point the integrated terminal at the selected theme's working directory so
-  // Ctrl+J from the task list opens there (cleared when no dir is set).
+  // Point the integrated terminal at the effective theme's working directory so
+  // Ctrl+J / new tabs from the task list open there. The effective theme is the
+  // explicit filter, else the default theme — the list itself operates on
+  // `themeFilter || defaultTheme`, so on the initial view (themeFilter null) the
+  // terminal must still follow the default theme's directory.
   useEffect(() => {
-    const selected = themes.find((theme) => theme.id === themeFilter);
+    const selected =
+      themes.find((theme) => theme.id === themeFilter) ?? themes.find((theme) => theme.isDefault);
     useTerminalContextStore.getState().setTerminalContext({
       cwd: selected?.workingDirectory ?? null,
       title: selected?.name ?? null,

@@ -96,7 +96,13 @@ export const useTerminalStore = create<TerminalStore>()(
 
       setHeight: (height) => set({ height: Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, height)) }),
 
-      addTab: () => set((state) => appendTab(state.tabs)),
+      // A new tab (+ button) also opens in the current view's working
+      // directory; unlike open() it never reuses an existing tab.
+      addTab: () =>
+        set((state) => {
+          const { cwd, title } = getTerminalContext();
+          return appendTab(state.tabs, cwd ? { cwd, title: title ?? undefined } : undefined);
+        }),
 
       // Open the panel and spawn a new tab bound to a task's working directory.
       openTerminalForTask: (opts) =>

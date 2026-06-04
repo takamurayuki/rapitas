@@ -83,6 +83,17 @@ describe('terminalStore', () => {
     expect(s.activeTabId).toBe(s.tabs[1].id);
   });
 
+  it('addTab() opens the new tab in the current working-directory context', () => {
+    store().open(); // first (generic) tab
+    useTerminalContextStore.getState().setTerminalContext({ cwd: '/proj/b', title: 'Theme B' });
+    store().addTab();
+    const s = store();
+    const newTab = s.tabs[s.tabs.length - 1];
+    expect(newTab.cwd).toBe('/proj/b');
+    expect(newTab.title).toBe('Theme B');
+    expect(s.activeTabId).toBe(newTab.id);
+  });
+
   it('splitActivePane() adds a pane to the active tab and sets direction', () => {
     store().open();
     const tabId = store().activeTabId!;
