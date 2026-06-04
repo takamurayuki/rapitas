@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useServerRestartStore } from '@/stores/server-restart-store';
 
 const logger = createLogger('useBackendHealth');
 
@@ -79,6 +80,12 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       }
     };
   }, []);
+
+  // Mirror the intentional-restart flag to the global store so the logger and
+  // connection-error UI can suppress the expected error flood app-wide.
+  useEffect(() => {
+    useServerRestartStore.getState().setRestarting(isIntentionalRestart);
+  }, [isIntentionalRestart]);
 
   const checkHealth = useCallback(async () => {
     try {

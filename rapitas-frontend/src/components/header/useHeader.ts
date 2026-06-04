@@ -15,6 +15,7 @@ import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useAppModeStore } from '@/stores/app-mode-store';
 import { useNavStore } from '@/stores/nav-store';
 import { useNoteStore } from '@/stores/note-store';
+import { useServerRestartStore } from '@/stores/server-restart-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
@@ -163,6 +164,9 @@ export function useHeader(): UseHeaderReturn {
    */
   const executeRestart = async () => {
     setIsRestarting(true);
+    // Flag the restart globally so the logger + connection-error UI go quiet
+    // immediately, before the SSE shutdown event would otherwise set it.
+    useServerRestartStore.getState().setRestarting(true);
     setRestartConfirmDialog({ open: false, activeExecutions: 0 });
     setIsMoreMenuOpen(false);
     try {
@@ -185,6 +189,8 @@ export function useHeader(): UseHeaderReturn {
         }
       }
       setIsRestarting(false);
+      // Restart didn't complete in time — re-enable logging so real errors show.
+      useServerRestartStore.getState().setRestarting(false);
       alert(t('restartTimeout'));
     };
     waitForServer();
