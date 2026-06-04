@@ -243,15 +243,11 @@ function HomeClientPage() {
     setTimeout(() => setSelectedTaskId(null), 300);
   }, [hideTaskDetail, setIsPanelOpen, setSelectedTaskId]);
 
-  useExecutingTasksPolling({
-    interval: 5000,
-    onExecutingTaskFound: useCallback(
-      (taskId: number) => {
-        if (!isPanelOpen) openTaskPanel(taskId);
-      },
-      [isPanelOpen, openTaskPanel],
-    ),
-  });
+  // NOTE: Poll only to reflect executing state onto task cards (spinner). Do NOT
+  // auto-open the detail panel on execution — its backdrop covered the list and
+  // made it look frozen / stuck-loading while an agent ran. The user opens a task
+  // manually via onTaskClick when they want to watch progress.
+  useExecutingTasksPolling({ interval: 5000 });
 
   const handleSelectAll = () => {
     const allSelected = selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0;

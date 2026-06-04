@@ -106,21 +106,10 @@ export function useKanbanBoard(
     setTimeout(() => setSelectedTaskId(null), 300);
   }, [hideTaskDetail]);
 
-  // NOTE: Only auto-open panel when no task is currently shown; avoids
-  // interrupting the user if they're already reviewing another task.
-  const handleExecutingTaskFound = useCallback(
-    (taskId: number) => {
-      if (!isPanelOpen) {
-        openTaskPanel(taskId);
-      }
-    },
-    [isPanelOpen, openTaskPanel],
-  );
-
-  useExecutingTasksPolling({
-    interval: 5000,
-    onExecutingTaskFound: handleExecutingTaskFound,
-  });
+  // NOTE: Poll only to reflect executing state onto cards (spinner). Auto-opening
+  // the detail panel on execution covered the board with its backdrop and made it
+  // look frozen; the user opens a task manually when they want to watch progress.
+  useExecutingTasksPolling({ interval: 5000 });
 
   const openTaskInPage = (taskId: number) => {
     router.push(`/tasks/${taskId}?showHeader=true`);
