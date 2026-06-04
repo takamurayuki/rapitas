@@ -29,7 +29,11 @@ export function useWorkflowFiles(taskId: number | null) {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/files`);
+      // no-store so polled refetches always get the agent's latest md writes
+      // (never a cached response).
+      const res = await fetch(`${API_BASE_URL}/workflow/tasks/${taskId}/files`, {
+        cache: 'no-store',
+      });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }

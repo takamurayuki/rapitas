@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { useLocaleStore } from '@/stores/locale-store';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { API_BASE_URL } from '@/utils/api';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 
@@ -52,6 +53,13 @@ export function useWorkflowViewer({
 }: UseWorkflowViewerOptions) {
   const [activeTab, setActiveTab] = useState<WorkflowFileType>('research');
   const locale = useLocaleStore((s) => s.locale);
+  // Live agent-execution flag for this task. While the agent runs it writes the
+  // md files, so the viewer must poll regardless of the workflow status (which
+  // may be null at the start, or a transient `blocked`/`awaiting_question` that
+  // is NOT in ACTIVE_STATUSES). Keys off execution so files reflect live.
+  const isExecuting = useExecutionStateStore((s) =>
+    taskId != null ? s.isTaskExecuting(taskId) : false,
+  );
   const {
     files,
     isLoading,
@@ -173,12 +181,17 @@ export function useWorkflowViewer({
       'in_progress',
     ]);
     const status = (effectiveStatus ?? fetchedStatus ?? workflowStatus) as WorkflowStatus | null;
-    if (status && ACTIVE_STATUSES.has(status)) {
+    const isTerminal = status === 'completed' || status === 'verify_done';
+    // Poll while an agent is executing (it writes the md files) OR the workflow
+    // is in an active status — but never once the workflow has terminated, so a
+    // stale "executing" flag can't keep polling forever.
+    const shouldPoll = !isTerminal && (isExecuting || (!!status && ACTIVE_STATUSES.has(status)));
+    if (shouldPoll) {
       startPolling(3000);
       return () => stopPolling();
     }
     stopPolling();
-  }, [effectiveStatus, fetchedStatus, workflowStatus, startPolling, stopPolling]);
+  }, [effectiveStatus, fetchedStatus, workflowStatus, isExecuting, startPolling, stopPolling]);
 
   const handleAdvance = useCallback(async () => {
     setIsAdvancing(true);
