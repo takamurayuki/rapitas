@@ -1,721 +1,149 @@
 <h1 align="center">rapitas</h1>
 
 <p align="center">
-  <strong>AI agent native task management.</strong><br/>
-  Multi-CLI (Claude Code / Codex / Gemini) を切替可能な自律エンジニアリングエージェント + 階層型タスク管理 + ナレッジ・メモリ統合を、Web と Tauri デスクトップで提供する Local-first SaaS スタック。
+  <strong>A local-first AI engineering workbench.</strong><br/>
+  Autonomous coding agents that research → plan → implement → verify a task <strong>inside an isolated git worktree</strong>, gated by an automated lint/type <strong>verification gate</strong> before any commit or PR — shipped as a Next.js web app <em>and</em> a Tauri/Rust desktop app over a Bun/Elysia backend.
+</p>
+
+<p align="center">
+  <em>Built for my own workflow; published as an engineering showcase.</em>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"/></a>
-  <img src="https://img.shields.io/badge/Next.js-16-black.svg" alt="Next.js 16"/>
-  <img src="https://img.shields.io/badge/Bun-1.3-fbf0df.svg" alt="Bun 1.3"/>
   <img src="https://img.shields.io/badge/Tauri-2.x-24C8DB.svg" alt="Tauri 2"/>
+  <img src="https://img.shields.io/badge/Bun-1.3-fbf0df.svg" alt="Bun 1.3"/>
+  <img src="https://img.shields.io/badge/Next.js-16-black.svg" alt="Next.js 16"/>
   <img src="https://img.shields.io/badge/Prisma-6.x-2D3748.svg" alt="Prisma 6"/>
 </p>
 
-<!-- TODO(public-launch): docs/demo.gif を追加してここに表示 -->
+<!-- TODO: 90-second demo GIF/video here — agent picks up a task → research/plan → edits code in a worktree → verification gate runs → PR opened. Single highest-leverage thing to add. -->
 <!-- ![demo](docs/demo.gif) -->
 
-## ✨ 主な特徴
+---
 
-| | |
+## At a glance (what this demonstrates)
+
+| Area | What it shows |
 | --- | --- |
-| 🤖 **Multi-CLI Agent** | Claude Code / Codex CLI / Gemini CLI を 1 アプリから切替・フォールバック実行 |
-| 🔁 **5-role Workflow** | Researcher → Planner → Reviewer → Implementer → Verifier の自律ワークフローで research.md / plan.md / verify.md を順次生成 |
-| 🛡️ **ハルシネーション検出** | `verify.md` の自己矛盾（"全テスト通過" と書きながら ❌ がある等）を検出し PR 生成を停止 |
-| 🧠 **Self-evolving Prompts** | `PromptEvolution` モデルで A/B テスト結果からシステムプロンプトを自動進化 |
-| 📦 **Local-first + Web** | Tauri 2 + SQLite で完全ローカル動作、Web 版で PostgreSQL に切替可 |
-| 📋 **階層タスク** | Category / Theme / Task / Subtask の 4 段階構造、`WorkflowTransition` による append-only 監査ログ |
-| ⏱️ **生産性ツール内蔵** | Pomodoro、Habit、Calendar、Knowledge Graph、Idea Box（音声書き起こし対応） |
-| 🔐 **0 Critical / 0 High** 脆弱性 | `bun audit` / `pnpm audit` 双方クリア（2026-05 時点） |
+| **Agentic systems** | Not just an LLM API call — the *orchestration*: isolated execution, a quality gate, a self-repair retry loop, and a workflow state machine. |
+| **Systems / OS-level** | Real PTY (ConPTY) integration, multi-process lifecycle, graceful shutdown, and a kernel-socket-leak fix that previously required a reboot. |
+| **End-to-end ownership** | Three runtimes — Tauri/Rust desktop, Bun/Elysia backend, Next.js/React frontend — integrated by one person. |
+| **Engineering maturity** | ADRs, enforced code/comment/folder policies, an automated agent-output gate, profiled-and-fixed startup performance, CI (lint + type-check + tests + clippy). |
+
+**Stack:** Tauri 2 + Rust · Bun + Elysia + Prisma (SQLite local / PostgreSQL web) · Next.js 16 + React 19 + Tailwind 4 + TypeScript · multi-provider LLMs (Claude / OpenAI / Gemini) + local LLM (Ollama) + RAG embeddings.
 
 ---
 
-## 🎯 誰のための、なぜ rapitas か
+## The problem I set out to solve
 
-### こんな人のためのツール（Ideal Customer Profile）
+AI coding agents are powerful but **unsafe by default**: they edit files in place, happily produce broken diffs, and flood you with PRs to babysit. I wanted an agent that could take a task and *actually finish it* — without (a) touching my working tree while I work, (b) shipping code that doesn't lint or type-check, or (c) locking me into one AI CLI. So rapitas is built on three opinions:
 
-rapitas は **「自分のマシンで完結させたい、コードを書く個人開発者・小規模チーム」** のための AI タスク実行環境です。次のいずれかに当てはまる人を主対象にしています。
+1. **Isolate the agent.** Every run happens in a throwaway git worktree, never the main checkout.
+2. **Gate the output.** No diff becomes a commit/PR until an automated lint + type-check gate passes — and if it fails, the agent is sent back to fix its own mess (bounded retries).
+3. **Don't get locked in.** Claude Code / Codex / Gemini are interchangeable, with model-tier routing and fallback.
 
-- 🔒 **ソースを外部クラウドに預けたくない** — 受託・社内規定・個人の方針で、リポジトリや生成過程を SaaS に送れない
-- 🔀 **AI CLI を 1 つに縛られたくない** — Claude Code / Codex / Gemini をタスクごとに使い分け、落ちたらフォールバックさせたい
-- 🧹 **AI が量産する "ノイズ PR" に疲れた** — レビュー前に、壊れた差分を自動で止めてほしい
-- 💰 **AI のコストを把握したい** — トークン / コストを集計し、キャッシュ・ローカル LLM で削りたい
+---
 
-### なぜ Linear / GitHub Copilot ではなく rapitas か
+## Architecture
 
-| 重視する点 | rapitas | Linear (AI Agents) | GitHub (Copilot coding agent) |
+```
+┌─────────────────────────────┐     spawns / supervises
+│  Tauri 2 (Rust)  desktop     │ ─────────────────────────┐
+│  · tray, shortcuts, PTYs     │                           │
+│  · parent-liveness watchdog  │                           ▼
+└──────────────┬──────────────┘            ┌────────────────────────────────┐
+   loads :3000 │ (dev) / static (prod)     │  Bun + Elysia backend  :3001     │
+               ▼                           │  · orchestrator + worker manager │
+┌─────────────────────────────┐  HTTP/SSE  │  · workflow state machine        │
+│  Next.js 16 / React 19       │ ◀────────▶ │  · verification gate             │
+│  · tasks, kanban, dashboards │            │  · model discovery / router      │
+│  · integrated terminal       │            │  · RAG memory (embeddings)       │
+└─────────────────────────────┘            └───────────────┬──────────────────┘
+                                                            │ per-task isolation
+                                                            ▼
+                                            ┌────────────────────────────────┐
+                                            │  git worktree per execution      │
+                                            │  .worktrees/task-<id>-<hex>/     │
+                                            │  agent CLI runs HERE (subprocess)│
+                                            └────────────────────────────────┘
+```
+
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · design decisions: [docs/adr/](docs/adr/).
+
+---
+
+## Hero engineering achievements
+
+### 1. Safe autonomous agent execution → **[full deep-dive](docs/deep-dive/safe-agent-execution.md)**
+
+An agent runs the `research → plan → verify` workflow inside an isolated worktree; an automated **verification gate** (ESLint `--format json` + `tsc --noEmit`, scoped to the files the agent changed) must pass before any commit/PR. On failure, a **self-repair loop** re-runs the agent in the *same* worktree with the lint/type errors as feedback (default 2 retries), and the gate **guards both** auto-PR paths. The gate is **fail-closed**: if the tooling can't run, the task is blocked rather than waved through. A workflow state machine prevents out-of-order or regressive steps, and self-contradictory verify reports ("all tests pass" + failures) can't trigger a PR.
+
+### 2. Resilient multi-process desktop lifecycle
+
+A Tauri app supervising a Bun backend, a Next.js frontend, agent workers, a Whisper voice daemon, and a local-LLM sidecar — across `tauri dev`, tray-quit, and hard window-close on Windows. I diagnosed and fixed a class of bug where half-closed SSE/polling connections orphaned as `CLOSE_WAIT` zombie sockets on port 3001, eventually requiring a reboot: a **force-close-on-shutdown** (`server.stop(true)`), a **parent-liveness watchdog** that shuts down gracefully even when no signal is delivered, and a layered port-reclamation strategy.
+
+### 3. Multi-model routing with cost awareness
+
+Provider **probes** (Claude/OpenAI/Gemini/Ollama) discover available models, classify them into tiers (`premium → standard → economy → free`), and a router picks by preferred-provider / free-first / cheapest-per-1k-tokens with automatic tier fallback (cached 5 min). Token/cost is tracked per execution.
+
+---
+
+## Why rapitas (and who it's for)
+
+rapitas suits **a developer who wants AI to do real work on their own machine** — someone who:
+
+- 🔒 **won't ship source to a cloud** (client work, policy, or preference);
+- 🔀 **doesn't want to be locked to one AI CLI** — switch Claude Code / Codex / Gemini per task, fall back when one fails;
+- 🧹 **is tired of AI "noise PRs"** — wants broken diffs stopped *before* review;
+- 💰 **wants AI cost visibility** — token/cost tracking, response cache, local LLM.
+
+### vs. Linear / GitHub Copilot
+
+| | rapitas | Linear (AI Agents) | GitHub (Copilot agent) |
 | --- | --- | --- | --- |
-| **生成前の品質ゲート**（壊れた PR を出させない） | ✅ lint / 型チェックで *エージェントが新たに入れたエラー* を検出し、PR 生成を停止 | △ PR レビューはあるが生成前の抑止は弱い | ✕ まず生成 → 人にレビュー依頼（量産側） |
-| **マルチ CLI / モデル切替・フォールバック** | ✅ Claude Code / Codex / Gemini を切替、`--resume → --continue → 新規セッション` でフォールバック | ✕ 自社 Agent 単一 | ✕ Copilot 単一 |
-| **ローカル / プライバシー** | ✅ Tauri ネイティブ + ローカル LLM(Ollama) + 応答キャッシュで完結 | ✕ クラウド SaaS | ✕ クラウド / Actions |
-| **AI コスト透明性** | ✅ `token` / `costUsd` を集計、キャッシュヒットも可視化 | △ バンドル課金で利用量の可視性が低い | △ Actions 実行分を消費 |
-| **チーム協調 / 双方向同期** | △ 個人ツール中心（GitHub 連携は取り込み主体、双方向 push は未対応） | ◎ Linear ↔ GitHub 双方向同期 | ◎ GitHub 本体 |
+| **Pre-generation quality gate** | ✅ lint/type-check catches errors the agent introduced and **stops PR generation** | △ PR review, weak pre-generation block | ✕ generate first → human review |
+| **Multi-CLI / model fallback** | ✅ Claude Code / Codex / Gemini, `--resume → --continue → new session` | ✕ single agent | ✕ Copilot only |
+| **Local / privacy** | ✅ Tauri-native + local LLM + response cache | ✕ cloud SaaS | ✕ cloud / Actions |
+| **Team sync / collaboration** | △ single-user by design (GitHub = read + comment) | ◎ bidirectional sync | ◎ native |
 
-> 競合列は 2026/04 時点の公開情報に基づく要約です。最新仕様は各社のドキュメントを確認してください。
-
-**一言でいうと:** Linear / Copilot が *クラウドで PR を量産してから人がレビューする* のに対し、rapitas は *手元で、複数 CLI を使い分け、壊れた差分はレビュー前に止める* ことに振り切っています。
-
-### 🚧 現時点で rapitas が向かないケース
-
-- **チーム横断のプロジェクト管理ハブ**が主目的 → Linear が適切
-- **issue ↔ PR の双方向同期**を中心に運用したい → GitHub / Linear が適切
-- rapitas の GitHub 連携は現状 *取り込み（read）+ コメント投稿* が中心で、組織 / ワークスペース機能は未提供です
+> Competitor column summarizes public info as of 2026-04. **Not a fit if** you need a team PM hub or bidirectional issue↔PR sync — Linear / GitHub are better there.
 
 ---
 
-## 元の説明
+## How this was built (honest note)
 
-AI機能を統合した先進的なタスク管理システムです。Claude/OpenAI統合によるAIエージェント実行、リアルタイム同期、ポモドーロタイマー、そしてクロスプラットフォーム対応（Web + デスクトップ）を提供します。
+Developed **AI-augmented** — I used coding agents heavily (including rapitas-style workflows and Claude Code). What I own and can defend in depth: the **architecture**, the **isolation + verification-gate design**, the **process/socket lifecycle fixes**, and the **quality gates** that keep AI-generated code honest. Directing AI tooling toward a correct, maintainable system is the engineering skill this project demonstrates.
 
-## プロジェクト構成
+---
 
-```
-rapitas/
-├── rapitas-backend/    # バックエンド (Bun + Elysia + Prisma + AI統合)
-├── rapitas-frontend/   # フロントエンド (Next.js 16 + React 19 + Tailwind v4)
-├── rapitas-desktop/    # デスクトップアプリ (Tauri 2.x)
-├── package.json        # ルートレベルの統合開発コマンド
-└── [開発スクリプト]
-```
-
-## ⚙️ 初回セットアップ
-
-プロジェクトをクローンした後、以下のコマンドで自動セットアップを実行してください：
-
-### Desktop 版（SQLite）の場合（推奨）
+## Getting started
 
 ```bash
-# Desktop/SQLite モード用の自動セットアップ
-npm run setup:desktop
-```
-
-このコマンドは以下を自動的に実行します：
-- 🗄️ DATABASE_URL を `file:./dev.db` に設定（SQLite モード）
-- 🔐 ENCRYPTION_KEY と ADMIN_SECRET を自動生成
-- 📦 すべての依存関係をインストール
-- ⚙️ SQLite 初期化スクリプトを準備
-
-### Web 版（PostgreSQL）の場合
-
-```bash
-# 通常セットアップ（対話形式で設定）
-npm run setup
-```
-
-このスクリプトは以下を自動的に実行します：
-
-1. ✅ **前提条件チェック**: Node.js、Bun、pnpm、PostgreSQL のインストール確認
-2. 📦 **依存関係インストール**: すべてのサブプロジェクトの依存パッケージをインストール（pnpm ビルドスクリプト問題を自動解決）
-3. 🔧 **.env ファイル作成**: `.env.example` から `.env` を作成し、設定をガイド
-4. 🗄️ **データベース初期化**: Prisma のセットアップ（generate + db push）
-
-### オプション
-
-```bash
-# データベース初期化をスキップ（後で手動設定する場合）
-npm run setup:skip-db
-```
-
-### 手動セットアップ（上級者向け）
-
-自動セットアップを使用しない場合は、以下の手順を実行してください：
-
-1. **依存関係のインストール**
-   ```bash
-   npm run install:all
-   ```
-
-2. **.env ファイルの作成**
-   ```bash
-   cp rapitas-backend/.env.example rapitas-backend/.env
-   # .env を編集して DATABASE_URL などを設定
-   ```
-
-3. **データベースのセットアップ**
-   ```bash
-   cd rapitas-backend
-   npx prisma generate
-   npx prisma db push
-   ```
-
-## 🚀 クイックスタート
-
-### 方法 1: 統合開発環境（推奨）
-
-```bash
-# Tauri統合開発環境（自動セットアップ + ホットリロード）
-cd rapitas-desktop
-node scripts/dev.js
-
-# またはwatch mode
-node scripts/dev.js --watch
-```
-
-**特長:**
-
-- PostgreSQL接続チェック・自動修復
-- Prismaスキーマ同期 (`db push --skip-generate`)
-- Prisma Client自動生成
-- バックエンド・フロントエンド同時起動
-- Tauriデスクトップアプリ統合
-
-### 方法 2: Web開発のみ
-
-```bash
-# 初回セットアップ
-npm install
-
-# プリフライトチェック + Web版開発サーバー起動
-npm run dev
-```
-
-起動時に **プリフライトチェック** が自動実行され、以下を検証します：
-
-- bun / pnpm / node のインストール確認
-- `.env` ファイルの存在確認と `DATABASE_URL` の設定確認
-- `node_modules` の存在確認
-- ポート 3000 / 3001 の空き確認
-
-バックエンドまたはフロントエンドのどちらかが起動に失敗した場合、もう一方も自動的に停止します（`--kill-others-on-fail`）。これにより、片方だけ起動してエラーになる事態を防ぎます。
-
-```bash
-# プリフライトチェックのみ実行
-npm run check
-
-# チェックをスキップして高速起動（2回目以降）
-npm run dev:skip-check
-```
-
-### 方法 3: 個別起動（高度なユーザー向け）
-
-> **注意**: 個別起動の場合、バックエンド（ポート3001）を先に起動してからフロントエンドを起動してください。フロントエンドのみの起動ではAPI通信がエラーになります。
-
-```bash
-# バックエンド（先に起動）
-cd rapitas-backend
-bun run dev
-
-# フロントエンド（別ターミナル）
-cd rapitas-frontend
-pnpm run dev
-
-# Tauriデスクトップアプリ（別ターミナル）
-cd rapitas-desktop
-npm run tauri
-```
-
-## 📌 アクセス URL
-
-- **フロントエンド (Web)**: http://localhost:3000
-- **デスクトップアプリ**: `rapitas-desktop/scripts/dev.js` 実行時に自動起動
-- **バックエンド API**: http://localhost:3001
-- **Prisma Studio** (DB管理): http://localhost:5555
-
-## 🛠️ 利用可能なコマンド
-
-### ⚙️ 初期セットアップコマンド
-
-```bash
-# 自動セットアップ（推奨）
-npm run setup
-
-# データベース初期化をスキップ
-npm run setup:skip-db
-
-# 依存関係を一括インストールのみ
-npm run install:all
-```
-
-### 🚀 開発環境コマンド
-
-```bash
-# 統合開発環境（推奨）
+git clone https://github.com/takamurayuki/rapitas.git && cd rapitas
+npm run setup:desktop                 # SQLite desktop build (recommended)
 cd rapitas-desktop && node scripts/dev.js
-
-# Web版開発サーバー（プリフライトチェック付き）
-npm run dev
-
-# プリフライトチェックをスキップして起動
-npm run dev:skip-check
-
-# プリフライトチェックのみ
-npm run check
-
-# バックエンドのみ
-npm run dev:backend
-
-# フロントエンドのみ
-npm run dev:frontend
-
-# Tauri統合開発をルートから起動
-npm run dev:tauri          # 通常モード
-npm run dev:tauri:watch    # ファイル監視付き
-
-# 依存関係を一括インストール
-npm run install:all
 ```
 
-### 🗄️ データベース・Prismaコマンド
+Full setup (Web/PostgreSQL build, individual processes, commands, troubleshooting): **[docs/SETUP.md](docs/SETUP.md)**.
 
-```bash
-# Prismaスキーマ同期（本番環境）
-cd rapitas-backend && npx prisma db push
+---
 
-# Prisma Client再生成
-cd rapitas-backend && bun run db:generate
+## Limitations & roadmap
 
-# マイグレーション実行（本番環境）
-cd rapitas-backend && npx prisma migrate dev
+- Verification gate covers **lint + type-check**; **test execution** is the next gate (and persisting retry state in the DB).
+- **Local-first / single-user** by design; **cloud sync / multi-device / team** would need data scoped by `userId` + a sync service (intentionally out of scope today).
+- GitHub integration is **read + comment** oriented; bidirectional issue↔PR sync is not a goal.
 
-# Prisma Studio起動（DB管理GUI）
-cd rapitas-backend && bun run db:studio
-```
+---
 
-### 📱 Tauriデスクトップアプリ
+## Documentation
 
-```bash
-# デスクトップアプリ開発
-cd rapitas-desktop && npm run tauri
+- 🔬 [Deep-dive: Safe autonomous agent execution](docs/deep-dive/safe-agent-execution.md)
+- 🏛️ [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/adr/)
+- 🛠️ [Setup & development](docs/SETUP.md) · [Performance notes](docs/PERFORMANCE.md) · [Runbook](docs/RUNBOOK.md)
+- 🧭 [CLAUDE.md](CLAUDE.md) — AI agent operating rules
 
-# Tauriアプリのみ起動（開発サーバーなし）
-cd rapitas-desktop && npm run tauri:only
-
-# プロダクションビルド
-cd rapitas-desktop && npm run build
-```
-
-### 🧪 テスト・品質管理
-
-```bash
-# 全テスト一括実行（バックエンド + フロントエンド並列）
-npm run test:all
-
-# 全リンター一括実行
-npm run lint:all
-
-# 個別実行
-cd rapitas-backend && bun test
-cd rapitas-frontend && pnpm test
-
-# フロントエンド linting
-cd rapitas-frontend && pnpm run lint
-
-# フロントエンド フォーマット確認
-cd rapitas-frontend && pnpm run prettier:check
-```
-
-## 📦 初期セットアップ
-
-### 前提条件
-
-- **Node.js**: v18以上
-- **Bun**: 最新版 (`curl -fsSL https://bun.sh/install | bash`)
-- **PostgreSQL**: v14以上（ローカル実行）
-- **Git**: バージョン管理
-
-### 🎯 自動セットアップ（推奨）
-
-```bash
-# 1. リポジトリクローン
-git clone https://github.com/takamurayuki/rapitas.git
-cd rapitas
-
-# 2. 依存関係インストール
-npm run install:all
-
-# 3. 環境設定
-# rapitas-backend/.env を作成し、DATABASE_URL を設定
-cp rapitas-backend/.env.example rapitas-backend/.env
-
-# 4. 自動初期化 + 開発サーバー起動
-cd rapitas-desktop
-node scripts/dev.js
-```
-
-**`dev.js`が自動実行する処理:**
-
-- PostgreSQL接続検証・修復
-- Prismaスキーマ同期 (`prisma db push --skip-generate`)
-- Prisma Client生成 (`prisma generate`)
-- バックエンド・フロントエンド同時起動
-- ポートコンフリクト解消
-
-### 📝 手動セットアップ（必要な場合のみ）
-
-```bash
-# 1. データベースセットアップ（初回のみ）
-cd rapitas-backend
-npx prisma migrate dev
-
-# 2. Prisma Client生成
-bun run db:generate
-
-# 3. 開発サーバー起動
-npm run dev  # または cd ../rapitas-desktop && node scripts/dev.js
-```
-
-## 🎯 主な機能
-
-### 🤖 AI機能（NEW）
-
-- **AIエージェント実行**: Claude・OpenAI統合による自動タスク実行
-- **ワークフロー機能**: research → plan → implement → verify の構造化開発
-- **スクリーンショット**: Playwright統合による画面キャプチャ
-- **AI対話**: コンテキスト保持型チャット機能
-
-### ✅ コアタスク管理
-
-- **階層型プロジェクト管理**: プロジェクト → テーマ → タスク構造
-- **カテゴリー・テーマ**: 色分け、アイコン、詳細管理
-- **マイルストーン管理**: 期限設定・進捗追跡
-- **サブタスク**: 入れ子構造タスク分解
-- **優先度・ラベル**: 重要度・分類管理
-- **ステータス管理**: TODO → 進行中 → 完了 → アーカイブ
-
-### ⏱️ 時間管理・生産性
-
-- **ポモドーロタイマー**: 集中セッション・休憩管理
-- **実績時間トラッキング**: タスク別作業時間記録
-- **統計・ダッシュボード**: 生産性レポート・グラフ表示
-- **タイマー履歴**: 作業セッション履歴・分析
-
-### 📝 コンテンツ管理
-
-- **リッチマークダウン**: GFM対応・シンタックスハイライト
-- **ファイル・画像アップロード**: ドラッグ&ドロップ対応
-- **コメント機能**: マークダウン対応スレッド
-- **ノート機能**: タスク詳細・アイデア記録
-
-### 🔍 検索・フィルタリング
-
-- **高度な検索**: タイトル・内容・タグ検索
-- **多軸フィルタリング**: プロジェクト・マイルストーン・優先度・ステータス
-- **保存済み検索**: よく使う検索条件の保存
-- **リアルタイム検索**: 入力に応じたライブフィルタリング
-
-### 🎨 UI/UX
-
-- **かんばんビュー**: ドラッグ&ドロップタスク管理
-- **ダークモード**: システム・手動切り替え対応
-- **レスポンシブデザイン**: モバイル・タブレット・デスクトップ
-- **アニメーション**: Framer Motion によるスムーズな遷移
-
-### 💻 クロスプラットフォーム
-
-- **Webアプリ**: ブラウザ対応（Chrome・Firefox・Safari・Edge）
-- **デスクトップアプリ**: Tauri製ネイティブアプリ（Windows・Mac・Linux）
-- **リアルタイム同期**: WebSocket によるマルチデバイス同期
-
-### 🔄 繰り返しタスク (実装済み)
-
-- **RRULE 形式のスケジュール**: `FREQ=DAILY/WEEKLY/MONTHLY` + 曜日指定 + 終了日
-- **時刻指定生成**: `recurrenceTime` で HH:MM 指定 (デフォルト 00:00)
-- **ワークフローファイル継承**: 前回実行の research.md/plan.md を引き継ぎ可能
-- **毎時バックグラウンド生成**: `behavior-scheduler` が毎時 0 分に `processAllPendingRecurrences` を実行
-- UI: タスク詳細の `RecurrenceSelector` から設定
-
-### 🔗 タスク依存関係 + ガントチャート (実装済み)
-
-- **宣言的依存関係**: タスク詳細から「このタスクは X が完了するまで開始できない」を追加
-- **4 タイプ + lag**: FS / SS / FF / SF + 任意の遅延日数
-- **循環検知**: 既存 `detectCycles` グラフアルゴリズムで保証
-- **ガントチャートビュー** (`/gantt`): タスクを時系列で表示、依存矢印付き、テーマ絞り込み
-- **クリティカルパス**: バックエンドが `topologicalSort` + `calculateCriticalPath` を返す
-
-### 🤖 AI 週次レビュー (実装済み)
-
-- **自動生成**: 毎週月曜 9:00 に `behavior-scheduler` がトリガし、先週の活動を集約
-- **集約データ**: 完了タスク + ポモドーロ + TimeEntry + テーマ別 + 日別分布
-- **AI モデル**: Claude Haiku 4.5 (`claude-haiku-4-5`、コストと速度のバランス重視)
-- **冪等性**: 同じ週は二重生成されず、既存レビューを返す
-- **手動再生成**: `/reports` ページの「再生成」ボタンから即座に呼び出し可能
-- **空週フォールバック**: 完了タスクゼロの週は Claude を呼ばずに固定文を保存
-- UI: `/reports` ページに `WeeklyReviewCard`
-
-### 📶 オフラインファースト同期 (実装済み)
-
-- **自動キューイング**: `apiFetch` (全 mutation の中央集約点) が `offlineFetch` を経由。ネットワーク障害時に IndexedDB に自動キュー
-- **自動リプレイ**: ブラウザがオンラインに戻ると自動的にキューをリプレイ
-- **UI インジケーター**: `OfflineIndicator` コンポーネントが画面右下に表示 (オフライン中 / 同期中 / N 件同期待ち)
-- **リトライ**: 最大 5 回、サーバーエラーは次回同期でリトライ、4xx は即廃棄
-- GET リクエストはキュー対象外 (SWR キャッシュで対応)
-
-### 📋 今後の計画
-
-- **チーム機能**: 共有プロジェクト・権限管理
-- **外部統合**: Slack・Google Calendar 連携
-
-## 🗄️ データベース
-
-### 基本構成
-
-- **データベース**: PostgreSQL v14以上
-- **ORM**: Prisma 6.19.0
-- **キャッシュ**: Redis（セッション・リアルタイム通信）
-
-### 環境設定
-
-`rapitas-backend/.env`に以下を設定:
-
-```env
-# メインデータベース
-DATABASE_URL="postgresql://user:password@localhost:5432/rapitas"
-
-# AI API キー
-ANTHROPIC_API_KEY="your_claude_api_key"
-OPENAI_API_KEY="your_openai_api_key"
-
-# Redis（オプション）
-REDIS_URL="redis://localhost:6379"
-
-# WebSocket・セッション設定
-JWT_SECRET="your_jwt_secret"
-SESSION_SECRET="your_session_secret"
-```
-
-### データベースコマンド
-
-```bash
-cd rapitas-backend
-
-# スキーマ同期（開発環境）
-npx prisma db push
-
-# マイグレーション（本番環境）
-npx prisma migrate dev
-
-# データベースリセット
-npx prisma migrate reset
-
-# Prisma Studio（GUI管理）
-bun run db:studio
-```
-
-## 📝 技術スタック
-
-### 🔧 バックエンド
-
-- **ランタイム**: Bun（高速JavaScript/TypeScript実行環境）
-- **フレームワーク**: Elysia 1.4.25（型安全・高パフォーマンスWebフレームワーク）
-- **ORM**: Prisma 6.19.0（型安全データベースアクセス）
-- **データベース**: PostgreSQL 14+
-- **AI統合**:
-  - Anthropic Claude SDK 0.52.0
-  - OpenAI API 6.18.0
-  - Google Generative AI 0.24.1
-- **リアルタイム**: WebSocket (ws 8.19.0)
-- **キャッシュ**: Redis (ioredis 5.4.1)
-- **テスト・自動化**: Playwright 1.58.2（スクリーンショット機能）
-- **認証・セキュリティ**: bcryptjs, JWT
-
-### 🎨 フロントエンド
-
-- **フレームワーク**: Next.js 16.0.1 (App Router)
-- **UI**: React 19.2.0, React DOM 19.2.0
-- **スタイリング**: Tailwind CSS v4 + PostCSS
-- **コンポーネント**:
-  - Radix UI（アクセシブルプリミティブ）
-  - Headless UI 2.2.9（非制御コンポーネント）
-  - Lucide React（アイコン）
-- **アニメーション**: Framer Motion 12.34.2
-- **状態管理**:
-  - Zustand 5.0.3（軽量状態管理）
-  - SWR 2.4.0（データフェッチング）
-- **DnD**: @dnd-kit, @hello-pangea/dnd
-- **マークダウン**:
-  - react-markdown 10.1.0
-  - remark-gfm 4.0.1（GitHub Flavored Markdown）
-  - react-syntax-highlighter 16.1.0
-- **可視化**: Recharts 3.7.0（統計グラフ）
-- **リアルタイム**: ネイティブ WebSocket（バックエンドの `ws` と直接通信）
-
-### 💻 デスクトップアプリ
-
-- **フレームワーク**: Tauri 2.10.0
-- **Webview**: システムネイティブWebView
-- **画像処理**: Sharp 0.34.5, Jimp 1.6.0
-- **アイコン生成**: @resvg/resvg-js 2.6.2
-- **クロスプラットフォーム**: Windows・Mac・Linux対応
-
-### 🔧 開発ツール・品質管理
-
-- **言語**: TypeScript 5.x（フロント・バック統一）
-- **ビルド**: Next.js Built-in + Tauri
-- **Linting**: ESLint 9.x + Next.js Config
-- **フォーマッター**: Prettier 3.8.1
-- **テスト**: Bun Test（バックエンド）
-- **ドキュメント**: Storybook 8.6.14
-- **型安全**: TypeBox 0.34.15（スキーマバリデーション）
-
-## 🤖 AI機能統合
-
-### 対応AIプロバイダー
-
-- **Anthropic Claude**: 高度な推論・長文理解・コード生成
-- **OpenAI GPT**: 汎用的な対話・要約・翻訳
-- **Google Gemini**: マルチモーダル・創作支援
-
-### AIエージェント機能
-
-```bash
-# AIエージェント実行例
-POST /api/ai/execute-agent
-{
-  "prompt": "タスクの優先度を分析して最適化案を提案",
-  "context": "プロジェクトデータ",
-  "provider": "claude"
-}
-```
-
-- **研究フェーズ**: 現状分析・問題特定
-- **計画フェーズ**: 実装戦略・リスク評価
-- **実行フェーズ**: 自動コード生成・実装
-- **検証フェーズ**: 品質チェック・テスト実行
-
-### スクリーンショット機能
-
-Playwright統合により、Webページの自動キャプチャが可能：
-
-```javascript
-// 使用例（バックエンドAPI）
-GET /api/screenshot?url=https://example.com&viewport=1920x1080
-```
-
-## 💻 デスクトップアプリ
-
-### 特長
-
-- **ネイティブパフォーマンス**: Tauri製・軽量（<20MB）
-- **システム統合**: OS通知・ファイルアソシエーション
-- **オフライン対応**: ローカルデータキャッシュ
-- **自動アップデート**: OTA更新対応
-
-### インストール・配布
-
-```bash
-# 開発ビルド
-cd rapitas-desktop
-npm run build
-
-# 本番リリース用ビルド
-npm run build -- --features custom-protocol
-```
-
-**対応OS:**
-
-- Windows 10/11 (x64, ARM64)
-- macOS 10.15+ (Intel, Apple Silicon)
-- Linux (Ubuntu 18.04+, Fedora, Arch)
-
-## 🛠️ 開発環境
-
-### 推奨エディタ・拡張機能
-
-**Visual Studio Code:**
-
-- Prettier（コードフォーマッター）
-- ESLint（リンター）
-- Tailwind CSS IntelliSense
-- Prisma（スキーマ編集）
-- Tauri（デスクトップ開発）
-
-### デバッグ・トラブルシューティング
-
-#### 🔍 よくある問題
-
-**PostgreSQL接続エラー:**
-
-```bash
-# PostgreSQL起動確認
-brew services start postgresql  # Mac
-sudo systemctl start postgresql  # Linux
-```
-
-**ポートコンフリクト（3000/3001）:**
-
-```bash
-# プロセス確認・終了
-lsof -ti:3000 | xargs kill -9
-lsof -ti:3001 | xargs kill -9
-```
-
-**Prismaスキーマ同期エラー:**
-
-```bash
-cd rapitas-backend
-npx prisma migrate reset  # データベースリセット
-npx prisma db push         # スキーマ再同期
-```
-
-**Tauriビルドエラー:**
-
-```bash
-# Rust toolchain更新
-rustup update
-cd rapitas-desktop
-npm run ci:prepare  # CI環境準備
-```
-
-#### 📊 パフォーマンス監視
-
-- **バックエンド**: `http://localhost:3001/health` でヘルスチェック
-- **フロントエンド**: Next.js Dev Tools（開発時）
-- **データベース**: Prisma Studio でクエリ分析
-
-## 🌟 貢献・開発参加
-
-### 開発フロー
-
-1. **Issue作成**: バグ報告・機能提案
-2. **ブランチ作成**: `feature/issue-123-description`
-3. **実装・テスト**: 品質基準遵守
-4. **Pull Request**: レビュー・承認
-5. **マージ**: main ブランチへ統合
-
-### コーディング規約
-
-- **TypeScript**: 厳格モード・型安全
-- **ESLint + Prettier**: 自動フォーマット
-- **コミットメッセージ**: Conventional Commits
-- **テストカバレッジ**: 80%以上維持
-
-### コミット前チェック
-
-コミット時に**自動的にフォーマット/Lintエラーを修正**します：
-
-```bash
-# コミット実行（自動修正あり）
-git commit -m "your message"
-# → エラーがあれば自動修正を試み、成功すればコミット継続
-# → 失敗すれば詳細なエラー情報を自動表示
-
-# 手動で修正後、再度コミット
-git add .
-git commit -m "your message"
-
-# どうしても必要な場合のみ（非推奨）
-git commit -m "your message" --no-verify
-```
-
-**自動修正の仕組み:**
-
-1. lint-staged を実行（Prettier + ESLint）
-2. エラーが出たら自動修正スクリプトを実行
-3. 修正したファイルを再ステージング
-4. 再度チェック
-   - ✅ 成功 → コミット継続
-   - ❌ 失敗 → 詳細エラーを自動表示 + 修正方法を提示
-
-**詳細ガイド:** [docs/pre-commit-guide.md](docs/pre-commit-guide.md)
-
-## 📚 ドキュメント
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — システム全体図、サブシステム境界、データモデルの俯瞰
-- [docs/adr/](docs/adr/) — 主要な設計判断 (ADR)
-- [docs/pre-commit-guide.md](docs/pre-commit-guide.md) — pre-commit フックの詳細
-- [CLAUDE.md](CLAUDE.md) — AI エージェント向けの作業ルール
-
-## 📄 ライセンス
+## License
 
 [MIT](LICENSE)
