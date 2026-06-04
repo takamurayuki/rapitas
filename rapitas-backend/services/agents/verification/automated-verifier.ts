@@ -11,10 +11,12 @@
  * All subprocesses run ASYNChronously (spawn) — never execSync — so a slow
  * tsc/eslint can't block the single-threaded backend event loop.
  *
- * Not responsible for running tests (Phase 2), committing, or the retry loop.
+ * Optionally also runs the project's test suite (opt-in via RAPITAS_VERIFY_TESTS)
+ * so the gate covers runtime breakage, not just lint/types. Not responsible for
+ * committing or the retry loop.
  */
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
 
 /** Code extensions worth linting / typechecking. */
@@ -22,12 +24,21 @@ const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
 /** Per-command timeout (ms). Lint/typecheck on a large project can be slow. */
 const CMD_TIMEOUT_MS = 180_000;
+/** Test suites routinely run much longer than lint/tsc. */
+const TEST_TIMEOUT_MS = 300_000;
+/**
+ * Opt-in: run the project's `test` script as part of the gate. Off by default —
+ * test suites can be slow/flaky and gate on a pre-existing red baseline, so the
+ * user enables it deliberately. Enable with RAPITAS_VERIFY_TESTS=1.
+ */
+const VERIFY_TESTS_ENABLED =
+  process.env.RAPITAS_VERIFY_TESTS === '1' || process.env.RAPITAS_VERIFY_TESTS === 'true';
 const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 /** Cap how much raw output we keep in the report. */
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck';
+  name: 'lint' | 'typecheck' | 'test';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -68,7 +79,11 @@ interface CmdResult {
  * Runs a shell command asynchronously, capturing output. Never rejects — a
  * non-zero exit (lint/tsc found problems) is a normal, expected outcome.
  */
-function runCmd(command: string, cwd: string): Promise<CmdResult> {
+function runCmd(
+  command: string,
+  cwd: string,
+  timeoutMs: number = CMD_TIMEOUT_MS,
+): Promise<CmdResult> {
   return new Promise((resolveP) => {
     let stdout = '';
     let stderr = '';
@@ -87,7 +102,7 @@ function runCmd(command: string, cwd: string): Promise<CmdResult> {
         /* ignore */
       }
       finish(124); // timeout
-    }, CMD_TIMEOUT_MS);
+    }, timeoutMs);
     child.stdout?.on('data', (d: Buffer) => {
       if (stdout.length < MAX_OUTPUT_CHARS) stdout += d.toString();
     });
@@ -234,7 +249,10 @@ function hasEslintConfig(projectRoot: string, workdir: string): boolean {
  * Builds a check marking that a verification SHOULD have run (tooling configured)
  * but could not execute, so the gate must fail closed rather than silently pass.
  */
-function unverifiableCheck(name: 'lint' | 'typecheck', details: string): VerificationCheck {
+function unverifiableCheck(
+  name: 'lint' | 'typecheck' | 'test',
+  details: string,
+): VerificationCheck {
   return { name, ran: false, ok: false, errorCount: 0, details, unverifiable: true };
 }
 
@@ -322,8 +340,62 @@ async function typecheckProject(
   };
 }
 
+/**
+ * Detects how to run a project's test suite from its package.json + lockfile,
+ * or null when there's no `test` script. Uses `<pm> run test` so bun runs the
+ * package script rather than its built-in test runner.
+ */
+function detectTestCommand(projectRoot: string): string | null {
+  const pkgPath = join(projectRoot, 'package.json');
+  if (!existsSync(pkgPath)) return null;
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
+    if (!pkg.scripts?.test) return null;
+  } catch {
+    return null;
+  }
+  if (existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'))) {
+    return 'bun run test';
+  }
+  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm run test';
+  if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn run test';
+  return 'npm run test';
+}
+
+/**
+ * Runs the project's test suite (opt-in). Unlike lint/typecheck this is NOT
+ * scoped to changed files — it runs the whole suite, so the project is expected
+ * to be green at baseline; a failure (the agent broke something, or the suite
+ * was already red) gates the diff and feeds the self-repair loop. Returns null
+ * when tests are disabled or the project has no `test` script.
+ *
+ * NOTE: tests that bind fixed ports/DB can collide with a running app until the
+ * per-worktree isolated runtime (Phase ②) lands.
+ */
+async function testProject(projectRoot: string): Promise<VerificationCheck | null> {
+  if (!VERIFY_TESTS_ENABLED) return null;
+  const command = detectTestCommand(projectRoot);
+  if (!command) return null;
+  const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
+  const ok = res.code === 0;
+  const detail =
+    res.code === 124
+      ? `test suite timed out after ${TEST_TIMEOUT_MS / 1000}s`
+      : (res.stdout || res.stderr).slice(-MAX_DETAIL_CHARS);
+  return {
+    name: 'test',
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: ok ? `${command}: passed` : `${command} failed:\n${detail}`,
+  };
+}
+
 /** Merges per-project checks of the same kind into one aggregate check. */
-function mergeChecks(name: 'lint' | 'typecheck', parts: VerificationCheck[]): VerificationCheck {
+function mergeChecks(
+  name: 'lint' | 'typecheck' | 'test',
+  parts: VerificationCheck[],
+): VerificationCheck {
   const unverifiable = parts.filter((p) => p.unverifiable);
   const ran = parts.filter((p) => p.ran);
   if (ran.length === 0 && unverifiable.length === 0) {
@@ -369,16 +441,23 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
   const groups = groupByProjectRoot(workdir, changedFiles);
   const lintParts: VerificationCheck[] = [];
   const typeParts: VerificationCheck[] = [];
+  const testParts: VerificationCheck[] = [];
   for (const [projectRoot, relFiles] of groups) {
-    const [lint, type] = await Promise.all([
+    const [lint, type, test] = await Promise.all([
       lintProject(projectRoot, workdir, relFiles),
       typecheckProject(projectRoot, workdir, relFiles),
+      testProject(projectRoot),
     ]);
     if (lint) lintParts.push(lint);
     if (type) typeParts.push(type);
+    if (test) testParts.push(test);
   }
 
-  const checks = [mergeChecks('lint', lintParts), mergeChecks('typecheck', typeParts)];
+  const checks = [
+    mergeChecks('lint', lintParts),
+    mergeChecks('typecheck', typeParts),
+    mergeChecks('test', testParts),
+  ];
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.every((c) => c.ok);
   const summary = checks

@@ -68,6 +68,28 @@ describe('renderVerificationMarkdown', () => {
     expect(md).toContain('対象変更ファイル: 2件');
   });
 
+  it('renders a failing test check (Phase ① dynamic gate)', () => {
+    const result: VerificationResult = {
+      ok: false,
+      changedFiles: ['src/a.ts'],
+      checks: [
+        { name: 'lint', ran: true, ok: true, errorCount: 0, details: 'eslint: 0 errors' },
+        { name: 'typecheck', ran: true, ok: true, errorCount: 0, details: 'tsc ok' },
+        {
+          name: 'test',
+          ran: true,
+          ok: false,
+          errorCount: 1,
+          details: 'npm run test failed:\n1 failing',
+        },
+      ],
+      summary: '自動検証: lint=ok / typecheck=ok / test=NG(1)',
+    };
+    const md = renderVerificationMarkdown(result);
+    expect(md).toContain('test: ❌ 1件');
+    expect(md).toContain('npm run test failed');
+  });
+
   it('renders an unverifiable result as fail-closed and shows its details', () => {
     const result: VerificationResult = {
       ok: false,
