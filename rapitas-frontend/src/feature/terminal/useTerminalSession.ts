@@ -22,6 +22,7 @@ import {
   isTauri,
 } from './terminal-ipc';
 import { registerTerminal, unregisterTerminal } from './terminal-registry';
+import { useTerminalStore } from './terminal-store';
 
 interface TerminalSessionOptions {
   /** Working directory for the PTY (used only at creation). */
@@ -63,6 +64,30 @@ export function useTerminalSession(sessionId: string, opts?: TerminalSessionOpti
     term.open(container);
     // Expose for external focus (e.g. focusing the leftmost pane on open).
     registerTerminal(sessionId, term);
+
+    // Intercept the toggle shortcut at the xterm level. With focus inside the
+    // terminal, xterm would otherwise consume Ctrl+J as LF (PowerShell shows a
+    // `>>` continuation prompt). Returning false stops xterm from sending it to
+    // the shell; stopPropagation prevents the global window listener from ALSO
+    // firing (which would double-toggle). Ctrl+` is handled the same way.
+    term.attachCustomKeyEventHandler((e) => {
+      const isToggle =
+        e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.key === 'j' ||
+          e.key === 'J' ||
+          e.code === 'KeyJ' ||
+          e.key === '`' ||
+          e.code === 'Backquote');
+      if (!isToggle) return true;
+      if (e.type === 'keydown') {
+        e.preventDefault();
+        e.stopPropagation();
+        useTerminalStore.getState().toggle();
+      }
+      return false; // never forward the toggle chord to the shell
+    });
 
     // Swallow OSC 133 shell-integration markers; use D (command done) to report
     // completion. Markers from the very first prompt (no command run yet) are
