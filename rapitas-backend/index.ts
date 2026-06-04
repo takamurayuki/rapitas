@@ -108,51 +108,20 @@ app.use(
 // Apply all modular routes (82 Elysia instances, organized by domain)
 registerAllRoutes(app);
 
-// Start behavior scheduler
+// Warm-up tasks (schedulers, memory system, agent worker manager, recovery)
+// are imported here but deliberately NOT invoked until AFTER app.listen() —
+// see runStartupWarmup() below. Previously they were all kicked off before
+// listen, which forced the single JS thread to run CPU-heavy init (model
+// loads, recovery scans, child-process spawns) before it could serve any
+// request. An already-open task-detail page then stalled long enough to hit
+// the frontend's 30s request timeout on every (re)start.
 import { BehaviorScheduler } from './src/services/behavior-scheduler';
-BehaviorScheduler.start();
-
-// Initialize memory system
 import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
-initializeMemorySystem().catch((error) => {
-  log.error({ err: error }, 'Failed to initialize memory system');
-});
-
-// Initialize AI Orchestra recovery
 import { AIOrchestra } from './services/workflow/ai-orchestra';
-AIOrchestra.getInstance()
-  .recoverOnStartup()
-  .catch((error) => {
-    log.error({ err: error }, 'AI Orchestra startup recovery failed');
-  });
-
-// Move legacy in-repo workflow files (`<cwd>/tasks/...`) to the user data
-// dir (`~/.rapitas/workflows/...`). Idempotent — only acts when legacy files
-// remain. See services/workflow/workflow-legacy-migrator.ts.
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
-migrateLegacyWorkflowFiles().catch((error) => {
-  log.warn({ err: error }, 'Legacy workflow file migration failed (non-fatal)');
-});
-
-// Initialize Agent Worker Manager for processing agent execution in separate processes
-workerManager.initialize().catch((error) => {
-  log.error({ err: error }, 'Failed to initialize Agent Worker Manager');
-});
-
-// Start backlog scheduler (innovation session + vulnerability/bug scan).
-// Timing is user-configurable via /backlog/schedules (BacklogSchedule table).
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
-startBacklogScheduler();
-
-// Start weekly DB backup scheduler (~/.rapitas/backups/, 8-week retention).
 import { startBackupScheduler } from './services/system/backup-scheduler';
-startBackupScheduler();
-
-// Start orphaned-worktree cleanup scheduler (defaults to a 30-min interval).
-// NOTE: previously defined but never started, so abandoned agent worktrees
-// accumulated in .git/worktrees/ with no automatic cleanup.
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
-startWorktreeCleanupScheduler();
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -173,6 +142,53 @@ log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
 setServerStopCallback(() => {
   app.stop(true);
 });
+
+/**
+ * Run heavy startup warm-up AFTER the listener is open, one task at a time and
+ * yielding to the event loop between each, so the single JS thread stays free
+ * to answer requests during boot (fixes the "task-detail page open across a
+ * restart hits the 30s request timeout" symptom).
+ *
+ * Every task is individually timed and logged (`warmupMs`) so a slow/blocking
+ * initializer is identifiable from the logs instead of guessed at.
+ */
+const runStartupWarmup = async (): Promise<void> => {
+  const yieldToLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const timed = async (label: string, fn: () => unknown | Promise<unknown>): Promise<void> => {
+    const startedAt = Date.now();
+    try {
+      await fn();
+      log.info({ warmupMs: Date.now() - startedAt }, `Warm-up: ${label} ready`);
+    } catch (err) {
+      log.error({ err, warmupMs: Date.now() - startedAt }, `Warm-up: ${label} failed`);
+    }
+  };
+
+  // Brief grace so the listener can answer the first in-flight requests
+  // before we start CPU-heavy init on the single JS thread.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  await timed('behavior-scheduler', () => BehaviorScheduler.start());
+  await yieldToLoop();
+  await timed('memory-system', () => initializeMemorySystem());
+  await yieldToLoop();
+  await timed('ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup());
+  await yieldToLoop();
+  await timed('legacy-workflow-migration', () => migrateLegacyWorkflowFiles());
+  await yieldToLoop();
+  await timed('agent-worker-manager', () => workerManager.initialize());
+  await yieldToLoop();
+  // Schedulers only register intervals — cheap, grouped at the end.
+  await timed('backlog-scheduler', () => startBacklogScheduler());
+  await timed('backup-scheduler', () => startBackupScheduler());
+  await timed('worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler());
+
+  log.info('Startup warm-up complete');
+};
+
+// Fire-and-forget: never blocks the listener; each task self-reports timing.
+void runStartupWarmup();
 
 // Signal handling from bun --watch (for dev:simple mode)
 // Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
