@@ -265,28 +265,17 @@ export function useAuth() {
   return context;
 }
 
+/**
+ * Page wrapper that USED to force a login redirect. rapitas is a local,
+ * single-user desktop app whose backend serves data without a session, so a
+ * mandatory login was friction with no security benefit and caused users to
+ * bounce off the login wall. It now renders for everyone (guest by default);
+ * signing in stays optional (header "ログイン" → /auth/login) for when cloud
+ * sync / sharing lands. Kept as a wrapper so the gate can be reinstated in one
+ * place if that day comes.
+ */
 export function requireAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
   return function AuthenticatedComponent(props: P) {
-    const { isAuthenticated, isLoading } = useAuth();
-
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center min-h-screen bg-background">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">認証を確認中...</div>
-          </div>
-        </div>
-      );
-    }
-
-    if (!isAuthenticated) {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login';
-      }
-      return null;
-    }
-
     return <WrappedComponent {...props} />;
   };
 }

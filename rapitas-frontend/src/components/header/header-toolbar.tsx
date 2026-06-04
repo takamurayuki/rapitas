@@ -136,6 +136,9 @@ export function HeaderToolbar({
 
       <NotificationBell />
 
+      {/* Guest sign-in is intentionally hidden: an account has no benefit on a
+          local single-user app. Re-add a `/auth/login` link here once cloud
+          sync / sharing makes accounts meaningful. */}
       {hasMounted && !isAuthLoading && isAuthenticated && user && (
         <div className="relative" ref={userMenuRef}>
           <button
