@@ -6,9 +6,10 @@
  * loading timer so the skeleton is shown for at least 400 ms.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Task, TimeEntry, Comment, Resource, UserSettings } from '@/types';
 import { apiFetch, clearApiCache } from '@/lib/api-client';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { preloadTaskDetails } from '@/lib/task-api';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { createLogger } from '@/lib/logger';
@@ -43,6 +44,12 @@ export interface UseTaskDetailDataResult {
    * yet or failed — callers should treat null as "unknown" (optimistic).
    */
   cliAvailability: CliAvailability | null;
+  /**
+   * Force a fresh CLI availability probe (bypasses both the client and the
+   * 5-min server cache). Call after an agent run ends so a CLI that falsely
+   * read as unavailable mid-run is re-evaluated once the CPU is free.
+   */
+  refetchCliAvailability: () => Promise<void>;
   showAIAssistant: boolean;
   setShowAIAssistant: React.Dispatch<React.SetStateAction<boolean>>;
   refreshTask: () => Promise<void>;
@@ -134,6 +141,35 @@ export function useTaskDetailData({
       logger.error('Failed to refresh task:', err);
     }
   };
+
+  // refresh=1 forces the backend to re-probe and invalidate its cache; skipCache
+  // bypasses the 60s client cache so the fresh result is applied immediately.
+  const refetchCliAvailability = useCallback(async () => {
+    try {
+      const data = await apiFetch<CliAvailability>('/agent-availability?cliOnly=1&refresh=1', {
+        skipCache: true,
+      });
+      setCliAvailability(data);
+    } catch (err) {
+      logger.error('Failed to refresh CLI availability:', err);
+    }
+  }, []);
+
+  // Re-probe the CLI the moment THIS task's agent run ends. The probe can time
+  // out under the run's CPU load and cache `available:false`, which disables the
+  // run button + shows the "CLI 利用可能ではありません" guide afterwards; once the
+  // CPU frees up a forced re-probe corrects it without waiting for the cache.
+  const numericTaskId = resolvedTaskId ? parseInt(resolvedTaskId, 10) : NaN;
+  const isAgentExecuting = useExecutionStateStore((s) =>
+    Number.isNaN(numericTaskId) ? false : s.isTaskExecuting(numericTaskId),
+  );
+  const wasExecutingRef = useRef(false);
+  useEffect(() => {
+    if (wasExecutingRef.current && !isAgentExecuting) {
+      void refetchCliAvailability();
+    }
+    wasExecutingRef.current = isAgentExecuting;
+  }, [isAgentExecuting, refetchCliAvailability]);
 
   useEffect(() => {
     const isInitialLoad = !taskLoadedRef.current;
@@ -251,6 +287,7 @@ export function useTaskDetailData({
     setResources,
     globalSettings,
     cliAvailability,
+    refetchCliAvailability,
     showAIAssistant,
     setShowAIAssistant,
     refreshTask,

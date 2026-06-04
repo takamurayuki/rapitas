@@ -29,6 +29,12 @@ const TIER_FALLBACK: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
 /** Two cache slots: default (REST + CLI) and CLI-only. */
 const cache = new Map<string, { result: DiscoveryResult; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+// A result with ZERO available providers is almost always a transient probe
+// failure (the `claude --version` subprocess is starved past its 5s timeout
+// while an agent run saturates the CPU), not a genuine absence. Caching that
+// for 5 minutes would disable agent execution for 5 minutes after every run,
+// so hold it only briefly — a real absence simply re-probes cheaply.
+const EMPTY_RESULT_TTL_MS = 20 * 1000;
 
 export interface DiscoverOptions {
   /**
@@ -68,7 +74,10 @@ export async function discoverModels(
     providers: probes,
     models: flat,
   };
-  cache.set(cacheKey, { result, expiresAt: now + CACHE_TTL_MS });
+  // Don't let a transient "nothing found" stick for the full TTL (see above).
+  const anyAvailable = probes.some((p) => p.available);
+  const ttl = anyAvailable ? CACHE_TTL_MS : EMPTY_RESULT_TTL_MS;
+  cache.set(cacheKey, { result, expiresAt: now + ttl });
   log.info(
     `Discovered ${flat.length} models across ${probes.filter((p) => p.available).length}/${probes.length} providers (${cacheKey})`,
   );
