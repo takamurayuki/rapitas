@@ -2,11 +2,7 @@
 // useTaskCard
 import { useState, useRef, useEffect } from 'react';
 import type { Task, Status } from '@/types';
-import {
-  statusConfig,
-  resolveStatusConfig,
-  isInProgressStatus,
-} from '@/feature/tasks/config/StatusConfig';
+import { statusConfig, resolveStatusConfig } from '@/feature/tasks/config/StatusConfig';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { API_BASE_URL } from '@/utils/api';
 import { prefetch } from '@/lib/api-client';
@@ -107,12 +103,13 @@ export function useTaskCard(
     setLocalSubtasks(task.subtasks || []);
   }, [task.subtasks]);
 
-  // Subtasks run in the background via the orchestra queue, so they are NOT in
-  // the execution-state-store. Treat "any subtask in-progress" as the parent
-  // running so the card shows the live progress animation. Without this, a
-  // split parent showed no activity while its subtasks were executing.
-  const hasRunningSubtask = localSubtasks.some((s) => isInProgressStatus(s.status));
-  const executionStatus = storeExecutionStatus ?? (hasRunningSubtask ? 'running' : null);
+  // The card's running animation reflects ACTUAL agent execution only — never a
+  // manually-set in-progress status. useExecutingTasksPolling reflects a running
+  // subtask onto its parent's id, so storeExecutionStatus already means "an agent
+  // is executing this task or one of its subtasks". (Previously this fell back to
+  // "any subtask has in-progress STATUS", which spun the loader even for tasks a
+  // user had manually marked in-progress.)
+  const executionStatus = storeExecutionStatus;
 
   // Close context menu on outside click
   useEffect(() => {

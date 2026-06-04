@@ -10,8 +10,11 @@ vi.mock('@/components/ui/toast/ToastContainer', () => ({
 
 vi.mock('@/stores/execution-state-store', () => ({
   useExecutionStateStore: (
-    selector: (state: { getExecutingTaskStatus: (id: number) => null }) => unknown,
-  ) => selector({ getExecutingTaskStatus: () => null }),
+    selector: (state: {
+      getExecutingTaskStatus: (id: number) => null;
+      executingTasks: Map<number, unknown>;
+    }) => unknown,
+  ) => selector({ getExecutingTaskStatus: () => null, executingTasks: new Map() }),
 }));
 
 vi.mock('next-intl', () => ({
@@ -102,8 +105,8 @@ vi.mock('@/feature/tasks/components/SubtaskStatusButtons', () => ({
 }));
 
 // Mock StatusConfig
-vi.mock('@/feature/tasks/config/StatusConfig', () => ({
-  statusConfig: {
+vi.mock('@/feature/tasks/config/StatusConfig', () => {
+  const statusConfig = {
     todo: {
       color: 'text-zinc-700',
       bgColor: 'bg-zinc-100',
@@ -122,9 +125,15 @@ vi.mock('@/feature/tasks/config/StatusConfig', () => ({
       borderColor: 'border-l-green-500',
       label: '完了',
     },
-  },
-  renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
-}));
+  };
+  return {
+    statusConfig,
+    resolveStatusConfig: (status: string) =>
+      statusConfig[status as keyof typeof statusConfig] || statusConfig.todo,
+    isInProgressStatus: (status: string) => status === 'in-progress' || status === 'blocked',
+    renderStatusIcon: (status: string) => <span data-testid={`status-icon-${status}`} />,
+  };
+});
 
 // Mock TaskCompletionAnimation
 vi.mock('../TaskCompletionAnimation', () => ({

@@ -7,6 +7,7 @@ import {
   renderStatusIcon,
   isInProgressStatus,
 } from '@/feature/tasks/config/StatusConfig';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 interface TaskCardSubtaskPanelProps {
   subtasks: Task[];
@@ -24,6 +25,9 @@ export default function TaskCardSubtaskPanel({
   onTaskUpdated,
   onStatusChange,
 }: TaskCardSubtaskPanelProps) {
+  // Live agent-execution state (GET /tasks/executing polling). The spinner is
+  // driven by THIS — actual agent execution — not the in-progress status.
+  const executingTasks = useExecutionStateStore((s) => s.executingTasks);
   return (
     <div
       className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-indigo-dark-900/50 p-3"
@@ -32,7 +36,10 @@ export default function TaskCardSubtaskPanel({
       {subtasks.map((subtask, index) => {
         const subtaskStatus =
           statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
+        // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
         const inProgress = isInProgressStatus(subtask.status);
+        const liveStatus = executingTasks.get(subtask.id)?.status;
+        const isExecuting = liveStatus === 'running' || liveStatus === 'waiting_for_input';
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =
@@ -58,9 +65,9 @@ export default function TaskCardSubtaskPanel({
               } shrink-0`}
               aria-label={subtaskStatus.label}
             >
-              {/* In-progress subtasks spin the same outer-border loader the task
-                  list uses for running tasks, so subtask progress reads the same. */}
-              {inProgress && (
+              {/* Spinner only while an agent is actually executing this subtask
+                  (not for a manually-set in-progress status). */}
+              {isExecuting && (
                 <svg
                   className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
                   viewBox="0 0 32 32"

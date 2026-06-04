@@ -141,7 +141,9 @@ export function SubtaskItem({
                         }`}
                         aria-label={cfg.label}
                       >
-                        {inProgress && (
+                        {/* Spinner only while an agent is actually executing this
+                            subtask — not for a manually-set in-progress status. */}
+                        {showRunning && (
                           <svg
                             className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
                             viewBox="0 0 32 32"
