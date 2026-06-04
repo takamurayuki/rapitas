@@ -21,6 +21,7 @@
 const { spawn, execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
@@ -219,10 +220,12 @@ function waitForPortRelease(port, timeoutMs = 10000) {
 async function waitForBackendReady(port, timeoutMs = 30000) {
   const http = require("http");
   const startTime = Date.now();
-  const pollInterval = 1000;
+  const pollInterval = 500;
 
-  // 最初の2秒はバックエンドの起動を待つ
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Brief grace before the first poll so we don't race the listener opening.
+  // Polling fails fast (ECONNREFUSED) on a miss, so readiness is detected as
+  // soon as the backend is up — no fixed 2s floor on every start.
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   while (Date.now() - startTime < timeoutMs) {
     try {
@@ -345,8 +348,13 @@ async function tryGracefulShutdownViaHttp(port) {
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
-  // まず CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスを先にkill
-  killZombieSocketOwners(port);
+  // netstat (cheap) gates the PowerShell zombie sweep (slow cold start). When
+  // the port has no sockets at all — the common "clean restart" case — skip
+  // Get-NetTCPConnection entirely instead of paying for it every start.
+  if (getProcessesOnPort(port).size > 0) {
+    // CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスを先にkill
+    killZombieSocketOwners(port);
+  }
 
   if (!isPortListening(port)) return port;
 
@@ -858,6 +866,88 @@ let isHotRestarting = false;
 let fileWatchers = [];
 let lastRestartCompletedAt = 0;
 
+// ─── Prisma prepare cache ───
+// `prisma generate` + init-SQL regeneration is the dominant dev-startup cost
+// (multiple seconds) and previously ran on EVERY (re)start regardless of whether
+// anything changed. We stamp the inputs that determine the output and skip the
+// whole step when they're unchanged AND the generated artifacts still exist.
+const PRISMA_PREPARE_STAMP = path.join(DESKTOP_DATA_DIR, ".prisma-prepare-stamp");
+const PRISMA_SCHEMA_SOURCE_DIR = path.join(BACKEND_DIR, "prisma", "schema");
+const SQLITE_INIT_SQL_OUTPUT = path.join(
+  BACKEND_DIR,
+  "src",
+  "generated",
+  "sqlite-init-sql.ts",
+);
+// Default Prisma client output (no custom `output` in _generators.prisma).
+const PRISMA_CLIENT_OUTPUT = path.join(
+  BACKEND_DIR,
+  "node_modules",
+  ".prisma",
+  "client",
+  "index.js",
+);
+
+/**
+ * Hash every input that affects the generated SQLite Prisma client / init SQL.
+ * A change in any of these must force a regenerate, so all are folded in:
+ * the source schema files, the scripts that transform them, and the Prisma
+ * version (generated client format can change across versions).
+ * @returns {string} hex digest, or "" if inputs can't be read (forces regenerate)
+ */
+function computePrismaPrepareHash() {
+  try {
+    const hash = crypto.createHash("sha256");
+    // Source Prisma schema files (prismaSchemaFolder layout under prisma/schema/).
+    const schemaFiles = fs
+      .readdirSync(PRISMA_SCHEMA_SOURCE_DIR)
+      .filter((f) => f.endsWith(".prisma"))
+      .sort();
+    for (const file of schemaFiles) {
+      hash.update(file);
+      hash.update(fs.readFileSync(path.join(PRISMA_SCHEMA_SOURCE_DIR, file)));
+    }
+    // The transform scripts themselves — their logic affects the output.
+    for (const script of [
+      "generate-sqlite-prisma-schema.cjs",
+      "generate-sqlite-init-sql.cjs",
+    ]) {
+      hash.update(fs.readFileSync(path.join(BACKEND_DIR, "scripts", script)));
+    }
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(BACKEND_DIR, "package.json"), "utf8"),
+    );
+    hash.update(String(pkg.devDependencies?.prisma || ""));
+    hash.update(String(pkg.dependencies?.["@prisma/client"] || ""));
+    return hash.digest("hex");
+  } catch {
+    // Can't read inputs → return "" so the cache is treated as invalid.
+    return "";
+  }
+}
+
+/**
+ * True when the previous prepare output is still valid for the current inputs:
+ * the stamp matches the current hash AND both generated artifacts exist
+ * (a stamp without artifacts is stale and must not short-circuit generation).
+ * @param {string} currentHash
+ * @returns {boolean}
+ */
+function isPrismaPrepareCacheValid(currentHash) {
+  if (!currentHash) return false;
+  if (!fs.existsSync(PRISMA_PREPARE_STAMP)) return false;
+  try {
+    if (fs.readFileSync(PRISMA_PREPARE_STAMP, "utf8").trim() !== currentHash) {
+      return false;
+    }
+    if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
+    if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Desktop dev 用 SQLite Prisma Client と初期化SQLを生成
  */
@@ -868,6 +958,14 @@ function syncDatabaseAndGenerateClient() {
   } catch (err) {
     console.error("Failed to create desktop data directory:", err.message);
     throw err;
+  }
+
+  // Skip the expensive `prisma generate` when nothing that affects it changed.
+  const prepareHash = computePrismaPrepareHash();
+  if (isPrismaPrepareCacheValid(prepareHash)) {
+    console.log("Schema unchanged — reusing generated Prisma Client (cached).");
+    console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
+    return;
   }
 
   console.log("Generating SQLite Prisma Client and init SQL...");
@@ -881,6 +979,15 @@ function syncDatabaseAndGenerateClient() {
         DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
       },
     });
+    // Record inputs only after a successful generate so a failed run never
+    // leaves a stamp that would wrongly skip the next attempt.
+    if (prepareHash) {
+      try {
+        fs.writeFileSync(PRISMA_PREPARE_STAMP, prepareHash);
+      } catch {
+        // Non-fatal: a missing stamp just means we regenerate next time.
+      }
+    }
     console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
   } catch (err) {
     console.error("Failed to prepare SQLite Prisma Client:", err.message);
