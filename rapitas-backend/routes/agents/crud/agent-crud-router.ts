@@ -104,6 +104,11 @@ export const agentCrudRouter = new Elysia()
     '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
+      const agentId = parseInt(id, 10);
+      if (Number.isNaN(agentId)) {
+        context.set.status = 404;
+        return { error: 'Agent not found' };
+      }
       const { name, apiKey, clearApiKey, endpoint, modelId, capabilities, isDefault, isActive } =
         context.body as {
           name?: string;
@@ -124,7 +129,7 @@ export const agentCrudRouter = new Elysia()
       }
 
       const previous = await prisma.aIAgentConfig.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: agentId },
       });
 
       let apiKeyEncrypted: string | null | undefined = undefined;
@@ -138,11 +143,11 @@ export const agentCrudRouter = new Elysia()
           );
         }
         if (previous?.apiKeyEncrypted) deleteStoredSecret(previous.apiKeyEncrypted);
-        apiKeyEncrypted = saveAgentApiKey(parseInt(id), apiKey);
+        apiKeyEncrypted = saveAgentApiKey(agentId, apiKey);
       }
 
       const updated = await prisma.aIAgentConfig.update({
-        where: { id: parseInt(id) },
+        where: { id: agentId },
         data: {
           ...(name && { name }),
           ...(apiKeyEncrypted !== undefined && { apiKeyEncrypted }),
@@ -178,7 +183,7 @@ export const agentCrudRouter = new Elysia()
 
         if (Object.keys(changes).length > 0) {
           await logAgentConfigChange({
-            agentConfigId: parseInt(id),
+            agentConfigId: agentId,
             action: 'update',
             changeDetails: changes,
             previousValues: {
@@ -223,8 +228,18 @@ export const agentCrudRouter = new Elysia()
     async (context) => {
       const { set } = context;
       const { id } = context.params as { id: string };
+      const agentId = parseInt(id, 10);
+      // A non-numeric :id (e.g. /agents/undefined) makes Prisma reject the
+      // query with "Argument `id` is missing"; treat it as not found instead.
+      if (Number.isNaN(agentId)) {
+        // Logged so any remaining client sending a non-numeric id (the frontend
+        // now guards against the static-export `_placeholder` id) is traceable.
+        log.warn({ id }, '[agents] Non-numeric agent id requested');
+        set.status = 404;
+        return { error: 'Agent not found' };
+      }
       const agent = await prisma.aIAgentConfig.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: agentId },
         include: {
           _count: { select: { executions: true } },
         },
@@ -270,19 +285,24 @@ export const agentCrudRouter = new Elysia()
     '/agents/:id',
     async (context) => {
       const { id } = context.params as { id: string };
+      const agentId = parseInt(id, 10);
+      if (Number.isNaN(agentId)) {
+        context.set.status = 404;
+        return { error: 'Agent not found' };
+      }
 
       const previous = await prisma.aIAgentConfig.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: agentId },
       });
 
       const result = await prisma.aIAgentConfig.update({
-        where: { id: parseInt(id) },
+        where: { id: agentId },
         data: { isActive: false },
       });
 
       if (previous) {
         await logAgentConfigChange({
-          agentConfigId: parseInt(id),
+          agentConfigId: agentId,
           action: 'delete',
           previousValues: {
             name: previous.name,

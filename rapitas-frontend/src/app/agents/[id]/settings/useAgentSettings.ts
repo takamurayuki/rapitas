@@ -57,6 +57,15 @@ export function useAgentSettings(id: string) {
   }, []);
 
   const fetchAgent = useCallback(async () => {
+    // Static export pre-renders this route with the `_placeholder` id (see
+    // page.tsx generateStaticParams). Agent ids are always integers, so skip
+    // the request for any non-numeric id — hitting /agents/_placeholder makes
+    // the backend 404 (parseInt → NaN) and only adds console noise.
+    if (!/^\d+$/.test(id)) {
+      setError(t('agentNotFound'));
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/agents/${id}`);
       if (res.ok) {
