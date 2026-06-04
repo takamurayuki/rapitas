@@ -5,6 +5,7 @@
  * Scoring and excerpt logic delegated to helpers.ts.
  */
 import { Elysia } from 'elysia';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
@@ -57,8 +58,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     const isPostgres =
       process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
       !process.env.DATABASE_URL?.startsWith('file:');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
-    const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
+    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
 
     if (types.includes('task')) {
       // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.
@@ -77,8 +77,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
       if (priorityFilter) taskWhere.AND.push({ priority: { in: priorityFilter } });
       if (themeIdFilter) taskWhere.AND.push({ themeId: themeIdFilter });
       if (dateFrom || dateTo) {
-        // HACK(agent): `any` used for optional date condition object construction.
-        const dateCondition: any = {};
+        const dateCondition: { gte?: Date; lte?: Date } = {};
         if (dateFrom) dateCondition.gte = dateFrom;
         if (dateTo) dateCondition.lte = dateTo;
         taskWhere.AND.push({ updatedAt: dateCondition });
@@ -89,8 +88,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         });
       }
 
-      // HACK(agent): `any` used for dynamic orderBy — Prisma doesn't export the union type.
-      const orderBy: any =
+      const orderBy: Prisma.TaskOrderByWithRelationInput =
         sortBy === 'updatedAt'
           ? { updatedAt: 'desc' }
           : sortBy === 'createdAt'
