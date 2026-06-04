@@ -26,6 +26,45 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     return { message: 'test endpoint working' };
   })
 
+  // Resolve the working directory + label for an integrated terminal opened
+  // from a task: prefer the task's active git worktree, else its configured
+  // working directory, else the repo root.
+  .get(
+    '/:id/terminal-context',
+    async ({ params, set }) => {
+      const id = parseInt(params.id, 10);
+      if (Number.isNaN(id)) {
+        set.status = 400;
+        return { error: 'Invalid task id' };
+      }
+      const task = await prisma.task.findUnique({
+        where: { id },
+        select: {
+          title: true,
+          workingDirectory: true,
+          theme: { select: { workingDirectory: true } },
+        },
+      });
+      if (!task) {
+        set.status = 404;
+        return { error: 'Task not found' };
+      }
+      const session = await prisma.agentSession.findFirst({
+        where: { worktreePath: { not: null }, config: { taskId: id } },
+        orderBy: { id: 'desc' },
+        select: { worktreePath: true },
+      });
+      // Resolution order: active worktree → task dir → theme dir → repo root.
+      const cwd =
+        session?.worktreePath ||
+        task.workingDirectory ||
+        task.theme?.workingDirectory ||
+        getProjectRoot();
+      return { cwd, title: task.title };
+    },
+    { params: t.Object({ id: t.String() }) },
+  )
+
   // Get task statistics
   .get('/statistics', async () => {
     try {

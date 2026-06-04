@@ -11,6 +11,7 @@ import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider'
 import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
+import { TerminalProvider } from '@/feature/terminal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
 import AppContent from '@/components/common/AppContent';
@@ -166,6 +167,7 @@ export default function RootLayout({
                       <Suspense fallback={null}>
                         <SmartCommandBar />
                       </Suspense>
+                      <TerminalProvider />
                     </Suspense>
                   </ExternalLinksProvider>
                 </VoiceInputProvider>

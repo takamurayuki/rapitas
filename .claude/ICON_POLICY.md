@@ -57,6 +57,9 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `Globe`                   | スコープ「グローバル」                   |
 | `FolderOpen`              | プロジェクト / カテゴリ                  |
 | `Scale`                   | 意思決定 / デシジョンジャーナル          |
+| `SquareTerminal`          | 統合ターミナル                           |
+| `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
+| `SplitSquareVertical`     | ターミナルのペイン上下分割               |
 
 ### Known collisions — resolve when you next touch them
 

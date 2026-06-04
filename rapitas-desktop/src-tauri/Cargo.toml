@@ -22,6 +22,11 @@ open = "5"
 cpal = "0.15"
 hound = "3.5"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+# Integrated terminal: cross-platform PTY (ConPTY on Windows) for an in-app
+# VS Code-like terminal. base64 keeps raw byte output intact across the IPC
+# boundary (avoids UTF-8 corruption when a multibyte char spans read chunks).
+portable-pty = "0.9"
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser", "processthreadsapi", "psapi", "shellapi", "winreg", "dwmapi"] }

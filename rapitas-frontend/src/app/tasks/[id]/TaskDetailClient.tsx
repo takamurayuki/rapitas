@@ -23,6 +23,7 @@ import { useDeveloperModeSetup } from './hooks/useDeveloperModeSetup';
 import TaskDetailErrorState from './components/TaskDetailErrorState';
 import TaskDetailContent from './components/TaskDetailContent';
 import type { TaskDetailViewBodyProps } from './components/TaskDetailViewBody';
+import { useTaskTerminalContext } from '@/feature/terminal';
 
 const logger = createLogger('TaskDetailClient');
 
@@ -54,6 +55,9 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   logger.debug('[TaskDetailClient] resolvedTaskId:', resolvedTaskId);
 
   const taskId = resolvedTaskId ? parseInt(resolvedTaskId) : 0;
+
+  // Point the integrated terminal at this task's directory while detail is open.
+  useTaskTerminalContext(taskId);
 
   // ─── Data fetching ────────────────────────────────────────────────────────
   const {

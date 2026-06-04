@@ -1,8 +1,9 @@
 'use client';
 // HomeThemeFilter
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Priority, Theme } from '@/types';
+import { useTerminalContextStore } from '@/feature/terminal';
 import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
@@ -69,6 +70,16 @@ export function HomeThemeFilter({
   const router = useRouter();
   const t = useTranslations('home');
 
+  // Point the integrated terminal at the selected theme's working directory so
+  // Ctrl+J from the task list opens there (cleared when no dir is set).
+  useEffect(() => {
+    const selected = themes.find((theme) => theme.id === themeFilter);
+    useTerminalContextStore.getState().setTerminalContext({
+      cwd: selected?.workingDirectory ?? null,
+      title: selected?.name ?? null,
+    });
+  }, [themeFilter, themes]);
+
   const filteredThemes = themes.filter((theme) => {
     if (categoryFilter === null) return true;
     return theme.categoryId === categoryFilter;
@@ -111,26 +122,26 @@ export function HomeThemeFilter({
           ) : (
             <>
               {filteredThemes.map((theme) => {
-              const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
-              const isActive = themeFilter === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => onThemeChange(theme.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
-                    isActive
-                      ? 'shadow-lg font-bold text-white dark:text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                  style={{
-                    backgroundColor: isActive ? theme.color : undefined,
-                    color: isActive ? '#ffffff' : theme.color,
-                  }}
-                >
-                  <IconComponent className="w-3.5 h-3.5" />
-                  {theme.name}
-                  {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
-                </button>
+                const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
+                const isActive = themeFilter === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => onThemeChange(theme.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                      isActive
+                        ? 'shadow-lg font-bold text-white dark:text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? theme.color : undefined,
+                      color: isActive ? '#ffffff' : theme.color,
+                    }}
+                  >
+                    <IconComponent className="w-3.5 h-3.5" />
+                    {theme.name}
+                    {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
+                  </button>
                 );
               })}
               {/* Theme add — solid amber pill, distinct from the category add (slate folder tab). */}

@@ -18,6 +18,8 @@ mod split_screen_manager;
 mod voice_recognition;
 mod wake_word;
 
+mod terminal;
+
 #[cfg(not(debug_assertions))]
 mod release;
 
@@ -212,6 +214,9 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 show_main_window(app);
             }
             "quit" => {
+                // Kill all integrated-terminal PTYs so no shell (and its
+                // children) is orphaned when the app exits.
+                terminal::kill_all(app);
                 #[cfg(not(debug_assertions))]
                 release::kill_backend(app);
                 app.exit(0);
@@ -272,6 +277,7 @@ fn main() {
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
             .manage(Mutex::new(release::BackendState { child: None }))
+            .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
@@ -282,7 +288,11 @@ fn main() {
                 voice_stop_recording,
                 wake_word_start,
                 wake_word_stop,
-                wake_word_status
+                wake_word_status,
+                terminal::terminal_create,
+                terminal::terminal_write,
+                terminal::terminal_resize,
+                terminal::terminal_close
             ])
             .setup(|app| {
                 release::setup_sidecar(app);
@@ -309,6 +319,7 @@ fn main() {
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
+            .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
@@ -319,7 +330,11 @@ fn main() {
                 voice_stop_recording,
                 wake_word_start,
                 wake_word_stop,
-                wake_word_status
+                wake_word_status,
+                terminal::terminal_create,
+                terminal::terminal_write,
+                terminal::terminal_resize,
+                terminal::terminal_close
             ])
             .setup(|app| {
                 setup_tray(app)?;
