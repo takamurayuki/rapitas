@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Task, TimeEntry, Comment, Resource, UserSettings } from '@/types';
 import { apiFetch, clearApiCache } from '@/lib/api-client';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { preloadTaskDetails } from '@/lib/task-api';
 import { recordTaskAccess } from '@/lib/cache-warmup';
 import { createLogger } from '@/lib/logger';
@@ -84,7 +85,24 @@ export function useTaskDetailData({
 
   const fetchTask = async (isInitialLoad: boolean) => {
     try {
-      if (isInitialLoad) {
+      // Seed from the already-loaded task list so the detail renders IMMEDIATELY
+      // instead of holding a skeleton while the network fetch is in flight. When
+      // the backend is momentarily busy (e.g. an agent run doing git/worktree
+      // work) that fetch can take seconds, which is the "selected task stays on
+      // 読み込み中 then appears" symptom. The fresh fetch below still revalidates
+      // (covers post-split subtask changes the cached list might miss).
+      const seed =
+        isInitialLoad && resolvedTaskId
+          ? useTaskCacheStore
+              .getState()
+              .tasks.find((cachedTask) => cachedTask.id === parseInt(resolvedTaskId, 10))
+          : undefined;
+      if (seed) {
+        setTask(seed);
+        taskLoadedRef.current = true;
+        setLoading(false);
+        setShowSkeleton(false);
+      } else if (isInitialLoad) {
         setLoading(true);
         setShowSkeleton(true);
         skeletonStartRef.current = Date.now();
