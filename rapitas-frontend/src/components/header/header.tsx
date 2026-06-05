@@ -233,6 +233,7 @@ export default function Header() {
           label: t('claudeGeneration'),
           icon: FileCog,
         },
+        { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
       ],
     },
     {
@@ -246,7 +247,6 @@ export default function Header() {
           icon: Settings,
         },
         { href: '/settings', label: t('apiKeySettings'), icon: Key },
-        { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
         {
           href: '/settings/shortcuts',
           label: t('shortcutSettings'),

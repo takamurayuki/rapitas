@@ -85,7 +85,7 @@ function CLIToolsPage() {
 
   const { showToast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
 
   // Surface action results (update/auth-check) as toasts instead of a static
   // banner at the top of the page.
@@ -138,8 +138,7 @@ function CLIToolsPage() {
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             インストール・認証は rapitas のターミナルで実行されます（コマンドがプリフィルされるので
-            Enter で実行）。完了後「更新」で状態を再確認できます。なお、新しく入れたツールを
-            <strong>エージェントが使う</strong>には dev サーバーの再起動が必要です。
+            Enter で実行）。完了後「更新」で状態を再確認できます。再起動が必要です。
           </span>
         </div>
       </div>
@@ -175,7 +174,7 @@ function CLIToolsPage() {
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
         onItemsPerPageChange={setItemsPerPage}
-        itemsPerPageOptions={[6, 12, 24]}
+        itemsPerPageOptions={[5, 10, 15]}
       />
     </div>
   );
