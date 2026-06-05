@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
+import { recordSearchMiss } from '../../../services/search/search-miss-service';
 
 const log = createLogger('routes:search:main');
 
@@ -317,6 +318,11 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
 
     const total = results.length;
     const paginatedResults = results.slice(offset, offset + limit);
+
+    // NOTE: Record zero-result queries as SearchMiss so gaps can be tracked and resolved via tasks.
+    if (total === 0) {
+      recordSearchMiss(searchQuery).catch(() => {});
+    }
 
     return {
       success: true,

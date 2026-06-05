@@ -14,6 +14,11 @@ import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
+import {
+  linkTaskToMiss,
+  autoLinkMatchingMisses,
+  resolveSearchMissForTask,
+} from '../search/search-miss-service';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -55,6 +60,8 @@ export interface CreateTaskInput {
   goals?: string[];
   constraints?: string[];
   acceptanceCriteria?: string[];
+  /** SearchMiss ID to link on creation — bridges gap resolution flow. */
+  searchMissId?: number;
 }
 
 /**
@@ -65,7 +72,7 @@ export interface CreateTaskInput {
  * @returns Created task with full includes / フルインクルード付きの作成タスク
  */
 export async function createTask(prisma: PrismaInstance, input: CreateTaskInput) {
-  const { parentId, title, labelIds, ...rest } = input;
+  const { parentId, title, labelIds, searchMissId, ...rest } = input;
 
   const task = parentId
     ? await createSubtask(prisma, parentId, title, labelIds, rest)
@@ -73,6 +80,15 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
 
   // NOTE: Broadcast task creation via SSE for real-time list updates.
   if (task) {
+    // NOTE: Gap resolution — link SearchMiss to the new task so it can be resolved on completion.
+    // If searchMissId is provided (task created from SearchMissPanel), link directly.
+    // Otherwise, fall back to title-match auto-linking for tasks created via normal flow.
+    if (searchMissId) {
+      linkTaskToMiss(prisma, searchMissId, task.id).catch(() => {});
+    } else {
+      autoLinkMatchingMisses(prisma, task.id, title).catch(() => {});
+    }
+
     realtimeService.sendTaskUpdate(task.id, 'task_created', {
       taskId: task.id,
       title: task.title,
@@ -265,6 +281,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         });
       })
       .catch(() => {});
+  }
+
+  // NOTE: Resolve linked SearchMiss records when a task is marked done.
+  // SearchMiss is task-hierarchy-agnostic, so this fires for both parent tasks and subtasks.
+  if (fields.status === 'done') {
+    resolveSearchMissForTask(prisma, taskId).catch((err) => {
+      logger.warn({ err, taskId }, 'Failed to resolve search miss for task');
+    });
   }
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.

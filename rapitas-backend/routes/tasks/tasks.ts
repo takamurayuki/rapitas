@@ -266,6 +266,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         goals: t.Optional(t.Array(t.String())),
         constraints: t.Optional(t.Array(t.String())),
         acceptanceCriteria: t.Optional(t.Array(t.String())),
+        searchMissId: t.Optional(t.Number()),
       }),
     },
   )

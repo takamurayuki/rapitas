@@ -120,6 +120,39 @@ export async function linkTaskToMiss(
 }
 
 /**
+ * タスクタイトルにクエリが含まれる 'open' 状態の SearchMiss を自動リンクする。
+ * searchMissId が指定されずにタスクを作成した場合のフォールバック処理。
+ * タイトルにクエリが含まれるミスを 'suggested' に遷移させ、タスク完了時の
+ * resolveSearchMissForTask が解決できるようにする。
+ *
+ * @param prisma - Prismaクライアント（呼び出し元から注入）
+ * @param taskId - 作成されたタスクの ID
+ * @param taskTitle - タスクタイトル（クエリマッチに使用）
+ * @returns 自動リンク処理完了時に解決される Promise
+ */
+export async function autoLinkMatchingMisses(
+  prisma: PrismaClient,
+  taskId: number,
+  taskTitle: string,
+): Promise<void> {
+  const titleLower = taskTitle.toLowerCase();
+  const openMisses = await prisma.searchMiss.findMany({
+    where: { status: 'open' },
+    select: { id: true, query: true },
+    take: 100,
+  });
+
+  const matched = openMisses.filter((m) => titleLower.includes(m.query.toLowerCase()));
+  for (const miss of matched) {
+    await linkTaskToMiss(prisma, miss.id, taskId);
+  }
+
+  if (matched.length > 0) {
+    log.debug({ taskId, taskTitle, matchCount: matched.length }, 'Auto-linked matching search misses');
+  }
+}
+
+/**
  * 指定タスクに紐付いた検索ミスを再検索し、結果が得られたものを 'resolved' に更新する。
  * 解決時に通知を作成する（best-effort: 通知失敗は更新をブロックしない）。
  *

@@ -9,6 +9,7 @@ export {
   recordSearchMiss,
   getTopMissedQueries,
   linkTaskToMiss,
+  autoLinkMatchingMisses,
   resolveSearchMissForTask,
   getMissAnalytics,
 } from './search-miss-service';
