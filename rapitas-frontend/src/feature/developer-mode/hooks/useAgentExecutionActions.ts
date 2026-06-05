@@ -4,6 +4,7 @@
 import { useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { createLogger } from '@/lib/logger';
 import type { ExecutionStatus, ExecutionResult } from '@/types';
 import { safeJsonParse } from './safe-json-parse';
@@ -181,6 +182,10 @@ export function useAgentExecutionActions(
       setExecutionStatus('running');
       setExecutionResult(null);
       setError(null);
+      // Optimistically flip the task to in-progress in the SHARED list cache so
+      // the task list reflects the run immediately — the detail already does this
+      // locally, but the list otherwise waited for the executing-tasks poll.
+      useTaskCacheStore.getState().updateTaskLocally(taskId, { status: 'in-progress' });
 
       try {
         if (options?.sessionId && options?.instruction) {
