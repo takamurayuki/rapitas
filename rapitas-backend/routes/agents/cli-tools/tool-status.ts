@@ -13,6 +13,40 @@ import { type CLITool, type GitHubRelease } from './types';
 const execAsync = promisify(exec);
 const log = createLogger('routes:cli-tools:status');
 
+let refreshedPathCache: { value: string; at: number } | null = null;
+const PATH_REFRESH_TTL_MS = 30_000;
+
+/**
+ * Re-read the LIVE PATH (Machine + User) from the Windows registry. The backend
+ * captures PATH at launch, so a CLI installed AFTER startup (e.g. via the
+ * terminal) lives in a dir the process's stale PATH lacks — making `where <cmd>`
+ * wrongly report "not installed". PowerShell inherits our stale PATH too, so we
+ * read the values straight from the environment store. Cached briefly; returns
+ * undefined off Windows or on failure (callers then use the process env).
+ *
+ * @returns Live PATH string, or undefined / 最新PATH文字列、取得不可ならundefined
+ */
+async function getRefreshedPath(): Promise<string | undefined> {
+  if (process.platform !== 'win32') return undefined;
+  if (refreshedPathCache && Date.now() - refreshedPathCache.at < PATH_REFRESH_TTL_MS) {
+    return refreshedPathCache.value;
+  }
+  try {
+    const { stdout } = await execAsync(
+      `powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"`,
+      { timeout: 5000 },
+    );
+    const value = stdout.trim();
+    if (value) {
+      refreshedPathCache = { value, at: Date.now() };
+      return value;
+    }
+  } catch {
+    // fall through — caller uses the process env PATH
+  }
+  return undefined;
+}
+
 /**
  * Get the installation and authentication status for a CLI tool.
  *
@@ -31,8 +65,15 @@ export async function getToolStatus(tool: CLITool): Promise<{
     let version: string | null = null;
     let installPath: string | undefined;
 
+    // Run checks with the LIVE PATH so a CLI installed after backend start is
+    // still detected (no restart needed just to show correct status).
+    const refreshedPath = await getRefreshedPath();
+    const execEnv = refreshedPath
+      ? { ...process.env, Path: refreshedPath, PATH: refreshedPath }
+      : process.env;
+
     try {
-      const checkResult = await execAsync(tool.checkCommand, { timeout: 5000 });
+      const checkResult = await execAsync(tool.checkCommand, { timeout: 5000, env: execEnv });
       if (checkResult.stdout.trim()) {
         isInstalled = true;
         installPath = checkResult.stdout.trim().split('\n')[0];
@@ -45,6 +86,7 @@ export async function getToolStatus(tool: CLITool): Promise<{
       try {
         const versionResult = await execAsync(tool.versionCommand, {
           timeout: 30000,
+          env: execEnv,
         });
         version = versionResult.stdout.trim() || versionResult.stderr.trim();
       } catch (error) {
@@ -55,7 +97,7 @@ export async function getToolStatus(tool: CLITool): Promise<{
     let isAuthenticated = false;
     if (isInstalled && tool.authCheck) {
       try {
-        const authResult = await execAsync(tool.authCheck, { timeout: 5000 });
+        const authResult = await execAsync(tool.authCheck, { timeout: 5000, env: execEnv });
         isAuthenticated = checkAuthenticationStatus(tool, authResult);
       } catch {
         isAuthenticated = false;
