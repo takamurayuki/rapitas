@@ -338,6 +338,26 @@ if (PARENT_PID && PARENT_PID > 1) {
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
+  // One-time data normalization: legacy agent-execution paths wrote the
+  // non-canonical underscore 'in_progress' to task.status (canonical is the
+  // hyphenated 'in-progress' — see the frontend StatusConfig). Such tasks render
+  // as 'todo' and are missed by status='in-progress' queries, so subtasks
+  // appeared stuck after an agent run. Reconcile any existing rows on startup.
+  try {
+    const normalized = await prisma.task.updateMany({
+      where: { status: 'in_progress' },
+      data: { status: 'in-progress' },
+    });
+    if (normalized.count > 0) {
+      log.info(
+        { count: normalized.count },
+        'Startup: normalized legacy in_progress task statuses to in-progress',
+      );
+    }
+  } catch (err) {
+    log.warn({ err }, 'Startup: failed to normalize legacy task statuses');
+  }
+
   // Wait for worker process to start
   await new Promise((resolve) => setTimeout(resolve, 3000));
 

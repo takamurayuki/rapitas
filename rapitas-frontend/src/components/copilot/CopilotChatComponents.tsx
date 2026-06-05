@@ -295,7 +295,7 @@ export function ProactiveInsight({
       text: '着手前です。アプローチの壁打ちをしませんか？',
       color: 'text-amber-500',
     });
-  else if (taskStatus === 'in_progress')
+  else if (taskStatus === 'in-progress')
     insights.push({
       icon: ArrowRight,
       text: '進行中です。詰まっている点はありませんか？',

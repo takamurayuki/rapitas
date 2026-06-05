@@ -82,7 +82,9 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
         'Agent completed planning phase (research/plan saved). Awaiting user approval before implementation.',
       );
       await prisma.task
-        .update({ where: { id: taskId }, data: { status: 'in_progress' } })
+        // Canonical task.status is hyphenated 'in-progress' (see StatusConfig);
+        // the underscore form is the separate workflowStatus value.
+        .update({ where: { id: taskId }, data: { status: 'in-progress' } })
         .catch((err) => log.warn({ err, taskId }, 'Failed to update task status'));
       // Worktree is preserved so the next execution (after user approves the
       // plan in the UI) can pick up where this one left off.

@@ -82,8 +82,7 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
 
   const out: RecommendedAction[] = [];
   const allSubtasksDone = ctx.subtaskTotal > 0 && ctx.subtaskDone === ctx.subtaskTotal;
-  const isComplex =
-    ctx.complexityScore !== null && ctx.complexityScore > COMPLEXITY_NEEDS_SUBTASKS;
+  const isComplex = ctx.complexityScore !== null && ctx.complexityScore > COMPLEXITY_NEEDS_SUBTASKS;
   // Whether the primary action already drives the task toward subtasks, so the
   // secondary "split" suggestion would be redundant.
   let primaryCoversSubtasks = false;
@@ -146,7 +145,7 @@ export function getNextActions(ctx: NextActionContext): RecommendedAction[] {
         label: '着手する',
         reason: '準備OK。ステータスを進行中にします',
         actionType: 'update_status',
-        params: { status: 'in_progress' },
+        params: { status: 'in-progress' },
         icon: 'play',
         tone: 'primary',
       });

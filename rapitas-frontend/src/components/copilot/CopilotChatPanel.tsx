@@ -60,7 +60,7 @@ export function CopilotChatPanel({
         return;
       }
       if (actionType === 'start_task' && taskId) {
-        await executeAction('update_status', { status: 'in_progress' });
+        await executeAction('update_status', { status: 'in-progress' });
         onTaskUpdated?.();
       } else if (actionType === 'complete_task' && taskId) {
         await executeAction('update_status', { status: 'done' });
@@ -113,9 +113,7 @@ export function CopilotChatPanel({
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-indigo-500" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            AIアシスタント
-          </h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">AIアシスタント</h3>
         </div>
         <div className="flex items-center gap-1">
           {messages.length > 0 && (

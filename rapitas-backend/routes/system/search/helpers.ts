@@ -134,8 +134,8 @@ export function calculateRelevance(
     if (daysDiff <= 7) score += 5;
   }
 
-  // Active status bonus
-  if (options.status && (options.status === 'todo' || options.status === 'in_progress')) {
+  // Active status bonus. Canonical task.status uses hyphenated 'in-progress'.
+  if (options.status && (options.status === 'todo' || options.status === 'in-progress')) {
     score += 3;
   }
 

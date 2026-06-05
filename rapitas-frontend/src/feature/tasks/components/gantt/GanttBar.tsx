@@ -78,7 +78,7 @@ export function GanttBar({ bar, isOnCriticalPath = false, onClick, onHover }: Ga
       )}
 
       {/* ステータスインジケーター */}
-      {bar.status === 'in_progress' && (
+      {bar.status === 'in-progress' && (
         <circle
           cx={bar.x + bar.width - 8}
           cy={bar.y + 8}

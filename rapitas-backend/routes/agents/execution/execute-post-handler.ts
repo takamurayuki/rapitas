@@ -231,10 +231,14 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       );
     }
 
-    // NOTE: Keep task as in_progress until the full pipeline
+    // NOTE: Keep task as in-progress until the full pipeline
     // (AI review → commit → PR → cleanup) completes. Only then mark as done.
+    // Canonical task.status is hyphenated 'in-progress' (see StatusConfig); the
+    // underscore form is the separate workflowStatus value. Writing the wrong
+    // one left subtasks unrecognized by the UI and by status='in-progress'
+    // queries, so they appeared stuck.
     await prisma.task
-      .update({ where: { id: taskIdNum }, data: { status: 'in_progress' } })
+      .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
       .catch((e: unknown) =>
         log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
       );
@@ -484,7 +488,8 @@ async function handleResearchResult(params: {
     await prisma.task
       .update({
         where: { id: taskIdNum },
-        data: { status: 'in_progress', workflowStatus: nextWfStatus },
+        // task.status is hyphenated; workflowStatus uses the underscore form.
+        data: { status: 'in-progress', workflowStatus: nextWfStatus },
       })
       .catch((e) => log.warn({ err: e, taskId: taskIdNum }, '[API] Failed to update task'));
     if (currentWf !== nextWfStatus) {
