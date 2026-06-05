@@ -1,8 +1,11 @@
 'use client';
 // CLIToolsPage
 
-import { Terminal, AlertCircle, CheckCircle, RefreshCcw, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Terminal, RefreshCcw, Info } from 'lucide-react';
 import { requireAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import Pagination from '@/components/ui/pagination/Pagination';
 import { useCLITools } from './useCliTools';
 import { ToolCard } from './ToolCard';
 import { useTerminalStore } from '@/feature/terminal/terminal-store';
@@ -80,10 +83,22 @@ function CLIToolsPage() {
     updateActionState,
   } = useCLITools();
 
+  const { showToast } = useToast();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+
+  // Surface action results (update/auth-check) as toasts instead of a static
+  // banner at the top of the page.
+  useEffect(() => {
+    if (successMessage) showToast(successMessage, 'success');
+  }, [successMessage, showToast]);
+  useEffect(() => {
+    if (error) showToast(error, 'error');
+  }, [error, showToast]);
+
   // Install AND auth both run IN the rapitas integrated terminal (interactive):
   // open a tab with the command pre-filled so the user reviews it, answers any
-  // prompts (winget agreements, gh device-flow code, etc.) and presses Enter —
-  // instead of a non-interactive backend exec that can't do interactive auth.
+  // prompts (winget agreements, gh device-flow code, etc.) and presses Enter.
   const runInTerminal = (title: string, command?: string) => {
     if (!command) return;
     useTerminalStore.getState().openTerminalForTask({ title, command });
@@ -109,6 +124,10 @@ function CLIToolsPage() {
     );
   }
 
+  const totalPages = Math.max(1, Math.ceil(tools.length / itemsPerPage));
+  const page = Math.min(currentPage, totalPages);
+  const paginatedTools = tools.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <PageHeader onRefresh={refreshTools} isRefreshing={isRefreshing} />
@@ -125,28 +144,9 @@ function CLIToolsPage() {
         </div>
       </div>
 
-      {/* Status messages */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <CheckCircle className="w-5 h-5" />
-            <span>{successMessage}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Tool list (compact) */}
+      {/* Tool list (compact, paginated) */}
       <div className="space-y-2.5">
-        {tools.map((tool) => {
+        {paginatedTools.map((tool) => {
           const actionState = actionStates[tool.id] ?? {
             isInstalling: false,
             isUpdating: false,
@@ -168,6 +168,15 @@ function CLIToolsPage() {
           );
         })}
       </div>
+
+      <Pagination
+        currentPage={page}
+        totalPages={totalPages}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onItemsPerPageChange={setItemsPerPage}
+        itemsPerPageOptions={[6, 12, 24]}
+      />
     </div>
   );
 }
