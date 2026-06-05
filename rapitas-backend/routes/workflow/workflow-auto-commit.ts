@@ -17,6 +17,7 @@ import {
   logAutoMergeFailure,
 } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
+import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 
 const log = createLogger('routes:workflow:auto-commit');
 
@@ -54,16 +55,20 @@ export async function performAutoCommitAndPR(
 
   try {
     const execConfig = await prisma.agentExecutionConfig.findUnique({ where: { taskId } });
-    result.requested = {
-      autoCommit: !!execConfig?.autoCommit,
-      autoCreatePR: !!execConfig?.autoCreatePR,
-      autoMergePR: !!execConfig?.autoMergePR,
-    };
 
-    if (
-      !execConfig ||
-      (!execConfig.autoCommit && !execConfig.autoCreatePR && !execConfig.autoMergePR)
-    ) {
+    // Effective automation policy. An explicit per-task execConfig (saved by the
+    // user in the UI) wins; otherwise fall back to the recommended default flow
+    // (commit + PR, NO auto-merge) so an UNconfigured task's changes still reach
+    // git via a reviewable PR instead of being stranded uncommitted in the
+    // worktree. execConfig is only created on explicit user action, so "no row"
+    // genuinely means "use the recommended default".
+    const policy = await resolveAutomationPolicy(prisma, taskId);
+    const autoCommit = execConfig ? execConfig.autoCommit : policy.autoCommit;
+    const autoCreatePR = execConfig ? execConfig.autoCreatePR : policy.autoCreatePR;
+    const autoMergePR = execConfig ? execConfig.autoMergePR : policy.autoMergePR;
+    result.requested = { autoCommit, autoCreatePR, autoMergePR };
+
+    if (!autoCommit && !autoCreatePR && !autoMergePR) {
       return result;
     }
 
@@ -82,7 +87,7 @@ export async function performAutoCommitAndPR(
     if (!task) return result;
 
     // CRITICAL: Require explicit workingDirectory to prevent accidental modification of rapitas source
-    const workingDirectory = execConfig.workingDirectory || task.theme?.workingDirectory;
+    const workingDirectory = execConfig?.workingDirectory || task.theme?.workingDirectory;
     if (!workingDirectory) {
       log.warn(`[workflow] Task ${taskId} rejected: workingDirectory not configured.`);
       return {
@@ -106,7 +111,7 @@ export async function performAutoCommitAndPR(
     const latestSession = task.developerModeConfig?.agentSessions?.[0];
     const branchName = latestSession?.branchName;
     const targetBranch =
-      ((execConfig as Record<string, unknown>).targetBranch as string) ||
+      ((execConfig as Record<string, unknown> | null)?.targetBranch as string) ||
       task.theme?.defaultBranch ||
       'develop';
 
@@ -150,7 +155,7 @@ export async function performAutoCommitAndPR(
     const orchestrator = AgentOrchestrator.getInstance(prisma);
 
     // Process autoCommit
-    if (execConfig.autoCommit) {
+    if (autoCommit) {
       try {
         if (branchName) {
           await orchestrator.createBranch(gitCwd, branchName);
@@ -184,14 +189,14 @@ export async function performAutoCommitAndPR(
     }
 
     // Process autoCreatePR (only if autoCommit succeeded)
-    if (execConfig.autoCreatePR && !execConfig.autoCommit) {
+    if (autoCreatePR && !autoCommit) {
       result.autoPRResult = {
         success: false,
         error:
           'autoCreatePR requires autoCommit so the workflow can identify the branch to publish.',
       };
     }
-    if (execConfig.autoCreatePR && result.autoCommitResult?.success) {
+    if (autoCreatePR && result.autoCommitResult?.success) {
       try {
         const prTitle = `[Task-${taskId}] ${task.title}`;
         const prBody = `## Summary\n\nAuto-generated PR for Task #${taskId}: ${task.title}\n\n## Verification Report\n\n${verifyContent}\n\n---\n🤖 Generated automatically by Rapitas AI Agent`;
@@ -222,12 +227,12 @@ export async function performAutoCommitAndPR(
     }
 
     // Process autoMergePR (only if autoCreatePR succeeded)
-    if (execConfig.autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
+    if (autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
       try {
         const mergeResult = await orchestrator.mergePullRequest(
           gitCwd,
           result.autoPRResult.prNumber,
-          execConfig.mergeCommitThreshold ?? 5,
+          execConfig?.mergeCommitThreshold ?? 5,
           targetBranch,
         );
         result.autoMergeResult = mergeResult;

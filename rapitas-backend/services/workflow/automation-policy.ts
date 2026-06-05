@@ -6,7 +6,7 @@
  *   1. タスク個別の `Task.autoCommit/autoCreatePR/autoMergePR` (Prisma に追加されていれば)
  *   2. ワークフロー設定 (`WorkflowAutomationSettings`)（将来追加予定）
  *   3. 環境変数フォールバック (`RAPITAS_DEFAULT_AUTO_*`)
- *   4. ハードコード default (false)
+ *   4. ハードコード default（推奨フロー: commit=ON, createPR=ON, mergePR=OFF）
  *
  * 自動化判断は `routes/workflow/workflow-auto-commit.ts` がここを呼ぶことで一元化される。
  */
@@ -79,8 +79,11 @@ export async function resolveAutomationPolicy(
     return { value: fallback, source: 'default' };
   };
 
-  const ac = resolveOne('autoCommit', envAutoCommit, false);
-  const acpr = resolveOne('autoCreatePR', envAutoCreatePR, false);
+  // Recommended default flow: commit + open a PR automatically so changes reach
+  // git and are reviewable, but do NOT auto-merge — a human reviews/merges the
+  // PR. Override per-task (UI) or via RAPITAS_DEFAULT_AUTO_* env vars.
+  const ac = resolveOne('autoCommit', envAutoCommit, true);
+  const acpr = resolveOne('autoCreatePR', envAutoCreatePR, true);
   const ampr = resolveOne('autoMergePR', envAutoMergePR, false);
 
   log.debug(
