@@ -21,6 +21,7 @@ import {
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
@@ -443,9 +444,50 @@ export async function handleSaveFile({
     // directly. Auto-commit / PR / merge still run as a BEST-EFFORT side effect
     // (so branches with real changes still get a PR), but completion no longer
     // depends on a PR being published.
+    // Completion gate: a passing verify may only complete the task when it is
+    // backed by REAL code changes (or verify.md explicitly justifies a no-op).
+    // Otherwise it's the silent-skip pattern (agent claimed work it never did —
+    // empty diff, no commit) and we block for inspection instead of completing.
+    let verifyGateBlocked = false;
+    if (fileType === 'verify' && newStatus === 'verify_done') {
+      const gateSession = await prisma.agentSession
+        .findFirst({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { worktreePath: true },
+        })
+        .catch(() => null);
+      const completionGate = await evaluateCompletionGate(
+        gateSession?.worktreePath ?? null,
+        savedContent,
+      );
+      if (!completionGate.allow) {
+        verifyGateBlocked = true;
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+          .catch(() => {});
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: 'verify_done',
+          actor: 'verifier',
+          cause: 'verify_no_changes',
+          phase: 'verify',
+          metadata: { reason: completionGate.reason },
+          invariantViolation: true,
+          invariantMessage:
+            '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
+        });
+        log.warn(
+          { taskId, reason: completionGate.reason },
+          '[Workflow] verify passed but no code changes and no justification — blocking instead of completing',
+        );
+      }
+    }
+
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
-    if (fileType === 'verify' && newStatus === 'verify_done') {
+    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
       // Best-effort commit/PR/merge — never block completion on its outcome.
       autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
         log.warn(

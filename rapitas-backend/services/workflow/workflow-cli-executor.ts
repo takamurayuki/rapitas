@@ -24,6 +24,7 @@ import {
 } from './phase-output-validator';
 import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
+import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
 
@@ -543,21 +544,57 @@ curl -X POST http://localhost:${port}/concerns \\
           });
           phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
         } else {
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-          });
-          await recordTransition({
-            taskId,
-            fromStatus: currentWfStatus,
-            toStatus: 'completed',
-            actor: transition.role as TransitionActor,
-            cause: 'verify_passed',
-            phase: 'verify',
-            sessionId: session.id,
-            metadata: { chars: typeof fileContent === 'string' ? fileContent.length : 0 },
-          });
-          phaseStatus = 'completed';
+          // Completion gate: a passing verify may only complete the task when it
+          // is backed by REAL code changes, or verify.md explicitly justifies a
+          // no-op. Otherwise it's the silent-skip pattern (agent claimed work it
+          // never did — empty diff, no commit) and we block for inspection.
+          const gate = await evaluateCompletionGate(
+            resolvedWorktreePath,
+            typeof fileContent === 'string' ? fileContent : '',
+          );
+          if (!gate.allow) {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { status: 'blocked' },
+            });
+            await recordTransition({
+              taskId,
+              fromStatus: currentWfStatus,
+              toStatus: currentWfStatus,
+              actor: transition.role as TransitionActor,
+              cause: 'verify_no_changes',
+              phase: 'verify',
+              sessionId: session.id,
+              metadata: { reason: gate.reason },
+              invariantViolation: true,
+              invariantMessage:
+                '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
+            });
+            phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+            log.warn(
+              { taskId, reason: gate.reason },
+              '[WorkflowCLIExecutor] Verify passed but no code changes and no justification — blocking instead of completing',
+            );
+          } else {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            });
+            await recordTransition({
+              taskId,
+              fromStatus: currentWfStatus,
+              toStatus: 'completed',
+              actor: transition.role as TransitionActor,
+              cause: 'verify_passed',
+              phase: 'verify',
+              sessionId: session.id,
+              metadata: {
+                chars: typeof fileContent === 'string' ? fileContent.length : 0,
+                gate: gate.reason,
+              },
+            });
+            phaseStatus = 'completed';
+          }
         }
       } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {
         // Advance FORWARD only. Never regress a status the HTTP handler already

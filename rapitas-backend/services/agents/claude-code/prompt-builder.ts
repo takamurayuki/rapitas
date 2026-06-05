@@ -210,7 +210,9 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
       ? '4. **Implementation**: Implement immediately (auto-approved — do not wait for user approval)'
       : '4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)',
   );
-  sections.push('5. **Verification**: Save implementation results as verify.md');
+  sections.push(
+    '5. **Verification**: Save implementation results as verify.md. If you made NO code changes because none were actually needed, you MUST state that reason explicitly (e.g. "変更不要: 既に正しく実装されている") in verify.md — a passing verify with an empty diff and no such justification is rejected as an incomplete (silently-skipped) implementation.',
+  );
   sections.push('');
   sections.push('### How to Save Workflow Files (UTF-8 — IMPORTANT)');
   sections.push(
