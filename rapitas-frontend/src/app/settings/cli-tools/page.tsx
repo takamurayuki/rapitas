@@ -138,7 +138,8 @@ function CLIToolsPage() {
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <span>
             インストール・認証は rapitas のターミナルで実行されます（コマンドがプリフィルされるので
-            Enter で実行）。完了後「更新」で状態を再確認できます。再起動が必要です。
+            Enter で実行）。完了後「更新」で状態を再確認できます。なお、新しく入れたツールを
+            <strong>エージェントが使う</strong>には再起動が必要です。
           </span>
         </div>
       </div>
