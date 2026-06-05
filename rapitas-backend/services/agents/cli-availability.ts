@@ -22,17 +22,20 @@ interface AgentCli {
 }
 
 /**
- * CLIs that materially help an agent when present. Kept in sync with the utility
- * tools in routes/agents/cli-tools/types.ts (the CLI Tools management page).
+ * CLIs that materially help an AUTONOMOUS agent when present. Deliberately a
+ * curated subset of the CLI Tools registry: human-facing pagers (delta, bat) and
+ * interactive tools (fzf) are excluded — their ANSI/colour output is noise to an
+ * agent parsing plain text, and interactive tools can't run non-interactively.
  */
 const AGENT_CLIS: AgentCli[] = [
-  { cmd: 'rg', hint: '高速な全文検索（grep より高速。コード検索に優先使用）' },
+  { cmd: 'rg', hint: '高速な全文検索（grep より高速。テキスト検索に）' },
   { cmd: 'fd', hint: '高速なファイル検索（find の代替）' },
+  {
+    cmd: 'ast-grep',
+    hint: '構文単位のコード検索・リファクタ（grep/rg より構造を正確に扱える）',
+  },
   { cmd: 'jq', hint: 'JSON の整形・抽出（API レスポンス処理に）' },
   { cmd: 'gh', hint: 'GitHub 操作（PR / Issue の作成・参照）' },
-  { cmd: 'delta', hint: 'git diff の見やすい表示' },
-  { cmd: 'bat', hint: '構文ハイライト付き cat' },
-  { cmd: 'fzf', hint: '対話的あいまい検索' },
 ];
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
