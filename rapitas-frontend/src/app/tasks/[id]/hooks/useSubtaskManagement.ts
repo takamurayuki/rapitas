@@ -11,6 +11,7 @@ import type { Task, Priority } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { useSubtaskDeletion } from './useSubtaskDeletion';
 
 const logger = createLogger('useSubtaskManagement');
@@ -54,7 +55,18 @@ export function useSubtaskManagement({
   const refetchTask = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/tasks/${resolvedTaskId}`);
-      if (res.ok) setTask(await res.json());
+      if (res.ok) {
+        const fresh = (await res.json()) as Task;
+        setTask(fresh);
+        // Mirror the fresh subtasks into the SHARED list cache so the parent's
+        // card reflects an added/removed subtask without a reload (no-op when
+        // the list isn't loaded). The list filters out parentId tasks, so the
+        // only way it surfaces a new subtask is via the parent's subtasks array.
+        const numericId = parseInt(resolvedTaskId ?? '', 10);
+        if (!Number.isNaN(numericId)) {
+          useTaskCacheStore.getState().updateTaskLocally(numericId, fresh);
+        }
+      }
     } catch (err) {
       logger.error('Failed to refetch task after subtask change:', err);
     }

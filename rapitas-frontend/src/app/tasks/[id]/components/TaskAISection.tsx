@@ -5,6 +5,7 @@ import type { Task, Resource, DeveloperModeConfig, UserSettings } from '@/types'
 import { AIAccordionPanel } from '@/feature/developer-mode/components/AIAccordionPanel';
 import { API_BASE_URL } from '@/utils/api';
 import { clearApiCache } from '@/lib/api-client';
+import { useTaskCacheStore } from '@/stores/task-cache-store';
 import { createLogger } from '@/lib/logger';
 import type {
   ExecutionCapability,
@@ -26,10 +27,7 @@ const RUNNABLE_CLI_PROVIDERS = new Set(['claude', 'openai', 'gemini']);
  * @param cli - Probe result from `/agent-availability?cliOnly=1`.
  * @returns The capability state consumed by ExecutionCapabilityGuide.
  */
-function deriveExecutionCapability(
-  task: Task,
-  cli: CliAvailability | null,
-): ExecutionCapability {
+function deriveExecutionCapability(task: Task, cli: CliAvailability | null): ExecutionCapability {
   if (!task.themeId || !task.theme) return 'no-theme';
   if (!task.theme.workingDirectory) return 'no-working-directory';
   if (cli === null) return 'ready';
@@ -156,6 +154,9 @@ export default function TaskAISection({
           if (res.ok) {
             const freshTask = await res.json();
             setTask(freshTask);
+            // Sync the list cache so agent-created subtasks surface on the
+            // parent's card during the run without a reload.
+            useTaskCacheStore.getState().updateTaskLocally(taskId, freshTask);
           }
         } catch {
           /* non-critical */
@@ -168,7 +169,7 @@ export default function TaskAISection({
         pollIntervalRef.current = null;
       }
     };
-  }, [isExecuting, isParallelExecutionRunning, resolvedTaskId, setTask]);
+  }, [isExecuting, isParallelExecutionRunning, resolvedTaskId, setTask, taskId]);
 
   // Show skeleton while execution status is being fetched
   if (isRestoringState) {
@@ -209,6 +210,8 @@ export default function TaskAISection({
 
       const data = await res.json();
       setTask(data);
+      // Reflect newly created subtasks on the parent's list card without reload.
+      useTaskCacheStore.getState().updateTaskLocally(taskId, data);
 
       await new Promise((resolve) => setTimeout(resolve, SUBTASK_AUTO_EXECUTE_DELAY_MS));
 
