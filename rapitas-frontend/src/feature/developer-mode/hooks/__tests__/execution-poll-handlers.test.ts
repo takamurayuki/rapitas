@@ -28,7 +28,7 @@ describe('handleCompleted (auto-advancing phase dedup)', () => {
     const first = handleCompleted(data, refs);
     expect(first).not.toBeNull();
     const state = first!(emptyState());
-    expect(state.logs.join('')).toContain('リサーチフェーズが完了しました');
+    expect(state.logs.join('')).toContain('調査フェーズが完了しました');
     // Stays "running" across an auto-advancing seam (no flash of 完了).
     expect(state.status).toBe('running');
 

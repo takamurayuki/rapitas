@@ -23,8 +23,10 @@ const logger = createLogger('ExecutionStream');
 // when the setting is on). The messages must NOT imply a hard manual stop, which
 // previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
 const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-  'workflow-researcher':
-    '[調査完了] リサーチフェーズが完了しました。計画フェーズへ自動で進みます...',
+  // NOTE: The researcher run sometimes also produces & auto-approves the plan in
+  // the same pass, so don't claim "→ plan phase" (which read as a contradiction
+  // right after "プランは自動承認されました"). Stay neutral about which phase is next.
+  'workflow-researcher': '[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...',
   'workflow-planner':
     '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-reviewer':
