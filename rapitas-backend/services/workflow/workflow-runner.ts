@@ -202,6 +202,7 @@ export class WorkflowRunner {
               'verify.md was saved, but the task did not pass the completion gate. Check commit/PR/merge automation results.',
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
+          await this.notifyParentOnSubtaskFailure(item.taskId);
           continueLoop = false;
           break;
         }
@@ -308,6 +309,8 @@ export class WorkflowRunner {
         const retried = await this.queue.retryIfPossible(item.id, errorMsg);
         if (!retried) {
           await this.queue.updateStatus(item.id, 'failed', { errorMessage: errorMsg });
+          // Terminal failure (no retry left) — let a split parent finalize.
+          await this.notifyParentOnSubtaskFailure(item.taskId);
         }
       } catch (retryError) {
         log.error({ err: retryError }, `[WorkflowRunner] Failed to retry/fail item ${item.id}`);
@@ -316,6 +319,38 @@ export class WorkflowRunner {
     } finally {
       this.activeExecutions.delete(item.id);
       this.processedTotal++;
+    }
+  }
+
+  /**
+   * When a SUBTASK's queue item ends in a non-completed terminal state, the
+   * 'completed' path that normally notifies the parent never runs — so the
+   * parent's "all siblings terminal" gate (onSubtaskCompleted) is never
+   * re-evaluated and the parent hangs forever at in-progress. Terminalize the
+   * subtask's task.status and notify the parent so it can finalize (as blocked
+   * when a subtask failed). No-op for non-subtasks (parentId === null).
+   *
+   * @param taskId - The failed subtask's id / 失敗したサブタスクID
+   */
+  private async notifyParentOnSubtaskFailure(taskId: number): Promise<void> {
+    try {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { parentId: true, status: true },
+      });
+      if (!task?.parentId) return;
+      // 'failed' is terminal for onSubtaskCompleted's all-siblings-done gate.
+      if (!['done', 'failed', 'cancelled', 'archived'].includes(task.status)) {
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'failed', completedAt: new Date() } })
+          .catch(() => {});
+      }
+      const { onSubtaskCompleted } = await import('./subtask-completion-handler');
+      await onSubtaskCompleted(taskId).catch((err) => {
+        log.warn({ err, taskId }, '[WorkflowRunner] Parent finalize after subtask failure failed');
+      });
+    } catch (err) {
+      log.warn({ err, taskId }, '[WorkflowRunner] notifyParentOnSubtaskFailure failed');
     }
   }
 
