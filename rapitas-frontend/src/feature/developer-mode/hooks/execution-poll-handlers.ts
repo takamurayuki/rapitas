@@ -397,6 +397,15 @@ export async function executePoll(
       });
     }
 
+    // Keep sessionMode current on EVERY poll. handleCompleted only sets it on a
+    // terminal row, but the UI needs it during running phases too so it can tell
+    // a multi-phase workflow run (use the cross-phase polling log) from a single
+    // execution (use real-time SSE).
+    if (typeof data.sessionMode === 'string') {
+      const mode = data.sessionMode as string;
+      setState((prev) => (prev.sessionMode === mode ? prev : { ...prev, sessionMode: mode }));
+    }
+
     // Append new output diff
     if (typeof data.outputLength === 'number') {
       const nextOutputLength = Math.max(0, data.outputLength as number);

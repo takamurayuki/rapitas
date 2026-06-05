@@ -91,10 +91,17 @@ export function useExecutionManager({
     clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
-  // Prefer SSE logs when the connection is active; fall back to polling logs
+  // Prefer SSE logs (real-time) for a single execution. BUT a workflow runs each
+  // phase (researcher → planner → … → verifier) as a SEPARATE session, while the
+  // SSE stream is bound to ONE session (the first one). After research completes
+  // the SSE keeps showing the now-stale research logs, hiding the next phases.
+  // The polling stream follows the task across every phase and accumulates the
+  // full cross-phase history, so prefer it for any workflow run.
+  const isWorkflowRun = !!pollingSessionMode?.startsWith('workflow-');
   const logs = useMemo(() => {
+    if (isWorkflowRun) return pollingLogs;
     return isSseConnected && sseLogs.length > 0 ? sseLogs : pollingLogs;
-  }, [isSseConnected, sseLogs, pollingLogs]);
+  }, [isWorkflowRun, isSseConnected, sseLogs, pollingLogs]);
 
   const clearLogs = useCallback(() => {
     clearSseLogs();
