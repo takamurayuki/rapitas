@@ -61,11 +61,39 @@ export const statusRoute = new Elysia().get(
       // live state leaves the panel stuck (the execute button hides on
       // isCancelled). Report idle so the task presents as ready-to-run again.
       if (latestSession.status === 'reset' || latestSession.status === 'cancelled') {
-        return { status: 'none', message: 'No active execution (previous run was reset or cancelled)' };
+        return {
+          status: 'none',
+          message: 'No active execution (previous run was reset or cancelled)',
+        };
       }
 
       const latestExecution = latestSession.agentExecutions[0];
       const execExtras = latestExecution as typeof latestExecution & AgentExecutionWithExtras;
+
+      // Subtask-aware status: when this is a SPLIT parent, the parent's own
+      // execution finishes early and the real work continues in the subtasks'
+      // separate executions (their own taskId). Reporting the parent's terminal
+      // 'completed' here made the log viewer flip to 「完了」 and stop polling
+      // while the agent was still running the subtasks. Keep it 'running' until
+      // no subtask execution is active.
+      let effectiveExecutionStatus = latestExecution?.status;
+      if (effectiveExecutionStatus === 'completed') {
+        const subtasks = await prisma.task.findMany({
+          where: { parentId: taskId },
+          select: { id: true },
+        });
+        if (subtasks.length > 0) {
+          const runningSubtaskExecutions = await prisma.agentExecution.count({
+            where: {
+              status: { in: ['running', 'waiting_for_input'] },
+              session: { config: { taskId: { in: subtasks.map((s) => s.id) } } },
+            },
+          });
+          if (runningSubtaskExecutions > 0) {
+            effectiveExecutionStatus = 'running';
+          }
+        }
+      }
 
       // NOTE: For new executions, the query returns a new session (no execution), so the old
       // completed state does not appear. For continued executions (same session), the frontend
@@ -105,7 +133,7 @@ export const statusRoute = new Elysia().get(
         sessionStatus: latestSession.status,
         sessionMode: latestSession.mode || null,
         executionId: latestExecution?.id,
-        executionStatus: latestExecution?.status,
+        executionStatus: effectiveExecutionStatus,
         output,
         outputLength: fullOutput.length,
         errorMessage: latestExecution?.errorMessage,
