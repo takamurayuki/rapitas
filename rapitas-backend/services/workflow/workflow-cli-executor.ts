@@ -763,14 +763,35 @@ curl -X POST http://localhost:${port}/concerns \\
   // Auto-start verification phase after implementer completes
   if (effectiveSuccess && transition.role === 'implementer') {
     log.info('[WorkflowCLIExecutor] Implementer done, auto-starting verifier...');
-    try {
-      // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
-      setTimeout(async () => {
-        await advanceWorkflow(taskId, language);
-      }, 1000);
-    } catch (error) {
-      log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to verifier');
-    }
+    // NOTE: 1s delay to ensure DB updates have committed before the next phase reads them.
+    setTimeout(() => {
+      advanceWorkflow(taskId, language).catch((error) => {
+        log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to verifier');
+      });
+    }, 1000);
+  } else if (
+    effectiveSuccess &&
+    phaseStatus === 'plan_approved' &&
+    transition.role !== 'implementer' &&
+    transition.role !== 'verifier' &&
+    transition.role !== 'auto_verifier'
+  ) {
+    // The plan was created AND auto-approved during THIS run — typically because
+    // the agent did research+plan in a single pass. The auto-advance that would
+    // normally start the implementer fires when plan.md is saved, but at that
+    // moment this very execution was still running, so it was blocked. Nothing
+    // retried after it finished, leaving the workflow stalled at plan_approved
+    // with no implementer execution and no further logs. Start the implementer
+    // here now that this phase has actually completed.
+    log.info(
+      { taskId, role: transition.role },
+      '[WorkflowCLIExecutor] Plan approved within this run — auto-starting implementer...',
+    );
+    setTimeout(() => {
+      advanceWorkflow(taskId, language).catch((error) => {
+        log.error({ err: error }, '[WorkflowCLIExecutor] Failed to auto-advance to implementer');
+      });
+    }, 1000);
   }
 
   return finalResult;
