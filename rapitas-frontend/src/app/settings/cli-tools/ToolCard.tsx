@@ -23,7 +23,8 @@ interface ToolCardProps {
   onInstall: (toolId: string) => void;
   onUpdate: (toolId: string) => void;
   onCheckAuth: (toolId: string) => void;
-  onShowAuthModal: (tool: CLITool) => void;
+  /** Opens the integrated terminal with the tool's auth command pre-filled. */
+  onAuthenticate: (tool: CLITool) => void;
   onToggleCommand: (toolId: string, current: boolean) => void;
 }
 
@@ -78,7 +79,7 @@ function getCategoryIcon(category: string) {
  * @param onInstall - Called when the user clicks Install.
  * @param onUpdate - Called when the user clicks Update.
  * @param onCheckAuth - Called when the user clicks auth-check on an authenticated tool.
- * @param onShowAuthModal - Called when the user initiates interactive authentication.
+ * @param onAuthenticate - Called to run the tool's auth command in the terminal.
  * @param onToggleCommand - Called when the user toggles the install-command display.
  */
 export function ToolCard({
@@ -87,7 +88,7 @@ export function ToolCard({
   onInstall,
   onUpdate,
   onCheckAuth,
-  onShowAuthModal,
+  onAuthenticate,
   onToggleCommand,
 }: ToolCardProps) {
   const statusDisplay = getStatusDisplay(tool);
@@ -222,7 +223,7 @@ export function ToolCard({
                 {tool.authCommand && (
                   <button
                     onClick={() =>
-                      tool.isAuthenticated ? onCheckAuth(tool.id) : onShowAuthModal(tool)
+                      tool.isAuthenticated ? onCheckAuth(tool.id) : onAuthenticate(tool)
                     }
                     disabled={actionState.isAuthenticating}
                     className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
