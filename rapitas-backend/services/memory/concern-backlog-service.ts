@@ -71,6 +71,13 @@ export interface SubmitConcernInput {
   themeId?: number;
   /** Origin label: "agent" | "user" | "code_review" | ... */
   source?: string;
+  /**
+   * Stable de-duplication key. When set, duplicates are detected by this key
+   * alone instead of title+detail — use it when the detail carries volatile
+   * parts (stack traces, counts, ids) that would otherwise let the same
+   * root-cause concern be filed repeatedly. / 同一原因の重複登録を防ぐ安定キー。
+   */
+  dedupKey?: string;
 }
 
 function contentHash(input: string): string {
@@ -78,7 +85,8 @@ function contentHash(input: string): string {
 }
 
 /**
- * Files a concern into the backlog. Deduplicates by title+detail.
+ * Files a concern into the backlog. Deduplicates by `dedupKey` when provided,
+ * otherwise by title+detail.
  *
  * @param input - Concern details / 懸念の詳細
  * @returns Created (or existing duplicate) KnowledgeEntry id / 作成・既存のID
@@ -86,7 +94,11 @@ function contentHash(input: string): string {
 export async function submitConcern(input: SubmitConcernInput): Promise<number> {
   const type = normalizeConcernType(input.type);
   const severity = normalizeConcernSeverity(input.severity);
-  const hash = contentHash(`concern:${input.title}:${input.detail}`);
+  // A stable dedupKey wins over title+detail so a recurring concern whose detail
+  // carries volatile parts (stack traces, counts) is still filed only once.
+  const hash = input.dedupKey
+    ? contentHash(`concern-dedup:${input.dedupKey}`)
+    : contentHash(`concern:${input.title}:${input.detail}`);
 
   const existing = await prisma.knowledgeEntry.findFirst({
     where: { contentHash: hash, sourceType: 'concern' },
@@ -313,7 +325,10 @@ export async function convertConcernToTask(concernId: number): Promise<number | 
   // hidden from the category-filtered home task list). See resolveDefaultThemeId.
   const themeId = concern.themeId ?? (await resolveDefaultThemeId()) ?? undefined;
   if (concern.themeId == null && themeId != null) {
-    log.info({ concernId, themeId }, 'Concern had no theme — assigning default theme on conversion');
+    log.info(
+      { concernId, themeId },
+      'Concern had no theme — assigning default theme on conversion',
+    );
   }
 
   const task = await createTask(prisma, {

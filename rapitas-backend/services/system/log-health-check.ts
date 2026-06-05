@@ -147,6 +147,10 @@ async function fileGroupedConcerns(
       severity: levelToSeverity(g.level),
       themeId: opts.themeId,
       source: 'log_health',
+      // Dedup on the stable group signature (logger|bucket|normalizedMsg) scoped
+      // by project — NOT title+detail, which drift between runs via the sample
+      // stack and the max level (label). Keeps one concern per recurring cause.
+      dedupKey: `log:${opts.projectLabel ?? 'backend'}|${g.signature}`,
     });
     filed++;
   }
