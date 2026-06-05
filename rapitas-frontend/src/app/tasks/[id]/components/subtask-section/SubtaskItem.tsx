@@ -82,8 +82,13 @@ export function SubtaskItem({
   // Live agent-execution state for THIS subtask (from GET /tasks/executing polling).
   // Sequential subtasks each run their own agent, so the running one shows a spinner.
   const liveExecStatus = useExecutionStateStore((s) => s.getExecutingTaskStatus(subtask.id));
+  // A finished subtask must never show the running spinner even if a stale
+  // execution-state entry lingers (e.g. an orphaned agentExecution row the
+  // /tasks/executing poll still returns) — trust the persisted terminal status.
+  const isTerminalSubtask = subtask.status === 'done';
   const showRunning =
-    liveExecStatus !== null || (isParallelExecutionRunning && executionStatus === 'running');
+    !isTerminalSubtask &&
+    (liveExecStatus !== null || (isParallelExecutionRunning && executionStatus === 'running'));
 
   return (
     <div

@@ -38,8 +38,13 @@ export default function TaskCardSubtaskPanel({
           statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
         // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
         const inProgress = isInProgressStatus(subtask.status);
+        // A done subtask must never show the running spinner even if a stale
+        // execution-state entry lingers (orphaned agentExecution row still
+        // returned by /tasks/executing) — trust the persisted terminal status.
         const liveStatus = executingTasks.get(subtask.id)?.status;
-        const isExecuting = liveStatus === 'running' || liveStatus === 'waiting_for_input';
+        const isExecuting =
+          subtask.status !== 'done' &&
+          (liveStatus === 'running' || liveStatus === 'waiting_for_input');
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =
