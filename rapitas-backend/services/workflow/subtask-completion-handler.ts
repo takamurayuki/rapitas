@@ -20,13 +20,13 @@ const log = createLogger('subtask-completion');
  * If all done, generate the parent task's integration verify.md and finalize
  * the parent's status.
  *
- * NOTE: this is the single place that drives a split parent to completion.
- * The parent never implements directly — its subtasks do — so neither the
- * parent's own verify phase nor an auto-PR ever fires for it. We therefore
- * write verify.md to disk directly and set the parent's terminal status here
- * instead of routing through the HTTP file-save handler (which would reject
- * verify.md unless the parent were in_progress, and would try to open an
- * empty PR against the parent's change-less worktree).
+ * NOTE: this is the single place that drives a split parent to completion, so
+ * it writes verify.md to disk directly and sets the parent's terminal status
+ * here instead of routing through the HTTP file-save handler (which would
+ * reject verify.md unless the parent were in_progress). It then runs the auto-
+ * commit/PR pipeline against the parent: in practice the agent often does the
+ * whole implementation in the PARENT's worktree, and without this its changes
+ * were stranded uncommitted (no other path commits a split parent).
  *
  * @param completedSubtaskId - ID of the just-completed subtask / 完了したサブタスクID
  */
@@ -126,6 +126,25 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
     log.info(
       `[SubtaskCompletion] Parent task #${subtask.parentId} finalized: ${allPassed ? 'completed' : 'blocked'}`,
     );
+
+    // Commit/PR the parent's worktree. A split parent's implementation usually
+    // lands in ITS worktree (the agent does the work there rather than per
+    // subtask), but no other path commits a split parent — so its changes were
+    // stranded uncommitted and never reached the repo. Run the same auto-
+    // commit/PR pipeline the HTTP verify handler uses (it no-ops when the user
+    // hasn't enabled auto-commit, and is gated by the verification check).
+    if (allPassed) {
+      try {
+        const { performAutoCommitAndPR } =
+          await import('../../routes/workflow/workflow-auto-commit');
+        await performAutoCommitAndPR(parentTask.id, verifyContent);
+      } catch (err) {
+        log.warn(
+          { err, parentId: parentTask.id },
+          '[SubtaskCompletion] Parent auto-commit/PR failed (non-fatal)',
+        );
+      }
+    }
   } catch (error) {
     log.error(
       { err: error },
