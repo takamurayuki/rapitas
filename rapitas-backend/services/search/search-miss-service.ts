@@ -146,30 +146,45 @@ export async function resolveSearchMissForTask(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` は Postgres の StringFilter にのみ存在。any にすることで SQLite 生成クライアントでもこのスプレッドが型チェックを通る。
   const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
 
-  for (const miss of misses) {
-    const count = await prisma.task.count({
-      where: {
-        OR: [
-          { title: { contains: miss.query, ...insensitive } },
-          { description: { contains: miss.query, ...insensitive } },
-        ],
-      },
-    });
+  // Count matches for EVERY miss in parallel. Previously this awaited one
+  // `task.count()` per miss inside the loop — an N+1 of 1+N sequential DB
+  // round-trips. Results stay positionally aligned with `misses`.
+  const counts = await Promise.all(
+    misses.map((miss) =>
+      prisma.task.count({
+        where: {
+          OR: [
+            { title: { contains: miss.query, ...insensitive } },
+            { description: { contains: miss.query, ...insensitive } },
+          ],
+        },
+      }),
+    ),
+  );
 
-    if (count === 0) continue;
+  const toResolve = misses
+    .map((miss, i) => ({ miss, count: counts[i] ?? 0 }))
+    .filter(({ count }) => count > 0);
 
-    await prisma.searchMiss.update({
-      where: { id: miss.id },
-      data: {
-        status: 'resolved',
-        resolvedAt: new Date(),
-        resolvedResultCount: count,
-      },
-    });
+  if (toResolve.length === 0) return;
 
+  // Single timestamp for the whole batch, and ONE transaction for all status
+  // updates instead of N sequential round-trips. resolvedResultCount is still
+  // stored exactly as before (kept for future analytics; nothing reads it yet).
+  const now = new Date();
+  await prisma.$transaction(
+    toResolve.map(({ miss, count }) =>
+      prisma.searchMiss.update({
+        where: { id: miss.id },
+        data: { status: 'resolved', resolvedAt: now, resolvedResultCount: count },
+      }),
+    ),
+  );
+
+  // Best-effort notifications — fire-and-forget so a notification failure never
+  // blocks the resolve (unchanged behaviour, just moved out of the count loop).
+  for (const { miss, count } of toResolve) {
     log.debug({ searchMissId: miss.id, query: miss.query, count }, 'Resolved search miss');
-
-    // Best-effort: 通知失敗は解決更新をブロックしない
     prisma.notification
       .create({
         data: {
