@@ -298,10 +298,22 @@ async function buildTaskWithContext(
     logger.debug({ err }, '[TaskExecutor] RAG context build failed, continuing without');
   }
 
+  // Tell the agent which useful CLIs are installed on PATH (rg, jq, gh, …) so it
+  // prefers them. The agent already has shell access; this only adds awareness.
+  let cliContext = '';
+  try {
+    const { getAgentCliContext } = await import('../cli-availability');
+    cliContext = await getAgentCliContext();
+  } catch (err) {
+    logger.debug({ err }, '[TaskExecutor] CLI availability context build failed, continuing');
+  }
+
+  const extraContext = [ragContext, cliContext].filter(Boolean).join('\n\n');
+
   const taskWithAnalysis: AgentTask = {
     ...task,
     analysisInfo: options.analysisInfo,
-    ...(ragContext ? { description: `${task.description ?? ''}\n\n${ragContext}` } : {}),
+    ...(extraContext ? { description: `${task.description ?? ''}\n\n${extraContext}` } : {}),
     investigationMode: options.investigationMode ?? task.investigationMode,
     investigationOutputType: options.investigationOutputType ?? task.investigationOutputType,
     outputLastMessageFile: options.outputLastMessageFile ?? task.outputLastMessageFile,
