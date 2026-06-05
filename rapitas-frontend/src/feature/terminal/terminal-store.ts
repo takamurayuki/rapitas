@@ -21,14 +21,17 @@ const newId = (): string =>
     ? crypto.randomUUID()
     : `t_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 
-function makeTab(index: number, opts?: { cwd?: string; title?: string }): TabState {
+function makeTab(
+  index: number,
+  opts?: { cwd?: string; title?: string; command?: string },
+): TabState {
   const paneId = newId();
   return {
     id: newId(),
     title: opts?.title ?? `Terminal ${index}`,
     cwd: opts?.cwd,
     direction: 'row',
-    panes: [{ id: paneId }],
+    panes: [{ id: paneId, initialCommand: opts?.command }],
     activePaneId: paneId,
   };
 }
@@ -45,7 +48,7 @@ interface TerminalStore {
   setHeight: (height: number) => void;
 
   addTab: () => void;
-  openTerminalForTask: (opts: { cwd?: string; title?: string }) => void;
+  openTerminalForTask: (opts: { cwd?: string; title?: string; command?: string }) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
 
@@ -57,7 +60,7 @@ interface TerminalStore {
 /** Append a fresh tab and make it active. Used by open()/addTab(). */
 function appendTab(
   tabs: TabState[],
-  opts?: { cwd?: string; title?: string },
+  opts?: { cwd?: string; title?: string; command?: string },
 ): { tabs: TabState[]; activeTabId: string } {
   const tab = makeTab(tabs.length + 1, opts);
   return { tabs: [...tabs, tab], activeTabId: tab.id };

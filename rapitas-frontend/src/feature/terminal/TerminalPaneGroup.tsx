@@ -27,6 +27,7 @@ export default function TerminalPaneGroup({ tab }: { tab: TabState }) {
           <TerminalView
             sessionId={pane.id}
             cwd={tab.cwd}
+            initialCommand={pane.initialCommand}
             isActive={tab.activePaneId === pane.id}
             closable={tab.panes.length > 1}
             onFocus={() => setActivePane(tab.id, pane.id)}

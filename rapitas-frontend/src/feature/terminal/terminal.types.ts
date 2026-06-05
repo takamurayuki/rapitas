@@ -11,6 +11,12 @@ export type SplitDirection = 'row' | 'column';
 /** One terminal pane. `id` doubles as the backend PTY session id. */
 export interface PaneState {
   id: string;
+  /**
+   * Command to pre-fill at the prompt once the PTY is ready (NOT auto-executed).
+   * Used when opening the terminal for an action — e.g. a CLI install command
+   * from the tools page — so the user reviews it and presses Enter themselves.
+   */
+  initialCommand?: string;
 }
 
 /** A terminal tab containing one or more split panes. */

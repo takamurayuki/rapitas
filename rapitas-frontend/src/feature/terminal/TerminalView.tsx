@@ -19,6 +19,8 @@ interface TerminalViewProps {
   sessionId: string;
   /** Working directory for this pane's shell (inherited from its tab). */
   cwd?: string;
+  /** Command to pre-fill at the prompt once the PTY is ready (not auto-run). */
+  initialCommand?: string;
   isActive: boolean;
   /** Whether a close button shows (hidden when the pane is the tab's only one). */
   closable: boolean;
@@ -32,6 +34,7 @@ interface TerminalViewProps {
 export default function TerminalView({
   sessionId,
   cwd,
+  initialCommand,
   isActive,
   closable,
   onFocus,
@@ -54,7 +57,7 @@ export default function TerminalView({
     [showToast],
   );
 
-  const containerRef = useTerminalSession(sessionId, { cwd, onCommandComplete });
+  const containerRef = useTerminalSession(sessionId, { cwd, initialCommand, onCommandComplete });
 
   return (
     <div

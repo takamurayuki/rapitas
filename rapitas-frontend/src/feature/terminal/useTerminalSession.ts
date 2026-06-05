@@ -27,6 +27,8 @@ import { useTerminalStore } from './terminal-store';
 interface TerminalSessionOptions {
   /** Working directory for the PTY (used only at creation). */
   cwd?: string;
+  /** Command pre-filled at the prompt once after creation (not auto-executed). */
+  initialCommand?: string;
   /** Fired when a command finishes (OSC 133 D), with exit code + duration. */
   onCommandComplete?: (exitCode: number, durationMs: number) => void;
 }
@@ -137,6 +139,17 @@ export function useTerminalSession(sessionId: string, opts?: TerminalSessionOpti
           if (data.includes('\r')) commandStartTs = Date.now();
           writeTerminal(sessionId, data).catch(() => {});
         });
+
+        // Pre-fill an initial command (e.g. a CLI install opened from the tools
+        // page) so the user can review it and press Enter. Written after a short
+        // delay so the shell's first prompt has rendered; NO trailing Enter, so
+        // nothing auto-executes. Runs once (we're inside the !created branch).
+        const initialCommand = optsRef.current?.initialCommand;
+        if (initialCommand) {
+          setTimeout(() => {
+            if (!disposed) writeTerminal(sessionId, initialCommand).catch(() => {});
+          }, 800);
+        }
       } else {
         resizeTerminal(sessionId, term.cols, term.rows).catch(() => {});
       }

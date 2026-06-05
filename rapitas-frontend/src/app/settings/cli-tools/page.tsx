@@ -5,14 +5,13 @@ import { Terminal, AlertCircle, CheckCircle, RefreshCcw } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { requireAuth } from '@/contexts/AuthContext';
 import { useCLITools } from './useCliTools';
-import { ToolSummaryCards } from './ToolSummaryCards';
 import { ToolCard } from './ToolCard';
 import { AuthModal } from './AuthModal';
+import { useTerminalStore } from '@/feature/terminal/terminal-store';
 
 function CLIToolsPage() {
   const {
     tools,
-    summary,
     isLoading,
     isRefreshing,
     error,
@@ -20,7 +19,6 @@ function CLIToolsPage() {
     actionStates,
     authModal,
     refreshTools,
-    installTool,
     updateTool,
     checkAuthentication,
     showAuthModal,
@@ -31,6 +29,20 @@ function CLIToolsPage() {
     setAuthModal,
   } = useCLITools();
 
+  // Install runs IN the rapitas integrated terminal (interactive): open a tab
+  // with the install command pre-filled so the user reviews it, answers any
+  // prompts (winget agreements, etc.), and presses Enter — instead of a
+  // non-interactive backend exec that can hang on prompts. After it finishes,
+  // click 更新 to re-check status (a fresh tab/backend restart picks up PATH).
+  const handleInstall = (toolId: string) => {
+    const tool = tools.find((t) => t.id === toolId);
+    if (!tool?.installCommand) return;
+    useTerminalStore.getState().openTerminalForTask({
+      title: tool.name,
+      command: tool.installCommand,
+    });
+  };
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -38,7 +50,7 @@ function CLIToolsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Page header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
             <Terminal className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -79,11 +91,8 @@ function CLIToolsPage() {
         </div>
       )}
 
-      {/* Summary statistics */}
-      {summary && <ToolSummaryCards summary={summary} />}
-
-      {/* Tool list */}
-      <div className="space-y-4">
+      {/* Tool list (compact) */}
+      <div className="space-y-2.5">
         {tools.map((tool) => {
           const actionState = actionStates[tool.id] ?? {
             isInstalling: false,
@@ -97,7 +106,7 @@ function CLIToolsPage() {
               key={tool.id}
               tool={tool}
               actionState={actionState}
-              onInstall={installTool}
+              onInstall={handleInstall}
               onUpdate={updateTool}
               onCheckAuth={checkAuthentication}
               onShowAuthModal={showAuthModal}
