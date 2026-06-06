@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 import { useServerRestartStore } from '@/stores/server-restart-store';
+import { useOnVisible } from './useOnVisible';
 
 const logger = createLogger('useBackendHealth');
 
@@ -88,6 +89,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   }, [isIntentionalRestart]);
 
   const checkHealth = useCallback(async () => {
+    // Skip the probe while rapitas is backgrounded — saves a request every few
+    // seconds when the user is in another app; useOnVisible re-checks on return.
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -162,6 +166,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       clearInterval(timer);
     };
   }, [checkHealth, status, intervalMs, retryIntervalMs]);
+
+  // Re-check immediately when the user returns to rapitas.
+  useOnVisible(checkHealth);
 
   return { status, isConnected: status === 'connected', isIntentionalRestart };
 }

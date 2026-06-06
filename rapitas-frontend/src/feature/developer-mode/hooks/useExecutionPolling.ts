@@ -152,7 +152,14 @@ export function useExecutionPolling(taskId: number | null) {
         }));
       }
 
-      const poll = () => executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
+      // Skip the 1s status fetch while rapitas is backgrounded — this is the
+      // hottest poller (re-renders + JSON-parses large output every second).
+      // The interval keeps ticking and resumes within 1s once the tab is
+      // visible again; the offset cursor means no log lines are missed.
+      const poll = () => {
+        if (typeof document !== 'undefined' && document.hidden) return;
+        executePoll(taskId, refs, lastOutputLengthRef, setState, stopPolling);
+      };
 
       // Initial poll
       await poll();
