@@ -24,34 +24,35 @@ const log = createLogger('memory:idea-extractor');
  */
 const CONCERN_CATEGORY_MAP: Record<string, ConcernType> = {
   bug_noticed: 'bug',
+  security: 'security',
   tech_debt: 'refactor',
   performance: 'perf',
 };
 
 const MIN_CHAT_LENGTH = 5;
 
-const EXTRACTION_PROMPT = `あなたはソフトウェア開発のアイデア抽出AIです。
-以下のコンテンツから、ユーザー体験またはコード品質に直接影響する改善アイデアのみを抽出してください。
+const EXTRACTION_PROMPT = `あなたはソフトウェア開発の「改善アイデア」抽出AIです。
+以下のコンテンツから、プロダクトを**より良くする前向きなアイデアだけ**を抽出してください（今は壊れていないが、あれば価値・品質・生産性・UXが上がるもの）。
 
-抽出対象（厳格に判定）:
-1. 実装中に気づいた具体的な設計上の問題（ファイル名や関数名が特定できる）
-2. テストや検証で発見した未対処のエッジケース
-3. パフォーマンスのボトルネック（具体的な計測根拠あり）
-4. ユーザー体験を損なう具体的な問題（再現手順が示せる）
+抽出対象（前向きな改善・革新のみ・厳格に判定）:
+1. 新機能、または既存機能のブラッシュアップ
+2. UX・使い勝手の具体的な改善案
+3. 保守性・生産性を上げるしくみ（自動化・基盤改善・最適化など）
+4. 革新的なアイデア
 
 除外対象（必ず除外）:
+- **バグ・不具合・エラー・クラッシュ・脆弱性・セキュリティ上の問題・「将来バグの温床になりそう」な箇所**（これらは「懸念」であり、アイデアではない。ここでは絶対に抽出しない）
 - 「あると便利」レベルの曖昧な提案
-- 既に完了した作業の繰り返し・サマリー
+- 既に完了した作業の繰り返し・サマリー、ステータス報告、完了報告
 - 「検討する」「調査する」系の非実行型
-- 実行ログのエコー、ステータス報告、完了報告
-- 「テストが通った」「コミットした」などの作業報告
+- 実行ログのエコー、「テストが通った」「コミットした」などの作業報告
 - 一般論・ベストプラクティスの羅列
 - タスクのタイトルや説明文の言い換え
 
 JSON配列で返してください（他のテキスト不要、最大3件）:
-[{"title":"短い具体的タイトル","content":"何を・なぜ・どこで改善すべきかの説明"}]
+[{"title":"短い具体的タイトル","content":"何を・なぜ・期待される効果"}]
 
-該当なしは [] を返してください。アイデアが質を満たさない場合は無理に出さず [] にしてください。`;
+該当なしは [] を返してください。アイデアが質を満たさない、または「懸念」寄りの内容しかない場合は、無理に出さず [] にしてください。`;
 
 const ENRICHMENT_PROMPT = `以下のアイデアを評価してください。
 
@@ -313,10 +314,7 @@ export async function enrichIdea(
 
     // Hard-reject ideas that fall below the quality bar. Skipped during a
     // backfill (rejectLowQuality=false) so existing curated ideas aren't culled.
-    if (
-      rejectLowQuality &&
-      (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)
-    ) {
+    if (rejectLowQuality && (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)) {
       await rejectIdea(
         ideaId,
         `enrich-below-threshold actionability=${actionability.toFixed(2)} specificity=${specificity.toFixed(2)}`,
