@@ -410,9 +410,9 @@ function AddIntegrationModal({
   };
 
   // Auto-fetch the repo list when the modal opens so it appears without a click.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     loadRepos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addRepo = async (repo: AvailableRepo) => {
