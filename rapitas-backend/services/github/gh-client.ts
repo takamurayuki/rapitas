@@ -69,3 +69,51 @@ export async function isAuthenticated(): Promise<boolean> {
     return false;
   }
 }
+
+/** A repository the authenticated gh user can access. */
+export interface GhRepo {
+  nameWithOwner: string;
+  name: string;
+  owner: string;
+  url: string;
+  description: string;
+  visibility: string;
+}
+
+/**
+ * List repositories the authenticated gh user can access (`gh repo list`), so
+ * the user can add an integration by picking from a list instead of pasting URLs.
+ *
+ * @param limit - Max repos to return / 取得する最大件数
+ * @returns Repositories (empty array on failure) / リポジトリ一覧（失敗時は空配列）
+ */
+export async function listRepositories(limit = 100): Promise<GhRepo[]> {
+  try {
+    const out = await runGhCommand([
+      'repo',
+      'list',
+      '--limit',
+      String(limit),
+      '--json',
+      'nameWithOwner,name,owner,url,description,visibility',
+    ]);
+    const raw = JSON.parse(out) as Array<{
+      nameWithOwner: string;
+      name: string;
+      owner?: { login?: string };
+      url: string;
+      description?: string | null;
+      visibility?: string;
+    }>;
+    return raw.map((r) => ({
+      nameWithOwner: r.nameWithOwner,
+      name: r.name,
+      owner: r.owner?.login ?? r.nameWithOwner.split('/')[0] ?? '',
+      url: r.url,
+      description: r.description ?? '',
+      visibility: r.visibility ?? '',
+    }));
+  } catch {
+    return [];
+  }
+}

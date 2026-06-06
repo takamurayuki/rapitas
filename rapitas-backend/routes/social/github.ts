@@ -18,6 +18,21 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     return { ghAvailable, authenticated };
   })
 
+  // List repos the gh user can access (for one-click integration add).
+  // Each repo is flagged with whether it's already integrated.
+  .get('/available-repos', async (context) => {
+    const rawLimit = parseInt((context.query as { limit?: string })?.limit ?? '100', 10);
+    const limit = Number.isFinite(rawLimit) ? rawLimit : 100;
+    const [repos, integrations] = await Promise.all([
+      githubService.listRepositories(limit),
+      prisma.gitHubIntegration.findMany({ select: { ownerName: true, repositoryName: true } }),
+    ]);
+    const added = new Set(
+      integrations.map((i) => `${i.ownerName}/${i.repositoryName}`.toLowerCase()),
+    );
+    return repos.map((r) => ({ ...r, alreadyAdded: added.has(r.nameWithOwner.toLowerCase()) }));
+  })
+
   // Integration list
   .get('/integrations', async () => {
     return await prisma.gitHubIntegration.findMany({

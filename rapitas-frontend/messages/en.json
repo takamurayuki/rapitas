@@ -864,7 +864,14 @@
     "fileCount": "Files",
     "additions": "Additions",
     "deletions": "Deletions",
-    "settings": "Settings"
+    "settings": "Settings",
+    "pickFromGh": "Pick from gh",
+    "fetchRepos": "Fetch repositories",
+    "reload": "Reload",
+    "repoListFailed": "Failed to fetch repositories (check gh authentication)",
+    "noReposFound": "No accessible repositories found",
+    "added": "Added",
+    "orAddManually": "Or add manually"
   },
   "workflow": {
     "title": "Workflow",

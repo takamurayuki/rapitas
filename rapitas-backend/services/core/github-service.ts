@@ -8,7 +8,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { isGhAvailable, isAuthenticated } from '../github/gh-client';
+import { isGhAvailable, isAuthenticated, listRepositories } from '../github/gh-client';
 import {
   getPullRequests,
   getPullRequest,
@@ -61,6 +61,11 @@ export class GitHubService {
   /** Check gh CLI authentication status / 認証状態を確認する */
   async isAuthenticated(): Promise<boolean> {
     return isAuthenticated();
+  }
+
+  /** @see gh-client.listRepositories */
+  async listRepositories(limit = 100) {
+    return listRepositories(limit);
   }
 
   // ==================== Pull Request Operations ====================
