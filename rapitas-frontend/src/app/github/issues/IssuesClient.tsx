@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CircleDot, Filter, ArrowLeft, Loader2, Plus, ArrowRightCircle } from 'lucide-react';
+import { CircleDot, Filter, ArrowLeft, Loader2, Plus, ArrowRightCircle, Bug } from 'lucide-react';
 import type { GitHubIssue, GitHubIntegration } from '@/types';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -28,6 +28,7 @@ export default function IssuesPage() {
   const [stateFilter, setStateFilter] = useState<string>('open');
   const [loading, setLoading] = useState(true);
   const [creatingTask, setCreatingTask] = useState<number | null>(null);
+  const [importing, setImporting] = useState<number | null>(null);
 
   useEffect(() => {
     fetchIntegrations();
@@ -86,6 +87,24 @@ export default function IssuesPage() {
       logger.error('Failed to create task:', error);
     } finally {
       setCreatingTask(null);
+    }
+  };
+
+  const importAsConcern = async (issueId: number) => {
+    setImporting(issueId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/issues/${issueId}/create-concern`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        await fetchIssues();
+      }
+    } catch (error) {
+      logger.error('Failed to import issue as concern:', error);
+    } finally {
+      setImporting(null);
     }
   };
 
@@ -210,7 +229,7 @@ export default function IssuesPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-1.5">
                     {issue.linkedTaskId ? (
                       <Link
                         href={getTaskDetailPath(issue.linkedTaskId)}
@@ -231,6 +250,29 @@ export default function IssuesPage() {
                           <Plus className="w-4 h-4" />
                         )}
                         {t('createTask')}
+                      </button>
+                    )}
+                    {/* Bridge: import the issue into the concern backlog */}
+                    {issue.linkedConcernId ? (
+                      <Link
+                        href="/concerns"
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                      >
+                        <Bug className="w-4 h-4" />
+                        {t('concernLinked')}
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => importAsConcern(issue.id)}
+                        disabled={importing === issue.id}
+                        className="flex items-center gap-1 px-3 py-1.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {importing === issue.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Bug className="w-4 h-4" />
+                        )}
+                        {t('importAsConcern')}
                       </button>
                     )}
                   </div>

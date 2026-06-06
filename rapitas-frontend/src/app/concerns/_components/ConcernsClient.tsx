@@ -9,104 +9,26 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  Bug,
-  Wrench,
-  ShieldAlert,
-  Gauge,
-  CircleDot,
-  Plus,
-  ListPlus,
-  Trash2,
-  ArrowRight,
-  Loader2,
-} from 'lucide-react';
+import { Bug, Plus, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
-
-type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
-type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
-type ConcernStatus = 'open' | 'task_created' | 'dismissed';
-
-interface Concern {
-  id: number;
-  title: string;
-  detail: string;
-  type: ConcernType;
-  severity: ConcernSeverity;
-  location: string | null;
-  status: ConcernStatus;
-  originTaskId: number | null;
-  createdTaskId: number | null;
-  themeId: number | null;
-  createdAt: string;
-}
-
-const TYPE_META: Record<ConcernType, { label: string; icon: typeof Bug; badge: string }> = {
-  bug: { label: 'バグ', icon: Bug, badge: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300' },
-  refactor: {
-    label: 'リファクタ',
-    icon: Wrench,
-    badge: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300',
-  },
-  security: {
-    label: 'セキュリティ',
-    icon: ShieldAlert,
-    badge: 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300',
-  },
-  perf: {
-    label: 'パフォーマンス',
-    icon: Gauge,
-    badge: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300',
-  },
-  other: {
-    label: 'その他',
-    icon: CircleDot,
-    badge: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
-  },
-};
-const TYPE_ORDER: ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
-
-const SEVERITY_META: Record<ConcernSeverity, { label: string; badge: string; active: string }> = {
-  urgent: {
-    label: '緊急',
-    badge: 'bg-red-100 text-red-700 ring-1 ring-red-300 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-700',
-    active: 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-200',
-  },
-  high: {
-    label: '高',
-    badge: 'bg-rose-50 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-800',
-    active: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  },
-  medium: {
-    label: '中',
-    badge: 'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-800',
-    active: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-  low: {
-    label: '低',
-    badge: 'bg-sky-50 text-sky-600 ring-1 ring-sky-200 dark:bg-sky-900/30 dark:text-sky-300 dark:ring-sky-800',
-    active: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
-  },
-};
-const SEVERITY_ORDER: ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
-/** Severity = how serious / urgent the concern is. Shown via PriorityIcon. */
-const SEVERITY_HINT: Record<ConcernSeverity, string> = {
-  urgent: '緊急 — 早急に対処すべき',
-  high: '高 — 影響が大きい',
-  medium: '中 — 着実に対処したい',
-  low: '低 — あれば直したい',
-};
-
-const STATUS_TABS: { value: ConcernStatus | 'all'; label: string }[] = [
-  { value: 'open', label: '未対応' },
-  { value: 'task_created', label: 'タスク化済' },
-  { value: 'dismissed', label: '却下' },
-  { value: 'all', label: 'すべて' },
-];
+import { ConcernCard } from './ConcernCard';
+import {
+  TYPE_META,
+  TYPE_ORDER,
+  SEVERITY_META,
+  SEVERITY_ORDER,
+  SEVERITY_HINT,
+  STATUS_TABS,
+  type Concern,
+  type ConcernType,
+  type ConcernSeverity,
+  type ConcernStatus,
+  type GhIntegration,
+} from './concern-shared';
 
 export default function ConcernsClient() {
   const [concerns, setConcerns] = useState<Concern[]>([]);
@@ -118,6 +40,8 @@ export default function ConcernsClient() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // GitHub integrations available as publish targets (empty = no repos linked).
+  const [integrations, setIntegrations] = useState<GhIntegration[]>([]);
 
   const [showAdd, setShowAdd] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -164,6 +88,14 @@ export default function ConcernsClient() {
   useEffect(() => {
     fetchConcerns();
   }, [fetchConcerns]);
+
+  // Load publish targets once; failure just hides the publish button.
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/github/integrations`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: GhIntegration[]) => setIntegrations(Array.isArray(data) ? data : []))
+      .catch(() => setIntegrations([]));
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -241,22 +173,38 @@ export default function ConcernsClient() {
     [fetchConcerns],
   );
 
-  const handleDelete = useCallback(
-    async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setConcerns((prev) => prev.filter((c) => c.id !== id));
+        setTotal((t) => Math.max(0, t - 1));
+      }
+    } catch {
+      /* error */
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  const handlePublish = useCallback(
+    async (id: number, integrationId: number) => {
       setBusyId(id);
       try {
-        const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          setConcerns((prev) => prev.filter((c) => c.id !== id));
-          setTotal((t) => Math.max(0, t - 1));
-        }
+        const res = await fetch(`${API_BASE_URL}/github/concerns/${id}/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ integrationId }),
+        });
+        if (res.ok) await fetchConcerns();
       } catch {
         /* error */
       } finally {
         setBusyId(null);
       }
     },
-    [],
+    [fetchConcerns],
   );
 
   return (
@@ -454,112 +402,18 @@ export default function ConcernsClient() {
         </div>
       ) : (
         <div className="space-y-2">
-          {concerns.map((c) => {
-            const TyIcon = TYPE_META[c.type].icon;
-            const busy = busyId === c.id;
-            return (
-              <div
-                key={c.id}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${TYPE_META[c.type].badge}`}
-                      >
-                        <TyIcon className="h-2.5 w-2.5" />
-                        {TYPE_META[c.type].label}
-                      </span>
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_META[c.severity].badge}`}
-                      >
-                        優先度 {SEVERITY_META[c.severity].label}
-                      </span>
-                      {c.status === 'task_created' && c.createdTaskId && (
-                        <a
-                          href={`/tasks/${c.createdTaskId}`}
-                          className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:underline dark:bg-emerald-900/30 dark:text-emerald-300"
-                        >
-                          タスク化済 #{c.createdTaskId}
-                        </a>
-                      )}
-                      {c.status === 'dismissed' && (
-                        <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                          却下
-                        </span>
-                      )}
-                      <span className="ml-auto text-[10px] text-zinc-400">
-                        {new Date(c.createdAt).toLocaleDateString('ja-JP')}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {c.title}
-                    </p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-zinc-500 dark:text-zinc-400">
-                      {c.detail}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-zinc-400">
-                      {c.location && (
-                        <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono dark:bg-zinc-800">
-                          {c.location}
-                        </code>
-                      )}
-                      {c.originTaskId && (
-                        <a href={`/tasks/${c.originTaskId}`} className="hover:underline">
-                          発見元 #{c.originTaskId}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {/* Actions */}
-                <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-700/50">
-                  {c.status === 'open' && (
-                    <button
-                      onClick={() => handleConvert(c.id)}
-                      disabled={busy}
-                      className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
-                    >
-                      {busy ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <ListPlus className="h-3 w-3" />
-                      )}
-                      タスク化
-                    </button>
-                  )}
-                  {c.status === 'open' && (
-                    <button
-                      onClick={() => handleDismiss(c.id, true)}
-                      disabled={busy}
-                      className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-                    >
-                      却下
-                    </button>
-                  )}
-                  {c.status === 'dismissed' && (
-                    <button
-                      onClick={() => handleDismiss(c.id, false)}
-                      disabled={busy}
-                      className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-                    >
-                      <ArrowRight className="h-3 w-3" />
-                      未対応に戻す
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    disabled={busy}
-                    title="削除"
-                    className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-rose-500 disabled:opacity-50 dark:hover:bg-zinc-800"
-                  >
-                    {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {concerns.map((c) => (
+            <ConcernCard
+              key={c.id}
+              concern={c}
+              busy={busyId === c.id}
+              integrations={integrations}
+              onConvert={handleConvert}
+              onDismiss={handleDismiss}
+              onDelete={handleDelete}
+              onPublish={handlePublish}
+            />
+          ))}
         </div>
       )}
 

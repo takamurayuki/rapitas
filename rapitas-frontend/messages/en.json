@@ -871,7 +871,9 @@
     "repoListFailed": "Failed to fetch repositories (check gh authentication)",
     "noReposFound": "No accessible repositories found",
     "added": "Added",
-    "orAddManually": "Or add manually"
+    "orAddManually": "Or add manually",
+    "importAsConcern": "Import as concern",
+    "concernLinked": "View concern"
   },
   "workflow": {
     "title": "Workflow",
