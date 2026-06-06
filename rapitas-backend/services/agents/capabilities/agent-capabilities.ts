@@ -101,7 +101,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier'],
+    bestForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Generalist agent. Respects role-scoped prompts and produces clean markdown artifacts. Good fit for any phase.',
@@ -114,7 +114,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'verifier'],
+    bestForRoles: ['researcher', 'planner', 'reviewer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Strong at analytical tasks (research, planning, review). Good markdown output. Slightly less consistent for raw code implementation than codex.',

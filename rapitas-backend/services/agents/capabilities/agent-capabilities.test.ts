@@ -69,6 +69,17 @@ describe('scoreAgentForRole', () => {
     expect(scoreAgentForRole('claude-code', 'implementer')).toBeGreaterThan(70);
   });
 
+  test('verifier and auto_verifier score the same positive (registry matches scoring)', () => {
+    // Regression: auto_verifier was missing from bestForRoles so it scored 0,
+    // tripping "[recommendAgentForRole] No suitable agent for role".
+    for (const agent of ['claude-code', 'gemini']) {
+      const verifier = scoreAgentForRole(agent, 'verifier');
+      const autoVerifier = scoreAgentForRole(agent, 'auto_verifier');
+      expect(autoVerifier).toBeGreaterThan(0);
+      expect(autoVerifier).toBe(verifier);
+    }
+  });
+
   test('api agents score well for plan/research, badly for implementer', () => {
     expect(scoreAgentForRole('anthropic-api', 'planner')).toBeGreaterThan(70);
     expect(scoreAgentForRole('anthropic-api', 'researcher')).toBeGreaterThan(70);

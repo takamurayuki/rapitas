@@ -12,15 +12,28 @@ import { createLogger } from '../../../config/logger';
 
 const logger = createLogger('claude-code-agent');
 
+// Process-lifetime cache for resolved CLI paths. resolveCliPath runs a `where`
+// subprocess and was called several times PER execution (runner + provider +
+// stream), repeating the probe — and re-logging "Failed to resolve" 20-40×/day.
+// The PATH does not change during a server run, so memoize both hits and the
+// fallback. A restart re-probes naturally (cache is module-scoped).
+const cliPathCache = new Map<string, string>();
+
 /**
  * Resolves the absolute path of a CLI command on Windows.
  * Falls back to the original path if PATH resolution fails.
+ * Memoized for the process lifetime (see cliPathCache).
  *
  * @param cliName - CLI binary name or path to resolve / 解決するCLIバイナリ名またはパス
  * @returns Absolute path on Windows, original name on other platforms / Windowsでは絶対パス、他のプラットフォームでは元の名前
  */
 export function resolveCliPath(cliName: string): string {
   if (process.platform !== 'win32') return cliName;
+
+  const cached = cliPathCache.get(cliName);
+  if (cached !== undefined) return cached;
+
+  let result = cliName;
   try {
     const resolved = execSync(`where ${cliName}`, {
       encoding: 'utf8',
@@ -31,12 +44,13 @@ export function resolveCliPath(cliName: string): string {
       .split(/\r?\n/)[0];
     if (resolved && existsSync(resolved)) {
       logger.info(`[resolveCliPath] Resolved ${cliName} -> ${resolved}`);
-      return resolved;
+      result = resolved;
     }
   } catch {
     logger.warn(`[resolveCliPath] Failed to resolve ${cliName}, using relative path`);
   }
-  return cliName;
+  cliPathCache.set(cliName, result);
+  return result;
 }
 
 /**
