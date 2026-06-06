@@ -694,6 +694,7 @@ CREATE TABLE "GitHubIssue" (
     "authorLogin" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "linkedTaskId" INTEGER,
+    "linkedConcernId" INTEGER,
     "lastSyncedAt" DATETIME NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,

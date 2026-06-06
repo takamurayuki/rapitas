@@ -80,6 +80,8 @@ model GitHubIssue {
   authorLogin       String
   url               String
   linkedTaskId      Int?
+  // Concern this issue was published from / imported into (bridge with KnowledgeEntry.id).
+  linkedConcernId   Int?
   lastSyncedAt      DateTime
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
