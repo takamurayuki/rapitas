@@ -222,10 +222,13 @@ export class WorkflowRunner {
             (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
 
           if (shouldAutoApprove) {
-            // NOTE: Auto-approve — skip waiting and advance immediately
+            // NOTE: Auto-approve — skip waiting and advance immediately. Keep
+            // task.status in sync with the workflow phase so the subtask-
+            // completion handler (which reads both fields) never sees a stale
+            // status and strands the parent.
             await prisma.task.update({
               where: { id: item.taskId },
-              data: { workflowStatus: 'plan_approved' },
+              data: { workflowStatus: 'plan_approved', status: 'in-progress' },
             });
             this.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', 'plan_created');
             log.info(`[WorkflowRunner] Plan auto-approved for task ${item.taskId}`);
