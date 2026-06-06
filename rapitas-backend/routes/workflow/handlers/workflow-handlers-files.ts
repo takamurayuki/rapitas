@@ -47,6 +47,44 @@ function isSubtaskSplitEnabled(): boolean {
 }
 
 /**
+ * Marks a task's latest agent execution (and session) failed with a reason.
+ *
+ * When a verify is rejected (validation or the automated gate) the task is set
+ * `blocked`, but the agent's execution row stays `completed` — so the execution
+ * log viewer shows 「完了」 while the task is blocked (the confusing status gap).
+ * Aligning the execution/session to `failed` closes that gap.
+ *
+ * @param taskId - Task whose latest execution to fail / 対象タスク
+ * @param message - Failure reason shown in the viewer / 失敗理由
+ */
+async function markLatestExecutionFailed(taskId: number, message: string): Promise<void> {
+  try {
+    const session = await prisma.agentSession.findFirst({
+      where: { config: { taskId } },
+      orderBy: { createdAt: 'desc' },
+      include: { agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    if (!session) return;
+    const exec = session.agentExecutions[0];
+    if (exec && exec.status !== 'failed') {
+      await prisma.agentExecution
+        .update({
+          where: { id: exec.id },
+          data: { status: 'failed', errorMessage: message, completedAt: new Date() },
+        })
+        .catch(() => {});
+    }
+    if (session.status !== 'failed') {
+      await prisma.agentSession
+        .update({ where: { id: session.id }, data: { status: 'failed', errorMessage: message } })
+        .catch(() => {});
+    }
+  } catch (err) {
+    log.warn({ err, taskId }, '[Workflow] Failed to mark latest execution failed');
+  }
+}
+
+/**
  * Handler for GET /tasks/:taskId/files
  * Returns all workflow files and their metadata for a task.
  *
@@ -327,6 +365,12 @@ export async function handleSaveFile({
           await prisma.task
             .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
             .catch(() => {});
+          // Align the execution/session to failed so the log viewer doesn't show
+          // 「完了」 while the task is blocked (the status gap).
+          await markLatestExecutionFailed(
+            taskId,
+            `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
+          );
           await recordTransition({
             taskId,
             fromStatus: currentStatus ?? null,
@@ -519,24 +563,41 @@ export async function handleSaveFile({
       const pr = autoCommitPRResult.autoPRResult;
       const merge = autoCommitPRResult.autoMergeResult;
 
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-      });
-      taskMarkedDone = true;
-      await recordTransition({
-        taskId,
-        fromStatus: 'verify_done',
-        toStatus: 'completed',
-        actor: 'system',
-        cause: 'verify_passed',
-        phase: 'verify',
-        metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-      });
-      log.info(
-        { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
-        '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
-      );
+      if (autoCommitPRResult.verificationBlocked) {
+        // The automated verification gate found NEW lint/type errors in the
+        // agent's changes and already marked the task `blocked`. Do NOT overwrite
+        // that with done/completed — the commit/PR were correctly withheld, and
+        // marking it completed here is what produced the confusing "完了 but no
+        // commit, status still stuck" reports. Keep it blocked for the user.
+        verifyGateBlocked = true;
+        await markLatestExecutionFailed(
+          taskId,
+          autoCommitPRResult.error ?? '自動検証に失敗したため、コミット/PR を中止しました。',
+        );
+        log.warn(
+          { taskId, reason: autoCommitPRResult.error },
+          '[Workflow] Automated verification blocked — task stays blocked (not completed), no commit/PR.',
+        );
+      } else {
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+        });
+        taskMarkedDone = true;
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: 'completed',
+          actor: 'system',
+          cause: 'verify_passed',
+          phase: 'verify',
+          metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+        });
+        log.info(
+          { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+          '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
+        );
+      }
 
       // Collect workflow learning data asynchronously (fire-and-forget)
       recordWorkflowCompletion(taskId).catch((err) => {

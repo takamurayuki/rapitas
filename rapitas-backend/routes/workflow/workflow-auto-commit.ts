@@ -37,6 +37,12 @@ export type AutoCommitPRResult = {
   autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
   autoMergeResult?: { success: boolean; mergeStrategy?: string; error?: string };
   worktreeCleanupResult?: { success: boolean; worktreePath?: string; error?: string };
+  /**
+   * True when the automated verification gate blocked (the agent's changes have
+   * new lint/type errors). The caller MUST NOT then mark the task completed —
+   * the gate already set it `blocked`.
+   */
+  verificationBlocked?: boolean;
   error?: string;
 };
 
@@ -148,6 +154,7 @@ export async function performAutoCommitAndPR(
       );
       return {
         ...result,
+        verificationBlocked: true,
         error: `自動検証に失敗しました（${gate.result?.summary ?? 'lint/型エラー'}）。auto-commit/PR を中止し、タスクをブロックしました。`,
       };
     }
