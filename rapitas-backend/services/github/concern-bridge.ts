@@ -26,8 +26,12 @@ type BridgeResult<T> = ({ success: true } & T) | { success: false; status: numbe
 /**
  * Extracts a `<prefix>:<value>` label from a JSON labels string.
  * Used to recover the concern type/severity encoded into issue labels.
+ *
+ * @param labelsJson - JSON array of label strings / ラベルのJSON配列
+ * @param prefix - Label prefix without the colon / コロンを除いた接頭辞
+ * @returns The value after `prefix:` or undefined / `prefix:`以降の値
  */
-function labelValue(labelsJson: string, prefix: string): string | undefined {
+export function labelValue(labelsJson: string, prefix: string): string | undefined {
   try {
     const labels = JSON.parse(labelsJson || '[]') as string[];
     const hit = labels.find((l) => l.startsWith(`${prefix}:`));
@@ -35,6 +39,35 @@ function labelValue(labelsJson: string, prefix: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** The concern fields needed to compose a GitHub issue. */
+interface ConcernIssueSource {
+  id: number;
+  type: string;
+  severity: string;
+  detail: string;
+  location: string | null;
+}
+
+/**
+ * Builds the issue body and labels for a concern (pure mapping).
+ * type → `type:<x>`, severity → `priority:<x>`; location and a provenance
+ * footer are appended to the body.
+ *
+ * @param concern - Concern to map / 対象の懸念
+ * @param extraLabels - Extra labels to append / 追加ラベル
+ * @returns Issue body + labels / Issue本文とラベル
+ */
+export function buildIssueContent(
+  concern: ConcernIssueSource,
+  extraLabels: string[] = [],
+): { body: string; labels: string[] } {
+  const labels = [`type:${concern.type}`, `priority:${concern.severity}`, ...extraLabels];
+  let body = concern.detail;
+  if (concern.location) body += `\n\n対象箇所: ${concern.location}`;
+  body += `\n\n— rapitas 懸念バックログ #${concern.id} から公開`;
+  return { body, labels };
 }
 
 /**
@@ -61,10 +94,7 @@ export async function publishConcernToIssue(
   if (!integration) return { success: false, status: 404, error: 'リポジトリ連携が見つかりません' };
 
   const repo = `${integration.ownerName}/${integration.repositoryName}`;
-  const labels = [`type:${concern.type}`, `priority:${concern.severity}`, ...(extraLabels ?? [])];
-  let body = concern.detail;
-  if (concern.location) body += `\n\n対象箇所: ${concern.location}`;
-  body += `\n\n— rapitas 懸念バックログ #${concern.id} から公開`;
+  const { body, labels } = buildIssueContent(concern, extraLabels ?? []);
 
   let issue;
   try {
