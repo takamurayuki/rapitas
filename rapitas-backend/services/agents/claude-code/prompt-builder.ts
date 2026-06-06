@@ -55,6 +55,8 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     `## Workflow Steps`,
     `Please execute the task in the following order:`,
     `1. Research → Save research.md`,
+    `   - **調査は時間を区切る**: 問題を理解できる程度に調べたら、すぐ research.md を書いて次へ進む。完全に原因特定できなくても、現時点の所見・仮説・未解明点を research.md に記録すること（延々と grep/read を繰り返さない）。`,
+    `   - **調査で Task/Agent（サブエージェント）を起動しない**: 自分で直接調べる。サブエージェントは時間とトークンを浪費する。`,
     `2. If unclear points exist, save question.md + AskUserQuestion (MUST use multiple-choice options — see Question Format below)`,
     task.autoApprovePlan
       ? `3. Create and save plan.md → **Plan will be auto-approved. Proceed to implementation immediately after saving.**`
@@ -185,6 +187,12 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   sections.push('Please execute the task while creating workflow files in the following steps:');
   sections.push('');
   sections.push('1. **Research**: Investigate the codebase and save results as research.md');
+  sections.push(
+    '   - **Time-box the investigation**: once you understand the problem well enough, WRITE research.md and move on. If you cannot fully pin the root cause, record your findings, hypotheses, and open questions in research.md instead of grepping/reading indefinitely.',
+  );
+  sections.push(
+    '   - **Do NOT spawn sub-agents (Task/Agent tool) to investigate** — investigate directly; sub-agents waste time and tokens.',
+  );
   sections.push(
     '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion.',
   );
