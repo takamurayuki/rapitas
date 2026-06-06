@@ -134,7 +134,7 @@
     "restartingOverlay": "Restarting the server...",
     "restartingMessage": "The page will automatically reload when complete",
     "restartTimeout": "Server restart timed out. Please reload the page manually.",
-    "devDashboard": "Dashboard",
+    "devDashboard": "Repositories",
     "packages": "Packages"
   },
   "home": {

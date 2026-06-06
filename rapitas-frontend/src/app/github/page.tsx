@@ -9,7 +9,6 @@ import {
   CircleDot,
   Plus,
   RefreshCw,
-  Settings,
   ExternalLink,
   CheckCircle2,
   XCircle,
@@ -197,13 +196,6 @@ export default function GitHubPage() {
                           className={`w-4 h-4 ${syncing === integration.id ? 'animate-spin' : ''}`}
                         />
                       </button>
-                      <Link
-                        href={`/github/integrations/${integration.id}/settings`}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                        title={t('settings')}
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Link>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm">

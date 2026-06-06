@@ -134,7 +134,7 @@
     "restartingOverlay": "サーバーを再起動しています...",
     "restartingMessage": "完了後に自動でページがリロードされます",
     "restartTimeout": "サーバーの再起動がタイムアウトしました。手動でページをリロードしてください。",
-    "devDashboard": "ダッシュボード",
+    "devDashboard": "リポジトリ連携",
     "packages": "パッケージ"
   },
   "home": {

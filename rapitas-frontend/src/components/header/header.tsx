@@ -18,6 +18,7 @@ import {
   SwatchBook,
   FolderOpen,
   FolderKanban,
+  FolderGit2,
   Target,
   BarChart3,
   GanttChartSquare,
@@ -172,7 +173,7 @@ export default function Header() {
           label: 'GitHub',
           icon: Code,
           children: [
-            { href: '/github', label: t('devDashboard'), icon: BarChart3 },
+            { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {
               href: '/github/pull-requests',
               label: 'Pull Requests',
