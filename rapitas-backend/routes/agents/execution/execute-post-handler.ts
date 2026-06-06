@@ -19,6 +19,20 @@ import { checkWorkflowInvariants } from '../../../services/workflow/workflow-inv
 const log = createLogger('routes:agent-execution:post-handler');
 const agentWorkerManager = AgentWorkerManager.getInstance();
 
+/**
+ * True only for an isolated per-task git worktree (under `.worktrees/`), never
+ * the main checkout. A destructive `git reset --hard` / `git clean -fd` must
+ * NEVER run on the main repo — research/non-impl phases run in process.cwd()
+ * (the main checkout), and reverting there wipes the user's (and the agent
+ * platform's) UNCOMMITTED work. Guard every revert with this.
+ *
+ * @param dir - The execution directory to test / 実行ディレクトリ
+ * @returns true when dir is an isolated worktree / 隔離worktreeなら true
+ */
+function isIsolatedWorktree(dir: string): boolean {
+  return dir.replace(/[\\/]+/g, '/').includes('/.worktrees/');
+}
+
 /** Shape of the result returned by agentWorkerManager.executeTask. */
 interface ExecuteTaskResult {
   success: boolean;
@@ -160,7 +174,12 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       // Revert ONLY when the workflow path was active (non-codex agent) and
       // plan.md is missing — otherwise the agent ignored the workflow and
       // shouldn't be allowed to commit unverified changes.
-      if (!planFile && !isCodexAgent) {
+      if (!planFile && !isCodexAgent && !isIsolatedWorktree(executionDir)) {
+        log.warn(
+          { taskId: taskIdNum, executionDir },
+          '[API] Skipping hard reset — executionDir is the main checkout, not an isolated worktree (would clobber uncommitted work)',
+        );
+      } else if (!planFile && !isCodexAgent) {
         try {
           const { execSync } = await import('node:child_process');
           execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
@@ -454,7 +473,15 @@ async function handleResearchResult(params: {
     if (untracked.trim().length > 0) {
       isClean = false;
     }
-    if (!isClean) {
+    if (!isClean && !isIsolatedWorktree(executionDir)) {
+      // The research phase runs in process.cwd() (the main checkout). NEVER
+      // hard-reset it — that wipes the user's / platform's uncommitted work
+      // (it has, in practice, eaten in-flight edits). Only worktrees are reset.
+      log.warn(
+        { taskId: taskIdNum, executionDir },
+        '[API] Research produced changes in the main checkout — NOT reverting (would clobber uncommitted work)',
+      );
+    } else if (!isClean) {
       revertedDiff = true;
       execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
       execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
