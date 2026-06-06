@@ -20,7 +20,7 @@ import {
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { GitHubPageSkeleton } from './_components/GitHubPageSkeleton';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GitHubPage');
@@ -95,7 +95,7 @@ export default function GitHubPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <GitHubPageSkeleton />;
   }
 
   return (
