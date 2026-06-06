@@ -82,9 +82,14 @@ export default function PullRequestsClient() {
   const fetchIntegrations = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/github/integrations`);
-      if (res.ok) setIntegrations(await res.json());
+      const data = res.ok ? await res.json() : [];
+      setIntegrations(data);
+      // When there are no integrations the PR fetch effect never runs, so clear
+      // the loading state here — otherwise the skeleton would show forever.
+      if (!Array.isArray(data) || data.length === 0) setLoading(false);
     } catch (error) {
       logger.error('Failed to fetch integrations:', error);
+      setLoading(false);
     }
   };
 
