@@ -34,6 +34,17 @@ const LLAMA_IDLE_CHECK_MS = 60 * 1000;
 let lastLlamaActivityAt = Date.now();
 let llamaIdleTimer: ReturnType<typeof setInterval> | null = null;
 
+// Global kill-switch for the local LLM. Auxiliary AI features (idea extraction,
+// naming, post-execution review, error classification, memory upkeep) prefer the
+// local sidecar to save API cost, but spawning llama-server (or driving Ollama)
+// spikes CPU during/around agent runs — and the core workflow (Claude Code CLI)
+// does not need it. Default OFF so those calls fall back to the paid provider;
+// set RAPITAS_ENABLE_LOCAL_LLM=1 to opt back in.
+export function isLocalLLMEnabled(): boolean {
+  const v = (process.env.RAPITAS_ENABLE_LOCAL_LLM || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
 /** Marks the sidecar as recently used so the idle monitor keeps it alive. */
 function markLlamaActivity(): void {
   lastLlamaActivityAt = Date.now();
@@ -243,6 +254,21 @@ export async function getLocalLLMStatus(ollamaUrl?: string): Promise<LocalLLMSta
   const url = ollamaUrl || DEFAULT_OLLAMA_URL;
   const modelDownloaded = isModelDownloaded();
 
+  // Kill-switch: report unavailable so availability-gated callers (post-exec
+  // review, idea extraction, complexity routing) use the paid provider and never
+  // touch the local sidecar.
+  if (!isLocalLLMEnabled()) {
+    return {
+      available: false,
+      source: 'none',
+      url,
+      model: '',
+      models: [],
+      modelDownloaded,
+      llamaServerRunning: false,
+    };
+  }
+
   // 1. Check Ollama
   const ollamaCheck = await checkOllamaConnection(url);
   if (ollamaCheck.connected) {
@@ -293,6 +319,12 @@ export async function ensureLocalLLM(
   ollamaUrl?: string,
   preferredModel?: string,
 ): Promise<{ url: string; model: string }> {
+  // Kill-switch: never spawn the sidecar or hit Ollama. Throwing makes
+  // sendAIMessage's `provider:'ollama'` branch fall back to the paid provider.
+  if (!isLocalLLMEnabled()) {
+    throw new Error('ローカルLLMは無効です (RAPITAS_ENABLE_LOCAL_LLM 未設定)。');
+  }
+
   const url = ollamaUrl || DEFAULT_OLLAMA_URL;
 
   // 1. Is Ollama available?
