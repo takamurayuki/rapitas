@@ -18,11 +18,12 @@ const execAsync = promisify(exec);
 const logger = createLogger('git-operations/core-ops');
 
 /**
- * Delete the agent's transient workflow temp files (`.wf-tmp*`) from the working
- * directory before staging. The agent writes `.wf-tmp.md`, curls it to the
- * workflow API, and often leaves it behind; the per-worktree git-exclude is
- * unreliable on Windows, so `git add -A` would otherwise stage and commit it —
- * polluting the changed-file list. Best-effort.
+ * Delete the agent's transient `.wf-*` files (e.g. `.wf-tmp.md` for workflow
+ * file saves, `.wf-concern.json` for concern/idea filing) from the working
+ * directory before staging. The agent writes these and curls them to the API,
+ * often leaving them behind; the per-worktree git-exclude is unreliable on
+ * Windows, so `git add -A` would otherwise stage and commit them — polluting
+ * the changed-file list (sometimes the temp file is the ONLY "change"). Best-effort.
  *
  * @param workingDirectory - Worktree root to clean / クリーンするディレクトリ
  */
@@ -31,7 +32,7 @@ async function removeTransientWorkflowFiles(workingDirectory: string): Promise<v
     const entries = await readdir(workingDirectory);
     await Promise.all(
       entries
-        .filter((name) => name.startsWith('.wf-tmp'))
+        .filter((name) => name.startsWith('.wf-'))
         .map((name) => unlink(join(workingDirectory, name)).catch(() => {})),
     );
   } catch {

@@ -173,12 +173,12 @@ export async function getDiff(workingDirectory: string): Promise<FileDiffRecord[
         }
       });
 
-    // Defensively drop the agent's transient workflow temp file (`.wf-tmp.md`).
-    // It is added to the worktree git exclude (see worktree-ops.ts), but if that
-    // exclude failed or wasn't applied in time the file would otherwise surface
-    // as the ONLY "changed file" in the diff — misleading the user into thinking
-    // the run produced nothing but a temp file. Never show it in a user diff.
-    const isTransient = (name: string) => /(^|[\\/])\.wf-tmp/.test(name);
+    // Defensively drop the agent's transient `.wf-*` files (`.wf-tmp.md`,
+    // `.wf-concern.json`, …). They're added to the worktree git exclude (see
+    // worktree-ops.ts), but if that exclude failed or wasn't applied in time the
+    // file would otherwise surface as the ONLY "changed file" in the diff —
+    // misleading the user into thinking the run produced nothing but a temp file.
+    const isTransient = (name: string) => /(^|[\\/])\.wf-/.test(name);
     for (const key of [...fileMap.keys()]) {
       if (isTransient(key)) fileMap.delete(key);
     }
