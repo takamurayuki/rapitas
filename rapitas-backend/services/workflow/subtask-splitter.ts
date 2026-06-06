@@ -14,6 +14,12 @@ import { getTaskWorkflowDir } from './workflow-paths';
 
 const log = createLogger('subtask-splitter');
 
+// Hard cap on the (optional) AI subtask-generation call. This runs INLINE in the
+// plan.md save request, so an unbounded LLM call would block the whole HTTP
+// response (a real run blocked ~54s). On timeout we fall back to the
+// deterministic split, which produces valid subtasks without the LLM.
+const AI_SUBTASK_GEN_TIMEOUT_MS = 10_000;
+
 /** Thresholds for when to split a task into subtasks. */
 const SPLIT_THRESHOLDS = {
   MIN_FILES: 8,
@@ -160,11 +166,24 @@ async function generateSubtasksWithAI(
     const { sendAIMessage } = await import('../../utils/ai-client');
     const parts = ['# plan.md', planContent];
     if (researchContent) parts.push('\n# research.md（参考）', researchContent.slice(0, 4000));
-    const res = await sendAIMessage({
-      systemPrompt: SUBTASK_GEN_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: parts.join('\n') }],
-      maxTokens: 3000,
-    });
+    // Time-box the LLM call so a slow/hanging provider cannot stall the plan-save
+    // request; a timeout is treated like any other failure (deterministic fallback).
+    const res = await Promise.race([
+      sendAIMessage({
+        systemPrompt: SUBTASK_GEN_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: parts.join('\n') }],
+        maxTokens: 3000,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(`AI subtask generation timed out after ${AI_SUBTASK_GEN_TIMEOUT_MS}ms`),
+            ),
+          AI_SUBTASK_GEN_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     const match = res.content.match(/\[[\s\S]*\]/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]) as Array<{
