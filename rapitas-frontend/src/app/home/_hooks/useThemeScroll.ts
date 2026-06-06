@@ -49,11 +49,19 @@ export function useThemeScroll(deps: unknown[]) {
       const handleScroll = () => checkThemeScrollPosition();
       scrollElement.addEventListener('scroll', handleScroll);
 
-      const resizeObserver = new ResizeObserver(() => checkThemeScrollPosition());
+      let rafId: number;
+      // NOTE: RAF defers the three setState calls in checkThemeScrollPosition to
+      // the next frame, preventing "ResizeObserver loop completed with undelivered
+      // notifications" caused by synchronous re-renders changing the observed width.
+      const resizeObserver = new ResizeObserver(() => {
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(checkThemeScrollPosition);
+      });
       resizeObserver.observe(scrollElement);
 
       return () => {
         clearTimeout(timeoutId);
+        cancelAnimationFrame(rafId);
         scrollElement.removeEventListener('scroll', handleScroll);
         resizeObserver.disconnect();
       };
