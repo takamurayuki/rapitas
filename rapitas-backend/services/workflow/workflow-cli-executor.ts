@@ -443,7 +443,16 @@ curl -X POST http://localhost:${port}/concerns \\
   -H 'Content-Type: application/json' \\
   -d '{"title":"簡潔な要約","detail":"何が問題で、なぜ重要か","type":"bug|refactor|security|perf|other","severity":"high|medium|low","location":"path/to/file.ts:行 など","originTaskId":${taskId}}'
 \`\`\`
-気づきが無ければ何もしなくて構いません。`;
+気づきが無ければ何もしなくて構いません。
+
+## アイデアボックス（改善アイデア / Idea Box）
+懸念（バグ・リスク）とは別に、「こうすれば品質・生産性・価値が上がる」という前向きな改善アイデア（新機能・UX改善・自動化・最適化など）を思いついた場合は、アイデアボックスへ起票してください（懸念バックログには入れない）:
+\`\`\`bash
+curl -X POST http://localhost:${port}/idea-box \\
+  -H 'Content-Type: application/json' \\
+  -d '{"title":"簡潔なアイデア名","content":"何を・なぜ・期待される効果","category":"improvement","scope":"global|project","priority":"high|medium|low"}'
+\`\`\`
+日本語が "?" に化ける場合は、内容を作業ディレクトリの .wf-idea.json に UTF-8 で書いてから --data-binary @.wf-idea.json で送る（.wf-* はコミットされません）。アイデアが無ければ何もしなくて構いません。`;
 
   const result = await orchestrator.executeTask(
     {
