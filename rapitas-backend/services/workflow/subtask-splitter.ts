@@ -28,6 +28,26 @@ const SPLIT_THRESHOLDS = {
   MIN_INDEPENDENT_GROUPS: 3,
 };
 
+// Standard plan-template section headings (JP + EN). These describe the plan
+// itself, not independent units of work, so they must NEVER be counted as
+// "independent groups" or turned into subtasks — doing so produced bogus
+// subtasks like 「実装チェックリスト」「完了条件」 that blocked the parent.
+const META_SECTION_PATTERNS: RegExp[] = [
+  /summary|overview|scope|risk|done|definition|acceptance|test|note|depend|background|purpose|goal|objective|constraint|checklist|subtask/i,
+  /概要|サマリ|目的|ゴール|スコープ|リスク|完了|受入|受け入れ|テスト|検証|注意|備考|依存|影響|背景|前提|方針|制約|チェックリスト|サブタスク|定義|タスク/,
+];
+
+/**
+ * True when a section heading is a standard plan meta-section (not a unit of
+ * work). Used to keep splitting at an appropriate granularity.
+ *
+ * @param heading - The `##` heading text (without the `## `) / 見出しテキスト
+ * @returns true for meta sections / メタ節なら true
+ */
+function isMetaSection(heading: string): boolean {
+  return META_SECTION_PATTERNS.some((re) => re.test(heading));
+}
+
 /** Parsed subtask from plan analysis. */
 type PlannedSubtask = {
   order: number;
@@ -90,9 +110,10 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   // Estimate lines changed (heuristic: 50 lines per checklist item)
   const estimatedLines = checklistItems.length * 50;
 
-  // Detect independent groups (sections with ## headers)
+  // Detect independent groups: ## sections that are real work units, NOT the
+  // plan's standard meta sections (概要/リスク/完了条件/実装チェックリスト/…).
   const sectionHeaders = lines.filter(
-    (l) => /^##\s+/.test(l) && !/summary|risk|done|definition/i.test(l),
+    (l) => /^##\s+/.test(l) && !isMetaSection(l.replace(/^##\s+/, '')),
   );
   const independentGroups = sectionHeaders.length;
 
@@ -392,8 +413,9 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
   let order = 0;
 
   for (const line of lines) {
-    // Detect section headers as subtask boundaries
-    if (/^##\s+/.test(line) && !/summary|risk|done|definition|task/i.test(line)) {
+    // Detect section headers as subtask boundaries — but only genuine work
+    // sections, never the plan's standard meta sections.
+    if (/^##\s+/.test(line) && !isMetaSection(line.replace(/^##\s+/, ''))) {
       if (currentSection && currentItems.length > 0) {
         order++;
         subtasks.push(

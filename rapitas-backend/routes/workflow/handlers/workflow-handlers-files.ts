@@ -29,6 +29,22 @@ import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-appro
 const log = createLogger('routes:workflow:handlers:files');
 
 /**
+ * Whether automatic subtask splitting on plan save is enabled (default: on).
+ *
+ * Splitting now fires only for plans with genuine multi-component feature
+ * sections (the splitter ignores standard meta sections like 実装チェックリスト /
+ * 完了条件 — see isMetaSection in subtask-splitter). This escape hatch lets the
+ * whole feature be turned off: set RAPITAS_DISABLE_SUBTASK_SPLIT=1.
+ *
+ * @returns true when splitting is enabled / 分割が有効か
+ */
+function isSubtaskSplitEnabled(): boolean {
+  const v = (process.env.RAPITAS_DISABLE_SUBTASK_SPLIT || '').trim().toLowerCase();
+  const disabled = v === '1' || v === 'true' || v === 'yes' || v === 'on';
+  return !disabled;
+}
+
+/**
  * Handler for GET /tasks/:taskId/files
  * Returns all workflow files and their metadata for a task.
  *
@@ -374,9 +390,10 @@ export async function handleSaveFile({
       }
     }
 
-    // Auto-split into subtasks when plan.md is saved and task is large enough
+    // Auto-split into subtasks when plan.md is saved and task is large enough.
+    // Gated OFF by default — see isSubtaskSplitEnabled for why.
     let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;
-    if (fileType === 'plan' && newStatus === 'plan_created') {
+    if (fileType === 'plan' && newStatus === 'plan_created' && isSubtaskSplitEnabled()) {
       try {
         const { analyzePlanForSplitting, createSubtasksFromPlan } =
           await import('../../../services/workflow/subtask-splitter');
