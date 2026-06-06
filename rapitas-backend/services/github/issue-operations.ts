@@ -129,6 +129,18 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
 }
 
 /**
+ * Close an issue on GitHub.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param issueNumber - Issue number / イシュー番号
+ * @throws {Error} When the gh command fails / コマンド失敗時
+ */
+export async function closeIssue(repo: string, issueNumber: number): Promise<void> {
+  await runGhCommand(['issue', 'close', String(issueNumber), '--repo', repo]);
+  log.info({ repo, issueNumber }, 'Issue closed');
+}
+
+/**
  * Add a comment to an issue.
  *
  * @param repo - Repository in owner/name format / リポジトリ名

@@ -5,12 +5,18 @@
  * and returns raw stdout. Not responsible for JSON parsing or domain mapping.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('github-service:client');
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+// gh binary path. execFile takes the executable + an args array and does NOT go
+// through a shell, so arguments (issue titles/bodies with spaces, quotes, etc.)
+// are passed literally and need no escaping. The Windows path must therefore be
+// UNQUOTED here (quoting is a shell concept).
+const GH_BIN = process.platform === 'win32' ? 'C:\\Program Files\\GitHub CLI\\gh.exe' : 'gh';
 
 /**
  * Execute a gh CLI command and return trimmed stdout.
@@ -21,14 +27,12 @@ const execAsync = promisify(exec);
  * @throws {Error} When gh command exits with non-zero status / コマンド失敗時
  */
 export async function runGhCommand(args: string[], cwd?: string): Promise<string> {
-  // Full path to gh on Windows
-  const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
-  const command = `${ghPath} ${args.join(' ')}`;
   try {
-    const { stdout } = await execAsync(command, {
+    const { stdout } = await execFileAsync(GH_BIN, args, {
       cwd,
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024, // 10MB
+      windowsHide: true,
     });
     return stdout.trim();
   } catch (error) {
@@ -37,7 +41,7 @@ export async function runGhCommand(args: string[], cwd?: string): Promise<string
       error && typeof error === 'object' && 'stderr' in error
         ? (error as { stderr: string }).stderr
         : undefined;
-    log.error({ message }, `gh command failed: ${command}`);
+    log.error({ message }, `gh command failed: gh ${args.join(' ')}`);
     throw new Error(stderr || message);
   }
 }

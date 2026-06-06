@@ -19,6 +19,7 @@ import {
   type ConcernStatus,
   type ConcernType,
 } from '../../services/memory/concern-backlog-service';
+import { closeIssueForConcern } from '../../services/github/concern-bridge';
 
 const log = createLogger('routes:concern-backlog');
 
@@ -105,6 +106,8 @@ export const concernBacklogRoutes = new Elysia()
         set.status = 404;
         return { error: '懸念が見つかりません' };
       }
+      // Dismissing locally also closes the linked GitHub issue (best-effort).
+      if (status === 'dismissed') await closeIssueForConcern(id);
       return { success: true };
     },
     {

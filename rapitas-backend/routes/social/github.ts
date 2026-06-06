@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
+import { publishConcernToIssue, importIssueAsConcern } from '../../services/github/concern-bridge';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
 
 // Create GitHub service instance
@@ -407,6 +408,36 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     });
 
     return task;
+  })
+
+  // Import a synced Issue into the concern backlog
+  .post('/issues/:id/create-concern', async (context) => {
+    const { id } = context.params as { id: string };
+    const result = await importIssueAsConcern(parseInt(id));
+    if (!result.success) {
+      context.set.status = result.status;
+      return { error: result.error };
+    }
+    return { success: true, concernId: result.concernId };
+  })
+
+  // Publish a concern to GitHub as a new Issue
+  .post('/concerns/:id/publish', async (context) => {
+    const { id } = context.params as { id: string };
+    const { integrationId, labels } = (context.body ?? {}) as {
+      integrationId?: number;
+      labels?: string[];
+    };
+    if (!integrationId) {
+      context.set.status = 400;
+      return { error: 'integrationId は必須です' };
+    }
+    const result = await publishConcernToIssue(parseInt(id), integrationId, labels);
+    if (!result.success) {
+      context.set.status = result.status;
+      return { error: result.error };
+    }
+    return { success: true, issue: result.issue };
   })
 
   // Webhook receiver

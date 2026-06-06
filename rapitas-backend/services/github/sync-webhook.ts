@@ -12,6 +12,7 @@ import { createLogger } from '../../config/logger';
 import { realtimeService } from '../communication/realtime-service';
 import { getPullRequests } from './pr-operations';
 import { getIssues } from './issue-operations';
+import { markConcernResolved } from '../memory/concern-backlog-service';
 import {
   handlePullRequestEvent,
   handlePullRequestReviewEvent,
@@ -110,7 +111,9 @@ export async function syncIssues(
 
   let syncedCount = 0;
   for (const issue of issues) {
-    await prisma.gitHubIssue.upsert({
+    // NOTE: linkedConcernId is intentionally omitted from `update` so a sync
+    // never wipes a concern<->issue link established by the bridge.
+    const saved = await prisma.gitHubIssue.upsert({
       where: { integrationId_issueNumber: { integrationId, issueNumber: issue.number } },
       update: {
         title: issue.title,
@@ -133,6 +136,11 @@ export async function syncIssues(
         lastSyncedAt: new Date(),
       },
     });
+
+    // Pull the issue's open/closed state onto a linked concern (open<->resolved).
+    if (saved.linkedConcernId != null) {
+      await markConcernResolved(saved.linkedConcernId, issue.state === 'closed');
+    }
     syncedCount++;
   }
 

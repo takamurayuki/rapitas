@@ -18,8 +18,22 @@ const log = createLogger('memory:concern-backlog');
 export type ConcernType = 'bug' | 'refactor' | 'security' | 'perf' | 'other';
 /** How serious / urgent the concern is. */
 export type ConcernSeverity = 'urgent' | 'high' | 'medium' | 'low';
-/** Lifecycle state of a concern. */
-export type ConcernStatus = 'open' | 'task_created' | 'dismissed';
+/**
+ * Lifecycle state of a concern.
+ * `resolved` is reached when a concern published to GitHub has its issue closed
+ * (status is pulled from GitHub on sync — see markConcernResolved).
+ */
+export type ConcernStatus = 'open' | 'task_created' | 'dismissed' | 'resolved';
+
+/** A GitHub issue a concern was published to / imported from. */
+export interface LinkedIssueRef {
+  /** GitHubIssue row id (DB), not the issue number. */
+  id: number;
+  issueNumber: number;
+  url: string;
+  /** "open" | "closed" */
+  state: string;
+}
 
 const VALID_TYPES: readonly ConcernType[] = ['bug', 'refactor', 'security', 'perf', 'other'];
 const VALID_SEVERITIES: readonly ConcernSeverity[] = ['urgent', 'high', 'medium', 'low'];
@@ -58,6 +72,8 @@ export interface ConcernEntry {
   createdTaskId: number | null;
   themeId: number | null;
   createdAt: Date;
+  /** GitHub issue this concern was published to / imported from, if any. */
+  linkedIssue?: LinkedIssueRef | null;
 }
 
 export interface SubmitConcernInput {
@@ -162,7 +178,9 @@ function toConcernEntry(entry: ConcernRow): ConcernEntry {
     ? 'task_created'
     : sourceId === 'dismissed'
       ? 'dismissed'
-      : 'open';
+      : sourceId === 'resolved'
+        ? 'resolved'
+        : 'open';
   return {
     id: entry.id,
     title: entry.title,
@@ -191,6 +209,32 @@ const CONCERN_SELECT = {
 } as const;
 
 /**
+ * Looks up the GitHub issues linked to the given concern ids and returns a
+ * map keyed by concern id, so concern lists can show a publish badge.
+ *
+ * @param concernIds - Concern ids to resolve links for / 対象の懸念ID
+ * @returns Map of concernId → linked issue / 懸念ID→リンクIssue のマップ
+ */
+async function fetchLinkedIssues(concernIds: number[]): Promise<Map<number, LinkedIssueRef>> {
+  const map = new Map<number, LinkedIssueRef>();
+  if (concernIds.length === 0) return map;
+  const issues = await prisma.gitHubIssue.findMany({
+    where: { linkedConcernId: { in: concernIds } },
+    select: { id: true, issueNumber: true, url: true, state: true, linkedConcernId: true },
+  });
+  for (const issue of issues) {
+    if (issue.linkedConcernId == null) continue;
+    map.set(issue.linkedConcernId, {
+      id: issue.id,
+      issueNumber: issue.issueNumber,
+      url: issue.url,
+      state: issue.state,
+    });
+  }
+  return map;
+}
+
+/**
  * Lists concerns with optional filtering and pagination.
  *
  * @param options - Filters (status/type/theme) + pagination / フィルタ・ページング
@@ -214,6 +258,7 @@ export async function listConcerns(options: {
   if (status === 'open') where.sourceId = 'open';
   else if (status === 'task_created') where.sourceId = { startsWith: 'task_' };
   else if (status === 'dismissed') where.sourceId = 'dismissed';
+  else if (status === 'resolved') where.sourceId = 'resolved';
   // status === 'all' → no sourceId filter.
 
   const [entries, total] = await Promise.all([
@@ -227,7 +272,54 @@ export async function listConcerns(options: {
     prisma.knowledgeEntry.count({ where }),
   ]);
 
-  return { concerns: entries.map(toConcernEntry), total };
+  const concerns = entries.map(toConcernEntry);
+  const linked = await fetchLinkedIssues(concerns.map((c) => c.id));
+  for (const concern of concerns) concern.linkedIssue = linked.get(concern.id) ?? null;
+
+  return { concerns, total };
+}
+
+/**
+ * Fetches a single concern by id, enriched with its linked GitHub issue.
+ *
+ * @param concernId - Concern id / 懸念ID
+ * @returns Concern or null when not found / 懸念、無ければ null
+ */
+export async function getConcern(concernId: number): Promise<ConcernEntry | null> {
+  const row = await prisma.knowledgeEntry.findFirst({
+    where: { id: concernId, sourceType: 'concern' },
+    select: CONCERN_SELECT,
+  });
+  if (!row) return null;
+  const concern = toConcernEntry(row);
+  const linked = await fetchLinkedIssues([concern.id]);
+  concern.linkedIssue = linked.get(concern.id) ?? null;
+  return concern;
+}
+
+/**
+ * Reflects a linked GitHub issue's open/closed state onto the concern.
+ * Only toggles between `open` and `resolved` so it never clobbers a concern
+ * that was dismissed or already turned into a task.
+ *
+ * @param concernId - Concern id / 懸念ID
+ * @param resolved - True when the GitHub issue is closed / Issueがクローズされたか
+ * @returns True when the concern's status actually changed / 変化したか
+ */
+export async function markConcernResolved(concernId: number, resolved: boolean): Promise<boolean> {
+  const row = await prisma.knowledgeEntry.findFirst({
+    where: { id: concernId, sourceType: 'concern' },
+    select: { id: true, sourceId: true },
+  });
+  if (!row) return false;
+  const current = row.sourceId ?? 'open';
+  const next = resolved ? 'resolved' : 'open';
+  // Guard: only the open<->resolved pair is synced from GitHub.
+  if (resolved && current !== 'open') return false;
+  if (!resolved && current !== 'resolved') return false;
+  await prisma.knowledgeEntry.update({ where: { id: concernId }, data: { sourceId: next } });
+  log.info({ concernId, next }, 'Concern status synced from GitHub issue');
+  return true;
 }
 
 /**
@@ -357,13 +449,15 @@ export async function getConcernStats(): Promise<{
   open: number;
   taskCreated: number;
   dismissed: number;
+  resolved: number;
   byType: Array<{ type: string; count: number }>;
 }> {
   const base = { sourceType: 'concern' as const, forgettingStage: 'active' };
-  const [open, taskCreated, dismissed, grouped] = await Promise.all([
+  const [open, taskCreated, dismissed, resolved, grouped] = await Promise.all([
     prisma.knowledgeEntry.count({ where: { ...base, sourceId: 'open' } }),
     prisma.knowledgeEntry.count({ where: { ...base, sourceId: { startsWith: 'task_' } } }),
     prisma.knowledgeEntry.count({ where: { ...base, sourceId: 'dismissed' } }),
+    prisma.knowledgeEntry.count({ where: { ...base, sourceId: 'resolved' } }),
     prisma.knowledgeEntry.groupBy({
       by: ['category'],
       where: { ...base, sourceId: 'open' },
@@ -374,6 +468,7 @@ export async function getConcernStats(): Promise<{
     open,
     taskCreated,
     dismissed,
+    resolved,
     byType: grouped.map((g) => ({ type: g.category, count: g._count.id })),
   };
 }
