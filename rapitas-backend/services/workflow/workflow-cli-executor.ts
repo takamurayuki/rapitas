@@ -6,6 +6,8 @@
  * back the output file, and applies the Markdown extraction fallback.
  */
 import { mkdir } from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { join } from 'path';
 import { prisma } from '../../config';
 import { AgentOrchestrator } from '../agents/agent-orchestrator';
@@ -29,6 +31,25 @@ import { checkWorkflowInvariants } from './workflow-invariants';
 import { maybeAutoApprovePlan } from './plan-auto-approve';
 
 const log = createLogger('workflow-cli-executor');
+const execAsync = promisify(exec);
+
+/**
+ * Resolves the git repository root for a directory.
+ *
+ * @param dir - Directory to resolve from / 起点ディレクトリ
+ * @returns Repo root path, or null when not inside a git repo / リポジトリルート、無ければ null
+ */
+async function resolveGitRoot(dir: string): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync('git rev-parse --show-toplevel', {
+      cwd: dir,
+      encoding: 'utf8',
+    });
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Linear rank of each workflow status, used to advance status FORWARD only.
@@ -121,34 +142,50 @@ export async function executeCLIAgent(
         { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
         '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
       );
-    } else if (themeWorkDir) {
-      // No prior worktree — create one so implementer/verifier always runs
-      // in isolation and produces a branch the auto-PR pipeline can push.
-      try {
-        const { generateFallbackBranchName } =
-          await import('../../utils/common/branch-name-generator');
-        const taskTitle =
-          (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
-            ?.title ?? `task-${taskId}`;
-        const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
-        const wt = await orchestrator.createWorktree(themeWorkDir, branchName, taskId, null);
-        resolvedWorktreePath = wt;
-        resolvedBranchName = branchName;
-        log.info(
-          { taskId, role: transition.role, worktreePath: wt, branchName },
-          '[WorkflowCLIExecutor] Created new worktree (no prior session had one)',
-        );
-      } catch (wtErr) {
-        log.error(
-          { err: wtErr, taskId, role: transition.role, themeWorkDir },
-          '[WorkflowCLIExecutor] Failed to create worktree — falling back to themeWorkDir (NOT isolated)',
+    } else {
+      // No prior worktree — create one so implementer/verifier always runs in
+      // isolation and produces a branch the auto-PR pipeline can push. Host it
+      // in the theme's project dir, or — when unset (e.g. rapitas
+      // self-development) — the git root of the backend's cwd, so we still get
+      // an isolated worktree instead of editing the live checkout directly
+      // (which previously flipped the main checkout's branch mid-run).
+      let worktreeBase = themeWorkDir;
+      if (!worktreeBase) {
+        worktreeBase = await resolveGitRoot(process.cwd());
+        if (worktreeBase) {
+          log.info(
+            { taskId, role: transition.role, worktreeBase },
+            '[WorkflowCLIExecutor] No themeWorkDir; isolating in a worktree of the cwd git root',
+          );
+        }
+      }
+      if (worktreeBase) {
+        try {
+          const { generateFallbackBranchName } =
+            await import('../../utils/common/branch-name-generator');
+          const taskTitle =
+            (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
+              ?.title ?? `task-${taskId}`;
+          const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
+          resolvedWorktreePath = wt;
+          resolvedBranchName = branchName;
+          log.info(
+            { taskId, role: transition.role, worktreePath: wt, branchName },
+            '[WorkflowCLIExecutor] Created new worktree (no prior session had one)',
+          );
+        } catch (wtErr) {
+          log.error(
+            { err: wtErr, taskId, role: transition.role, worktreeBase },
+            '[WorkflowCLIExecutor] Failed to create worktree — running without isolation',
+          );
+        }
+      } else {
+        log.warn(
+          { taskId, role: transition.role },
+          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation)',
         );
       }
-    } else {
-      log.warn(
-        { taskId, role: transition.role },
-        '[WorkflowCLIExecutor] No themeWorkDir configured; running at process.cwd() (no isolation)',
-      );
     }
   }
   // CRITICAL: implementer / verifier must run inside the per-task git

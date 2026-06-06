@@ -262,7 +262,10 @@ export async function removeWorktree(
       });
       logger.info('[removeWorktree] Unlinked shared resources via setup-worktree.cjs --teardown');
     } catch (tdErr) {
-      logger.debug({ err: tdErr }, '[removeWorktree] setup-worktree.cjs --teardown failed (non-fatal)');
+      logger.debug(
+        { err: tdErr },
+        '[removeWorktree] setup-worktree.cjs --teardown failed (non-fatal)',
+      );
     }
   }
 
@@ -311,8 +314,11 @@ export async function removeWorktree(
 
       // NOTE: Windows often fails the first rm pass with EBUSY/EFAULT when a
       // codex / pnpm / SSE process still holds a handle inside node_modules.
-      // Retry up to 3 times with backoff so transient holds release.
-      const maxAttempts = 3;
+      // Most handles release within a few seconds, so retry with a longer
+      // backoff (1s,2s,3s,4s ≈ 10s total) before giving up. Any leftover is
+      // swept later by the worktree-cleanup scheduler, so this never blocks the
+      // workflow — it just reduces orphaned directories.
+      const maxAttempts = 5;
       let lastErr: unknown;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -330,9 +336,9 @@ export async function removeWorktree(
         }
       }
       if (lastErr) {
-        logger.error(
+        logger.warn(
           { err: lastErr },
-          `[removeWorktree] Failed to clean up directory after ${maxAttempts} attempts: ${worktreePath}`,
+          `[removeWorktree] Could not remove ${worktreePath} after ${maxAttempts} attempts (held handles); leaving for the cleanup scheduler`,
         );
       }
     }
