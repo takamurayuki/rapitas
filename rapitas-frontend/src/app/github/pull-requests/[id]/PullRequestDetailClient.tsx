@@ -10,12 +10,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { MessageSquare, FileCode } from 'lucide-react';
+import { MessageSquare, FileCode, GitMerge, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import { createLogger } from '@/lib/logger';
+
+type MergeMethod = 'merge' | 'squash' | 'rebase';
 import { PRHeader } from './components/PRHeader';
 import { PRConversationTab } from './components/PRConversationTab';
 import { PRFilesTab } from './components/PRFilesTab';
@@ -36,6 +39,10 @@ export default function PullRequestDetailClient() {
   const [commenting, setCommenting] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [reviewAction, setReviewAction] = useState<'approve' | 'request_changes' | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [mergeMethod, setMergeMethod] = useState<MergeMethod>('squash');
+  const [deleteBranch, setDeleteBranch] = useState(true);
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchPRData();
@@ -99,6 +106,30 @@ export default function PullRequestDetailClient() {
     }
   };
 
+  const handleMerge = async () => {
+    if (!pr) return;
+    setMerging(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: mergeMethod, deleteBranch }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast(`PR #${pr.prNumber} をマージしました`, 'success');
+        await fetchPRData();
+      } else {
+        showToast(data.error || 'マージに失敗しました', 'error');
+      }
+    } catch (error) {
+      logger.error('Failed to merge:', error);
+      showToast('マージに失敗しました', 'error');
+    } finally {
+      setMerging(false);
+    }
+  };
+
   const toggleFile = (filename: string) => {
     setExpandedFiles((prev) => {
       const newSet = new Set(prev);
@@ -128,6 +159,43 @@ export default function PullRequestDetailClient() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <PRHeader pr={pr} />
+
+      {/* Merge bar — only for open PRs. Review the diff/approve first, then merge. */}
+      {pr.state === 'open' && (
+        <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ方式</span>
+          <select
+            value={mergeMethod}
+            onChange={(e) => setMergeMethod(e.target.value as MergeMethod)}
+            className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm"
+          >
+            <option value="squash">Squash and merge</option>
+            <option value="merge">Create a merge commit</option>
+            <option value="rebase">Rebase and merge</option>
+          </select>
+          <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+            <input
+              type="checkbox"
+              checked={deleteBranch}
+              onChange={(e) => setDeleteBranch(e.target.checked)}
+              className="rounded"
+            />
+            ブランチを削除
+          </label>
+          <button
+            onClick={handleMerge}
+            disabled={merging}
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {merging ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <GitMerge className="w-4 h-4" />
+            )}
+            マージ
+          </button>
+        </div>
+      )}
 
       {/* Tab nav */}
       <div className="flex items-center gap-1 border-b border-zinc-200 dark:border-zinc-700 mb-6">
