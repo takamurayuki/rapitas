@@ -29,19 +29,21 @@ import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-appro
 const log = createLogger('routes:workflow:handlers:files');
 
 /**
- * Whether automatic subtask splitting on plan save is enabled (default: on).
+ * Whether automatic subtask splitting on plan save is enabled (default: OFF).
  *
- * Splitting now fires only for plans with genuine multi-component feature
- * sections (the splitter ignores standard meta sections like 実装チェックリスト /
- * 完了条件 — see isMetaSection in subtask-splitter). This escape hatch lets the
- * whole feature be turned off: set RAPITAS_DISABLE_SUBTASK_SPLIT=1.
+ * Disabled by default after it repeatedly broke runs: it created bogus subtasks
+ * from plan section headings (no keyword list can cover them all), and a split
+ * parent conflicts with the comprehensive single-agent flow (verify gets blocked
+ * by "open" subtasks, auto-commit aborts). The single agent completes the work
+ * in one session and commits reliably; progress visibility comes from the plan
+ * checklist + live execution log + verify.md. Re-enable (for a future,
+ * rebuilt subtask-execution chain) with RAPITAS_ENABLE_SUBTASK_SPLIT=1.
  *
  * @returns true when splitting is enabled / 分割が有効か
  */
 function isSubtaskSplitEnabled(): boolean {
-  const v = (process.env.RAPITAS_DISABLE_SUBTASK_SPLIT || '').trim().toLowerCase();
-  const disabled = v === '1' || v === 'true' || v === 'yes' || v === 'on';
-  return !disabled;
+  const v = (process.env.RAPITAS_ENABLE_SUBTASK_SPLIT || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
 }
 
 /**
