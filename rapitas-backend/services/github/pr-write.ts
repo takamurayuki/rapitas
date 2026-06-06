@@ -102,6 +102,24 @@ export async function requestChanges(repo: string, prNumber: number, body: strin
 }
 
 /**
+ * Merge a pull request via `gh pr merge`.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param prNumber - PR number / PR番号
+ * @param options - Merge method (default squash) and whether to delete the branch / マージ方式とブランチ削除
+ */
+export async function mergePullRequest(
+  repo: string,
+  prNumber: number,
+  options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean },
+): Promise<void> {
+  const method = options?.method ?? 'squash';
+  const args = ['pr', 'merge', String(prNumber), '--repo', repo, `--${method}`];
+  if (options?.deleteBranch) args.push('--delete-branch');
+  await runGhCommand(args);
+}
+
+/**
  * Create a pull request from the given working directory.
  *
  * @param workingDirectory - Path to the git repository / gitリポジトリパス

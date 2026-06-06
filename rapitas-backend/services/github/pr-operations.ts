@@ -18,5 +18,6 @@ export {
   createPullRequestComment,
   approvePullRequest,
   requestChanges,
+  mergePullRequest,
   createPullRequest,
 } from './pr-write';

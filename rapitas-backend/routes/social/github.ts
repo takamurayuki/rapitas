@@ -270,6 +270,46 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     return { success: true };
   })
 
+  // Merge PR
+  .post('/pull-requests/:id/merge', async (context) => {
+    const { id } = context.params as { id: string };
+    const { method, deleteBranch } = (context.body ?? {}) as {
+      method?: 'merge' | 'squash' | 'rebase';
+      deleteBranch?: boolean;
+    };
+
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+    if (!pr) return { success: false, error: 'PR not found' };
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    try {
+      await githubService.mergePullRequest(repo, pr.prNumber, { method, deleteBranch });
+    } catch (err) {
+      // gh fails on conflicts / branch protection / not-approved — surface it.
+      const message = err instanceof Error ? err.message : String(err);
+      return { success: false, error: `マージに失敗しました: ${message}` };
+    }
+
+    await prisma.gitHubPullRequest
+      .update({ where: { id: parseInt(id) }, data: { state: 'merged', updatedAt: new Date() } })
+      .catch(() => {});
+    await prisma.notification
+      .create({
+        data: {
+          type: 'pr_merged',
+          title: 'PRマージ完了',
+          message: `PR #${pr.prNumber} (${pr.title}) をマージしました`,
+          link: pr.url,
+        },
+      })
+      .catch(() => {});
+
+    return { success: true };
+  })
+
   // Get Issue list
   .get('/integrations/:id/issues', async (context) => {
     const { id } = context.params as { id: string };

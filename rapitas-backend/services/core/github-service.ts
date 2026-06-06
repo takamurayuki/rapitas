@@ -18,6 +18,7 @@ import {
   createPullRequestComment,
   approvePullRequest,
   requestChanges,
+  mergePullRequest,
   createPullRequest,
 } from '../github/pr-operations';
 import { getIssues, getIssue, createIssue, addIssueComment } from '../github/issue-operations';
@@ -110,6 +111,15 @@ export class GitHubService {
   /** @see pr-operations.requestChanges */
   async requestChanges(repo: string, prNumber: number, body: string) {
     return requestChanges(repo, prNumber, body);
+  }
+
+  /** @see pr-operations.mergePullRequest */
+  async mergePullRequest(
+    repo: string,
+    prNumber: number,
+    options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean },
+  ) {
+    return mergePullRequest(repo, prNumber, options);
   }
 
   /** @see pr-operations.createPullRequest */
