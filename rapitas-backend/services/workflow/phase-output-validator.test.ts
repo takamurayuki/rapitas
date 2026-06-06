@@ -80,11 +80,11 @@ e`;
 describe('validateVerify', () => {
   test('accepts complete verify', () => {
     const complete = `# 検証レポート
-## 変更ファイル一覧
-foo
-## テスト実行結果
+## 検証結果サマリ
+合格
+## テスト結果
 all pass
-## 計画チェックリスト消化状況
+## チェックリスト
 - ok`;
     const result = validateVerify(complete);
     expect(result.ok).toBe(true);
@@ -93,5 +93,18 @@ all pass
   test('rejects empty verify', () => {
     const result = validateVerify('');
     expect(result.ok).toBe(false);
+  });
+
+  test('flags a verify that declares ❌ 不合格 as failed (all sections present)', () => {
+    // Sections are complete, so this exercises the verdict check (not the section
+    // check): the verifier writes "❌ 不合格" → must be blocked, not completed.
+    const failed = `# 検証レポート
+## 検証結果サマリ
+**❌ 不合格** — plan.md の DoD「tsc --noEmit が通る」を満たしていません。
+## テスト結果
+TypeScript: 1 件のエラー
+## チェックリスト
+- 未達`;
+    expect(validateVerify(failed).ok).toBe(false);
   });
 });
