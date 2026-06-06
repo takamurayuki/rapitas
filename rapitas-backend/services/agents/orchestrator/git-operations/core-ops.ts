@@ -8,12 +8,36 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { readdir, unlink } from 'fs/promises';
+import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
 
 export { getDiff } from './diff-structured';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/core-ops');
+
+/**
+ * Delete the agent's transient workflow temp files (`.wf-tmp*`) from the working
+ * directory before staging. The agent writes `.wf-tmp.md`, curls it to the
+ * workflow API, and often leaves it behind; the per-worktree git-exclude is
+ * unreliable on Windows, so `git add -A` would otherwise stage and commit it —
+ * polluting the changed-file list. Best-effort.
+ *
+ * @param workingDirectory - Worktree root to clean / クリーンするディレクトリ
+ */
+async function removeTransientWorkflowFiles(workingDirectory: string): Promise<void> {
+  try {
+    const entries = await readdir(workingDirectory);
+    await Promise.all(
+      entries
+        .filter((name) => name.startsWith('.wf-tmp'))
+        .map((name) => unlink(join(workingDirectory, name)).catch(() => {})),
+    );
+  } catch {
+    /* best-effort: directory unreadable or already clean */
+  }
+}
 
 /**
  * Get the unstaged git diff for a working directory.
@@ -84,6 +108,7 @@ export async function commitChanges(
   taskTitle?: string,
 ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
   try {
+    await removeTransientWorkflowFiles(workingDirectory);
     await execAsync('git add -A', { cwd: workingDirectory });
 
     const fullMessage = taskTitle
@@ -138,6 +163,7 @@ export async function createCommit(
     await execAsync(`git checkout -b ${featureBranch}`, { cwd: workingDirectory });
   }
 
+  await removeTransientWorkflowFiles(workingDirectory);
   await execAsync('git add -A', { cwd: workingDirectory });
 
   const { stdout: diffStat } = await execAsync('git diff --cached --numstat', {
