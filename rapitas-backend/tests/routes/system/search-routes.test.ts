@@ -171,6 +171,130 @@ describe('GET /search/', () => {
     expect(res.status).toBe(500);
     expect(body.success).toBe(false);
   });
+
+  test('Comment テーブル不在（P2021）でも200を返し他のエンティティ結果を含むこと', async () => {
+    // Simulate the SQLite desktop DB case where Comment table hasn't been created yet.
+    const tableNotFoundError = Object.assign(
+      new Error('The table `main.Comment` does not exist in the current database.'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2021' },
+    );
+    mockPrisma.task.findMany.mockResolvedValue([
+      {
+        id: 1,
+        title: 'Test Task',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        dueDate: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        theme: null,
+        taskLabels: [],
+      },
+    ]);
+    mockPrisma.comment.findMany.mockRejectedValue(tableNotFoundError);
+    mockPrisma.resource.findMany.mockResolvedValue([]);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'task')).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'comment')).toBe(false);
+  });
+
+  test('Task テーブル不在（P2021）でも200を返し task 以外の結果を含むこと', async () => {
+    // Simulate the SQLite desktop DB case where Task table hasn't been created yet.
+    const tableNotFoundError = Object.assign(
+      new Error('The table `main.Task` does not exist in the current database.'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2021' },
+    );
+    mockPrisma.task.findMany.mockRejectedValue(tableNotFoundError);
+    mockPrisma.resource.findMany.mockResolvedValue([
+      {
+        id: 1,
+        title: 'Test Resource',
+        description: 'A test resource',
+        type: 'link',
+        url: 'https://example.com',
+        taskId: null,
+        task: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+      },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'task')).toBe(false);
+    expect(body.results.some((r: { type: string }) => r.type === 'resource')).toBe(true);
+  });
+
+  test('Resource テーブル不在（P2021）でも200を返し resource 以外の結果を含むこと', async () => {
+    // Simulate the SQLite desktop DB case where Resource table hasn't been created yet.
+    const tableNotFoundError = Object.assign(
+      new Error('The table `main.Resource` does not exist in the current database.'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2021' },
+    );
+    mockPrisma.resource.findMany.mockRejectedValue(tableNotFoundError);
+    mockPrisma.task.findMany.mockResolvedValue([
+      {
+        id: 1,
+        title: 'Test Task',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        dueDate: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        theme: null,
+        taskLabels: [],
+      },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'task')).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'resource')).toBe(false);
+  });
+
+  test('Note (PomodoroSession) テーブル不在（P2021）でも200を返し note 以外の結果を含むこと', async () => {
+    // Simulate the SQLite desktop DB case where PomodoroSession table hasn't been created yet.
+    const tableNotFoundError = Object.assign(
+      new Error('The table `main.PomodoroSession` does not exist in the current database.'),
+      { name: 'PrismaClientKnownRequestError', code: 'P2021' },
+    );
+    mockPrisma.pomodoroSession.findMany.mockRejectedValue(tableNotFoundError);
+    mockPrisma.task.findMany.mockResolvedValue([
+      {
+        id: 1,
+        title: 'Test Task',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        dueDate: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        theme: null,
+        taskLabels: [],
+      },
+    ]);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'task')).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'note')).toBe(false);
+  });
 });
 
 describe('GET /search/suggest', () => {
