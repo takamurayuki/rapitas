@@ -313,8 +313,15 @@ export async function enrichIdea(
     }
 
     // Hard-reject ideas that fall below the quality bar. Skipped during a
-    // backfill (rejectLowQuality=false) so existing curated ideas aren't culled.
-    if (rejectLowQuality && (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)) {
+    // backfill (rejectLowQuality=false) so existing curated ideas aren't culled,
+    // AND for explicitly-filed ideas (sourceId='user' — manual or agent via POST
+    // /idea-box): a deliberately-filed idea must stay visible even on a low score.
+    // Only noisy machine-extracted ideas (source != 'user') are culled here.
+    if (
+      rejectLowQuality &&
+      !isUserAuthored &&
+      (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)
+    ) {
       await rejectIdea(
         ideaId,
         `enrich-below-threshold actionability=${actionability.toFixed(2)} specificity=${specificity.toFixed(2)}`,
@@ -372,7 +379,7 @@ export async function reviewIdea(ideaId: number): Promise<void> {
   try {
     const entry = await prisma.knowledgeEntry.findUnique({
       where: { id: ideaId },
-      select: { title: true, content: true, tags: true },
+      select: { title: true, content: true, tags: true, sourceId: true },
     });
     if (!entry) return;
 
@@ -397,8 +404,13 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       reviewNote?: string;
     };
 
-    // Hard-reject infeasible ideas — they should never make it into the box.
-    if (review.feasible === false) {
+    // Hard-reject infeasible ideas — but NEVER an explicitly-filed one
+    // (sourceId='user'; the Idea Box POST tags every submission, agent included,
+    // as 'user'). Deleting a deliberately-filed idea behind the user's back is
+    // the "ideas stopped appearing" regression. For those, keep the entry and let
+    // the feasible:false tag below record the verdict; only cull auto-extracted
+    // ideas (source != 'user') here.
+    if (review.feasible === false && entry.sourceId !== 'user') {
       await rejectIdea(ideaId, `review-infeasible note=${(review.reviewNote ?? '').slice(0, 80)}`);
       return;
     }
