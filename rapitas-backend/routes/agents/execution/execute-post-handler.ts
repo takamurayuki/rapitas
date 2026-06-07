@@ -7,9 +7,17 @@
  * Separated from execute-route.ts to keep each file under 300 lines.
  */
 
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
+
+// Async git so the post-execution revert never blocks the single-threaded event
+// loop. Synchronous execSync('git reset/clean', timeout 30s) here would freeze
+// ALL HTTP requests (e.g. the UI's GET /tasks/:id) for up to 30s when a git op
+// is slow/locked — the "Request timeout after 30001ms" the user saw.
+const execAsync = promisify(exec);
 import { updateSessionStatusWithRetry, createCodeReviewApproval } from './session-helpers';
 import { reviewAndCommitWorktree } from './post-execution-review';
 import { detectExecutionFailures } from './execution-output-validator';
@@ -181,9 +189,8 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
         );
       } else if (!planFile && !isCodexAgent) {
         try {
-          const { execSync } = await import('node:child_process');
-          execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
-          execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
+          await execAsync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
+          await execAsync('git clean -fd', { cwd: executionDir, timeout: 30000 });
           log.info(
             { taskId: taskIdNum, executionDir },
             '[API] Reverted unauthorized agent changes (no plan.md + verification failed)',
@@ -402,13 +409,16 @@ async function handleResearchResult(params: {
       },
       '[API] Research report rejected as inadequate — marking blocked',
     );
-    // Try a worktree revert just in case, then mark blocked.
-    try {
-      const { execSync } = await import('node:child_process');
-      execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
-      execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
-    } catch {
-      // intentionally ignore - best-effort cleanup
+    // Try a worktree revert just in case, then mark blocked. Only ever reset an
+    // isolated worktree (never the main checkout), and do it async so a slow git
+    // op cannot freeze the event loop.
+    if (isIsolatedWorktree(executionDir)) {
+      try {
+        await execAsync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
+        await execAsync('git clean -fd', { cwd: executionDir, timeout: 30000 });
+      } catch {
+        // intentionally ignore - best-effort cleanup
+      }
     }
     await prisma.task
       .update({ where: { id: taskIdNum }, data: { status: 'blocked' } })
@@ -452,20 +462,15 @@ async function handleResearchResult(params: {
   // Any diff is treated as a sandbox escape and aggressively reverted.
   let revertedDiff = false;
   try {
-    const { execSync } = await import('node:child_process');
     let isClean = true;
     try {
-      // exit 0 when no diff, throws (exit 1) when diff exists
-      execSync('git diff --quiet HEAD', {
-        cwd: executionDir,
-        timeout: 10000,
-        stdio: 'ignore',
-      });
+      // resolves when clean (exit 0), rejects (exit 1) when there is a diff
+      await execAsync('git diff --quiet HEAD', { cwd: executionDir, timeout: 10000 });
     } catch {
       isClean = false;
     }
     // Untracked files don't show up in diff --quiet, check separately.
-    const untracked = execSync('git ls-files --others --exclude-standard', {
+    const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', {
       cwd: executionDir,
       encoding: 'utf8',
       timeout: 10000,
@@ -483,8 +488,8 @@ async function handleResearchResult(params: {
       );
     } else if (!isClean) {
       revertedDiff = true;
-      execSync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
-      execSync('git clean -fd', { cwd: executionDir, timeout: 30000 });
+      await execAsync('git reset --hard HEAD', { cwd: executionDir, timeout: 30000 });
+      await execAsync('git clean -fd', { cwd: executionDir, timeout: 30000 });
       log.warn(
         { taskId: taskIdNum, untrackedSize: untracked.length },
         '[API] Research mode produced code changes (git diff or untracked files) — reverted',
