@@ -4,7 +4,12 @@ import tsparser from "@typescript-eslint/parser";
 export default [
   {
     files: ["**/*.ts"],
-    ignores: ["node_modules/**", "dist/**", "tests/**"],
+    // NOTE: tests/** must NOT be ignored here — this block supplies the TS parser.
+    // Excluding it left test files on eslint's default espree parser, which chokes
+    // on TS syntax (`as`, type annotations) with "Parsing error: Unexpected token",
+    // producing a phantom lint error that blocked the workflow verification gate on
+    // every task that touched a test file. The tests/** block below overrides rules.
+    ignores: ["node_modules/**", "dist/**"],
     languageOptions: {
       parser: tsparser,
       parserOptions: {

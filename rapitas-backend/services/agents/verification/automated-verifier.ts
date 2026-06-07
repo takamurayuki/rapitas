@@ -340,12 +340,30 @@ async function typecheckProject(
   };
 }
 
+/** Conventional test-file naming (foo.test.ts / foo.spec.tsx / .mts / .cjs …). */
+const TEST_FILE_RE = /\.(test|spec)\.[cm]?[jt]sx?$/;
+
 /**
- * Detects how to run a project's test suite from its package.json + lockfile,
- * or null when there's no `test` script. Uses `<pm> run test` so bun runs the
- * package script rather than its built-in test runner.
+ * Builds the test command, SCOPED to the agent's changed test files when the
+ * project uses bun. Running the WHOLE suite gates on failures unrelated to the
+ * agent's diff: tests that were already red at baseline, and tests that bind
+ * fixed ports/DB and collide with the live dev server — both are false positives
+ * that blocked auto-commit/PR on every task. Scoping to the changed test files
+ * mirrors how lint/tsc are already scoped, so the gate verifies the agent's own
+ * tests only. Non-bun runners can't be scoped reliably here, so they keep the
+ * full-suite behaviour. Returns null when there's no `test` script, or (bun)
+ * when the diff changed no test file.
+ *
+ * @param projectRoot - Nearest package.json dir (the test runner's cwd) / プロジェクトルート
+ * @param workdir - The agent's worktree root / worktree のルート
+ * @param relFiles - Changed code files, relative to workdir / 変更コードファイル
+ * @returns A shell command, or null when nothing should run / 実行コマンド（無ければnull）
  */
-function detectTestCommand(projectRoot: string): string | null {
+function buildScopedTestCommand(
+  projectRoot: string,
+  workdir: string,
+  relFiles: string[],
+): string | null {
   const pkgPath = join(projectRoot, 'package.json');
   if (!existsSync(pkgPath)) return null;
   try {
@@ -354,8 +372,17 @@ function detectTestCommand(projectRoot: string): string | null {
   } catch {
     return null;
   }
-  if (existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'))) {
-    return 'bun run test';
+  const usesBun =
+    existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'));
+  if (usesBun) {
+    // Changed test files, relative to projectRoot (bun's cwd).
+    const testFiles = relFiles
+      .map((f) => relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'))
+      .filter((f) => TEST_FILE_RE.test(f));
+    // No changed test file → nothing to scope-verify. Skip rather than run the
+    // whole suite (which would re-introduce the baseline-red false positive).
+    if (testFiles.length === 0) return null;
+    return `bun test ${testFiles.map((f) => `"${f}"`).join(' ')}`;
   }
   if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm run test';
   if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn run test';
@@ -363,18 +390,19 @@ function detectTestCommand(projectRoot: string): string | null {
 }
 
 /**
- * Runs the project's test suite (opt-in). Unlike lint/typecheck this is NOT
- * scoped to changed files — it runs the whole suite, so the project is expected
- * to be green at baseline; a failure (the agent broke something, or the suite
- * was already red) gates the diff and feeds the self-repair loop. Returns null
- * when tests are disabled or the project has no `test` script.
- *
- * NOTE: tests that bind fixed ports/DB can collide with a running app until the
- * per-worktree isolated runtime (Phase ②) lands.
+ * Runs the project's tests (opt-in via RAPITAS_VERIFY_TESTS), SCOPED to the
+ * agent's changed test files so the gate covers the agent's own runtime
+ * behaviour without gating on pre-existing red tests or live-env collisions.
+ * Returns null when tests are disabled, there's no `test` script, or the diff
+ * changed no test file.
  */
-async function testProject(projectRoot: string): Promise<VerificationCheck | null> {
+async function testProject(
+  projectRoot: string,
+  workdir: string,
+  relFiles: string[],
+): Promise<VerificationCheck | null> {
   if (!VERIFY_TESTS_ENABLED) return null;
-  const command = detectTestCommand(projectRoot);
+  const command = buildScopedTestCommand(projectRoot, workdir, relFiles);
   if (!command) return null;
   const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
   const ok = res.code === 0;
@@ -446,7 +474,7 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
     const [lint, type, test] = await Promise.all([
       lintProject(projectRoot, workdir, relFiles),
       typecheckProject(projectRoot, workdir, relFiles),
-      testProject(projectRoot),
+      testProject(projectRoot, workdir, relFiles),
     ]);
     if (lint) lintParts.push(lint);
     if (type) typeParts.push(type);
