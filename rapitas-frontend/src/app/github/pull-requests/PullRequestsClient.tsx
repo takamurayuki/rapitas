@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -75,9 +75,32 @@ export default function PullRequestsClient() {
     }
   }, [selectedIntegration, stateFilter, integrations]);
 
+  // PRs are read from the local DB; on first load it is usually empty (sync has
+  // never run), so the list shows nothing even though GitHub has PRs. Sync each
+  // repo from GitHub once, then read — so past/closed PRs appear too. Subsequent
+  // filter/selection changes just re-read the now-populated DB.
+  const syncedRef = useRef(false);
   useEffect(() => {
-    if (integrations.length > 0) fetchPRs();
-  }, [fetchPRs, integrations.length]);
+    if (integrations.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      if (!syncedRef.current) {
+        syncedRef.current = true;
+        setLoading(true);
+        await Promise.all(
+          integrations.map((i) =>
+            fetch(`${API_BASE_URL}/github/integrations/${i.id}/sync-prs`, {
+              method: 'POST',
+            }).catch(() => {}),
+          ),
+        );
+      }
+      if (!cancelled) fetchPRs();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPRs, integrations]);
 
   const fetchIntegrations = async () => {
     try {
