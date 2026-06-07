@@ -52,14 +52,21 @@ export function generateExecutionSummary(logs: string[]): ExecutionSummary | nul
   for (const line of lines) {
     const t = line.trim();
 
+    // Drop the workflow agent's transient scratch files (.wf-tmp.md,
+    // .wf-concern.json, .wf-idea.json — written only to curl content to the
+    // workflow/concern/idea APIs). They're git-ignored and never committed, so
+    // surfacing them in the changed-files summary just misleads the user into
+    // thinking the run produced nothing but a temp file.
+    const isTransientWf = (p: string) => /(^|[\\/])\.wf-/.test(p);
+
     const em = t.match(/\[Tool: Edit\]\s*->\s*(\S+)/);
-    if (em?.[1]) filesEdited.add(em[1]);
+    if (em?.[1] && !isTransientWf(em[1])) filesEdited.add(em[1]);
 
     const wm = t.match(/\[Tool: Write\]\s*->\s*(\S+)/);
-    if (wm?.[1]) filesCreated.add(wm[1]);
+    if (wm?.[1] && !isTransientWf(wm[1])) filesCreated.add(wm[1]);
 
     const rm = t.match(/\[Tool: Read\]\s*->\s*(\S+)/);
-    if (rm?.[1]) filesRead.add(rm[1]);
+    if (rm?.[1] && !isTransientWf(rm[1])) filesRead.add(rm[1]);
 
     const pm = t.match(/(\d+)\s+(?:tests?\s+)?passed/i);
     if (pm?.[1]) testsPassed = Math.max(testsPassed, parseInt(pm[1], 10));
