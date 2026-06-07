@@ -171,6 +171,38 @@ describe('GET /search/', () => {
     expect(res.status).toBe(500);
     expect(body.success).toBe(false);
   });
+
+  test('Comment テーブル不在（P2021）でも200を返し他のエンティティ結果を含むこと', async () => {
+    // Simulate the SQLite desktop DB case where Comment table hasn't been created yet.
+    const tableNotFoundError = Object.assign(
+      new Error("The table `main.Comment` does not exist in the current database."),
+      { name: 'PrismaClientKnownRequestError', code: 'P2021' },
+    );
+    mockPrisma.task.findMany.mockResolvedValue([
+      {
+        id: 1,
+        title: 'Test Task',
+        description: null,
+        status: 'todo',
+        priority: 'medium',
+        dueDate: null,
+        createdAt: new Date('2026-03-01'),
+        updatedAt: new Date('2026-03-01'),
+        theme: null,
+        taskLabels: [],
+      },
+    ]);
+    mockPrisma.comment.findMany.mockRejectedValue(tableNotFoundError);
+    mockPrisma.resource.findMany.mockResolvedValue([]);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'task')).toBe(true);
+    expect(body.results.some((r: { type: string }) => r.type === 'comment')).toBe(false);
+  });
 });
 
 describe('GET /search/suggest', () => {
