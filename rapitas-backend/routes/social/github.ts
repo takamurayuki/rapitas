@@ -160,15 +160,27 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       );
     }
 
+    // State filter: "closed" includes merged PRs (GitHub treats a merged PR as
+    // closed), otherwise the merged majority would be invisible under both the
+    // open and closed tabs. "all" applies no filter.
+    const stateWhere =
+      !state || state === 'all'
+        ? {}
+        : state === 'closed'
+          ? { state: { in: ['closed', 'merged'] } }
+          : { state };
+
     return await prisma.gitHubPullRequest.findMany({
       where: {
         integrationId: parseInt(id),
-        ...(state && state !== 'all' && { state }),
+        ...stateWhere,
       },
       include: {
         _count: { select: { reviews: true, comments: true } },
       },
-      orderBy: { updatedAt: 'desc' },
+      // Order by prNumber (monotonic) — a bulk sync stamps every row's updatedAt
+      // with ~the same timestamp, so updatedAt can't express real recency.
+      orderBy: { prNumber: 'desc' },
     });
   })
 
