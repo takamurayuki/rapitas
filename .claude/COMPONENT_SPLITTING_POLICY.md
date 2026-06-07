@@ -165,6 +165,51 @@ feature-validators.test.ts
 
 ---
 
+## 7. SHARED COMPONENTS — REUSE, NEVER RE-IMPLEMENT
+
+When a piece of UI already exists as a shared component, **use it**. Never
+hand-roll a second copy of an interaction pattern the app already standardises —
+divergent copies drift apart in behaviour, styling, and accessibility, and break
+the user's muscle memory.
+
+### 7-1. Pagination (MANDATORY)
+
+**Any paginated list MUST use the shared `Pagination` component.**
+
+```tsx
+import Pagination from '@/components/ui/pagination/Pagination';
+
+const [currentPage, setCurrentPage] = useState(1);
+const [itemsPerPage, setItemsPerPage] = useState(10);
+const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+
+<Pagination
+  currentPage={currentPage}
+  totalPages={totalPages}
+  itemsPerPage={itemsPerPage}
+  onPageChange={setCurrentPage}
+  onItemsPerPageChange={(n) => {
+    setItemsPerPage(n);
+    setCurrentPage(1);
+  }}
+/>
+```
+
+- ❌ **Never** hand-roll prev/next buttons, page-number lists, or a custom
+  items-per-page selector. If the shared component is missing a feature you
+  need, extend `Pagination` itself (and update every caller) — do not fork it.
+- Reference callers: `ConcernsClient`, `IdeasClient`, `DecisionsClient`,
+  `KnowledgeClient`, the task list. Copy their wiring.
+
+### 7-2. The general rule
+
+Before building any list control, modal, badge, empty-state, skeleton, or
+button variant, **search `src/components/ui/` and the reference callers first**.
+Reuse the shared component; only create a new one when nothing fits, and then
+put it under `src/components/ui/` so the next person reuses it too.
+
+---
+
 ## QUICK REFERENCE
 
 ```
@@ -175,4 +220,6 @@ Component > 50 lines JSX?  → Extract sub-component
 Hook > 30 lines logic?     → Extract custom hook
 Route + handler + service? → Separate files
 Types from multiple domains? → Split by domain
+Adding pagination?         → Use shared <Pagination> (§7) — never hand-roll
+Any shared UI pattern?     → Reuse src/components/ui/; don't re-implement
 ```

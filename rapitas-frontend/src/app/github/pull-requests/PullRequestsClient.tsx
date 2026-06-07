@@ -12,18 +12,16 @@ import {
   GitMerge,
   XCircle,
   FolderGit2,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+// Shared pagination control — ALWAYS use this for paginated lists (see
+// COMPONENT_SPLITTING_POLICY §7). Do not hand-roll prev/next buttons.
+import Pagination from '@/components/ui/pagination/Pagination';
 
 const logger = createLogger('PullRequestsClient');
-
-/** How many PRs to show per page (client-side pagination). */
-const PAGE_SIZE = 20;
 
 /** A PR paired with the repo it belongs to, for a flat recency-ordered list. */
 interface PrRow {
@@ -42,7 +40,8 @@ export default function PullRequestsClient() {
   // Filter is applied client-side (see filteredRows) so open/closed/all switch
   // instantly without a refetch, and "closed" can include merged PRs.
   const [stateFilter, setStateFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -144,12 +143,12 @@ export default function PullRequestsClient() {
   // Reset to the first page whenever the filter or repo selection changes so the
   // user isn't stranded on a now-out-of-range page.
   useEffect(() => {
-    setPage(1);
+    setCurrentPage(1);
   }, [stateFilter, selectedIntegration]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageRows = filteredRows.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
 
   const getStateIcon = (rawState: string) => {
     // gh may send UPPERCASE state on not-yet-renormalised rows.
@@ -307,29 +306,16 @@ export default function PullRequestsClient() {
               ))}
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-6">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  前へ
-                </button>
-                <span className="text-sm text-zinc-500 dark:text-zinc-400 tabular-nums px-2">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  次へ
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(n) => {
+                setItemsPerPage(n);
+                setCurrentPage(1);
+              }}
+            />
           </>
         )}
       </div>
