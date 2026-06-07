@@ -5,6 +5,7 @@
  * matching a partial search query. Capped at 8 results for low-latency UI use.
  */
 import { Elysia } from 'elysia';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getMatchContext } from './helpers';
@@ -99,6 +100,15 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
       suggestions: suggestions.slice(0, 8),
     };
   } catch (error) {
+    // P2021: table does not exist — DB was not initialised or was deleted after startup.
+    // Return empty suggestions so the UI degrades gracefully rather than showing an error.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2021'
+    ) {
+      log.warn({ err: error }, 'Search suggest skipped — task table unavailable');
+      return { success: true, suggestions: [] };
+    }
     log.error({ err: error }, 'Search suggest error');
     set.status = 500;
     return { success: false, error: 'Failed to get suggestions' };
