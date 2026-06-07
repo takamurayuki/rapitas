@@ -65,7 +65,7 @@ export default function TerminalPanel() {
   return (
     <div
       ref={panelRef}
-      className={`fixed inset-x-0 bottom-0 z-40 flex flex-col border-t border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
+      className={`fixed inset-x-0 bottom-0 z-60 flex flex-col border-t border-zinc-700 bg-zinc-900 shadow-2xl transition-transform duration-200 ease-out ${
         isOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
       }`}
       style={{ height }}
