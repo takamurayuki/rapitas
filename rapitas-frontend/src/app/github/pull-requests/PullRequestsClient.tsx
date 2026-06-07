@@ -34,7 +34,9 @@ export default function PullRequestsClient() {
   const [groups, setGroups] = useState<RepoGroup[]>([]);
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
   const [selectedIntegration, setSelectedIntegration] = useState<string>(integrationId || '');
-  const [stateFilter, setStateFilter] = useState<string>('open');
+  // Default to 'all' so past (merged/closed) PRs are visible at a glance and the
+  // list isn't empty. The open/closed tabs narrow it down.
+  const [stateFilter, setStateFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -116,7 +118,9 @@ export default function PullRequestsClient() {
     }
   };
 
-  const getStateIcon = (state: string) => {
+  const getStateIcon = (rawState: string) => {
+    // gh may send UPPERCASE state on not-yet-renormalised rows.
+    const state = (rawState || '').toLowerCase();
     switch (state) {
       case 'open':
         return <GitPullRequest className="w-5 h-5 text-green-500" />;
@@ -129,7 +133,8 @@ export default function PullRequestsClient() {
     }
   };
 
-  const getStateBadge = (state: string) => {
+  const getStateBadge = (rawState: string) => {
+    const state = (rawState || '').toLowerCase();
     const styles = {
       open: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       merged: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
