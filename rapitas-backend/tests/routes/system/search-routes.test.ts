@@ -171,6 +171,34 @@ describe('GET /search/', () => {
     expect(res.status).toBe(500);
     expect(body.success).toBe(false);
   });
+
+  test('PomodoroSession テーブル不在 (P2021) の場合、200 で他エンティティ結果を返すこと', async () => {
+    const p2021Error = Object.assign(
+      new Error('The table `main.PomodoroSession` does not exist in the current database.'),
+      { code: 'P2021' },
+    );
+    mockPrisma.pomodoroSession.findMany.mockRejectedValue(p2021Error);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
+  test('TimeEntry テーブル不在 (P2021) の場合、200 で他エンティティ結果を返すこと', async () => {
+    const p2021Error = Object.assign(
+      new Error('The table `main.TimeEntry` does not exist in the current database.'),
+      { code: 'P2021' },
+    );
+    mockPrisma.timeEntry.findMany.mockRejectedValue(p2021Error);
+
+    const res = await app.handle(new Request('http://localhost/search/?q=test'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
 });
 
 describe('GET /search/suggest', () => {

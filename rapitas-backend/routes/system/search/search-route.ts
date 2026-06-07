@@ -14,6 +14,18 @@ import { recordSearchMiss } from '../../../services/search/search-miss-service';
 const log = createLogger('routes:search:main');
 
 /**
+ * Returns true when the error is Prisma P2021 — "table does not exist".
+ * Happens on SQLite (desktop) when the running server started before a new
+ * model was added to sqlite-init-sql.ts; a server restart will self-heal it.
+ *
+ * @param err - The caught error value / キャッチしたエラー値
+ * @returns true if the error is a missing-table P2021 / テーブル不在 P2021 なら true
+ */
+function isTableMissingError(err: unknown): boolean {
+  return err instanceof Error && 'code' in err && (err as { code: unknown }).code === 'P2021';
+}
+
+/**
  * Main cross-entity search route handler.
  */
 export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) => {
@@ -150,36 +162,45 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         ],
       };
 
-      const pomodoroSessions = await prisma.pomodoroSession.findMany({
-        where: pomodoroWhere,
-        include: { task: { select: { id: true, title: true } } },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      });
+      try {
+        const pomodoroSessions = await prisma.pomodoroSession.findMany({
+          where: pomodoroWhere,
+          include: { task: { select: { id: true, title: true } } },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
+        });
 
-      for (const session of pomodoroSessions) {
-        if (session.note) {
-          results.push({
-            id: session.id,
-            type: 'note',
-            title: session.task
-              ? `Pomodoro Note: ${session.task.title}`
-              : `Pomodoro Session #${session.id}`,
-            excerpt: createExcerpt(session.note, searchQuery),
-            relevance:
-              calculateRelevance(session.note, null, searchQuery, {
-                updatedAt: session.updatedAt,
-              }) * 0.5,
-            metadata: {
-              sessionType: 'pomodoro',
-              taskId: session.taskId,
-              taskTitle: session.task?.title,
-              startedAt: session.startedAt,
-              completedAt: session.completedAt,
-            },
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-          });
+        for (const session of pomodoroSessions) {
+          if (session.note) {
+            results.push({
+              id: session.id,
+              type: 'note',
+              title: session.task
+                ? `Pomodoro Note: ${session.task.title}`
+                : `Pomodoro Session #${session.id}`,
+              excerpt: createExcerpt(session.note, searchQuery),
+              relevance:
+                calculateRelevance(session.note, null, searchQuery, {
+                  updatedAt: session.updatedAt,
+                }) * 0.5,
+              metadata: {
+                sessionType: 'pomodoro',
+                taskId: session.taskId,
+                taskTitle: session.task?.title,
+                startedAt: session.startedAt,
+                completedAt: session.completedAt,
+              },
+              createdAt: session.createdAt,
+              updatedAt: session.updatedAt,
+            });
+          }
+        }
+      } catch (err) {
+        if (isTableMissingError(err)) {
+          // NOTE: PomodoroSession table absent (P2021) — server restart will self-heal via desktop-sqlite.ts.
+          log.warn({ err }, 'PomodoroSession table not found (P2021) — skipping note results from pomodoro sessions');
+        } else {
+          throw err;
         }
       }
 
@@ -192,35 +213,44 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         ],
       };
 
-      const timeEntries = await prisma.timeEntry.findMany({
-        where: timeEntryWhere,
-        include: { task: { select: { id: true, title: true } } },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      });
+      try {
+        const timeEntries = await prisma.timeEntry.findMany({
+          where: timeEntryWhere,
+          include: { task: { select: { id: true, title: true } } },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
+        });
 
-      for (const entry of timeEntries) {
-        if (entry.note) {
-          results.push({
-            id: entry.id,
-            type: 'note',
-            title: entry.task ? `Time Entry Note: ${entry.task.title}` : `Time Entry #${entry.id}`,
-            excerpt: createExcerpt(entry.note, searchQuery),
-            relevance:
-              calculateRelevance(entry.note, null, searchQuery, {
-                updatedAt: entry.updatedAt,
-              }) * 0.5,
-            metadata: {
-              sessionType: 'time_entry',
-              taskId: entry.taskId,
-              taskTitle: entry.task?.title,
-              startedAt: entry.startedAt,
-              endedAt: entry.endedAt,
-              duration: entry.duration,
-            },
-            createdAt: entry.createdAt,
-            updatedAt: entry.updatedAt,
-          });
+        for (const entry of timeEntries) {
+          if (entry.note) {
+            results.push({
+              id: entry.id,
+              type: 'note',
+              title: entry.task ? `Time Entry Note: ${entry.task.title}` : `Time Entry #${entry.id}`,
+              excerpt: createExcerpt(entry.note, searchQuery),
+              relevance:
+                calculateRelevance(entry.note, null, searchQuery, {
+                  updatedAt: entry.updatedAt,
+                }) * 0.5,
+              metadata: {
+                sessionType: 'time_entry',
+                taskId: entry.taskId,
+                taskTitle: entry.task?.title,
+                startedAt: entry.startedAt,
+                endedAt: entry.endedAt,
+                duration: entry.duration,
+              },
+              createdAt: entry.createdAt,
+              updatedAt: entry.updatedAt,
+            });
+          }
+        }
+      } catch (err) {
+        if (isTableMissingError(err)) {
+          // NOTE: TimeEntry table absent (P2021) — server restart will self-heal via desktop-sqlite.ts.
+          log.warn({ err }, 'TimeEntry table not found (P2021) — skipping note results from time entries');
+        } else {
+          throw err;
         }
       }
     }
