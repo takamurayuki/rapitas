@@ -156,8 +156,9 @@ export function processJsonEvent(
     case 'result':
       if (json.result) {
         const duration = json.duration_ms ? ` (${(json.duration_ms / 1000).toFixed(1)}s)` : '';
-        const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : '';
-        displayOutput += `\n[Result: ${json.subtype || 'completed'}${duration}${cost}]\n`;
+        // NOTE: per-run cost intentionally omitted from the log line — actual
+        // usage/cost is surfaced separately, not inline as "$0.xxxx".
+        displayOutput += `\n[Result: ${json.subtype || 'completed'}${duration}]\n`;
         if (typeof json.result === 'string') {
           displayOutput += json.result + '\n';
         }
