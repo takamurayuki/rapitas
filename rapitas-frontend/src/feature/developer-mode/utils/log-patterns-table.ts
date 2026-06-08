@@ -212,8 +212,9 @@ export const LOG_PATTERNS: LogPatternRule[] = [
     transform: (_l, m) => {
       const isOk = m[1] === 'completed' || m[1] === 'success';
       const parts = ['実行完了'];
-      if (m[2]) parts.push(m[2]);
-      if (m[3]) parts.push(m[3]);
+      if (m[2]) parts.push(m[2]); // duration only
+      // m[3] is the per-run cost ($0.xxxx) — intentionally NOT shown in the log;
+      // actual usage/cost is surfaced separately.
       return {
         category: isOk ? 'success' : 'error',
         message: parts.join(' - '),
