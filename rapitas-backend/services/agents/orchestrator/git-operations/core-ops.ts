@@ -188,6 +188,31 @@ export async function createCommit(
       }
     });
 
+  // Nothing staged means the implementer phase already committed its work in
+  // this worktree. Running `git commit` here would exit non-zero ("nothing to
+  // commit, working tree clean"), throw, and make the caller mark auto-commit
+  // FAILED — which skips PR creation entirely (it's gated on auto-commit
+  // success). That stranded branches full of real, already-committed changes
+  // with no PR. Treat the empty case as a no-op SUCCESS on the current HEAD so
+  // the caller still opens a PR from the commits already on the branch.
+  if (filesChanged === 0) {
+    const { stdout: existingHash } = await execAsync('git rev-parse HEAD', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    const { stdout: existingBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    return {
+      hash: existingHash.trim(),
+      branch: existingBranch.trim(),
+      filesChanged: 0,
+      additions: 0,
+      deletions: 0,
+    };
+  }
+
   const fullMessage = `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
   await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {
     cwd: workingDirectory,
