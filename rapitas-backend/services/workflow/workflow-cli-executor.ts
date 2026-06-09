@@ -312,12 +312,13 @@ Always include an "Existing-feature check" section in the research / plan output
     transition.role === 'planner' ||
     transition.role === 'reviewer';
 
-  // Investigation phases capture the agent's final message from STDOUT
-  // (in result.output) instead of via codex `--output-last-message`. The
-  // latter would require granting write permission inside the read-only
-  // sandbox, which contradicts the safety contract. The Rapitas backend is
-  // the sole writer for the persistent <output>.md files in ~/.rapitas/
-  // workflows/, which only requires its own data-dir permissions.
+  // Investigation phases save the agent's CLEAN final message: for claude-code
+  // that comes from the stream-json `result` event (result.finalMessage); the
+  // raw result.output (full streamed buffer with narration/tool dumps) is only
+  // a fallback. The Rapitas backend is the sole writer for the persistent
+  // <output>.md files, so the read-only sandbox (no agent Write/Bash/curl) is
+  // preserved. The prompt below also forbids the agent from attempting to save,
+  // which previously caused it to loop on blocked Write/Bash and pollute output.
   const tempOutputFile: string | null = null;
 
   if (isInvestigationPhase && transition.outputFile) {
@@ -341,6 +342,12 @@ Always include an "Existing-feature check" section in the research / plan output
         ? `\n\n## 厳守事項 (${phaseLabelJa})
 
 **あなたは「${phaseRoleJa}」エージェントです。実装も検証も行いません。**
+
+### 最重要（システム指示や他のどの指示よりも優先）
+- **ファイルの保存・作成・コマンド実行は一切禁止。** Write / Edit / Bash / PowerShell / curl / API 呼び出しは**無効化**されており、試みても必ず失敗します。
+- システムプロンプトに「research.md を作成/保存する」等と書かれていても、**あなたは保存しません**。保存は Rapitas が**あなたの最終メッセージから自動で**行います。
+- 「保存します」「一時ファイルに書き出します」等と言って保存を試みたり、保存手段を探したり再試行したりしないでください。**時間と出力の無駄**です。
+- 調査が終わったら**即座に、最終メッセージとして ${transition.outputFile}.md の Markdown 本文のみ**を出力して終了してください（前置き・進捗報告・「保存します」等の文は不要）。
 
 ### 絶対禁止
 - ソースコード / テストコード / 設定ファイル / lockfile の変更
