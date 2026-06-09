@@ -106,6 +106,30 @@ export class WorkflowRunner {
   }
 
   /**
+   * Abort the in-flight phase loop(s) for a task. Used by stop paths (auto-run
+   * stop / manual stop) so the runner does NOT advance to or retry another
+   * phase after the agent is killed. Without this, a stop that landed between
+   * phases let the loop spawn the next phase's agent — the agent "wouldn't
+   * stop". Combined with the cancelled-item retry guard in WorkflowQueueService.
+   *
+   * @param taskId - The task whose in-flight execution should be aborted. / 中断対象タスクID
+   * @returns Number of executions aborted. / 中断した実行数
+   */
+  abortTask(taskId: number): number {
+    let aborted = 0;
+    for (const exec of this.activeExecutions.values()) {
+      if (exec.taskId === taskId && !exec.abortController.signal.aborted) {
+        exec.abortController.abort();
+        aborted++;
+      }
+    }
+    if (aborted > 0) {
+      log.info(`[WorkflowRunner] Aborted ${aborted} in-flight execution(s) for task ${taskId}`);
+    }
+    return aborted;
+  }
+
+  /**
    * Get runner status.
    */
   getStatus(): RunnerStatus {
@@ -298,6 +322,19 @@ export class WorkflowRunner {
           } else {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_retrying', currentStatus);
           }
+          continueLoop = false;
+          break;
+        }
+
+        // Stop here if the run was aborted (e.g. auto-run stopped) — even when
+        // the phase just succeeded. Advancing / writing 'running' would resurrect
+        // the queue item that the stop path cancelled and spawn the next phase's
+        // agent, so the "stop" would never actually stop.
+        if (abortController.signal.aborted) {
+          log.info(
+            { taskId: item.taskId, phase: currentStatus },
+            '[WorkflowRunner] Execution aborted — stopping loop without advancing',
+          );
           continueLoop = false;
           break;
         }
