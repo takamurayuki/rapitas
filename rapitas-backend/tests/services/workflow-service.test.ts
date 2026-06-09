@@ -67,6 +67,8 @@ mock.module('../../services/agents/agent-orchestrator', () => ({
 }));
 
 const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+const { acquireTaskExecutionLock, releaseTaskExecutionLock } =
+  await import('../../services/agents/task-execution-lock');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -105,6 +107,30 @@ describe('WorkflowOrchestrator', () => {
       const result = await orchestrator.advanceWorkflow(999);
       expect(result.success).toBe(false);
       expect(result.error).toContain('タスクが見つかりません');
+    });
+
+    test('既にフェーズ実行中(ロック保持)なら skipped を返しエージェントを起動しない', async () => {
+      mockPrisma.task.findUnique.mockResolvedValue({
+        id: 7777,
+        title: 'Locked Task',
+        description: 'desc',
+        workflowStatus: 'research_done',
+        workflowMode: 'comprehensive',
+        theme: null,
+        themeId: null,
+      });
+
+      // Simulate another trigger already running a phase for this task.
+      acquireTaskExecutionLock(7777);
+      try {
+        const result = await orchestrator.advanceWorkflow(7777);
+        expect(result.skipped).toBe(true);
+        expect(result.success).toBe(true);
+        // No agent session is created on the skip path.
+        expect(mockPrisma.agentSession.create).not.toHaveBeenCalled();
+      } finally {
+        releaseTaskExecutionLock(7777);
+      }
     });
 
     test('ロール設定がない場合エラーを返すこと', async () => {

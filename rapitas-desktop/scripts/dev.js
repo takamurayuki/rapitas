@@ -18,7 +18,7 @@
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  */
-const { spawn, execSync } = require("child_process");
+const { spawn, execSync, execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
@@ -467,25 +467,32 @@ async function ensurePortAvailable(port) {
     console.log(
       `  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(", ")}`,
     );
-    console.log(`  → Attempting one final kill with elevated wmic...`);
+    console.log(`  → Attempting one final kill with PowerShell Stop-Process...`);
 
-    // 最終手段: wmic process delete を試行
+    // 最終手段: PowerShell の Stop-Process を試行。taskkill とは別 API なので、
+    // taskkill で落とせなかったプロセスを倒せることがある。
     for (const pid of remainingPids) {
       try {
-        execSync(`wmic process where ProcessId=${pid} delete`, {
-          stdio: "pipe",
-          timeout: 5000,
-        });
-        console.log(`  Killed PID ${pid} via wmic.`);
+        execFileSync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            `Stop-Process -Id ${pid} -Force -ErrorAction Stop`,
+          ],
+          { stdio: "pipe", timeout: 5000 },
+        );
+        console.log(`  Killed PID ${pid} via Stop-Process.`);
       } catch {
-        console.log(`  wmic kill failed for PID ${pid}.`);
+        console.log(`  Stop-Process kill failed for PID ${pid}.`);
       }
     }
 
     sleepSync(2000);
 
     if (!isPortListening(port)) {
-      console.log(`  Port ${port} is now available (after wmic kill).`);
+      console.log(`  Port ${port} is now available (after Stop-Process kill).`);
       return port;
     }
 
@@ -499,6 +506,39 @@ async function ensurePortAvailable(port) {
 }
 
 // ─── プロセス管理ユーティリティ ───
+
+/**
+ * Win32_Process を PowerShell の Get-CimInstance で列挙する (Windows 専用)。
+ *
+ * NOTE: かつて使っていた `wmic` は Windows 11 (24H2 以降) で既定では同梱されず、
+ * "Command failed" で落ちる。CIM コマンドはその公式後継で PowerShell 5.1+ 標準。
+ *
+ * @param {string} filter WQL の WHERE 句 (例: "Name='bun.exe'", "ParentProcessId=123")
+ * @returns {Array<{ProcessId:number, CommandLine:string|null, ExecutablePath:string|null}>}
+ */
+function queryWin32Processes(filter) {
+  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
+  let out = "";
+  try {
+    out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+  } catch {
+    return [];
+  }
+  const trimmed = (out || "").trim();
+  if (!trimmed) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  // ConvertTo-Json は要素 1 件だと配列ではなくオブジェクトを返す。
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
 
 /**
  * プロセスツリーごとクリーンに終了させる (Windows: taskkill /T)
@@ -520,27 +560,15 @@ function killProcessTree(childProcess) {
     } catch {}
   }
 
-  // Step 2: wmic で子プロセスを列挙し、残っていれば個別にkill
+  // Step 2: 子プロセスを列挙し、残っていれば個別にkill
   // shell: true の場合、cmd.exe の子として実際のbun/nodeプロセスが起動される
-  try {
-    const wmicResult = execSync(
-      `wmic process where (ParentProcessId=${pid}) get ProcessId /format:list`,
-      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-    );
-    for (const line of wmicResult.split("\n")) {
-      const match = line.match(/ProcessId=(\d+)/);
-      if (match) {
-        const childPid = parseInt(match[1]);
-        try {
-          execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
-          console.log(
-            `  Killed child process PID ${childPid} (parent: ${pid})`,
-          );
-        } catch {}
-      }
-    }
-  } catch {
-    // wmic が使えない環境では無視
+  for (const proc of queryWin32Processes(`ParentProcessId=${pid}`)) {
+    const childPid = Number(proc.ProcessId);
+    if (!Number.isInteger(childPid)) continue;
+    try {
+      execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
+      console.log(`  Killed child process PID ${childPid} (parent: ${pid})`);
+    } catch {}
   }
 }
 
@@ -640,7 +668,7 @@ const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
  *
  * 安全策:
  *   - 全 bun を無差別に kill しない。**rapitas-* ディレクトリ配下のものだけ** に絞る。
- *   - Windows: wmic で CommandLine + ExecutablePath を取得し "rapitas" を含むものだけ kill。
+ *   - Windows: Get-CimInstance (Win32_Process) で CommandLine + ExecutablePath を取得し "rapitas" を含むものだけ kill。
  *   - macOS/Linux: ps -eo pid,args | grep -i rapitas で同等処理。
  *   - kill 後に 500ms 待機して OS のファイルハンドル解放を確実にする。
  *
@@ -665,44 +693,29 @@ function killStrayBunProcesses() {
 }
 
 function killStrayBunWindows() {
-  try {
-    // wmic は CSV で 1 プロセス 1 行（先頭/末尾に空行混入することがある）
-    const csv = execSync(
-      'wmic process where "name=\'bun.exe\'" get ProcessId,CommandLine,ExecutablePath /format:csv',
-      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
-    );
-    const lines = csv
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l && !l.startsWith("Node,"));
-    let killed = 0;
-    for (const line of lines) {
-      // CSV 形式: Node,CommandLine,ExecutablePath,ProcessId
-      const cols = line.split(",");
-      if (cols.length < 4) continue;
-      const pid = cols[cols.length - 1];
-      if (!/^\d+$/.test(pid)) continue;
-      const inspectable = cols.slice(1, -1).join(",");
-      // rapitas-backend / rapitas-desktop / rapitas-frontend いずれかを含むもののみ対象
-      if (!/rapitas[-_/\\]/i.test(inspectable)) continue;
-      try {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
-        console.log(`  Killed bun PID ${pid} (rapitas-related)`);
-        killed++;
-      } catch (err) {
-        // 既に死んでいるケース等は無視
-        const msg = err.stderr ? err.stderr.toString() : err.message || "";
-        if (!/not found|見つかりません/i.test(msg)) {
-          console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
-        }
+  const procs = queryWin32Processes("Name='bun.exe'");
+  let killed = 0;
+  for (const proc of procs) {
+    const pid = Number(proc.ProcessId);
+    if (!Number.isInteger(pid)) continue;
+    // rapitas-backend / rapitas-desktop / rapitas-frontend いずれかを含むもののみ対象。
+    // CommandLine が取れない場合は ExecutablePath で代替判定する。
+    const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    if (!/rapitas[-_/\\]/i.test(inspectable)) continue;
+    try {
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      console.log(`  Killed bun PID ${pid} (rapitas-related)`);
+      killed++;
+    } catch (err) {
+      // 既に死んでいるケース等は無視
+      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      if (!/not found|見つかりません/i.test(msg)) {
+        console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
       }
     }
-    if (killed === 0) console.log("  No stray bun processes found.");
-    return killed;
-  } catch (err) {
-    console.warn(`  Could not enumerate bun processes: ${err.message}`);
-    return 0;
   }
+  if (killed === 0) console.log("  No stray bun processes found.");
+  return killed;
 }
 
 function killStrayBunPosix() {

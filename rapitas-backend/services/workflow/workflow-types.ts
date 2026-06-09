@@ -54,4 +54,11 @@ export interface WorkflowAdvanceResult {
   output?: string;
   error?: string;
   executionId?: number;
+  /**
+   * True when advanceWorkflow returned WITHOUT spawning an agent because
+   * another phase was already executing for this task (the per-task mutex was
+   * held). Callers must treat this as "still busy, retry later" — NOT a failure.
+   * / 別フェーズ実行中のためエージェントを起動せず戻った場合に true。
+   */
+  skipped?: boolean;
 }

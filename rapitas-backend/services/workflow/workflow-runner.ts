@@ -81,9 +81,16 @@ export class WorkflowRunner {
       this.pollTimer = null;
     }
 
-    // Cancel active executions
+    // Cancel active executions. Aborting the controller only stops the loop
+    // from starting the NEXT phase — the agent process spawned for the CURRENT
+    // phase keeps running until killed. stopTaskAgents kills every in-flight
+    // agent for the task so shutdown actually halts work in progress.
+    const { stopTaskAgents } = await import('../agents/stop-task-agents');
     for (const [itemId, exec] of this.activeExecutions) {
       exec.abortController.abort();
+      await stopTaskAgents(exec.taskId, { errorMessage: 'Runner shutdown' }).catch((e) => {
+        log.warn({ err: e, taskId: exec.taskId }, '[WorkflowRunner] Failed to stop agents');
+      });
       try {
         await this.queue.updateStatus(itemId, 'queued', {
           errorMessage: 'Runner shutdown - returned to queue',
@@ -260,6 +267,21 @@ export class WorkflowRunner {
         });
 
         const result = await Promise.race([executionPromise, timeoutPromise]);
+
+        // Another trigger already holds the task's execution lock and is
+        // running this phase (the per-task mutex collapsed a duplicate). Do NOT
+        // fail the item — return it to the queue so the next poll re-checks
+        // once the in-flight phase has advanced the workflowStatus.
+        if (result.skipped) {
+          log.info(
+            { taskId: item.taskId, phase: currentStatus },
+            '[WorkflowRunner] Phase already running elsewhere — re-queuing item',
+          );
+          await this.queue.updateStatus(item.id, 'queued', { currentPhase: currentStatus });
+          this.broadcastItemUpdate(item.id, item.taskId, 'execution_requeued', currentStatus);
+          continueLoop = false;
+          break;
+        }
 
         if (!result.success) {
           // Surface WHY the phase failed. This used to be swallowed — only the

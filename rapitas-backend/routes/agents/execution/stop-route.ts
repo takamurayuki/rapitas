@@ -1,15 +1,16 @@
 /**
  * execution/stop-route
  *
- * POST /tasks/:id/stop-execution — halts the running agent, cancels pending
- * executions, reverts uncommitted git changes, and releases the execution lock.
+ * POST /tasks/:id/stop-execution — halts ALL running agents for the task,
+ * cancels pending executions/queue items, reverts uncommitted git changes,
+ * cleans up worktrees, and releases the execution lock.
  */
 
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { orchestrator } from '../../../services/core/orchestrator-instance';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
+import { stopTaskAgents } from '../../../services/agents/stop-task-agents';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
 
@@ -29,6 +30,8 @@ export const stopRoute = new Elysia().post(
       });
       const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
 
+      // Cancel any pending/queued workflow items so the runner won't re-pick the
+      // task right after we stop it.
       await prisma.workflowQueueItem
         .updateMany({
           where: {
@@ -45,215 +48,62 @@ export const stopRoute = new Elysia().post(
           log.warn({ err, taskId }, '[stop-execution] Failed to cancel workflow queue items');
         });
 
-      const config = await prisma.developerModeConfig.findUnique({
-        where: { taskId },
-        include: {
-          agentSessions: {
-            where: {
-              status: { in: ['active', 'running', 'pending'] },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-        },
-      });
+      // Collect the worktree-bearing sessions BEFORE stopping, so we can clean
+      // them up after the agents are killed.
+      const sessionsToClean = await prisma.agentSession
+        .findMany({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          select: { id: true, worktreePath: true },
+        })
+        .catch(() => [] as { id: number; worktreePath: string | null }[]);
 
-      if (!config || config.agentSessions.length === 0) {
-        const runningExecution = await prisma.agentExecution.findFirst({
-          where: {
-            session: {
-              config: {
-                taskId,
-              },
-            },
-            status: { in: ['running', 'pending', 'waiting_for_input'] },
-          },
-          orderBy: { createdAt: 'desc' },
+      // Kill EVERY in-flight agent for the task (not just the first found) and
+      // release the execution lock. This is the single source of truth shared
+      // with the auto-run scheduler and the workflow runner.
+      const { stoppedCount } = await stopTaskAgents(taskId, { errorMessage: 'Cancelled by user' });
+
+      // Mark the task's active sessions cancelled so the FE doesn't show them
+      // as live after the agents are gone.
+      await prisma.agentSession
+        .updateMany({
+          where: { config: { taskId }, status: { in: ['active', 'running', 'pending'] } },
+          data: { status: 'cancelled', completedAt: new Date(), errorMessage: 'Cancelled by user' },
+        })
+        .catch((err) => {
+          log.warn({ err, taskId }, '[stop-execution] Failed to cancel agent sessions');
         });
 
-        if (runningExecution) {
-          // Get session info for potential worktree cleanup
-          const executionSession = await prisma.agentExecution.findUnique({
-            where: { id: runningExecution.id },
-            include: { session: { select: { id: true, worktreePath: true } } },
-          });
-
-          // The agent runs INSIDE the worker process — only the worker holds the
-          // spawned CLI handle and can taskkill it. The main-process orchestrator
-          // has no record of a worker-run execution, so route the stop through the
-          // worker first (this previously hit only the main orchestrator, leaving
-          // the CLI running while the DB was marked cancelled).
-          const workerStopped = await agentWorkerManager
-            .stopExecution(runningExecution.id)
-            .catch(() => false);
-          const stopped =
-            workerStopped ||
-            (await orchestrator.stopExecution(runningExecution.id).catch(() => false));
-
-          try {
-            await prisma.agentExecutionLog.deleteMany({
-              where: { executionId: runningExecution.id },
-            });
-            log.info(
-              `[stop-execution] Deleted execution logs for execution ${runningExecution.id}`,
-            );
-          } catch (deleteError) {
-            log.error(
-              { err: deleteError },
-              `[stop-execution] Failed to delete execution logs for execution ${runningExecution.id}`,
-            );
-          }
-
-          if (!stopped) {
-            try {
-              await prisma.agentExecution.update({
-                where: { id: runningExecution.id },
-                data: {
-                  status: 'cancelled',
-                  completedAt: new Date(),
-                  errorMessage: 'Cancelled by user',
-                },
-              });
-              log.info(
-                `[stop-execution] Updated DB status for execution ${runningExecution.id} (not found in orchestrator)`,
-              );
-            } catch (updateError) {
-              log.error(
-                { err: updateError },
-                `[stop-execution] Failed to update execution ${runningExecution.id} status`,
-              );
-            }
-          }
-
-          if (workingDirectory) {
-            try {
-              await agentWorkerManager.revertChanges(workingDirectory);
-              log.info(`[stop-execution] Reverted changes in ${workingDirectory}`);
-            } catch (revertError) {
-              log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
-            }
-          }
-
-          // NOTE: Reset task status to 'todo' so it doesn't stay in a limbo state
-          try {
-            await prisma.task.update({ where: { id: taskId }, data: { status: 'todo' } });
-            log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
-          } catch (taskErr) {
-            log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
-          }
-
-          // Clean up worktree if session has one
-          if (executionSession?.session?.worktreePath && workingDirectory) {
-            try {
-              await removeWorktree(workingDirectory, executionSession.session.worktreePath);
-              await prisma.agentSession.update({
-                where: { id: executionSession.session.id },
-                data: { worktreePath: null },
-              });
-              log.info(
-                `[stop-execution] Cleaned up worktree: ${executionSession.session.worktreePath}`,
-              );
-            } catch (worktreeError) {
-              log.error(
-                { err: worktreeError },
-                `[stop-execution] Failed to clean up worktree: ${executionSession.session.worktreePath}`,
-              );
-            }
-          }
-
-          releaseTaskExecutionLock(taskId);
-          return {
-            success: true,
-            message: 'Execution cancelled and changes reverted',
-          };
-        }
-
-        return { success: false, message: 'No running execution found' };
-      }
-
-      const session = config.agentSessions[0];
-
-      const executions = await agentWorkerManager.getSessionExecutionsAsync(session.id);
-      for (const execution of executions) {
-        await agentWorkerManager.stopExecution(execution.executionId);
-      }
-
-      const pendingExecutions = await prisma.agentExecution.findMany({
-        where: {
-          sessionId: session.id,
-          status: { in: ['running', 'pending', 'waiting_for_input'] },
-        },
-      });
-
-      for (const execution of pendingExecutions) {
-        try {
-          // Worker first — it owns the spawned CLI process; the main orchestrator
-          // cannot kill a worker-run execution.
-          await agentWorkerManager.stopExecution(execution.id).catch(() => false);
-          await orchestrator.stopExecution(execution.id).catch(() => false);
-          await prisma.agentExecutionLog.deleteMany({
-            where: { executionId: execution.id },
-          });
-
-          await prisma.agentExecution.update({
-            where: { id: execution.id },
-            data: {
-              status: 'cancelled',
-              completedAt: new Date(),
-              errorMessage: 'Cancelled by user',
-            },
-          });
-        } catch (executionUpdateError) {
-          log.error(
-            { err: executionUpdateError },
-            `[stop-execution] Failed to update execution ${execution.id}`,
-          );
-        }
-      }
-
-      try {
-        await prisma.agentSession.update({
-          where: { id: session.id },
-          data: {
-            status: 'cancelled',
-            completedAt: new Date(),
-            errorMessage: 'Cancelled by user',
-          },
-        });
-      } catch (sessionUpdateError) {
-        log.error(
-          { err: sessionUpdateError },
-          `[stop-execution] Failed to update session ${session.id} status`,
-        );
-      }
-
-      // Clean up worktree if session has one
-      if (session.worktreePath && workingDirectory) {
-        try {
-          await removeWorktree(workingDirectory, session.worktreePath);
-          await prisma.agentSession.update({
-            where: { id: session.id },
-            data: { worktreePath: null },
-          });
-          log.info(`[stop-execution] Cleaned up worktree: ${session.worktreePath}`);
-        } catch (worktreeError) {
-          log.error(
-            { err: worktreeError },
-            `[stop-execution] Failed to clean up worktree: ${session.worktreePath}`,
-          );
-        }
-      }
-
+      // Revert uncommitted changes in the task's working directory.
       if (workingDirectory) {
         try {
           await agentWorkerManager.revertChanges(workingDirectory);
           log.info(`[stop-execution] Reverted changes in ${workingDirectory}`);
         } catch (revertError) {
-          log.error({ err: revertError }, `[stop-execution] Failed to revert changes`);
+          log.error({ err: revertError }, '[stop-execution] Failed to revert changes');
         }
       }
 
-      // NOTE: Reset task status to 'todo' so it doesn't stay in 'in-progress' or 'waiting' state
+      // Clean up any worktrees the sessions created.
+      if (workingDirectory) {
+        for (const session of sessionsToClean) {
+          if (!session.worktreePath) continue;
+          try {
+            await removeWorktree(workingDirectory, session.worktreePath);
+            await prisma.agentSession.update({
+              where: { id: session.id },
+              data: { worktreePath: null },
+            });
+            log.info(`[stop-execution] Cleaned up worktree: ${session.worktreePath}`);
+          } catch (worktreeError) {
+            log.error(
+              { err: worktreeError },
+              `[stop-execution] Failed to clean up worktree: ${session.worktreePath}`,
+            );
+          }
+        }
+      }
+
+      // NOTE: Reset task status to 'todo' so it doesn't stay in a limbo state.
       try {
         await prisma.task.update({ where: { id: taskId }, data: { status: 'todo' } });
         log.info(`[stop-execution] Reset task ${taskId} status to 'todo'`);
@@ -261,12 +111,22 @@ export const stopRoute = new Elysia().post(
         log.error({ err: taskErr }, `[stop-execution] Failed to reset task ${taskId} status`);
       }
 
+      // stopTaskAgents already releases the lock, but call again defensively in
+      // case no execution row existed yet a lock was somehow held.
       releaseTaskExecutionLock(taskId);
+
+      if (stoppedCount === 0) {
+        return {
+          success: true,
+          stoppedCount,
+          message: 'No running execution found; cleaned up queue items and worktrees',
+        };
+      }
 
       return {
         success: true,
-        sessionId: session.id,
-        message: 'Execution stopped and changes reverted',
+        stoppedCount,
+        message: 'Execution(s) stopped and changes reverted',
       };
     } catch (error) {
       log.error({ err: error }, '[stop-execution] Database error');

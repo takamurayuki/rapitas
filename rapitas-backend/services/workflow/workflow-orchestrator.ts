@@ -15,6 +15,11 @@ import {
   type RoleTransition,
   type WorkflowAdvanceResult,
 } from './workflow-agent-executor';
+import {
+  acquireTaskExecutionLock,
+  releaseTaskExecutionLock,
+  WORKFLOW_LOCK_TTL_MS,
+} from '../agents/task-execution-lock';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -79,11 +84,56 @@ export class WorkflowOrchestrator {
   /**
    * Execute the next phase of the workflow.
    *
+   * Acquires the process-wide per-task execution mutex BEFORE doing any work,
+   * guaranteeing at most one agent runs per task at a time. The many triggers
+   * that call this (queue runner, post-phase auto-advance setTimeouts, HTTP
+   * approve/advance handlers, plan auto-approve) would otherwise spawn
+   * duplicate agents for the same task. When the lock is already held, this
+   * returns `skipped: true` WITHOUT spawning — the holder will advance the
+   * workflow, so the duplicate trigger is a safe no-op.
+   *
    * @param taskId - The task whose workflow should advance. / ワークフローを進めるタスクID
    * @param language - Language for generated content. / 生成コンテンツの言語
    * @returns Result of the phase execution. / フェーズ実行の結果
    */
   async advanceWorkflow(
+    taskId: number,
+    language: 'ja' | 'en' = 'ja',
+  ): Promise<WorkflowAdvanceResult> {
+    // WORKFLOW_LOCK_TTL_MS (15min) intentionally exceeds the WorkflowRunner's
+    // 10-min per-phase timeout so a long phase cannot have its lock stolen.
+    if (!acquireTaskExecutionLock(taskId, WORKFLOW_LOCK_TTL_MS)) {
+      const current = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+        .catch(() => null);
+      log.info(
+        `[WorkflowOrchestrator] Task ${taskId} already has a phase running — skipping duplicate advance`,
+      );
+      return {
+        success: true,
+        skipped: true,
+        role: 'researcher',
+        status: ((current?.workflowStatus as WorkflowStatus) || 'draft') as WorkflowStatus,
+        output: 'skipped: another phase is already executing for this task',
+      };
+    }
+
+    try {
+      return await this.runAdvanceWorkflow(taskId, language);
+    } finally {
+      releaseTaskExecutionLock(taskId);
+    }
+  }
+
+  /**
+   * Inner implementation of {@link advanceWorkflow}. MUST only be called while
+   * the task execution lock is held (advanceWorkflow guarantees this).
+   *
+   * @param taskId - The task whose workflow should advance. / ワークフローを進めるタスクID
+   * @param language - Language for generated content. / 生成コンテンツの言語
+   * @returns Result of the phase execution. / フェーズ実行の結果
+   */
+  private async runAdvanceWorkflow(
     taskId: number,
     language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {

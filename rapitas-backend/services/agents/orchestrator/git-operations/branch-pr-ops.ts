@@ -180,6 +180,25 @@ export async function mergePullRequest(
  */
 export async function revertChanges(workingDirectory: string): Promise<boolean> {
   try {
+    // SAFETY GATE: `git checkout -- .` + `git clean -fd` are DESTRUCTIVE — they
+    // discard ALL uncommitted changes and delete ALL untracked files in the
+    // target. That is only acceptable inside a DEDICATED agent worktree. If this
+    // ever runs on the PRIMARY working tree (e.g. rapitas self-development where
+    // the theme's workingDirectory is the main checkout), it wipes the
+    // developer's own in-progress work. This actually happened: a stop reverted
+    // the main checkout and destroyed a whole session of uncommitted edits.
+    //
+    // A linked worktree has git-dir (`.git/worktrees/<name>`) != git-common-dir
+    // (the shared `.git`); the PRIMARY worktree has them equal. Refuse to revert
+    // the primary worktree.
+    if (await isPrimaryWorkTree(workingDirectory)) {
+      logger.warn(
+        { workingDirectory },
+        '[revertChanges] Refusing to hard-revert the PRIMARY working tree — this would destroy uncommitted developer work. Agent changes (if any) are left in place; isolate agent runs in a worktree instead.',
+      );
+      return false;
+    }
+
     await execAsync('git reset HEAD', { cwd: workingDirectory });
     await execAsync('git checkout -- .', { cwd: workingDirectory });
     // NOTE: Use -fd (not -fdx) and explicitly exclude .worktrees/ to prevent deleting active worktrees.
@@ -189,5 +208,37 @@ export async function revertChanges(workingDirectory: string): Promise<boolean> 
   } catch (error) {
     logger.error({ err: error }, 'Failed to revert changes');
     return false;
+  }
+}
+
+/**
+ * Determine whether a directory is the PRIMARY git working tree (as opposed to
+ * a linked `git worktree`). Returns true on the primary tree, where destructive
+ * reverts would clobber the developer's own work.
+ *
+ * @param workingDirectory - Directory to test / 判定対象ディレクトリ
+ * @returns true if primary worktree (or detection failed → treat as primary to be safe) / プライマリなら true（判定失敗時も安全側で true）
+ */
+async function isPrimaryWorkTree(workingDirectory: string): Promise<boolean> {
+  try {
+    const [gitDir, commonDir] = await Promise.all([
+      execAsync('git rev-parse --absolute-git-dir', { cwd: workingDirectory }),
+      execAsync('git rev-parse --git-common-dir', { cwd: workingDirectory }),
+    ]);
+    const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    let common = normalize(commonDir.stdout);
+    // --git-common-dir may be relative (e.g. ".git"); resolve against the dir.
+    if (!/^([a-zA-Z]:)?\//.test(common)) {
+      const root = await execAsync('git rev-parse --show-toplevel', { cwd: workingDirectory });
+      common = normalize(`${normalize(root.stdout)}/${common}`);
+    }
+    return normalize(gitDir.stdout) === common;
+  } catch (error) {
+    // If we cannot tell, assume PRIMARY and refuse — never risk the main tree.
+    logger.warn(
+      { err: error, workingDirectory },
+      '[revertChanges] Could not determine worktree type; treating as primary and skipping revert',
+    );
+    return true;
   }
 }

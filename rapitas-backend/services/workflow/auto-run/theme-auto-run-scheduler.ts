@@ -253,84 +253,94 @@ export class ThemeAutoRunScheduler {
         return;
       }
 
-      // Check the queue item status for the current task
+      // Active queue items (queued / running / waiting_approval) for this task.
       const queueItems = await getThemeActiveQueueItems(prisma, themeId);
       const currentItems = queueItems.filter((i) => i.taskId === currentTaskId);
 
-      if (currentItems.length === 0) {
-        // No active queue item — task may have completed or failed outside the scheduler
-        const task = await prisma.task.findUnique({
-          where: { id: currentTaskId },
-          select: { status: true, workflowStatus: true },
-        });
-        if (task?.status === 'done' || task?.workflowStatus === 'completed') {
-          await onTaskCompleted(themeId);
+      // While the task still has an ACTIVE item it is in flight: never move on.
+      // This is the core "one task fully completes before the next starts"
+      // guarantee — the only non-terminal exit here is the approval pause.
+      if (currentItems.length > 0) {
+        if (hasItemAwaitingApproval(currentItems)) {
+          await onAwaitingPlanApproval(themeId);
           this.broadcastAutoRunUpdate(themeId);
-          // Apply cooldown before picking next task
-          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-          // Recursively pick next (globalActive decremented by the just-completed item)
-          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-          return;
-        } else if (task?.status === 'failed' || task?.status === 'blocked') {
-          const errMsg = `Task ${currentTaskId} failed or blocked`;
-          await onTaskFailed(themeId, errMsg);
-          // Mark the task as blocked so it's skipped in future selection
-          if (task.status !== 'blocked') {
-            await prisma.task.update({
-              where: { id: currentTaskId },
-              data: { status: 'blocked' },
-            });
-          }
-          this.broadcastAutoRunUpdate(themeId);
-          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-          return;
         }
-        // Task is in some other state — it may be transitioning, wait next tick
+        // queued / running → still working; wait for the next tick.
         return;
       }
 
-      // Check queue item states
-      const isWaitingApproval = hasItemAwaitingApproval(currentItems);
-      if (isWaitingApproval) {
-        await onAwaitingPlanApproval(themeId);
-        this.broadcastAutoRunUpdate(themeId);
-        return;
-      }
-
-      // Check if the queue item completed or failed
-      const completedItem = await prisma.workflowQueueItem.findFirst({
+      // No active item. Decide the outcome from the most recent TERMINAL queue
+      // item FIRST, then fall back to task.status. Checking the terminal item
+      // unconditionally (not only when an active item exists) fixes the stall
+      // where a queue item failed after max retries but task.status was left
+      // 'in-progress' (WorkflowRunner only sets task.status for subtasks) — the
+      // theme used to hang here until the 45-min wall backstop.
+      const terminalItem = await prisma.workflowQueueItem.findFirst({
         where: {
           themeId,
           taskId: currentTaskId,
           status: { in: ['completed', 'failed', 'cancelled'] },
         },
         orderBy: { completedAt: 'desc' },
+        select: { id: true, status: true, errorMessage: true },
       });
 
-      if (completedItem) {
-        if (completedItem.status === 'completed') {
-          await onTaskCompleted(themeId);
-          this.broadcastAutoRunUpdate(themeId);
-          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-          return;
-        } else {
-          // failed or cancelled
-          const errMsg = completedItem.errorMessage ?? `Queue item ${completedItem.id} failed`;
-          // Mark task as blocked
+      const task = await prisma.task.findUnique({
+        where: { id: currentTaskId },
+        select: { status: true, workflowStatus: true },
+      });
+
+      const isCompleted =
+        terminalItem?.status === 'completed' ||
+        task?.status === 'done' ||
+        task?.workflowStatus === 'completed';
+      const isFailed =
+        terminalItem?.status === 'failed' ||
+        terminalItem?.status === 'cancelled' ||
+        task?.status === 'failed' ||
+        task?.status === 'blocked';
+
+      if (isCompleted) {
+        await onTaskCompleted(themeId);
+        this.broadcastAutoRunUpdate(themeId);
+        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
+        await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
+        return;
+      }
+
+      if (isFailed) {
+        const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
+        // Mark the task blocked so selection skips it next time.
+        if (task?.status !== 'blocked') {
           await prisma.task
             .update({ where: { id: currentTaskId }, data: { status: 'blocked' } })
             .catch(() => {});
-          await onTaskFailed(themeId, errMsg);
-          this.broadcastAutoRunUpdate(themeId);
-          await new Promise((r) => setTimeout(r, COOLDOWN_MS));
-          await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
-          return;
         }
+        await onTaskFailed(themeId, errMsg);
+        this.broadcastAutoRunUpdate(themeId);
+        await new Promise((r) => setTimeout(r, COOLDOWN_MS));
+        await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
+        return;
       }
 
-      // Task is still running — nothing to do this tick
+      // No active AND no terminal queue item, and the task is not terminal:
+      // the item vanished (e.g. cleared) while the task is still mid-workflow.
+      // Re-enqueue the SAME task so it resumes — never silently stall. The
+      // WorkflowRunner picks up from the task's current workflowStatus.
+      try {
+        await this.queue.enqueue({ taskId: currentTaskId, themeId, priority: 50 });
+        await setCurrentTask(themeId, currentTaskId);
+        this.broadcastAutoRunUpdate(themeId);
+        log.warn(
+          `[ThemeAutoRunScheduler] Task ${currentTaskId} had no queue item; re-enqueued to resume (theme ${themeId})`,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // 'already in the queue' means a race re-created it — fine, just wait.
+        if (!msg.includes('already in the queue')) {
+          log.error({ err }, `[ThemeAutoRunScheduler] Failed to re-enqueue task ${currentTaskId}`);
+        }
+      }
       return;
     }
 
@@ -401,7 +411,7 @@ export class ThemeAutoRunScheduler {
 
     if (!currentTaskId) return;
 
-    // Stop the agent execution if one is running
+    // Stop the agent execution(s) if any are running
     try {
       const task = await prisma.task.findUnique({
         where: { id: currentTaskId },
@@ -412,30 +422,16 @@ export class ThemeAutoRunScheduler {
       });
       const workDir = task?.workingDirectory ?? task?.theme?.workingDirectory;
 
-      // Find the active execution
-      const runningExecution = await prisma.agentExecution.findFirst({
-        where: {
-          session: { config: { taskId: currentTaskId } },
-          status: { in: ['running', 'pending', 'waiting_for_input'] },
+      // Kill ALL in-flight agents across the theme — the current task, its
+      // subtasks, and any other theme task with a live execution (not just the
+      // first found) — and release their locks. A split parent's subtask runs
+      // under a different taskId, so a current-task-only stop would orphan it.
+      const { stopThemeAgents } = await import('../../agents/stop-task-agents');
+      await stopThemeAgents(themeId, currentTaskId, { errorMessage: 'Auto-run stopped' }).catch(
+        (err) => {
+          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] stopThemeAgents failed');
         },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true },
-      });
-
-      if (runningExecution) {
-        await this.agentWorkerManager.stopExecution(runningExecution.id).catch(() => {});
-
-        await prisma.agentExecution
-          .update({
-            where: { id: runningExecution.id },
-            data: {
-              status: 'cancelled',
-              completedAt: new Date(),
-              errorMessage: 'Auto-run stopped',
-            },
-          })
-          .catch(() => {});
-      }
+      );
 
       // Revert any uncommitted changes
       if (workDir) {

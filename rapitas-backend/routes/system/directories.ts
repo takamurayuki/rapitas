@@ -16,11 +16,13 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
     try {
       if (!dirPath || dirPath.trim() === '') {
         if (process.platform === 'win32') {
-          const { execSync } = require('child_process');
           try {
-            const result = execSync('wmic logicaldisk get name', {
-              encoding: 'utf8',
-            });
+            // NOTE: `wmic` is no longer shipped by default on Windows 11 24H2+.
+            // Get-CimInstance is its official PowerShell replacement.
+            const result = execSync(
+              'powershell.exe -NoProfile -NonInteractive -Command "Get-CimInstance Win32_LogicalDisk | Select-Object -ExpandProperty DeviceID"',
+              { encoding: 'utf8' },
+            );
             const drives = result
               .split('\n')
               .filter((line: string) => /^[A-Z]:/.test(line.trim()))
@@ -36,7 +38,7 @@ export const directoriesRoutes = new Elysia({ prefix: '/directories' })
               })),
               isDriveList: true,
             };
-          } catch (e) {
+          } catch {
             return {
               path: '',
               parent: null,

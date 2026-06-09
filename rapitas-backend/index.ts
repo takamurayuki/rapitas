@@ -129,7 +129,12 @@ app.listen({
   port: PORT,
   hostname: '0.0.0.0', // IPv4 only - prevents IPv6 zombie socket interference
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
-  reusePort: true, // allows binding even with TIME_WAIT zombie sockets
+  // NOTE: reusePort is intentionally OFF. It previously let a fresh process bind
+  // a SECOND listen socket on top of one orphaned by a force-killed predecessor;
+  // Windows then split incoming connections between the live and the dead socket,
+  // and the requests routed to the dead one hung (HTTP 000). Without reusePort a
+  // dirty port fails fast at bind (EADDRINUSE), so dev.js can detect a true
+  // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
 log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
 
@@ -302,6 +307,25 @@ process.on('exit', () => {
   } catch {
     /* best-effort: nothing more we can do during exit */
   }
+});
+
+// An uncaught exception would otherwise terminate the process via Bun's default
+// handler, which skips the async drain window — closing the listener at the JS
+// layer but exiting before the Windows kernel finishes tearing the socket down,
+// leaving it orphaned as a zombie LISTEN on port 3001 (needs a reboot). Route it
+// through the SAME graceful shutdown (force-close connections + drain) so the
+// port is always released cleanly even on a crash.
+process.on('uncaughtException', (err) => {
+  log.error({ err }, 'Uncaught exception — shutting down gracefully to avoid zombie sockets');
+  handleProcessSignal('uncaughtException');
+});
+
+// NOTE: An unhandled rejection is NOT necessarily fatal and MUST NOT tear down
+// the live backend — doing so would sever in-flight agent work and the agent's
+// own self-connection (see CLAUDE.md). Log it for triage; a genuinely fatal
+// error surfaces as the uncaughtException handled above.
+process.on('unhandledRejection', (reason) => {
+  log.error({ err: reason }, 'Unhandled promise rejection (non-fatal; backend stays up)');
 });
 
 // Parent-liveness watchdog. Under `tauri dev` (and some Windows terminal-close
