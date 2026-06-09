@@ -887,6 +887,15 @@ const PRISMA_CLIENT_OUTPUT = path.join(
   "client",
   "index.js",
 );
+// The generated client's bundled schema — used to detect PROVIDER DRIFT
+// (a postgres client left behind by a web-dev launch / stray `prisma generate`).
+const PRISMA_CLIENT_SCHEMA = path.join(
+  BACKEND_DIR,
+  "node_modules",
+  ".prisma",
+  "client",
+  "schema.prisma",
+);
 
 /**
  * Hash every input that affects the generated SQLite Prisma client / init SQL.
@@ -942,6 +951,14 @@ function isPrismaPrepareCacheValid(currentHash) {
     }
     if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
     if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
+    // Guard against PROVIDER DRIFT: the schema hash only covers SOURCE files, so
+    // a web-dev launch or a stray `prisma generate` can leave a POSTGRES client
+    // in node_modules with the hash still matching. Booting that client against
+    // the desktop's sqlite `file:` URL throws PrismaClientInitializationError
+    // ("URL must start with postgresql://"). Only treat the cache as valid when
+    // the generated client is actually the sqlite one; otherwise force regen.
+    const clientSchema = fs.readFileSync(PRISMA_CLIENT_SCHEMA, "utf8");
+    if (!/provider\s*=\s*"sqlite"/.test(clientSchema)) return false;
   } catch {
     return false;
   }
