@@ -18,6 +18,7 @@
 import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
 import { WorkflowQueueService } from '../workflow-queue';
+import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
 import {
@@ -59,6 +60,14 @@ export class ThemeAutoRunScheduler {
 
   /** Start the scheduler (idempotent). */
   start(): void {
+    // CRITICAL: the WorkflowRunner is what actually DEQUEUES and executes queued
+    // items (via advanceWorkflow → role agent). It is only auto-started by
+    // AIOrchestra.enqueueTask — which this scheduler bypasses by enqueuing
+    // through WorkflowQueueService directly. Without this, auto-run items sit at
+    // 'queued' forever and never run (observed: tasks enqueued but no agent ran).
+    // startProcessing() is idempotent, so calling it on every start() is safe.
+    WorkflowRunner.getInstance().startProcessing();
+
     if (this.running) return;
     this.running = true;
     this.tick();
