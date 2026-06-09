@@ -66,7 +66,9 @@ function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: s
       'PowerShell',
       'Edit',
       'Write',
-      'MultiEdit',
+      // NOTE: 'MultiEdit' removed — current Claude Code CLI has no such tool and
+      // logged "Permission deny rule MultiEdit matches no known tool" every run.
+      // File mutation is already blocked via Edit/Write/NotebookEdit.
       'NotebookEdit',
       'Task', // disallow Agent/Task tool to prevent recursion / tool re-acquisition
       // The agent previously pivoted to these tools when blocked from

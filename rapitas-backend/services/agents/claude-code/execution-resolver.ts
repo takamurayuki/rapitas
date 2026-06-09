@@ -27,6 +27,8 @@ export interface ResolverContext {
 
   // Buffers and accumulated state
   outputBuffer: string;
+  /** Clean FINAL assistant message from the stream-json `result` event. */
+  finalResultText: string;
   errorBuffer: string;
   lineBuffer: string;
   detectedQuestion: QuestionWaitingState;
@@ -73,6 +75,10 @@ export function buildResolveAfterParse(
     const commits = getCommits();
     const executionTimeMs = Date.now() - startTime;
     const usage = ctx.workerResultUsage;
+    // The clean final assistant message — investigation phases save this
+    // instead of the noisy concatenated outputBuffer. Folded into usageFields
+    // so every resolve() path below carries it.
+    const finalMessage = ctx.finalResultText?.trim() || undefined;
     /** Spread real-cost fields (from stream-json `result`) into the resolved value. */
     const usageFields: Partial<AgentExecutionResult> = usage
       ? {
@@ -87,8 +93,9 @@ export function buildResolveAfterParse(
             (usage.outputTokens ?? 0) +
             (usage.cacheReadInputTokens ?? 0) +
             (usage.cacheCreationInputTokens ?? 0),
+          finalMessage,
         }
-      : {};
+      : { finalMessage };
 
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(

@@ -507,17 +507,24 @@ curl -X POST http://localhost:${port}/idea-box \\
   // to the workflow API as <outputFile>.md. codex `exec` writes the final
   // assistant message to stdout for any --sandbox mode, so this works
   // even with read-only sandbox where codex itself cannot write files.
-  if (isInvestigationPhase && transition.outputFile && result.output?.trim()) {
+  // Prefer the agent's CLEAN final message (stream-json `result` event) over
+  // the raw outputBuffer. outputBuffer concatenates every streamed assistant
+  // delta, tool-result display, and status line — which polluted research.md /
+  // plan.md with mid-run narration ("研究レポートを書き出します…"), false-start
+  // blocks, and tool dumps. finalMessage is just the final report.
+  const investigationContent = result.finalMessage?.trim() || result.output?.trim();
+  if (isInvestigationPhase && transition.outputFile && investigationContent) {
     try {
-      await writeWorkflowFile(workflowDir, transition.outputFile, result.output.trim(), taskId);
+      await writeWorkflowFile(workflowDir, transition.outputFile, investigationContent, taskId);
       log.info(
         {
           taskId,
           role: transition.role,
           outputFile: transition.outputFile,
-          chars: result.output.length,
+          chars: investigationContent.length,
+          usedFinalMessage: !!result.finalMessage?.trim(),
         },
-        '[WorkflowCLIExecutor] Captured stdout and saved to workflow API',
+        '[WorkflowCLIExecutor] Captured final message and saved to workflow API',
       );
     } catch (captureErr) {
       log.warn(
