@@ -119,7 +119,10 @@ async function main() {
   // DATABASE_URL and pushes against the matching schema. A failure here means
   // the dev DB is out of sync; we warn loudly but still start the server so the
   // unaffected routes remain usable while the schema error is fixed.
-  if (!(await syncDevSchema())) {
+  // NOTE: generate:true ensures the correct provider's Prisma client is regenerated
+  // on every startup, preventing stale SQLite clients from causing mode:'insensitive'
+  // errors when DATABASE_URL points to PostgreSQL (bug #108).
+  if (!(await syncDevSchema({ generate: true }))) {
     log.warn('Continuing startup with an OUT-OF-SYNC schema — see the error above.');
   }
 
