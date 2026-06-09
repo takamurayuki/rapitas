@@ -14,6 +14,10 @@ import pino, { type StreamEntry, type DestinationStream } from 'pino';
 import pretty from 'pino-pretty';
 
 const isDev = process.env.NODE_ENV !== 'production';
+// NOTE: bun test automatically sets NODE_ENV=test; this flag disables the file
+// sink so test-generated errors never contaminate the daily log file and trigger
+// false log-health-check alerts.
+const isTest = process.env.NODE_ENV === 'test';
 
 /** Directory holding the daily backend log files (override via RAPITAS_DATA_DIR). */
 function getLogsDir(): string {
@@ -85,7 +89,9 @@ const consoleStream: DestinationStream = isDev
 const streams: StreamEntry[] = [
   { level: isDev ? 'debug' : 'info', stream: consoleStream },
   // Persist warn/error/fatal to the daily file for the health-check job.
-  { level: 'warn', stream: createDailyWarnSink() },
+  // Disabled in test environments (isTest) to prevent test throws from
+  // contaminating the shared daily log file.
+  ...(isTest ? [] : [{ level: 'warn' as const, stream: createDailyWarnSink() }]),
 ];
 
 /**
