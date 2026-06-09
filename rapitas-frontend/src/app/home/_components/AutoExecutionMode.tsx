@@ -7,11 +7,12 @@
  * at a time (highest priority first, then creation order). This is NOT AI task
  * generation. Rendered only when a development theme is active.
  *
- * While running, the button reads "実行中" with a spinning, gently-pulsing
- * indicator (so it clearly looks alive) and swaps to a red "停止" on hover.
+ * While running, the button reads "タスク自動実行中" with a spinning,
+ * gently-pulsing indicator (so it clearly looks alive) and swaps to a red
+ * "停止" on hover.
  * While stopping, it shows a loading spinner and is disabled.
  */
-import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
+import { Play, Square, Loader2, Pause } from 'lucide-react';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 
 interface AutoExecutionModeProps {
@@ -55,7 +56,7 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
           {actionLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Play className="h-4 w-4 fill-current" />
+            <Play className="h-4 w-4 shrink-0" />
           )}
           タスク自動実行
         </button>
@@ -96,12 +97,21 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         title="自動実行を停止します"
         className={`group inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
       >
-        {/* Rest state — hidden on hover. Conveys "agent is working". */}
-        <span
-          className={`inline-flex items-center gap-2 group-hover:hidden ${paused ? '' : 'animate-pulse'}`}
-        >
-          {paused ? <Pause className="h-4 w-4" /> : <Orbit className="h-4 w-4 animate-spin" />}
-          {paused ? '一時停止' : '実行中'}
+        {/* Rest state — hidden on hover. Conveys "agent is working".
+            NOTE: the spinner is Loader2 (radially symmetric) — Orbit is an
+            asymmetric glyph that looks misshapen while rotating. The pulse is
+            applied to the LABEL only, never the spinning icon, so the rotation
+            stays clean (an opacity animation on the spinning SVG caused the
+            intermittent distortion). */}
+        <span className="inline-flex items-center gap-2 group-hover:hidden">
+          {paused ? (
+            <Pause className="h-4 w-4 shrink-0" />
+          ) : (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin [transform-origin:center]" />
+          )}
+          <span className={paused ? '' : 'animate-pulse'}>
+            {paused ? '一時停止' : 'タスク自動実行中'}
+          </span>
         </span>
         {/* Hover state — the stop action. */}
         <span className="hidden items-center gap-2 group-hover:inline-flex">

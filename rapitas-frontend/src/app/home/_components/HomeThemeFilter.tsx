@@ -70,17 +70,29 @@ export function HomeThemeFilter({
   const router = useRouter();
   const t = useTranslations('home');
 
-  // Point the integrated terminal at the effective theme's working directory so
-  // Ctrl+J / new tabs from the task list open there. The effective theme is the
-  // explicit filter, else the default theme — the list itself operates on
-  // `themeFilter || defaultTheme`, so on the initial view (themeFilter null) the
-  // terminal must still follow the default theme's directory.
+  // Point the integrated terminal at a real working directory so Ctrl+J / new
+  // tabs from the task list open there. Resolution order:
+  //   1. the explicitly-selected theme (when it has a workingDirectory),
+  //   2. the default theme (when it has one),
+  //   3. the first development theme that has a workingDirectory,
+  //   4. any theme with a workingDirectory.
+  // Steps 3-4 fix the default-selected state: the `isDefault` theme is often a
+  // NON-development theme with no workingDirectory, so without a fallback Ctrl+J
+  // opened in the process default dir instead of a project directory.
   useEffect(() => {
-    const selected =
-      themes.find((theme) => theme.id === themeFilter) ?? themes.find((theme) => theme.isDefault);
+    const explicit = themes.find((theme) => theme.id === themeFilter);
+    const defaultTheme = themes.find((theme) => theme.isDefault);
+    const rooted =
+      (explicit?.workingDirectory ? explicit : null) ??
+      (defaultTheme?.workingDirectory ? defaultTheme : null) ??
+      themes.find((theme) => theme.isDevelopment && theme.workingDirectory) ??
+      themes.find((theme) => theme.workingDirectory) ??
+      explicit ??
+      defaultTheme ??
+      null;
     useTerminalContextStore.getState().setTerminalContext({
-      cwd: selected?.workingDirectory ?? null,
-      title: selected?.name ?? null,
+      cwd: rooted?.workingDirectory ?? null,
+      title: rooted?.name ?? null,
     });
   }, [themeFilter, themes]);
 

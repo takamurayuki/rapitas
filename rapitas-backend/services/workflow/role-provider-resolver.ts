@@ -77,7 +77,7 @@ export async function resolveRoleProviderPreferences(
       explicitPreference = await getDefaultAgentProvider();
     }
   }
-  const preferredProvider =
+  let preferredProvider =
     explicitPreference && VALID_PROVIDERS.has(explicitPreference as Provider)
       ? (explicitPreference as Provider)
       : undefined;
@@ -91,6 +91,18 @@ export async function resolveRoleProviderPreferences(
   if (isCrossProvider || (!isExplicitProvider && REVIEW_ROLES.has(role))) {
     const upstream = await getUpstreamProvider(taskId);
     if (upstream) excludeProviders = [upstream];
+  }
+
+  // Provider consistency for the build chain: research → plan → implement should
+  // run on ONE provider so the implementer interprets a plan written in its own
+  // model family (style, tool/CLI capabilities, output format all align).
+  // When the user pinned nothing, non-review roles FOLLOW whatever provider the
+  // upstream phase actually used. Review/verify intentionally do the opposite
+  // (exclude upstream) above, so the build stays coherent while the gate stays
+  // independent.
+  if (!preferredProvider && !isCrossProvider && !REVIEW_ROLES.has(role)) {
+    const upstream = await getUpstreamProvider(taskId);
+    if (upstream) preferredProvider = upstream;
   }
 
   return { preferredProvider, excludeProviders };

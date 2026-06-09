@@ -302,12 +302,66 @@ export class WorkflowOrchestrator {
     // roles, to mitigate self-evaluation bias).
     if (!effectiveModelId || effectiveModelId === 'auto') {
       try {
-        const [{ getSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
+        // Ensure the task has a complexity score BEFORE routing. Only the manual
+        // execute-route scored it; the auto-run path never did, so every
+        // auto-run phase fell back to SmartRouter's complexity=50 default
+        // ('standard'). NOTE: this score is a metadata heuristic (title /
+        // description / structured-spec counts), NOT a scan of the actual repo
+        // code — an a-priori estimate, refined by history elsewhere.
+        if (task.complexityScore == null) {
+          await scoreTaskComplexity(taskId, task).catch((err) =>
+            log.warn({ err, taskId }, '[WorkflowOrchestrator] Complexity scoring failed'),
+          );
+        }
+
+        const [
+          { getSmartRoute },
+          { resolveRoleProviderPreferences },
+          { computeMinTier, detectHighRisk },
+          { WorkflowQueueService },
+        ] = await Promise.all([
           import('../ai/smart-model-router'),
           import('./role-provider-resolver'),
+          import('./routing-policy'),
+          import('./workflow-queue'),
         ]);
         const prefs = await resolveRoleProviderPreferences(transition.role, taskId);
-        const route = await getSmartRoute(taskId, prefs);
+
+        // Failure escalation: a phase that already failed (queue retryCount > 0)
+        // gets a STRONGER model on the retry instead of re-running the same weak
+        // one. Reuses the existing per-task queue retry counter.
+        const queueItem = await WorkflowQueueService.getInstance()
+          .findByTaskId(taskId)
+          .catch(() => null);
+        const escalation = queueItem?.retryCount ?? 0;
+
+        // Risk override: schema / auth / payment / security work forces premium
+        // regardless of complexity. For code phases, also scan plan.md for risky
+        // planned file paths.
+        const planContent =
+          transition.role === 'implementer' ||
+          transition.role === 'reviewer' ||
+          transition.role === 'verifier' ||
+          transition.role === 'auto_verifier'
+            ? await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null)
+            : null;
+        const labelsText =
+          typeof (task as { labels?: unknown }).labels === 'string'
+            ? ((task as { labels?: string }).labels ?? '')
+            : '';
+        const { high: riskHigh, reason: riskReason } = detectHighRisk({
+          text: `${task.title} ${task.description ?? ''} ${labelsText}`,
+          planContent,
+        });
+
+        // Role floor + escalation + risk → the minimum tier SmartRouter may not
+        // go below (it still RAISES further when complexity is high).
+        const minTier = computeMinTier({ role: transition.role, escalation, riskHigh });
+        const route = await getSmartRoute(taskId, {
+          ...prefs,
+          minTier,
+          includeAlternatives: false,
+        });
         effectiveModelId = route.recommendedModel;
         log.info(
           {
@@ -315,6 +369,10 @@ export class WorkflowOrchestrator {
             role: transition.role,
             model: effectiveModelId,
             tier: route.recommendedTier,
+            minTier: minTier ?? null,
+            escalation,
+            riskHigh,
+            riskReason: riskReason ?? null,
             preferredProvider: prefs.preferredProvider ?? null,
             excludeProviders: prefs.excludeProviders ?? [],
           },
@@ -430,6 +488,65 @@ export class WorkflowOrchestrator {
       };
     }
   }
+}
+
+/**
+ * Score and persist a task's complexity so SmartRouter routes by real
+ * complexity instead of its 50 default. The score is a heuristic over task
+ * METADATA (title / description keywords, structured-spec counts, estimated
+ * hours, priority, labels) — it does NOT scan the actual repository code.
+ *
+ * @param taskId - Task to score. / 対象タスクID
+ * @param task - Already-loaded task row (scalar fields). / 取得済みタスク行
+ */
+async function scoreTaskComplexity(
+  taskId: number,
+  task: {
+    title: string;
+    description: string | null;
+    estimatedHours: number | null;
+    priority: string | null;
+    themeId: number | null;
+    labels?: unknown;
+    goals?: unknown;
+    constraints?: unknown;
+    acceptanceCriteria?: unknown;
+  },
+): Promise<void> {
+  const { analyzeTaskComplexity } = await import('./complexity-analyzer');
+  // labels/goals/constraints/acceptanceCriteria are persisted as JSON strings
+  // (or already arrays). Parse tolerantly — never throw on malformed data.
+  const parseArr = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
+    if (typeof v === 'string' && v.trim()) {
+      try {
+        const p: unknown = JSON.parse(v);
+        return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const scored = analyzeTaskComplexity({
+    title: task.title,
+    description: task.description,
+    estimatedHours: task.estimatedHours,
+    labels: parseArr(task.labels),
+    priority: task.priority ?? undefined,
+    themeId: task.themeId,
+    goals: parseArr(task.goals),
+    constraints: parseArr(task.constraints),
+    acceptanceCriteria: parseArr(task.acceptanceCriteria),
+  });
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { complexityScore: scored.complexityScore },
+  });
+  log.info(
+    { taskId, complexityScore: scored.complexityScore },
+    '[WorkflowOrchestrator] Scored task complexity for routing',
+  );
 }
 
 async function resolveExecutableAgentConfig<

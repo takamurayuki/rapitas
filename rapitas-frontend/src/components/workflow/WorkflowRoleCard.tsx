@@ -15,6 +15,33 @@ import {
   type RoleConfigItem,
 } from './workflow-role-constants';
 
+/** Maps an installed agent's `agentType` to its provider family. */
+const AGENT_TYPE_TO_PROVIDER: Record<string, 'claude' | 'openai' | 'gemini' | 'ollama'> = {
+  'claude-code': 'claude',
+  'anthropic-api': 'claude',
+  claude: 'claude',
+  anthropic: 'claude',
+  codex: 'openai',
+  'codex-cli': 'openai',
+  openai: 'openai',
+  'openai-api': 'openai',
+  gemini: 'gemini',
+  'gemini-cli': 'gemini',
+  google: 'gemini',
+  ollama: 'ollama',
+  local: 'ollama',
+};
+
+/** Human label per provider for the preferred-provider dropdown. */
+const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  ollama: 'Ollama (ローカル)',
+};
+
+const ALL_PROVIDERS = ['claude', 'openai', 'gemini', 'ollama'] as const;
+
 interface WorkflowRoleCardProps {
   roleKey: WorkflowRole;
   index: number;
@@ -70,6 +97,19 @@ export function WorkflowRoleCard({
   const selectedAgent = roleData?.agentConfig;
   const effectiveModelId = roleData?.modelId || selectedAgent?.modelId || null;
   const isAutoSelect = !roleData?.modelId || roleData.modelId === 'auto';
+
+  // Only offer providers that actually have an installed/active agent. Keep the
+  // currently-saved provider in the list even if its agent was removed, so the
+  // saved value still displays instead of silently blanking.
+  const installedProviders = new Set(
+    activeAgents
+      .map((a) => AGENT_TYPE_TO_PROVIDER[a.agentType])
+      .filter((p): p is 'claude' | 'openai' | 'gemini' | 'ollama' => !!p),
+  );
+  const savedProvider = roleData?.preferredProviderOverride ?? null;
+  const providerOptions = ALL_PROVIDERS.filter(
+    (p) => installedProviders.has(p) || p === savedProvider,
+  );
 
   return (
     <div key={roleKey}>
@@ -196,9 +236,11 @@ export function WorkflowRoleCard({
                     className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                   >
                     <option value="">デフォルト設定に従う</option>
-                    <option value="claude">Claude</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="gemini">Gemini</option>
+                    {providerOptions.map((p) => (
+                      <option key={p} value={p}>
+                        {PROVIDER_LABEL[p]}
+                      </option>
+                    ))}
                     {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey) && (
                       <option value="cross-provider">
                         🔀 別プロバイダ（前フェーズと違うものを選ぶ）

@@ -387,7 +387,17 @@ ${
 \`\`\`
 冒頭は必ず \`# 実装計画\` で始め、\`## 設計判断の根拠\` と \`## 実装チェックリスト\` を欠落させないでください。これらが無いと validator が plan.md を不適合と判定し、後段の実装エージェントが質問を出して止まります。
 `
-    : ''
+    : transition.outputFile === 'research'
+      ? `
+### 調査結果に基づく複雑度評価（必須）
+実際にコードを調査して把握した「変更が必要なファイル数・影響範囲・リスク・既存実装の有無」に基づき、このタスクの実装複雑度を 0〜100 の整数で1つ算出し、research.md の末尾に必ず次の形式で記載してください（後段のモデル/ワークフロー自動選択に使用します。タイトルの語感ではなく実コードの状況で判断すること）:
+\`\`\`
+## 複雑度評価
+スコア: <0-100の整数>
+理由: <変更ファイル数・影響範囲・リスクの観点で簡潔に>
+\`\`\`
+目安: 0-35=軽微（1〜2ファイル・低リスク）、36-70=中規模、71-100=大規模/高リスク（スキーマ・認証・決済・多数ファイル）。`
+      : ''
 }`
         : `\n\n## STRICT RULES (Investigation-only mode)
 
@@ -557,6 +567,32 @@ curl -X POST http://localhost:${port}/idea-box \\
           },
           `[WorkflowCLIExecutor] ${validation.summary}`,
         );
+      }
+
+      // Code-grounded complexity: the research agent assessed the task AFTER
+      // inspecting the repo and embedded a 0-100 score in research.md. Persist
+      // it so downstream model/workflow auto-selection uses a real signal
+      // instead of the title/description keyword heuristic.
+      if (transition.outputFile === 'research' && typeof fileContent === 'string') {
+        try {
+          const { parseResearchComplexity } = await import('./research-complexity');
+          const assessed = parseResearchComplexity(fileContent);
+          if (assessed !== null) {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { complexityScore: assessed },
+            });
+            log.info(
+              { taskId, complexityScore: assessed },
+              '[WorkflowCLIExecutor] Applied research-assessed complexity score',
+            );
+          }
+        } catch (cErr) {
+          log.warn(
+            { err: cErr, taskId },
+            '[WorkflowCLIExecutor] Failed to apply research-assessed complexity',
+          );
+        }
       }
 
       const isVerifyPhase = transition.outputFile === 'verify';
