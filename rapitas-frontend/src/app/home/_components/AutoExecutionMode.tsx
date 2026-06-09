@@ -95,16 +95,17 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title="自動実行を停止します"
-        className={`group inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
+        className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
       >
-        {/* Rest state — hidden on hover. Conveys "agent is working".
-            Orbit spins cleanly because: shrink-0 keeps the SVG square (flex
-            compression made it oval → warped rotation); transform-origin:center
-            rotates about the true center; will-change-transform promotes it to
-            its own GPU layer so it isn't re-rasterized mid-spin (the source of
-            the jitter). The pulse is on the LABEL only — never the spinning
-            icon — so an opacity animation never re-rasterizes the rotation. */}
-        <span className="inline-flex items-center gap-2 group-hover:hidden">
+        {/* Rest state — stays MOUNTED and spinning; only fades out on hover.
+            Earlier it used `group-hover:hidden` (display:none), so the spinner
+            was torn down and re-created on un-hover — the browser re-promoted
+            the GPU layer and restarted the animation mid-frame, which is what
+            distorted the rotation on re-display. Fading via opacity keeps the
+            element (and its smooth spin) alive the whole time.
+            Spin stays clean via: shrink-0 (square box), transform-origin:center,
+            will-change-transform. Pulse is on the LABEL only. */}
+        <span className="inline-flex items-center gap-2 transition-opacity duration-150 group-hover:opacity-0">
           {paused ? (
             <Pause className="h-4 w-4 shrink-0" />
           ) : (
@@ -114,8 +115,9 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
             {paused ? '一時停止' : 'タスク自動実行中'}
           </span>
         </span>
-        {/* Hover state — the stop action. */}
-        <span className="hidden items-center gap-2 group-hover:inline-flex">
+        {/* Hover state — overlaid via absolute so the button width never jumps
+            and the rest spinner underneath is never display-toggled. */}
+        <span className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
           <Square className="h-4 w-4 fill-current" />
           停止
         </span>
