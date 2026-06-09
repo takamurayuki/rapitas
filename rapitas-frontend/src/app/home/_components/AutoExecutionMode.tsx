@@ -7,7 +7,7 @@
  * at a time (highest priority first, then creation order). This is NOT AI task
  * generation. Rendered only when a development theme is active.
  */
-import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
+import { Play, Square, Loader2 } from 'lucide-react';
 import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 
 interface AutoExecutionModeProps {
@@ -19,7 +19,7 @@ interface AutoExecutionModeProps {
  * Single start/stop control for a theme's task auto-execution.
  *
  * @param props.theme - The active development theme (id + isDevelopment). / 対象の開発テーマ
- * @returns Toggle button + status indicator, or null for non-dev themes. / トグルと状態表示
+ * @returns Start/stop toggle button, or null for non-dev themes. / 開始/停止トグル
  */
 export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   const { data, actionLoading, error, start, stop } = useThemeAutoRun(
@@ -31,8 +31,6 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
   if (!theme?.isDevelopment) return null;
 
   const status = data?.autoRun?.status ?? 'idle';
-  const isActive = status === 'running' || status === 'paused' || status === 'stopping';
-  const processed = data?.autoRun?.processedCount ?? 0;
 
   const handleClick = () => {
     if (status === 'idle') start('priority');
@@ -64,19 +62,6 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         )}
         {status === 'idle' ? 'タスク自動実行' : '停止'}
       </button>
-
-      {/* Right-side status indicator — clear at-a-glance auto-run state. */}
-      {isActive && (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          {status === 'running' && <Orbit className="h-4 w-4 animate-spin text-emerald-500" />}
-          {status === 'paused' && <Pause className="h-4 w-4 text-amber-500" />}
-          {status === 'stopping' && <Loader2 className="h-4 w-4 animate-spin text-red-500" />}
-          <span>
-            {status === 'running' ? '実行中' : status === 'paused' ? '一時停止' : '停止中'}
-            {processed > 0 ? ` ・ ${processed}件完了` : ''}
-          </span>
-        </span>
-      )}
 
       {error && (
         <span className="max-w-40 truncate text-xs text-red-600 dark:text-red-400" title={error}>
