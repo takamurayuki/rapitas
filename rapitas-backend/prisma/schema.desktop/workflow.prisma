@@ -140,6 +140,10 @@ model WorkflowTransition {
 model WorkflowQueueItem {
   id                Int       @id @default(autoincrement())
   taskId            Int
+  // Set when the item was enqueued by the per-theme auto-run scheduler, so the
+  // scheduler can scope "in-flight for this theme" without a session lookup.
+  // Nullable: existing rows and subtask-split items leave it null (no behaviour change).
+  themeId           Int?
   orchestraSessionId Int?
   orchestraSession  OrchestraSession? @relation(fields: [orchestraSessionId], references: [id], onDelete: SetNull)
   priority          Int       @default(50) // 0-100, higher = more priority
@@ -160,4 +164,27 @@ model WorkflowQueueItem {
   @@index([status, priority])
   @@index([orchestraSessionId])
   @@index([taskId])
+  @@index([themeId, status])
+}
+
+/// Per-theme auto-execution state. One row per theme that has had auto-run
+/// toggled. Drives the single global AutoRunScheduler and is persisted so the
+/// mode (and the in-flight task) survives a server restart.
+/// `themeId` is a plain scalar (no FK relation) to keep the change isolated to
+/// this file — the scheduler always loads themes explicitly by id.
+model ThemeAutoRun {
+  id             Int       @id @default(autoincrement())
+  themeId        Int       @unique
+  enabled        Boolean   @default(false)
+  status         String    @default("idle") // idle | running | paused | stopping
+  order          String    @default("priority") // priority | created
+  currentTaskId  Int?
+  processedCount Int       @default(0)
+  lastError      String?
+  lastRunAt      DateTime?
+  startedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
 }

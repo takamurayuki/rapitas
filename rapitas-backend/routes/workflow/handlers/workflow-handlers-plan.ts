@@ -78,6 +78,15 @@ export async function handleApprovePlan({
     });
 
     if (parsedBody.approved) {
+      // Notify the theme auto-run scheduler so it can resume a paused theme.
+      try {
+        const { ThemeAutoRunScheduler } =
+          await import('../../../services/workflow/auto-run/theme-auto-run-scheduler');
+        await ThemeAutoRunScheduler.getInstance().onPlanApproved(taskId);
+      } catch (err) {
+        log.warn({ err }, '[Workflow] Failed to notify ThemeAutoRunScheduler of plan approval');
+      }
+
       try {
         const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
         const orchestra = AIOrchestra.getInstance();
@@ -110,7 +119,10 @@ export async function handleApprovePlan({
               );
             })
             .catch((err) => {
-              log.error({ err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
+              log.error(
+                { err },
+                `[Workflow] Auto-advance after approval failed for task ${taskId}`,
+              );
             });
         }
       } catch (err) {

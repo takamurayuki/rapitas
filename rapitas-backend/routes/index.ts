@@ -88,6 +88,7 @@ export { workflowRolesRoutes } from './workflow/core/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
 export { taskSpecRoutes } from './tasks/task-spec-routes';
+export { themeAutoRunRoutes } from './workflow/theme-auto-run';
 
 // Social
 export { commentsRoutes } from './social/comments';

@@ -1289,6 +1289,7 @@ CREATE TABLE "WorkflowTransition" (
 CREATE TABLE "WorkflowQueueItem" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
+    "themeId" INTEGER,
     "orchestraSessionId" INTEGER,
     "priority" INTEGER NOT NULL DEFAULT 50,
     "status" TEXT NOT NULL DEFAULT 'queued',
@@ -1304,6 +1305,22 @@ CREATE TABLE "WorkflowQueueItem" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "WorkflowQueueItem_orchestraSessionId_fkey" FOREIGN KEY ("orchestraSessionId") REFERENCES "OrchestraSession" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "ThemeAutoRun" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "themeId" INTEGER NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT false,
+    "status" TEXT NOT NULL DEFAULT 'idle',
+    "order" TEXT NOT NULL DEFAULT 'priority',
+    "currentTaskId" INTEGER,
+    "processedCount" INTEGER NOT NULL DEFAULT 0,
+    "lastError" TEXT,
+    "lastRunAt" DATETIME,
+    "startedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateIndex
@@ -1700,5 +1717,14 @@ CREATE INDEX "WorkflowQueueItem_orchestraSessionId_idx" ON "WorkflowQueueItem"("
 CREATE INDEX "WorkflowQueueItem_taskId_idx" ON "WorkflowQueueItem"("taskId");
 
 -- CreateIndex
+CREATE INDEX "WorkflowQueueItem_themeId_status_idx" ON "WorkflowQueueItem"("themeId", "status");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowQueueItem_taskId_orchestraSessionId_key" ON "WorkflowQueueItem"("taskId", "orchestraSessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");
+
+-- CreateIndex
+CREATE INDEX "ThemeAutoRun_status_idx" ON "ThemeAutoRun"("status");
 `;

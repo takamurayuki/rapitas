@@ -1717,5 +1717,20 @@
       "reviewed": "レビュー済",
       "archived": "アーカイブ"
     }
+  },
+  "autoRun": {
+    "start": "自動実行",
+    "startTitle": "テーマのタスクを1件ずつ自動実行する",
+    "pause": "一時停止",
+    "pauseTitle": "現在のタスク完了後に自動実行を一時停止",
+    "resume": "再開",
+    "resumeTitle": "自動実行を再開",
+    "stop": "停止",
+    "stopTitle": "自動実行を停止し実行中タスクをキャンセル",
+    "awaitingApproval": "承認待ち",
+    "statusIdle": "待機",
+    "statusRunning": "実行中",
+    "statusPaused": "一時停止",
+    "statusStopping": "停止中"
   }
 }

@@ -29,6 +29,8 @@ export interface EnqueueOptions {
   priority?: number;
   dependencies?: number[];
   orchestraSessionId?: number;
+  /** Set by the theme auto-run scheduler to scope concurrency and completion tracking. */
+  themeId?: number;
 }
 
 export interface QueueState {
@@ -64,7 +66,7 @@ export class WorkflowQueueService {
    * Enqueue a task.
    */
   async enqueue(options: EnqueueOptions): Promise<QueueItem> {
-    const { taskId, priority = 50, dependencies = [], orchestraSessionId } = options;
+    const { taskId, priority = 50, dependencies = [], orchestraSessionId, themeId } = options;
 
     // Verify task exists
     const task = await prisma.task.findUnique({ where: { id: taskId } });
@@ -88,6 +90,7 @@ export class WorkflowQueueService {
       data: {
         taskId,
         orchestraSessionId: orchestraSessionId ?? null,
+        themeId: themeId ?? null,
         priority,
         status: 'queued',
         currentPhase: (task.workflowStatus as string) || 'draft',

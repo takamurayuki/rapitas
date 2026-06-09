@@ -225,6 +225,14 @@ export class AIOrchestra {
       // Auto-resume
       this.runner.startProcessing();
     }
+
+    // Recover theme auto-run state (must run AFTER recoverStaleItems requeues items)
+    try {
+      const { ThemeAutoRunScheduler } = await import('./auto-run/theme-auto-run-scheduler');
+      await ThemeAutoRunScheduler.getInstance().recoverOnStartup();
+    } catch (err) {
+      log.warn({ err }, '[AIOrchestra] Failed to recover theme auto-run state');
+    }
   }
 
   /**

@@ -8,6 +8,7 @@ import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from '
 import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
 import { HomeExpandedFilters } from './HomeExpandedFilters';
+import { ThemeAutoRunControl } from '@/components/workflow/auto-run/ThemeAutoRunControl';
 
 interface StatusCounts {
   all: number;
@@ -88,6 +89,10 @@ export function HomeThemeFilter({
     if (categoryFilter === null) return true;
     return theme.categoryId === categoryFilter;
   });
+
+  // Find the selected (or default) development theme for the auto-run control
+  const selectedTheme = themes.find((t) => t.id === themeFilter) ?? themes.find((t) => t.isDefault);
+  const autoRunTheme = selectedTheme?.isDevelopment ? selectedTheme : null;
 
   return (
     <>
@@ -198,6 +203,14 @@ export function HomeThemeFilter({
             className={`w-3.5 h-3.5 transition-transform duration-200 ${isFilterExpanded ? 'rotate-180' : ''}`}
           />
         </button>
+
+        {/* Auto-run control — shown only when a development theme is active */}
+        {autoRunTheme && (
+          <ThemeAutoRunControl
+            themeId={autoRunTheme.id}
+            isDevelopment={autoRunTheme.isDevelopment}
+          />
+        )}
       </div>
 
       <HomeExpandedFilters
