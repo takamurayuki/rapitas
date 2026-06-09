@@ -228,8 +228,11 @@ export async function resolveSearchMissForTask(
           metadata: JSON.stringify({ searchMissId: miss.id, query: miss.query, taskId }),
         },
       })
-      .catch(() => {
-        /* notification failure is non-fatal */
+      .catch((err: Error) => {
+        log.error(
+          { err, searchMissId: miss.id, query: miss.query, taskId },
+          'Failed to create search-miss-resolved notification',
+        );
       });
   }
 }
