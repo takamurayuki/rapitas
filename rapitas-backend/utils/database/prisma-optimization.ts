@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
+import { insensitiveMode } from './provider';
 
 const log = createLogger('prisma-optimization');
 
@@ -309,17 +310,22 @@ export const QueryOptimizers = {
   },
 
   // Efficient search query
+  // NOTE: `where` is cast to `any` because `insensitiveMode()` returns
+  // `Record<string,unknown>` which TypeScript cannot spread into the strict
+  // `Prisma.TaskWhereInput` type generated for PostgreSQL. The cast is safe:
+  // at runtime the object is a valid Prisma query in both PG and SQLite modes.
   searchTasks: (searchTerm: string, filters: Prisma.TaskWhereInput = {}) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- spread of insensitiveMode() is incompatible with strict Prisma.TaskWhereInput; see comment above
     where: {
       AND: [
         filters,
         {
           OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' as const } },
+            { title: { contains: searchTerm, ...insensitiveMode() } },
             {
               description: {
                 contains: searchTerm,
-                mode: 'insensitive' as const,
+                ...insensitiveMode(),
               },
             },
             {
@@ -328,7 +334,7 @@ export const QueryOptimizers = {
                   label: {
                     name: {
                       contains: searchTerm,
-                      mode: 'insensitive' as const,
+                      ...insensitiveMode(),
                     },
                   },
                 },
@@ -337,7 +343,7 @@ export const QueryOptimizers = {
           ],
         },
       ],
-    },
+    } as any,
     select: {
       id: true,
       title: true,

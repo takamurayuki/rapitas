@@ -3,7 +3,7 @@
  *
  * Tests for query optimization utilities.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
@@ -241,6 +241,49 @@ describe('QueryOptimizers', () => {
   test('searchTasksにフィルターを追加できること', () => {
     const result = QueryOptimizers.searchTasks('test', { status: 'done' });
     expect(result.where.AND).toBeDefined();
+  });
+
+  describe('searchTasks — プロバイダ別 mode 切り替え', () => {
+    let savedProvider: string | undefined;
+    let savedDatabaseUrl: string | undefined;
+
+    beforeEach(() => {
+      savedProvider = process.env.RAPITAS_DB_PROVIDER;
+      savedDatabaseUrl = process.env.DATABASE_URL;
+    });
+
+    afterEach(() => {
+      if (savedProvider === undefined) delete process.env.RAPITAS_DB_PROVIDER;
+      else process.env.RAPITAS_DB_PROVIDER = savedProvider;
+      if (savedDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = savedDatabaseUrl;
+    });
+
+    test('PostgreSQL 環境で title フィルタに mode: insensitive が付与されること', () => {
+      process.env.RAPITAS_DB_PROVIDER = 'postgresql';
+      delete process.env.DATABASE_URL;
+      const result = QueryOptimizers.searchTasks('hello');
+      const orClause = (result.where as any).AND[1].OR;
+      expect(orClause[0].title.mode).toBe('insensitive');
+      expect(orClause[1].description.mode).toBe('insensitive');
+    });
+
+    test('SQLite 環境で title フィルタに mode が付与されないこと', () => {
+      process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+      delete process.env.DATABASE_URL;
+      const result = QueryOptimizers.searchTasks('hello');
+      const orClause = (result.where as any).AND[1].OR;
+      expect(orClause[0].title.mode).toBeUndefined();
+      expect(orClause[1].description.mode).toBeUndefined();
+    });
+
+    test('DATABASE_URL=file: 環境で mode が付与されないこと', () => {
+      delete process.env.RAPITAS_DB_PROVIDER;
+      process.env.DATABASE_URL = 'file:./local.db';
+      const result = QueryOptimizers.searchTasks('hello');
+      const orClause = (result.where as any).AND[1].OR;
+      expect(orClause[0].title.mode).toBeUndefined();
+    });
   });
 
   test('userWithPreferencesが適切なselect構造を返すこと', () => {

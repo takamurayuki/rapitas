@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import type { CreateEpisodeInput, EpisodePhase } from './types';
+import { insensitiveMode } from '../../utils/database/provider';
 
 const log = createLogger('self-learning:episode-memory');
 
@@ -48,7 +49,7 @@ export async function findSimilarEpisodes(
   const { phase, limit = 10, minImportance = 0 } = options;
 
   const where: Record<string, unknown> = {
-    content: { contains: query, mode: 'insensitive' },
+    content: { contains: query, ...insensitiveMode() },
     importance: { gte: minImportance },
   };
   if (phase) where.phase = phase;

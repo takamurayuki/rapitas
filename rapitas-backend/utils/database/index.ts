@@ -6,3 +6,4 @@
 
 export * from './db-helpers';
 export * from './prisma-optimization';
+export * from './provider';

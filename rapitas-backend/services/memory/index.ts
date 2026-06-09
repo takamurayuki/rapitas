@@ -40,6 +40,7 @@ export { createContentHash, cosineSimilarity } from './utils';
 // --- Memory System Singleton ---
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { insensitiveMode } from '../../utils/database/provider';
 import { MemoryJournal } from './streaming_journal';
 import { MemoryTaskQueueProcessor } from './task_queue';
 import { generateEmbedding } from './rag/embedding';
@@ -263,8 +264,8 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   if (themeId) where.themeId = themeId;
   if (search) {
     where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { content: { contains: search, mode: 'insensitive' } },
+      { title: { contains: search, ...insensitiveMode() } },
+      { content: { contains: search, ...insensitiveMode() } },
     ];
   }
 
