@@ -124,23 +124,27 @@ pub fn split_screen_with_browser(
         browser,
     )?;
 
-    // Step 5: Position the browser window in the left half
-    thread::sleep(Duration::from_millis(1000));
+    // Step 5: Position the browser window in the left half.
+    thread::sleep(Duration::from_millis(500));
 
-    // Prefer the foreground browser window; fall back to any existing one
+    // Prefer a browser window that already existed (the new tab opens in it).
     let browser_to_use = active_browser_hwnd.or(existing_browser_hwnd);
 
     if let Some(hwnd) = browser_to_use {
         set_window_split_left_with_height(hwnd, work_width, work_height);
     } else {
-        // Find and position the newly opened browser window
-        let latest_windows = get_all_windows();
-        for window in latest_windows {
-            let title_lower = window.title.to_lowercase();
-            if title_matches_browser(&title_lower, browser) {
+        // No existing window — the browser is cold-starting and its window may
+        // not exist yet (it would otherwise stay maximized). Poll for it for a
+        // few seconds, then restore + position it in the left half.
+        for _ in 0..25 {
+            let found = get_all_windows()
+                .into_iter()
+                .find(|w| title_matches_browser(&w.title.to_lowercase(), browser));
+            if let Some(window) = found {
                 set_window_split_left_with_height(window.hwnd, work_width, work_height);
                 break;
             }
+            thread::sleep(Duration::from_millis(200));
         }
     }
 
