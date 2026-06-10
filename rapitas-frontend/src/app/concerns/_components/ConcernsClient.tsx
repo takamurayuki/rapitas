@@ -145,24 +145,6 @@ export default function ConcernsClient() {
     }
   }, [newTitle, newDetail, newType, newSeverity, newLocation, newThemeId, fetchConcerns]);
 
-  const handleConvert = useCallback(
-    async (id: number) => {
-      setBusyId(id);
-      try {
-        const res = await fetch(`${API_BASE_URL}/concerns/${id}/convert-to-task`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) await fetchConcerns();
-      } catch {
-        /* error */
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [fetchConcerns],
-  );
-
   const handleDelete = useCallback(async (id: number) => {
     setBusyId(id);
     try {
@@ -211,7 +193,7 @@ export default function ConcernsClient() {
         <div className="flex items-center gap-2">
           <Bug className="h-5 w-5 text-rose-500" />
           <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">懸念バックログ</h1>
-          <span className="text-xs text-zinc-400">スコープ外の懸念を起票・タスク化</span>
+          <span className="text-xs text-zinc-400">スコープ外の懸念を起票・GitHubに公開</span>
         </div>
         <button
           onClick={() => setShowAdd((v) => !v)}
@@ -419,7 +401,6 @@ export default function ConcernsClient() {
               busy={busyId === c.id}
               canPublish={integrations.length > 0}
               theme={c.themeId != null ? (themeById.get(c.themeId) ?? null) : null}
-              onConvert={handleConvert}
               onDelete={handleDelete}
               onPublish={handlePublish}
             />

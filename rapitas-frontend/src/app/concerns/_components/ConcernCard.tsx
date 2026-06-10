@@ -9,15 +9,7 @@
  * concern's theme, so there is no repo picker.
  */
 
-import {
-  ListPlus,
-  Trash2,
-  Loader2,
-  Upload,
-  CircleDot,
-  ExternalLink,
-  FolderOpen,
-} from 'lucide-react';
+import { Trash2, Loader2, Upload, CircleDot, ExternalLink, FolderOpen } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
@@ -29,7 +21,6 @@ interface ConcernCardProps {
   canPublish: boolean;
   /** The concern's theme, for the theme-name badge (null = unknown). */
   theme?: { name: string; icon?: string | null; color?: string | null } | null;
-  onConvert: (id: number) => void;
   onDelete: (id: number) => void;
   /**
    * Publish the concern as a GitHub issue in one click. The server resolves the
@@ -44,7 +35,6 @@ export function ConcernCard({
   busy,
   canPublish,
   theme,
-  onConvert,
   onDelete,
   onPublish,
 }: ConcernCardProps) {
@@ -129,16 +119,6 @@ export function ConcernCard({
 
       {/* Actions */}
       <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-700/50">
-        {c.status === 'open' && (
-          <button
-            onClick={() => onConvert(c.id)}
-            disabled={busy}
-            className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <ListPlus className="h-3 w-3" />}
-            タスク化
-          </button>
-        )}
         {/* Publish to GitHub — one click; the server resolves the repo from the
             concern's theme. Only for open, not-yet-published concerns. */}
         {c.status === 'open' && !c.linkedIssue && canPublish && (
