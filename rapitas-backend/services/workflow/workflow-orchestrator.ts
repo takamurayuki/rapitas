@@ -20,6 +20,7 @@ import {
   releaseTaskExecutionLock,
   WORKFLOW_LOCK_TTL_MS,
 } from '../agents/task-execution-lock';
+import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -54,6 +55,25 @@ type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 // every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
+
+/**
+ * Resolves the system prompt content for a given key.
+ *
+ * @param key - The system prompt key to look up. / 検索するシステムプロンプトキー。
+ * @returns The prompt content string. / プロンプト本文。
+ *   B-2: DB hit → DB の content を返す。
+ *   B-1: DB null + DEFAULT_SYSTEM_PROMPTS に key あり → default content を返す。
+ *   B-1': DB null + DEFAULT_SYSTEM_PROMPTS にも key なし → `''` を返す。
+ *
+ * NOTE: DB record の content が `''` であってもフォールバックしない。
+ * record の存在 = DB の意図として尊重するため、存在判定は `null` チェックのみ行う。
+ */
+export async function resolveSystemPromptContent(key: string): Promise<string> {
+  const sp = await prisma.systemPrompt.findUnique({ where: { key } });
+  if (sp !== null) return sp.content;
+  const defaultEntry = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === key);
+  return defaultEntry?.content ?? '';
+}
 
 export class WorkflowOrchestrator {
   private static instance: WorkflowOrchestrator;
@@ -246,10 +266,7 @@ export class WorkflowOrchestrator {
     // Get system prompt
     let systemPromptContent = '';
     if (roleConfig?.systemPromptKey) {
-      const sp = await prisma.systemPrompt.findUnique({
-        where: { key: roleConfig.systemPromptKey },
-      });
-      if (sp) systemPromptContent = sp.content;
+      systemPromptContent = await resolveSystemPromptContent(roleConfig.systemPromptKey);
     }
 
     // Resolve workflow directory
