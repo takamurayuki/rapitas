@@ -7,6 +7,8 @@
  * Not responsible for reading/sync of issues (see sync-webhook) — it only links.
  */
 
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createIssue, closeIssue } from './issue-operations';
@@ -19,6 +21,7 @@ import {
 } from '../memory/concern-backlog-service';
 
 const log = createLogger('github:concern-bridge');
+const execAsync = promisify(exec);
 
 /** Result of a bridge mutation; `status` is the HTTP status the route should use. */
 type BridgeResult<T> = ({ success: true } & T) | { success: false; status: number; error: string };
@@ -140,16 +143,22 @@ export async function publishConcernToIssue(
 
 /**
  * Resolve the GitHub integration (repo) a concern should publish to, from its
- * theme. A concern in the backlog already belongs to a theme (directly, or via
- * its origin task), and a theme is tied to a repo through `repositoryUrl` — so
- * the publish target is determinable without asking the user to pick. Returns
- * null only when the theme/repo can't be determined or no active integration
- * matches; the caller then falls back to a manual picker.
+ * theme. A concern belongs to a theme (directly, or via its origin task), and a
+ * theme maps to a repo through its `repositoryUrl` or its working directory's
+ * git `origin` remote — so the target is normally determinable without asking
+ * the user. As a final fallback, if exactly one repo is connected, that one is
+ * used (no ambiguity). Returns null only when nothing connected can be matched.
  *
  * @param concernId - Concern id. / 懸念ID
  * @returns The matching integration id, or null. / 一致した連携ID、無ければnull
  */
 export async function resolveConcernIntegration(concernId: number): Promise<{ id: number } | null> {
+  const integrations = await prisma.gitHubIntegration.findMany({
+    where: { isActive: true },
+    select: { id: true, ownerName: true, repositoryName: true },
+  });
+  if (integrations.length === 0) return null;
+
   const concern = await getConcern(concernId);
   if (!concern) return null;
 
@@ -161,25 +170,34 @@ export async function resolveConcernIntegration(concernId: number): Promise<{ id
     });
     themeId = task?.themeId ?? null;
   }
-  if (themeId == null) return null;
 
-  const theme = await prisma.theme.findUnique({
-    where: { id: themeId },
-    select: { repositoryUrl: true },
-  });
-  const ownerRepo = parseOwnerRepo(theme?.repositoryUrl ?? null);
-  if (!ownerRepo) return null;
+  // Pin down the theme's repo: prefer the configured repositoryUrl, else read
+  // the working directory's git origin (covers themes that only set a workdir).
+  let ownerRepo: { owner: string; repo: string } | null = null;
+  if (themeId != null) {
+    const theme = await prisma.theme.findUnique({
+      where: { id: themeId },
+      select: { repositoryUrl: true, workingDirectory: true },
+    });
+    ownerRepo = parseOwnerRepo(theme?.repositoryUrl ?? null);
+    if (!ownerRepo && theme?.workingDirectory) {
+      ownerRepo = await ownerRepoFromGitRemote(theme.workingDirectory);
+    }
+  }
 
-  const integrations = await prisma.gitHubIntegration.findMany({
-    where: { isActive: true },
-    select: { id: true, ownerName: true, repositoryName: true },
-  });
-  const match = integrations.find(
-    (i) =>
-      i.ownerName.toLowerCase() === ownerRepo.owner.toLowerCase() &&
-      i.repositoryName.toLowerCase() === ownerRepo.repo.toLowerCase(),
-  );
-  return match ? { id: match.id } : null;
+  if (ownerRepo) {
+    const match = integrations.find(
+      (i) =>
+        i.ownerName.toLowerCase() === ownerRepo!.owner.toLowerCase() &&
+        i.repositoryName.toLowerCase() === ownerRepo!.repo.toLowerCase(),
+    );
+    if (match) return { id: match.id };
+  }
+
+  // Couldn't pinpoint the repo — if only one is connected, it's unambiguous.
+  if (integrations.length === 1) return { id: integrations[0].id };
+
+  return null;
 }
 
 /** Extract `{owner, repo}` from a GitHub repo URL (https or ssh form). */
@@ -188,6 +206,18 @@ function parseOwnerRepo(url: string | null): { owner: string; repo: string } | n
   const m = url.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
   if (!m) return null;
   return { owner: m[1], repo: m[2] };
+}
+
+/** Read a working directory's `origin` remote and parse its owner/repo. */
+async function ownerRepoFromGitRemote(
+  workingDirectory: string,
+): Promise<{ owner: string; repo: string } | null> {
+  try {
+    const { stdout } = await execAsync('git remote get-url origin', { cwd: workingDirectory });
+    return parseOwnerRepo(stdout.trim());
+  } catch {
+    return null;
+  }
 }
 
 /**
