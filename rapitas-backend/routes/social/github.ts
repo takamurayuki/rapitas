@@ -455,7 +455,13 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     return await prisma.gitHubIssue.findMany({
       where: {
         integrationId: parseInt(id),
-        ...(state && state !== 'all' && { state }),
+        // Match either case: rows synced/published before state was normalized
+        // may be stored UPPERCASE ("OPEN"), so the "open" filter must still find
+        // them. (Provider-agnostic — avoids Postgres-only `mode: insensitive`.)
+        ...(state &&
+          state !== 'all' && {
+            state: { in: [state.toLowerCase(), state.toUpperCase()] },
+          }),
       },
       orderBy: { updatedAt: 'desc' },
     });
