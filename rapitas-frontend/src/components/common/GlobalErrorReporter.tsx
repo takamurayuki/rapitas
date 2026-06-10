@@ -12,7 +12,21 @@ import { API_BASE_URL } from '@/utils/api';
 let recentMessages: { msg: string; ts: number }[] = [];
 const DEDUPE_WINDOW_MS = 10_000;
 
+/**
+ * Known browser-generated noise that is harmless and produces no actionable signal.
+ * Entries use prefix matching (`startsWith`) to tolerate minor message variations
+ * across browser versions.
+ */
+const BENIGN_ERRORS: string[] = [
+  // NOTE: Fired by browsers when a ResizeObserver callback takes longer than one animation frame.
+  // Harmless — the next frame will deliver the pending notifications automatically.
+  'ResizeObserver loop completed with undelivered notifications',
+  // NOTE: Older Chrome variant of the same ResizeObserver timing message.
+  'ResizeObserver loop limit exceeded',
+];
+
 function shouldReport(message: string): boolean {
+  if (BENIGN_ERRORS.some((prefix) => message.startsWith(prefix))) return false;
   const now = Date.now();
   recentMessages = recentMessages.filter((r) => now - r.ts < DEDUPE_WINDOW_MS);
   if (recentMessages.some((r) => r.msg === message)) return false;
