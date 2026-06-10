@@ -1,6 +1,12 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 
+// NOTE: Staged rules default to "warn" (dev-friendly). When RAPITAS_LINT_STRICT=1,
+// they escalate to "error" so the automated verification gate enforces them as hard
+// failures before any merge. Set automatically by automated-verifier; do not set
+// manually in .env unless you want permanent strict mode locally.
+const stagedSeverity = process.env.RAPITAS_LINT_STRICT === "1" ? "error" : "warn";
+
 export default [
   {
     files: ["**/*.ts"],
@@ -22,9 +28,9 @@ export default [
     },
     rules: {
       "no-console": "error",
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": stagedSeverity,
       "@typescript-eslint/no-unused-vars": [
-        "warn",
+        stagedSeverity,
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },

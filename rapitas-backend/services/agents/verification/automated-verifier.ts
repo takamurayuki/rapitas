@@ -78,17 +78,23 @@ interface CmdResult {
 /**
  * Runs a shell command asynchronously, capturing output. Never rejects — a
  * non-zero exit (lint/tsc found problems) is a normal, expected outcome.
+ *
+ * @param command - Shell command to execute / 実行するシェルコマンド
+ * @param cwd - Working directory / 作業ディレクトリ
+ * @param timeoutMs - Timeout in milliseconds / タイムアウト(ms)
+ * @param env - Optional env override; defaults to process.env when omitted / 環境変数の上書き（省略時はprocess.envを継承）
  */
 function runCmd(
   command: string,
   cwd: string,
   timeoutMs: number = CMD_TIMEOUT_MS,
+  env?: NodeJS.ProcessEnv,
 ): Promise<CmdResult> {
   return new Promise((resolveP) => {
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const child = spawn(command, { cwd, shell: true, windowsHide: true });
+    const child = spawn(command, { cwd, shell: true, windowsHide: true, env: env ?? process.env });
     const finish = (code: number) => {
       if (settled) return;
       settled = true;
@@ -279,7 +285,12 @@ async function lintProject(
   const args = relFiles
     .map((f) => `"${relative(projectRoot, join(workdir, f)).replace(/\\/g, '/')}"`)
     .join(' ');
-  const res = await runCmd(`"${bin}" --format json ${args}`, projectRoot);
+  // NOTE: RAPITAS_LINT_STRICT=1 escalates staged rules from "warn" to "error" so
+  // the gate catches no-explicit-any / no-unused-vars violations before any merge.
+  const res = await runCmd(`"${bin}" --format json ${args}`, projectRoot, CMD_TIMEOUT_MS, {
+    ...process.env,
+    RAPITAS_LINT_STRICT: '1',
+  });
   const parsed = parseEslintErrorCount(res.stdout);
   if (!parsed.ok) {
     // eslint is present but produced no parseable JSON (config error / crash).

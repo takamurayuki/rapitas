@@ -22,6 +22,7 @@
     "db:studio": "prisma studio",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:strict": "RAPITAS_LINT_STRICT=1 eslint .",
     "format": "prettier --write \"**/*.ts\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore"
   },
