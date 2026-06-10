@@ -97,32 +97,28 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         title="自動実行を停止します"
         className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
       >
-        {/* REST (spinner + label) — fades out as a whole on hover. Hiding it via
-            the PARENT span's opacity means the label is hidden by parent alpha
-            (so the pulsing "タスク自動実行中" no longer bleeds through — a child's
-            pulse animation can override its own opacity-0, but never the
-            parent's). The spinner gets its OWN persistent compositing layer
-            (transform-gpu): an ancestor opacity change then just multiplies that
-            layer's alpha instead of re-grouping+re-rasterizing the rotating icon,
-            which was the source of the hover distortion. The inner box spins; a
-            rigid box (not the SVG) also prevents geometric warp. */}
-        <span className="inline-flex items-center gap-2 group-hover:opacity-0">
-          {paused ? (
-            <Pause className="h-4 w-4 shrink-0" />
-          ) : (
-            <span className="inline-flex h-4 w-4 shrink-0 transform-gpu items-center justify-center">
-              <span className="inline-flex h-4 w-4 animate-spin [transform-origin:center]">
-                <Orbit className="h-4 w-4" />
-              </span>
-            </span>
-          )}
-          <span className={paused ? '' : 'animate-pulse'}>
-            {paused ? '一時停止' : 'タスク自動実行中'}
+        {/* REST content — spinner + label. The spinner's opacity/display is
+            NEVER toggled: that (in ANY form — display:none, or an ancestor going
+            opacity<1, even with its own GPU layer) re-rasterizes the rotating
+            icon and is the ONE thing that distorts it. So instead of hiding this
+            on hover, the hover state is an OPAQUE SIBLING overlay (below) that
+            simply COVERS it. An opacity change on a sibling (not an ancestor)
+            can't re-raster the spinner, so the rotation stays perfectly stable.
+            Rigid box (not the SVG) also prevents geometric warp. */}
+        {paused ? (
+          <Pause className="h-4 w-4 shrink-0" />
+        ) : (
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin [transform-origin:center]">
+            <Orbit className="h-4 w-4" />
           </span>
+        )}
+        <span className={paused ? '' : 'animate-pulse'}>
+          {paused ? '一時停止' : 'タスク自動実行中'}
         </span>
-        {/* HOVER — the stop affordance, overlaid (absolute so the button width
-            never jumps). Now shows the Square stop icon again. */}
-        <span className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+        {/* HOVER — OPAQUE overlay that covers the rest content (independent icon
+            + label). Opaque bg hides the spinner underneath without ever
+            toggling it; fading a sibling is safe for the spinner. */}
+        <span className="absolute inset-0 flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-700 opacity-0 transition-opacity group-hover:opacity-100 dark:bg-red-950 dark:text-red-300">
           <Square className="h-4 w-4 fill-current" />
           停止
         </span>
