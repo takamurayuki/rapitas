@@ -1,18 +1,32 @@
 #[cfg(target_os = "windows")]
 use std::process::Command;
 
-/// Resolve a preset browser key (`chrome` / `msedge` / `firefox`) to its common
-/// install path on Windows, mirroring the registry-inference fallbacks below.
+/// Resolve a preset browser key (`chrome` / `msedge` / `firefox`) to an actually
+/// installed exe path on Windows. Probes the common install locations (incl. the
+/// per-user one) and returns the first that exists; None falls back to the OS
+/// default so a missing path never aborts the split.
 #[cfg(target_os = "windows")]
 fn browser_path_for_preset(preset: &str) -> Option<String> {
-    match preset {
-        "chrome" => Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe".to_string()),
-        "msedge" | "edge" => {
-            Some(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".to_string())
-        }
-        "firefox" => Some(r"C:\Program Files\Mozilla Firefox\firefox.exe".to_string()),
-        _ => None,
-    }
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let candidates: Vec<String> = match preset {
+        "chrome" => vec![
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe".to_string(),
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe".to_string(),
+            format!(r"{local}\Google\Chrome\Application\chrome.exe"),
+        ],
+        "msedge" | "edge" => vec![
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".to_string(),
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe".to_string(),
+        ],
+        "firefox" => vec![
+            r"C:\Program Files\Mozilla Firefox\firefox.exe".to_string(),
+            r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe".to_string(),
+        ],
+        _ => vec![],
+    };
+    candidates
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
 }
 
 #[cfg(target_os = "windows")]
