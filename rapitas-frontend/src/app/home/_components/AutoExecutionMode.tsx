@@ -97,23 +97,21 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         title="自動実行を停止します"
         className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
       >
-        {/* Rest state — stays MOUNTED and spinning; only fades out on hover.
-            Earlier it used `group-hover:hidden` (display:none), so the spinner
-            was torn down and re-created on un-hover — the browser re-promoted
-            the GPU layer and restarted the animation mid-frame, which is what
-            distorted the rotation on re-display. Fading via opacity keeps the
-            element (and its smooth spin) alive the whole time.
-            Spin stays clean via shrink-0 (square box) + transform-origin:center.
-            NOTE: no will-change-transform — on a permanently-spinning element it
-            re-promotes a GPU layer on every mount, so navigating to this screen
-            distorted the first frames while the layer settled (and the task list
-            rendered). transform animations are auto-composited anyway.
-            Pulse is on the LABEL only. */}
+        {/* Rest state — stays MOUNTED and spinning; only fades out on hover
+            (opacity, not display:none, so the spin is never torn down/restarted).
+            The spin is applied to a FIXED-SIZE wrapper <span> (a rigid box),
+            NOT the SVG itself. Rotating an inline SVG directly distorted the
+            first frames on navigation — the SVG's intrinsic size / baseline
+            isn't settled for a frame after mount, so the rotating glyph warped.
+            A block-level box of explicit h-4 w-4 cannot warp; the static Orbit
+            just fills it. Pulse is on the LABEL only. */}
         <span className="inline-flex items-center gap-2 transition-opacity duration-150 group-hover:opacity-0">
           {paused ? (
             <Pause className="h-4 w-4 shrink-0" />
           ) : (
-            <Orbit className="h-4 w-4 shrink-0 animate-spin [transform-origin:center]" />
+            <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin [transform-origin:center]">
+              <Orbit className="h-4 w-4" />
+            </span>
           )}
           <span className={paused ? '' : 'animate-pulse'}>
             {paused ? '一時停止' : 'タスク自動実行中'}
