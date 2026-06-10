@@ -97,15 +97,17 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         title="自動実行を停止します"
         className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
       >
-        {/* Rest state — stays MOUNTED and spinning; only fades out on hover
-            (opacity, not display:none, so the spin is never torn down/restarted).
-            The spin is applied to a FIXED-SIZE wrapper <span> (a rigid box),
-            NOT the SVG itself. Rotating an inline SVG directly distorted the
-            first frames on navigation — the SVG's intrinsic size / baseline
-            isn't settled for a frame after mount, so the rotating glyph warped.
-            A block-level box of explicit h-4 w-4 cannot warp; the static Orbit
-            just fills it. Pulse is on the LABEL only. */}
-        <span className="inline-flex items-center gap-2 transition-opacity duration-150 group-hover:opacity-0">
+        {/* Rest state — stays MOUNTED and spinning; hidden on hover via an
+            INSTANT opacity swap (no transition). A `transition-opacity` fade was
+            the real cause of the "distorts on re-display" bug: during the 150ms
+            fade-in the browser rasterizes the spinning subtree into a
+            partial-opacity layer each frame, blurring the thin Orbit strokes at
+            sub-pixel rotation. An instant swap removes that window; the spin
+            itself never stops (opacity, not display:none).
+            The spin is on a FIXED-SIZE wrapper box (rigid h-4 w-4) — not the SVG
+            — so the glyph can't geometrically warp either. Pulse is on the
+            LABEL only. */}
+        <span className="inline-flex items-center gap-2 group-hover:opacity-0">
           {paused ? (
             <Pause className="h-4 w-4 shrink-0" />
           ) : (
@@ -117,9 +119,10 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
             {paused ? '一時停止' : 'タスク自動実行中'}
           </span>
         </span>
-        {/* Hover state — overlaid via absolute so the button width never jumps
-            and the rest spinner underneath is never display-toggled. */}
-        <span className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        {/* Hover state — overlaid via absolute (instant opacity swap, no fade)
+            so the button width never jumps and the spinner is never re-rastered
+            into a fading layer. */}
+        <span className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
           <Square className="h-4 w-4 fill-current" />
           停止
         </span>
