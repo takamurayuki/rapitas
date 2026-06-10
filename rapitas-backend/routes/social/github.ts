@@ -6,6 +6,7 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
 import { listWorkflowRuns, getWorkflowRun, getWorkflowRunLog } from '../../services/github/actions';
+import { resolvePrConflicts } from '../../services/github/conflict-resolver';
 import {
   publishConcernToIssue,
   importIssueAsConcern,
@@ -444,6 +445,87 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       .catch(() => {});
 
     return { success: true, baseBranch };
+  })
+
+  // Resolve a PR's merge conflicts. Merges the base into the head branch in an
+  // isolated worktree: pushes when clean (e.g. the branch was just behind base);
+  // for real conflicts, files an agent task to resolve them.
+  .post('/pull-requests/:id/resolve-conflicts', async (context) => {
+    const { id } = context.params as { id: string };
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+    if (!pr) {
+      context.set.status = 404;
+      return { error: 'PR not found' };
+    }
+
+    // The conflict resolution needs a local checkout of the repo — use the
+    // linked task's (or its theme's) working directory.
+    let workingDirectory: string | null = null;
+    let themeId: number | null = null;
+    if (pr.linkedTaskId != null) {
+      const task = await prisma.task
+        .findUnique({
+          where: { id: pr.linkedTaskId },
+          select: {
+            workingDirectory: true,
+            themeId: true,
+            theme: { select: { workingDirectory: true } },
+          },
+        })
+        .catch(() => null);
+      workingDirectory = task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
+      themeId = task?.themeId ?? null;
+    }
+    if (!workingDirectory) {
+      context.set.status = 400;
+      return {
+        error:
+          'このPRのローカルチェックアウトが特定できません（タスク/テーマに作業ディレクトリが必要です）',
+      };
+    }
+
+    const result = await resolvePrConflicts(workingDirectory, pr.baseBranch, pr.headBranch);
+    if (result.resolved) {
+      return { resolved: true, conflicts: [], detail: result.detail };
+    }
+
+    // Real conflicts — file an agent task to resolve them on the PR branch.
+    let taskId: number | undefined;
+    if (result.conflicts.length > 0) {
+      const instruction = [
+        `PR #${pr.prNumber}「${pr.title}」のマージ競合を解消してください。`,
+        `- マージ先(base): ${pr.baseBranch}`,
+        `- PRブランチ(head): ${pr.headBranch}`,
+        `- 競合ファイル: ${result.conflicts.join(', ')}`,
+        '',
+        '手順:',
+        `1. git fetch origin ${pr.baseBranch} ${pr.headBranch}`,
+        `2. git checkout ${pr.headBranch}（無ければ git checkout -b ${pr.headBranch} origin/${pr.headBranch}）`,
+        `3. git merge origin/${pr.baseBranch} を実行`,
+        '4. 競合を両者の意図を保ちつつ解消し、競合マーカー(<<<<<<< など)を残さない',
+        '5. 変更を commit',
+        `6. git push origin ${pr.headBranch} でPRブランチを更新`,
+      ].join('\n');
+      const task = await prisma.task
+        .create({
+          data: {
+            title: `PR #${pr.prNumber} の競合を解消`,
+            description: instruction,
+            status: 'todo',
+            priority: 'high',
+            isDeveloperMode: true,
+            ...(themeId != null && { themeId }),
+            workingDirectory,
+          },
+        })
+        .catch(() => null);
+      taskId = task?.id;
+    }
+
+    return { resolved: false, conflicts: result.conflicts, detail: result.detail, taskId };
   })
 
   // Get Issue list

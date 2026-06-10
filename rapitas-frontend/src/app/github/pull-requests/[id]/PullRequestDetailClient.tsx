@@ -45,6 +45,7 @@ export default function PullRequestDetailClient() {
   const [branches, setBranches] = useState<string[]>([]);
   const [changingBase, setChangingBase] = useState(false);
   const [autoMerge, setAutoMerge] = useState(false);
+  const [resolvingConflicts, setResolvingConflicts] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -140,6 +141,33 @@ export default function PullRequestDetailClient() {
       logger.error('Failed to review:', error);
     } finally {
       setReviewAction(null);
+    }
+  };
+
+  const handleResolveConflicts = async () => {
+    if (!pr) return;
+    setResolvingConflicts(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/resolve-conflicts`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.resolved) {
+        showToast(data.detail || 'ベースを取り込み、ブランチを更新しました', 'success');
+        await fetchPRData();
+      } else if (res.ok && data.taskId) {
+        showToast(
+          `競合があります（${data.conflicts?.length ?? 0}件）。解消タスク #${data.taskId} を作成しました。タスク画面で実行してください。`,
+          'success',
+        );
+      } else {
+        showToast(data.error || data.detail || '競合解消に失敗しました', 'error');
+      }
+    } catch (error) {
+      logger.error('Failed to resolve conflicts:', error);
+      showToast('競合解消に失敗しました', 'error');
+    } finally {
+      setResolvingConflicts(false);
     }
   };
 
@@ -261,9 +289,22 @@ export default function PullRequestDetailClient() {
             自動マージ
           </label>
           <button
+            onClick={handleResolveConflicts}
+            disabled={resolvingConflicts}
+            title="ベースを取り込み、競合があればエージェント解消タスクを作成します"
+            className="ml-auto flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 text-sm font-medium rounded-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+          >
+            {resolvingConflicts ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <GitMerge className="w-4 h-4" />
+            )}
+            競合を解消
+          </button>
+          <button
             onClick={handleMerge}
             disabled={merging}
-            className="ml-auto flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             {merging ? (
               <Loader2 className="w-4 h-4 animate-spin" />
