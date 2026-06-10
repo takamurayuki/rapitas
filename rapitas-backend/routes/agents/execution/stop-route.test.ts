@@ -1,55 +1,56 @@
-// @ts-nocheck — Uses vitest API in a bun:test project. Needs migration.
+// @ts-nocheck — Uses patterns that need further migration. Needs completion.
 /**
  * Tests for stop-route worktree cleanup functionality
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { stopRoute } from './stop-route';
+// NOTE: Migrated from vitest to bun:test. mock.module is not hoisted, so all
+// static imports that depend on mocked modules are converted to dynamic imports.
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
 const mocked = <T>(value: T) => value as any;
 
-// Mock modules
-vi.mock('../../../config/database', () => ({
+// Mock modules — must precede dynamic imports below
+mock.module('../../../config/database', () => ({
   prisma: {
     task: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
+      findUnique: mock(),
+      update: mock(),
     },
     developerModeConfig: {
-      findUnique: vi.fn(),
+      findUnique: mock(),
     },
     agentExecution: {
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
+      findFirst: mock(),
+      findUnique: mock(),
+      update: mock(),
     },
     agentExecutionLog: {
-      deleteMany: vi.fn(),
+      deleteMany: mock(),
     },
     agentSession: {
-      update: vi.fn(),
+      update: mock(),
     },
   },
 }));
-vi.mock('../../../config', () => ({
+mock.module('../../../config', () => ({
   prisma: {
     task: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
+      findUnique: mock(),
+      update: mock(),
     },
     developerModeConfig: {
-      findUnique: vi.fn(),
+      findUnique: mock(),
     },
     agentExecution: {
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
+      findFirst: mock(),
+      findUnique: mock(),
+      update: mock(),
     },
     agentExecutionLog: {
-      deleteMany: vi.fn(),
+      deleteMany: mock(),
     },
     agentSession: {
-      update: vi.fn(),
+      update: mock(),
     },
   },
   getProjectRoot: () => '/tmp/rapitas-test',
@@ -61,30 +62,36 @@ vi.mock('../../../config', () => ({
   }),
 }));
 
-vi.mock('../../../services/core/orchestrator-instance', () => ({
+mock.module('../../../services/core/orchestrator-instance', () => ({
   orchestrator: {
-    stopExecution: vi.fn(),
+    stopExecution: mock(),
   },
 }));
 
-vi.mock('../../../services/agents/agent-worker-manager', () => ({
+mock.module('../../../services/agents/agent-worker-manager', () => ({
   AgentWorkerManager: {
-    getInstance: vi.fn(() => ({
-      getSessionExecutionsAsync: vi.fn(() => Promise.resolve([])),
-      stopExecution: vi.fn(),
-      revertChanges: vi.fn(),
+    getInstance: mock(() => ({
+      getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+      stopExecution: mock(),
+      revertChanges: mock(),
     })),
   },
 }));
 
-vi.mock('./execution-lock', () => ({
-  releaseTaskExecutionLock: vi.fn(),
+mock.module('./execution-lock', () => ({
+  releaseTaskExecutionLock: mock(),
 }));
 
-vi.mock('../../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
-  removeWorktree: vi.fn(),
+mock.module('../../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
+  removeWorktree: mock(),
+  cleanupStaleWorktrees: mock(),
+  cleanupOrphanedWorktrees: mock(),
+  createWorktree: mock(),
+  ensureGitRepository: mock(),
+  validateAndSetupRemote: mock(),
 }));
 
+const { stopRoute } = await import('./stop-route');
 const { prisma } = await import('../../../config/database');
 const { orchestrator } = await import('../../../services/core/orchestrator-instance');
 const { removeWorktree } =
@@ -96,7 +103,17 @@ const mockRemoveWorktree = mocked(removeWorktree);
 
 describe('stop-route worktree cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // NOTE: Reset shared mocks between tests to avoid call-count bleed.
+    mockRemoveWorktree.mockReset();
+    mockOrchestrator.stopExecution.mockReset();
+    mockPrisma.task.findUnique.mockReset();
+    mockPrisma.developerModeConfig.findUnique.mockReset();
+    mockPrisma.agentExecution.findFirst.mockReset();
+    mockPrisma.agentExecution.findUnique.mockReset();
+    mockPrisma.agentExecution.update.mockReset();
+    mockPrisma.agentExecutionLog.deleteMany.mockReset();
+    mockPrisma.task.update.mockReset();
+    mockPrisma.agentSession.update.mockReset();
   });
 
   it.skip('should clean up worktree on single execution stop', async () => {
@@ -138,10 +155,10 @@ describe('stop-route worktree cleanup', () => {
     };
 
     // Call the route handler
-    const app = { post: vi.fn() };
-    const routeHandler = vi.fn();
+    const app = { post: mock() };
+    const routeHandler = mock();
 
-    stopRoute.post = vi.fn((path, handler) => {
+    stopRoute.post = mock((path, handler) => {
       routeHandler.mockImplementation(handler);
       return app;
     });
@@ -180,14 +197,14 @@ describe('stop-route worktree cleanup', () => {
     });
 
     const mockAgentWorkerManager = {
-      getSessionExecutionsAsync: vi.fn(() => Promise.resolve([])),
-      stopExecution: vi.fn(),
-      revertChanges: vi.fn(),
+      getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+      stopExecution: mock(),
+      revertChanges: mock(),
     };
 
     // Mock AgentWorkerManager
     const { AgentWorkerManager } = await import('../../../services/agents/agent-worker-manager');
-    vi.mocked(AgentWorkerManager.getInstance).mockReturnValue(mockAgentWorkerManager as any);
+    AgentWorkerManager.getInstance.mockReturnValue(mockAgentWorkerManager as any);
 
     mockPrisma.agentExecution.findMany.mockResolvedValue([]);
     mockPrisma.agentSession.update.mockResolvedValue({} as any);
@@ -200,11 +217,11 @@ describe('stop-route worktree cleanup', () => {
     };
 
     // Create a mock route handler
-    const routeHandler = vi.fn();
+    const routeHandler = mock();
 
     // Mock the Elysia route
     const mockElysia = {
-      post: vi.fn((path, handler) => {
+      post: mock((path, handler) => {
         routeHandler.mockImplementation(handler);
         return mockElysia;
       }),

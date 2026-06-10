@@ -71,8 +71,8 @@ describe('IdeaBox Service', () => {
 
       const call = mockKnowledgeEntry.create.mock.calls[0][0];
       expect(call.data.category).toBe('ux');
-      // Implementation auto-appends scope:global when no themeId is provided
-      expect(call.data.tags).toBe('["ui","button","scope:global"]');
+      // Implementation auto-appends scope:global and priority:medium (default) when no themeId is provided
+      expect(call.data.tags).toBe('["ui","button","scope:global","priority:medium"]');
     });
   });
 
