@@ -11,8 +11,11 @@ import {
   Play,
   Square,
   RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import type { Task } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
@@ -27,6 +30,8 @@ export type ExecutionSectionProps = {
   capability?: ExecutionCapability;
   /** Theme ID for deep-linking the capability guide. */
   themeId?: number | null;
+  /** Task ID — used to open this task's PR detail page after completion. */
+  taskId: number;
   isExpanded: boolean;
   onToggle: () => void;
   // Status flags
@@ -95,6 +100,7 @@ export type ExecutionSectionProps = {
 export function ExecutionSection({
   capability = 'ready',
   themeId,
+  taskId,
   isExpanded,
   onToggle,
   isRunning,
@@ -142,6 +148,22 @@ export function ExecutionSection({
   onReset,
   onRerun,
 }: ExecutionSectionProps) {
+  const router = useRouter();
+
+  // Open this task's PR detail page (replaces the old approval-page link). The
+  // PR is auto-created on completion, so resolve it by task and navigate.
+  const openTaskPr = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
+      if (res.ok) {
+        const pr = (await res.json()) as { id: number };
+        router.push(`/github/pull-requests/${pr.id}`);
+      }
+    } catch {
+      /* no PR yet — nothing to open */
+    }
+  };
+
   return (
     <div>
       {/* Accordion header with action buttons */}
@@ -214,16 +236,28 @@ export function ExecutionSection({
             </button>
           )}
           {isCompleted && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReset();
-              }}
-              className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
-            >
-              <RefreshCw className="w-2.5 h-2.5" />
-              リセット
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
+              >
+                <RefreshCw className="w-2.5 h-2.5" />
+                リセット
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTaskPr();
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+                PRを開く
+              </button>
+            </>
           )}
           {isCancelled && (
             <button
