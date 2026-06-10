@@ -106,7 +106,7 @@ jobs:
             libgcc-s1
 
       - name: Install pnpm
-        run: npm install -g pnpm@latest
+        run: npm install -g pnpm@10
 
       - name: Get pnpm store directory
         id: pnpm_cache_dir
