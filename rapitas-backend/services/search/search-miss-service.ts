@@ -8,6 +8,7 @@
 import type { PrismaClient, SearchMiss } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 const log = createLogger('search-miss-service');
 
@@ -172,12 +173,11 @@ export async function resolveSearchMissForTask(
 
   // `mode: 'insensitive'` は PostgreSQL 専用。SQLite（デスクトップ）生成クライアントの
   // StringFilter には `mode` が無く、送ると実行時に PrismaClientValidationError になる。
-  // 稼働中プロバイダに応じて条件付きで付与する（routes/system/search/search-route.ts と
-  // 同じ確立パターン）。SQLite では大文字小文字を区別する `contains` にフォールバックする。
-  const isPostgres =
-    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');
+  // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
+  // omits the field from StringFilter, causing PrismaClientValidationError at
+  // runtime. getInsensitiveMode() centralises the provider check.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` は Postgres の StringFilter にのみ存在。any にすることで SQLite 生成クライアントでもこのスプレッドが型チェックを通る。
-  const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
+  const insensitive: any = getInsensitiveMode();
 
   // Count matches for EVERY miss in parallel. Previously this awaited one
   // `task.count()` per miss inside the loop — an N+1 of 1+N sequential DB
