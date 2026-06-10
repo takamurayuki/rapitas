@@ -2,6 +2,12 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 
+// NOTE: Staged rules default to "warn" (dev-friendly). When RAPITAS_LINT_STRICT=1,
+// they escalate to "error" so the automated verification gate enforces them as hard
+// failures before any merge. Set automatically by automated-verifier; do not set
+// manually unless you want permanent strict mode locally.
+const stagedSeverity = process.env.RAPITAS_LINT_STRICT === '1' ? 'error' : 'warn';
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -22,15 +28,15 @@ const eslintConfig = defineConfig([
     files: ['src/**/*.{ts,tsx}', '**/rapitas-frontend/src/**/*.{ts,tsx}'],
     rules: {
       // Enforce explicit typing over `any`
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': stagedSeverity,
       // Prefer consistent type-only imports
       '@typescript-eslint/consistent-type-imports': [
-        'warn',
+        stagedSeverity,
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
       // Catch unused variables (allow underscore prefix)
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        stagedSeverity,
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       // React Compiler lint rules are too noisy for the existing codebase.

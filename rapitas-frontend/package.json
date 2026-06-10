@@ -12,6 +12,7 @@
     "build:tauri:no-restore": "node scripts/prepare-tauri-build.js backup && cross-env TAURI_BUILD=true next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:strict": "cross-env RAPITAS_LINT_STRICT=1 eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
