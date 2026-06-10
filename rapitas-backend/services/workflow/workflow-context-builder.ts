@@ -204,6 +204,8 @@ export async function buildRoleContext(
       return ctx;
     }
 
+    // NOTE: auto_verifier shares the verifier context — both must emit the validator-required headings
+    case 'auto_verifier':
     case 'verifier': {
       const plan = await readWorkflowFile(dir, 'plan');
       let ctx = taskInfo;
