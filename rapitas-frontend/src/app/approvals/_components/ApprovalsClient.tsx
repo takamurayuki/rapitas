@@ -6,7 +6,6 @@ import { CheckCircle, XCircle, Clock, Bot, CheckCheck, AlertCircle } from 'lucid
 import Pagination from '@/components/ui/pagination/Pagination';
 import { useApprovalsClient } from '../_hooks/useApprovalsClient';
 import { ApprovalCard } from './ApprovalCard';
-import { CodeReviewCard } from './CodeReviewCard';
 import { CheckboxButton } from './CheckboxButton';
 
 export default function ApprovalsClient() {
@@ -22,25 +21,24 @@ export default function ApprovalsClient() {
     setCurrentPage,
     itemsPerPage,
     setItemsPerPage,
-    codeReviewDiff,
     approvals,
     isLoading,
     error,
     handleApprove,
     handleReject,
-    handleCodeReviewApprove,
-    handleCodeReviewReject,
-    handleRequestChanges,
-    handleExpandCodeReview,
     handleBulkApprove,
     toggleSelect,
     toggleSelectAll,
     formatDate,
   } = useApprovalsClient();
 
-  const totalPages = Math.ceil(approvals.length / itemsPerPage);
+  // Code-review approvals were removed (PRs are opened directly); only
+  // subtask-decomposition approvals are shown. Filter out any legacy
+  // code_review rows so they don't render in the subtask card.
+  const visibleApprovals = approvals.filter((a) => a.requestType !== 'code_review');
+  const totalPages = Math.ceil(visibleApprovals.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedApprovals = approvals.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedApprovals = visibleApprovals.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -111,7 +109,7 @@ export default function ApprovalsClient() {
       )}
 
       {/* Empty State */}
-      {!isLoading && approvals.length === 0 && (
+      {!isLoading && visibleApprovals.length === 0 && (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full mb-4">
             <Bot className="w-8 h-8 text-zinc-400" />
@@ -127,59 +125,36 @@ export default function ApprovalsClient() {
       )}
 
       {/* Approvals List */}
-      {!isLoading && approvals.length > 0 && (
+      {!isLoading && visibleApprovals.length > 0 && (
         <div className="space-y-4">
           {/* Select All (pending only) */}
           {filter === 'pending' && (
             <div className="flex items-center gap-3 px-4 py-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
               <CheckboxButton
-                checked={selectedIds.size === approvals.length}
+                checked={selectedIds.size === visibleApprovals.length}
                 onClick={toggleSelectAll}
               />
               <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                {t('selectAll')} ({selectedIds.size}/{approvals.length})
+                {t('selectAll')} ({selectedIds.size}/{visibleApprovals.length})
               </span>
             </div>
           )}
 
-          {paginatedApprovals.map((approval) =>
-            approval.requestType === 'code_review' ? (
-              <CodeReviewCard
-                key={approval.id}
-                approval={approval}
-                isExpanded={expandedId === approval.id}
-                isProcessing={processingId === approval.id}
-                isPending={filter === 'pending'}
-                diffFiles={codeReviewDiff.get(approval.id) || []}
-                onToggleExpand={() => handleExpandCodeReview(approval.id)}
-                onApprove={(commitMessage, baseBranch) =>
-                  handleCodeReviewApprove(approval.id, commitMessage, baseBranch)
-                }
-                onReject={() => handleCodeReviewReject(approval.id)}
-                onRequestChanges={(feedback, comments) =>
-                  handleRequestChanges(approval.id, feedback, comments)
-                }
-                formatDate={formatDate}
-                error={error}
-              />
-            ) : (
-              <ApprovalCard
-                key={approval.id}
-                approval={approval}
-                isSelected={selectedIds.has(approval.id)}
-                isExpanded={expandedId === approval.id}
-                isProcessing={processingId === approval.id}
-                isPending={filter === 'pending'}
-                onToggleSelect={() => toggleSelect(approval.id)}
-                onToggleExpand={() =>
-                  setExpandedId(expandedId === approval.id ? null : approval.id)
-                }
-                onApprove={(selected) => handleApprove(approval.id, selected)}
-                onReject={() => handleReject(approval.id)}
-                formatDate={formatDate}
-              />
-            ),
-          )}
+          {paginatedApprovals.map((approval) => (
+            <ApprovalCard
+              key={approval.id}
+              approval={approval}
+              isSelected={selectedIds.has(approval.id)}
+              isExpanded={expandedId === approval.id}
+              isProcessing={processingId === approval.id}
+              isPending={filter === 'pending'}
+              onToggleSelect={() => toggleSelect(approval.id)}
+              onToggleExpand={() => setExpandedId(expandedId === approval.id ? null : approval.id)}
+              onApprove={(selected) => handleApprove(approval.id, selected)}
+              onReject={() => handleReject(approval.id)}
+              formatDate={formatDate}
+            />
+          ))}
 
           {/* Pagination */}
           <Pagination

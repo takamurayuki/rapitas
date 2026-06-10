@@ -6,14 +6,13 @@ import { useSearchParams } from 'next/navigation';
 import { useApprovals } from '@/feature/developer-mode/hooks/useApprovals';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
-import { API_BASE_URL } from '@/utils/api';
-import { createLogger } from '@/lib/logger';
-import type { FileDiff } from '@/types';
-
-const logger = createLogger('useApprovalsClient');
 
 /**
  * All state and derived helpers needed by ApprovalsClient and its sub-components.
+ *
+ * NOTE: this page now only handles SUBTASK-decomposition approvals. Code-review
+ * approval was removed — a completed execution's PR is opened directly from the
+ * task's execution panel instead.
  */
 export interface ApprovalsClientState {
   filter: string;
@@ -25,7 +24,6 @@ export interface ApprovalsClientState {
   setCurrentPage: (p: number) => void;
   itemsPerPage: number;
   setItemsPerPage: (n: number) => void;
-  codeReviewDiff: Map<number, FileDiff[]>;
   // From useApprovals
   approvals: ReturnType<typeof useApprovals>['approvals'];
   isLoading: boolean;
@@ -33,14 +31,6 @@ export interface ApprovalsClientState {
   // Action handlers
   handleApprove: (id: number, selectedSubtasks?: number[]) => Promise<void>;
   handleReject: (id: number) => Promise<void>;
-  handleCodeReviewApprove: (id: number, commitMessage: string, baseBranch: string) => Promise<void>;
-  handleCodeReviewReject: (id: number) => Promise<void>;
-  handleRequestChanges: (
-    id: number,
-    feedback: string,
-    comments: { file?: string; content: string; type: string }[],
-  ) => Promise<void>;
-  handleExpandCodeReview: (id: number) => Promise<void>;
   handleBulkApprove: () => Promise<void>;
   toggleSelect: (id: number) => void;
   toggleSelectAll: () => void;
@@ -59,18 +49,8 @@ export function useApprovalsClient(): ApprovalsClientState {
   const searchParams = useSearchParams();
   const expandParam = searchParams.get('expand');
 
-  const {
-    approvals,
-    isLoading,
-    error,
-    fetchApprovals,
-    approve,
-    reject,
-    bulkApprove,
-    fetchDiff,
-    approveCodeReview,
-    rejectCodeReview,
-  } = useApprovals();
+  const { approvals, isLoading, error, fetchApprovals, approve, reject, bulkApprove } =
+    useApprovals();
 
   const [filter, setFilter] = useState<string>('pending');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -78,7 +58,6 @@ export function useApprovalsClient(): ApprovalsClientState {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [codeReviewDiff, setCodeReviewDiff] = useState<Map<number, FileDiff[]>>(new Map());
   const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
 
   useEffect(() => {
@@ -86,30 +65,16 @@ export function useApprovalsClient(): ApprovalsClientState {
     setCurrentPage(1);
   }, [filter, fetchApprovals]);
 
-  // Read ID from URL parameter and auto-expand corresponding approval request
+  // Read ID from URL parameter and auto-expand corresponding approval request.
   useEffect(() => {
     if (expandParam && approvals.length > 0 && !hasAutoExpanded) {
       const targetId = parseInt(expandParam, 10);
-      const targetApproval = approvals.find((a) => a.id === targetId);
-
-      if (targetApproval) {
+      if (approvals.some((a) => a.id === targetId)) {
         setExpandedId(targetId);
         setHasAutoExpanded(true);
-
-        if (targetApproval.requestType === 'code_review' && !codeReviewDiff.has(targetId)) {
-          if (targetApproval.proposedChanges?.structuredDiff?.length) {
-            setCodeReviewDiff((prev) =>
-              new Map(prev).set(targetId, targetApproval.proposedChanges.structuredDiff!),
-            );
-          } else {
-            fetchDiff(targetId).then((files) => {
-              setCodeReviewDiff((prev) => new Map(prev).set(targetId, files));
-            });
-          }
-        }
       }
     }
-  }, [expandParam, approvals, hasAutoExpanded, filter, codeReviewDiff, fetchDiff]);
+  }, [expandParam, approvals, hasAutoExpanded]);
 
   /** Approve a subtask-decomposition request, optionally for a subset of subtasks. */
   const handleApprove = useCallback(
@@ -131,88 +96,6 @@ export function useApprovalsClient(): ApprovalsClientState {
       setExpandedId(null);
     },
     [reject],
-  );
-
-  /** Approve a code review request, creating a commit with the given message and branch. */
-  const handleCodeReviewApprove = useCallback(
-    async (id: number, commitMessage: string, baseBranch: string) => {
-      setProcessingId(id);
-      await approveCodeReview(id, commitMessage, baseBranch);
-      setProcessingId(null);
-      setExpandedId(null);
-    },
-    [approveCodeReview],
-  );
-
-  /** Reject a code review request. */
-  const handleCodeReviewReject = useCallback(
-    async (id: number) => {
-      setProcessingId(id);
-      await rejectCodeReview(id);
-      setProcessingId(null);
-      setExpandedId(null);
-    },
-    [rejectCodeReview],
-  );
-
-  /**
-   * Send a change-request feedback for a code review.
-   *
-   * @param id - Approval request ID / <承認リクエストID>
-   * @param feedback - Overall feedback text / <フィードバックテキスト>
-   * @param comments - Per-file inline comments / <ファイルごとのコメント>
-   */
-  const handleRequestChanges = useCallback(
-    async (
-      id: number,
-      feedback: string,
-      comments: { file?: string; content: string; type: string }[],
-    ) => {
-      setProcessingId(id);
-      try {
-        const res = await fetch(`${API_BASE_URL}/approvals/${id}/request-changes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ feedback, comments }),
-        });
-        if (res.ok) {
-          await fetchApprovals(filter);
-        }
-      } catch (err) {
-        logger.error('Failed to request changes:', err);
-      } finally {
-        setProcessingId(null);
-        setExpandedId(null);
-      }
-    },
-    [fetchApprovals, filter],
-  );
-
-  /**
-   * Toggle expansion of a code review card, fetching its diff on first open.
-   *
-   * @param id - Approval request ID / <承認リクエストID>
-   */
-  const handleExpandCodeReview = useCallback(
-    async (id: number) => {
-      if (expandedId === id) {
-        setExpandedId(null);
-      } else {
-        setExpandedId(id);
-        if (!codeReviewDiff.has(id)) {
-          const approval = approvals.find((a) => a.id === id);
-          if (approval?.proposedChanges?.structuredDiff?.length) {
-            setCodeReviewDiff((prev) =>
-              new Map(prev).set(id, approval.proposedChanges.structuredDiff!),
-            );
-          } else {
-            const files = await fetchDiff(id);
-            setCodeReviewDiff((prev) => new Map(prev).set(id, files));
-          }
-        }
-      }
-    },
-    [expandedId, codeReviewDiff, approvals, fetchDiff],
   );
 
   /** Approve all currently selected approval requests. */
@@ -274,16 +157,11 @@ export function useApprovalsClient(): ApprovalsClientState {
     setCurrentPage,
     itemsPerPage,
     setItemsPerPage,
-    codeReviewDiff,
     approvals,
     isLoading,
     error,
     handleApprove,
     handleReject,
-    handleCodeReviewApprove,
-    handleCodeReviewReject,
-    handleRequestChanges,
-    handleExpandCodeReview,
     handleBulkApprove,
     toggleSelect,
     toggleSelectAll,

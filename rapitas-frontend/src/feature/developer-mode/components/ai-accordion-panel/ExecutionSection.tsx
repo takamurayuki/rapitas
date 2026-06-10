@@ -11,9 +11,7 @@ import {
   Play,
   Square,
   RefreshCw,
-  ExternalLink,
 } from 'lucide-react';
-import Link from 'next/link';
 import type { Task } from '@/types';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
@@ -216,26 +214,16 @@ export function ExecutionSection({
             </button>
           )}
           {isCompleted && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReset();
-                }}
-                className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
-              >
-                <RefreshCw className="w-2.5 h-2.5" />
-                リセット
-              </button>
-              <Link
-                href="/approvals"
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
-              >
-                <ExternalLink className="w-2.5 h-2.5" />
-                承認
-              </Link>
-            </>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReset();
+              }}
+              className="flex items-center gap-1 px-2 py-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[10px] rounded transition-colors"
+            >
+              <RefreshCw className="w-2.5 h-2.5" />
+              リセット
+            </button>
           )}
           {isCancelled && (
             <button
