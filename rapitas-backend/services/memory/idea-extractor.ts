@@ -12,7 +12,7 @@ import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
-import { submitIdea } from './idea-box-service';
+import { submitIdea, resolveTaskThemeId } from './idea-box-service';
 import { submitConcern, type ConcernType } from './concern-backlog-service';
 
 const log = createLogger('memory:idea-extractor');
@@ -177,18 +177,11 @@ export async function extractIdeasFromCopilotChat(
 }
 
 /**
- * Look up a task's themeId. Returns null when the task or its theme is missing.
+ * Resolve a task's theme for filed ideas, falling back to the working-directory
+ * theme and then the default theme so ideas aren't dropped into "global".
  */
 async function getTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
-    return task?.themeId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveTaskThemeId(taskId);
 }
 
 /**
