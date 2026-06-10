@@ -6,17 +6,9 @@
  * Not responsible for route definitions or deciding whether to resume.
  */
 
-import { join } from 'path';
-import { prisma, getProjectRoot } from '../../../config';
+import { prisma } from '../../../config';
 import { createLogger } from '../../../config/logger';
-import { toJsonString } from '../../../utils/database/db-helpers';
 import { orchestrator } from '../../../services/core/orchestrator-instance';
-import {
-  cleanImplementationSummary,
-  sanitizeScreenshots,
-} from '../../../utils/agent/agent-response-cleaner';
-import { captureScreenshotsForDiff } from '../../../services/misc/screenshot-service';
-import type { ScreenshotResult } from '../../../services/misc/screenshot-service';
 
 const log = createLogger('routes:agent-resume');
 
@@ -59,7 +51,7 @@ export function handleResumeCompletion(
     .resumeInterruptedExecution(executionId, { timeout })
     .then(async (result) => {
       if (result.success && !result.waitingForInput) {
-        await updateTaskStatusOnSuccess(task, execution, workingDirectory, result);
+        await updateTaskStatusOnSuccess(task, execution, workingDirectory);
       } else if (result.waitingForInput) {
         log.info(`[resume] Task ${task.id} is waiting for input after resume`);
       } else {
@@ -73,14 +65,13 @@ export function handleResumeCompletion(
 }
 
 /**
- * Updates task and session status when resume completes successfully, then creates
- * an approval request with diff and screenshots if code changes were detected.
+ * Updates task and session status when resume completes successfully, then
+ * notifies that the resumed work finished (the task's PR is opened directly).
  */
 async function updateTaskStatusOnSuccess(
   task: TaskInfo,
   execution: ExecutionInfo,
   workingDirectory: string,
-  result: Awaited<ReturnType<typeof orchestrator.resumeInterruptedExecution>>,
 ): Promise<void> {
   const currentTask = await prisma.task.findUnique({ where: { id: task.id } });
   const wfStatus = currentTask?.workflowStatus;
@@ -120,90 +111,18 @@ async function updateTaskStatusOnSuccess(
       );
     });
 
+  // Code-review approval was removed — the task's PR is opened directly. Just
+  // notify that the resumed work completed.
   const diff = await orchestrator.getFullGitDiff(workingDirectory);
-  if (diff && diff !== 'No changes detected') {
-    await createApprovalForResumedWork(task, execution, workingDirectory, result);
-  } else {
-    await prisma.notification.create({
-      data: {
-        type: 'agent_execution_complete',
-        title: 'エージェント実行完了（変更なし）',
-        message: `「${task.title}」の再開した作業が完了しましたが、コード変更はありませんでした。`,
-        link: `/tasks/${task.id}`,
-      },
-    });
-  }
-}
-
-/**
- * Creates an approval request with structured diff and screenshots for resumed work.
- */
-async function createApprovalForResumedWork(
-  task: TaskInfo,
-  execution: ExecutionInfo,
-  workingDirectory: string,
-  result: Awaited<ReturnType<typeof orchestrator.resumeInterruptedExecution>>,
-): Promise<void> {
-  const structuredDiff = await orchestrator.getDiff(workingDirectory);
-  const implementationSummary = cleanImplementationSummary(
-    result.output || '再開した作業が完了しました。',
-  );
-
-  let screenshots: ScreenshotResult[] = [];
-  try {
-    screenshots = await captureScreenshotsForDiff(structuredDiff, {
-      workingDirectory,
-      agentOutput: result.output || '',
-    });
-    if (screenshots.length > 0) {
-      log.info(
-        `[agent-resume] Captured ${screenshots.length} screenshots for task ${task.id}: ${screenshots.map((s) => s.page).join(', ')}`,
-      );
-    }
-  } catch (screenshotErr) {
-    log.warn({ err: screenshotErr }, '[agent-resume] Screenshot capture failed (non-fatal)');
-  }
-
-  const screenshotData = sanitizeScreenshots(screenshots);
-  const config = execution.session.config;
-  if (!config) return;
-
-  log.info(
-    `[agent-resume] Creating approval with ${screenshotData.length} screenshot(s): ${screenshotData.map((s) => s.url).join(', ')}`,
-  );
-
-  const approvalRequest = await prisma.approvalRequest.create({
-    data: {
-      configId: config.id,
-      requestType: 'code_review',
-      title: `「${task.title}」のコードレビュー（再開後）`,
-      description: implementationSummary,
-      proposedChanges:
-        toJsonString({
-          taskId: task.id,
-          sessionId: execution.sessionId,
-          workingDirectory,
-          structuredDiff,
-          implementationSummary,
-          executionTimeMs: result.executionTimeMs,
-          resumed: true,
-          screenshots: screenshotData,
-        }) ?? '',
-      executionType: 'code_review',
-      estimatedChanges: toJsonString({
-        filesChanged: structuredDiff.length,
-        summary: implementationSummary.substring(0, 500),
-      }),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
-
+  const hadChanges = Boolean(diff && diff !== 'No changes detected');
   await prisma.notification.create({
     data: {
-      type: 'pr_review_requested',
-      title: 'コードレビュー依頼（再開後）',
-      message: `「${task.title}」の再開した作業が完了しました。レビューをお願いします。`,
-      link: `/approvals/${approvalRequest.id}`,
+      type: 'agent_execution_complete',
+      title: hadChanges ? 'エージェント実行完了（再開後）' : 'エージェント実行完了（変更なし）',
+      message: hadChanges
+        ? `「${task.title}」の再開した作業が完了しました。`
+        : `「${task.title}」の再開した作業が完了しましたが、コード変更はありませんでした。`,
+      link: `/tasks/${task.id}`,
     },
   });
 }
