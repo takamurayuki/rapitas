@@ -113,18 +113,6 @@ export default function IdeasClient() {
   const [convertingIdeaId, setConvertingIdeaId] = useState<number | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
-  // 手動タスク化モーダル状態
-  const [manualConvertIdea, setManualConvertIdea] = useState<Idea | null>(null);
-  const [manualTitle, setManualTitle] = useState('');
-  const [manualDescription, setManualDescription] = useState('');
-  const [manualPriority, setManualPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>(
-    'medium',
-  );
-  const [manualEstimatedHours, setManualEstimatedHours] = useState<string>('');
-  const [manualThemeId, setManualThemeId] = useState<number | null>(null);
-  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
-  const [manualError, setManualError] = useState<string | null>(null);
-
   // テーマ未設定アイデアのタスク化前テーマ選択モーダル状態
   // NOTE: グローバルアイデア（テーマ未設定）はそのままタスク化するとワークフローで起票できないため、必ずテーマを選ばせる。
   const [themePickerIdea, setThemePickerIdea] = useState<Idea | null>(null);
@@ -385,78 +373,49 @@ export default function IdeasClient() {
   }, [themePickerIdea, themePickerThemeId, executeQuickConvert, closeThemePicker]);
 
   /**
-   * Open the manual-convert modal pre-filled with the idea's title and
-   * content. The user can edit fields before submitting; AI is NOT used.
+   * Save the open edit form AND immediately file it as a task (non-AI), so the
+   * user can change fields and create the task in one action. Requires a theme
+   * (workflow registration); the button is disabled without one.
    */
-  const openManualConvert = useCallback((idea: Idea) => {
-    setManualConvertIdea(idea);
-    setManualTitle(idea.title);
-    setManualDescription(idea.content);
-    setManualPriority('medium');
-    setManualEstimatedHours('');
-    setManualThemeId(idea.themeId);
-    setManualError(null);
-  }, []);
-
-  const closeManualConvert = useCallback(() => {
-    setManualConvertIdea(null);
-    setManualError(null);
-    setIsManualSubmitting(false);
-  }, []);
-
-  const submitManualConvert = useCallback(async () => {
-    if (!manualConvertIdea) return;
-    if (!manualTitle.trim()) {
-      setManualError('タイトルは必須です');
-      return;
-    }
-    if (manualThemeId === null) {
-      // テーマ未設定だとワークフロー登録ができないため必須化。
-      setManualError('テーマを選択してください');
-      return;
-    }
-    setIsManualSubmitting(true);
-    setManualError(null);
+  const handleSaveAndConvert = useCallback(async () => {
+    if (editingId === null || !newTitle.trim() || newThemeId === null) return;
+    setIsSubmitting(true);
     try {
-      const hoursNum = manualEstimatedHours.trim() ? Number(manualEstimatedHours) : undefined;
-      const res = await fetch(
-        `${API_BASE_URL}/idea-box/${manualConvertIdea.id}/convert-to-task-manual`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: manualTitle.trim(),
-            description: manualDescription,
-            priority: manualPriority,
-            ...(typeof hoursNum === 'number' && !Number.isNaN(hoursNum) && hoursNum >= 0
-              ? { estimatedHours: hoursNum }
-              : {}),
-            ...(manualThemeId !== null ? { themeId: manualThemeId } : {}),
-          }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setManualError(data.error || `HTTP ${res.status}`);
-        return;
-      }
+      const id = editingId;
+      const title = newTitle.trim();
+      const content = newContent.trim() || title;
+      // Persist the edits first.
+      await fetch(`${API_BASE_URL}/idea-box/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          scope: 'project',
+          priority: newPriority,
+          themeId: newThemeId,
+        }),
+      });
+      // Then convert it to a task using the edited values (no AI).
+      await fetch(`${API_BASE_URL}/idea-box/${id}/convert-to-task-manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: content,
+          priority: newPriority,
+          themeId: newThemeId,
+        }),
+      });
+      resetForm();
+      setShowQuickAdd(false);
       await fetchIdeas();
-      closeManualConvert();
-    } catch (err) {
-      setManualError(err instanceof Error ? err.message : '送信に失敗しました');
+    } catch {
+      /* error */
     } finally {
-      setIsManualSubmitting(false);
+      setIsSubmitting(false);
     }
-  }, [
-    manualConvertIdea,
-    manualTitle,
-    manualDescription,
-    manualPriority,
-    manualEstimatedHours,
-    manualThemeId,
-    fetchIdeas,
-    closeManualConvert,
-  ]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm]);
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
   const filtered = ideas.filter((idea) => {
@@ -522,6 +481,25 @@ export default function IdeasClient() {
                 )}
                 {editingId !== null ? '更新' : '保存'}
               </button>
+              {/* When editing, save the changes AND file the task in one click.
+                  Needs a theme (workflow registration). */}
+              {editingId !== null && (
+                <button
+                  onClick={handleSaveAndConvert}
+                  disabled={!newTitle.trim() || isSubmitting || newThemeId === null}
+                  title={
+                    newThemeId === null ? 'タスク化にはテーマが必要です' : '変更を保存してタスク化'
+                  }
+                  className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ListPlus className="h-3 w-3" />
+                  )}
+                  保存してタスク化
+                </button>
+              )}
             </>
           }
         >
@@ -710,11 +688,10 @@ export default function IdeasClient() {
                         <Lightbulb className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            {/* Title — single line, ellipsis when it overflows */}
-                            <span className="min-w-0 flex-1 truncate font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                            {/* Title, then theme + priority icon right beside it */}
+                            <span className="min-w-0 truncate font-medium text-sm text-zinc-900 dark:text-zinc-100">
                               {idea.title}
                             </span>
-                            {/* Theme, then priority icon immediately to its right */}
                             <span className="flex shrink-0 items-center gap-1.5">
                               {idea.scope === 'global' ? (
                                 <Globe className="h-3 w-3 text-indigo-400" />
@@ -739,14 +716,8 @@ export default function IdeasClient() {
                                 <PriorityIcon priority={idea.priority} size="sm" />
                               </span>
                             </span>
-                          </div>
-                          {idea.content !== idea.title && (
-                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
-                              {idea.content}
-                            </p>
-                          )}
-                          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
-                            <span className="flex items-center gap-0.5">
+                            {/* Source (manual / agent / AI assistant) — far right */}
+                            <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-400">
                               <SourceIcon className="h-2.5 w-2.5" />
                               {idea.source === 'user'
                                 ? '手動'
@@ -756,6 +727,13 @@ export default function IdeasClient() {
                                     ? 'AIアシスタント'
                                     : idea.source}
                             </span>
+                          </div>
+                          {idea.content !== idea.title && (
+                            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                              {idea.content}
+                            </p>
+                          )}
+                          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
                             <span>{new Date(idea.createdAt).toLocaleDateString('ja-JP')}</span>
                             {idea.usedInTaskId && (
                               <span className="text-emerald-500">タスク化済み</span>
@@ -780,14 +758,6 @@ export default function IdeasClient() {
                                 <ListPlus className="h-3 w-3" />
                               )}
                               タスク化
-                            </button>
-                            <button
-                              onClick={() => openManualConvert(idea)}
-                              title="編集してからタスク化"
-                              className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-400 transition-colors"
-                              aria-label="編集してからタスク化"
-                            >
-                              <ArrowRight className="h-3.5 w-3.5" />
                             </button>
                           </>
                         )}
@@ -828,132 +798,6 @@ export default function IdeasClient() {
           </>
         }
       </div>
-
-      {/* 手動タスク化モーダル */}
-      {manualConvertIdea && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={closeManualConvert}
-        >
-          <div
-            className="w-full max-w-lg mx-3 bg-white dark:bg-zinc-900 rounded-lg shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                アイデアをタスクとして起票
-              </h2>
-              <button
-                onClick={closeManualConvert}
-                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                aria-label="閉じる"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  タイトル <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={manualTitle}
-                  onChange={(e) => setManualTitle(e.target.value)}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
-                  placeholder="タスクのタイトル"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  説明
-                </label>
-                <textarea
-                  value={manualDescription}
-                  onChange={(e) => setManualDescription(e.target.value)}
-                  rows={5}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
-                  placeholder="タスクの詳細"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    優先度
-                  </label>
-                  <select
-                    value={manualPriority}
-                    onChange={(e) => setManualPriority(e.target.value as typeof manualPriority)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
-                  >
-                    <option value="low">低</option>
-                    <option value="medium">中</option>
-                    <option value="high">高</option>
-                    <option value="urgent">緊急</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    予想時間 (h)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={manualEstimatedHours}
-                    onChange={(e) => setManualEstimatedHours(e.target.value)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
-                    placeholder="任意"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  テーマ <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={manualThemeId ?? ''}
-                  onChange={(e) =>
-                    setManualThemeId(e.target.value ? parseInt(e.target.value) : null)
-                  }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
-                >
-                  <option value="">テーマを選択してください</option>
-                  {wdThemes.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {manualError && (
-                <p className="text-xs text-red-600 dark:text-red-400">{manualError}</p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 rounded-b-lg">
-              <button
-                onClick={closeManualConvert}
-                disabled={isManualSubmitting}
-                className="rounded px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={submitManualConvert}
-                disabled={isManualSubmitting || !manualTitle.trim() || manualThemeId === null}
-                className="flex items-center gap-1.5 rounded bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {isManualSubmitting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ListPlus className="h-3.5 w-3.5" />
-                )}
-                タスク化
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* テーマ選択モーダル — テーマ未設定アイデアのタスク化前に表示（ワークフロー登録にテーマ必須） */}
       {themePickerIdea && (
