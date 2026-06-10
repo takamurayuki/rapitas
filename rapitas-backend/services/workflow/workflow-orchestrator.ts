@@ -20,6 +20,7 @@ import {
   releaseTaskExecutionLock,
   WORKFLOW_LOCK_TTL_MS,
 } from '../agents/task-execution-lock';
+import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -243,13 +244,20 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // Get system prompt
+    // Get system prompt — DB-stored content takes priority.
+    // NOTE: If the seed has not been run yet, fall back to the compiled DEFAULT_SYSTEM_PROMPTS
+    // so the researcher receives the correct template even on a fresh install.
     let systemPromptContent = '';
     if (roleConfig?.systemPromptKey) {
       const sp = await prisma.systemPrompt.findUnique({
         where: { key: roleConfig.systemPromptKey },
       });
-      if (sp) systemPromptContent = sp.content;
+      if (sp) {
+        systemPromptContent = sp.content;
+      } else {
+        systemPromptContent =
+          DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === roleConfig.systemPromptKey)?.content ?? '';
+      }
     }
 
     // Resolve workflow directory
