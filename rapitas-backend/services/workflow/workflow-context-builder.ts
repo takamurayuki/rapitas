@@ -59,8 +59,13 @@ export async function buildRoleContext(
         researchHeader: '# 調査結果 (research.md)',
         planHeader: '# 承認済み実装計画 (plan.md)',
         reviewHeader: '# レビュー指摘事項 (question.md)',
-        instruction:
-          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。\n\n' +
+        // Lightweight workflow has no plan.md — implement straight from the
+        // research and task instead of "following the plan".
+        leadWithPlan:
+          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。',
+        leadNoPlan:
+          '上記の調査結果とタスク内容に基づいて実装を完了してください。必要なファイルの作成・編集を行い、コードを実装してください。',
+        constraints:
           '## 実装者の責務 (厳守)\n' +
           '- あなたの仕事はコード変更だけです。**verify.md / research.md / plan.md は絶対に保存しないでください。**\n' +
           '- `curl` / `Invoke-RestMethod` / `wget` を使って `http://localhost:3001/workflow/...` を叩くことを禁じます。検証は次フェーズの verifier ロールが行います。\n' +
@@ -119,8 +124,13 @@ export async function buildRoleContext(
         researchHeader: '# Research Results (research.md)',
         planHeader: '# Approved Implementation Plan (plan.md)',
         reviewHeader: '# Review Feedback (question.md)',
-        instruction:
-          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.\n\n' +
+        // Lightweight workflow has no plan.md — implement straight from the
+        // research and task instead of "following the plan".
+        leadWithPlan:
+          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.',
+        leadNoPlan:
+          'Please complete the implementation based on the research and task above. Create and edit the necessary files and implement the code.',
+        constraints:
           '## Implementer Constraints (strict)\n' +
           '- Your job is code changes ONLY. **DO NOT save verify.md / research.md / plan.md.**\n' +
           '- DO NOT call `http://localhost:3001/workflow/...` via `curl` / `Invoke-RestMethod` / `wget`. Verification is performed by the verifier role in the next phase.\n' +
@@ -200,7 +210,8 @@ export async function buildRoleContext(
       if (question) {
         ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
       }
-      ctx += `\n\n${t.implementer.instruction}`;
+      const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
+      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
       return ctx;
     }
 
@@ -224,7 +235,26 @@ export async function buildRoleContext(
       } catch {
         // Continue even if git diff fails
       }
-      ctx += `\n\n${t.verifier.instruction}`;
+      // Lightweight workflow has no plan.md — verify against the task/research
+      // requirements instead of a plan checklist that doesn't exist.
+      let verifierInstruction = t.verifier.instruction;
+      if (!plan) {
+        verifierInstruction = verifierInstruction
+          .replace('上記の計画と実装結果を検証し', '上記の実装結果を検証し')
+          .replace(
+            '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)',
+            '## 要件の充足状況 (タスク要件・調査内容に対して ✅/❌)',
+          )
+          .replace(
+            'Please verify the implementation plan and results above',
+            'Please verify the implementation results above',
+          )
+          .replace(
+            '## Checklist status (each plan item ✅/❌)',
+            '## Requirement coverage (each task requirement ✅/❌)',
+          );
+      }
+      ctx += `\n\n${verifierInstruction}`;
       return ctx;
     }
 
