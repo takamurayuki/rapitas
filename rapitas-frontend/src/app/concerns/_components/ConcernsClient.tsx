@@ -14,6 +14,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import { ConcernCard } from './ConcernCard';
 import {
@@ -57,9 +58,15 @@ export default function ConcernsClient() {
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
 
   const { categories, themes } = useFilterDataStore();
+  // Concerns publish to a theme's repo, so only themes with a working directory
+  // are selectable. (Shared rule with the idea box.)
+  const workingDirThemes = themes.filter((t) => t.workingDirectory);
   const filteredThemes = newCategoryId
-    ? themes.filter((t) => t.categoryId === newCategoryId)
-    : themes;
+    ? workingDirThemes.filter((t) => t.categoryId === newCategoryId)
+    : workingDirThemes;
+  // Theme lookup for the per-card theme-name badge.
+  const themeById = new Map(themes.map((t) => [t.id, t]));
+  const { showToast } = useToast();
 
   const totalPages = Math.ceil(total / itemsPerPage);
 
@@ -191,32 +198,30 @@ export default function ConcernsClient() {
   }, []);
 
   const handlePublish = useCallback(
-    async (id: number, integrationId?: number): Promise<'published' | 'needs_picker' | 'error'> => {
+    async (id: number): Promise<void> => {
       setBusyId(id);
       try {
+        // One click: no integrationId — the server resolves the repo from the
+        // concern's theme and creates the issue directly.
         const res = await fetch(`${API_BASE_URL}/github/concerns/${id}/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // Omit integrationId so the server resolves the repo from the theme.
-          body: JSON.stringify(integrationId != null ? { integrationId } : {}),
+          body: JSON.stringify({}),
         });
         if (res.ok) {
+          showToast('GitHub Issue を作成しました', 'success');
           await fetchConcerns();
-          return 'published';
+          return;
         }
-        // 409 + NEEDS_INTEGRATION = theme couldn't identify a repo → ask to pick.
-        if (res.status === 409) {
-          const data = (await res.json().catch(() => null)) as { code?: string } | null;
-          if (data?.code === 'NEEDS_INTEGRATION') return 'needs_picker';
-        }
-        return 'error';
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        showToast(data?.error || 'GitHub への公開に失敗しました', 'error');
       } catch {
-        return 'error';
+        showToast('GitHub への公開に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns],
+    [fetchConcerns, showToast],
   );
 
   return (
@@ -407,7 +412,7 @@ export default function ConcernsClient() {
           className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
         >
           <option value="">すべてのテーマ</option>
-          {themes.map((th) => (
+          {workingDirThemes.map((th) => (
             <option key={th.id} value={th.id}>
               {th.name}
             </option>
@@ -431,7 +436,8 @@ export default function ConcernsClient() {
               key={c.id}
               concern={c}
               busy={busyId === c.id}
-              integrations={integrations}
+              canPublish={integrations.length > 0}
+              theme={c.themeId != null ? (themeById.get(c.themeId) ?? null) : null}
               onConvert={handleConvert}
               onDismiss={handleDismiss}
               onDelete={handleDelete}

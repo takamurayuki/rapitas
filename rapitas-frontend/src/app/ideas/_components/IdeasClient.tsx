@@ -95,6 +95,10 @@ export default function IdeasClient() {
   const titleRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { categories, themes } = useFilterDataStore();
+  // Ideas are turned into tasks that run in a theme's repo, so theme pulldowns
+  // only offer themes that have a working directory set. (Shared rule with the
+  // concern backlog.) Theme-name display still uses the full `themes` list.
+  const wdThemes = themes.filter((t) => t.workingDirectory);
 
   // 詳細テキストエリアの高さを内容に合わせて自動調整。
   // showQuickAdd / editingId 切替時にも再計測する（編集時にプリセット内容の高さに合わせるため）。
@@ -127,16 +131,16 @@ export default function IdeasClient() {
   const [themePickerCategoryId, setThemePickerCategoryId] = useState<number | null>(null);
   const [themePickerThemeId, setThemePickerThemeId] = useState<number | null>(null);
   const themePickerThemes = themePickerCategoryId
-    ? themes.filter((t) => t.categoryId === themePickerCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === themePickerCategoryId)
+    : wdThemes;
 
   const filteredThemes = newCategoryId
-    ? themes.filter((t) => t.categoryId === newCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === newCategoryId)
+    : wdThemes;
 
   const filterThemes = filterCategoryId
-    ? themes.filter((t) => t.categoryId === filterCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === filterCategoryId)
+    : wdThemes;
 
   const fetchIdeas = useCallback(async () => {
     setIsLoading(true);
@@ -511,87 +515,87 @@ export default function IdeasClient() {
             </>
           }
         >
-            <div className="space-y-3">
-              <input
-                ref={titleRef}
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
-                  if (e.key === 'Escape') handleCancel();
-                }}
-                placeholder="アイデアをひとことで..."
-                className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
-              />
-              <textarea
-                ref={contentTextareaRef}
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="詳細（任意）"
-                className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
-                style={{ overflowY: 'auto' }}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Priority — moved below the title */}
-                <span className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-500 dark:text-zinc-400">優先度</span>
-                  <span
-                    className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
-                    title="優先度（アプリへの革新性・価値の底上げ度合い）"
-                  >
-                    {PRIORITY_ORDER.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setNewPriority(p)}
-                        title={PRIORITY_HINT[p]}
-                        className={`px-2 py-1 transition-colors ${
-                          newPriority === p
-                            ? 'bg-zinc-100 dark:bg-zinc-800'
-                            : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-                        }`}
-                      >
-                        <PriorityIcon priority={p} size="sm" showTitle />
-                      </button>
-                    ))}
-                  </span>
+          <div className="space-y-3">
+            <input
+              ref={titleRef}
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
+                if (e.key === 'Escape') handleCancel();
+              }}
+              placeholder="アイデアをひとことで..."
+              className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+            />
+            <textarea
+              ref={contentTextareaRef}
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="詳細（任意）"
+              className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
+              style={{ overflowY: 'auto' }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Priority — moved below the title */}
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">優先度</span>
+                <span
+                  className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                  title="優先度（アプリへの革新性・価値の底上げ度合い）"
+                >
+                  {PRIORITY_ORDER.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setNewPriority(p)}
+                      title={PRIORITY_HINT[p]}
+                      className={`px-2 py-1 transition-colors ${
+                        newPriority === p
+                          ? 'bg-zinc-100 dark:bg-zinc-800'
+                          : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <PriorityIcon priority={p} size="sm" showTitle />
+                    </button>
+                  ))}
                 </span>
-                {/* Category → Theme — ideas are always project-scoped */}
-                <select
-                  value={newCategoryId ?? ''}
-                  onChange={(e) => {
-                    const id = e.target.value ? parseInt(e.target.value) : null;
-                    setNewCategoryId(id);
-                    setNewThemeId(null);
-                  }}
-                  className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
-                >
-                  <option value="">カテゴリ</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={newThemeId ?? ''}
-                  onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                  className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
-                >
-                  <option value="">テーマ</option>
-                  {filteredThemes.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              </span>
+              {/* Category → Theme — ideas are always project-scoped */}
+              <select
+                value={newCategoryId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value ? parseInt(e.target.value) : null;
+                  setNewCategoryId(id);
+                  setNewThemeId(null);
+                }}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">カテゴリ</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={newThemeId ?? ''}
+                onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">テーマ</option>
+                {filteredThemes.map((th) => (
+                  <option key={th.id} value={th.id}>
+                    {th.name}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
         </Modal>
 
         {/* List + filters + pagination (always visible; the add/edit modal overlays). */}
-        {(
+        {
           <>
             {/* Filters — status / priority / category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -808,7 +812,7 @@ export default function IdeasClient() {
               />
             )}
           </>
-        )}
+        }
       </div>
 
       {/* 手動タスク化モーダル */}
@@ -901,7 +905,7 @@ export default function IdeasClient() {
                   className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">テーマを選択してください</option>
-                  {themes.map((th) => (
+                  {wdThemes.map((th) => (
                     <option key={th.id} value={th.id}>
                       {th.name}
                     </option>
