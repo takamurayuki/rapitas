@@ -34,6 +34,7 @@ import {
   Settings,
   GitPullRequest,
   CircleDot,
+  Workflow,
   Code,
   Key,
   MessageSquare,
@@ -179,6 +180,7 @@ export default function Header() {
               icon: GitPullRequest,
             },
             { href: '/github/issues', label: 'Issues', icon: CircleDot },
+            { href: '/github/actions', label: 'CI/CD', icon: Workflow },
           ],
         },
         {
