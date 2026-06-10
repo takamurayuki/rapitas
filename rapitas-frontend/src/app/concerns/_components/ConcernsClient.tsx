@@ -36,6 +36,7 @@ export default function ConcernsClient() {
   const [statusFilter, setStatusFilter] = useState<ConcernStatus | 'all'>('open');
   const [typeFilter, setTypeFilter] = useState<ConcernType | 'all'>('all');
   const [severityFilter, setSeverityFilter] = useState<ConcernSeverity | 'all'>('all');
+  const [themeFilter, setThemeFilter] = useState<number | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +73,7 @@ export default function ConcernsClient() {
       });
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (severityFilter !== 'all') params.set('severity', severityFilter);
+      if (themeFilter !== 'all') params.set('themeId', String(themeFilter));
       const res = await fetch(`${API_BASE_URL}/concerns?${params.toString()}`);
       if (res.ok) {
         const data = (await res.json()) as { concerns: Concern[]; total: number };
@@ -83,7 +85,7 @@ export default function ConcernsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, typeFilter, severityFilter, currentPage, itemsPerPage]);
+  }, [statusFilter, typeFilter, severityFilter, themeFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchConcerns();
@@ -99,7 +101,7 @@ export default function ConcernsClient() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter, severityFilter]);
+  }, [statusFilter, typeFilter, severityFilter, themeFilter]);
 
   const resetForm = () => {
     setNewTitle('');
@@ -189,17 +191,27 @@ export default function ConcernsClient() {
   }, []);
 
   const handlePublish = useCallback(
-    async (id: number, integrationId: number) => {
+    async (id: number, integrationId?: number): Promise<'published' | 'needs_picker' | 'error'> => {
       setBusyId(id);
       try {
         const res = await fetch(`${API_BASE_URL}/github/concerns/${id}/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ integrationId }),
+          // Omit integrationId so the server resolves the repo from the theme.
+          body: JSON.stringify(integrationId != null ? { integrationId } : {}),
         });
-        if (res.ok) await fetchConcerns();
+        if (res.ok) {
+          await fetchConcerns();
+          return 'published';
+        }
+        // 409 + NEEDS_INTEGRATION = theme couldn't identify a repo → ask to pick.
+        if (res.status === 409) {
+          const data = (await res.json().catch(() => null)) as { code?: string } | null;
+          if (data?.code === 'NEEDS_INTEGRATION') return 'needs_picker';
+        }
+        return 'error';
       } catch {
-        /* error */
+        return 'error';
       } finally {
         setBusyId(null);
       }
@@ -386,6 +398,18 @@ export default function ConcernsClient() {
           {SEVERITY_ORDER.map((sv) => (
             <option key={sv} value={sv}>
               {SEVERITY_META[sv].label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={themeFilter === 'all' ? '' : String(themeFilter)}
+          onChange={(e) => setThemeFilter(e.target.value ? parseInt(e.target.value) : 'all')}
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+        >
+          <option value="">すべてのテーマ</option>
+          {themes.map((th) => (
+            <option key={th.id} value={th.id}>
+              {th.name}
             </option>
           ))}
         </select>
