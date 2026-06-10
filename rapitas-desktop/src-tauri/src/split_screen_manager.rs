@@ -7,6 +7,27 @@ use winapi::um::winuser::{
 use std::thread;
 use std::time::Duration;
 
+/// Does a window title belong to the target browser? When a specific browser is
+/// chosen (App Settings) we only match THAT browser, so a different browser
+/// already running (e.g. Edge) isn't grabbed as the split target instead of the
+/// chosen one. With no preference, any known browser matches.
+#[cfg(target_os = "windows")]
+fn title_matches_browser(title_lower: &str, browser: Option<&str>) -> bool {
+    match browser {
+        Some("chrome") => title_lower.contains("chrome"),
+        Some("msedge") | Some("edge") => title_lower.contains("edge"),
+        Some("firefox") => title_lower.contains("firefox"),
+        _ => {
+            title_lower.contains("chrome")
+                || title_lower.contains("edge")
+                || title_lower.contains("firefox")
+                || title_lower.contains("opera")
+                || title_lower.contains("brave")
+                || title_lower.contains("vivaldi")
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 pub fn split_screen_with_browser(
     url: &str,
@@ -28,16 +49,8 @@ pub fn split_screen_with_browser(
 
     for window in &all_windows {
         let title_lower = window.title.to_lowercase();
-        // Match browser windows by title keywords
-        if title_lower.contains("chrome")
-            || title_lower.contains("edge")
-            || title_lower.contains("firefox")
-            || title_lower.contains("opera")
-            || title_lower.contains("brave")
-            || title_lower.contains("vivaldi")
-            || title_lower.contains("microsoft edge")
-            || title_lower.contains("google chrome")
-        {
+        // Only the chosen browser's windows are split candidates.
+        if title_matches_browser(&title_lower, browser) {
             unsafe {
                 let mut placement = WINDOWPLACEMENT {
                     length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
@@ -124,13 +137,7 @@ pub fn split_screen_with_browser(
         let latest_windows = get_all_windows();
         for window in latest_windows {
             let title_lower = window.title.to_lowercase();
-            if title_lower.contains("chrome")
-                || title_lower.contains("edge")
-                || title_lower.contains("firefox")
-                || title_lower.contains("opera")
-                || title_lower.contains("brave")
-                || title_lower.contains("vivaldi")
-            {
+            if title_matches_browser(&title_lower, browser) {
                 set_window_split_left_with_height(window.hwnd, work_width, work_height);
                 break;
             }
