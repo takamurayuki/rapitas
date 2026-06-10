@@ -29,6 +29,7 @@ import {
   getGlobalAutoRunActiveCount,
   getThemeActiveQueueItems,
   hasItemAwaitingApproval,
+  isAwaitingUserAnswer,
   selectNextTask,
 } from './auto-run-selection';
 import {
@@ -309,6 +310,17 @@ export class ThemeAutoRunScheduler {
       }
 
       if (isFailed) {
+        // A task parked as 'blocked' may actually be WAITING FOR A USER ANSWER
+        // (AskUserQuestion), not failed. Hold the theme here: advancing would
+        // start the next task's agent, which then runs concurrently with this
+        // task's answer-resume — the "multiple agents launched" symptom.
+        if (task?.status === 'blocked' && (await isAwaitingUserAnswer(prisma, currentTaskId))) {
+          log.info(
+            `[ThemeAutoRunScheduler] Task ${currentTaskId} is awaiting a user answer — holding, not advancing (theme ${themeId})`,
+          );
+          this.broadcastAutoRunUpdate(themeId);
+          return;
+        }
         const errMsg = terminalItem?.errorMessage ?? `Task ${currentTaskId} failed or was blocked`;
         // Mark the task blocked so selection skips it next time.
         if (task?.status !== 'blocked') {

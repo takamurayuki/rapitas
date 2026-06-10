@@ -107,6 +107,28 @@ export function isTaskBlocked(taskStatus: string): boolean {
 }
 
 /**
+ * Whether a task is parked WAITING FOR A USER'S ANSWER (an AskUserQuestion),
+ * which execute-post-handler stores as status 'blocked' — indistinguishable from
+ * a real failure by status alone. Its most recent agent execution carries an
+ * unanswered question; once answered, a fresh execution (no question) supersedes
+ * it. The scheduler uses this to HOLD (not advance) such a task, so it doesn't
+ * treat the pause as a failure and spawn a second agent for the next task while
+ * the answer-resume continues this one.
+ *
+ * @param prisma - Prisma client instance
+ * @param taskId - Task to check / 確認対象タスク
+ * @returns true when the latest execution has a pending question / 未応答の質問があればtrue
+ */
+export async function isAwaitingUserAnswer(prisma: PrismaClient, taskId: number): Promise<boolean> {
+  const latest = await prisma.agentExecution.findFirst({
+    where: { session: { config: { taskId } } },
+    orderBy: { createdAt: 'desc' },
+    select: { question: true },
+  });
+  return latest?.question != null && latest.question !== '';
+}
+
+/**
  * Select the next task to execute for a given theme.
  *
  * Eligibility criteria:
