@@ -103,13 +103,17 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
             the GPU layer and restarted the animation mid-frame, which is what
             distorted the rotation on re-display. Fading via opacity keeps the
             element (and its smooth spin) alive the whole time.
-            Spin stays clean via: shrink-0 (square box), transform-origin:center,
-            will-change-transform. Pulse is on the LABEL only. */}
+            Spin stays clean via shrink-0 (square box) + transform-origin:center.
+            NOTE: no will-change-transform — on a permanently-spinning element it
+            re-promotes a GPU layer on every mount, so navigating to this screen
+            distorted the first frames while the layer settled (and the task list
+            rendered). transform animations are auto-composited anyway.
+            Pulse is on the LABEL only. */}
         <span className="inline-flex items-center gap-2 transition-opacity duration-150 group-hover:opacity-0">
           {paused ? (
             <Pause className="h-4 w-4 shrink-0" />
           ) : (
-            <Orbit className="h-4 w-4 shrink-0 animate-spin [transform-origin:center] will-change-transform" />
+            <Orbit className="h-4 w-4 shrink-0 animate-spin [transform-origin:center]" />
           )}
           <span className={paused ? '' : 'animate-pulse'}>
             {paused ? '一時停止' : 'タスク自動実行中'}
