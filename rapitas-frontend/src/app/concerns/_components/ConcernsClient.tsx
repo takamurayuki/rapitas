@@ -163,25 +163,6 @@ export default function ConcernsClient() {
     [fetchConcerns],
   );
 
-  const handleDismiss = useCallback(
-    async (id: number, dismiss: boolean) => {
-      setBusyId(id);
-      try {
-        const res = await fetch(`${API_BASE_URL}/concerns/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: dismiss ? 'dismissed' : 'open' }),
-        });
-        if (res.ok) await fetchConcerns();
-      } catch {
-        /* error */
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [fetchConcerns],
-  );
-
   const handleDelete = useCallback(async (id: number) => {
     setBusyId(id);
     try {
@@ -439,7 +420,6 @@ export default function ConcernsClient() {
               canPublish={integrations.length > 0}
               theme={c.themeId != null ? (themeById.get(c.themeId) ?? null) : null}
               onConvert={handleConvert}
-              onDismiss={handleDismiss}
               onDelete={handleDelete}
               onPublish={handlePublish}
             />

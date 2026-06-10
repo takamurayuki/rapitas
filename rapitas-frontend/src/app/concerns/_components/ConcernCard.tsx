@@ -12,16 +12,15 @@
 import {
   ListPlus,
   Trash2,
-  ArrowRight,
   Loader2,
   Upload,
   CircleDot,
-  CheckCircle2,
   ExternalLink,
   FolderOpen,
 } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
-import { TYPE_META, SEVERITY_META, type Concern } from './concern-shared';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
 
 interface ConcernCardProps {
   concern: Concern;
@@ -31,7 +30,6 @@ interface ConcernCardProps {
   /** The concern's theme, for the theme-name badge (null = unknown). */
   theme?: { name: string; icon?: string | null; color?: string | null } | null;
   onConvert: (id: number) => void;
-  onDismiss: (id: number, dismiss: boolean) => void;
   onDelete: (id: number) => void;
   /**
    * Publish the concern as a GitHub issue in one click. The server resolves the
@@ -47,7 +45,6 @@ export function ConcernCard({
   canPublish,
   theme,
   onConvert,
-  onDismiss,
   onDelete,
   onPublish,
 }: ConcernCardProps) {
@@ -65,21 +62,22 @@ export function ConcernCard({
               <TyIcon className="h-2.5 w-2.5" />
               {TYPE_META[c.type].label}
             </span>
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_META[c.severity].badge}`}
-            >
-              優先度 {SEVERITY_META[c.severity].label}
-            </span>
-            {theme && (
-              <span
-                className="flex items-center gap-0.5 text-[10px] font-medium"
-                style={{ color: theme.color || '#059669' }}
-                title={`テーマ: ${theme.name}`}
-              >
-                <ThemeIcon className="h-2.5 w-2.5" />
-                {theme.name}
+            {/* Theme, then priority icon to its right (matches the idea box). */}
+            <span className="flex items-center gap-1">
+              {theme && (
+                <span
+                  className="flex items-center gap-0.5 text-[10px] font-medium"
+                  style={{ color: theme.color || '#059669' }}
+                  title={`テーマ: ${theme.name}`}
+                >
+                  <ThemeIcon className="h-2.5 w-2.5" />
+                  {theme.name}
+                </span>
+              )}
+              <span title={`優先度: ${SEVERITY_HINT[c.severity]}`}>
+                <PriorityIcon priority={c.severity} size="sm" />
               </span>
-            )}
+            </span>
             {c.status === 'task_created' && c.createdTaskId && (
               <a
                 href={`/tasks/${c.createdTaskId}`}
@@ -87,17 +85,6 @@ export function ConcernCard({
               >
                 タスク化済 #{c.createdTaskId}
               </a>
-            )}
-            {c.status === 'resolved' && (
-              <span className="flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                <CheckCircle2 className="h-2.5 w-2.5" />
-                完了
-              </span>
-            )}
-            {c.status === 'dismissed' && (
-              <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                却下
-              </span>
             )}
             {/* GitHub publish link badge */}
             {c.linkedIssue && (
@@ -163,25 +150,6 @@ export function ConcernCard({
           >
             {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
             GitHubに公開
-          </button>
-        )}
-        {c.status === 'open' && (
-          <button
-            onClick={() => onDismiss(c.id, true)}
-            disabled={busy}
-            className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-          >
-            却下
-          </button>
-        )}
-        {c.status === 'dismissed' && (
-          <button
-            onClick={() => onDismiss(c.id, false)}
-            disabled={busy}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-          >
-            <ArrowRight className="h-3 w-3" />
-            未対応に戻す
           </button>
         )}
         <button
