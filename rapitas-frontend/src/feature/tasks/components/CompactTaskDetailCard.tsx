@@ -295,11 +295,17 @@ export default function CompactTaskDetailCard({
         </AccordionItem>
       </Accordion>
 
-      {/* Created / updated timestamps — quiet meta footer, not worth its own section. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-400 dark:text-zinc-500">
-        <span>作成 {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
-        <span aria-hidden>·</span>
-        <span>更新 {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
+      {/* Created / updated timestamps — quiet meta footer as right-aligned,
+          compact chips. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">作成</span>
+          {new Date(task.createdAt).toLocaleString(dateLocale)}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">更新</span>
+          {new Date(task.updatedAt).toLocaleString(dateLocale)}
+        </span>
       </div>
     </div>
   );
