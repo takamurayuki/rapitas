@@ -130,6 +130,59 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
     Ok(())
 }
 
+/// Open a URL in a SPECIFIC browser chosen in App Settings.
+///
+/// `browser` is a preset key (`chrome` / `msedge` / `firefox`) mapped to the
+/// per-OS launcher. On Windows we go through `cmd /C start`, which resolves the
+/// browser via the registry App Paths — a bare process spawn of "chrome" fails
+/// because it isn't on PATH (the cause of the "not found" error users hit).
+#[tauri::command]
+async fn open_url_in_browser(url: String, browser: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "chrome",
+            "msedge" | "edge" => "msedge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "Google Chrome",
+            "msedge" | "edge" => "Microsoft Edge",
+            "firefox" => "Firefox",
+            other => other,
+        };
+        std::process::Command::new("open")
+            .args(["-a", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "google-chrome",
+            "msedge" | "edge" => "microsoft-edge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new(app)
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    Ok(())
+}
+
 // --- Voice Recognition Commands ---
 
 /// Check if the Whisper model is downloaded.
@@ -282,6 +335,7 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
@@ -324,6 +378,7 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,

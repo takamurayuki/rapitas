@@ -201,9 +201,15 @@ export async function openExternalUrl(url: string): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
     const browser =
       (typeof localStorage !== 'undefined' && localStorage.getItem(EXTERNAL_BROWSER_KEY)) || '';
-    // Tauri v2 shell plugin command. `with` opens with a specific app; omitting
-    // it uses the OS default handler.
-    await invoke('plugin:shell|open', browser ? { path: url, with: browser } : { path: url });
+    if (browser) {
+      // Specific browser → native command that resolves it per-OS (Windows uses
+      // `start`, which finds chrome/msedge/firefox via the registry App Paths;
+      // the shell plugin's `open with` spawns the name directly and fails).
+      await invoke('open_url_in_browser', { url, browser });
+    } else {
+      // Default browser via the shell plugin's open (OS default handler).
+      await invoke('plugin:shell|open', { path: url });
+    }
   } catch (error) {
     logger.error('Failed to open URL in browser:', error);
     window.open(url, '_blank', 'noopener,noreferrer');
