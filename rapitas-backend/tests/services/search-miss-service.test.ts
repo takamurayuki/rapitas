@@ -80,7 +80,11 @@ type MockPrismaOptions = {
  * @param opts.notificationReject - notification.create を reject させる場合 true
  * @returns prisma mock and individual mock handles for assertions
  */
-function makeMockPrisma({ misses = [], counts = 0, notificationReject = false }: MockPrismaOptions) {
+function makeMockPrisma({
+  misses = [],
+  counts = 0,
+  notificationReject = false,
+}: MockPrismaOptions) {
   const countValues = Array.isArray(counts) ? counts : misses.map(() => counts as number);
   let callIdx = 0;
 
@@ -100,7 +104,7 @@ function makeMockPrisma({ misses = [], counts = 0, notificationReject = false }:
     notification: { create: notifCreateMock },
   } as unknown as PrismaClient;
 
-  return { prisma, findManyMock, countMock, txMock, notifCreateMock };
+  return { prisma, findManyMock, countMock, txMock, notifCreateMock, updateMock };
 }
 
 // ---- Test Suite ----
@@ -125,13 +129,29 @@ describe('resolveSearchMissForTask', () => {
     expect(txMock).not.toHaveBeenCalled();
   });
 
-  test('すべての count が 0 のとき $transaction を呼ばない', async () => {
-    const { prisma, txMock } = makeMockPrisma({ misses: [MISS_A, MISS_B], counts: 0 });
+  test('すべての count が 0 のとき全 miss を open に戻す（resolvedAt は設定しない）', async () => {
+    // 回答A: 提案タスク完了後も結果0なら未解決 → 'open' に戻す。
+    const { prisma, txMock, updateMock, notifCreateMock } = makeMockPrisma({
+      misses: [MISS_A, MISS_B],
+      counts: 0,
+    });
     usePostgresEnv();
 
     await resolveSearchMissForTask(prisma, 10);
 
-    expect(txMock).not.toHaveBeenCalled();
+    // 全 miss を $transaction で open へ更新する。
+    expect(txMock).toHaveBeenCalledTimes(1);
+    const [ops] = txMock.mock.calls[0] as [unknown[]];
+    expect(ops).toHaveLength(2);
+    // 各 update は status:'open' / suggestedTaskId:null、resolvedAt は付与しない。
+    for (const call of updateMock.mock.calls) {
+      const arg = call[0] as { data: Record<string, unknown> };
+      expect(arg.data.status).toBe('open');
+      expect(arg.data.suggestedTaskId).toBeNull();
+      expect('resolvedAt' in arg.data).toBe(false);
+    }
+    // 再オープンはユーザー向けイベントではないため通知しない。
+    expect(notifCreateMock).not.toHaveBeenCalled();
   });
 
   test('count > 0 の miss を $transaction で一括 resolved に更新する', async () => {
@@ -145,16 +165,31 @@ describe('resolveSearchMissForTask', () => {
     expect(ops).toHaveLength(1);
   });
 
-  test('count が混在するとき count > 0 の miss だけ $transaction に含める', async () => {
-    // MISS_A=2, MISS_B=0 — only MISS_A should be in the transaction
-    const { prisma, txMock } = makeMockPrisma({ misses: [MISS_A, MISS_B], counts: [2, 0] });
+  test('count が混在するとき count>0 は resolved・count=0 は open で同一 $transaction に含める', async () => {
+    // MISS_A=2 → resolved, MISS_B=0 → open。両方が1つの $transaction に入る。
+    const { prisma, txMock, updateMock } = makeMockPrisma({
+      misses: [MISS_A, MISS_B],
+      counts: [2, 0],
+    });
     usePostgresEnv();
 
     await resolveSearchMissForTask(prisma, 10);
 
     expect(txMock).toHaveBeenCalledTimes(1);
     const [ops] = txMock.mock.calls[0] as [unknown[]];
-    expect(ops).toHaveLength(1);
+    expect(ops).toHaveLength(2);
+    const datas = updateMock.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
+    // MISS_A (id:1) は resolved + resolvedAt 付与。
+    const resolved = datas.find((d) => d.status === 'resolved');
+    expect(resolved).toBeDefined();
+    expect(resolved!.resolvedAt).toBeInstanceOf(Date);
+    // MISS_B (id:2) は open + resolvedAt 未設定。
+    const reopened = datas.find((d) => d.status === 'open');
+    expect(reopened).toBeDefined();
+    expect('resolvedAt' in reopened!).toBe(false);
+    expect(reopened!.suggestedTaskId).toBeNull();
   });
 
   test('Postgres 環境では task.count の where 条件に mode:"insensitive" が含まれる', async () => {

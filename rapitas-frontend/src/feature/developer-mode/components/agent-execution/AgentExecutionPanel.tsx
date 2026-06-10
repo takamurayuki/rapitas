@@ -218,6 +218,7 @@ export function AgentExecutionPanel(props: Props) {
         onReset={handleReset}
         onCreatePR={handleCreatePR}
         onApproveMerge={handleApproveMerge}
+        taskId={taskId}
       />
     );
   }

@@ -73,6 +73,26 @@ async function stopExecutions(executionIds: number[], reason: string): Promise<n
  * @param taskIds - Task IDs whose executions to find. / 対象タスクID
  * @returns Active execution IDs. / アクティブな実行ID
  */
+/**
+ * Abort the WorkflowRunner's in-flight phase loop(s) for the given tasks so the
+ * queue runner does NOT advance to or retry another phase after we kill the
+ * agent. Without this, an auto-run stop that landed between phases let the loop
+ * spawn the next phase's agent ("the agent wouldn't stop"). Dynamic import to
+ * avoid a static cycle with workflow-runner (which imports this module).
+ *
+ * @param taskIds - Tasks whose runner loops should be aborted. / 中断対象タスクID
+ */
+async function abortRunnerLoops(taskIds: number[]): Promise<void> {
+  if (taskIds.length === 0) return;
+  try {
+    const { WorkflowRunner } = await import('../workflow/workflow-runner');
+    const runner = WorkflowRunner.getInstance();
+    for (const taskId of taskIds) runner.abortTask(taskId);
+  } catch (err) {
+    log.warn({ err, taskIds }, '[stopTaskAgents] Failed to abort runner loops');
+  }
+}
+
 async function findActiveExecutionIds(taskIds: number[]): Promise<number[]> {
   if (taskIds.length === 0) return [];
   const executions = await prisma.agentExecution
@@ -106,6 +126,8 @@ export async function stopTaskAgents(
   opts: { errorMessage?: string } = {},
 ): Promise<StopTaskAgentsResult> {
   const reason = opts.errorMessage ?? 'Cancelled';
+  // Abort the runner loop FIRST so it stops advancing phases, then kill agents.
+  await abortRunnerLoops([taskId]);
   const ids = await findActiveExecutionIds([taskId]);
   const executionIds = await stopExecutions(ids, reason);
 
@@ -159,6 +181,9 @@ export async function stopThemeAgents(
     for (const s of subtasks) taskIds.add(s.id);
   }
 
+  // Abort the runner loops FIRST so none of these tasks advances to a new phase
+  // after we kill the agents, then kill.
+  await abortRunnerLoops([...taskIds]);
   const ids = await findActiveExecutionIds([...taskIds]);
   const executionIds = await stopExecutions(ids, reason);
 

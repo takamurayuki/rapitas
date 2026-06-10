@@ -28,7 +28,15 @@ interface ConcernCardProps {
   onConvert: (id: number) => void;
   onDismiss: (id: number, dismiss: boolean) => void;
   onDelete: (id: number) => void;
-  onPublish: (id: number, integrationId: number) => void;
+  /**
+   * Publish the concern as a GitHub issue. Omit integrationId to let the server
+   * resolve the target repo from the concern's theme; it resolves to
+   * 'needs_picker' only when that fails (then pass an explicit integrationId).
+   */
+  onPublish: (
+    id: number,
+    integrationId?: number,
+  ) => Promise<'published' | 'needs_picker' | 'error'>;
 }
 
 /** A single concern card with bridge-aware actions and badges. */
@@ -46,14 +54,23 @@ export function ConcernCard({
   const [picking, setPicking] = useState(false);
   const [repoId, setRepoId] = useState<number | null>(integrations[0]?.id ?? null);
 
-  const publish = () => {
-    if (integrations.length === 1) {
-      onPublish(c.id, integrations[0].id);
-    } else if (picking && repoId != null) {
-      onPublish(c.id, repoId);
+  const publish = async () => {
+    // User already chose a repo from the fallback picker.
+    if (picking && repoId != null) {
+      await onPublish(c.id, repoId);
       setPicking(false);
-    } else {
-      setPicking(true);
+      return;
+    }
+    // Default: publish directly — the server resolves the repo from the
+    // concern's theme, so no picker is needed. Only fall back to picking when
+    // the theme can't identify a repo (multiple repos) or to the sole repo.
+    const result = await onPublish(c.id);
+    if (result === 'needs_picker') {
+      if (integrations.length === 1) {
+        await onPublish(c.id, integrations[0].id);
+      } else {
+        setPicking(true);
+      }
     }
   };
 

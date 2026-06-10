@@ -43,7 +43,6 @@ import {
   executionLogsRoutes,
   schedulesRoutes,
   dailyScheduleRoutes,
-  screenshotsRoutes,
   learningGoalsRoutes,
   rateLimitRoutes,
   paidLeaveRoutes,
@@ -174,7 +173,6 @@ app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);
 app.use(schedulesRoutes);
 app.use(dailyScheduleRoutes);
-app.use(screenshotsRoutes);
 app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);

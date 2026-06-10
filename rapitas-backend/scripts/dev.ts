@@ -119,9 +119,15 @@ async function main() {
   // DATABASE_URL and pushes against the matching schema. A failure here means
   // the dev DB is out of sync; we warn loudly but still start the server so the
   // unaffected routes remain usable while the schema error is fixed.
-  // NOTE: generate:true ensures the correct provider's Prisma client is regenerated
-  // on every startup, preventing stale SQLite clients from causing mode:'insensitive'
-  // errors when DATABASE_URL points to PostgreSQL (bug #108).
+  //
+  // `generate: true` is REQUIRED: a prior `db:generate:sqlite` (or a desktop
+  // build) can leave the SQLite Prisma client in node_modules/.prisma/client
+  // while the server runs against PostgreSQL. The env-based `isPostgres` guard
+  // then adds `mode: 'insensitive'` to search queries, which the stale SQLite
+  // client rejects → "Invalid prisma.task.findMany() invocation" /
+  // PrismaClientValidationError in routes:search. Regenerating the client for
+  // the active provider at startup keeps the loaded client and the DATABASE_URL
+  // provider in sync, so the guard's decision is always honoured by the client.
   if (!(await syncDevSchema({ generate: true }))) {
     log.warn('Continuing startup with an OUT-OF-SYNC schema — see the error above.');
   }

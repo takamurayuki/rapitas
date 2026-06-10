@@ -175,3 +175,65 @@ on content surfaces.
 > Migration: the task detail mixed `rounded-md/lg/xl/2xl`, five shadow weights,
 > and 117 borders. We are converging it onto this system incrementally, starting
 > with the most prominent sections. Track each in §5.
+
+## 9. Rotating / spinning icons (stability) — MUST READ before adding one
+
+A continuously-rotating icon (`animate-spin`) **distorts/warps mid-spin** whenever
+the browser is forced to **re-rasterize it while it is rotating**. In rapitas
+(Tauri WebView / Chromium) this showed up as the auto-run `Orbit` spinner warping
+on navigation and on hover. The fix is not one trick — it is a **rule**:
+
+> **The rotating element and ALL of its ancestors must not change while it spins.**
+> Anything that re-paints or re-composites the subtree re-rasterizes the rotating
+> frame and warps it.
+
+### What re-rasterizes a spinning icon (avoid ALL of these on it or any ancestor)
+
+1. **Visibility toggling** of the spinner — in *any* form:
+   - `display:none ↔ block` (e.g. `group-hover:hidden`) → tears it down and
+     **restarts the animation** on re-show.
+   - **`opacity` reaching < 1 on the spinner OR any ancestor** (e.g.
+     `group-hover:opacity-0`) → an element with `opacity<1` groups its subtree
+     into one layer, so toggling it **re-groups + re-rasterizes** the icon.
+     `transition-opacity` is not required; reaching `0` at all does it.
+   - This is true **even with `will-change-transform` / `transform-gpu`** on the
+     spinner — a own-layer hint does **not** save it here, and `will-change` adds
+     its own per-mount layer-promotion churn (distorts on navigation).
+2. **Colour transitions on an ancestor** — e.g. a button with `transition-colors`
+   whose `bg/border/text` animate to a hover colour. The spinner **inherits the
+   text colour**, so the whole subtree (including the spin) repaints every frame
+   of the fade.
+3. **Rotating the inline `<svg>` directly** — an SVG's intrinsic size/baseline
+   isn't settled for a frame after mount, so the rotating glyph warps on first
+   paint. Spin a **fixed-size box**, not the SVG.
+
+### The rule, applied (this is how the auto-run spinner is built — copy it)
+
+- **Never toggle the spinner.** Render it **once, always visible**, and never put
+  it inside anything that toggles `opacity`/`display`.
+- To show a *different* hover/active state (e.g. a Stop button), **do not hide
+  the spinner — cover it with an OPAQUE SIBLING overlay.** A sibling's opacity can
+  fade freely; it can't re-rasterize the spinner. The overlay carries the entire
+  alternate look (its own `bg` + `border` via `-inset-px`).
+- **No colour change on any ancestor of the spinner on hover.** Drop the button's
+  `transition-colors`/`hover:bg/text/border`; let the overlay provide the hover
+  look. Give the spinner a **fixed colour** so nothing it inherits can animate.
+- **Spin a rigid box, not the SVG:** wrap a static `<Orbit>` in
+  `inline-flex h-4 w-4 shrink-0 animate-spin [transform-origin:center]` and put
+  the SVG (`h-4 w-4`) inside. `shrink-0` keeps it square; a box can't warp.
+
+```tsx
+{/* spinner: always rendered, never toggled, fixed colour, rigid box */}
+<span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin text-emerald-600 [transform-origin:center] dark:text-emerald-400">
+  <Orbit className="h-4 w-4" />
+</span>
+{/* hover/active state: OPAQUE sibling overlay covers the spinner (don't hide it) */}
+<span className="absolute -inset-px flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 opacity-0 group-hover:opacity-100 dark:border-red-700 dark:bg-red-950">
+  …
+</span>
+```
+
+> Reference implementation: `app/home/_components/AutoExecutionMode.tsx`.
+> **Last resort:** if a rotating icon still warps in this WebView, switch to a
+> **radially-symmetric** spinner (`Loader2` / a circular border) — it looks
+> identical at every angle, so re-rasterization can never be perceived as warp.

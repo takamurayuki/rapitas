@@ -14,7 +14,6 @@ import { parseApprovalJsonFields } from '../approvals/helpers';
 import { approveRoutes } from '../approvals/approve-handler';
 import { bulkApproveRoutes } from '../approvals/bulk-approve-handler';
 import { rejectRoutes } from '../approvals/reject-handler';
-import { codeReviewRoutes } from '../approvals/code-review-handler';
 
 // Re-export orchestrator for backward compatibility
 export { orchestrator };
@@ -78,5 +77,4 @@ export const approvalsRoutes = new Elysia({ prefix: '/approvals' })
 
   .use(approveRoutes)
   .use(bulkApproveRoutes)
-  .use(rejectRoutes)
-  .use(codeReviewRoutes);
+  .use(rejectRoutes);

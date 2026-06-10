@@ -139,6 +139,58 @@ export async function publishConcernToIssue(
 }
 
 /**
+ * Resolve the GitHub integration (repo) a concern should publish to, from its
+ * theme. A concern in the backlog already belongs to a theme (directly, or via
+ * its origin task), and a theme is tied to a repo through `repositoryUrl` — so
+ * the publish target is determinable without asking the user to pick. Returns
+ * null only when the theme/repo can't be determined or no active integration
+ * matches; the caller then falls back to a manual picker.
+ *
+ * @param concernId - Concern id. / 懸念ID
+ * @returns The matching integration id, or null. / 一致した連携ID、無ければnull
+ */
+export async function resolveConcernIntegration(concernId: number): Promise<{ id: number } | null> {
+  const concern = await getConcern(concernId);
+  if (!concern) return null;
+
+  let themeId = concern.themeId;
+  if (themeId == null && concern.originTaskId != null) {
+    const task = await prisma.task.findUnique({
+      where: { id: concern.originTaskId },
+      select: { themeId: true },
+    });
+    themeId = task?.themeId ?? null;
+  }
+  if (themeId == null) return null;
+
+  const theme = await prisma.theme.findUnique({
+    where: { id: themeId },
+    select: { repositoryUrl: true },
+  });
+  const ownerRepo = parseOwnerRepo(theme?.repositoryUrl ?? null);
+  if (!ownerRepo) return null;
+
+  const integrations = await prisma.gitHubIntegration.findMany({
+    where: { isActive: true },
+    select: { id: true, ownerName: true, repositoryName: true },
+  });
+  const match = integrations.find(
+    (i) =>
+      i.ownerName.toLowerCase() === ownerRepo.owner.toLowerCase() &&
+      i.repositoryName.toLowerCase() === ownerRepo.repo.toLowerCase(),
+  );
+  return match ? { id: match.id } : null;
+}
+
+/** Extract `{owner, repo}` from a GitHub repo URL (https or ssh form). */
+function parseOwnerRepo(url: string | null): { owner: string; repo: string } | null {
+  if (!url) return null;
+  const m = url.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
+  if (!m) return null;
+  return { owner: m[1], repo: m[2] };
+}
+
+/**
  * Imports a synced GitHub issue into the concern backlog and links the two.
  * Idempotent: an already-linked issue returns its existing concern id.
  *

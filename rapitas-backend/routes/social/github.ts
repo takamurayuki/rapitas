@@ -5,7 +5,11 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
-import { publishConcernToIssue, importIssueAsConcern } from '../../services/github/concern-bridge';
+import {
+  publishConcernToIssue,
+  importIssueAsConcern,
+  resolveConcernIntegration,
+} from '../../services/github/concern-bridge';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
 
 // Create GitHub service instance
@@ -196,6 +200,40 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
         comments: { orderBy: { createdAt: 'asc' } },
       },
     });
+  })
+
+  // Resolve the PR for a task → its detail-page id. Used by the post-execution
+  // panel to jump straight to the task's PR page (replacing the old approval
+  // page). Prefers the direct GitHubPullRequest.linkedTaskId; falls back to the
+  // PR number stored on the task (Task.githubPrId).
+  .get('/pull-requests/by-task/:taskId', async (context) => {
+    const { taskId } = context.params as { taskId: string };
+    const tid = parseInt(taskId);
+    const select = { id: true, prNumber: true, url: true, state: true } as const;
+
+    let pr = await prisma.gitHubPullRequest.findFirst({
+      where: { linkedTaskId: tid },
+      orderBy: { createdAt: 'desc' },
+      select,
+    });
+    if (!pr) {
+      const task = await prisma.task.findUnique({
+        where: { id: tid },
+        select: { githubPrId: true },
+      });
+      if (task?.githubPrId != null) {
+        pr = await prisma.gitHubPullRequest.findFirst({
+          where: { prNumber: task.githubPrId },
+          orderBy: { createdAt: 'desc' },
+          select,
+        });
+      }
+    }
+    if (!pr) {
+      context.set.status = 404;
+      return { error: 'このタスクのPRが見つかりません' };
+    }
+    return pr;
   })
 
   // Get PR diff
@@ -440,11 +478,22 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       integrationId?: number;
       labels?: string[];
     };
-    if (!integrationId) {
-      context.set.status = 400;
-      return { error: 'integrationId は必須です' };
+    // The concern's theme determines the target repo, so integrationId is
+    // optional — resolve it from the theme. Only when that fails (no theme/repo
+    // or no matching integration) do we ask the user to pick a repo.
+    let targetIntegrationId = integrationId;
+    if (!targetIntegrationId) {
+      const resolved = await resolveConcernIntegration(parseInt(id));
+      targetIntegrationId = resolved?.id;
     }
-    const result = await publishConcernToIssue(parseInt(id), integrationId, labels);
+    if (!targetIntegrationId) {
+      context.set.status = 409;
+      return {
+        error: 'テーマから公開先リポジトリを特定できませんでした。公開先を選択してください。',
+        code: 'NEEDS_INTEGRATION',
+      };
+    }
+    const result = await publishConcernToIssue(parseInt(id), targetIntegrationId, labels);
     if (!result.success) {
       context.set.status = result.status;
       return { error: result.error };

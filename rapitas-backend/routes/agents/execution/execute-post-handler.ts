@@ -18,7 +18,7 @@ import { AgentWorkerManager } from '../../../services/agents/agent-worker-manage
 // ALL HTTP requests (e.g. the UI's GET /tasks/:id) for up to 30s when a git op
 // is slow/locked — the "Request timeout after 30001ms" the user saw.
 const execAsync = promisify(exec);
-import { updateSessionStatusWithRetry, createCodeReviewApproval } from './session-helpers';
+import { updateSessionStatusWithRetry } from './session-helpers';
 import { reviewAndCommitWorktree } from './post-execution-review';
 import { detectExecutionFailures } from './execution-output-validator';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
@@ -271,18 +271,6 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
 
     await updateSessionStatusWithRetry(sessionId, 'completed', '[API]', 3);
-
-    await createCodeReviewApproval({
-      taskId: taskIdNum,
-      taskTitle,
-      configId,
-      sessionId,
-      workDir: executionDir,
-      branchName,
-      resultOutput: result.output,
-      executionTimeMs: result.executionTimeMs,
-      logPrefix: '[API]',
-    });
 
     // Determine whether this execution belongs to a workflow phase. If so,
     // PR creation is the responsibility of `performAutoCommitAndPR` —
