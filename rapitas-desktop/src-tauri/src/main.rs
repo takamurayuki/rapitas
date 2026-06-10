@@ -82,9 +82,14 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
     Ok(shortcut)
 }
 
-/// Tauri command: open a URL in split-screen view using the native browser.
+/// Tauri command: open a URL in split-screen view using the chosen (App
+/// Settings) or native browser. `browser` is a preset key (chrome/msedge/firefox).
 #[tauri::command]
-async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
+async fn open_split_view(
+    app: tauri::AppHandle,
+    url: String,
+    browser: Option<String>,
+) -> Result<(), String> {
     let monitor = app
         .primary_monitor()
         .map_err(|e| format!("Failed to get monitor: {e}"))?
@@ -96,11 +101,17 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
 
     #[cfg(target_os = "windows")]
     {
-        split_screen_manager::split_screen_with_browser(&url, screen_width, screen_height)?;
+        split_screen_manager::split_screen_with_browser(
+            &url,
+            screen_width,
+            screen_height,
+            browser.as_deref(),
+        )?;
     }
 
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = &browser; // non-Windows split uses the OS default browser
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.unmaximize().ok();
             main_window

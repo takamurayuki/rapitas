@@ -1,7 +1,7 @@
 /**
  * External link utility functions
  */
-import { openExternalUrl } from '@/utils/tauri';
+import { openExternalUrlInSplitView } from '@/utils/tauri';
 
 /**
  * Determine if a URL is an external link
@@ -30,11 +30,11 @@ export function isExternalLink(href: string): boolean {
 }
 
 /**
- * Open an external link in the OS default browser (e.g. Chrome) on Tauri, or a
- * new browser tab on the web. (Previously opened an in-app split view.)
+ * Open an external link side-by-side with rapitas (split screen) using the
+ * chosen browser (App Settings) on Tauri, or a new tab on the web.
  */
 export function openExternalLink(href: string): void {
-  void openExternalUrl(href);
+  void openExternalUrlInSplitView(href);
 }
 
 /**

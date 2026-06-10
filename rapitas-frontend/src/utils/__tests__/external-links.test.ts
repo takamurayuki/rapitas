@@ -4,7 +4,7 @@ import { isExternalLink, handleExternalLinkClick } from '../external-links';
 // Mock tauri utils
 vi.mock('@/utils/tauri', () => ({
   isTauri: () => false,
-  openExternalUrl: vi.fn(),
+  openExternalUrlInSplitView: vi.fn(),
 }));
 
 describe('isExternalLink', () => {

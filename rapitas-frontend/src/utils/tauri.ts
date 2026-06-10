@@ -228,9 +228,12 @@ export async function openExternalUrlInSplitView(
   logger.debug('Opening external URL in split view:', url);
 
   try {
-    // Call Rust open_split_view command
+    // Call Rust open_split_view command, honouring the chosen browser (App
+    // Settings) so the split opens the user's preferred browser.
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('open_split_view', { url });
+    const browser =
+      (typeof localStorage !== 'undefined' && localStorage.getItem(EXTERNAL_BROWSER_KEY)) || '';
+    await invoke('open_split_view', browser ? { url, browser } : { url });
 
     logger.debug('Split view opened successfully');
 

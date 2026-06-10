@@ -12,6 +12,7 @@ pub fn split_screen_with_browser(
     url: &str,
     _screen_width: i32,
     _screen_height: i32,
+    browser: Option<&str>,
 ) -> Result<(), String> {
     use crate::browser_launcher;
     use crate::window_manager::*;
@@ -101,7 +102,14 @@ pub fn split_screen_with_browser(
     }
 
     // Step 4: Open the URL as a new tab in the existing browser
-    browser_launcher::launch_browser_with_size(url, work_x, work_y, work_width / 2, work_height)?;
+    browser_launcher::launch_browser_with_size(
+        url,
+        work_x,
+        work_y,
+        work_width / 2,
+        work_height,
+        browser,
+    )?;
 
     // Step 5: Position the browser window in the left half
     thread::sleep(Duration::from_millis(1000));
