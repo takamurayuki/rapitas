@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
+import { listWorkflowRuns, getWorkflowRun, getWorkflowRunLog } from '../../services/github/actions';
 import {
   publishConcernToIssue,
   importIssueAsConcern,
@@ -465,6 +466,52 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       },
       orderBy: { updatedAt: 'desc' },
     });
+  })
+
+  // CI/CD: list a repo's recent GitHub Actions workflow runs.
+  .get('/integrations/:id/runs', async (context) => {
+    const { id } = context.params as { id: string };
+    const { limit } = context.query as { limit?: string };
+    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
+    if (!integration) return [];
+    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    try {
+      return await listWorkflowRuns(repo, limit ? parseInt(limit) : 20);
+    } catch (err) {
+      context.set.status = 502;
+      return { error: err instanceof Error ? err.message : 'CI/CD 実行履歴の取得に失敗しました' };
+    }
+  })
+
+  // CI/CD: a single run with its jobs/steps.
+  .get('/integrations/:id/runs/:runId', async (context) => {
+    const { id, runId } = context.params as { id: string; runId: string };
+    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
+    if (!integration) {
+      context.set.status = 404;
+      return { error: 'リポジトリ連携が見つかりません' };
+    }
+    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    try {
+      return await getWorkflowRun(repo, parseInt(runId));
+    } catch (err) {
+      context.set.status = 502;
+      return { error: err instanceof Error ? err.message : '実行詳細の取得に失敗しました' };
+    }
+  })
+
+  // CI/CD: a run's logs (?failed=true returns only the failed steps' output).
+  .get('/integrations/:id/runs/:runId/log', async (context) => {
+    const { id, runId } = context.params as { id: string; runId: string };
+    const { failed } = context.query as { failed?: string };
+    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
+    if (!integration) {
+      context.set.status = 404;
+      return { error: 'リポジトリ連携が見つかりません' };
+    }
+    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    const log = await getWorkflowRunLog(repo, parseInt(runId), failed === 'true');
+    return { log };
   })
 
   // Get Issue details
