@@ -1,6 +1,10 @@
 /**
  * Database Helper Utilities
- * Functions for JSON field handling and ID parsing
+ * Functions for JSON field handling, ID parsing, and provider-aware Prisma filter construction.
+ * Provider detection and insensitive-match helpers live here so all callers share one
+ * implementation — eliminating the scattered `isPostgres` variable pattern that was
+ * previously duplicated across 13 files with 3 different (and sometimes weaker) detection
+ * expressions.
  */
 
 /**
@@ -71,4 +75,50 @@ export function parseId(id: string): number {
     throw new Error('無効なIDです');
   }
   return parsed;
+}
+
+/**
+ * Returns true when the active Prisma client targets PostgreSQL.
+ *
+ * Uses two env vars — mirroring config/database.ts — so detection works even
+ * when RAPITAS_DB_PROVIDER is unset (e.g. raw Docker runs where only DATABASE_URL
+ * is configured). SQLite URLs always start with "file:".
+ *
+ * @returns true when the active provider is PostgreSQL / PostgreSQL の場合 true
+ */
+export function isPostgresProvider(): boolean {
+  return (
+    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
+    !process.env.DATABASE_URL?.startsWith('file:')
+  );
+}
+
+/**
+ * Builds a Prisma `contains` filter that is safe for both PostgreSQL and SQLite.
+ *
+ * PostgreSQL: `{ contains: value, mode: 'insensitive' }` (case-insensitive)
+ * SQLite:     `{ contains: value }` (case-sensitive — SQLite lacks mode support)
+ *
+ * @param value - The string to search for / 検索する文字列
+ * @returns Prisma contains filter object / Prisma contains フィルタオブジェクト
+ */
+export function insensitiveContains(value: string): { contains: string; mode?: 'insensitive' } {
+  return isPostgresProvider()
+    ? { contains: value, mode: 'insensitive' }
+    : { contains: value };
+}
+
+/**
+ * Builds a Prisma `equals` filter that is safe for both PostgreSQL and SQLite.
+ *
+ * PostgreSQL: `{ equals: value, mode: 'insensitive' }` (case-insensitive)
+ * SQLite:     `{ equals: value }` (case-sensitive — SQLite lacks mode support)
+ *
+ * @param value - The string to match / 一致させる文字列
+ * @returns Prisma equals filter object / Prisma equals フィルタオブジェクト
+ */
+export function insensitiveEquals(value: string): { equals: string; mode?: 'insensitive' } {
+  return isPostgresProvider()
+    ? { equals: value, mode: 'insensitive' }
+    : { equals: value };
 }

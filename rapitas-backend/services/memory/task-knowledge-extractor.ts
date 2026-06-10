@@ -11,6 +11,7 @@ import { sendAIMessage } from '../../utils/ai-client';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
+import { insensitiveContains } from '../../utils/database/db-helpers';
 
 const log = createLogger('memory:task-knowledge');
 
@@ -254,8 +255,8 @@ export async function searchCrossProjectKnowledge(
         forgettingStage: { in: ['active', 'dormant'] },
         OR: keywords.map((kw) => ({
           OR: [
-            { title: { contains: kw, mode: 'insensitive' as const } },
-            { content: { contains: kw, mode: 'insensitive' as const } },
+            { title: insensitiveContains(kw) },
+            { content: insensitiveContains(kw) },
           ],
         })),
       },

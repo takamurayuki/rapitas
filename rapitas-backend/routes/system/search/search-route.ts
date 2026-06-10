@@ -13,6 +13,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { createLogger } from '../../../config/logger';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
 import { recordSearchMiss } from '../../../services/search/search-miss-service';
+import { insensitiveContains } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:search:main');
 
@@ -50,28 +51,14 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
     const results: SearchResultItem[] = [];
 
-    // `mode: 'insensitive'` is Postgres-only. When the Prisma client is generated
-    // from the SQLite (desktop) schema it omits `mode` from StringFilter, so
-    // sending it raised PrismaClientValidationError at runtime for every search
-    // type. Attach it conditionally per the active DB provider — matching the
-    // pattern already used in routes/tasks/task-suggestions.ts. SQLite falls back
-    // to case-sensitive `contains`.
-    // Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
-    // (RAPITAS_DB_PROVIDER is not reliably set), so this works whether the desktop
-    // SQLite client or the Postgres client is active.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
-
     if (types.includes('task')) {
       // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.
       const taskWhere: any = {
         AND: [
           ...words.map((word) => ({
             OR: [
-              { title: { contains: word, ...insensitive } },
-              { description: { contains: word, ...insensitive } },
+              { title: insensitiveContains(word) },
+              { description: insensitiveContains(word) },
             ],
           })),
         ],
@@ -148,7 +135,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         AND: [
           { note: { not: null } },
           ...words.map((word) => ({
-            note: { contains: word, ...insensitive },
+            note: insensitiveContains(word),
           })),
         ],
       };
@@ -190,7 +177,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         AND: [
           { note: { not: null } },
           ...words.map((word) => ({
-            note: { contains: word, ...insensitive },
+            note: insensitiveContains(word),
           })),
         ],
       };
@@ -232,7 +219,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
       try {
         const commentWhere = {
           AND: words.map((word) => ({
-            content: { contains: word, ...insensitive },
+            content: insensitiveContains(word),
           })),
         };
 
@@ -280,8 +267,8 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
       const resourceWhere = {
         AND: words.map((word) => ({
           OR: [
-            { title: { contains: word, ...insensitive } },
-            { description: { contains: word, ...insensitive } },
+            { title: insensitiveContains(word) },
+            { description: insensitiveContains(word) },
           ],
         })),
       };

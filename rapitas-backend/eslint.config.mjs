@@ -27,6 +27,38 @@ export default [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // Forbid direct `mode: 'insensitive'` literals in Prisma filter objects.
+      // The desktop (SQLite) Prisma client omits `mode` from StringFilter, so a
+      // literal here causes PrismaClientValidationError at runtime. All callers
+      // must go through insensitiveContains() / insensitiveEquals() in
+      // utils/database/db-helpers.ts, which guards on the active DB provider.
+      "no-restricted-syntax": [
+        "error",
+        {
+          // Plain form:  { mode: 'insensitive' }
+          selector: "Property[key.name='mode'][value.type='Literal'][value.value='insensitive']",
+          message:
+            "mode: 'insensitive' の直書き禁止。utils/database/db-helpers の insensitiveContains() / insensitiveEquals() を使うこと。",
+        },
+        {
+          // `as const` form:  { mode: 'insensitive' as const }
+          selector:
+            "Property[key.name='mode'][value.type='TSAsExpression'][value.expression.value='insensitive']",
+          message:
+            "mode: 'insensitive' の直書き禁止。utils/database/db-helpers の insensitiveContains() / insensitiveEquals() を使うこと。",
+        },
+      ],
+    },
+  },
+  {
+    // NOTE: db-helpers.ts is the sole legitimate location for `mode: 'insensitive'`
+    // literals — it is the implementation of the helpers that every other file
+    // must use. Exclude it from the no-restricted-syntax rule so the rule can be
+    // applied globally without false positives in the one place where the literal
+    // is intentional.
+    files: ["utils/database/db-helpers.ts"],
+    rules: {
+      "no-restricted-syntax": "off",
     },
   },
   {
@@ -40,6 +72,9 @@ export default [
     rules: {
       "no-console": "off",
       "@typescript-eslint/no-explicit-any": "off",
+      // Tests may construct expected values containing { mode: 'insensitive' }
+      // as fixtures or assertions; allow it here.
+      "no-restricted-syntax": "off",
     },
   },
 ];

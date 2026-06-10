@@ -13,16 +13,14 @@ import {
 } from '../workflow/complexity-analyzer';
 import { TASK_FULL_INCLUDE } from './task-mutations';
 import type { CreateTaskInput } from './task-mutations';
+import { insensitiveEquals } from '../../utils/database/db-helpers';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
 const logger = createLogger('task-create-helpers');
 
 function titleEqualsFilter(title: string) {
-  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
-    return { equals: title };
-  }
-  return { equals: title, mode: 'insensitive' };
+  return insensitiveEquals(title);
 }
 
 /**

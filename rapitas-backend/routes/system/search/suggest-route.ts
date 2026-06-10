@@ -8,6 +8,7 @@ import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getMatchContext } from './helpers';
+import { insensitiveContains } from '../../../utils/database/db-helpers';
 
 const log = createLogger('routes:search:suggest');
 
@@ -23,22 +24,12 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
 
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-    // `mode: 'insensitive'` is Postgres-only; the SQLite (desktop) Prisma client
-    // rejects it at runtime (PrismaClientValidationError). Attach it conditionally
-    // per the active DB provider — same pattern as task-suggestions.ts / search-route.ts.
-    // Detect SQLite via a `file:` DATABASE_URL (mirrors config/database.ts), so
-    // this works whether the SQLite or Postgres client is active.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
-    const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
-
+    // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.
     const taskWhere: any = {
       AND: words.map((word) => ({
         OR: [
-          { title: { contains: word, ...insensitive } },
-          { description: { contains: word, ...insensitive } },
+          { title: insensitiveContains(word) },
+          { description: insensitiveContains(word) },
         ],
       })),
     };
@@ -58,7 +49,7 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
 
     const commentWhere: any = {
       AND: words.map((word) => ({
-        content: { contains: word, ...insensitive },
+        content: insensitiveContains(word),
       })),
     };
 

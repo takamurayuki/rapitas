@@ -1,13 +1,16 @@
 /**
  * Database Helper Utilities テスト
- * JSON変換、ID解析などの純粋関数のテスト
+ * JSON変換、ID解析、プロバイダー判定、インセンシティブフィルタ構築の純粋関数のテスト
  */
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import {
   getLabelsArray,
   toJsonString,
   fromJsonString,
   parseId,
+  isPostgresProvider,
+  insensitiveContains,
+  insensitiveEquals,
 } from '../../utils/database/db-helpers';
 
 describe('getLabelsArray', () => {
@@ -110,5 +113,136 @@ describe('parseId', () => {
 
   test('小数点付き文字列は整数部分をパースすること', () => {
     expect(parseId('12.34')).toBe(12);
+  });
+});
+
+// isPostgresProvider / insensitiveContains / insensitiveEquals の env 分岐テスト
+// 各 test の前後で env を保存・復元し、テスト間の副作用を防ぐ。
+describe('isPostgresProvider', () => {
+  let savedProvider: string | undefined;
+  let savedUrl: string | undefined;
+
+  beforeEach(() => {
+    savedProvider = process.env.RAPITAS_DB_PROVIDER;
+    savedUrl = process.env.DATABASE_URL;
+  });
+
+  afterEach(() => {
+    if (savedProvider === undefined) {
+      delete process.env.RAPITAS_DB_PROVIDER;
+    } else {
+      process.env.RAPITAS_DB_PROVIDER = savedProvider;
+    }
+    if (savedUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = savedUrl;
+    }
+  });
+
+  test('RAPITAS_DB_PROVIDER=sqlite のとき false を返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+    delete process.env.DATABASE_URL;
+    expect(isPostgresProvider()).toBe(false);
+  });
+
+  test('DATABASE_URL が file: で始まるとき false を返すこと', () => {
+    delete process.env.RAPITAS_DB_PROVIDER;
+    process.env.DATABASE_URL = 'file:./dev.db';
+    expect(isPostgresProvider()).toBe(false);
+  });
+
+  test('RAPITAS_DB_PROVIDER=postgresql のとき true を返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'postgresql';
+    process.env.DATABASE_URL = 'postgresql://localhost/db';
+    expect(isPostgresProvider()).toBe(true);
+  });
+
+  test('両変数が未設定のとき true を返すこと（デフォルトは Postgres）', () => {
+    delete process.env.RAPITAS_DB_PROVIDER;
+    delete process.env.DATABASE_URL;
+    expect(isPostgresProvider()).toBe(true);
+  });
+});
+
+describe('insensitiveContains', () => {
+  let savedProvider: string | undefined;
+  let savedUrl: string | undefined;
+
+  beforeEach(() => {
+    savedProvider = process.env.RAPITAS_DB_PROVIDER;
+    savedUrl = process.env.DATABASE_URL;
+  });
+
+  afterEach(() => {
+    if (savedProvider === undefined) {
+      delete process.env.RAPITAS_DB_PROVIDER;
+    } else {
+      process.env.RAPITAS_DB_PROVIDER = savedProvider;
+    }
+    if (savedUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = savedUrl;
+    }
+  });
+
+  test('Postgres 環境では mode を含む contains フィルタを返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'postgresql';
+    process.env.DATABASE_URL = 'postgresql://localhost/db';
+    expect(insensitiveContains('hello')).toEqual({ contains: 'hello', mode: 'insensitive' });
+  });
+
+  test('SQLite 環境では mode を含まない contains フィルタを返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+    delete process.env.DATABASE_URL;
+    expect(insensitiveContains('hello')).toEqual({ contains: 'hello' });
+  });
+
+  test('file: DATABASE_URL のとき mode を含まないこと', () => {
+    delete process.env.RAPITAS_DB_PROVIDER;
+    process.env.DATABASE_URL = 'file:./dev.db';
+    expect(insensitiveContains('world')).toEqual({ contains: 'world' });
+  });
+});
+
+describe('insensitiveEquals', () => {
+  let savedProvider: string | undefined;
+  let savedUrl: string | undefined;
+
+  beforeEach(() => {
+    savedProvider = process.env.RAPITAS_DB_PROVIDER;
+    savedUrl = process.env.DATABASE_URL;
+  });
+
+  afterEach(() => {
+    if (savedProvider === undefined) {
+      delete process.env.RAPITAS_DB_PROVIDER;
+    } else {
+      process.env.RAPITAS_DB_PROVIDER = savedProvider;
+    }
+    if (savedUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = savedUrl;
+    }
+  });
+
+  test('Postgres 環境では mode を含む equals フィルタを返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'postgresql';
+    process.env.DATABASE_URL = 'postgresql://localhost/db';
+    expect(insensitiveEquals('Task A')).toEqual({ equals: 'Task A', mode: 'insensitive' });
+  });
+
+  test('SQLite 環境では mode を含まない equals フィルタを返すこと', () => {
+    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+    delete process.env.DATABASE_URL;
+    expect(insensitiveEquals('Task A')).toEqual({ equals: 'Task A' });
+  });
+
+  test('file: DATABASE_URL のとき mode を含まないこと', () => {
+    delete process.env.RAPITAS_DB_PROVIDER;
+    process.env.DATABASE_URL = 'file:./dev.db';
+    expect(insensitiveEquals('Task A')).toEqual({ equals: 'Task A' });
   });
 });

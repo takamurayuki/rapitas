@@ -7,6 +7,7 @@
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { insensitiveContains } from '../../utils/database/db-helpers';
 import type {
   CreateNodeInput,
   CreateEdgeInput,
@@ -76,8 +77,8 @@ export async function listNodes(
   if (nodeType) where.nodeType = nodeType;
   if (search) {
     where.OR = [
-      { label: { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
+      { label: insensitiveContains(search) },
+      { description: insensitiveContains(search) },
     ];
   }
 

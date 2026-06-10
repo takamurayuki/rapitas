@@ -9,6 +9,7 @@ import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { appendEvent } from '../memory/timeline';
 import { searchKnowledge } from '../memory/rag/search';
+import { insensitiveContains } from '../../utils/database/db-helpers';
 import type {
   CreateExperimentInput,
   UpdateExperimentInput,
@@ -23,10 +24,7 @@ const log = createLogger('self-learning:experiment');
 
 function titleContainsFilter(query: string) {
   const contains = query.split(' ')[0] ?? '';
-  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
-    return { contains };
-  }
-  return { contains, mode: 'insensitive' };
+  return insensitiveContains(contains);
 }
 
 /**

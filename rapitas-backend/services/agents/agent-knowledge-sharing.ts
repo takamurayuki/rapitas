@@ -6,6 +6,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { insensitiveContains } from '../../utils/database/db-helpers';
 
 const log = createLogger('agent-knowledge-sharing');
 
@@ -281,8 +282,8 @@ async function findRelevantKnowledgeForAgent(task: {
       confidence: { gte: 0.5 },
       OR: keywords.slice(0, 4).map((kw) => ({
         OR: [
-          { title: { contains: kw, mode: 'insensitive' as const } },
-          { content: { contains: kw, mode: 'insensitive' as const } },
+          { title: insensitiveContains(kw) },
+          { content: insensitiveContains(kw) },
         ],
       })),
     },

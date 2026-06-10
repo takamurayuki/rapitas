@@ -51,6 +51,7 @@ import { runForgettingSweep } from './forgetting';
 import { distillFromExecution } from './distillation';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
+import { insensitiveContains } from '../../utils/database/db-helpers';
 import type {
   CreateKnowledgeEntryInput,
   UpdateKnowledgeEntryInput,
@@ -263,8 +264,8 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   if (themeId) where.themeId = themeId;
   if (search) {
     where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { content: { contains: search, mode: 'insensitive' } },
+      { title: insensitiveContains(search) },
+      { content: insensitiveContains(search) },
     ];
   }
 
