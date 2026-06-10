@@ -19,6 +19,8 @@ import {
   approvePullRequest,
   requestChanges,
   mergePullRequest,
+  changePullRequestBase,
+  syncLocalBranchWithRemote,
   createPullRequest,
 } from '../github/pr-operations';
 import { getIssues, getIssue, createIssue, addIssueComment } from '../github/issue-operations';
@@ -125,6 +127,16 @@ export class GitHubService {
     options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean },
   ) {
     return mergePullRequest(repo, prNumber, options);
+  }
+
+  /** @see pr-operations.changePullRequestBase */
+  async changePullRequestBase(repo: string, prNumber: number, baseBranch: string) {
+    return changePullRequestBase(repo, prNumber, baseBranch);
+  }
+
+  /** @see pr-operations.syncLocalBranchWithRemote */
+  async syncLocalBranchWithRemote(workingDirectory: string, branch: string) {
+    return syncLocalBranchWithRemote(workingDirectory, branch);
   }
 
   /** @see pr-operations.createPullRequest */

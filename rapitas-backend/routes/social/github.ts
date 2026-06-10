@@ -15,6 +15,25 @@ import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../sch
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
 
+/**
+ * Resolve the local working directory for a PR's merge so we can sync the base
+ * branch afterwards. Uses the linked task's working directory, falling back to
+ * its theme's. Returns null when none is known (sync is then skipped).
+ *
+ * @param linkedTaskId - The PR's linked task id (may be null). / PRに紐づくタスクID
+ * @returns Local repo path, or null. / ローカルリポジトリパス、無ければnull
+ */
+async function resolvePrWorkingDirectory(linkedTaskId: number | null): Promise<string | null> {
+  if (linkedTaskId == null) return null;
+  const task = await prisma.task
+    .findUnique({
+      where: { id: linkedTaskId },
+      select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
+    })
+    .catch(() => null);
+  return task?.workingDirectory ?? task?.theme?.workingDirectory ?? null;
+}
+
 export const githubRoutes = new Elysia({ prefix: '/github' })
   // GitHub CLI status check
   .get('/status', async () => {
@@ -362,6 +381,15 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     await prisma.gitHubPullRequest
       .update({ where: { id: parseInt(id) }, data: { state: 'merged', updatedAt: new Date() } })
       .catch(() => {});
+
+    // Pull the merged changes into the LOCAL base branch so the working copy
+    // reflects the merge. Best-effort — a sync failure doesn't fail the merge.
+    let localSync: { synced: boolean; detail: string } | null = null;
+    const workingDirectory = await resolvePrWorkingDirectory(pr.linkedTaskId);
+    if (workingDirectory) {
+      localSync = await githubService.syncLocalBranchWithRemote(workingDirectory, pr.baseBranch);
+    }
+
     await prisma.notification
       .create({
         data: {
@@ -373,7 +401,41 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       })
       .catch(() => {});
 
-    return { success: true };
+    return { success: true, localSync };
+  })
+
+  // Change the base (merge target) branch of a PR.
+  .patch('/pull-requests/:id/base', async (context) => {
+    const { id } = context.params as { id: string };
+    const { baseBranch } = (context.body ?? {}) as { baseBranch?: string };
+    if (!baseBranch) {
+      context.set.status = 400;
+      return { success: false, error: 'baseBranch は必須です' };
+    }
+
+    const pr = await prisma.gitHubPullRequest.findUnique({
+      where: { id: parseInt(id) },
+      include: { integration: true },
+    });
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    try {
+      await githubService.changePullRequestBase(repo, pr.prNumber, baseBranch);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      context.set.status = 502;
+      return { success: false, error: `マージ先ブランチの変更に失敗しました: ${message}` };
+    }
+
+    await prisma.gitHubPullRequest
+      .update({ where: { id: parseInt(id) }, data: { baseBranch, updatedAt: new Date() } })
+      .catch(() => {});
+
+    return { success: true, baseBranch };
   })
 
   // Get Issue list

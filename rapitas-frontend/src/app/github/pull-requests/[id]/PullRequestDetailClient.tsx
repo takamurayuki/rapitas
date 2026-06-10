@@ -42,11 +42,47 @@ export default function PullRequestDetailClient() {
   const [merging, setMerging] = useState(false);
   const [mergeMethod, setMergeMethod] = useState<MergeMethod>('squash');
   const [deleteBranch, setDeleteBranch] = useState(true);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [changingBase, setChangingBase] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     fetchPRData();
   }, [id]);
+
+  // Load the repo's branches so the user can change the merge target branch.
+  const repositoryUrl = pr?.integration?.repositoryUrl;
+  useEffect(() => {
+    if (!repositoryUrl) return;
+    fetch(`${API_BASE_URL}/themes/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`)
+      .then((res) => (res.ok ? res.json() : { branches: [] }))
+      .then((data: { branches?: string[] }) => setBranches(data.branches ?? []))
+      .catch(() => setBranches([]));
+  }, [repositoryUrl]);
+
+  const handleChangeBase = async (baseBranch: string) => {
+    if (!pr || baseBranch === pr.baseBranch) return;
+    setChangingBase(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/base`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseBranch }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast(`マージ先を ${baseBranch} に変更しました`, 'success');
+        await fetchPRData();
+      } else {
+        showToast(data.error || 'マージ先の変更に失敗しました', 'error');
+      }
+    } catch (error) {
+      logger.error('Failed to change base branch:', error);
+      showToast('マージ先の変更に失敗しました', 'error');
+    } finally {
+      setChangingBase(false);
+    }
+  };
 
   const fetchPRData = async () => {
     setLoading(true);
@@ -118,6 +154,12 @@ export default function PullRequestDetailClient() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
         showToast(`PR #${pr.prNumber} をマージしました`, 'success');
+        // Report the local base-branch sync outcome (best-effort on the server).
+        if (data.localSync?.synced) {
+          showToast(data.localSync.detail, 'success');
+        } else if (data.localSync && !data.localSync.synced) {
+          showToast(`ローカル同期に失敗しました: ${data.localSync.detail}`, 'error');
+        }
         await fetchPRData();
       } else {
         showToast(data.error || 'マージに失敗しました', 'error');
@@ -163,6 +205,24 @@ export default function PullRequestDetailClient() {
       {/* Merge bar — only for open PRs. Review the diff/approve first, then merge. */}
       {pr.state === 'open' && (
         <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ先</span>
+          <select
+            value={pr.baseBranch}
+            onChange={(e) => handleChangeBase(e.target.value)}
+            disabled={changingBase}
+            className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm disabled:opacity-50"
+          >
+            {/* Ensure the current base is selectable even if the branch list hasn't loaded. */}
+            {!branches.includes(pr.baseBranch) && (
+              <option value={pr.baseBranch}>{pr.baseBranch}</option>
+            )}
+            {branches.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+          {changingBase && <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />}
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ方式</span>
           <select
             value={mergeMethod}

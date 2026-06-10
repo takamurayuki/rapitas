@@ -120,6 +120,60 @@ export async function mergePullRequest(
 }
 
 /**
+ * Change a pull request's base (merge target) branch via `gh pr edit`.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param prNumber - PR number / PR番号
+ * @param baseBranch - New base (merge target) branch / 新しいマージ先ブランチ
+ */
+export async function changePullRequestBase(
+  repo: string,
+  prNumber: number,
+  baseBranch: string,
+): Promise<void> {
+  await runGhCommand(['pr', 'edit', String(prNumber), '--repo', repo, '--base', baseBranch]);
+}
+
+/**
+ * Sync a local branch with its remote after a merge, so the merged changes are
+ * reflected locally. Fast-forwards when the branch is checked out; otherwise
+ * updates the local ref to match the remote. Best-effort: never throws — returns
+ * a result describing what happened so the caller can surface it.
+ *
+ * @param workingDirectory - Local git repository path / ローカルgitリポジトリパス
+ * @param branch - Branch to sync (the PR's base branch) / 同期するブランチ
+ * @returns Whether the sync succeeded and a human-readable detail / 同期結果と詳細
+ */
+export async function syncLocalBranchWithRemote(
+  workingDirectory: string,
+  branch: string,
+): Promise<{ synced: boolean; detail: string }> {
+  try {
+    await execAsync(`git fetch origin ${branch}`, { cwd: workingDirectory });
+
+    const { stdout: cur } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+    });
+    const current = cur.trim();
+
+    if (current === branch) {
+      // The base branch is checked out — fast-forward it to the remote.
+      await execAsync(`git merge --ff-only origin/${branch}`, { cwd: workingDirectory });
+      return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
+    }
+
+    // Not checked out — move the local ref to the fetched remote tip. Fails if
+    // the branch doesn't exist locally yet, which is fine (nothing to sync).
+    await execAsync(`git fetch origin ${branch}:${branch}`, { cwd: workingDirectory });
+    return { synced: true, detail: `ローカルの ${branch} を origin/${branch} に更新しました` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn({ workingDirectory, branch, message }, 'Failed to sync local branch after merge');
+    return { synced: false, detail: message };
+  }
+}
+
+/**
  * Create a pull request from the given working directory.
  *
  * @param workingDirectory - Path to the git repository / gitリポジトリパス
