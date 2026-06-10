@@ -177,6 +177,28 @@ export async function hideToTray(): Promise<void> {
  * @param url URL to open
  * @param title Window title (unused, kept for compatibility)
  */
+/**
+ * Open a URL in the OS default browser (e.g. Chrome). In Tauri this uses the
+ * shell plugin's `open` (permitted by the tauri.conf `shell.open` setting and
+ * the `shell:allow-open` capability); on the web it falls back to a new tab.
+ *
+ * @param url - The URL to open externally. / 外部で開くURL
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isTauri()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    // Tauri v2 shell plugin command — opens the URL with the OS default handler.
+    await invoke('plugin:shell|open', { path: url });
+  } catch (error) {
+    logger.error('Failed to open URL in default browser:', error);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 export async function openExternalUrlInSplitView(
   url: string,
   title: string = 'External Link',

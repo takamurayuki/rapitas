@@ -1,7 +1,7 @@
 /**
  * External link utility functions
  */
-import { isTauri, openExternalUrlInSplitView } from '@/utils/tauri';
+import { openExternalUrl } from '@/utils/tauri';
 
 /**
  * Determine if a URL is an external link
@@ -30,27 +30,11 @@ export function isExternalLink(href: string): boolean {
 }
 
 /**
- * Open external link in split view (supports both Web and Tauri environments)
+ * Open an external link in the OS default browser (e.g. Chrome) on Tauri, or a
+ * new browser tab on the web. (Previously opened an in-app split view.)
  */
-export function openExternalLinkInSplitView(href: string): void {
-  if (isTauri()) {
-    // NOTE: Pre-notify that split view is about to start
-    // This allows UI components to begin position adjustment immediately
-    window.dispatchEvent(
-      new CustomEvent('rapitas:split-view-preparing', {
-        detail: { url: href },
-      }),
-    );
-
-    // NOTE: Short delay for UI component position adjustment
-    requestAnimationFrame(() => {
-      // In Tauri: split view (main window right half, default browser left)
-      openExternalUrlInSplitView(href);
-    });
-  } else {
-    // Open in new tab for web environment
-    window.open(href, '_blank');
-  }
+export function openExternalLink(href: string): void {
+  void openExternalUrl(href);
 }
 
 /**
@@ -65,7 +49,7 @@ export function handleExternalLinkClick(
     return;
   }
 
-  // Open external links in split view
+  // Open external links in the OS default browser.
   if (isExternalLink(href)) {
     event.preventDefault();
     event.stopPropagation();
@@ -78,7 +62,7 @@ export function handleExternalLinkClick(
       event.stopImmediatePropagation();
     }
 
-    openExternalLinkInSplitView(href);
+    openExternalLink(href);
   }
 }
 
