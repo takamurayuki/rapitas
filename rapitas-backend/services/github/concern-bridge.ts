@@ -108,12 +108,17 @@ export async function publishConcernToIssue(
     return { success: false, status: 502, error: `GitHub Issue の作成に失敗しました: ${message}` };
   }
 
+  // gh returns the state UPPERCASE (OPEN/CLOSED); store it lowercase to match
+  // the sync path and the UI's open/closed filters — otherwise the freshly
+  // published issue is stored as "OPEN" and the issues list (state=open) hides it.
+  const state = (issue.state || '').toLowerCase();
+
   const saved = await prisma.gitHubIssue.upsert({
     where: { integrationId_issueNumber: { integrationId, issueNumber: issue.number } },
     update: {
       title: issue.title,
       body: issue.body,
-      state: issue.state,
+      state,
       labels: JSON.stringify(issue.labels),
       authorLogin: issue.authorLogin,
       url: issue.url,
@@ -125,7 +130,7 @@ export async function publishConcernToIssue(
       issueNumber: issue.number,
       title: issue.title,
       body: issue.body,
-      state: issue.state,
+      state,
       labels: JSON.stringify(issue.labels),
       authorLogin: issue.authorLogin,
       url: issue.url,
