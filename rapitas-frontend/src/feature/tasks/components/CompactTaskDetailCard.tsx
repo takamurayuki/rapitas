@@ -139,10 +139,13 @@ export default function CompactTaskDetailCard({
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
               const config = statusConfig[status];
+              // `task.status` is typed to the 3 toggle values, but at runtime it
+              // can also be 'blocked'/'completed' — compare as string to normalize.
+              const rawStatus = task.status as string;
               const normalizedCurrent =
-                task.status === 'blocked'
+                rawStatus === 'blocked'
                   ? 'in-progress'
-                  : task.status === 'completed'
+                  : rawStatus === 'completed'
                     ? 'done'
                     : task.status;
               return (
