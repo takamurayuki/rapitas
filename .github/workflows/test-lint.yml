@@ -237,6 +237,16 @@ jobs:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
 
+      - name: Verify SQLite generated artifacts match committed files
+        working-directory: rapitas-backend
+        run: |
+          if ! git diff --exit-code prisma/schema.desktop/ src/generated/sqlite-init-sql.ts; then
+            echo ""
+            echo "ERROR: SQLite generated artifacts are out of sync with the Prisma schema."
+            echo "Run 'bun run db:prepare:sqlite' in rapitas-backend/ and commit the regenerated files."
+            exit 1
+          fi
+
       - name: Check backend TypeScript with SQLite Prisma Client
         working-directory: rapitas-backend
         run: bunx tsc --noEmit
