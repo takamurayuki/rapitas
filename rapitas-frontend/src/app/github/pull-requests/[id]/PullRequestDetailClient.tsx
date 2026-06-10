@@ -44,6 +44,7 @@ export default function PullRequestDetailClient() {
   const [deleteBranch, setDeleteBranch] = useState(true);
   const [branches, setBranches] = useState<string[]>([]);
   const [changingBase, setChangingBase] = useState(false);
+  const [autoMerge, setAutoMerge] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -149,10 +150,15 @@ export default function PullRequestDetailClient() {
       const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/merge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: mergeMethod, deleteBranch }),
+        body: JSON.stringify({ method: mergeMethod, deleteBranch, auto: autoMerge }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
+        if (data.autoQueued) {
+          showToast('条件を満たし次第、自動マージされます', 'success');
+          await fetchPRData();
+          return;
+        }
         showToast(`PR #${pr.prNumber} をマージしました`, 'success');
         // Report the local base-branch sync outcome (best-effort on the server).
         if (data.localSync?.synced) {
@@ -241,6 +247,18 @@ export default function PullRequestDetailClient() {
               className="rounded"
             />
             ブランチを削除
+          </label>
+          <label
+            className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400"
+            title="今すぐマージできない場合（チェック保留など）、条件を満たし次第GitHubが自動マージします。競合は解消されません。"
+          >
+            <input
+              type="checkbox"
+              checked={autoMerge}
+              onChange={(e) => setAutoMerge(e.target.checked)}
+              className="rounded"
+            />
+            自動マージ
           </label>
           <button
             onClick={handleMerge}

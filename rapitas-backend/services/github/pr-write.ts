@@ -106,16 +106,19 @@ export async function requestChanges(repo: string, prNumber: number, body: strin
  *
  * @param repo - Repository in owner/name format / リポジトリ名
  * @param prNumber - PR number / PR番号
- * @param options - Merge method (default squash) and whether to delete the branch / マージ方式とブランチ削除
+ * @param options - Merge method (default squash), branch deletion, and auto-merge / マージ方式・ブランチ削除・自動マージ
  */
 export async function mergePullRequest(
   repo: string,
   prNumber: number,
-  options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean },
+  options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
 ): Promise<void> {
   const method = options?.method ?? 'squash';
   const args = ['pr', 'merge', String(prNumber), '--repo', repo, `--${method}`];
   if (options?.deleteBranch) args.push('--delete-branch');
+  // --auto queues the merge so GitHub completes it once requirements are met
+  // (pending checks, etc.). It does NOT resolve a true merge conflict.
+  if (options?.auto) args.push('--auto');
   await runGhCommand(args);
 }
 

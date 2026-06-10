@@ -124,7 +124,7 @@ export class GitHubService {
   async mergePullRequest(
     repo: string,
     prNumber: number,
-    options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean },
+    options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
   ) {
     return mergePullRequest(repo, prNumber, options);
   }

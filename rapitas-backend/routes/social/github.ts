@@ -359,9 +359,10 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   // Merge PR
   .post('/pull-requests/:id/merge', async (context) => {
     const { id } = context.params as { id: string };
-    const { method, deleteBranch } = (context.body ?? {}) as {
+    const { method, deleteBranch, auto } = (context.body ?? {}) as {
       method?: 'merge' | 'squash' | 'rebase';
       deleteBranch?: boolean;
+      auto?: boolean;
     };
 
     const pr = await prisma.gitHubPullRequest.findUnique({
@@ -372,11 +373,17 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     try {
-      await githubService.mergePullRequest(repo, pr.prNumber, { method, deleteBranch });
+      await githubService.mergePullRequest(repo, pr.prNumber, { method, deleteBranch, auto });
     } catch (err) {
       // gh fails on conflicts / branch protection / not-approved — surface it.
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: `マージに失敗しました: ${message}` };
+    }
+
+    // With --auto the merge is only QUEUED (completes later once requirements are
+    // met), so don't mark it merged or sync the local branch yet.
+    if (auto) {
+      return { success: true, autoQueued: true };
     }
 
     await prisma.gitHubPullRequest
