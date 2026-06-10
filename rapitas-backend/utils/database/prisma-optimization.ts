@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { createLogger } from '../../config/logger';
+import { caseInsensitive } from './prisma-helpers';
 
 const log = createLogger('prisma-optimization');
 
@@ -315,12 +316,15 @@ export const QueryOptimizers = {
         filters,
         {
           OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' as const } },
+            // HACK(agent): `as any` required — Prisma's SQLite StringFilter omits `mode`, causing a
+            // type conflict when the return type of caseInsensitive() includes `{ mode: 'insensitive' }`.
+            // At runtime the SQLite branch returns `{}` so no invalid field is ever sent.
+            { title: { contains: searchTerm, ...caseInsensitive() } as any },
             {
               description: {
                 contains: searchTerm,
-                mode: 'insensitive' as const,
-              },
+                ...caseInsensitive(),
+              } as any,
             },
             {
               labels: {
@@ -328,8 +332,8 @@ export const QueryOptimizers = {
                   label: {
                     name: {
                       contains: searchTerm,
-                      mode: 'insensitive' as const,
-                    },
+                      ...caseInsensitive(),
+                    } as any,
                   },
                 },
               },

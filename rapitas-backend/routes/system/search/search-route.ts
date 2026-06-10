@@ -13,6 +13,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { createLogger } from '../../../config/logger';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
 import { recordSearchMiss } from '../../../services/search/search-miss-service';
+import { caseInsensitive } from '../../../utils/database';
 
 const log = createLogger('routes:search:main');
 
@@ -53,16 +54,9 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     // `mode: 'insensitive'` is Postgres-only. When the Prisma client is generated
     // from the SQLite (desktop) schema it omits `mode` from StringFilter, so
     // sending it raised PrismaClientValidationError at runtime for every search
-    // type. Attach it conditionally per the active DB provider — matching the
-    // pattern already used in routes/tasks/task-suggestions.ts. SQLite falls back
-    // to case-sensitive `contains`.
-    // Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
-    // (RAPITAS_DB_PROVIDER is not reliably set), so this works whether the desktop
-    // SQLite client or the Postgres client is active.
-    const isPostgres =
-      process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-      !process.env.DATABASE_URL?.startsWith('file:');
-    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
+    // type. Attach it conditionally via caseInsensitive() (utils/database) which
+    // centralises the provider detection. SQLite falls back to case-sensitive `contains`.
+    const insensitive = caseInsensitive();
 
     if (types.includes('task')) {
       // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.

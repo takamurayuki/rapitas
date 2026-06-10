@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
+import { caseInsensitive } from '../../utils/database';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
@@ -387,7 +388,7 @@ export const commentsRoutes = new Elysia()
 
       // If search query provided, filter by content
       if (q && q.trim()) {
-        whereClause.content = { contains: q.trim(), mode: 'insensitive' };
+        whereClause.content = { contains: q.trim(), ...caseInsensitive() };
       }
 
       const comments = await prisma.comment.findMany({

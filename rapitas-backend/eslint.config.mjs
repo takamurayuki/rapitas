@@ -27,6 +27,25 @@ export default [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // NOTE: `mode: 'insensitive'` is Postgres-only. Use caseInsensitive() from utils/database instead.
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "Property[key.name='mode'] > Literal[value='insensitive']",
+          "message": "`mode: 'insensitive'` の直書き禁止。`caseInsensitive()`（utils/database）を使うこと。"
+        }
+      ],
+    },
+  },
+  {
+    // NOTE: prisma-helpers.ts is the authorised source and its test file must
+    // assert the literal value — both are exempt from the restriction.
+    files: [
+      "utils/database/prisma-helpers.ts",
+      "tests/utils/prisma-helpers.test.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": "off",
     },
   },
   {

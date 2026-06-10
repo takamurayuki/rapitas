@@ -3,7 +3,7 @@
  *
  * Tests for query optimization utilities.
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
@@ -241,6 +241,37 @@ describe('QueryOptimizers', () => {
   test('searchTasksにフィルターを追加できること', () => {
     const result = QueryOptimizers.searchTasks('test', { status: 'done' });
     expect(result.where.AND).toBeDefined();
+  });
+
+  describe('searchTasks の mode:insensitive はプロバイダによって変わる', () => {
+    let savedProvider: string | undefined;
+    let savedDbUrl: string | undefined;
+    beforeEach(() => {
+      savedProvider = process.env.RAPITAS_DB_PROVIDER;
+      savedDbUrl = process.env.DATABASE_URL;
+    });
+    afterEach(() => {
+      if (savedProvider === undefined) delete process.env.RAPITAS_DB_PROVIDER;
+      else process.env.RAPITAS_DB_PROVIDER = savedProvider;
+      if (savedDbUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = savedDbUrl;
+    });
+
+    test('Postgres 環境では OR 条件に mode: insensitive が付く', () => {
+      delete process.env.RAPITAS_DB_PROVIDER;
+      process.env.DATABASE_URL = 'postgresql://localhost:5432/dev';
+      const result = QueryOptimizers.searchTasks('hello');
+      const orClause = (result.where.AND as any)[1].OR;
+      expect(orClause[0].title.mode).toBe('insensitive');
+    });
+
+    test('SQLite 環境では OR 条件に mode キーが含まれない', () => {
+      process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+      delete process.env.DATABASE_URL;
+      const result = QueryOptimizers.searchTasks('hello');
+      const orClause = (result.where.AND as any)[1].OR;
+      expect('mode' in orClause[0].title).toBe(false);
+    });
   });
 
   test('userWithPreferencesが適切なselect構造を返すこと', () => {

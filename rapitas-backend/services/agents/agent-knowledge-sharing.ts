@@ -6,6 +6,7 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { caseInsensitive } from '../../utils/database';
 
 const log = createLogger('agent-knowledge-sharing');
 
@@ -281,8 +282,9 @@ async function findRelevantKnowledgeForAgent(task: {
       confidence: { gte: 0.5 },
       OR: keywords.slice(0, 4).map((kw) => ({
         OR: [
-          { title: { contains: kw, mode: 'insensitive' as const } },
-          { content: { contains: kw, mode: 'insensitive' as const } },
+          // HACK(agent): `as any` required — Prisma's SQLite StringFilter omits `mode`; caseInsensitive() returns {} at runtime on SQLite.
+          { title: { contains: kw, ...caseInsensitive() } as any },
+          { content: { contains: kw, ...caseInsensitive() } as any },
         ],
       })),
     },
