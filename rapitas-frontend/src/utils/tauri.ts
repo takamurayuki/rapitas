@@ -178,9 +178,17 @@ export async function hideToTray(): Promise<void> {
  * @param title Window title (unused, kept for compatibility)
  */
 /**
- * Open a URL in the OS default browser (e.g. Chrome). In Tauri this uses the
- * shell plugin's `open` (permitted by the tauri.conf `shell.open` setting and
- * the `shell:allow-open` capability); on the web it falls back to a new tab.
+ * localStorage key for the user's preferred external-link browser. Empty / unset
+ * means the OS default browser. Otherwise it's an app name passed to the shell
+ * open command (e.g. "chrome", "msedge", "firefox").
+ */
+export const EXTERNAL_BROWSER_KEY = 'rapitas.externalBrowser';
+
+/**
+ * Open a URL in a browser. In Tauri this uses the shell plugin's `open`
+ * (permitted by tauri.conf `shell.open` + the `shell:allow-open` capability),
+ * honouring the user's chosen browser (App Settings) — falling back to the OS
+ * default. On the web it opens a new tab.
  *
  * @param url - The URL to open externally. / 外部で開くURL
  */
@@ -191,10 +199,13 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    // Tauri v2 shell plugin command — opens the URL with the OS default handler.
-    await invoke('plugin:shell|open', { path: url });
+    const browser =
+      (typeof localStorage !== 'undefined' && localStorage.getItem(EXTERNAL_BROWSER_KEY)) || '';
+    // Tauri v2 shell plugin command. `with` opens with a specific app; omitting
+    // it uses the OS default handler.
+    await invoke('plugin:shell|open', browser ? { path: url, with: browser } : { path: url });
   } catch (error) {
-    logger.error('Failed to open URL in default browser:', error);
+    logger.error('Failed to open URL in browser:', error);
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
