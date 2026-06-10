@@ -31,8 +31,7 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
     const isPostgres =
       process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
       !process.env.DATABASE_URL?.startsWith('file:');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
-    const insensitive: any = isPostgres ? { mode: 'insensitive' } : {};
+    const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
 
     const taskWhere: any = {
       AND: words.map((word) => ({
