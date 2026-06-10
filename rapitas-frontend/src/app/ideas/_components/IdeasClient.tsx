@@ -125,7 +125,7 @@ export default function IdeasClient() {
   const [isManualSubmitting, setIsManualSubmitting] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
 
-  // テーマ未設定アイデアの AI タスク化前テーマ選択モーダル状態
+  // テーマ未設定アイデアのタスク化前テーマ選択モーダル状態
   // NOTE: グローバルアイデア（テーマ未設定）はそのままタスク化するとワークフローで起票できないため、必ずテーマを選ばせる。
   const [themePickerIdea, setThemePickerIdea] = useState<Idea | null>(null);
   const [themePickerCategoryId, setThemePickerCategoryId] = useState<number | null>(null);
@@ -318,20 +318,29 @@ export default function IdeasClient() {
     [ideas.length, currentPage, fetchIdeas],
   );
 
-  const executeAiConvert = useCallback(
+  /**
+   * Convert an idea straight to a task WITHOUT AI, using the idea's own
+   * title/content/priority (the manual conversion endpoint). Immediate — no
+   * field-editing modal.
+   */
+  const executeQuickConvert = useCallback(
     async (idea: Idea, themeId: number) => {
       setConvertingIdeaId(idea.id);
       setIsConverting(true);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task`, {
+        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task-manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ themeId }),
+          body: JSON.stringify({
+            title: idea.title,
+            description: idea.content,
+            priority: idea.priority,
+            themeId,
+          }),
         });
 
         if (response.ok) {
-          await response.json();
           await fetchIdeas();
         } else {
           console.error('Failed to convert idea to task');
@@ -348,16 +357,17 @@ export default function IdeasClient() {
 
   const handleConvertToTask = useCallback(
     (idea: Idea) => {
-      // テーマが無いアイデアはそのまま起票するとワークフローで利用できないため、テーマ選択モーダルを挟む。
+      // A theme is required for workflow registration; global (theme-less) ideas
+      // still need one, so pick it first — but the conversion stays non-AI.
       if (idea.themeId === null) {
         setThemePickerIdea(idea);
         setThemePickerCategoryId(null);
         setThemePickerThemeId(null);
         return;
       }
-      void executeAiConvert(idea, idea.themeId);
+      void executeQuickConvert(idea, idea.themeId);
     },
-    [executeAiConvert],
+    [executeQuickConvert],
   );
 
   const closeThemePicker = useCallback(() => {
@@ -371,8 +381,8 @@ export default function IdeasClient() {
     const idea = themePickerIdea;
     const themeId = themePickerThemeId;
     closeThemePicker();
-    await executeAiConvert(idea, themeId);
-  }, [themePickerIdea, themePickerThemeId, executeAiConvert, closeThemePicker]);
+    await executeQuickConvert(idea, themeId);
+  }, [themePickerIdea, themePickerThemeId, executeQuickConvert, closeThemePicker]);
 
   /**
    * Open the manual-convert modal pre-filled with the idea's title and
@@ -752,47 +762,51 @@ export default function IdeasClient() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          {!idea.usedInTaskId && (
-                            <>
-                              <button
-                                onClick={() => openManualConvert(idea)}
-                                className="rounded p-1 text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                                aria-label="手動でタスク化"
-                                title="手動でタスク化 (フィールドを編集してから起票)"
-                              >
-                                <ListPlus className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleConvertToTask(idea)}
-                                disabled={isConverting && convertingIdeaId === idea.id}
-                                className="rounded p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
-                                aria-label="AI でタスク化"
-                                title="AI が内容を整形してタスク化"
-                              >
-                                {isConverting && convertingIdeaId === idea.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <ArrowRight className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => handleEdit(idea)}
-                            className="rounded p-1 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                            aria-label="編集"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(idea.id)}
-                            className="rounded p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            aria-label="削除"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                      </div>
+                      {/* Actions — grouped at the bottom (always visible), like
+                          the concern card. タスク化 files immediately (no AI). */}
+                      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-700/50">
+                        {!idea.usedInTaskId && (
+                          <>
+                            <button
+                              onClick={() => handleConvertToTask(idea)}
+                              disabled={isConverting && convertingIdeaId === idea.id}
+                              title="タスク化（すぐ起票・AIなし）"
+                              className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
+                            >
+                              {isConverting && convertingIdeaId === idea.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <ListPlus className="h-3 w-3" />
+                              )}
+                              タスク化
+                            </button>
+                            <button
+                              onClick={() => openManualConvert(idea)}
+                              title="編集してからタスク化"
+                              className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 dark:hover:bg-zinc-800 dark:hover:text-indigo-400 transition-colors"
+                              aria-label="編集してからタスク化"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleEdit(idea)}
+                          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-amber-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400 transition-colors"
+                          aria-label="アイデアを編集"
+                          title="アイデアを編集"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(idea.id)}
+                          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800 transition-colors"
+                          aria-label="削除"
+                          title="削除"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -941,7 +955,7 @@ export default function IdeasClient() {
         </div>
       )}
 
-      {/* テーマ選択モーダル — グローバルアイデアの AI タスク化前に表示 */}
+      {/* テーマ選択モーダル — テーマ未設定アイデアのタスク化前に表示（ワークフロー登録にテーマ必須） */}
       {themePickerIdea && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
