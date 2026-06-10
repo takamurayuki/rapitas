@@ -202,6 +202,40 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     });
   })
 
+  // Resolve the PR for a task → its detail-page id. Used by the post-execution
+  // panel to jump straight to the task's PR page (replacing the old approval
+  // page). Prefers the direct GitHubPullRequest.linkedTaskId; falls back to the
+  // PR number stored on the task (Task.githubPrId).
+  .get('/pull-requests/by-task/:taskId', async (context) => {
+    const { taskId } = context.params as { taskId: string };
+    const tid = parseInt(taskId);
+    const select = { id: true, prNumber: true, url: true, state: true } as const;
+
+    let pr = await prisma.gitHubPullRequest.findFirst({
+      where: { linkedTaskId: tid },
+      orderBy: { createdAt: 'desc' },
+      select,
+    });
+    if (!pr) {
+      const task = await prisma.task.findUnique({
+        where: { id: tid },
+        select: { githubPrId: true },
+      });
+      if (task?.githubPrId != null) {
+        pr = await prisma.gitHubPullRequest.findFirst({
+          where: { prNumber: task.githubPrId },
+          orderBy: { createdAt: 'desc' },
+          select,
+        });
+      }
+    }
+    if (!pr) {
+      context.set.status = 404;
+      return { error: 'このタスクのPRが見つかりません' };
+    }
+    return pr;
+  })
+
   // Get PR diff
   .get('/pull-requests/:id/diff', async (context) => {
     const { params } = context;
