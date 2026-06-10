@@ -31,7 +31,6 @@ import {
   Clock,
   GraduationCap,
   Bot,
-  CheckCircle,
   Settings,
   GitPullRequest,
   CircleDot,
@@ -223,7 +222,6 @@ export default function Header() {
             },
           ],
         },
-        { href: '/approvals', label: t('approvals'), icon: CheckCircle },
         {
           href: '/system-prompts',
           label: t('promptManagement'),
