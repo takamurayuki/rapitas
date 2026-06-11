@@ -5,7 +5,12 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
-import { listWorkflowRuns, getWorkflowRun, getWorkflowRunLog } from '../../services/github/actions';
+import {
+  listWorkflowRuns,
+  getWorkflowRun,
+  getWorkflowRunLog,
+  getWorkflowJobLog,
+} from '../../services/github/actions';
 import { resolvePrConflicts } from '../../services/github/conflict-resolver';
 import {
   publishConcernToIssue,
@@ -225,8 +230,14 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
   // Resolve the PR for a task → its detail-page id. Used by the post-execution
   // panel to jump straight to the task's PR page (replacing the old approval
-  // page). Prefers the direct GitHubPullRequest.linkedTaskId; falls back to the
-  // PR number stored on the task (Task.githubPrId).
+  // page). Resolution order:
+  //   1. Direct GitHubPullRequest.linkedTaskId (set by linkAutoCreatedPr).
+  //   2. PR number stored on the task (Task.githubPrId).
+  //   3. Title match `[Task-{id}]` — both auto-PR paths title PRs this way, so
+  //      this resolves tasks completed BEFORE the linking fix landed, as long as
+  //      the PR row exists locally (a GitHub sync has pulled it in). On a hit we
+  //      backfill the linkedTaskId/githubPrId links so it is fast (and the PR
+  //      still resolves after a title edit) next time.
   .get('/pull-requests/by-task/:taskId', async (context) => {
     const { taskId } = context.params as { taskId: string };
     const tid = parseInt(taskId);
@@ -251,8 +262,58 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       }
     }
     if (!pr) {
+      pr = await prisma.gitHubPullRequest.findFirst({
+        where: { title: { contains: `[Task-${tid}]` } },
+        orderBy: { createdAt: 'desc' },
+        select,
+      });
+      // Self-heal: backfill the links so subsequent clicks hit path 1/2.
+      // Best-effort — a write failure must not break the navigation.
+      if (pr) {
+        try {
+          await prisma.gitHubPullRequest.update({
+            where: { id: pr.id },
+            data: { linkedTaskId: tid },
+          });
+          await prisma.task.update({ where: { id: tid }, data: { githubPrId: pr.prNumber } });
+        } catch {
+          /* links remain unset; the title fallback still resolves it each time */
+        }
+      }
+    }
+    if (!pr) {
+      // No local PR row. Distinguish "a PR was created but isn't synced locally"
+      // from "no PR was ever created" using the auto_pr_created activity log, so
+      // the UI can give an accurate message (and offer the external GitHub URL
+      // instead of a dead end).
       context.set.status = 404;
-      return { error: 'このタスクのPRが見つかりません' };
+      const prCreatedLog = await prisma.activityLog.findFirst({
+        where: { taskId: tid, action: 'auto_pr_created' },
+        orderBy: { createdAt: 'desc' },
+        select: { metadata: true },
+      });
+      if (prCreatedLog) {
+        let prUrl: string | undefined;
+        let prNumber: number | undefined;
+        try {
+          const meta = JSON.parse(prCreatedLog.metadata ?? '{}') as {
+            prUrl?: string;
+            prNumber?: number;
+          };
+          prUrl = meta.prUrl;
+          prNumber = meta.prNumber;
+        } catch {
+          /* malformed metadata — fall back to the generic not-synced message */
+        }
+        return {
+          reason: 'not_synced',
+          prUrl,
+          prNumber,
+          error:
+            'PRは作成済みですが、ローカルに同期されていません。GitHub統合ページでPRを同期してください。',
+        };
+      }
+      return { reason: 'not_created', error: 'このタスクのPRはまだ作成されていません。' };
     }
     return pr;
   })
@@ -601,6 +662,25 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
     const log = await getWorkflowRunLog(repo, parseInt(runId), failed === 'true');
     return { log };
+  })
+
+  // CI/CD: a single job's log, parsed into per-step sections (for grandchild
+  // step expansion in the CI/CD view).
+  .get('/integrations/:id/jobs/:jobId/log', async (context) => {
+    const { id, jobId } = context.params as { id: string; jobId: string };
+    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
+    if (!integration) {
+      context.set.status = 404;
+      return { error: 'リポジトリ連携が見つかりません' };
+    }
+    const repo = `${integration.ownerName}/${integration.repositoryName}`;
+    try {
+      const sections = await getWorkflowJobLog(repo, parseInt(jobId));
+      return { sections };
+    } catch (err) {
+      context.set.status = 502;
+      return { error: err instanceof Error ? err.message : 'ジョブログの取得に失敗しました' };
+    }
   })
 
   // Get Issue details
