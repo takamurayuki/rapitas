@@ -8,7 +8,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile } from './workflow-file-utils';
-import { buildRoleContext } from './workflow-context-builder';
+import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
   executeAPIAgent,
@@ -261,6 +261,20 @@ export class WorkflowOrchestrator {
         status: currentStatus as WorkflowStatus,
         error: 'パス解決に失敗しました',
       };
+    }
+
+    // Plan-optional framing: the role prompts assume plan.md, but the lightweight
+    // (research→implement→verify) workflow produces none. Prepend an authoritative
+    // mode directive so the implementer/verifier work from research.md + task
+    // requirements instead of a non-existent plan/checklist/planner. Applies to
+    // implementer/verifier only; no-op for other roles.
+    if (systemPromptContent) {
+      const planContent = await readWorkflowFile(workflowInfo.dir, 'plan');
+      systemPromptContent = applyPlanModeDirective(
+        transition.role,
+        systemPromptContent,
+        !!planContent?.trim(),
+      );
     }
 
     // If output file already exists, skip agent execution and advance status only

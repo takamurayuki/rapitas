@@ -262,3 +262,60 @@ export async function buildRoleContext(
       return taskInfo;
   }
 }
+
+// High-priority mode directives prepended to the implementer/verifier SYSTEM
+// prompt. The seed role prompts are written around plan.md, but the lightweight
+// (research→implement→verify) workflow produces no plan. These directives are
+// authoritative ("overrides any other instruction") so they correct an
+// already-stored / user-edited DB prompt without rewriting it, and complement
+// the plan-agnostic seed for fresh installs.
+
+const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
+
+このタスクには **plan.md がありません**（軽量ワークフローは計画フェーズを実施しません）。
+以下のロール説明に「plan.md」「承認された計画」「計画のチェックリスト」「プランナーへの質問」等があっても、次のとおり読み替えてください:
+- 実装の根拠は **research.md とタスク要件** です。「計画に従う」ではなく、調査結果とタスク内容に基づいて実装してください。
+- plan.md のチェックリストは存在しません。**タスク要件を満たすこと**を完了基準にしてください。
+- **プランナーは存在しません**。判断できない点は推測せず question.md に記録して停止してください（回答するのはユーザーです）。
+- スコープ厳守・スコープ外変更の禁止・品質基準・セーフガード（テスト/型/ESLint）は通常どおり適用します。`;
+
+const IMPLEMENTER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先
+
+このタスクには **承認済みの plan.md** があります。plan.md の計画とチェックリストに忠実に従って実装してください。`;
+
+const VERIFIER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
+
+このタスクには **plan.md がありません**。以下のロール説明に「plan.md」「計画チェックリスト消化状況」等があれば読み替えてください:
+- 検証の基準は **タスク要件と research.md** です。plan.md との照合ではなく、タスク要件・調査内容に対する充足状況を評価してください。
+- 「計画チェックリスト消化状況」は「**要件の充足状況（タスク要件・調査内容に対して ✅/❌）**」として報告してください。
+- それ以外（変更ファイル列挙・テスト結果・セキュリティ/品質チェック・未解決懸念）は通常どおり報告します。`;
+
+const VERIFIER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先
+
+このタスクには **plan.md** があります。plan.md のチェックリストと実装結果を照合して検証してください。`;
+
+/**
+ * Prepend a plan-mode directive to the implementer/verifier system prompt.
+ *
+ * No-ops for other roles (planner/reviewer only run in plan-producing modes,
+ * researcher has no plan dependency). The directive is authoritative so it fixes
+ * the behaviour regardless of what the stored DB prompt says.
+ *
+ * @param role - The workflow role whose system prompt is being prepared. / 対象ロール
+ * @param systemPrompt - The role's system prompt content (from DB). / DB由来のシステムプロンプト
+ * @param hasPlan - Whether plan.md exists for this task. / plan.md の有無
+ * @returns The system prompt with the mode directive prepended (or unchanged). / モード指示を付加したプロンプト
+ */
+export function applyPlanModeDirective(
+  role: string,
+  systemPrompt: string,
+  hasPlan: boolean,
+): string {
+  let directive: string | null = null;
+  if (role === 'implementer') {
+    directive = hasPlan ? IMPLEMENTER_WITH_PLAN_DIRECTIVE : IMPLEMENTER_NO_PLAN_DIRECTIVE;
+  } else if (role === 'verifier') {
+    directive = hasPlan ? VERIFIER_WITH_PLAN_DIRECTIVE : VERIFIER_NO_PLAN_DIRECTIVE;
+  }
+  return directive ? `${directive}\n\n${systemPrompt}` : systemPrompt;
+}
