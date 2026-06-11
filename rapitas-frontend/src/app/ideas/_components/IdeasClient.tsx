@@ -23,6 +23,7 @@ import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 type IdeaScope = 'global' | 'project';
@@ -95,6 +96,7 @@ export default function IdeasClient() {
   const titleRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { categories, themes } = useFilterDataStore();
+  const { showToast } = useToast();
   // Ideas are turned into tasks that run in a theme's repo, so theme pulldowns
   // only offer themes that have a working directory set. (Shared rule with the
   // concern backlog.) Theme-name display still uses the full `themes` list.
@@ -220,7 +222,7 @@ export default function IdeasClient() {
         setShowQuickAdd(false);
         await fetchIdeas();
       } catch {
-        /* error */
+        showToast('アイデアの更新に失敗しました', 'error');
       } finally {
         setIsSubmitting(false);
       }
@@ -263,8 +265,9 @@ export default function IdeasClient() {
     } catch {
       // Roll back the optimistic entry if the submission failed.
       setIdeas((prev) => prev.filter((i) => i.id !== tempId));
+      showToast('アイデアの登録に失敗しました', 'error');
     }
-  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm, showToast]);
 
   const handleEdit = useCallback(
     (idea: Idea) => {
@@ -289,7 +292,10 @@ export default function IdeasClient() {
     async (id: number) => {
       try {
         const res = await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
-        if (!res.ok) return;
+        if (!res.ok) {
+          showToast('アイデアの削除に失敗しました', 'error');
+          return;
+        }
         // 楽観的に即削除して反応を即時化
         setIdeas((prev) => prev.filter((i) => i.id !== id));
         // 削除後ページが空になる場合は1ページ戻す（戻した先で fetchIdeas が走る）
@@ -300,10 +306,10 @@ export default function IdeasClient() {
           await fetchIdeas();
         }
       } catch {
-        /* non-critical */
+        showToast('アイデアの削除に失敗しました', 'error');
       }
     },
-    [ideas.length, currentPage, fetchIdeas],
+    [ideas.length, currentPage, fetchIdeas, showToast],
   );
 
   /**
@@ -411,11 +417,11 @@ export default function IdeasClient() {
       setShowQuickAdd(false);
       await fetchIdeas();
     } catch {
-      /* error */
+      showToast('タスクへの変換に失敗しました', 'error');
     } finally {
       setIsSubmitting(false);
     }
-  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm, showToast]);
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
   const filtered = ideas.filter((idea) => {

@@ -135,15 +135,27 @@ export default function ConcernsClient() {
           themeId: newThemeId ?? undefined,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        showToast('懸念の登録に失敗しました', 'error');
+        return;
+      }
       resetForm();
       // Keep the modal open (cleared) so the user can file another right away.
       setTimeout(() => titleRef.current?.focus(), 0);
       await fetchConcerns();
     } catch {
-      /* error */
+      showToast('懸念の登録に失敗しました', 'error');
     }
-  }, [newTitle, newDetail, newType, newSeverity, newLocation, newThemeId, fetchConcerns]);
+  }, [
+    newTitle,
+    newDetail,
+    newType,
+    newSeverity,
+    newLocation,
+    newThemeId,
+    fetchConcerns,
+    showToast,
+  ]);
 
   const handleConvert = useCallback(
     async (id: number) => {
@@ -153,30 +165,39 @@ export default function ConcernsClient() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        if (res.ok) await fetchConcerns();
+        if (res.ok) {
+          await fetchConcerns();
+        } else {
+          showToast('タスクへの変換に失敗しました', 'error');
+        }
       } catch {
-        /* error */
+        showToast('タスクへの変換に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns],
+    [fetchConcerns, showToast],
   );
 
-  const handleDelete = useCallback(async (id: number) => {
-    setBusyId(id);
-    try {
-      const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setConcerns((prev) => prev.filter((c) => c.id !== id));
-        setTotal((t) => Math.max(0, t - 1));
+  const handleDelete = useCallback(
+    async (id: number) => {
+      setBusyId(id);
+      try {
+        const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setConcerns((prev) => prev.filter((c) => c.id !== id));
+          setTotal((t) => Math.max(0, t - 1));
+        } else {
+          showToast('懸念の削除に失敗しました', 'error');
+        }
+      } catch {
+        showToast('懸念の削除に失敗しました', 'error');
+      } finally {
+        setBusyId(null);
       }
-    } catch {
-      /* error */
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
+    },
+    [showToast],
+  );
 
   const handlePublish = useCallback(
     async (id: number): Promise<void> => {
