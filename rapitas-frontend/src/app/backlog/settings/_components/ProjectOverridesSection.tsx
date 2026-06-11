@@ -13,6 +13,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, Bug, Activity, Loader2, FolderCog } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import { DirectoryPicker } from '@/components/ui/DirectoryPicker';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
@@ -39,7 +40,13 @@ const PROJECT_JOBS: {
   defaultEnabled: boolean;
   hasLogConfig?: boolean;
 }[] = [
-  { kind: 'innovation', label: 'イノベーション', icon: Lightbulb, color: 'text-amber-500', defaultEnabled: true },
+  {
+    kind: 'innovation',
+    label: 'イノベーション',
+    icon: Lightbulb,
+    color: 'text-amber-500',
+    defaultEnabled: true,
+  },
   {
     kind: 'vuln_scan',
     label: '脆弱性・バグ調査',
@@ -97,6 +104,7 @@ export default function ProjectOverridesSection() {
   const [themes, setThemes] = useState<ThemeRow[]>([]);
   const [overrides, setOverrides] = useState<Map<string, Override>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const { showToast } = useToast();
 
   const keyOf = (kind: JobKind, themeId: number) => `${kind}:${themeId}`;
 
@@ -121,9 +129,19 @@ export default function ProjectOverridesSection() {
   const patch = useCallback(
     async (kind: JobKind, themeId: number, partial: Partial<Override>) => {
       const key = keyOf(kind, themeId);
+      // Optimistic update — captured for revert; without the revert a failed
+      // PATCH left the toggle showing a state the server never accepted.
+      let before: Map<string, Override> = new Map();
       setOverrides((prev) => {
+        before = prev;
         const next = new Map(prev);
-        const cur = next.get(key) ?? { kind, themeId, enabled: true, logDir: null, logFormat: null };
+        const cur = next.get(key) ?? {
+          kind,
+          themeId,
+          enabled: true,
+          logDir: null,
+          logFormat: null,
+        };
         next.set(key, { ...cur, ...partial });
         return next;
       });
@@ -136,12 +154,16 @@ export default function ProjectOverridesSection() {
         if (res.ok) {
           const data = (await res.json()) as { override: Override };
           setOverrides((prev) => new Map(prev).set(key, data.override));
+        } else {
+          setOverrides(before);
+          showToast('プロジェクト設定の更新に失敗しました', 'error');
         }
       } catch {
-        /* keep optimistic value */
+        setOverrides(before);
+        showToast('プロジェクト設定の更新に失敗しました', 'error');
       }
     },
-    [],
+    [showToast],
   );
 
   if (isLoading) {
@@ -159,7 +181,7 @@ export default function ProjectOverridesSection() {
         プロジェクト別設定
       </div>
       <p className="mb-4 text-xs text-zinc-500 dark:text-zinc-400">
-作業ディレクトリを設定したプロジェクト（テーマ）のみ対象です。ジョブごとに有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。
+        作業ディレクトリを設定したプロジェクト（テーマ）のみ対象です。ジョブごとに有効/無効を切り替えられます。ログヘルスチェックは、プロジェクトのログ出力先と形式を指定したときだけそのプロジェクトを対象にします。スケジュール（頻度・時刻）は上の共通設定に従います。
       </p>
 
       {themes.length === 0 ? (
@@ -185,7 +207,9 @@ export default function ProjectOverridesSection() {
                     <div key={job.kind}>
                       <div className="flex items-center gap-2">
                         <Icon className={`h-3.5 w-3.5 ${job.color}`} />
-                        <span className="text-xs text-zinc-700 dark:text-zinc-300">{job.label}</span>
+                        <span className="text-xs text-zinc-700 dark:text-zinc-300">
+                          {job.label}
+                        </span>
                         <span className="ml-auto">
                           <Toggle
                             on={enabled}
@@ -208,7 +232,9 @@ export default function ProjectOverridesSection() {
                             <select
                               value={ov?.logFormat ?? 'text'}
                               onChange={(e) =>
-                                patch(job.kind, theme.id, { logFormat: e.target.value as LogFormat })
+                                patch(job.kind, theme.id, {
+                                  logFormat: e.target.value as LogFormat,
+                                })
                               }
                               className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
                             >
