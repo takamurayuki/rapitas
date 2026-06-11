@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import type { Task } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
@@ -149,18 +150,39 @@ export function ExecutionSection({
   onRerun,
 }: ExecutionSectionProps) {
   const router = useRouter();
+  const [prError, setPrError] = useState<string | null>(null);
 
   // Open this task's PR detail page (replaces the old approval-page link). The
-  // PR is auto-created on completion, so resolve it by task and navigate.
+  // PR is auto-created on completion, so resolve it by task and navigate. When
+  // it can't be resolved, surface why (not created vs. created-but-not-synced)
+  // instead of silently doing nothing.
   const openTaskPr = async () => {
+    setPrError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
       if (res.ok) {
         const pr = (await res.json()) as { id: number };
         router.push(`/github/pull-requests/${pr.id}`);
+        return;
       }
+      const body = (await res.json().catch(() => null)) as {
+        reason?: string;
+        prUrl?: string;
+        error?: string;
+      } | null;
+      // PR exists on GitHub but isn't synced locally — open it on GitHub.
+      if (body?.reason === 'not_synced') {
+        if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
+        setPrError(
+          body.prUrl
+            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
+            : (body.error ?? 'PRはローカルに同期されていません。'),
+        );
+        return;
+      }
+      setPrError(body?.error ?? 'このタスクのPRはまだ作成されていません。');
     } catch {
-      /* no PR yet — nothing to open */
+      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
     }
   };
 
@@ -345,6 +367,13 @@ export function ExecutionSection({
           )}
         </div>
       </div>
+
+      {prError && (
+        <div className="px-4 pb-2 -mt-1 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>{prError}</span>
+        </div>
+      )}
 
       {isExpanded && capability !== 'ready' && (
         <div id="execution-section-content" className="px-4 pb-3 space-y-3">

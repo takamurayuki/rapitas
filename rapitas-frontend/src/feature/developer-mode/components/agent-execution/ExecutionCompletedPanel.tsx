@@ -119,10 +119,26 @@ export function ExecutionCompletedPanel({
         router.push(`/github/pull-requests/${pr.id}`);
         return;
       }
+      const body = (await res.json().catch(() => null)) as {
+        reason?: string;
+        prUrl?: string;
+        error?: string;
+      } | null;
+      // PR exists on GitHub but isn't synced into the local DB — open it on
+      // GitHub so the button still does something useful.
+      if (body?.reason === 'not_synced') {
+        if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
+        setPrError(
+          body.prUrl
+            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
+            : (body.error ?? 'PRはローカルに同期されていません。'),
+        );
+        return;
+      }
+      setPrError(body?.error ?? 'PRがまだ作成されていません。下の「PR作成」から作成してください。');
     } catch {
-      /* fall through to the hint */
+      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
     }
-    setPrError('PRがまだ作成されていません。下の「PR作成」から作成してください。');
   };
 
   return (
