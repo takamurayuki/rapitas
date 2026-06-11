@@ -207,8 +207,12 @@ app.get('/health', (context: Context) => {
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
+// NOTE: Loopback by default — same unauthenticated-RCE exposure rationale as
+// index.ts (see middleware/local-auth.ts). Bun's implicit default is 0.0.0.0.
+const { resolveBindHost } = await import('./middleware/local-auth');
 app.listen({
   port: PORT,
+  hostname: resolveBindHost(),
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
   reusePort: true, // allows binding even with TIME_WAIT zombie sockets
 });
