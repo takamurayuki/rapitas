@@ -42,6 +42,12 @@ import {
   finalizeStop,
   getAutoRunState,
 } from './theme-auto-run-service';
+import {
+  notifyAwaitingPlanApproval,
+  notifyAwaitingUserAnswer,
+  notifyTaskSkipped,
+  notifyAllDone,
+} from './auto-run-notifications';
 
 const log = createLogger('theme-auto-run-scheduler');
 
@@ -237,7 +243,14 @@ export class ThemeAutoRunScheduler {
       // task has been the current task longer than MAX_TASK_WALL_MS, force-stop
       // it, mark it blocked (skip), and advance. This sits ABOVE WorkflowRunner's
       // per-phase timeout as a whole-task safety net (the user's "正常性確認").
+      // EXEMPT a task that is waiting for the USER'S ANSWER: it burns no tokens,
+      // and force-stopping it runs revertChanges — destroying the agent's
+      // uncommitted work just because the user was away for 45 min.
       if (lastRunAt && Date.now() - new Date(lastRunAt).getTime() >= MAX_TASK_WALL_MS) {
+        if (await isAwaitingUserAnswer(prisma, currentTaskId)) {
+          await notifyAwaitingUserAnswer(themeId, currentTaskId);
+          return;
+        }
         log.warn(
           `[ThemeAutoRunScheduler] Task ${currentTaskId} exceeded wall budget (${Math.round(
             MAX_TASK_WALL_MS / 60000,
@@ -264,6 +277,7 @@ export class ThemeAutoRunScheduler {
       if (currentItems.length > 0) {
         if (hasItemAwaitingApproval(currentItems)) {
           await onAwaitingPlanApproval(themeId);
+          await notifyAwaitingPlanApproval(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
         }
         // queued / running → still working; wait for the next tick.
@@ -318,6 +332,7 @@ export class ThemeAutoRunScheduler {
           log.info(
             `[ThemeAutoRunScheduler] Task ${currentTaskId} is awaiting a user answer — holding, not advancing (theme ${themeId})`,
           );
+          await notifyAwaitingUserAnswer(themeId, currentTaskId);
           this.broadcastAutoRunUpdate(themeId);
           return;
         }
@@ -329,6 +344,7 @@ export class ThemeAutoRunScheduler {
             .catch(() => {});
         }
         await onTaskFailed(themeId, errMsg);
+        await notifyTaskSkipped(themeId, currentTaskId, errMsg);
         this.broadcastAutoRunUpdate(themeId);
         await new Promise((r) => setTimeout(r, COOLDOWN_MS));
         await this.advanceTheme(themeId, null, order, Math.max(0, globalActive - 1), null);
@@ -379,6 +395,7 @@ export class ThemeAutoRunScheduler {
           data: { status: 'idle', enabled: false, currentTaskId: null },
         });
         log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, set to idle`);
+        await notifyAllDone(themeId);
         this.broadcastAutoRunUpdate(themeId);
       }
       return;
