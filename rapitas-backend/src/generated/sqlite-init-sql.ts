@@ -1143,6 +1143,7 @@ CREATE TABLE "SearchMiss" (
     "lastSearchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "status" TEXT NOT NULL DEFAULT 'open',
     "suggestedTaskId" INTEGER,
+    "themeId" INTEGER,
     "resolvedAt" DATETIME,
     "resolvedResultCount" INTEGER,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1673,6 +1674,9 @@ CREATE INDEX "SearchMiss_status_idx" ON "SearchMiss"("status");
 
 -- CreateIndex
 CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");

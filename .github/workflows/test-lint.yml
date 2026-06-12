@@ -61,7 +61,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: >
-          bun test --coverage
+          bun test --coverage --isolate
           tests/debug-log-analyzer.test.ts
           tests/debug-log-parsers.test.ts
           tests/event-emitter.test.ts

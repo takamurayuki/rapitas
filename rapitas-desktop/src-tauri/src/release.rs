@@ -92,15 +92,12 @@ pub fn setup_sidecar(app: &tauri::App) {
         .parent()
         .and_then(|dir| std::fs::read_dir(dir).ok())
         .and_then(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .find(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .map(|n| n.contains("query_engine") && n.ends_with(".node"))
-                        .unwrap_or(false)
-                })
+            entries.filter_map(|e| e.ok()).map(|e| e.path()).find(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.contains("query_engine") && n.ends_with(".node"))
+                    .unwrap_or(false)
+            })
         })
         .and_then(|engine_src| {
             let engine_dst =
@@ -153,8 +150,10 @@ pub fn setup_sidecar(app: &tauri::App) {
     // Explicit engine path — Prisma's own search never resolves inside a bun
     // single-file binary, so point it at the engine we just copied.
     if let Some(engine) = &query_engine_path {
-        backend_command =
-            backend_command.env("PRISMA_QUERY_ENGINE_LIBRARY", engine.to_string_lossy().to_string());
+        backend_command = backend_command.env(
+            "PRISMA_QUERY_ENGINE_LIBRARY",
+            engine.to_string_lossy().to_string(),
+        );
     }
 
     let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
