@@ -6,6 +6,7 @@
  * and role-specific instructions. Does not execute agents or write files.
  */
 import { readWorkflowFile } from './workflow-file-utils';
+import { buildMemoryContext } from './workflow-memory-context';
 
 type WorkflowRole =
   | 'researcher'
@@ -169,7 +170,11 @@ export async function buildRoleContext(
 
   switch (role) {
     case 'researcher': {
-      return `${taskInfo}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      // Inject prior knowledge so research starts from what we already learned
+      // (similar tasks, past concerns, lessons) instead of a blank slate.
+      const memory = await buildMemoryContext(taskId, task, language);
+      const memoryBlock = memory ? `\n\n${memory}` : '';
+      return `${taskInfo}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
@@ -201,6 +206,12 @@ export async function buildRoleContext(
       const question = await readWorkflowFile(dir, 'question');
       const research = await readWorkflowFile(dir, 'research');
       let ctx = taskInfo;
+      // Recall prior knowledge for the implementer too — known pitfalls and past
+      // design decisions should steer the actual code changes, not just research.
+      const memory = await buildMemoryContext(taskId, task, language);
+      if (memory) {
+        ctx += `\n\n${memory}`;
+      }
       if (research) {
         ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
       }
