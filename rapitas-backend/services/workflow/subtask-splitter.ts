@@ -11,6 +11,7 @@ import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
+import { extractFirstJsonArray } from './extract-json-array';
 
 const log = createLogger('subtask-splitter');
 
@@ -18,7 +19,10 @@ const log = createLogger('subtask-splitter');
 // plan.md save request, so an unbounded LLM call would block the whole HTTP
 // response (a real run blocked ~54s). On timeout we fall back to the
 // deterministic split, which produces valid subtasks without the LLM.
-const AI_SUBTASK_GEN_TIMEOUT_MS = 10_000;
+// NOTE: Raised from 10_000 to 15_000 to give the increased maxTokens (8000) enough
+// runway — truncated responses come back fast, so the added buffer only affects
+// slow providers that would already fall back via the deterministic path.
+const AI_SUBTASK_GEN_TIMEOUT_MS = 15_000;
 
 /** Thresholds for when to split a task into subtasks. */
 const SPLIT_THRESHOLDS = {
@@ -193,7 +197,11 @@ async function generateSubtasksWithAI(
       sendAIMessage({
         systemPrompt: SUBTASK_GEN_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: parts.join('\n') }],
-        maxTokens: 3000,
+        // NOTE: Raised from 3000 to 8000 so that 5 Japanese subtasks with
+        // instructions + acceptanceCriteria fit within finish_reason=stop.
+        // The greedy-regex extraction bug was the primary fix; this reduces the
+        // probability that a truncated response reaches the extractor at all.
+        maxTokens: 8000,
       }),
       new Promise<never>((_, reject) =>
         setTimeout(
@@ -205,9 +213,24 @@ async function generateSubtasksWithAI(
         ),
       ),
     ]);
-    const match = res.content.match(/\[[\s\S]*\]/);
-    if (!match) return null;
-    const parsed = JSON.parse(match[0]) as Array<{
+
+    // NOTE: extractFirstJsonArray replaces the former greedy regex
+    // `/\[[\s\S]*\]/`. The old regex matched from the first `[` to the LAST `]`
+    // in the entire response, which caused it to swallow trailing text containing
+    // `]` and pass a truncated/invalid string to JSON.parse — producing the
+    // "Unterminated string" SyntaxError. The bracket-depth scanner avoids both
+    // the greedy-match and the truncation-exception issues.
+    const jsonStr = extractFirstJsonArray(res.content);
+    if (!jsonStr) {
+      const preview = res.content.slice(0, 500);
+      const suffix = res.content.length > 500 ? `…(+${res.content.length - 500} chars)` : '';
+      log.warn(
+        { contentLength: res.content.length, contentPreview: preview + suffix },
+        '[SubtaskSplitter] AI response contained no valid JSON array — falling back to deterministic split',
+      );
+      return null;
+    }
+    const parsed = JSON.parse(jsonStr) as Array<{
       title?: string;
       scope?: unknown;
       instructions?: unknown;
@@ -242,6 +265,10 @@ async function generateSubtasksWithAI(
       estimatedFiles: Math.max(s.scope.length, 1),
     }));
   } catch (err) {
+    // NOTE: err.message contains the timeout string or JSON.parse error text.
+    // For JSON.parse failures the raw content is already logged above (at the
+    // extractFirstJsonArray null-return site); here we only log the error itself
+    // so the two log lines can be correlated by timestamp / request-id.
     log.warn(
       { err },
       '[SubtaskSplitter] AI subtask generation failed — falling back to deterministic split',
