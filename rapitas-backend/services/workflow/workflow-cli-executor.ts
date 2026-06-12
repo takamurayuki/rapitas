@@ -182,8 +182,14 @@ export async function executeCLIAgent(
         }
       } else {
         log.warn(
-          { taskId, role: transition.role },
-          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation)',
+          {
+            taskId,
+            themeId: taskWithTheme?.themeId ?? null,
+            role: transition.role,
+            themeWorkDir: null,
+            cwd: process.cwd(),
+          },
+          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation). Fix: set theme workingDirectory in the theme settings.',
         );
       }
     }
