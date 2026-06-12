@@ -20,6 +20,7 @@ import path from 'path';
 import { spawn as nodeSpawn } from 'child_process';
 import { createLogger } from '../../config/logger';
 import { resolveEncryptionKey } from '../../utils/common/encryption-key-resolver';
+import { getDbProvider, type DbProvider } from '../../config/db-provider';
 
 const log = createLogger('backup-service');
 
@@ -32,7 +33,7 @@ export interface BackupRecord {
   fullPath: string;
   sizeBytes: number;
   createdAt: Date;
-  provider: 'postgresql' | 'sqlite' | 'unknown';
+  provider: DbProvider;
 }
 
 export interface BackupRunResult {
@@ -52,17 +53,6 @@ export function backupDir(): string {
 
 function ensureDir(p: string): void {
   fs.mkdirSync(p, { recursive: true });
-}
-
-function detectProvider(): 'postgresql' | 'sqlite' | 'unknown' {
-  if (
-    process.env.RAPITAS_DB_PROVIDER === 'sqlite' ||
-    process.env.DATABASE_URL?.startsWith('file:')
-  ) {
-    return 'sqlite';
-  }
-  if (process.env.DATABASE_URL?.startsWith('postgres')) return 'postgresql';
-  return 'unknown';
 }
 
 function timestampForFilename(d: Date): string {
@@ -166,7 +156,7 @@ async function backupSqlite(outPath: string): Promise<void> {
  */
 export async function runBackup(): Promise<BackupRunResult> {
   const start = Date.now();
-  const provider = detectProvider();
+  const provider = getDbProvider();
   const dir = backupDir();
   ensureDir(dir);
 
@@ -176,10 +166,8 @@ export async function runBackup(): Promise<BackupRunResult> {
   try {
     if (provider === 'postgresql') {
       await backupPostgres(fullPath);
-    } else if (provider === 'sqlite') {
-      await backupSqlite(fullPath);
     } else {
-      throw new Error('Unsupported DB provider for backup');
+      await backupSqlite(fullPath);
     }
 
     const stat = fs.statSync(fullPath);
@@ -209,7 +197,7 @@ export async function runBackup(): Promise<BackupRunResult> {
 export function listBackups(): BackupRecord[] {
   const dir = backupDir();
   if (!fs.existsSync(dir)) return [];
-  const provider = detectProvider();
+  const provider = getDbProvider();
   return fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.dump.enc'))

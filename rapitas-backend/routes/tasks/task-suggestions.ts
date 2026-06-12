@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
+import { getInsensitiveMode } from '../../config/db-provider';
 import {
   getFrequencyBasedSuggestions,
   generateAISuggestions,
@@ -44,14 +45,12 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
         AND: andConditions,
       };
 
-      // Multi-word search (title + optional description).
-      // NOTE: `mode: 'insensitive'` is Postgres-only — SQLite Prisma client
-      // omits the field from StringFilter. We attach it conditionally so the
-      // shared codebase compiles against either generated client. SQLite
-      // defaults to case-sensitive contains; for case-insensitive desktop
-      // search we should add a separate lowercased column (TODO).
-      const isPostgres = (process.env.RAPITAS_DB_PROVIDER ?? 'postgresql') !== 'sqlite';
-      const insensitive = isPostgres ? ({ mode: 'insensitive' } as const) : {};
+      // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
+      // omits the field from StringFilter, causing PrismaClientValidationError at
+      // runtime. getInsensitiveMode() centralises the provider check and also
+      // fixes the missing DATABASE_URL check that existed here previously.
+      // TODO: For case-insensitive desktop search, add a separate lowercased column.
+      const insensitive = getInsensitiveMode();
       const searchConditions = words.map((word) => {
         const conditions: Prisma.TaskWhereInput[] = [
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

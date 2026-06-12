@@ -3,6 +3,7 @@
  */
 export { prisma, ensureDatabaseConnection } from './database';
 export { logger, createLogger } from './logger';
+export { getDbProvider, getInsensitiveMode, type DbProvider } from './db-provider';
 
 import { resolve } from 'path';
 

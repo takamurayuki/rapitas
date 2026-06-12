@@ -6,6 +6,7 @@
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import { createLogger } from '../../config/logger';
+import { getDbProvider } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import {
   analyzeTaskComplexityWithLearning,
@@ -19,7 +20,7 @@ type PrismaInstance = InstanceType<typeof PrismaClient>;
 const logger = createLogger('task-create-helpers');
 
 function titleEqualsFilter(title: string) {
-  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
+  if (getDbProvider() === 'sqlite') {
     return { equals: title };
   }
   return { equals: title, mode: 'insensitive' };
