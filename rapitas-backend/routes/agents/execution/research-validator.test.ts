@@ -1,87 +1,14 @@
 /**
  * Tests for the research-mode helpers in execute-post-handler.
- * We re-export the validator + extractor for testability.
+ * Functions are imported from research-output-utils where they are exported.
  */
 
 import { describe, expect, test } from 'bun:test';
-
-// Validate / extract are not exported — recreate the same logic here for
-// black-box behavior verification. (Keeping them un-exported avoids
-// polluting the public surface; mirrored constants are intentional.)
-function validateResearchReport(content: string): {
-  ok: boolean;
-  missingSections: string[];
-  reason: string;
-} {
-  const trimmed = (content || '').trim();
-  if (trimmed.length === 0) return { ok: false, missingSections: [], reason: 'empty output' };
-  // Must START with the heading, not just contain it later.
-  if (!trimmed.startsWith('# 調査レポート') && !/^#\s+research report/i.test(trimmed)) {
-    return {
-      ok: false,
-      missingSections: ['# 調査レポート'],
-      reason: 'report does not START with the # 調査レポート heading (preamble detected)',
-    };
-  }
-  if (trimmed.length < 800) {
-    return {
-      ok: false,
-      missingSections: [],
-      reason: `output too short (${trimmed.length} chars; need >= 800)`,
-    };
-  }
-  const sections = ['タスク概要', '既存機能', '影響範囲', '実装方針', 'リスク', 'テスト'];
-  const lower = trimmed.toLowerCase();
-  const missing = sections.filter((s) => !lower.includes(s.toLowerCase()));
-  if (missing.length > 3) {
-    return {
-      ok: false,
-      missingSections: missing,
-      reason: `missing too many required sections (${missing.length} of ${sections.length})`,
-    };
-  }
-  return { ok: true, missingSections: missing, reason: '' };
-}
-
-function sliceResearchReport(raw: string): string | null {
-  if (!raw) return null;
-  const normalized = raw.replace(/\r\n/g, '\n').trim();
-  const headingMatcher = /^#\s+調査レポート\s*$/gm;
-  let lastIndex = -1;
-  let match: RegExpExecArray | null;
-  while ((match = headingMatcher.exec(normalized)) !== null) {
-    lastIndex = match.index;
-  }
-  if (lastIndex === -1) {
-    const enMatcher = /^#\s+research report\s*$/gim;
-    while ((match = enMatcher.exec(normalized)) !== null) {
-      lastIndex = match.index;
-    }
-  }
-  if (lastIndex === -1) return null;
-  return normalized.slice(lastIndex).trim();
-}
-
-function extractFinalAgentMessage(output: string): string {
-  if (!output) return '';
-  const lines = output.split(/\r?\n/);
-  const collected: string[] = [];
-  let sawJson = false;
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine.startsWith('{')) continue;
-    try {
-      const obj = JSON.parse(trimmedLine);
-      sawJson = true;
-      const item = (obj as { item?: { type?: string; text?: string } }).item;
-      if (item?.type === 'agent_message' && typeof item.text === 'string') {
-        collected.push(item.text);
-      }
-    } catch {}
-  }
-  if (collected.length > 0) return collected.join('\n\n').trim();
-  return sawJson ? '' : output.trim();
-}
+import {
+  validateResearchReport,
+  sliceResearchReport,
+  extractFinalAgentMessage,
+} from './research-output-utils';
 
 describe('validateResearchReport', () => {
   test('rejects empty output', () => {
