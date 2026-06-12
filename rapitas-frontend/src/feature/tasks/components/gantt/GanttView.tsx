@@ -91,13 +91,23 @@ export function GanttView({ themeId, categoryId, className = '' }: GanttViewProp
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let rafId: number;
+    // NOTE: RAF defers setState to the next frame, preventing "ResizeObserver loop
+    // completed with undelivered notifications" when setState triggers a re-render
+    // that changes layout before all notifications are delivered.
     const observer = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      setContainerSize({ width, height });
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const { width, height } = entries[0].contentRect;
+        setContainerSize({ width, height });
+      });
     });
 
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, []);
 
   const viewport: GanttViewport = {

@@ -116,13 +116,23 @@ export function TaskDetailQuickNav({
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
+    let rafId: number;
+    // NOTE: RAF defers setState to the next frame, preventing the ResizeObserver
+    // loop warning when the scrollable-state change triggers a re-render that
+    // alters the observed element's dimensions.
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(measure);
+    });
     // Observe the growing inner content (nav's sibling) so we re-measure as
     // sections load asynchronously, plus the scroller itself for resize.
     const growEl = navRef.current?.nextElementSibling ?? null;
     if (growEl) ro.observe(growEl);
     if (scroller) ro.observe(scroller);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
   }, [sectionIds]);
 
   const jumpTo = (id: string) => {
