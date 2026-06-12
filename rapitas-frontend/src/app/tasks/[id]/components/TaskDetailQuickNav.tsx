@@ -79,15 +79,13 @@ export function TaskDetailQuickNav({
       .filter((el): el is HTMLElement => el !== null);
     if (els.length === 0) return;
 
-    // Observe against the nearest scrollable ancestor (panel content or page scroller).
-    let root: HTMLElement | null = els[0].parentElement;
-    while (root) {
-      const overflowY = getComputedStyle(root).overflowY;
-      if ((overflowY === 'auto' || overflowY === 'scroll') && root.scrollHeight > root.clientHeight) {
-        break;
-      }
-      root = root.parentElement;
-    }
+    // Resolve the scroll container deterministically via its marker, not by
+    // walking up computed overflow-y: in page mode the container only gains
+    // `overflow-auto` once content is ready, so an overflow-based search runs too
+    // early and wrongly falls back to the document (which never scrolls in page
+    // mode). closest() is timing-independent. Null → viewport fallback.
+    const root = (navRef.current?.closest('[data-task-scroll-container]') ??
+      null) as HTMLElement | null;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -107,15 +105,10 @@ export function TaskDetailQuickNav({
   // Track whether the scroll container actually overflows. Re-measured whenever
   // the content grows/shrinks (subtasks load, workflow expands, window resize).
   useEffect(() => {
-    const content = navRef.current?.parentElement ?? null;
-    if (!content) return;
-    // Nearest scrollable ancestor; fall back to the document scroller.
-    let scroller: HTMLElement | null = content;
-    while (scroller) {
-      const overflowY = getComputedStyle(scroller).overflowY;
-      if (overflowY === 'auto' || overflowY === 'scroll') break;
-      scroller = scroller.parentElement;
-    }
+    // Same deterministic resolution as the scroll-spy — avoid the overflow-walk
+    // that mis-resolved to the document in page mode and left chips disabled.
+    const scroller = (navRef.current?.closest('[data-task-scroll-container]') ??
+      null) as HTMLElement | null;
     const measure = () => {
       const el = scroller ?? document.documentElement;
       // +1 tolerates sub-pixel rounding that would otherwise read as scrollable.
@@ -124,7 +117,10 @@ export function TaskDetailQuickNav({
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
-    ro.observe(content);
+    // Observe the growing inner content (nav's sibling) so we re-measure as
+    // sections load asynchronously, plus the scroller itself for resize.
+    const growEl = navRef.current?.nextElementSibling ?? null;
+    if (growEl) ro.observe(growEl);
     if (scroller) ro.observe(scroller);
     return () => ro.disconnect();
   }, [sectionIds]);
