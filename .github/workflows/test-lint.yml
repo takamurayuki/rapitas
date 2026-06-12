@@ -77,6 +77,37 @@ jobs:
         working-directory: rapitas-backend
         run: echo "Backend gate suite coverage printed above."
 
+  test-sqlite:
+    name: Test SQLite Compatible Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Generate SQLite Prisma Client
+        working-directory: rapitas-backend
+        run: bun run db:prepare:sqlite
+        env:
+          RAPITAS_DB_PROVIDER: sqlite
+          DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Run SQLite compatible tests
+        working-directory: rapitas-backend
+        run: bun run test:sqlite
+        env:
+          RAPITAS_DB_PROVIDER: sqlite
+          DATABASE_URL: "file:./rapitas-ci.db"
+
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest

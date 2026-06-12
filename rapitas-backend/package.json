@@ -13,6 +13,7 @@
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
+    "test:sqlite": "node scripts/run-sqlite-tests.cjs",
     "test:coverage": "bun test --coverage",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
