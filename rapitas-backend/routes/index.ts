@@ -63,7 +63,6 @@ export { developerModeRoutes } from './system/developer-mode';
 export { notificationsRoutes } from './system/notifications';
 export { searchRoutes } from './system/search';
 export { urlMetadataRoutes } from './system/url-metadata';
-export { screenshotsRoutes } from './system/screenshots';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';

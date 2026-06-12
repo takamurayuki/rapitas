@@ -12,7 +12,7 @@ import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
-import { submitIdea } from './idea-box-service';
+import { submitIdea, resolveTaskThemeId } from './idea-box-service';
 import { submitConcern, type ConcernType } from './concern-backlog-service';
 
 const log = createLogger('memory:idea-extractor');
@@ -177,18 +177,11 @@ export async function extractIdeasFromCopilotChat(
 }
 
 /**
- * Look up a task's themeId. Returns null when the task or its theme is missing.
+ * Resolve a task's theme for filed ideas, falling back to the working-directory
+ * theme and then the default theme so ideas aren't dropped into "global".
  */
 async function getTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
-    return task?.themeId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveTaskThemeId(taskId);
 }
 
 /**
@@ -213,10 +206,37 @@ let enrichChain: Promise<unknown> = Promise.resolve();
  * @param content - Idea content / 本文
  */
 export function runEnrichAndReview(id: number, title: string, content: string): void {
+  const runId = crypto.randomUUID();
+  const startTime = Date.now();
+  let llmCallCount = 0;
+
+  log.info({ runId, ideaId: id }, 'enrichChain: start');
+
   enrichChain = enrichChain
-    .then(() => enrichIdea(id, title, content))
-    .then((enriched) => (enriched.kept ? reviewIdea(id) : undefined))
-    .catch(() => {});
+    .then(async () => {
+      const result = await enrichIdea(id, title, content, { runId });
+      llmCallCount++;
+      return result;
+    })
+    .then(async (enriched) => {
+      if (enriched.kept) {
+        await reviewIdea(id, runId);
+        llmCallCount++;
+      }
+    })
+    .then(() => {
+      log.info(
+        { runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount, outcome: 'success' },
+        'enrichChain: complete',
+      );
+    })
+    .catch((err) => {
+      // NOTE: Errors here indicate a bug in enrichIdea/reviewIdea not catching internally.
+      log.warn(
+        { err, runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount },
+        'enrichChain: error',
+      );
+    });
 }
 
 /**
@@ -234,12 +254,15 @@ export async function reclassifyExistingIdeas(): Promise<number> {
     where: { sourceType: 'idea_box', forgettingStage: 'active' },
     select: { id: true, title: true, content: true },
   });
-  for (const idea of ideas) {
-    enrichChain = enrichChain
-      .then(() => enrichIdea(idea.id, idea.title, idea.content, { rejectLowQuality: false }))
-      .catch(() => {});
-  }
   log.info({ count: ideas.length }, 'Idea reclassification backfill queued');
+  for (const idea of ideas) {
+    const loopIdeaId = idea.id;
+    enrichChain = enrichChain
+      .then(() => enrichIdea(loopIdeaId, idea.title, idea.content, { rejectLowQuality: false }))
+      .catch((err) => {
+        log.warn({ err, ideaId: loopIdeaId }, 'reclassifyExistingIdeas: enrichment error');
+      });
+  }
   return ideas.length;
 }
 
@@ -256,15 +279,20 @@ async function rejectIdea(ideaId: number, reason: string): Promise<void> {
 /**
  * Step 1: Enrich — score actionability, specificity, impact via Ollama (free).
  *
+ * @param ideaId - ID of the idea to enrich / アイデアID
+ * @param title - Idea title / タイトル
+ * @param content - Idea content / 本文
+ * @param options - Optional flags / オプション
  * @returns kept=false when the idea was deleted for failing quality bars.
  */
 export async function enrichIdea(
   ideaId: number,
   title: string,
   content: string,
-  options: { rejectLowQuality?: boolean } = {},
+  options: { rejectLowQuality?: boolean; runId?: string } = {},
 ): Promise<{ kept: boolean }> {
-  const { rejectLowQuality = true } = options;
+  const { rejectLowQuality = true, runId } = options;
+  const startTime = Date.now();
   try {
     const prompt = ENRICHMENT_PROMPT.replace('{title}', title).replace('{content}', content);
     const response = await callLLM(prompt, 200, 'local');
@@ -362,10 +390,13 @@ export async function enrichIdea(
       },
     });
 
-    log.debug({ ideaId, actionability, specificity, confidence }, 'Idea enriched');
+    log.info(
+      { ideaId, actionability, specificity, confidence, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea enriched',
+    );
     return { kept: true };
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea enrichment failed');
+    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea enrichment failed');
     return { kept: true };
   }
 }
@@ -374,8 +405,12 @@ export async function enrichIdea(
  * Step 2: Review — second opinion from a DIFFERENT LLM (Haiku).
  * Checks feasibility, analyzes benefits/risks, and optionally refines the idea.
  * Uses Haiku even if Ollama is available to get a genuinely different perspective.
+ *
+ * @param ideaId - ID of the idea to review / アイデアID
+ * @param runId - Correlation ID from the parent enrichChain run / 親実行ID
  */
-export async function reviewIdea(ideaId: number): Promise<void> {
+export async function reviewIdea(ideaId: number, runId?: string): Promise<void> {
+  const startTime = Date.now();
   try {
     const entry = await prisma.knowledgeEntry.findUnique({
       where: { id: ideaId },
@@ -434,16 +469,18 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       data: updateData,
     });
 
-    log.debug(
+    log.info(
       {
         ideaId,
         feasible: review.feasible,
         refined: !!(review.refinedTitle || review.refinedContent),
+        durationMs: Date.now() - startTime,
+        ...(runId && { runId }),
       },
       'Idea reviewed',
     );
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea review failed (non-critical)');
+    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea review failed (non-critical)');
   }
 }
 

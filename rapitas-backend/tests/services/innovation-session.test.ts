@@ -54,7 +54,7 @@ mock.module('../../services/scheduling/theme-backlog-override-service', () => ({
   getDisabledThemeIds: mock(() => Promise.resolve(new Set<number>())),
 }));
 
-const mockSubmitIdea = mock((idea: IdeaSubmission) => Promise.resolve(99));
+const mockSubmitIdea = mock((_idea: IdeaSubmission) => Promise.resolve(99));
 mock.module('../../services/memory/idea-box-service', () => ({
   submitIdea: mockSubmitIdea,
 }));
@@ -97,12 +97,24 @@ describe('Innovation Session', () => {
     expect(mockSendAIMessage).not.toHaveBeenCalled();
   });
 
-  test('完了タスクの無いプロジェクトはスキップ', async () => {
+  test('信号が全く無い（完了/懸念/バックログ皆無）プロジェクトはスキップ', async () => {
     mockTheme.findMany.mockReturnValue(Promise.resolve([{ id: 1, name: 'P1' }]));
     mockTask.findMany.mockReturnValue(Promise.resolve([] as MockTask[]));
+    mockKnowledgeEntry.findMany.mockReturnValue(Promise.resolve([]));
     const count = await runInnovationSession();
     expect(count).toBe(0);
     expect(mockSendAIMessage).not.toHaveBeenCalled();
+  });
+
+  test('完了タスクが無くても、未解決の懸念があればアイデア生成すること', async () => {
+    mockTheme.findMany.mockReturnValue(Promise.resolve([{ id: 5, name: 'P1' }]));
+    // No completed tasks / no backlog (both come from the shared task mock).
+    mockTask.findMany.mockReturnValue(Promise.resolve([] as MockTask[]));
+    // Open concerns present (and reused as existing-ideas list — harmless).
+    mockKnowledgeEntry.findMany.mockReturnValue(Promise.resolve([{ title: '未解決の懸念A' }]));
+    const count = await runInnovationSession();
+    expect(count).toBeGreaterThan(0);
+    expect(mockSendAIMessage).toHaveBeenCalled();
   });
 
   test('完了タスクがあればプロジェクト紐付きでアイデア生成', async () => {
@@ -139,5 +151,37 @@ describe('Innovation Session', () => {
     expect(call.source).toBe('innovation_session');
     expect(call.scope).toBe('project');
     expect(call.themeId).toBe(42);
+  });
+});
+
+describe('innovation pure helpers', () => {
+  test('hasInnovationSignal: 完了・懸念・バックログのいずれかがあれば true', async () => {
+    const { hasInnovationSignal } = await import('../../services/memory/innovation-session');
+    const empty = { completedTasks: [], openConcerns: [], backlogTasks: [], existingIdeas: [] };
+    expect(hasInnovationSignal(empty)).toBe(false);
+    expect(hasInnovationSignal({ ...empty, openConcerns: [{ title: 'c' }] })).toBe(true);
+    expect(hasInnovationSignal({ ...empty, backlogTasks: [{ title: 't' }] })).toBe(true);
+    expect(
+      hasInnovationSignal({ ...empty, completedTasks: [{ title: 'd', description: null }] }),
+    ).toBe(true);
+    // existingIdeas alone is NOT a signal (it's only for dedup).
+    expect(hasInnovationSignal({ ...empty, existingIdeas: [{ title: 'i' }] })).toBe(false);
+  });
+
+  test('buildInnovationPrompt: 懸念・バックログ・既存アイデアを本文へ埋め込むこと', async () => {
+    const { buildInnovationPrompt } = await import('../../services/memory/innovation-session');
+    const prompt = buildInnovationPrompt('MyProject', {
+      completedTasks: [{ title: '完了タスクX', description: null }],
+      openConcerns: [{ title: '懸念Y' }],
+      backlogTasks: [{ title: 'バックログZ' }],
+      existingIdeas: [{ title: '既存アイデアW' }],
+    });
+    expect(prompt).toContain('MyProject');
+    expect(prompt).toContain('完了タスクX');
+    expect(prompt).toContain('懸念Y');
+    expect(prompt).toContain('バックログZ');
+    expect(prompt).toContain('既存アイデアW');
+    // Frames concerns as opportunity sources.
+    expect(prompt).toContain('課題→機会の転換');
   });
 });

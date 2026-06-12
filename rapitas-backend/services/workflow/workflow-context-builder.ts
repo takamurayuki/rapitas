@@ -6,6 +6,7 @@
  * and role-specific instructions. Does not execute agents or write files.
  */
 import { readWorkflowFile } from './workflow-file-utils';
+import { buildMemoryContext } from './workflow-memory-context';
 
 type WorkflowRole =
   | 'researcher'
@@ -59,8 +60,13 @@ export async function buildRoleContext(
         researchHeader: '# 調査結果 (research.md)',
         planHeader: '# 承認済み実装計画 (plan.md)',
         reviewHeader: '# レビュー指摘事項 (question.md)',
-        instruction:
-          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。\n\n' +
+        // Lightweight workflow has no plan.md — implement straight from the
+        // research and task instead of "following the plan".
+        leadWithPlan:
+          '上記の計画に従って実装を完了してください。計画に記載されたファイルの作成・編集を行い、コードを実装してください。',
+        leadNoPlan:
+          '上記の調査結果とタスク内容に基づいて実装を完了してください。必要なファイルの作成・編集を行い、コードを実装してください。',
+        constraints:
           '## 実装者の責務 (厳守)\n' +
           '- あなたの仕事はコード変更だけです。**verify.md / research.md / plan.md は絶対に保存しないでください。**\n' +
           '- `curl` / `Invoke-RestMethod` / `wget` を使って `http://localhost:3001/workflow/...` を叩くことを禁じます。検証は次フェーズの verifier ロールが行います。\n' +
@@ -119,8 +125,13 @@ export async function buildRoleContext(
         researchHeader: '# Research Results (research.md)',
         planHeader: '# Approved Implementation Plan (plan.md)',
         reviewHeader: '# Review Feedback (question.md)',
-        instruction:
-          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.\n\n' +
+        // Lightweight workflow has no plan.md — implement straight from the
+        // research and task instead of "following the plan".
+        leadWithPlan:
+          'Please complete the implementation according to the plan above. Create and edit the files listed in the plan and implement the code.',
+        leadNoPlan:
+          'Please complete the implementation based on the research and task above. Create and edit the necessary files and implement the code.',
+        constraints:
           '## Implementer Constraints (strict)\n' +
           '- Your job is code changes ONLY. **DO NOT save verify.md / research.md / plan.md.**\n' +
           '- DO NOT call `http://localhost:3001/workflow/...` via `curl` / `Invoke-RestMethod` / `wget`. Verification is performed by the verifier role in the next phase.\n' +
@@ -159,7 +170,11 @@ export async function buildRoleContext(
 
   switch (role) {
     case 'researcher': {
-      return `${taskInfo}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      // Inject prior knowledge so research starts from what we already learned
+      // (similar tasks, past concerns, lessons) instead of a blank slate.
+      const memory = await buildMemoryContext(taskId, task, language);
+      const memoryBlock = memory ? `\n\n${memory}` : '';
+      return `${taskInfo}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
@@ -191,6 +206,12 @@ export async function buildRoleContext(
       const question = await readWorkflowFile(dir, 'question');
       const research = await readWorkflowFile(dir, 'research');
       let ctx = taskInfo;
+      // Recall prior knowledge for the implementer too — known pitfalls and past
+      // design decisions should steer the actual code changes, not just research.
+      const memory = await buildMemoryContext(taskId, task, language);
+      if (memory) {
+        ctx += `\n\n${memory}`;
+      }
       if (research) {
         ctx += `\n\n${t.implementer.researchHeader}\n\n${research}`;
       }
@@ -200,10 +221,13 @@ export async function buildRoleContext(
       if (question) {
         ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
       }
-      ctx += `\n\n${t.implementer.instruction}`;
+      const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
+      ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
       return ctx;
     }
 
+    // NOTE: auto_verifier shares the verifier context — both must emit the validator-required headings
+    case 'auto_verifier':
     case 'verifier': {
       const plan = await readWorkflowFile(dir, 'plan');
       let ctx = taskInfo;
@@ -224,11 +248,87 @@ export async function buildRoleContext(
       } catch {
         // Continue even if git diff fails
       }
-      ctx += `\n\n${t.verifier.instruction}`;
+      // Lightweight workflow has no plan.md — verify against the task/research
+      // requirements instead of a plan checklist that doesn't exist.
+      let verifierInstruction = t.verifier.instruction;
+      if (!plan) {
+        verifierInstruction = verifierInstruction
+          .replace('上記の計画と実装結果を検証し', '上記の実装結果を検証し')
+          .replace(
+            '## チェックリスト消化状況 (plan.md の各項目に ✅/❌)',
+            '## 要件の充足状況 (タスク要件・調査内容に対して ✅/❌)',
+          )
+          .replace(
+            'Please verify the implementation plan and results above',
+            'Please verify the implementation results above',
+          )
+          .replace(
+            '## Checklist status (each plan item ✅/❌)',
+            '## Requirement coverage (each task requirement ✅/❌)',
+          );
+      }
+      ctx += `\n\n${verifierInstruction}`;
       return ctx;
     }
 
     default:
       return taskInfo;
   }
+}
+
+// High-priority mode directives prepended to the implementer/verifier SYSTEM
+// prompt. The seed role prompts are written around plan.md, but the lightweight
+// (research→implement→verify) workflow produces no plan. These directives are
+// authoritative ("overrides any other instruction") so they correct an
+// already-stored / user-edited DB prompt without rewriting it, and complement
+// the plan-agnostic seed for fresh installs.
+
+const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
+
+このタスクには **plan.md がありません**（軽量ワークフローは計画フェーズを実施しません）。
+以下のロール説明に「plan.md」「承認された計画」「計画のチェックリスト」「プランナーへの質問」等があっても、次のとおり読み替えてください:
+- 実装の根拠は **research.md とタスク要件** です。「計画に従う」ではなく、調査結果とタスク内容に基づいて実装してください。
+- plan.md のチェックリストは存在しません。**タスク要件を満たすこと**を完了基準にしてください。
+- **プランナーは存在しません**。判断できない点は推測せず question.md に記録して停止してください（回答するのはユーザーです）。
+- スコープ厳守・スコープ外変更の禁止・品質基準・セーフガード（テスト/型/ESLint）は通常どおり適用します。`;
+
+const IMPLEMENTER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先
+
+このタスクには **承認済みの plan.md** があります。plan.md の計画とチェックリストに忠実に従って実装してください。`;
+
+const VERIFIER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
+
+このタスクには **plan.md がありません**。以下のロール説明に「plan.md」「計画チェックリスト消化状況」等があれば読み替えてください:
+- 検証の基準は **タスク要件と research.md** です。plan.md との照合ではなく、タスク要件・調査内容に対する充足状況を評価してください。
+- 「計画チェックリスト消化状況」は「**要件の充足状況（タスク要件・調査内容に対して ✅/❌）**」として報告してください。
+- それ以外（変更ファイル列挙・テスト結果・セキュリティ/品質チェック・未解決懸念）は通常どおり報告します。`;
+
+const VERIFIER_WITH_PLAN_DIRECTIVE = `## 実行モード: 計画あり（plan.md） — 他のどの指示よりも優先
+
+このタスクには **plan.md** があります。plan.md のチェックリストと実装結果を照合して検証してください。`;
+
+/**
+ * Prepend a plan-mode directive to the implementer/verifier system prompt.
+ *
+ * No-ops for other roles (planner/reviewer only run in plan-producing modes,
+ * researcher has no plan dependency). The directive is authoritative so it fixes
+ * the behaviour regardless of what the stored DB prompt says.
+ *
+ * @param role - The workflow role whose system prompt is being prepared. / 対象ロール
+ * @param systemPrompt - The role's system prompt content (from DB). / DB由来のシステムプロンプト
+ * @param hasPlan - Whether plan.md exists for this task. / plan.md の有無
+ * @returns The system prompt with the mode directive prepended (or unchanged). / モード指示を付加したプロンプト
+ */
+export function applyPlanModeDirective(
+  role: string,
+  systemPrompt: string,
+  hasPlan: boolean,
+): string {
+  let directive: string | null = null;
+  if (role === 'implementer') {
+    directive = hasPlan ? IMPLEMENTER_WITH_PLAN_DIRECTIVE : IMPLEMENTER_NO_PLAN_DIRECTIVE;
+  } else if (role === 'verifier') {
+    directive = hasPlan ? VERIFIER_WITH_PLAN_DIRECTIVE : VERIFIER_NO_PLAN_DIRECTIVE;
+  }
+  return directive ? `${directive}\n\n${systemPrompt}` : systemPrompt;
 }

@@ -182,8 +182,14 @@ export async function executeCLIAgent(
         }
       } else {
         log.warn(
-          { taskId, role: transition.role },
-          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation)',
+          {
+            taskId,
+            themeId: taskWithTheme?.themeId ?? null,
+            role: transition.role,
+            themeWorkDir: null,
+            cwd: process.cwd(),
+          },
+          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation). Fix: set theme workingDirectory in the theme settings.',
         );
       }
     }
@@ -592,13 +598,29 @@ curl -X POST http://localhost:${port}/idea-box \\
           const { parseResearchComplexity } = await import('./research-complexity');
           const assessed = parseResearchComplexity(fileContent);
           if (assessed !== null) {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { complexityScore: assessed },
-            });
+            // Dynamically select the workflow (lightweight/standard/comprehensive)
+            // from the code-grounded complexity, so the remaining phases follow
+            // the right depth. The orchestrator reads task.workflowMode each
+            // advance, so updating it here takes effect for plan/review/verify.
+            // Respect a manual override — never clobber a user-pinned mode.
+            const current = await prisma.task
+              .findUnique({ where: { id: taskId }, select: { workflowModeOverride: true } })
+              .catch(() => null);
+            const data: { complexityScore: number; workflowMode?: string } = {
+              complexityScore: assessed,
+            };
+            if (!current?.workflowModeOverride) {
+              const { selectModeByComplexity } = await import('./workflow-mode-config');
+              data.workflowMode = await selectModeByComplexity(assessed);
+            }
+            await prisma.task.update({ where: { id: taskId }, data });
             log.info(
-              { taskId, complexityScore: assessed },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity score',
+              {
+                taskId,
+                complexityScore: assessed,
+                workflowMode: data.workflowMode ?? '(override kept)',
+              },
+              '[WorkflowCLIExecutor] Applied research-assessed complexity + selected workflow',
             );
           }
         } catch (cErr) {

@@ -123,6 +123,9 @@ export default function TaskDetailContent({
       // In page mode this is the scroll container (fixed viewport height). In
       // panel mode the parent panel scrolls, so we drop the height/overflow here
       // to avoid a nested second scrollbar.
+      // Mark as the scroll container ONLY in page mode so the quick-nav scroll-spy
+      // resolves it via closest(); in panel mode the marker lives on the panel div.
+      data-task-scroll-container={isPageMode ? '' : undefined}
       className={`bg-background scrollbar-thin transition-opacity duration-200 ${
         isPageMode ? 'h-[calc(100vh-5rem)]' : ''
       } ${

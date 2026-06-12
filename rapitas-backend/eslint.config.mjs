@@ -1,5 +1,6 @@
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
+import { stagedSeverity } from "../eslint-shared.mjs";
 
 export default [
   {
@@ -21,25 +22,19 @@ export default [
       "@typescript-eslint": tseslint,
     },
     rules: {
-      "no-console": "error",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
+      ...stagedSeverity("prod"),
     },
   },
   {
     files: ["scripts/**/*.ts"],
     rules: {
-      "no-console": "warn",
+      ...stagedSeverity("scripts"),
     },
   },
   {
     files: ["tests/**/*.ts"],
     rules: {
-      "no-console": "off",
-      "@typescript-eslint/no-explicit-any": "off",
+      ...stagedSeverity("tests"),
     },
   },
 ];

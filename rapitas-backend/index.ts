@@ -40,7 +40,16 @@ import { realtimeService } from './services/communication/realtime-service';
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
 
+import { resolveBindHost, createApiTokenGuard } from './middleware/local-auth';
+
 const app = new Elysia();
+
+// Exposure guard: when RAPITAS_API_TOKEN is set (required for any non-loopback
+// bind), every request must carry it. No-op in the default loopback deployment.
+const apiTokenGuard = createApiTokenGuard();
+if (apiTokenGuard) {
+  app.onRequest(apiTokenGuard);
+}
 
 // Apply middleware
 app.use(
@@ -125,9 +134,15 @@ import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cl
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
+// NOTE: Loopback by default — the API has no user auth and its agent endpoints
+// can run arbitrary code, so LAN exposure (the previous 0.0.0.0 bind) was an
+// unauthenticated-RCE surface. Explicit IPv4 loopback also keeps the IPv6
+// zombie-socket interference fix intact. Non-loopback requires RAPITAS_BIND_HOST
+// + RAPITAS_API_TOKEN (see middleware/local-auth.ts).
+const BIND_HOST = resolveBindHost();
 app.listen({
   port: PORT,
-  hostname: '0.0.0.0', // IPv4 only - prevents IPv6 zombie socket interference
+  hostname: BIND_HOST,
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
   // NOTE: reusePort is intentionally OFF. It previously let a fresh process bind
   // a SECOND listen socket on top of one orphaned by a force-killed predecessor;
@@ -136,7 +151,7 @@ app.listen({
   // dirty port fails fast at bind (EADDRINUSE), so dev.js can detect a true
   // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
-log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
+log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
 
 // Set server stop callback for proper port release during graceful shutdown.
 // NOTE: stop(true) force-closes ALL active connections, not just the listener.

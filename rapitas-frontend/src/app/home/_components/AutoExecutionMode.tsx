@@ -95,29 +95,33 @@ export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
         onClick={() => stop()}
         disabled={actionLoading}
         title="自動実行を停止します"
-        className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400 ${restColors}`}
+        className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${restColors}`}
       >
-        {/* Rest state — stays MOUNTED and spinning; only fades out on hover.
-            Earlier it used `group-hover:hidden` (display:none), so the spinner
-            was torn down and re-created on un-hover — the browser re-promoted
-            the GPU layer and restarted the animation mid-frame, which is what
-            distorted the rotation on re-display. Fading via opacity keeps the
-            element (and its smooth spin) alive the whole time.
-            Spin stays clean via: shrink-0 (square box), transform-origin:center,
-            will-change-transform. Pulse is on the LABEL only. */}
-        <span className="inline-flex items-center gap-2 transition-opacity duration-150 group-hover:opacity-0">
-          {paused ? (
-            <Pause className="h-4 w-4 shrink-0" />
-          ) : (
-            <Orbit className="h-4 w-4 shrink-0 animate-spin [transform-origin:center] will-change-transform" />
-          )}
-          <span className={paused ? '' : 'animate-pulse'}>
-            {paused ? '一時停止' : 'タスク自動実行中'}
+        {/* REST content — spinner + label, ALWAYS rendered and NEVER touched.
+            Nothing about the spinner's ANCESTORS may change on hover, or the
+            rotating icon gets re-rasterized and distorts. That means: no opacity
+            toggle (re-grouping), AND no colour change on an ancestor (the button
+            used to `transition-colors` to red on hover, repainting this whole
+            subtree — including the spin — every frame of the 150ms fade). So the
+            button no longer changes on hover at all; the hover look is provided
+            entirely by the opaque SIBLING overlay below. The spinner also has a
+            FIXED colour so nothing it inherits can animate. Rigid box (not the
+            SVG) prevents geometric warp. */}
+        {paused ? (
+          <Pause className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        ) : (
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin text-emerald-600 [transform-origin:center] dark:text-emerald-400">
+            <Orbit className="h-4 w-4" />
           </span>
+        )}
+        <span className={paused ? '' : 'animate-pulse'}>
+          {paused ? '一時停止' : 'タスク自動実行中'}
         </span>
-        {/* Hover state — overlaid via absolute so the button width never jumps
-            and the rest spinner underneath is never display-toggled. */}
-        <span className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        {/* HOVER — OPAQUE overlay covering the rest content (independent icon +
+            label). It carries the ENTIRE red "停止" look (bg + border via
+            -inset-px), so the button itself never has to change colour. Instant
+            opacity swap (no fade) keeps zero animation near the spinner. */}
+        <span className="absolute -inset-px flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 text-red-700 opacity-0 group-hover:opacity-100 dark:border-red-700 dark:bg-red-950 dark:text-red-300">
           <Square className="h-4 w-4 fill-current" />
           停止
         </span>

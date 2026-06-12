@@ -9,10 +9,9 @@
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { createLogger } from '@/lib/logger';
+import { sharedEventSource } from '@/lib/sse/shared-event-source';
 
 const logger = createLogger('useBrowserNotifications');
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 /** Notification event payload from SSE. */
 interface SSENotificationPayload {
@@ -48,7 +47,6 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
   const { enabled = true, onNotification } = options;
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [unreadCount, setUnreadCount] = useState(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
   const onNotificationRef = useRef(onNotification);
 
   useEffect(() => {
@@ -99,17 +97,15 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
     setTimeout(() => n.close(), 5000);
   }, []);
 
-  // Connect to SSE notifications channel
+  // Subscribe to notification events on the SHARED SSE connection. A dedicated
+  // per-mount EventSource here previously added to the browser's 6-per-origin
+  // connection budget alongside every other SSE hook.
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
 
     requestPermission();
 
-    const url = `${BACKEND_URL}/events/subscribe/notifications`;
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-
-    eventSource.addEventListener('new_notification', (event) => {
+    return sharedEventSource.subscribe('new_notification', (event) => {
       try {
         const payload = JSON.parse(event.data) as SSENotificationPayload;
         setUnreadCount(payload.unreadCount);
@@ -119,19 +115,6 @@ export function useBrowserNotifications(options: UseBrowserNotificationsOptions 
         logger.errorThrottled('Failed to parse notification event:', e);
       }
     });
-
-    eventSource.addEventListener('connected', () => {
-      logger.info('Connected to notifications SSE channel');
-    });
-
-    eventSource.onerror = () => {
-      logger.warn('Notifications SSE connection error, will auto-reconnect');
-    };
-
-    return () => {
-      eventSource.close();
-      eventSourceRef.current = null;
-    };
   }, [enabled, requestPermission, showNotification]);
 
   return { permission, unreadCount, requestPermission };

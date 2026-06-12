@@ -14,6 +14,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import { Scale } from 'lucide-react';
 import { DecisionJournalHeader } from './DecisionJournalHeader';
 
@@ -107,6 +108,7 @@ export default function DecisionsClient() {
   const [reviewCalibration, setReviewCalibration] = useState<CalibrationVerdict>('correct');
 
   const { categories, themes } = useFilterDataStore();
+  const { showToast } = useToast();
   const filteredThemes = formCategoryId
     ? themes.filter((t) => t.categoryId === formCategoryId)
     : themes;
@@ -201,12 +203,15 @@ export default function DecisionsClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        showToast('意思決定の保存に失敗しました', 'error');
+        return;
+      }
       resetForm();
       setShowAdd(false);
       await fetchDecisions();
     } catch {
-      /* error */
+      showToast('意思決定の保存に失敗しました', 'error');
     }
   }, [
     formDecision,
@@ -218,22 +223,28 @@ export default function DecisionsClient() {
     formThemeId,
     editTarget,
     fetchDecisions,
+    showToast,
   ]);
 
-  const handleDelete = useCallback(async (id: number) => {
-    setBusyId(id);
-    try {
-      const res = await fetch(`${API_BASE_URL}/decision-journal/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setDecisions((p) => p.filter((d) => d.id !== id));
-        setTotal((t) => Math.max(0, t - 1));
+  const handleDelete = useCallback(
+    async (id: number) => {
+      setBusyId(id);
+      try {
+        const res = await fetch(`${API_BASE_URL}/decision-journal/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setDecisions((p) => p.filter((d) => d.id !== id));
+          setTotal((t) => Math.max(0, t - 1));
+        } else {
+          showToast('意思決定の削除に失敗しました', 'error');
+        }
+      } catch {
+        showToast('意思決定の削除に失敗しました', 'error');
+      } finally {
+        setBusyId(null);
       }
-    } catch {
-      /* error */
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
+    },
+    [showToast],
+  );
 
   const handleConvert = useCallback(
     async (id: number) => {
@@ -243,14 +254,18 @@ export default function DecisionsClient() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        if (res.ok) await fetchDecisions();
+        if (res.ok) {
+          await fetchDecisions();
+        } else {
+          showToast('タスクへの変換に失敗しました', 'error');
+        }
       } catch {
-        /* error */
+        showToast('タスクへの変換に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchDecisions],
+    [fetchDecisions, showToast],
   );
 
   const currentReview = reviewDue[reviewIndex];
@@ -267,7 +282,10 @@ export default function DecisionsClient() {
           calibration: reviewCalibration,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        showToast('レビューの保存に失敗しました', 'error');
+        return;
+      }
       setReviewActual('');
       setReviewCalibration('correct');
       const next = reviewIndex + 1;
@@ -280,7 +298,7 @@ export default function DecisionsClient() {
         await fetchDecisions();
       }
     } catch {
-      /* error */
+      showToast('レビューの保存に失敗しました', 'error');
     } finally {
       setBusyId(null);
     }
@@ -292,6 +310,7 @@ export default function DecisionsClient() {
     reviewDue,
     fetchReviewDue,
     fetchDecisions,
+    showToast,
   ]);
 
   return (

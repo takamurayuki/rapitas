@@ -1,0 +1,193 @@
+/**
+ * execution-resolver ユニットテスト
+ *
+ * investigation mode の短絡ロジックを中心に buildResolveAfterParse の分岐を検証する。
+ */
+import { describe, expect, mock, test } from 'bun:test';
+import type { AgentExecutionResult } from '../base-agent';
+import type { ResolverContext } from './execution-resolver';
+
+// --- モックセットアップ（動的 import より先に定義すること） ---
+
+mock.module('../../../config/logger', () => ({
+  createLogger: () => ({
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+  }),
+}));
+
+// checkGitDiff を差し替え可能なクロージャ経由で提供する
+let mockGitDiffResult: boolean = false;
+mock.module('./git-diff-checker', () => ({
+  checkGitDiff: () => Promise.resolve(mockGitDiffResult),
+}));
+
+// question-detection は型のみ使用。tolegacyQuestionType のランタイムモックが必要なため追加
+mock.module('../question-detection', () => ({
+  tolegacyQuestionType: (type: string) => type,
+}));
+
+// モック確定後に動的 import
+const { buildResolveAfterParse } = await import('./execution-resolver');
+
+// --- テストヘルパー ---
+
+/** resolve が呼ばれたときに Promise が解決されるトラッカーを返す */
+function createResolveTracker(): {
+  resolve: (result: AgentExecutionResult) => void;
+  promise: Promise<AgentExecutionResult>;
+} {
+  let resolveCapture!: (r: AgentExecutionResult) => void;
+  const promise = new Promise<AgentExecutionResult>((res) => {
+    resolveCapture = res;
+  });
+  return {
+    resolve: (result: AgentExecutionResult) => resolveCapture(result),
+    promise,
+  };
+}
+
+/** テスト用の最小 ResolverContext を構築する */
+function createCtx(overrides: Partial<ResolverContext> = {}): ResolverContext {
+  return {
+    logPrefix: '[test]',
+    resumeSessionId: undefined,
+    continueConversation: undefined,
+    outputBuffer: '',
+    finalResultText: '',
+    errorBuffer: '',
+    lineBuffer: '',
+    detectedQuestion: {
+      hasQuestion: false,
+      question: '',
+      questionType: 'unknown',
+      questionDetails: undefined,
+      questionKey: undefined,
+    },
+    claudeSessionId: null,
+    hasFileModifyingToolCalls: false,
+    idleTimeoutForceKilled: false,
+    workerResultUsage: null,
+    status: 'running',
+    emitOutputInternal: () => {},
+    ...overrides,
+  } as ResolverContext;
+}
+
+// --- テストスイート ---
+
+describe('buildResolveAfterParse — investigation mode', () => {
+  test('ケース1: investigationMode=true + exit0 + outputBuffer ≥200文字 → success: true', async () => {
+    const ctx = createCtx({ outputBuffer: 'a'.repeat(250) });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      undefined,
+      true, // investigationMode
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(result.waitingForInput).toBe(false);
+    // git diff は呼ばれない（短絡成立）
+  });
+
+  test('ケース1b: investigationMode=true + exit0 + finalResultText が非空 → success: true', async () => {
+    const ctx = createCtx({ finalResultText: '調査結果サマリ', outputBuffer: '' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      undefined,
+      true,
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(true);
+  });
+
+  test('ケース2: investigationMode=true + exit0 + 出力が空 → success: false（フォールスルー）', async () => {
+    mockGitDiffResult = false;
+    const ctx = createCtx({ outputBuffer: '', finalResultText: '' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      async () => false, // checkPlanCreated
+      true, // investigationMode
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('no actual code changes');
+  });
+
+  test('ケース3: investigationMode=true + exit1 → success: false（exit code 失敗パス）', async () => {
+    const ctx = createCtx({ outputBuffer: 'a'.repeat(300) });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // exit code 1 — short-circuit が評価される前に失敗確定
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      undefined,
+      true,
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+  });
+
+  test('ケース4: investigationMode=false + exit0 → git diff 経路（短絡しない）', async () => {
+    mockGitDiffResult = false; // git diff: 変更なし
+    const ctx = createCtx({ outputBuffer: 'a'.repeat(300) });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      0,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+      async () => false, // checkPlanCreated
+      false, // investigationMode = false → 短絡しない
+    );
+    callback();
+
+    const result = await promise;
+    // git diff が false かつ file-modifying tools もなし → 既存の失敗パス
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('no actual code changes');
+  });
+});

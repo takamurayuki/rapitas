@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CircleDot, Filter, ArrowLeft, Loader2, Plus, ArrowRightCircle, Bug } from 'lucide-react';
+import { CircleDot, Filter, ArrowLeft, Loader2, ArrowRightCircle, Bug } from 'lucide-react';
 import type { GitHubIssue, GitHubIntegration } from '@/types';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -27,7 +27,6 @@ export default function IssuesPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<string>(integrationId || '');
   const [stateFilter, setStateFilter] = useState<string>('open');
   const [loading, setLoading] = useState(true);
-  const [creatingTask, setCreatingTask] = useState<number | null>(null);
   const [importing, setImporting] = useState<number | null>(null);
 
   useEffect(() => {
@@ -68,25 +67,6 @@ export default function IssuesPage() {
       logger.error('Failed to fetch issues:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const createTaskFromIssue = async (issueId: number) => {
-    setCreatingTask(issueId);
-    try {
-      const res = await fetch(`${API_BASE_URL}/github/issues/${issueId}/create-task`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (res.ok) {
-        await fetchIssues();
-      }
-    } catch (error) {
-      logger.error('Failed to create task:', error);
-    } finally {
-      setCreatingTask(null);
     }
   };
 
@@ -230,7 +210,7 @@ export default function IssuesPage() {
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
-                    {issue.linkedTaskId ? (
+                    {issue.linkedTaskId && (
                       <Link
                         href={getTaskDetailPath(issue.linkedTaskId)}
                         className="flex items-center gap-1 px-3 py-1.5 text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
@@ -238,19 +218,6 @@ export default function IssuesPage() {
                         <ArrowRightCircle className="w-4 h-4" />
                         {t('viewTask')}
                       </Link>
-                    ) : (
-                      <button
-                        onClick={() => createTaskFromIssue(issue.id)}
-                        disabled={creatingTask === issue.id}
-                        className="flex items-center gap-1 px-3 py-1.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {creatingTask === issue.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                        {t('createTask')}
-                      </button>
                     )}
                     {/* Bridge: import the issue into the concern backlog */}
                     {issue.linkedConcernId ? (

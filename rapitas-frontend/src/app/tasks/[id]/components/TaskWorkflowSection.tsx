@@ -98,7 +98,15 @@ export default function TaskWorkflowSection({
       icon: Layers,
     },
   };
+  const MODE_LABELS: Record<string, string> = {
+    lightweight: '軽量',
+    standard: '標準',
+    comprehensive: '包括',
+  };
   const complexity = task?.complexityScore;
+  const modeLabel = task?.workflowMode
+    ? (MODE_LABELS[task.workflowMode] ?? task.workflowMode)
+    : null;
   const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
   // Brand-coloured fallback keeps the chip visible when the mode is unknown.
   const complexityChipClass =
@@ -117,12 +125,19 @@ export default function TaskWorkflowSection({
             {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
           </div>
           <div className="flex items-center gap-2">
-            {complexity != null && (
+            {(modeLabel || complexity != null) && (
               <span
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
+                title={
+                  modeLabel
+                    ? `ワークフロー: ${modeLabel}${task?.workflowModeOverride ? '（手動指定）' : '（複雑度から自動選択）'}`
+                    : undefined
+                }
               >
                 <ComplexityIcon className="h-3.5 w-3.5" />
-                複雑度 {Math.round(complexity)}
+                {modeLabel ?? 'ワークフロー'}
+                {complexity != null ? ` · 複雑度 ${Math.round(complexity)}` : ''}
+                {task?.workflowModeOverride ? '（手動）' : ''}
               </span>
             )}
             <span

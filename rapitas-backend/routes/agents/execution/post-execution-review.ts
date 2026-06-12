@@ -17,6 +17,7 @@ import { createCommit } from '../../../services/agents/orchestrator/git-operatio
 import { createPullRequest } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
 import { runAutomatedVerification } from '../../../services/agents/verification/automated-verifier';
 import { retryOrBlock } from '../../../services/agents/verification/verification-retry';
+import { linkAutoCreatedPr } from '../../../services/github/pr-link';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -208,12 +209,24 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
-  // 1.5 Automated verification gate — run REAL lint + typecheck on the agent's
-  // changes (not the agent's prose claims). Blocks commit/PR (task=blocked,
-  // session=failed with evidence) if the agent introduced new lint/type errors.
-  // A verifier crash is non-fatal (gate opens). Shared with the verify.md auto-PR
-  // path. See services/agents/verification/verification-gate.ts.
-  const verification = await runAutomatedVerification(executionDir).catch((err) => {
+  // 1.5 Automated verification gate — run REAL lint + typecheck + scoped tests
+  // (+ plan-scope when a plan exists) on the agent's changes (not the agent's
+  // prose claims). Blocks commit/PR (task=blocked, session=failed with
+  // evidence) on new failures. A verifier crash is non-fatal (gate opens).
+  // Shared with the verify.md auto-PR path. See verification-gate.ts.
+  const planContentForScope = await (async () => {
+    try {
+      const { resolveWorkflowDir, readWorkflowFile } =
+        await import('../../../services/workflow/workflow-file-utils');
+      const info = await resolveWorkflowDir(taskId);
+      return info ? (await readWorkflowFile(info.dir, 'plan')) || null : null;
+    } catch {
+      return null;
+    }
+  })();
+  const verification = await runAutomatedVerification(executionDir, {
+    planContent: planContentForScope,
+  }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;
   });
@@ -279,6 +292,31 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   }
 
   log.info({ taskId, prUrl: prResult.prUrl, prNumber: prResult.prNumber }, 'PR created');
+
+  // Persist + link the PR locally so the task's "PRを開く" button can resolve
+  // task → local PR id (otherwise the by-task lookup 404s and nothing happens).
+  // The worktree's current branch is the PR head; `branchName` is the base
+  // (it is passed as createPullRequest's baseBranch above).
+  if (prResult.prNumber != null && prResult.prUrl) {
+    let headBranch = 'unknown';
+    try {
+      const { execSync } = await import('node:child_process');
+      headBranch =
+        execSync('git branch --show-current', { cwd: executionDir, encoding: 'utf-8' }).trim() ||
+        headBranch;
+    } catch {
+      /* display-only field — a later sync corrects it */
+    }
+    await linkAutoCreatedPr(prisma, {
+      taskId,
+      prNumber: prResult.prNumber,
+      prUrl: prResult.prUrl,
+      title: prTitle,
+      headBranch,
+      baseBranch: branchName ?? 'develop',
+      workingDirectory: executionDir,
+    });
+  }
 
   // 5. Cleanup worktree only after PR is confirmed
   await cleanupWorktree(workDir, executionDir, sessionId);

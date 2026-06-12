@@ -83,6 +83,45 @@ pub fn setup_sidecar(app: &tauri::App) {
     std::fs::copy(&resource_path, &backend_path).expect("failed to copy backend executable");
     println!("[Backend] Copied to: {:?}", backend_path);
 
+    // Copy the bundled Prisma query engine next to the exe and remember its
+    // path. bun's single-file compile cannot embed the .node native library and
+    // user machines have no node_modules, so without this the backend dies at
+    // startup with PrismaClientInitializationError ("could not locate the
+    // Query Engine") before ever listening on 3001.
+    let query_engine_path = resource_path
+        .parent()
+        .and_then(|dir| std::fs::read_dir(dir).ok())
+        .and_then(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .find(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|n| n.contains("query_engine") && n.ends_with(".node"))
+                        .unwrap_or(false)
+                })
+        })
+        .and_then(|engine_src| {
+            let engine_dst =
+                app_data_dir.join(engine_src.file_name().expect("engine file has a name"));
+            match std::fs::copy(&engine_src, &engine_dst) {
+                Ok(_) => {
+                    println!("[Backend] Prisma engine copied to: {:?}", engine_dst);
+                    Some(engine_dst)
+                }
+                Err(err) => {
+                    eprintln!("[Backend] Failed to copy Prisma engine: {err}");
+                    None
+                }
+            }
+        });
+    if query_engine_path.is_none() {
+        eprintln!(
+            "[Backend] WARNING: no bundled Prisma query engine found — the backend will likely fail to start."
+        );
+    }
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -99,7 +138,7 @@ pub fn setup_sidecar(app: &tauri::App) {
     let data_dir = app_data_dir.to_string_lossy().to_string();
 
     // Launch the backend process
-    let backend_command = shell
+    let mut backend_command = shell
         .command(backend_path.to_string_lossy().to_string())
         .env("TAURI_BUILD", "true")
         .env("RAPITAS_DB_PROVIDER", "sqlite")
@@ -111,6 +150,12 @@ pub fn setup_sidecar(app: &tauri::App) {
             "CORS_ORIGIN",
             "tauri://localhost,http://localhost:3000,http://127.0.0.1:3000",
         );
+    // Explicit engine path — Prisma's own search never resolves inside a bun
+    // single-file binary, so point it at the engine we just copied.
+    if let Some(engine) = &query_engine_path {
+        backend_command =
+            backend_command.env("PRISMA_QUERY_ENGINE_LIBRARY", engine.to_string_lossy().to_string());
+    }
 
     let (mut rx, child) = backend_command.spawn().expect("failed to spawn backend");
 

@@ -48,6 +48,31 @@ export async function getTopMissedQueries(limit = 10): Promise<SearchMiss[]> {
   });
 }
 
+/**
+ * Returns OPEN search misses related to the given keywords — past zero-result
+ * searches in the same resource area — so a new-task author can spot pitfalls.
+ * Matches against the (already lowercased) stored query.
+ *
+ * @param keywords - Candidate terms from a draft task title/description / 下書きタスクの語
+ * @param limit - Maximum records to return / 返す最大件数
+ * @returns Related open SearchMiss records, most-missed first / 関連するオープンなSearchMiss
+ */
+export async function getRelatedMisses(keywords: string[], limit = 5): Promise<SearchMiss[]> {
+  const terms = [
+    ...new Set(keywords.map((k) => k.trim().toLowerCase()).filter((k) => k.length >= 3)),
+  ];
+  if (terms.length === 0) return [];
+
+  return prisma.searchMiss.findMany({
+    where: {
+      status: 'open',
+      OR: terms.map((t) => ({ query: { contains: t } })),
+    },
+    orderBy: { hitCount: 'desc' },
+    take: limit,
+  });
+}
+
 /** Analytics snapshot broken down by status. */
 interface MissAnalytics {
   open: number;
@@ -148,13 +173,19 @@ export async function autoLinkMatchingMisses(
   }
 
   if (matched.length > 0) {
-    log.debug({ taskId, taskTitle, matchCount: matched.length }, 'Auto-linked matching search misses');
+    log.debug(
+      { taskId, taskTitle, matchCount: matched.length },
+      'Auto-linked matching search misses',
+    );
   }
 }
 
 /**
- * 指定タスクに紐付いた検索ミスを再検索し、結果が得られたものを 'resolved' に更新する。
- * 解決時に通知を作成する（best-effort: 通知失敗は更新をブロックしない）。
+ * 指定タスクに紐付いた検索ミス（status='suggested'）を再検索し、
+ *  - 結果が得られたもの（count>0）→ 'resolved'（resolvedAt を記録）に更新し通知を作成
+ *  - 結果が得られなかったもの（count===0）→ 'open' に戻す（resolvedAt は未設定のまま・
+ *    suggestedTaskId をクリア）。提案タスクが完了しても穴が埋まっていないため未解決として扱う。
+ * 通知作成は best-effort（失敗しても更新をブロックしない）。
  *
  * @param prisma - Prismaクライアント（呼び出し元から注入）
  * @param taskId - 完了したタスクの ID
@@ -195,24 +226,36 @@ export async function resolveSearchMissForTask(
     ),
   );
 
-  const toResolve = misses
-    .map((miss, i) => ({ miss, count: counts[i] ?? 0 }))
-    .filter(({ count }) => count > 0);
+  const evaluated = misses.map((miss, i) => ({ miss, count: counts[i] ?? 0 }));
+  const toResolve = evaluated.filter(({ count }) => count > 0);
+  // count === 0: the suggested task completed but the search STILL returns no
+  // results, so the gap is NOT closed. Per the spec decision (answer A: "open に
+  // 戻す"), return these misses to 'open' instead of leaving them stuck at
+  // 'suggested'. resolvedAt deliberately stays null — the miss is unresolved, so
+  // a missing timestamp here is CORRECT, not the bug. suggestedTaskId is cleared
+  // so linkSearchMissesToTask can re-suggest the gap to a future task.
+  const toReopen = evaluated.filter(({ count }) => count === 0);
 
-  if (toResolve.length === 0) return;
+  if (toResolve.length === 0 && toReopen.length === 0) return;
 
   // Single timestamp for the whole batch, and ONE transaction for all status
   // updates instead of N sequential round-trips. resolvedResultCount is still
   // stored exactly as before (kept for future analytics; nothing reads it yet).
   const now = new Date();
-  await prisma.$transaction(
-    toResolve.map(({ miss, count }) =>
+  await prisma.$transaction([
+    ...toResolve.map(({ miss, count }) =>
       prisma.searchMiss.update({
         where: { id: miss.id },
         data: { status: 'resolved', resolvedAt: now, resolvedResultCount: count },
       }),
     ),
-  );
+    ...toReopen.map(({ miss }) =>
+      prisma.searchMiss.update({
+        where: { id: miss.id },
+        data: { status: 'open', suggestedTaskId: null },
+      }),
+    ),
+  ]);
 
   // Best-effort notifications — fire-and-forget so a notification failure never
   // blocks the resolve (unchanged behaviour, just moved out of the count loop).

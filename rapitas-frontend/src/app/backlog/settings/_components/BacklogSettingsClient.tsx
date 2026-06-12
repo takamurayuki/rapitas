@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, Bug, Activity, Play, Loader2, CalendarClock } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import ProjectOverridesSection from './ProjectOverridesSection';
 
 type JobKind = 'innovation' | 'vuln_scan' | 'health_check';
@@ -70,6 +71,7 @@ export default function BacklogSettingsClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [runningKind, setRunningKind] = useState<JobKind | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -89,8 +91,13 @@ export default function BacklogSettingsClient() {
 
   const patchSchedule = useCallback(
     async (kind: JobKind, partial: Partial<Schedule>) => {
-      // Optimistic update — revert on failure.
-      setSchedules((prev) => prev.map((s) => (s.kind === kind ? { ...s, ...partial } : s)));
+      // Optimistic update — captured for revert; without the revert a failed
+      // PATCH left the toggle showing a state the server never accepted.
+      let before: Schedule[] = [];
+      setSchedules((prev) => {
+        before = prev;
+        return prev.map((s) => (s.kind === kind ? { ...s, ...partial } : s));
+      });
       try {
         const res = await fetch(`${API_BASE_URL}/backlog/schedules/${kind}`, {
           method: 'PATCH',
@@ -100,35 +107,44 @@ export default function BacklogSettingsClient() {
         if (res.ok) {
           const data = (await res.json()) as { schedule: Schedule };
           setSchedules((prev) => prev.map((s) => (s.kind === kind ? data.schedule : s)));
+        } else {
+          setSchedules(before);
+          showToast('スケジュールの更新に失敗しました', 'error');
         }
       } catch {
-        /* keep optimistic value; a reload will resync */
+        setSchedules(before);
+        showToast('スケジュールの更新に失敗しました', 'error');
       }
     },
-    [],
+    [showToast],
   );
 
-  const runNow = useCallback(async (kind: JobKind) => {
-    setRunningKind(kind);
-    setNotice(null);
-    try {
-      const res = await fetch(`${API_BASE_URL}/backlog/schedules/${kind}/run-now`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        setNotice(
-          kind === 'innovation'
-            ? '実行を開始しました。生成されたアイデアはアイデアボックスに表示されます。'
-            : '実行を開始しました。検出された懸念は懸念バックログに表示されます。',
-        );
+  const runNow = useCallback(
+    async (kind: JobKind) => {
+      setRunningKind(kind);
+      setNotice(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/backlog/schedules/${kind}/run-now`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          setNotice(
+            kind === 'innovation'
+              ? '実行を開始しました。生成されたアイデアはアイデアボックスに表示されます。'
+              : '実行を開始しました。検出された懸念は懸念バックログに表示されます。',
+          );
+        } else {
+          showToast('実行の開始に失敗しました', 'error');
+        }
+      } catch {
+        showToast('実行の開始に失敗しました', 'error');
+      } finally {
+        setRunningKind(null);
       }
-    } catch {
-      /* non-fatal */
-    } finally {
-      setRunningKind(null);
-    }
-  }, []);
+    },
+    [showToast],
+  );
 
   if (isLoading) {
     return (
@@ -199,7 +215,9 @@ export default function BacklogSettingsClient() {
               >
                 <select
                   value={s.frequency}
-                  onChange={(e) => patchSchedule(s.kind, { frequency: e.target.value as Frequency })}
+                  onChange={(e) =>
+                    patchSchedule(s.kind, { frequency: e.target.value as Frequency })
+                  }
                   className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-800"
                 >
                   {FREQUENCIES.map((f) => (
@@ -235,7 +253,9 @@ export default function BacklogSettingsClient() {
                   ))}
                 </select>
 
-                <span className="text-xs text-zinc-400">最終実行: {formatLastRun(s.lastRunAt)}</span>
+                <span className="text-xs text-zinc-400">
+                  最終実行: {formatLastRun(s.lastRunAt)}
+                </span>
 
                 <button
                   type="button"

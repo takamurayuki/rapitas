@@ -1,13 +1,3 @@
-import { type ScreenshotResult } from '../../services/misc/screenshot-service';
-
-/**
- * Strips the filesystem path from screenshot results before sending to the frontend.
- * The path is internal and should not be exposed to clients.
- */
-export function sanitizeScreenshots(screenshots: ScreenshotResult[]) {
-  return screenshots.map(({ path, ...rest }) => rest);
-}
-
 /**
  * Extracts a clean implementation summary from raw agent output.
  * Removes log noise, debug info, stack traces, and duplicate content,

@@ -158,10 +158,12 @@ model SearchMiss {
   lastSearchedAt      DateTime  @default(now())
   status              String    @default("open")
   suggestedTaskId     Int?
+  themeId             Int?
   resolvedAt          DateTime?
   resolvedResultCount Int?
   createdAt           DateTime  @default(now())
 
   @@index([status])
   @@index([hitCount])
+  @@index([themeId])
 }

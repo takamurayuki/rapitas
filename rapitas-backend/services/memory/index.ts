@@ -261,10 +261,19 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   if (forgettingStage) where.forgettingStage = forgettingStage;
   if (validationStatus) where.validationStatus = validationStatus;
   if (themeId) where.themeId = themeId;
+  // `mode: 'insensitive'` is Postgres-only. The SQLite (desktop) Prisma schema omits
+  // `mode` from StringFilter, so sending it raises PrismaClientValidationError at
+  // runtime. Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
+  // — and fall back to case-sensitive `contains` on SQLite.
+  const isPostgres =
+    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
+    !process.env.DATABASE_URL?.startsWith('file:');
+  const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
+
   if (search) {
     where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { content: { contains: search, mode: 'insensitive' } },
+      { title: { contains: search, ...insensitive } },
+      { content: { contains: search, ...insensitive } },
     ];
   }
 

@@ -158,8 +158,9 @@ export default function TaskSlidePanel({
           </button>
         </div>
 
-        {/* Content — single scroll container (TaskDetailContent flows inside) */}
-        <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto">
+        {/* Content — single scroll container (TaskDetailContent flows inside).
+            Marked so the quick-nav scroll-spy can resolve it deterministically. */}
+        <div ref={contentRef} data-task-scroll-container className="flex-1 min-h-0 overflow-y-auto">
           <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
         </div>
       </div>
