@@ -19,12 +19,73 @@ import {
   getFileInfo,
 } from '../core/workflow-helpers';
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
-import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
+import {
+  checkWorkflowInvariants,
+  normalizeWorkflowStatus,
+} from '../../../services/workflow/workflow-invariants';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 
 const log = createLogger('routes:workflow:handlers:files');
+
+/**
+ * Whether automatic subtask splitting on plan save is enabled (default: OFF).
+ *
+ * Disabled by default after it repeatedly broke runs: it created bogus subtasks
+ * from plan section headings (no keyword list can cover them all), and a split
+ * parent conflicts with the comprehensive single-agent flow (verify gets blocked
+ * by "open" subtasks, auto-commit aborts). The single agent completes the work
+ * in one session and commits reliably; progress visibility comes from the plan
+ * checklist + live execution log + verify.md. Re-enable (for a future,
+ * rebuilt subtask-execution chain) with RAPITAS_ENABLE_SUBTASK_SPLIT=1.
+ *
+ * @returns true when splitting is enabled / 分割が有効か
+ */
+function isSubtaskSplitEnabled(): boolean {
+  const v = (process.env.RAPITAS_ENABLE_SUBTASK_SPLIT || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+/**
+ * Marks a task's latest agent execution (and session) failed with a reason.
+ *
+ * When a verify is rejected (validation or the automated gate) the task is set
+ * `blocked`, but the agent's execution row stays `completed` — so the execution
+ * log viewer shows 「完了」 while the task is blocked (the confusing status gap).
+ * Aligning the execution/session to `failed` closes that gap.
+ *
+ * @param taskId - Task whose latest execution to fail / 対象タスク
+ * @param message - Failure reason shown in the viewer / 失敗理由
+ */
+async function markLatestExecutionFailed(taskId: number, message: string): Promise<void> {
+  try {
+    const session = await prisma.agentSession.findFirst({
+      where: { config: { taskId } },
+      orderBy: { createdAt: 'desc' },
+      include: { agentExecutions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    if (!session) return;
+    const exec = session.agentExecutions[0];
+    if (exec && exec.status !== 'failed') {
+      await prisma.agentExecution
+        .update({
+          where: { id: exec.id },
+          data: { status: 'failed', errorMessage: message, completedAt: new Date() },
+        })
+        .catch(() => {});
+    }
+    if (session.status !== 'failed') {
+      await prisma.agentSession
+        .update({ where: { id: session.id }, data: { status: 'failed', errorMessage: message } })
+        .catch(() => {});
+    }
+  } catch (err) {
+    log.warn({ err, taskId }, '[Workflow] Failed to mark latest execution failed');
+  }
+}
 
 /**
  * Handler for GET /tasks/:taskId/files
@@ -125,10 +186,14 @@ export async function handleSaveFile({
       plan_created: new Set(['plan', 'question']),
       plan_approved: new Set(['question']),
       in_progress: new Set(['verify', 'question']),
+      // 質問待ち中も同じファイルが書ける（質問解消は別 API か question.md 削除で行う）
+      awaiting_question: new Set(['research', 'plan', 'verify', 'question']),
       verify_done: new Set([]),
       completed: new Set([]),
     };
-    const currentStatusForGuard = resolved.task.workflowStatus ?? 'draft';
+    // NOTE: normalizeWorkflowStatus handles null/undefined/empty-string — an empty workflowStatus
+    // would cause ALLOWED_FILE_TYPES_BY_STATUS[""] to return undefined and skip the guard entirely.
+    const currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
     const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
     if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
       log.warn(
@@ -163,17 +228,105 @@ export async function handleSaveFile({
       );
     }
 
-    const { dir } = resolved;
-    const parsedBody = body as { content: string; language?: 'ja' | 'en' };
-    if (!parsedBody?.content && parsedBody?.content !== '') {
-      throw new ValidationError('content is required');
+    // A split parent must never be verified/completed while any of its subtasks
+    // is still non-terminal. The parent's integration verify.md and terminal
+    // status are driven exclusively by subtask-completion-handler once EVERY
+    // subtask reaches a terminal state. Accepting a verify.md here (an agent
+    // curling it directly, or a "run" button that advanced the parent to
+    // in_progress) is exactly what marked task #71 completed with 3 subtasks
+    // still 'todo'. Reject before writing anything so no premature verify.md
+    // lands on disk.
+    if (fileType === 'verify') {
+      const TERMINAL = new Set(['done', 'failed', 'cancelled', 'archived']);
+      const subtasks = await prisma.task.findMany({
+        where: { parentId: taskId },
+        select: { id: true, status: true },
+      });
+      const openSubtasks = subtasks.filter((s) => !TERMINAL.has(s.status));
+      if (openSubtasks.length > 0) {
+        log.warn(
+          { taskId, total: subtasks.length, openIds: openSubtasks.map((s) => s.id) },
+          '[Workflow] Rejected verify.md save: parent has non-terminal subtasks',
+        );
+        await recordTransition({
+          taskId,
+          fromStatus: currentStatusForGuard,
+          toStatus: currentStatusForGuard,
+          actor: 'system',
+          cause: 'verify_blocked_incomplete_subtasks',
+          phase: 'verify',
+          metadata: {
+            totalSubtasks: subtasks.length,
+            openSubtaskIds: openSubtasks.map((s) => s.id),
+          },
+          invariantViolation: true,
+          invariantMessage: `verify.md rejected: ${openSubtasks.length}/${subtasks.length} subtasks not terminal`,
+        });
+        throw new ValidationError(
+          `この親タスクには未完了のサブタスクが ${openSubtasks.length} 件あります（#${openSubtasks
+            .map((s) => s.id)
+            .join(', #')}）。分割タスクの完了は全サブタスクの完了後に自動で行われます。` +
+            `verify.md を親タスクに直接保存して完了させることはできません。`,
+        );
+      }
     }
-    const fileLanguage = (parsedBody?.language === 'en' ? 'en' : 'ja') as 'ja' | 'en';
+
+    const { dir } = resolved;
+
+    // Accept either a JSON body { content, language } OR a raw text/markdown body.
+    // NOTE: agents on Windows used to inline the content into a PowerShell pipeline,
+    // where $OutputEncoding defaults to US-ASCII — collapsing every Japanese
+    // character to '?' (irreversible). The raw-body path lets the agent write the
+    // markdown to a UTF-8 temp file and `curl --data-binary @file`, bypassing shell
+    // string encoding entirely. See prompt-builder.ts for the agent-facing steps.
+    let content: string;
+    let fileLanguage: 'ja' | 'en' = 'ja';
+    if (typeof body === 'string') {
+      content = body;
+    } else {
+      const parsedBody = body as { content?: string; language?: 'ja' | 'en' };
+      if (parsedBody?.content === undefined || parsedBody?.content === null) {
+        throw new ValidationError('content is required');
+      }
+      content = parsedBody.content;
+      fileLanguage = parsedBody.language === 'en' ? 'en' : 'ja';
+    }
+
+    // Reject irreversible UTF-8 → '?' replacement mojibake. The original bytes are
+    // gone, so there is nothing to "sanitise" — saving it would silently persist
+    // garbage. Fail the save and tell the agent to re-send as UTF-8 (the
+    // detect → make-it-fix step).
+    const loss = detectReplacementLoss(content);
+    if (loss.detected) {
+      log.warn(
+        { taskId, fileType, runs: loss.runs, count: loss.count, longest: loss.longest },
+        "[Workflow] Rejected workflow file save: '?'-replacement mojibake detected",
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'mojibake_rejected',
+        phase: fileType,
+        metadata: { runs: loss.runs, count: loss.count, longest: loss.longest },
+        invariantViolation: true,
+        invariantMessage: `${fileType}.md rejected: non-ASCII text was replaced by '?' (encoding loss)`,
+      });
+      set.status = 422;
+      return {
+        error:
+          `保存内容が文字化けしています（日本語が '?' に置換され復元不可）。UTF-8 で再送信してください。` +
+          `Windows では PowerShell のパイプ/インライン文字列で curl に渡さないでください（既定の US-ASCII で '?' に潰れます）。` +
+          `内容を一時ファイルに UTF-8 で書き出し、'curl.exe -X PUT <url> --data-binary @<file>.md -H "Content-Type: text/markdown; charset=utf-8"' で送ってください。`,
+        mojibake: { runs: loss.runs, count: loss.count, longest: loss.longest },
+      };
+    }
 
     // Delegate to writeWorkflowFile so the previous version is archived to
     // `_archive/<ts>/` and a `WorkflowFile` metadata row is upserted. Mojibake
     // sanitisation runs inside writeWorkflowFile.
-    const savedContent = await writeWorkflowFile(dir, fileType, parsedBody.content, taskId);
+    const savedContent = await writeWorkflowFile(dir, fileType, content, taskId);
 
     // Auto-update workflowStatus
     let newStatus: string | undefined;
@@ -186,6 +339,19 @@ export async function handleSaveFile({
       newStatus = 'research_done';
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
       newStatus = 'plan_created';
+    } else if (
+      fileType === 'question' &&
+      currentStatus &&
+      currentStatus !== 'awaiting_question' &&
+      currentStatus !== 'completed' &&
+      currentStatus !== 'verify_done'
+    ) {
+      // 質問.md が保存されたらユーザー回答待ち状態に遷移する。
+      // 復帰先 status は transition log の metadata.previousStatus に保存しておき、
+      // 回答後に呼ばれる resume API（routes/workflow/handlers/workflow-handlers-resume.ts）が
+      // この値を読み出して元状態に戻す。
+      log.info(`[Workflow] Question saved: transitioning ${currentStatus} → awaiting_question`);
+      newStatus = 'awaiting_question';
     } else if (fileType === 'verify') {
       // Run the verify validator (catches "claims all-pass but body says
       // failed" hallucinations + explicit ❌ markers). When validation
@@ -197,29 +363,57 @@ export async function handleSaveFile({
           await import('../../../services/workflow/phase-output-validator');
         const verifyValidation = validateVerify(savedContent);
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
-          log.warn(
-            { taskId, summary: verifyValidation.summary },
-            '[Workflow] verify.md failed validation — blocking task instead of marking verify_done',
-          );
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .catch(() => {});
-          await recordTransition({
+          // Self-repair loop: bounce the workflow back to the implementer with
+          // the failure as feedback so the runner re-runs implement → verify,
+          // instead of dead-ending at `blocked`. Only block once the bounded
+          // repair attempts are exhausted.
+          const { attemptVerifyRepair } =
+            await import('../../../services/workflow/verify-self-repair');
+          const repair = await attemptVerifyRepair(
             taskId,
-            fromStatus: currentStatus ?? null,
-            toStatus: currentStatus ?? 'in_progress',
-            actor: 'verifier',
-            cause: 'verify_validation_failed',
-            phase: 'verify',
-            metadata: {
-              sizeBytes: savedContent.length,
-              reason: verifyValidation.summary,
-            },
-            invariantViolation: true,
-            invariantMessage: verifyValidation.summary,
-          });
-          // newStatus stays undefined — caller skips the verify_done
-          // transition + auto-commit/PR pipeline below.
+            currentStatus ?? null,
+            verifyValidation.summary,
+            savedContent,
+          );
+
+          if (repair.bounced && repair.newStatus) {
+            log.warn(
+              { taskId, attempt: repair.attempt, newStatus: repair.newStatus },
+              '[Workflow] verify.md failed validation — re-running implement→verify (self-repair)',
+            );
+            // Bounce: the runner re-runs the implementer from this status.
+            newStatus = repair.newStatus;
+          } else {
+            log.warn(
+              { taskId, summary: verifyValidation.summary },
+              '[Workflow] verify.md failed validation and repairs exhausted — blocking task',
+            );
+            await prisma.task
+              .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+              .catch(() => {});
+            // Align the execution/session to failed so the log viewer doesn't show
+            // 「完了」 while the task is blocked (the status gap).
+            await markLatestExecutionFailed(
+              taskId,
+              `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
+            );
+            await recordTransition({
+              taskId,
+              fromStatus: currentStatus ?? null,
+              toStatus: currentStatus ?? 'in_progress',
+              actor: 'verifier',
+              cause: 'verify_validation_failed',
+              phase: 'verify',
+              metadata: {
+                sizeBytes: savedContent.length,
+                reason: verifyValidation.summary,
+              },
+              invariantViolation: true,
+              invariantMessage: verifyValidation.summary,
+            });
+            // newStatus stays undefined — caller skips the verify_done
+            // transition + auto-commit/PR pipeline below.
+          }
         } else {
           log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
           newStatus = 'verify_done';
@@ -240,6 +434,13 @@ export async function handleSaveFile({
       // violations but DO NOT throw — the file was already saved on disk
       // and rolling back would create a worse "ghost" state.
       const violations = await checkWorkflowInvariants(taskId);
+      // awaiting_question への遷移時のみ、復帰先 status を metadata に保存する
+      const transitionMetadata: Record<string, unknown> = {
+        sizeBytes: savedContent.length,
+      };
+      if (newStatus === 'awaiting_question' && currentStatus) {
+        transitionMetadata.previousStatus = currentStatus;
+      }
       await recordTransition({
         taskId,
         fromStatus: currentStatus ?? null,
@@ -247,7 +448,7 @@ export async function handleSaveFile({
         actor: 'system',
         cause: `file_saved:${fileType}`,
         phase: fileType,
-        metadata: { sizeBytes: savedContent.length },
+        metadata: transitionMetadata,
         invariantViolation: violations.length > 0,
         invariantMessage:
           violations.length > 0
@@ -255,20 +456,36 @@ export async function handleSaveFile({
             : undefined,
       });
       if (violations.length > 0) {
+        const missingFiles = violations
+          .filter((v) => v.code === 'missing_file')
+          .map((v) => {
+            const m = v.message.match(/but (\S+\.md) is missing/);
+            return m ? m[1] : 'unknown';
+          });
         log.warn(
-          { taskId, violations },
+          {
+            taskId,
+            violations,
+            workflowDir: dir,
+            missingFiles,
+            hint:
+              missingFiles.length > 0
+                ? `save the missing file(s) via PUT /workflow/tasks/${taskId}/files/<type>, or reset status to draft`
+                : 'check task.status consistency or open subtasks',
+          },
           '[Workflow] Invariant violations detected after status update',
         );
       }
     }
 
-    // Auto-split into subtasks when plan.md is saved and task is large enough
+    // Auto-split into subtasks when plan.md is saved and task is large enough.
+    // Gated OFF by default — see isSubtaskSplitEnabled for why.
     let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;
-    if (fileType === 'plan' && newStatus === 'plan_created') {
+    if (fileType === 'plan' && newStatus === 'plan_created' && isSubtaskSplitEnabled()) {
       try {
         const { analyzePlanForSplitting, createSubtasksFromPlan } =
           await import('../../../services/workflow/subtask-splitter');
-        const analysis = analyzePlanForSplitting(parsedBody.content);
+        const analysis = analyzePlanForSplitting(content);
         if (analysis.shouldSplit) {
           log.info(`[Workflow] Task ${taskId} plan triggers split: ${analysis.reason}`);
           // Load research.md for context inheritance
@@ -281,7 +498,7 @@ export async function handleSaveFile({
             /* no research.md — non-fatal */
           }
 
-          const result = await createSubtasksFromPlan(taskId, analysis, researchContent);
+          const result = await createSubtasksFromPlan(taskId, analysis, researchContent, content);
           if (result.success) {
             splitResult = {
               subtasksCreated: result.subtasksCreated,
@@ -300,45 +517,110 @@ export async function handleSaveFile({
     // path (workflow-cli-executor) and this HTTP path stay in sync.
     let autoApproved = false;
     if (fileType === 'plan' && newStatus === 'plan_created') {
-      const approval = await maybeAutoApprovePlan(taskId, fileLanguage);
+      // When the plan was split into subtasks the parent must NOT advance to its
+      // own implementer phase — the subtasks do the work. Approve without
+      // auto-advancing the parent, then enqueue the subtasks for sequential run.
+      const approval = await maybeAutoApprovePlan(taskId, fileLanguage, {
+        autoAdvance: !splitResult,
+      });
       if (approval.autoApproved) {
         newStatus = 'plan_approved';
         autoApproved = true;
+        if (splitResult && splitResult.subtaskIds.length > 0) {
+          try {
+            const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
+            await AIOrchestra.getInstance().enqueueSubtasksForExecution(taskId);
+          } catch (enqErr) {
+            log.error(
+              { err: enqErr, taskId },
+              '[Workflow] Failed to enqueue subtasks for execution after auto-approval',
+            );
+          }
+        }
       }
     }
 
     // Auto commit and PR creation when saving verify.md.
     //
-    // NOTE: workflowStatus="verify_done" means verification has been written.
-    // The task itself is marked done, and workflowStatus becomes "completed",
-    // only after the downstream commit/PR/merge gate succeeds.
+    // NOTE: reaching here means verify.md passed validation (the failure branch
+    // above holds the task at `in_progress`/`blocked` and leaves newStatus
+    // undefined). Per the user's request — "verify.md を保存し、問題がなければ
+    // ステータスを完了に" — a passing verification now completes the task
+    // directly. Auto-commit / PR / merge still run as a BEST-EFFORT side effect
+    // (so branches with real changes still get a PR), but completion no longer
+    // depends on a PR being published.
+    // Completion gate: a passing verify may only complete the task when it is
+    // backed by REAL code changes (or verify.md explicitly justifies a no-op).
+    // Otherwise it's the silent-skip pattern (agent claimed work it never did —
+    // empty diff, no commit) and we block for inspection instead of completing.
+    let verifyGateBlocked = false;
+    if (fileType === 'verify' && newStatus === 'verify_done') {
+      const gateSession = await prisma.agentSession
+        .findFirst({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { worktreePath: true },
+        })
+        .catch(() => null);
+      const completionGate = await evaluateCompletionGate(
+        gateSession?.worktreePath ?? null,
+        savedContent,
+      );
+      if (!completionGate.allow) {
+        verifyGateBlocked = true;
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+          .catch(() => {});
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: 'verify_done',
+          actor: 'verifier',
+          cause: 'verify_no_changes',
+          phase: 'verify',
+          metadata: { reason: completionGate.reason },
+          invariantViolation: true,
+          invariantMessage:
+            '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
+        });
+        log.warn(
+          { taskId, reason: completionGate.reason },
+          '[Workflow] verify passed but no code changes and no justification — blocking instead of completing',
+        );
+      }
+    }
+
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
-    if (fileType === 'verify' && newStatus === 'verify_done') {
-      autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent);
-
-      // Decide whether to mark the Task itself as done.
-      //
-      // Hardened rule (per user request: "ステータスの完了をPR作成後にする"):
-      // status='done' is set ONLY when a PR has been published. The user
-      // can still get auto-merge to terminal completion via auto-merge,
-      // but a verify-pass alone never marks done — verification without
-      // a PR is just "ready for PR review" and stays in_progress.
-      //
-      //   - merge attempted → require merge.success
-      //   - pr  attempted   → require pr.success
-      //   - merge / pr NOT attempted → never auto-done; user must trigger
-      //     PR via the existing /agents/parallel-execution/pr-routes
-      //     endpoint, which marks done after merge.
+    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+      // Best-effort commit/PR/merge — never block completion on its outcome.
+      autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
+        log.warn(
+          { err, taskId },
+          '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway',
+        );
+        return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
+      });
       const commit = autoCommitPRResult.autoCommitResult;
       const pr = autoCommitPRResult.autoPRResult;
       const merge = autoCommitPRResult.autoMergeResult;
-      const requested = autoCommitPRResult.requested;
-      let automationSucceeded = false;
-      if (requested?.autoMergePR) automationSucceeded = merge?.success === true;
-      else if (requested?.autoCreatePR) automationSucceeded = pr?.success === true;
 
-      if (automationSucceeded) {
+      if (autoCommitPRResult.verificationBlocked) {
+        // The automated verification gate found NEW lint/type errors in the
+        // agent's changes and already marked the task `blocked`. Do NOT overwrite
+        // that with done/completed — the commit/PR were correctly withheld, and
+        // marking it completed here is what produced the confusing "完了 but no
+        // commit, status still stuck" reports. Keep it blocked for the user.
+        verifyGateBlocked = true;
+        await markLatestExecutionFailed(
+          taskId,
+          autoCommitPRResult.error ?? '自動検証に失敗したため、コミット/PR を中止しました。',
+        );
+        log.warn(
+          { taskId, reason: autoCommitPRResult.error },
+          '[Workflow] Automated verification blocked — task stays blocked (not completed), no commit/PR.',
+        );
+      } else {
         await prisma.task.update({
           where: { id: taskId },
           data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
@@ -349,20 +631,13 @@ export async function handleSaveFile({
           fromStatus: 'verify_done',
           toStatus: 'completed',
           actor: 'system',
-          cause: requested?.autoMergePR ? 'auto_merge_succeeded' : 'auto_pr_succeeded',
+          cause: 'verify_passed',
           phase: 'verify',
           metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
         });
-      } else {
         log.info(
-          {
-            taskId,
-            requested,
-            commitOk: commit?.success,
-            prOk: pr?.success,
-            mergeOk: merge?.success,
-          },
-          '[Workflow] verify.md saved — task remains in_progress until a PR is created (auto or manual). Status will be marked done after PR.',
+          { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+          '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
         );
       }
 

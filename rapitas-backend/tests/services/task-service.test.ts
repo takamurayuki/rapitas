@@ -20,13 +20,22 @@ const mockPrisma = {
     createMany: mock(() => Promise.resolve({ count: 0 })),
     deleteMany: mock(() => Promise.resolve({ count: 0 })),
   },
+  // createTask fires a best-effort notification.create; the mock must expose it
+  // or `prisma.notification.create` throws synchronously (the .catch can't catch
+  // a property access on undefined) and task creation fails.
+  notification: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
   studyStreak: {
     upsert: mock(() => Promise.resolve({})),
   },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../services/communication/notification-service', () => ({
   notifyTaskCompleted: mock(() => Promise.resolve()),
 }));
@@ -43,13 +52,13 @@ mock.module('../../utils/ai-client', () => ({
   getDefaultProvider: mock(() => Promise.resolve('openai')),
   isAnyApiKeyConfigured: mock(() => Promise.resolve(false)),
 }));
+const noopLog = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../../config/logger', () => ({
-  createLogger: () => ({
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {},
-  }),
+  createLogger: () => noopLog,
+  // task-mutations imports `{ logger }` directly; omitting it makes the whole
+  // module fail to link ("export 'logger' not found").
+  logger: noopLog,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
 const {
@@ -75,6 +84,10 @@ function resetAllMocks() {
   mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
     fn(mockPrisma),
   );
+  // Restore a resolving default after reset — createTask chains
+  // `notification.create(...).catch(...)`, so a reset (undefined-returning) mock
+  // would throw on `.catch` of undefined.
+  mockPrisma.notification.create.mockResolvedValue({ id: 1 });
 }
 
 // ============ createTask ============

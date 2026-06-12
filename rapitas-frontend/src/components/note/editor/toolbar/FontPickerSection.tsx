@@ -100,7 +100,7 @@ export function FontPickerSection({
               (e.target as HTMLInputElement).blur();
             }
           }}
-          className="w-10 px-0.5 text-center text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-indigo-500 h-6 rounded"
+          className="w-10 px-0.5 text-center text-xs bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 focus:outline-none focus:border-blue-400 h-6 rounded"
           title="フォントサイズ"
         />
         <button

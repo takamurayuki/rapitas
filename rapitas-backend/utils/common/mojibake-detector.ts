@@ -302,3 +302,45 @@ export function sanitizeMarkdownContent(text: string): SanitizeResult {
     fixedLength: content.length,
   };
 }
+
+export interface ReplacementLossResult {
+  /** True when the text shows wholesale UTF-8 → '?' replacement (irrecoverable). */
+  detected: boolean;
+  /** Number of runs of 2+ consecutive '?'. */
+  runs: number;
+  /** Total '?' characters inside those runs. */
+  count: number;
+  /** Longest single run of consecutive '?'. */
+  longest: number;
+}
+
+/**
+ * Detects irreversible UTF-8 → ASCII '?' replacement corruption — e.g. when a
+ * Windows PowerShell pipeline sends non-ASCII through its default US-ASCII
+ * OutputEncoding, collapsing every Japanese character to '?'.
+ *
+ * Unlike Latin-1 mojibake this CANNOT be repaired (the original bytes are gone),
+ * so callers should REJECT the content and request a UTF-8 re-send rather than
+ * attempt a fix. Distinct from sanitizeMarkdownContent, which only handles
+ * recoverable corruption.
+ *
+ * Heuristic: runs of 2+ consecutive '?' are rare in legitimate prose/code but
+ * pervasive when whole words collapse to '?'. Require several such runs (or one
+ * long run) so an occasional literal "??" is not flagged.
+ *
+ * @param text - Content to inspect. / 検査対象テキスト
+ * @returns Detection result with run statistics. / 検出結果
+ */
+export function detectReplacementLoss(text: string): ReplacementLossResult {
+  // Match runs of 3+ consecutive '?'. NOTE: we intentionally IGNORE 2-'?' runs —
+  // "a ?? b" (nullish coalescing) and similar are common in code/markdown and
+  // produced false positives. UTF-8 -> '?' mojibake collapses multi-char words
+  // into runs of 3+ '?', so a 3+ threshold still catches real corruption.
+  const matches = text.match(/\?{3,}/g) ?? [];
+  const runs = matches.length;
+  const count = matches.reduce((sum, m) => sum + m.length, 0);
+  const longest = matches.reduce((max, m) => Math.max(max, m.length), 0);
+  // Several 3+ runs, or one long run, is a confident corruption signal.
+  const detected = runs >= 3 || longest >= 8;
+  return { detected, runs, count, longest };
+}

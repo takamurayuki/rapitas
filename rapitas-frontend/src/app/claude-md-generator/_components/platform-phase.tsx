@@ -5,6 +5,7 @@ import React from 'react';
 import { PLATFORMS, SCALES, PRIORITIES } from '../_utils/constants';
 import { PageWrap } from './page-wrap';
 import { DotIcon } from './icons';
+import { WizardIcon } from './wizard-icons';
 
 interface PlatformPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -73,8 +74,17 @@ export function PlatformPhase({
               >
                 <div className="card-check">{sel && <DotIcon />}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {p.icon} {t('plat_' + p.id)}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <WizardIcon name={p.icon} size={16} />
+                    <span>{t('plat_' + p.id)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {t('plat_' + p.id + '_desc')}
@@ -116,8 +126,17 @@ export function PlatformPhase({
               >
                 <div className="card-check">{sel && <DotIcon />}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {s.icon} {t('scale_' + s.id)}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <WizardIcon name={s.icon} size={16} />
+                    <span>{t('scale_' + s.id)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {t('scale_' + s.id + '_desc')}
@@ -159,8 +178,17 @@ export function PlatformPhase({
               >
                 <div className="card-check">{sel && <DotIcon />}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {p.icon} {t('prio_' + p.id)}
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <WizardIcon name={p.icon} size={16} />
+                    <span>{t('prio_' + p.id)}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {t('prio_' + p.id + '_desc')}

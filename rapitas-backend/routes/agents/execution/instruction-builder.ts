@@ -43,6 +43,43 @@ export interface AttachmentDescriptor {
   description?: string;
 }
 
+/** Structured task spec injected into the agent prompt with emphasis. */
+export interface TaskSpec {
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
+}
+
+/**
+ * Builds an emphasized spec section (goals=必達 / constraints=⚠️違反不可 /
+ * acceptance=✅) for the agent prompt, or '' when no spec items exist.
+ *
+ * @param spec - Structured task spec / 構造化タスク仕様
+ * @returns Markdown section string (leading blank lines included) / マークダウンセクション
+ */
+function buildSpecSection(spec?: TaskSpec): string {
+  const goals = spec?.goals ?? [];
+  const constraints = spec?.constraints ?? [];
+  const acceptance = spec?.acceptanceCriteria ?? [];
+  if (goals.length === 0 && constraints.length === 0 && acceptance.length === 0) return '';
+
+  const lines: string[] = ['\n\n## タスク仕様（必達）'];
+  if (goals.length > 0) {
+    lines.push('### 達成すべきゴール');
+    goals.forEach((g, i) => lines.push(`${i + 1}. ${g}`));
+  }
+  if (constraints.length > 0) {
+    lines.push('### 制約条件（違反不可）');
+    constraints.forEach((c) => lines.push(`- ⚠️ ${c}`));
+  }
+  if (acceptance.length > 0) {
+    lines.push('### 受入基準（すべて満たすこと）');
+    acceptance.forEach((a) => lines.push(`- ✅ ${a}`));
+    lines.push('\nverify.md には各受入基準ごとの達成状況を必ず記録してください。');
+  }
+  return lines.join('\n');
+}
+
 /**
  * Builds the full instruction string for the agent worker.
  *
@@ -66,6 +103,8 @@ export function buildFullInstruction(params: {
   /** Whether the agent should follow the research → plan → approval workflow.
    *  Defaults to true so ad-hoc executions don't skip planning. */
   enforceWorkflow?: boolean;
+  /** Structured spec (goals/constraints/acceptance) injected with emphasis. */
+  taskSpec?: TaskSpec;
 }): string {
   const {
     taskTitle,
@@ -76,6 +115,7 @@ export function buildFullInstruction(params: {
     workingDirectory,
     taskId,
     enforceWorkflow = true,
+    taskSpec,
   } = params;
 
   let fullInstruction: string;
@@ -88,6 +128,9 @@ export function buildFullInstruction(params: {
       ? `${taskDescription || taskTitle}\n\nAdditional instructions:\n${instruction}`
       : taskDescription || taskTitle;
   }
+
+  // Inject the structured spec (goals/constraints/acceptance) with emphasis.
+  fullInstruction += buildSpecSection(taskSpec);
 
   // NOTE: Explicitly tell the agent where to work so it doesn't default to rapitas project.
   if (workingDirectory) {

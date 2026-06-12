@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { CopilotMessage } from './useCopilotChat';
 import type { AnalysisData } from './copilot-chat-types';
+import { MarkdownView } from '../markdown/MarkdownView';
 
 /**
  * Badge showing the AI tier used (local, haiku, sonnet) or cache indicator.
@@ -70,6 +71,7 @@ export function AnalysisResultCard({
   const subtasks = data.suggestedSubtasks ?? [];
   const [selected, setSelected] = useState<number[]>(() => subtasks.map((_, i) => i));
   const [created, setCreated] = useState(false);
+  const [estimateApplied, setEstimateApplied] = useState(false);
 
   const toggleSubtask = useCallback((index: number) => {
     setSelected((prev) =>
@@ -93,10 +95,29 @@ export function AnalysisResultCard({
   return (
     <div className="mt-2 space-y-2">
       <div className="rounded-lg bg-violet-50/70 px-3 py-2 dark:bg-violet-900/20">
-        <div className="flex items-center gap-2 text-[11px] text-violet-600 dark:text-violet-400">
-          <span className="font-medium">複雑度: {data.complexity}</span>
-          <span>|</span>
-          <span>推定: {data.estimatedTotalHours}h</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[11px] text-violet-600 dark:text-violet-400">
+            <span className="font-medium">複雑度: {data.complexity}</span>
+            <span>|</span>
+            <span>推定: {data.estimatedTotalHours}h</span>
+          </div>
+          {data.estimatedTotalHours != null &&
+            (estimateApplied ? (
+              <span className="flex shrink-0 items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                <CheckCircle2 className="w-2.5 h-2.5" />
+                反映済み
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  onAction?.('update_estimate', { estimatedHours: data.estimatedTotalHours });
+                  setEstimateApplied(true);
+                }}
+                className="shrink-0 rounded border border-violet-300 px-2 py-0.5 text-[10px] font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-700 dark:text-violet-300 dark:hover:bg-violet-900/30"
+              >
+                見積もりを反映
+              </button>
+            ))}
         </div>
         <p className="mt-1 text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2">{data.summary}</p>
       </div>
@@ -222,8 +243,13 @@ export function MessageBubble({
       >
         {isAnalysis ? (
           <AnalysisResultCard data={msg.actionData!.data as AnalysisData} onAction={onAction} />
-        ) : (
+        ) : isUser ? (
+          // User input is plain text, not markdown.
           <p className="whitespace-pre-wrap">{msg.content}</p>
+        ) : (
+          // Assistant content (incl. the retrospective) is markdown — render it
+          // with the same styling as the workflow file viewer.
+          <MarkdownView content={msg.content} />
         )}
         {!isUser && !isAnalysis && (
           <div className="mt-2 flex items-center justify-between">
@@ -269,7 +295,7 @@ export function ProactiveInsight({
       text: '着手前です。アプローチの壁打ちをしませんか？',
       color: 'text-amber-500',
     });
-  else if (taskStatus === 'in_progress')
+  else if (taskStatus === 'in-progress')
     insights.push({
       icon: ArrowRight,
       text: '進行中です。詰まっている点はありませんか？',

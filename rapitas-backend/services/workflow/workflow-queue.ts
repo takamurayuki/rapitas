@@ -29,6 +29,8 @@ export interface EnqueueOptions {
   priority?: number;
   dependencies?: number[];
   orchestraSessionId?: number;
+  /** Set by the theme auto-run scheduler to scope concurrency and completion tracking. */
+  themeId?: number;
 }
 
 export interface QueueState {
@@ -64,7 +66,7 @@ export class WorkflowQueueService {
    * Enqueue a task.
    */
   async enqueue(options: EnqueueOptions): Promise<QueueItem> {
-    const { taskId, priority = 50, dependencies = [], orchestraSessionId } = options;
+    const { taskId, priority = 50, dependencies = [], orchestraSessionId, themeId } = options;
 
     // Verify task exists
     const task = await prisma.task.findUnique({ where: { id: taskId } });
@@ -88,6 +90,7 @@ export class WorkflowQueueService {
       data: {
         taskId,
         orchestraSessionId: orchestraSessionId ?? null,
+        themeId: themeId ?? null,
         priority,
         status: 'queued',
         currentPhase: (task.workflowStatus as string) || 'draft',
@@ -131,6 +134,46 @@ export class WorkflowQueueService {
             },
           });
           if (incompleteDeps > 0) continue;
+        }
+
+        // Strict sequential execution for sibling subtasks (same parent): run
+        // ONE at a time, in creation (id) order. Plan-split subtasks share the
+        // parent's git worktree and often build on each other, so running them
+        // concurrently risks conflicts and lower quality — hold a candidate back
+        // while any sibling is active, or while an earlier-created sibling is
+        // still pending. Non-subtasks (no parentId) are unaffected.
+        const candidateTask = await prisma.task.findUnique({
+          where: { id: candidate.taskId },
+          select: { parentId: true },
+        });
+        if (candidateTask?.parentId != null) {
+          const siblings = await prisma.task.findMany({
+            where: { parentId: candidateTask.parentId, id: { not: candidate.taskId } },
+            select: { id: true },
+          });
+          const siblingIds = siblings.map((s) => s.id);
+          if (siblingIds.length > 0) {
+            const activeSibling = await prisma.workflowQueueItem.count({
+              where: {
+                taskId: { in: siblingIds },
+                orchestraSessionId: candidate.orchestraSessionId,
+                status: { in: ['running', 'waiting_approval'] },
+              },
+            });
+            if (activeSibling > 0) continue; // a sibling is already running
+
+            const earlierIds = siblingIds.filter((id) => id < candidate.taskId);
+            if (earlierIds.length > 0) {
+              const earlierPending = await prisma.workflowQueueItem.count({
+                where: {
+                  taskId: { in: earlierIds },
+                  orchestraSessionId: candidate.orchestraSessionId,
+                  status: { in: ['queued', 'running', 'waiting_approval'] },
+                },
+              });
+              if (earlierPending > 0) continue; // earlier-created sibling goes first
+            }
+          }
         }
 
         // Start execution (transaction prevents race conditions)
@@ -197,13 +240,30 @@ export class WorkflowQueueService {
   /**
    * Check if retry is possible and execute retry.
    */
-  async retryIfPossible(itemId: number): Promise<boolean> {
+  async retryIfPossible(itemId: number, reason?: string): Promise<boolean> {
     const item = await prisma.workflowQueueItem.findUnique({ where: { id: itemId } });
     if (!item) return false;
 
+    // Do NOT resurrect an item that was stopped/cancelled externally (e.g. the
+    // user stopped auto-run, which cancels the queue item AND kills the agent).
+    // The kill makes the phase fail, and without this guard the failure path
+    // re-queued the cancelled item back to 'queued' → it was re-dequeued and a
+    // NEW agent spawned, so "stop" never actually stopped. Manual stop is not
+    // driven by this runner loop, which is why only auto-run was affected.
+    if (item.status === 'cancelled' || item.status === 'completed') {
+      log.info(
+        `[WorkflowQueue] Skipping retry for item ${itemId} — already ${item.status} (external stop)`,
+      );
+      return false;
+    }
+
     if (item.retryCount >= item.maxRetries) {
+      // Preserve the underlying failure reason instead of masking every
+      // failure behind the generic "Max retries exceeded" message.
       await this.updateStatus(itemId, 'failed', {
-        errorMessage: `Max retries (${item.maxRetries}) exceeded`,
+        errorMessage: reason
+          ? `Max retries (${item.maxRetries}) exceeded — last error: ${reason}`
+          : `Max retries (${item.maxRetries}) exceeded`,
       });
       return false;
     }
@@ -214,7 +274,8 @@ export class WorkflowQueueService {
         status: 'queued',
         retryCount: item.retryCount + 1,
         startedAt: null,
-        errorMessage: null,
+        // Keep the latest failure reason visible while queued for the retry.
+        errorMessage: reason ?? null,
       },
     });
     log.info(`[WorkflowQueue] Retry ${item.retryCount + 1}/${item.maxRetries} for item ${itemId}`);

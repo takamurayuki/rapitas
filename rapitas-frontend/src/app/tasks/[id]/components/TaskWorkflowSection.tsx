@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import type { Task } from '@/types';
 import type { WorkflowStatus } from '@/types';
 import WorkflowViewer from '@/components/workflow/WorkflowViewer';
-import WorkflowStatusIndicator, {
-  WorkflowProgress,
-} from '@/components/workflow/WorkflowStatusIndicator';
-import { Loader2 } from 'lucide-react';
+import WorkflowStatusIndicator from '@/components/workflow/WorkflowStatusIndicator';
+import { Loader2, Feather, Gauge, Layers, type LucideIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL } from '@/utils/api';
 
@@ -83,23 +81,80 @@ export default function TaskWorkflowSection({
         ? 'subtask-global'
         : undefined;
 
+  // Colour + icon the complexity chip by workflow mode so the tier is legible
+  // at a glance (low→high = emerald/Feather → amber/Gauge → rose/Layers). A
+  // mode-specific icon also avoids clashing with the auto-approve chip's dot.
+  const MODE_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
+    lightweight: {
+      chip: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+      icon: Feather,
+    },
+    standard: {
+      chip: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      icon: Gauge,
+    },
+    comprehensive: {
+      chip: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+      icon: Layers,
+    },
+  };
+  const MODE_LABELS: Record<string, string> = {
+    lightweight: '軽量',
+    standard: '標準',
+    comprehensive: '包括',
+  };
+  const complexity = task?.complexityScore;
+  const modeLabel = task?.workflowMode
+    ? (MODE_LABELS[task.workflowMode] ?? task.workflowMode)
+    : null;
+  const modeStyle = task?.workflowMode ? MODE_STYLES[task.workflowMode] : undefined;
+  // Brand-coloured fallback keeps the chip visible when the mode is unknown.
+  const complexityChipClass =
+    modeStyle?.chip ?? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+  const ComplexityIcon = modeStyle?.icon ?? Gauge;
+
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 mb-6">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{t('title')}</h3>
             <WorkflowStatusIndicator status={currentWorkflowStatus} size="sm" />
+            {/* Loading spinner lives on the left so the right chips end flush
+                with the card padding (matching the title's left inset). */}
+            {isWorkflowLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
           </div>
-          <Loader2
-            className={`h-4 w-4 text-zinc-400 animate-spin transition-opacity ${isWorkflowLoading ? 'opacity-100' : 'opacity-0'}`}
-          />
+          <div className="flex items-center gap-2">
+            {(modeLabel || complexity != null) && (
+              <span
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${complexityChipClass}`}
+                title={
+                  modeLabel
+                    ? `ワークフロー: ${modeLabel}${task?.workflowModeOverride ? '（手動指定）' : '（複雑度から自動選択）'}`
+                    : undefined
+                }
+              >
+                <ComplexityIcon className="h-3.5 w-3.5" />
+                {modeLabel ?? 'ワークフロー'}
+                {complexity != null ? ` · 複雑度 ${Math.round(complexity)}` : ''}
+                {task?.workflowModeOverride ? '（手動）' : ''}
+              </span>
+            )}
+            <span
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                effectiveAutoApprove
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                  : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+              }`}
+              title={`計画自動承認: ${effectiveAutoApprove ? 'ON（plan.md 保存で自動進行）' : 'OFF（手動承認が必要）'}`}
+            >
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${effectiveAutoApprove ? 'bg-emerald-500' : 'bg-zinc-400'}`}
+              />
+              自動承認 {effectiveAutoApprove ? 'ON' : 'OFF'}
+            </span>
+          </div>
         </div>
-        {currentWorkflowStatus && (
-          <div className="mt-3">
-            <WorkflowProgress currentStatus={currentWorkflowStatus} />
-          </div>
-        )}
       </div>
 
       <WorkflowViewer

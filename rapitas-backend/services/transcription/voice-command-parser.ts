@@ -30,11 +30,6 @@ const NAV_COMMANDS: Array<{ keywords: string[]; path: string; label: string }> =
   { keywords: ['カレンダー', 'calendar', '予定'], path: '/calendar', label: 'カレンダー' },
   { keywords: ['カンバン', 'kanban', 'ボード'], path: '/kanban', label: 'カンバン' },
   { keywords: ['設定', 'settings', '環境設定'], path: '/settings', label: '設定' },
-  {
-    keywords: ['フラッシュカード', 'flashcard', '暗記カード'],
-    path: '/flashcards',
-    label: 'フラッシュカード',
-  },
   { keywords: ['試験', '試験目標', 'exam', 'テスト'], path: '/exam-goals', label: '試験目標' },
   { keywords: ['学習目標', 'learning goal'], path: '/learning-goals', label: '学習目標' },
   {

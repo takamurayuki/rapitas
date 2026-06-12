@@ -30,6 +30,7 @@ export type UseExecutionManagerOptions = {
   onExecute: (options?: {
     instruction?: string;
     branchName?: string;
+    baseBranch?: string;
     useTaskAnalysis?: boolean;
     optimizedPrompt?: string;
     agentConfigId?: number;
@@ -70,6 +71,9 @@ export type UseExecutionManagerResult = {
   setInstruction: (v: string) => void;
   branchName: string;
   setBranchName: (v: string) => void;
+  baseBranch: string;
+  setBaseBranch: (v: string) => void;
+  baseBranches: string[];
   isGeneratingBranchName: boolean;
   userResponse: string;
   setUserResponse: (v: string) => void;

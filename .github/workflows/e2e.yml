@@ -1,0 +1,75 @@
+# E2E Restart-Loop Smoke — CI Pipeline
+#
+# Validates that the backend server survives N restart cycles and recovers
+# health each cycle. Triggered on backend changes in pull requests.
+#
+# Port isolation: the smoke script runs on PORT=3210, never touching 3001.
+# See restart-loop-smoke.ts for the full isolation rationale.
+
+name: E2E Restart-Loop Smoke
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'rapitas-backend/**'
+  workflow_dispatch:
+
+jobs:
+  restart-loop-smoke:
+    name: Restart Loop Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: rapitas
+          POSTGRES_PASSWORD: rapitas
+          POSTGRES_DB: rapitas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Setup database schema
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_test
+        run: |
+          bunx prisma db push --skip-generate
+          bun run db:generate
+
+      - name: Run unit tests for smoke helpers
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_test
+        run: bun test scripts/__tests__/restart-loop-smoke.test.ts
+
+      - name: Run restart-loop smoke (E2E)
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://rapitas:rapitas@localhost:5432/rapitas_test
+          # NOTE: PORT must not be 3001 or 3000; smoke script enforces this guard.
+          PORT: 3210
+          NODE_ENV: test
+          E2E_CYCLES: 3
+          HEALTH_TIMEOUT_MS: 30000
+          PORT_FREE_TIMEOUT_MS: 10000
+        run: bun run e2e

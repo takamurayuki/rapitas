@@ -115,6 +115,14 @@ export function useWorkflowHandlers({
       });
       const data = await response.json();
       if (data.success) {
+        // Also move the task's own status to 'done'. Setting only
+        // workflowStatus left the task showing as in-progress, so the manual
+        // "complete" action appeared to do nothing.
+        await fetch(`${API_BASE}/tasks/${taskId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'done' }),
+        }).catch((err) => logger.error('Error marking task done:', err));
         setCurrentWorkflowStatus('completed');
         refetchWorkflowFiles();
         onTaskUpdated?.();
@@ -122,7 +130,7 @@ export function useWorkflowHandlers({
     } catch (err) {
       logger.error('Error completing workflow:', err);
     }
-  }, [taskId, refetchWorkflowFiles, onTaskUpdated]);
+  }, [taskId, refetchWorkflowFiles, onTaskUpdated, setCurrentWorkflowStatus]);
 
   return {
     currentWorkflowStatus,

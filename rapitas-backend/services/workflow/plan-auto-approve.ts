@@ -17,6 +17,36 @@ import { recordTransition } from './transition-recorder';
 
 const log = createLogger('plan-auto-approve');
 
+/**
+ * Resolves whether the plan WILL be auto-approved for this task: task-level flag
+ * OR the global userSettings flag OR (for subtasks) the subtask flag — the SAME
+ * condition maybeAutoApprovePlan uses to flip the status.
+ *
+ * NOTE: the agent prompt must branch on this EFFECTIVE value, not just the
+ * task-level flag. Otherwise, with only the global setting enabled, the prompt
+ * tells the agent to "stop and wait for approval" while the plan is silently
+ * auto-approved — so the run ends at plan.md and never implements.
+ *
+ * @param taskId - Task whose plan policy is being resolved. / 対象タスク
+ * @returns True when the plan will be auto-approved. / 自動承認されるか
+ */
+export async function resolveEffectiveAutoApprovePlan(taskId: number): Promise<boolean> {
+  const [userSettings, task] = await Promise.all([
+    prisma.userSettings.findFirst().catch(() => null),
+    prisma.task
+      .findUnique({ where: { id: taskId }, select: { autoApprovePlan: true, parentId: true } })
+      .catch(() => null),
+  ]);
+  if (!task) return false;
+  const isSubtask = task.parentId !== null && task.parentId !== undefined;
+  const settings = userSettings as Record<string, unknown> | null;
+  return (
+    !!task.autoApprovePlan ||
+    !!settings?.autoApprovePlan ||
+    (isSubtask && !!settings?.autoApproveSubtaskPlan)
+  );
+}
+
 export interface PlanAutoApproveResult {
   /** Effective status after this helper runs. */
   newStatus: 'plan_created' | 'plan_approved';

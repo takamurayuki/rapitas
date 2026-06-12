@@ -64,6 +64,11 @@ export const resetRoute = new Elysia().post(
           where: { id: taskId },
           data: {
             status: 'todo',
+            // Reset the workflow too. Without this a prior terminal/advanced
+            // workflowStatus (completed / verify_done / plan_approved) lingered,
+            // so the UI still treated the task as done and the run button stayed
+            // unavailable after a reset.
+            workflowStatus: 'draft',
             startedAt: null,
             completedAt: null,
           },
@@ -96,9 +101,12 @@ export const resetRoute = new Elysia().post(
           await prisma.agentExecution.updateMany({
             where: { id: { in: executionIds } },
             data: {
-              status: 'cancelled',
+              // 'reset' (not 'cancelled') so a deliberate reset is distinguishable
+              // from a mid-run cancel — clearer in history and avoids "キャンセル"
+              // wording when the previous run had actually completed.
+              status: 'reset',
               output: '',
-              errorMessage: 'Reset by user',
+              errorMessage: 'リセットされました',
               question: null,
               questionType: null,
               questionDetails: null,
@@ -140,9 +148,9 @@ export const resetRoute = new Elysia().post(
         await prisma.agentSession.update({
           where: { id: latestSession.id },
           data: {
-            status: 'cancelled',
+            status: 'reset',
             completedAt: new Date(),
-            errorMessage: 'Reset by user',
+            errorMessage: 'リセットされました',
             worktreePath: null,
           },
         });
@@ -173,6 +181,9 @@ export const resetRoute = new Elysia().post(
         where: { id: taskId },
         data: {
           status: 'todo',
+          // Reset the workflow so the task runs from the start again (see note
+          // in the no-config branch above).
+          workflowStatus: 'draft',
           startedAt: null,
           completedAt: null,
         },

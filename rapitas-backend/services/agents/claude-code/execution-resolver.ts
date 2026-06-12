@@ -27,6 +27,8 @@ export interface ResolverContext {
 
   // Buffers and accumulated state
   outputBuffer: string;
+  /** Clean FINAL assistant message from the stream-json `result` event. */
+  finalResultText: string;
   errorBuffer: string;
   lineBuffer: string;
   detectedQuestion: QuestionWaitingState;
@@ -53,6 +55,14 @@ export interface ResolverContext {
  * @param resolve - Promise resolver from execute() / execute()のPromiseリゾルバー
  * @param getArtifacts - Lazy getter for the parsed artifacts / アーティファクト取得
  * @param getCommits - Lazy getter for the parsed commits / コミット取得
+ * @param checkPlanCreated - Async check for whether the agent created a plan
+ *   awaiting approval (so "no code changes" is a pause, not a failure) /
+ *   承認待ちのプランを作成したか（コード変更なしを失敗ではなく一時停止として扱うため）
+ * @param investigationMode - When true, skip the git-diff check and return success if
+ *   meaningful output is present. Mirrors the codex contract (success === exit 0 with output).
+ *   Empty output still falls through to the existing no-change failure path. /
+ *   trueの場合、git-diffチェックをスキップし、有意な出力があれば成功を返す。
+ *   出力が空の場合は従来の失敗パスにフォールスルーする
  * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
  */
 export function buildResolveAfterParse(
@@ -63,12 +73,18 @@ export function buildResolveAfterParse(
   resolve: (result: AgentExecutionResult) => void,
   getArtifacts: () => AgentArtifact[],
   getCommits: () => GitCommitInfo[],
+  checkPlanCreated?: () => Promise<boolean>,
+  investigationMode?: boolean,
 ): () => void {
   return () => {
     const artifacts = getArtifacts();
     const commits = getCommits();
     const executionTimeMs = Date.now() - startTime;
     const usage = ctx.workerResultUsage;
+    // The clean final assistant message — investigation phases save this
+    // instead of the noisy concatenated outputBuffer. Folded into usageFields
+    // so every resolve() path below carries it.
+    const finalMessage = ctx.finalResultText?.trim() || undefined;
     /** Spread real-cost fields (from stream-json `result`) into the resolved value. */
     const usageFields: Partial<AgentExecutionResult> = usage
       ? {
@@ -83,8 +99,9 @@ export function buildResolveAfterParse(
             (usage.outputTokens ?? 0) +
             (usage.cacheReadInputTokens ?? 0) +
             (usage.cacheCreationInputTokens ?? 0),
+          finalMessage,
         }
-      : {};
+      : { finalMessage };
 
     logger.info(`${ctx.logPrefix} Running question detection...`);
     logger.info(
@@ -230,6 +247,37 @@ export function buildResolveAfterParse(
       );
     }
 
+    // investigation mode (research/plan/review): file mutation is blocked by
+    // --disallowedTools, so git diff is ALWAYS empty by design. Skipping the
+    // diff check here prevents a successful read-only phase from being reported
+    // as a "no code changes" failure (which fired a spurious ERROR log + daily
+    // false concern). Mirrors the codex contract (success === exit 0).
+    if (investigationMode) {
+      const hasMeaningfulOutput =
+        (finalMessage?.length ?? 0) > 0 || ctx.outputBuffer.trim().length >= 200;
+      if (hasMeaningfulOutput) {
+        logger.info(
+          `${ctx.logPrefix} Investigation mode: meaningful output present, resolving as success (skipping git diff check)`,
+        );
+        ctx.status = 'completed'; // determineExecutionStatus remaps to post_processing for investigation
+        resolve({
+          success: true,
+          output: ctx.outputBuffer,
+          artifacts,
+          commits,
+          executionTimeMs,
+          waitingForInput: false,
+          claudeSessionId: ctx.claudeSessionId || undefined,
+          ...usageFields,
+        });
+        return;
+      }
+      // empty output → fall through to the existing no-change failure path
+      logger.info(
+        `${ctx.logPrefix} Investigation mode: output is empty, falling through to no-change failure path`,
+      );
+    }
+
     // NOTE: On success (code === 0) or idle-hang kill, verify actual changes via git diff.
     // File-modifying tools (Write/Edit) may have been called in plan mode (EnterPlanMode)
     // or via sub-agents (Task) without actually modifying files.
@@ -237,7 +285,7 @@ export function buildResolveAfterParse(
     logger.info(`${ctx.logPrefix} hasFileModifyingToolCalls: ${ctx.hasFileModifyingToolCalls}`);
 
     checkGitDiff(workDir, ctx.logPrefix)
-      .then((hasChanges) => {
+      .then(async (hasChanges) => {
         if (hasChanges) {
           logger.info(`${ctx.logPrefix} Git diff confirmed changes, setting status to completed`);
           ctx.status = 'completed';
@@ -256,6 +304,24 @@ export function buildResolveAfterParse(
           // (rare case, e.g. agent committed & reset). Trust tool usage as completed.
           logger.info(
             `${ctx.logPrefix} No git changes but file-modifying tools were used, setting status to completed`,
+          );
+          ctx.status = 'completed';
+          resolve({
+            success: true,
+            output: ctx.outputBuffer,
+            artifacts,
+            commits,
+            executionTimeMs,
+            waitingForInput: false,
+            claudeSessionId: ctx.claudeSessionId || undefined,
+            ...usageFields,
+          });
+        } else if (checkPlanCreated && (await checkPlanCreated().catch(() => false))) {
+          // A plan was saved and the task is awaiting approval. The agent
+          // correctly stopped at the approval gate, so this is a successful
+          // pause — not a failure. The approval workflow drives the next step.
+          logger.info(
+            `${ctx.logPrefix} No code changes, but a plan was created — awaiting approval (treating as success, not failure)`,
           );
           ctx.status = 'completed';
           resolve({

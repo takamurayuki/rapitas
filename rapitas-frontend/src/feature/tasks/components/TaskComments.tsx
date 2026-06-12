@@ -38,7 +38,7 @@ export default function TaskComments({
         <textarea
           value={newComment}
           onChange={(e) => onNewCommentChange(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-blue-400 font-mono"
           rows={3}
           placeholder="コメントを追加... (マークダウン対応)"
         />

@@ -227,6 +227,40 @@ export async function saveExecutionResult(
       });
     }
   }
+
+  // Self-learning bookkeeping: persist a WorkflowLearningRecord on terminal
+  // status so analyzeTaskComplexityWithLearning + maybePromoteFailurePattern
+  // get fresh signal. Wrapped to never throw — the agent flow must not be
+  // affected by recorder errors.
+  if (executionStatus === 'completed' || executionStatus === 'failed') {
+    try {
+      // taskId は AgentExecution → AgentSession → DeveloperModeConfig → taskId のチェーンで辿る
+      const execution = await prisma.agentExecution.findUnique({
+        where: { id: executionId },
+        select: { session: { select: { config: { select: { taskId: true } } } } },
+      });
+      const taskId = execution?.session?.config?.taskId;
+      if (typeof taskId === 'number') {
+        const { recordWorkflowExecution } =
+          await import('../../self-learning/workflow-learning-recorder');
+        const elapsedMin = result.executionTimeMs
+          ? Math.round(result.executionTimeMs / 60000)
+          : null;
+        await recordWorkflowExecution(prisma as never, {
+          taskId,
+          outcome: executionStatus,
+          actualDurationMinutes: elapsedMin,
+          errorMessage: result.errorMessage ?? null,
+          modelName: result.modelName ?? null,
+        });
+      }
+    } catch (err) {
+      // Defensive: never let recorder failure escalate.
+      // (logger import would create a cycle; rely on console for the rare case.)
+      // eslint-disable-next-line no-console
+      console.warn('[execution-persistence] learning recorder failed:', err);
+    }
+  }
 }
 
 /**

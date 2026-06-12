@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { AppError } from '../../middleware/error-handler';
 import { createLogger } from '../../config/logger';
+import { getInsensitiveMode } from '../../config/db-provider';
 import {
   getFrequencyBasedSuggestions,
   generateAISuggestions,
@@ -36,20 +37,31 @@ export const taskSuggestionRoutes = new Elysia({ prefix: '/tasks' })
       // Split query for multi-word search
       const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-      const whereCondition: Prisma.TaskWhereInput = {
+      // NOTE: AND を後段で push するため、TaskWhereInput のユニオン (TaskWhereInput | TaskWhereInput[])
+      // ではなく明示的に配列型に narrow した interface を使う。
+      const andConditions: Prisma.TaskWhereInput[] = [];
+      const whereCondition: Prisma.TaskWhereInput & { AND: Prisma.TaskWhereInput[] } = {
         parentId: null,
-        AND: [],
+        AND: andConditions,
       };
 
-      // Multi-word search (title + optional description)
+      // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
+      // omits the field from StringFilter, causing PrismaClientValidationError at
+      // runtime. getInsensitiveMode() centralises the provider check and also
+      // fixes the missing DATABASE_URL check that existed here previously.
+      // TODO: For case-insensitive desktop search, add a separate lowercased column.
+      const insensitive = getInsensitiveMode();
       const searchConditions = words.map((word) => {
         const conditions: Prisma.TaskWhereInput[] = [
-          { title: { contains: word, mode: 'insensitive' } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { title: { contains: word, ...insensitive } as any },
         ];
 
-        // Include description in search when searchDescription is true
         if (searchDescription === 'true') {
-          conditions.push({ description: { contains: word, mode: 'insensitive' } });
+          conditions.push({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            description: { contains: word, ...insensitive } as any,
+          });
         }
 
         return { OR: conditions };

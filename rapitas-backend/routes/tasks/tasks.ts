@@ -26,6 +26,45 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     return { message: 'test endpoint working' };
   })
 
+  // Resolve the working directory + label for an integrated terminal opened
+  // from a task: prefer the task's active git worktree, else its configured
+  // working directory, else the repo root.
+  .get(
+    '/:id/terminal-context',
+    async ({ params, set }) => {
+      const id = parseInt(params.id, 10);
+      if (Number.isNaN(id)) {
+        set.status = 400;
+        return { error: 'Invalid task id' };
+      }
+      const task = await prisma.task.findUnique({
+        where: { id },
+        select: {
+          title: true,
+          workingDirectory: true,
+          theme: { select: { workingDirectory: true } },
+        },
+      });
+      if (!task) {
+        set.status = 404;
+        return { error: 'Task not found' };
+      }
+      const session = await prisma.agentSession.findFirst({
+        where: { worktreePath: { not: null }, config: { taskId: id } },
+        orderBy: { id: 'desc' },
+        select: { worktreePath: true },
+      });
+      // Resolution order: active worktree → task dir → theme dir → repo root.
+      const cwd =
+        session?.worktreePath ||
+        task.workingDirectory ||
+        task.theme?.workingDirectory ||
+        getProjectRoot();
+      return { cwd, title: task.title };
+    },
+    { params: t.Object({ id: t.String() }) },
+  )
+
   // Get task statistics
   .get('/statistics', async () => {
     try {
@@ -82,7 +121,14 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         prisma.task.findMany({
           where: {
             ...baseWhere,
-            updatedAt: { gt: sinceDate },
+            // Surface a parent when EITHER it changed OR any of its subtasks
+            // changed. A subtask status change does not bump the parent's
+            // updatedAt, so without the subtask clause the parent's nested
+            // `subtasks` (and the card's progress bar / status) never refreshed.
+            OR: [
+              { updatedAt: { gt: sinceDate } },
+              { subtasks: { some: { updatedAt: { gt: sinceDate } } } },
+            ],
           },
           include: {
             subtasks: {
@@ -217,6 +263,10 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         examGoalId: t.Optional(t.Number()),
         isDeveloperMode: t.Optional(t.Boolean()),
         isAiTaskAnalysis: t.Optional(t.Boolean()),
+        goals: t.Optional(t.Array(t.String())),
+        constraints: t.Optional(t.Array(t.String())),
+        acceptanceCriteria: t.Optional(t.Array(t.String())),
+        searchMissId: t.Optional(t.Number()),
       }),
     },
   )
@@ -229,6 +279,54 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
       throw new ValidationError('無効なIDです');
     }
     return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
+  })
+
+  // Retry a task that auto-run parked as blocked (or that failed): return it to
+  // 'todo' so the next selection picks it up. Without this the only recovery
+  // path was manually editing the status — blocked tasks just accumulated.
+  .post('/:id/retry', async (context) => {
+    const { params, set } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError('無効なIDです');
+    }
+    const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
+    if (!task) {
+      set.status = 404;
+      return { error: 'タスクが見つかりません' };
+    }
+    if (task.status !== 'blocked' && task.status !== 'failed') {
+      throw new ValidationError('blocked / failed のタスクのみ再実行できます');
+    }
+
+    const updated = await prisma.task.update({ where: { id }, data: { status: 'todo' } });
+
+    await prisma.activityLog
+      .create({
+        data: {
+          taskId: id,
+          action: 'task_retried',
+          metadata: JSON.stringify({ from: task.status }),
+          createdAt: new Date(),
+        },
+      })
+      .catch(() => {});
+
+    // Mark the skip notification read — notifyOnce dedups on an UNREAD
+    // notification of the same task, so leaving it unread would suppress the
+    // alert if this retry fails and the task is skipped again.
+    await prisma.notification
+      .updateMany({
+        where: {
+          type: 'auto_run_task_skipped',
+          isRead: false,
+          metadata: { contains: `"dedupKey":"auto_run_task_skipped:${id}"` },
+        },
+        data: { isRead: true, readAt: new Date() },
+      })
+      .catch(() => {});
+
+    return updated;
   })
 
   // Delete task

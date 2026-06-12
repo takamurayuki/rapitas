@@ -54,7 +54,7 @@ export function ApiKeySetupPrompt({
               value={apiKeyInput}
               onChange={(e) => onApiKeyInputChange(e.target.value)}
               placeholder="sk-ant-api..."
-              className="w-full px-3 py-2 pr-10 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+              className="w-full px-3 py-2 pr-10 bg-white dark:bg-indigo-dark-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-400"
             />
             <button
               type="button"

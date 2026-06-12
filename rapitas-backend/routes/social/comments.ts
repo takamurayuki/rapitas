@@ -385,9 +385,17 @@ export const commentsRoutes = new Elysia()
         whereClause.taskId = parseInt(taskId);
       }
 
+      // `mode: 'insensitive'` is Postgres-only; SQLite (desktop) Prisma client omits
+      // `mode` from StringFilter and raises PrismaClientValidationError at runtime.
+      // Attach conditionally — same pattern as search-route.ts:62-65.
+      const isPostgres =
+        process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
+        !process.env.DATABASE_URL?.startsWith('file:');
+      const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
+
       // If search query provided, filter by content
       if (q && q.trim()) {
-        whereClause.content = { contains: q.trim(), mode: 'insensitive' };
+        whereClause.content = { contains: q.trim(), ...insensitive };
       }
 
       const comments = await prisma.comment.findMany({

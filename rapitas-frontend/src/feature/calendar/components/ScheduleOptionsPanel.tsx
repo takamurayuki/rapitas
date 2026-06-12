@@ -85,7 +85,7 @@ export function ScheduleOptionsPanel({
         onChange={(e) => setDescription(e.target.value)}
         placeholder="メモを追加..."
         rows={2}
-        className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 text-sm resize-none transition-all"
+        className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700/50 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none focus:border-blue-400 text-sm resize-none transition-all"
       />
     </div>
   );

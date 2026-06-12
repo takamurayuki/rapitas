@@ -19,12 +19,14 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { analyzeTaskComplexity } from '../../../services/workflow/complexity-analyzer';
+import { parseSpecArray } from '../../../utils/common';
 import { agentRateLimiter } from '../../../middleware/rate-limiter';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleExecuteResult } from './execute-post-handler';
 import { buildFullInstruction, fetchAnalysisInfo } from './instruction-builder';
 import { executeSetup } from './execute-setup';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import { resolveEffectiveAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 import {
   startWorktreeDependenciesInstall,
   taskNeedsDependencies,
@@ -53,6 +55,13 @@ export const executeRoute = new Elysia().post(
       timeout?: number;
       instruction?: string;
       branchName?: string;
+      /**
+       * Base branch the new feature branch is cut FROM and the PR targets.
+       * When omitted, falls back to the theme's defaultBranch (then 'develop').
+       * The new branch is created from `origin/<baseBranch>` and the PR is
+       * opened against the same branch (branch-from === PR-into).
+       */
+      baseBranch?: string;
       useTaskAnalysis?: boolean;
       optimizedPrompt?: string;
       sessionId?: number;
@@ -74,6 +83,7 @@ export const executeRoute = new Elysia().post(
       timeout,
       instruction,
       branchName,
+      baseBranch,
       useTaskAnalysis,
       optimizedPrompt,
       sessionId,
@@ -106,6 +116,22 @@ export const executeRoute = new Elysia().post(
       return { error: 'Task not found' };
     }
 
+    // Block manual execution while the theme's auto-run mode is active.
+    // The scheduler owns exclusive control; allow only when no auto-run is running/paused.
+    if (task.themeId) {
+      const { isThemeAutoRunActive } =
+        await import('../../../services/workflow/auto-run/theme-auto-run-service');
+      const autoRunActive = await isThemeAutoRunActive(task.themeId);
+      if (autoRunActive) {
+        context.set.status = 409;
+        return {
+          success: false,
+          error: 'このテーマは自動実行モード中です。手動実行するには自動実行を停止してください。',
+          code: 'AUTO_RUN_ACTIVE',
+        };
+      }
+    }
+
     if (!acquireTaskExecutionLock(taskIdNum)) {
       log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
       context.set.status = 409;
@@ -125,20 +151,31 @@ export const executeRoute = new Elysia().post(
           title: task.title,
           description: task.description,
           estimatedHours: task.estimatedHours,
-          labels: task.labels ? JSON.parse(task.labels) : [],
+          labels: parseSpecArray(task.labels),
           priority: task.priority,
           themeId: task.themeId,
+          goals: parseSpecArray(task.goals),
+          constraints: parseSpecArray(task.constraints),
+          acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
         };
         const analysisResult = analyzeTaskComplexity(complexityInput);
+        // Map the score to a mode using the DB-configured complexity ranges
+        // (UI-editable) rather than the hardcoded 35/70 split.
+        const { getAllModeSettings, recommendModeFromSettings } =
+          await import('../../../services/workflow/workflow-mode-config');
+        const recommendedMode = recommendModeFromSettings(
+          analysisResult.complexityScore,
+          await getAllModeSettings(),
+        );
         await prisma.task.update({
           where: { id: taskIdNum },
           data: {
             complexityScore: analysisResult.complexityScore,
-            workflowMode: analysisResult.recommendedMode,
+            workflowMode: recommendedMode,
           },
         });
         task.complexityScore = analysisResult.complexityScore;
-        task.workflowMode = analysisResult.recommendedMode;
+        task.workflowMode = recommendedMode;
       } catch (error) {
         log.error({ err: error }, `[API] Failed to analyze task complexity for task ${taskIdNum}`);
       }
@@ -172,6 +209,18 @@ export const executeRoute = new Elysia().post(
 
     log.info(`[API] Executing task ${taskIdNum} in working directory: ${workDir}`);
 
+    // Resolve the base branch: explicit request value → theme default → develop.
+    // It is used both as the branch-from base (worktree) AND the PR target, so
+    // the two always match. Persisting it to agentExecutionConfig.targetBranch
+    // is what makes the later auto-PR open against the chosen base.
+    const resolvedBaseBranch =
+      (typeof baseBranch === 'string' && baseBranch.trim()) ||
+      task.theme?.defaultBranch ||
+      'develop';
+    await prisma.agentExecutionConfig
+      .updateMany({ where: { taskId: taskIdNum }, data: { targetBranch: resolvedBaseBranch } })
+      .catch((err) => log.warn({ err, taskIdNum }, '[API] Failed to persist targetBranch'));
+
     let setupResult;
     try {
       setupResult = await executeSetup({
@@ -182,6 +231,7 @@ export const executeRoute = new Elysia().post(
         existingConfig: task.developerModeConfig,
         sessionId,
         branchName,
+        baseBranch: resolvedBaseBranch,
         workDir,
       });
     } catch (setupError) {
@@ -208,6 +258,22 @@ export const executeRoute = new Elysia().post(
     let resolvedAgentConfigId = agentConfigId;
     let resolvedModelOverride: string | undefined;
     const roleAgent = await resolveAgentForTask(taskIdNum);
+
+    // Tag the session with its workflow role (e.g. workflow-researcher). The
+    // execute-route's run otherwise had a null session mode, so the FE could
+    // not tell it was an auto-advancing phase: it showed "[完了] 実行が完了
+    // しました" and stopped polling the moment this phase finished — even though
+    // the orchestrator auto-advances to implement → verify (the agent keeps
+    // running). With the mode set, the FE treats researcher/planner/reviewer/
+    // implementer as auto-advancing and keeps following the workflow until it
+    // actually completes (verify → PR → done).
+    if (roleAgent?.role) {
+      await prisma.agentSession
+        .update({ where: { id: session.id }, data: { mode: `workflow-${roleAgent.role}` } })
+        .catch((err) =>
+          log.warn({ err, taskIdNum, role: roleAgent.role }, '[API] Failed to set session mode'),
+        );
+    }
     if (roleAgent?.agentConfigId) {
       if (resolvedAgentConfigId !== roleAgent.agentConfigId) {
         log.info(
@@ -445,6 +511,13 @@ export const executeRoute = new Elysia().post(
     // writer for the persistent research.md.
     const researchTempOutputFile = null;
 
+    // Parse the JSON-array spec columns (goals/constraints/acceptanceCriteria) for injection.
+    const taskSpec = {
+      goals: parseSpecArray(task.goals),
+      constraints: parseSpecArray(task.constraints),
+      acceptanceCriteria: parseSpecArray(task.acceptanceCriteria),
+    };
+
     const fullInstruction = effectiveResearchMode
       ? buildResearchPrompt(task.title, task.description ?? '', worktreePath)
       : buildFullInstruction({
@@ -456,6 +529,7 @@ export const executeRoute = new Elysia().post(
           workingDirectory: worktreePath,
           taskId: taskIdNum,
           enforceWorkflow,
+          taskSpec,
         });
 
     const analysisInfo =
@@ -493,6 +567,12 @@ export const executeRoute = new Elysia().post(
       );
     }
 
+    // Resolve the EFFECTIVE auto-approve (task OR global OR subtask) so the
+    // prompt's "proceed to implementation vs. stop and wait" branch matches what
+    // maybeAutoApprovePlan will actually do. Without this, a globally-enabled
+    // auto-approve left the prompt saying "stop", so the run ended at plan.md.
+    const effectiveAutoApprovePlan = await resolveEffectiveAutoApprovePlan(taskIdNum);
+
     // NOTE: Execute in worktree directory for git isolation. We launch the
     // agent CLI immediately (no install gate) for fast UI feedback. The agent
     // worker spawns the codex/claude CLI process and the user starts seeing
@@ -505,7 +585,7 @@ export const executeRoute = new Elysia().post(
           description: fullInstruction,
           context: task.executionInstructions || undefined,
           workingDirectory: executionDir,
-          autoApprovePlan: task.autoApprovePlan || false,
+          autoApprovePlan: effectiveAutoApprovePlan,
           // Research mode: codex must run with --sandbox=read-only and
           // capture its final message via -o <tempfile>.
           investigationMode: effectiveResearchMode || undefined,

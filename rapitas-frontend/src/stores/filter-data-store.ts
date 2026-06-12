@@ -111,8 +111,13 @@ export const useFilterDataStore = create<FilterDataStore>()(
       initializeData: async () => {
         const state = get();
 
-        // Skip if already initialized and data is fresh
-        if (state.isInitialized && state.isDataFresh()) {
+        // NOTE: An empty categories array is treated as "not yet initialized"
+        // even when isInitialized=true. This catches the case where the
+        // persisted localStorage was captured before seed-defaults ran, which
+        // would otherwise leave the user staring at empty filter tabs for an
+        // hour until cacheExpireTime kicks in.
+        const hasCachedData = state.categories.length > 0;
+        if (state.isInitialized && state.isDataFresh() && hasCachedData) {
           logger.debug('[filterDataStore] initializeData: Using cached data');
           return;
         }
@@ -202,6 +207,13 @@ export const useFilterDataStore = create<FilterDataStore>()(
 
       clearCache: () => {
         logger.info('[filterDataStore] clearCache: Clearing all cache');
+        // NOTE: Also evict the api-client's in-memory cache for these paths.
+        // Without this, refetch after a category/theme mutation returns the
+        // previous (stale) response from the 5-minute api-client cache and
+        // re-populates this store with outdated data — the symptom users
+        // saw was "added theme but home shows NO_THEMES_FOUND".
+        clearApiCache('/categories');
+        clearApiCache('/themes');
         set({
           categories: [],
           themes: [],

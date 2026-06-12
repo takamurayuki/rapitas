@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+import { useServerRestartStore } from '@/stores/server-restart-store';
+import { sharedEventSource } from '@/lib/sse/shared-event-source';
+import { useOnVisible } from './useOnVisible';
 
 const logger = createLogger('useBackendHealth');
 
@@ -38,7 +41,6 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
   const wasDisconnectedRef = useRef(false);
   const onReconnectRef = useRef(onReconnectAction);
   const onDisconnectRef = useRef(onDisconnectAction);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     onReconnectRef.current = onReconnectAction;
@@ -48,39 +50,26 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
     onDisconnectRef.current = onDisconnectAction;
   }, [onDisconnectAction]);
 
-  // Detect shutdown events via SSE connection
+  // Detect shutdown events via the SHARED SSE connection. Each mount of this
+  // hook previously opened its own /events/stream EventSource, multiplying
+  // persistent connections toward the browser's 6-per-origin limit.
   useEffect(() => {
-    const connectSSE = () => {
-      try {
-        const es = new EventSource(`${API_BASE_URL}/events/stream`);
-        eventSourceRef.current = es;
-
-        es.addEventListener('shutdown', () => {
-          logger.info('Received shutdown event - server is intentionally restarting');
-          setIsIntentionalRestart(true);
-        });
-
-        es.onerror = () => {
-          // NOTE: Ignore SSE connection errors (detected by health check polling)
-          es.close();
-          eventSourceRef.current = null;
-        };
-      } catch {
-        // Ignore EventSource creation failure
-      }
-    };
-
-    connectSSE();
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
+    return sharedEventSource.subscribe('shutdown', () => {
+      logger.info('Received shutdown event - server is intentionally restarting');
+      setIsIntentionalRestart(true);
+    });
   }, []);
 
+  // Mirror the intentional-restart flag to the global store so the logger and
+  // connection-error UI can suppress the expected error flood app-wide.
+  useEffect(() => {
+    useServerRestartStore.getState().setRestarting(isIntentionalRestart);
+  }, [isIntentionalRestart]);
+
   const checkHealth = useCallback(async () => {
+    // Skip the probe while rapitas is backgrounded — saves a request every few
+    // seconds when the user is in another app; useOnVisible re-checks on return.
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -96,24 +85,8 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
           setIsIntentionalRestart(false);
           logger.info('Backend reconnected');
           onReconnectRef.current?.();
-
-          // Reconnect SSE after recovery
-          if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
-            try {
-              const es = new EventSource(`${API_BASE_URL}/events/stream`);
-              eventSourceRef.current = es;
-              es.addEventListener('shutdown', () => {
-                logger.info('Received shutdown event - server is intentionally restarting');
-                setIsIntentionalRestart(true);
-              });
-              es.onerror = () => {
-                es.close();
-                eventSourceRef.current = null;
-              };
-            } catch {
-              // Ignore EventSource creation failure
-            }
-          }
+          // NOTE: SSE recovery is owned by sharedEventSource (auto-reconnect) —
+          // no per-hook EventSource to rebuild here anymore.
         }
         setStatus('connected');
       } else {
@@ -155,6 +128,9 @@ export function useBackendHealth(options: UseBackendHealthOptions = {}) {
       clearInterval(timer);
     };
   }, [checkHealth, status, intervalMs, retryIntervalMs]);
+
+  // Re-check immediately when the user returns to rapitas.
+  useOnVisible(checkHealth);
 
   return { status, isConnected: status === 'connected', isIntentionalRestart };
 }

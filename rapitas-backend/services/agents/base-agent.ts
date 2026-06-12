@@ -22,7 +22,9 @@ export type AgentStatus =
   | 'completed'
   | 'failed'
   | 'cancelled'
-  | 'waiting_for_input';
+  | 'waiting_for_input'
+  // NOTE: investigationMode で codex が exit 0 した直後、research.md の slice 保存を待つ過渡状態
+  | 'post_processing';
 
 /**
  * AI task analysis result for structured prompt generation.
@@ -129,6 +131,14 @@ export type AgentExecutionResult = {
   cacheCreationInputTokens?: number;
   /** Primary model used for this execution (largest token share in `modelUsage`). */
   modelName?: string;
+  /**
+   * The agent's FINAL assistant message only (Claude Code stream-json `result`
+   * event). Unlike `output` — which concatenates every streamed assistant
+   * delta, tool-result display, and status line — this is the clean final
+   * answer. Investigation phases save THIS as research.md / plan.md to avoid
+   * the mid-run narration noise that polluted those files.
+   */
+  finalMessage?: string;
 };
 
 export type AgentArtifact = {

@@ -12,6 +12,7 @@ import {
   analyzeEstimatedTime,
   analyzePriority,
   analyzeLabels,
+  analyzeScope,
   getRecommendedMode,
   calculateEstimatedExecutionTime,
   calculateConfidence,
@@ -29,17 +30,22 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
   const timeAnalysis = analyzeEstimatedTime(input);
   const priorityAnalysis = analyzePriority(input);
   const labelAnalysis = analyzeLabels(input);
+  const scopeAnalysis = analyzeScope(input);
 
-  // Final score via weighted average
+  // Final score via weighted average. Keyword and scope (description length +
+  // structured-spec counts) are the most reliable difficulty signals; estimated
+  // time, priority, and labels are supplementary and often unset at creation.
   const weights = {
-    keyword: 0.4, // Keyword analysis is most important
-    time: 0.3, // Estimated time is also important
-    priority: 0.15, // Priority is supplementary
-    label: 0.15, // Labels are supplementary
+    keyword: 0.3,
+    scope: 0.3,
+    time: 0.2,
+    priority: 0.1,
+    label: 0.1,
   };
 
   const complexityScore = Math.round(
     keywordAnalysis.score * weights.keyword +
+      scopeAnalysis.score * weights.scope +
       timeAnalysis.score * weights.time +
       priorityAnalysis.score * weights.priority +
       labelAnalysis.score * weights.label,
@@ -53,6 +59,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
     timeAnalysis.score,
     priorityAnalysis.score,
     labelAnalysis.score,
+    scopeAnalysis.score,
     !!input.estimatedHours,
   );
 
@@ -62,6 +69,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
     ...timeAnalysis.reasons,
     ...priorityAnalysis.reasons,
     ...labelAnalysis.reasons,
+    ...scopeAnalysis.reasons,
   ];
 
   return {
@@ -73,6 +81,7 @@ export function analyzeTaskComplexity(input: TaskComplexityInput): ComplexityAna
       timeScore: Math.round(timeAnalysis.score),
       priorityScore: Math.round(priorityAnalysis.score),
       labelScore: Math.round(labelAnalysis.score),
+      scopeScore: Math.round(scopeAnalysis.score),
       reasons: allReasons,
     },
     estimatedExecutionTime,

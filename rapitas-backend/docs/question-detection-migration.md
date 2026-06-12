@@ -51,6 +51,7 @@ type QuestionKey = {
 ### Phase 3: テスト
 
 1. 単体テストの実行:
+
    ```bash
    cd rapitas-backend
    bun test tests/question-detection.test.ts
@@ -64,6 +65,7 @@ type QuestionKey = {
 ### Phase 4: 本番デプロイ
 
 1. バックエンドのビルド:
+
    ```bash
    cd rapitas-backend
    bun run build
@@ -83,6 +85,7 @@ model AgentExecution {
 ```
 
 マイグレーション:
+
 ```bash
 bunx prisma migrate dev --name add_question_key
 ```

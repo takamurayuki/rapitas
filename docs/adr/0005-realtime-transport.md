@@ -60,6 +60,7 @@ re-introducing the dependency.
 ## Alternatives considered
 
 ### A. Migrate the backend to Socket.IO
+
 - Pros: Richer client API. Battle-tested room/namespace primitives.
 - Cons: Adds a server dependency where none exists today. Breaks the
   Bun-compiled standalone backend (Socket.IO has historically had issues
@@ -68,6 +69,7 @@ re-introducing the dependency.
 - Verdict: Rejected — solves a problem we don't have.
 
 ### B. Keep `socket.io-client` "in case we need it"
+
 - Pros: Zero immediate work.
 - Cons: Dead dependency = silent license/CVE liability + bundle bloat.
   Future contributors will assume Socket.IO is integrated and waste time
@@ -75,6 +77,7 @@ re-introducing the dependency.
 - Verdict: Rejected — keeping unused deps is a smell.
 
 ### C. Reactivate `api-client-optimized.ts` and wire it to `src/`
+
 - Pros: The file already implements batching, cache invalidation, and a
   WebSocket subscription model.
 - Cons: 500+ lines of code with no tests, no consumers, and bit-rot
@@ -87,6 +90,7 @@ re-introducing the dependency.
 ## Consequences
 
 ### Positive
+
 - One transport, one mental model. No more "are we using `ws` or
   Socket.IO?" confusion.
 - Smaller dependency surface (no `socket.io-client`, no `engine.io-client`,
@@ -95,6 +99,7 @@ re-introducing the dependency.
 - Cleaner license review and dep-review workflow.
 
 ### Negative
+
 - Loses the Socket.IO client features (auto-reconnect with state, rooms,
   namespaces) that **we never used in the first place**, so this is mostly
   hypothetical.
@@ -102,6 +107,7 @@ re-introducing the dependency.
   it has no consumers) will need to rewrite against the real `ws` API.
 
 ### Neutral
+
 - The 449-line `websocket-service.ts` is itself over the soft size limit
   (300) but under the hard limit (500). Splitting it is tracked separately
   per `COMPONENT_SPLITTING_POLICY.md`, not by this ADR.

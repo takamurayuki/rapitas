@@ -1,10 +1,10 @@
 /**
  * Copilot Chat Types and Constants
  *
- * Type definitions and quick prompt configurations for the copilot chat panel.
+ * Type definitions for the copilot panel. The free-text quick-prompts were
+ * removed when the panel became a rule-based next-action recommender.
  */
-import { Sparkles, ListTodo, AlertTriangle, Clock, Play, Lightbulb } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import type { NextActionContext } from './next-action-recommender';
 
 export interface CopilotChatPanelProps {
   taskId?: number;
@@ -14,7 +14,9 @@ export interface CopilotChatPanelProps {
   onTaskUpdated?: () => void;
   className?: string;
   embedded?: boolean;
-  /** Content rendered below the input bar, inside the same card (e.g. execution accordion). */
+  /** Task state the "next action" recommender reasons over. */
+  nextActionContext?: NextActionContext;
+  /** Content rendered below the recommendations, inside the same card (e.g. execution accordion). */
   children?: React.ReactNode;
 }
 
@@ -29,46 +31,3 @@ export type AnalysisData = {
     estimatedHours?: number;
   }>;
 };
-
-export type QuickPromptItem = {
-  icon: LucideIcon;
-  label: string;
-  prompt?: string;
-  action?: 'analyze' | 'execute';
-  isAction?: boolean;
-};
-
-export const QUICK_PROMPTS: QuickPromptItem[] = [
-  {
-    icon: Sparkles,
-    label: 'AI分析',
-    action: 'analyze',
-    isAction: true,
-  },
-  {
-    icon: ListTodo,
-    label: 'サブタスク分解',
-    prompt: 'このタスクを具体的なサブタスクに分解してください',
-  },
-  {
-    icon: AlertTriangle,
-    label: 'リスク分析',
-    prompt: 'このタスクの潜在的なリスクと対策を教えてください',
-  },
-  {
-    icon: Clock,
-    label: '工数見積もり',
-    prompt: 'このタスクの実装工数を見積もってください',
-  },
-  {
-    icon: Play,
-    label: 'エージェント実行',
-    action: 'execute',
-    isAction: true,
-  },
-  {
-    icon: Lightbulb,
-    label: 'アプローチ提案',
-    prompt: 'このタスクの最適なアプローチを提案してください',
-  },
-];

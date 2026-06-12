@@ -11,7 +11,8 @@
     "externalBin": [],
     "resources": [
       "binaries/rapitas-backend-*.exe",
-      "binaries/rapitas-backend-*"
+      "binaries/rapitas-backend-*",
+      "binaries/*query_engine*"
     ]
   },
   "plugins": {

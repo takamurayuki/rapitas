@@ -7,6 +7,35 @@ import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('AuthContext');
 
+/**
+ * localStorage flag remembering that the user established a session, so a guest
+ * (never-signed-in) load skips the `/auth/me` probe entirely instead of 401-ing
+ * and logging a noisy "セッション検証エラー" on every load. Set on
+ * login/register/Google redirect; cleared on logout or a stale-session 401.
+ */
+const SESSION_HINT_KEY = 'rapitas.hasSession';
+
+/** True when a prior session was established (and not yet logged out). */
+function hasSessionHint(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SESSION_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Persist or clear the "has session" hint. No-op when storage is unavailable. */
+function setSessionHint(active: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (active) window.localStorage.setItem(SESSION_HINT_KEY, '1');
+    else window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // localStorage unavailable (private mode / SSR) — non-fatal.
+  }
+}
+
 export interface User {
   id: number;
   username: string;
@@ -80,12 +109,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return null;
     } catch (error) {
-      logger.transientError('セッション検証エラー:', error);
+      // No active session (guest / expired) is an expected state in this
+      // guest-first app — keep it at debug so it never surfaces as an error.
+      logger.debug('セッション検証をスキップ（未ログイン扱い）:', error);
       return null;
     }
   };
 
   const refreshSession = async () => {
+    // Guest mode (never signed in): skip the /auth/me probe entirely. The
+    // backend serves data without a session, so validating one we don't have
+    // would only 401 and log noise on every load.
+    if (!hasSessionHint()) {
+      setState({ user: null, isAuthenticated: false, isLoading: false, sessionToken: null });
+      return;
+    }
     const user = await validateSession();
     if (user) {
       setState({
@@ -95,6 +133,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionToken: null,
       });
     } else {
+      // Hint was stale (session expired/invalidated) — drop it so subsequent
+      // loads stay in silent guest mode.
+      setSessionHint(false);
       setState({
         user: null,
         isAuthenticated: false,
@@ -124,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok && data.success) {
         const { user } = data;
 
+        setSessionHint(true);
         setState({
           user,
           isAuthenticated: true,
@@ -166,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok && data.success) {
         const { user } = data;
 
+        setSessionHint(true);
         setState({
           user,
           isAuthenticated: true,
@@ -197,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       logger.error('ログアウト通知エラー:', error);
     } finally {
+      setSessionHint(false);
       setState({
         user: null,
         isAuthenticated: false,
@@ -224,6 +268,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (response.ok && data.success && data.url) {
+        // Set the hint before leaving for Google so that on return refreshSession
+        // validates the new cookie session (a stale hint self-clears on 401).
+        setSessionHint(true);
         window.location.href = data.url;
         return { success: true };
       } else {
@@ -265,28 +312,17 @@ export function useAuth() {
   return context;
 }
 
+/**
+ * Page wrapper that USED to force a login redirect. rapitas is a local,
+ * single-user desktop app whose backend serves data without a session, so a
+ * mandatory login was friction with no security benefit and caused users to
+ * bounce off the login wall. It now renders for everyone (guest by default);
+ * signing in stays optional (header "ログイン" → /auth/login) for when cloud
+ * sync / sharing lands. Kept as a wrapper so the gate can be reinstated in one
+ * place if that day comes.
+ */
 export function requireAuth<P extends object>(WrappedComponent: React.ComponentType<P>) {
   return function AuthenticatedComponent(props: P) {
-    const { isAuthenticated, isLoading } = useAuth();
-
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center min-h-screen bg-background">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-8 h-8 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">認証を確認中...</div>
-          </div>
-        </div>
-      );
-    }
-
-    if (!isAuthenticated) {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login';
-      }
-      return null;
-    }
-
     return <WrappedComponent {...props} />;
   };
 }

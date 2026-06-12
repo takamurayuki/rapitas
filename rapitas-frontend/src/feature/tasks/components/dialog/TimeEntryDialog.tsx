@@ -26,7 +26,7 @@ export default function TimeEntryDialog({
           <textarea
             value={note}
             onChange={(e) => onNoteChange(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-4 py-3 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             rows={3}
             placeholder="何を作業しましたか?"
           />

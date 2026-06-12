@@ -48,6 +48,10 @@ export function useExecutionManager({
   const [instruction, setInstruction] = useState('');
   const [branchName, setBranchName] = useState('');
   const [isGeneratingBranchName, setIsGeneratingBranchName] = useState(false);
+  // Base branch the feature branch is cut from and the PR targets. Populated
+  // from the task's origin branches; defaults to the theme's default branch.
+  const [baseBranch, setBaseBranch] = useState('');
+  const [baseBranches, setBaseBranches] = useState<string[]>([]);
   const [userResponse, setUserResponse] = useState('');
   const [isSendingResponse, setIsSendingResponse] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -87,15 +91,43 @@ export function useExecutionManager({
     clearQuestion: clearPollingQuestion,
   } = useExecutionPolling(taskId);
 
-  // Prefer SSE logs when the connection is active; fall back to polling logs
+  // Prefer SSE logs (real-time) for a single execution. BUT a workflow runs each
+  // phase (researcher → planner → … → verifier) as a SEPARATE session, while the
+  // SSE stream is bound to ONE session (the first one). After research completes
+  // the SSE keeps showing the now-stale research logs, hiding the next phases.
+  // The polling stream follows the task across every phase and accumulates the
+  // full cross-phase history, so prefer it for any workflow run.
+  const isWorkflowRun = !!pollingSessionMode?.startsWith('workflow-');
   const logs = useMemo(() => {
+    if (isWorkflowRun) return pollingLogs;
     return isSseConnected && sseLogs.length > 0 ? sseLogs : pollingLogs;
-  }, [isSseConnected, sseLogs, pollingLogs]);
+  }, [isWorkflowRun, isSseConnected, sseLogs, pollingLogs]);
 
   const clearLogs = useCallback(() => {
     clearSseLogs();
     clearPollingLogs();
   }, [clearSseLogs, clearPollingLogs]);
+
+  // Load the selectable base branches (origin branches) for this task and
+  // pre-select the theme's default branch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/base-branches`);
+        if (!res.ok) return;
+        const data = (await res.json()) as { branches?: string[]; defaultBranch?: string | null };
+        if (cancelled) return;
+        setBaseBranches(data.branches ?? []);
+        setBaseBranch((prev) => prev || data.defaultBranch || data.branches?.[0] || '');
+      } catch {
+        /* non-critical — the field falls back to the theme default server-side */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
 
   // Reset per-task state when the panel switches to a different task
   useEffect(() => {
@@ -266,6 +298,7 @@ export function useExecutionManager({
     const result = await onExecute({
       instruction: instruction.trim() || undefined,
       branchName: branchName.trim() || undefined,
+      baseBranch: baseBranch.trim() || undefined,
       useTaskAnalysis,
       optimizedPrompt: optimizedPrompt || undefined,
       agentConfigId: agentConfigId ?? undefined,
@@ -410,6 +443,9 @@ export function useExecutionManager({
     setInstruction,
     branchName,
     setBranchName,
+    baseBranch,
+    setBaseBranch,
+    baseBranches,
     isGeneratingBranchName,
     userResponse,
     setUserResponse,

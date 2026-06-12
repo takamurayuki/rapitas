@@ -10,3 +10,6 @@ export * from './recurring-task-service';
 export * from './study-streak-service';
 export * from './calendar-service';
 export * from './worktree-cleanup-scheduler';
+export * from './backlog-schedule-service';
+export * from './backlog-scheduler';
+export * from './theme-backlog-override-service';

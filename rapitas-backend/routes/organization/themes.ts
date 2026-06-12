@@ -253,12 +253,16 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
     '/setup-from-claude-md',
     async (context) => {
       const { body } = context;
-      const { appName, claudeMd, basePath, description } = body as {
-        appName: string;
-        claudeMd: string;
-        basePath?: string;
-        description?: string;
-      };
+      const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } =
+        body as {
+          appName: string;
+          claudeMd: string;
+          requirements?: string;
+          design?: string;
+          agentFilePath?: string;
+          basePath?: string;
+          description?: string;
+        };
 
       try {
         // NOTE: Sanitize app name to create folder name — supports ASCII, Japanese, and mixed names.
@@ -307,18 +311,35 @@ export const themesRoutes = new Elysia({ prefix: '/themes' })
           throw new ValidationError('Git リポジトリの初期化に失敗しました');
         }
 
-        // Create .claude directory
-        const claudeDir = path.join(projectPath, '.claude');
-        fs.mkdirSync(claudeDir, { recursive: true });
+        // Write the agent guide to the path that matches the user's primary
+        // agent (Claude Code → .claude/CLAUDE.md, others → AGENTS.md, etc.).
+        // NOTE: reject path traversal — the path is normally from a fixed FE
+        // list, but never trust client input to escape the project directory.
+        const agentRelPath = (agentFilePath && agentFilePath.trim()) || '.claude/CLAUDE.md';
+        const agentAbsPath = path.resolve(projectPath, agentRelPath);
+        if (path.isAbsolute(agentRelPath) || !agentAbsPath.startsWith(projectPath + path.sep)) {
+          throw new ValidationError('不正なエージェントファイルパスです');
+        }
+        fs.mkdirSync(path.dirname(agentAbsPath), { recursive: true });
+        fs.writeFileSync(agentAbsPath, claudeMd, 'utf8');
 
-        // Write CLAUDE.md file
-        const claudeFilePath = path.join(claudeDir, 'CLAUDE.md');
-        fs.writeFileSync(claudeFilePath, claudeMd, 'utf8');
+        // NOTE: Write human-readable requirements/design docs to docs/ so an AI
+        // agent (and humans) have the full implementation package in the repo.
+        if (requirements?.trim() || design?.trim()) {
+          const docsDir = path.join(projectPath, 'docs');
+          fs.mkdirSync(docsDir, { recursive: true });
+          if (requirements?.trim()) {
+            fs.writeFileSync(path.join(docsDir, 'requirements.md'), requirements, 'utf8');
+          }
+          if (design?.trim()) {
+            fs.writeFileSync(path.join(docsDir, 'design.md'), design, 'utf8');
+          }
+        }
 
         // Make initial commit and create develop branch
         try {
           execSync('git add .', { cwd: projectPath, stdio: 'pipe' });
-          execSync('git commit -m "chore: initialize project with CLAUDE.md"', {
+          execSync('git commit -m "chore: scaffold project with spec docs and CLAUDE.md"', {
             cwd: projectPath,
             stdio: 'pipe',
           });

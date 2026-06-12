@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useTaskCacheStore } from '@/stores/task-cache-store';
+import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useExecutingTasksPolling');
@@ -73,6 +74,9 @@ export function useExecutingTasksPolling(options?: {
   );
 
   const checkExecutingTasks = useCallback(async () => {
+    // Skip while backgrounded (this runs on Home/Kanban which are often left
+    // open behind other apps); useOnVisible re-checks on return.
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
@@ -90,6 +94,7 @@ export function useExecutingTasksPolling(options?: {
       const data: Array<{
         taskId: number;
         sessionId: number;
+        parentId?: number | null;
         executionStatus: string;
       }> = await res.json();
 
@@ -103,6 +108,14 @@ export function useExecutingTasksPolling(options?: {
             sessionId: item.sessionId,
             status: item.executionStatus as 'running' | 'waiting_for_input',
           });
+
+          // Reflect a running subtask on its PARENT card too: the home list does
+          // not render subtasks as their own cards, so the parent shows the
+          // spinner while one of its subtasks is executing.
+          if (item.parentId != null) {
+            currentExecutingIds.add(item.parentId);
+            setExecutingTask({ taskId: item.parentId, status: 'running' });
+          }
 
           // Only callback for newly detected tasks
           if (!knownTaskIdsRef.current.has(item.taskId) && onExecutingTaskFoundRef.current) {
@@ -168,4 +181,7 @@ export function useExecutingTasksPolling(options?: {
       }
     };
   }, [interval, checkExecutingTasks]);
+
+  // Re-check immediately when the user returns to rapitas.
+  useOnVisible(checkExecutingTasks);
 }

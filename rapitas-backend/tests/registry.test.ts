@@ -7,13 +7,14 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test';
 import type { IAgentProvider } from '../services/agents/abstraction/interfaces';
 import type { AgentProviderId, AgentProviderConfig } from '../services/agents/abstraction/types';
 
+const noopLog = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 mock.module('../config/logger', () => ({
-  createLogger: () => ({
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {},
-  }),
+  createLogger: () => noopLog,
+  // Mirror every config/logger export; an incomplete mock makes modules that
+  // `import { logger }` fail to link ("export 'logger' not found") even under
+  // --isolate on some bun versions.
+  logger: noopLog,
+  getBackendLogFilePath: () => '/tmp/backend.log',
 }));
 
 const { AgentRegistry } = await import('../services/agents/abstraction/registry');

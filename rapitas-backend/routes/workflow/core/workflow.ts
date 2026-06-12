@@ -17,6 +17,7 @@ import {
   handleSetMode,
   handleAnalyzeComplexity,
   handleGetModes,
+  handleResumeFromQuestion,
 } from '../handlers/workflow-handlers';
 
 // Re-export helpers and types for consumers that import from this path
@@ -44,6 +45,14 @@ export const workflowRoutes = new Elysia({ prefix: '/workflow' })
 
   .post('/tasks/:taskId/approve-plan', (ctx) =>
     handleApprovePlan(ctx as Parameters<typeof handleApprovePlan>[0]),
+  )
+
+  /**
+   * `awaiting_question` 状態から、質問発生前の status に復帰する。
+   * ユーザーが question.md に回答を記入し終えた後、エージェント実行を再開する前に呼ぶ。
+   */
+  .post('/tasks/:taskId/resume-from-question', (ctx) =>
+    handleResumeFromQuestion(ctx as Parameters<typeof handleResumeFromQuestion>[0]),
   )
 
   .put('/tasks/:taskId/status', (ctx) =>

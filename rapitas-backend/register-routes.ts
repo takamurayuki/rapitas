@@ -10,6 +10,7 @@ import {
   milestonesRoutes,
   templatesRoutes,
   tasksRoutes,
+  ganttDataRoute,
   taskSuggestionRoutes,
   taskQuickCreateRoutes,
   taskAutoGenerateRoutes,
@@ -47,6 +48,7 @@ import {
   workflowRolesRoutes,
   workflowLearningRoutes,
   orchestraRoutes,
+  themeAutoRunRoutes,
   settingsRoutes,
   authRoutes,
   sseRoutes,
@@ -54,7 +56,6 @@ import {
   notificationsRoutes,
   searchRoutes,
   urlMetadataRoutes,
-  screenshotsRoutes,
   smartActionRoutes,
   localLLMRouter,
   transcribeRouter,
@@ -75,16 +76,19 @@ import {
   resourcesRoutes,
   learningGoalsRoutes,
   learningDashboardRouter,
-  flashcardsRoutes,
   directoriesRoutes,
   experimentsRoutes,
   learningRoutes,
-  intentRoutes,
+  taskSpecRoutes,
   aiChatRoutes,
   copilotChatRoutes,
   promptsRoutes,
   systemPromptsRoutes,
   ideaBoxRoutes,
+  concernBacklogRoutes,
+  decisionJournalRoutes,
+  backlogScheduleRoutes,
+  backlogThemeOverrideRoutes,
   exportRoutes,
   importRoutes,
 } from './routes';
@@ -102,6 +106,7 @@ export function registerAllRoutes(app: Elysia): void {
 
   // Tasks
   app.use(tasksRoutes);
+  app.use(ganttDataRoute);
   app.use(taskSuggestionRoutes);
   app.use(taskQuickCreateRoutes);
   app.use(taskAutoGenerateRoutes);
@@ -147,12 +152,17 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(knowledgeGraphRoutes);
   app.use(crossProjectKnowledgeRoutes);
   app.use(ideaBoxRoutes);
+  app.use(concernBacklogRoutes);
+  app.use(decisionJournalRoutes);
+  app.use(backlogScheduleRoutes);
+  app.use(backlogThemeOverrideRoutes);
 
   // Workflow
   app.use(workflowRoutes);
   app.use(workflowRolesRoutes);
   app.use(workflowLearningRoutes);
   app.use(orchestraRoutes);
+  app.use(themeAutoRunRoutes);
 
   // System
   app.use(settingsRoutes);
@@ -162,7 +172,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(notificationsRoutes);
   app.use(searchRoutes);
   app.use(urlMetadataRoutes);
-  app.use(screenshotsRoutes);
   app.use(rateLimitRoutes);
   app.use(progressSummaryRoutes);
   app.use(techDebtRoutes);
@@ -177,7 +186,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(transcribeRouter);
   app.use(mcpRoutes);
   app.use(directoriesRoutes);
-  app.use(intentRoutes);
+  app.use(taskSpecRoutes);
   app.use(exportRoutes);
   app.use(importRoutes);
 
@@ -197,7 +206,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(resourcesRoutes);
   app.use(learningGoalsRoutes);
   app.use(learningDashboardRouter);
-  app.use(flashcardsRoutes);
   app.use(templatesRoutes);
   app.use(experimentsRoutes);
   app.use(learningRoutes);

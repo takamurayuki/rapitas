@@ -18,12 +18,16 @@
  *   node scripts/dev.js          # 安定モード（AIエージェント実行向け）
  *   node scripts/dev.js --watch  # ホットリロードモード（バックエンド開発向け）
  */
-const { spawn, execSync } = require("child_process");
+const { spawn, execSync, execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 
 const BACKEND_PORT = 3001;
 const FRONTEND_PORT = 3000;
+// Local LLM sidecar (llama-server). Reclaimed on every (re)start so orphaned
+// instances from a previous run don't accumulate and peg the CPU.
+const LLAMA_SERVER_PORT = 8922;
 
 // ─── ユーティリティ ───
 
@@ -216,10 +220,12 @@ function waitForPortRelease(port, timeoutMs = 10000) {
 async function waitForBackendReady(port, timeoutMs = 30000) {
   const http = require("http");
   const startTime = Date.now();
-  const pollInterval = 1000;
+  const pollInterval = 500;
 
-  // 最初の2秒はバックエンドの起動を待つ
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Brief grace before the first poll so we don't race the listener opening.
+  // Polling fails fast (ECONNREFUSED) on a miss, so readiness is detected as
+  // soon as the backend is up — no fixed 2s floor on every start.
+  await new Promise((resolve) => setTimeout(resolve, 300));
 
   while (Date.now() - startTime < timeoutMs) {
     try {
@@ -342,8 +348,13 @@ async function tryGracefulShutdownViaHttp(port) {
  * @returns {Promise<number>} 使用するポート番号
  */
 async function ensurePortAvailable(port) {
-  // まず CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスを先にkill
-  killZombieSocketOwners(port);
+  // netstat (cheap) gates the PowerShell zombie sweep (slow cold start). When
+  // the port has no sockets at all — the common "clean restart" case — skip
+  // Get-NetTCPConnection entirely instead of paying for it every start.
+  if (getProcessesOnPort(port).size > 0) {
+    // CLOSE_WAIT/FIN_WAIT_2 のゾンビソケット所有プロセスを先にkill
+    killZombieSocketOwners(port);
+  }
 
   if (!isPortListening(port)) return port;
 
@@ -456,25 +467,32 @@ async function ensurePortAvailable(port) {
     console.log(
       `  ⚠️  Port ${port} still has active listener(s): PID ${[...remainingPids].join(", ")}`,
     );
-    console.log(`  → Attempting one final kill with elevated wmic...`);
+    console.log(`  → Attempting one final kill with PowerShell Stop-Process...`);
 
-    // 最終手段: wmic process delete を試行
+    // 最終手段: PowerShell の Stop-Process を試行。taskkill とは別 API なので、
+    // taskkill で落とせなかったプロセスを倒せることがある。
     for (const pid of remainingPids) {
       try {
-        execSync(`wmic process where ProcessId=${pid} delete`, {
-          stdio: "pipe",
-          timeout: 5000,
-        });
-        console.log(`  Killed PID ${pid} via wmic.`);
+        execFileSync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            `Stop-Process -Id ${pid} -Force -ErrorAction Stop`,
+          ],
+          { stdio: "pipe", timeout: 5000 },
+        );
+        console.log(`  Killed PID ${pid} via Stop-Process.`);
       } catch {
-        console.log(`  wmic kill failed for PID ${pid}.`);
+        console.log(`  Stop-Process kill failed for PID ${pid}.`);
       }
     }
 
     sleepSync(2000);
 
     if (!isPortListening(port)) {
-      console.log(`  Port ${port} is now available (after wmic kill).`);
+      console.log(`  Port ${port} is now available (after Stop-Process kill).`);
       return port;
     }
 
@@ -488,6 +506,39 @@ async function ensurePortAvailable(port) {
 }
 
 // ─── プロセス管理ユーティリティ ───
+
+/**
+ * Win32_Process を PowerShell の Get-CimInstance で列挙する (Windows 専用)。
+ *
+ * NOTE: かつて使っていた `wmic` は Windows 11 (24H2 以降) で既定では同梱されず、
+ * "Command failed" で落ちる。CIM コマンドはその公式後継で PowerShell 5.1+ 標準。
+ *
+ * @param {string} filter WQL の WHERE 句 (例: "Name='bun.exe'", "ParentProcessId=123")
+ * @returns {Array<{ProcessId:number, CommandLine:string|null, ExecutablePath:string|null}>}
+ */
+function queryWin32Processes(filter) {
+  const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,CommandLine,ExecutablePath | ConvertTo-Json -Compress`;
+  let out = "";
+  try {
+    out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+  } catch {
+    return [];
+  }
+  const trimmed = (out || "").trim();
+  if (!trimmed) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  // ConvertTo-Json は要素 1 件だと配列ではなくオブジェクトを返す。
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
 
 /**
  * プロセスツリーごとクリーンに終了させる (Windows: taskkill /T)
@@ -509,27 +560,15 @@ function killProcessTree(childProcess) {
     } catch {}
   }
 
-  // Step 2: wmic で子プロセスを列挙し、残っていれば個別にkill
+  // Step 2: 子プロセスを列挙し、残っていれば個別にkill
   // shell: true の場合、cmd.exe の子として実際のbun/nodeプロセスが起動される
-  try {
-    const wmicResult = execSync(
-      `wmic process where (ParentProcessId=${pid}) get ProcessId /format:list`,
-      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
-    );
-    for (const line of wmicResult.split("\n")) {
-      const match = line.match(/ProcessId=(\d+)/);
-      if (match) {
-        const childPid = parseInt(match[1]);
-        try {
-          execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
-          console.log(
-            `  Killed child process PID ${childPid} (parent: ${pid})`,
-          );
-        } catch {}
-      }
-    }
-  } catch {
-    // wmic が使えない環境では無視
+  for (const proc of queryWin32Processes(`ParentProcessId=${pid}`)) {
+    const childPid = Number(proc.ProcessId);
+    if (!Number.isInteger(childPid)) continue;
+    try {
+      execSync(`taskkill /F /T /PID ${childPid}`, { stdio: "pipe" });
+      console.log(`  Killed child process PID ${childPid} (parent: ${pid})`);
+    } catch {}
   }
 }
 
@@ -619,6 +658,99 @@ const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
 const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
 const AGENT_PID_DIR = path.join(BACKEND_DIR, ".agent-pids");
+
+/**
+ * 残留 bun プロセスを安全に kill する。
+ *
+ * 必要性: dev サーバの異常終了や Tauri restart で bun.exe が orphan として残ると、
+ * `node_modules/.prisma/client/query_engine-windows.dll.node` を握ったままになり、
+ * 次回の `prisma generate` が EPERM (rename failed) で落ちる。
+ *
+ * 安全策:
+ *   - 全 bun を無差別に kill しない。**rapitas-* ディレクトリ配下のものだけ** に絞る。
+ *   - Windows: Get-CimInstance (Win32_Process) で CommandLine + ExecutablePath を取得し "rapitas" を含むものだけ kill。
+ *   - macOS/Linux: ps -eo pid,args | grep -i rapitas で同等処理。
+ *   - kill 後に 500ms 待機して OS のファイルハンドル解放を確実にする。
+ *
+ * @returns 強制終了したプロセス数
+ */
+function killStrayBunProcesses() {
+  console.log("\nKilling stray bun processes (rapitas-scoped)...");
+  const killed =
+    process.platform === "win32" ? killStrayBunWindows() : killStrayBunPosix();
+  if (killed > 0) {
+    // OS がファイルロックを解放するまで少し待つ。これがないと直後の
+    // prisma generate で EPERM が発生する。
+    const waitMs = 700;
+    console.log(`  Waiting ${waitMs}ms for OS to release file handles...`);
+    const until = Date.now() + waitMs;
+    // 同期 sleep（スクリプトの直列性を維持）
+    while (Date.now() < until) {
+      // busy wait: 短時間なので問題なし
+    }
+  }
+  return killed;
+}
+
+function killStrayBunWindows() {
+  const procs = queryWin32Processes("Name='bun.exe'");
+  let killed = 0;
+  for (const proc of procs) {
+    const pid = Number(proc.ProcessId);
+    if (!Number.isInteger(pid)) continue;
+    // rapitas-backend / rapitas-desktop / rapitas-frontend いずれかを含むもののみ対象。
+    // CommandLine が取れない場合は ExecutablePath で代替判定する。
+    const inspectable = `${proc.CommandLine || ""} ${proc.ExecutablePath || ""}`;
+    if (!/rapitas[-_/\\]/i.test(inspectable)) continue;
+    try {
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: "pipe" });
+      console.log(`  Killed bun PID ${pid} (rapitas-related)`);
+      killed++;
+    } catch (err) {
+      // 既に死んでいるケース等は無視
+      const msg = err.stderr ? err.stderr.toString() : err.message || "";
+      if (!/not found|見つかりません/i.test(msg)) {
+        console.warn(`  Failed to kill PID ${pid}: ${msg.trim()}`);
+      }
+    }
+  }
+  if (killed === 0) console.log("  No stray bun processes found.");
+  return killed;
+}
+
+function killStrayBunPosix() {
+  let stdout = "";
+  try {
+    stdout = execSync("ps -eo pid,args", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+  } catch (err) {
+    console.warn(`  Could not list processes: ${err.message}`);
+    return 0;
+  }
+  const targets = stdout
+    .split("\n")
+    .filter((l) => /\bbun\b/.test(l) && /rapitas[-_/\\]/i.test(l));
+  let killed = 0;
+  for (const line of targets) {
+    const m = line.trim().match(/^(\d+)\s+/);
+    if (!m) continue;
+    const pid = parseInt(m[1], 10);
+    try {
+      process.kill(pid, "SIGKILL");
+      console.log(`  Killed bun PID ${pid} (rapitas-related)`);
+      killed++;
+    } catch (err) {
+      // ESRCH = already dead
+      if (err.code !== "ESRCH") {
+        console.warn(`  Failed to kill PID ${pid}: ${err.message}`);
+      }
+    }
+  }
+  if (killed === 0) console.log("  No stray bun processes found.");
+  return killed;
+}
 
 /**
  * .agent-pids/ ディレクトリを走査し、前回クラッシュ時の残存エージェントプロセスをkillする。
@@ -747,6 +879,105 @@ let isHotRestarting = false;
 let fileWatchers = [];
 let lastRestartCompletedAt = 0;
 
+// ─── Prisma prepare cache ───
+// `prisma generate` + init-SQL regeneration is the dominant dev-startup cost
+// (multiple seconds) and previously ran on EVERY (re)start regardless of whether
+// anything changed. We stamp the inputs that determine the output and skip the
+// whole step when they're unchanged AND the generated artifacts still exist.
+const PRISMA_PREPARE_STAMP = path.join(DESKTOP_DATA_DIR, ".prisma-prepare-stamp");
+const PRISMA_SCHEMA_SOURCE_DIR = path.join(BACKEND_DIR, "prisma", "schema");
+const SQLITE_INIT_SQL_OUTPUT = path.join(
+  BACKEND_DIR,
+  "src",
+  "generated",
+  "sqlite-init-sql.ts",
+);
+// Default Prisma client output (no custom `output` in _generators.prisma).
+const PRISMA_CLIENT_OUTPUT = path.join(
+  BACKEND_DIR,
+  "node_modules",
+  ".prisma",
+  "client",
+  "index.js",
+);
+// The generated client's bundled schema — used to detect PROVIDER DRIFT
+// (a postgres client left behind by a web-dev launch / stray `prisma generate`).
+const PRISMA_CLIENT_SCHEMA = path.join(
+  BACKEND_DIR,
+  "node_modules",
+  ".prisma",
+  "client",
+  "schema.prisma",
+);
+
+/**
+ * Hash every input that affects the generated SQLite Prisma client / init SQL.
+ * A change in any of these must force a regenerate, so all are folded in:
+ * the source schema files, the scripts that transform them, and the Prisma
+ * version (generated client format can change across versions).
+ * @returns {string} hex digest, or "" if inputs can't be read (forces regenerate)
+ */
+function computePrismaPrepareHash() {
+  try {
+    const hash = crypto.createHash("sha256");
+    // Source Prisma schema files (prismaSchemaFolder layout under prisma/schema/).
+    const schemaFiles = fs
+      .readdirSync(PRISMA_SCHEMA_SOURCE_DIR)
+      .filter((f) => f.endsWith(".prisma"))
+      .sort();
+    for (const file of schemaFiles) {
+      hash.update(file);
+      hash.update(fs.readFileSync(path.join(PRISMA_SCHEMA_SOURCE_DIR, file)));
+    }
+    // The transform scripts themselves — their logic affects the output.
+    for (const script of [
+      "generate-sqlite-prisma-schema.cjs",
+      "generate-sqlite-init-sql.cjs",
+    ]) {
+      hash.update(fs.readFileSync(path.join(BACKEND_DIR, "scripts", script)));
+    }
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(BACKEND_DIR, "package.json"), "utf8"),
+    );
+    hash.update(String(pkg.devDependencies?.prisma || ""));
+    hash.update(String(pkg.dependencies?.["@prisma/client"] || ""));
+    return hash.digest("hex");
+  } catch {
+    // Can't read inputs → return "" so the cache is treated as invalid.
+    return "";
+  }
+}
+
+/**
+ * True when the previous prepare output is still valid for the current inputs:
+ * the stamp matches the current hash AND both generated artifacts exist
+ * (a stamp without artifacts is stale and must not short-circuit generation).
+ * @param {string} currentHash
+ * @returns {boolean}
+ */
+function isPrismaPrepareCacheValid(currentHash) {
+  if (!currentHash) return false;
+  if (!fs.existsSync(PRISMA_PREPARE_STAMP)) return false;
+  try {
+    if (fs.readFileSync(PRISMA_PREPARE_STAMP, "utf8").trim() !== currentHash) {
+      return false;
+    }
+    if (!fs.existsSync(PRISMA_CLIENT_OUTPUT)) return false;
+    if (fs.statSync(SQLITE_INIT_SQL_OUTPUT).size === 0) return false;
+    // Guard against PROVIDER DRIFT: the schema hash only covers SOURCE files, so
+    // a web-dev launch or a stray `prisma generate` can leave a POSTGRES client
+    // in node_modules with the hash still matching. Booting that client against
+    // the desktop's sqlite `file:` URL throws PrismaClientInitializationError
+    // ("URL must start with postgresql://"). Only treat the cache as valid when
+    // the generated client is actually the sqlite one; otherwise force regen.
+    const clientSchema = fs.readFileSync(PRISMA_CLIENT_SCHEMA, "utf8");
+    if (!/provider\s*=\s*"sqlite"/.test(clientSchema)) return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Desktop dev 用 SQLite Prisma Client と初期化SQLを生成
  */
@@ -757,6 +988,14 @@ function syncDatabaseAndGenerateClient() {
   } catch (err) {
     console.error("Failed to create desktop data directory:", err.message);
     throw err;
+  }
+
+  // Skip the expensive `prisma generate` when nothing that affects it changed.
+  const prepareHash = computePrismaPrepareHash();
+  if (isPrismaPrepareCacheValid(prepareHash)) {
+    console.log("Schema unchanged — reusing generated Prisma Client (cached).");
+    console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
+    return;
   }
 
   console.log("Generating SQLite Prisma Client and init SQL...");
@@ -770,6 +1009,15 @@ function syncDatabaseAndGenerateClient() {
         DATABASE_URL: `file:${DESKTOP_DB_PATH}`,
       },
     });
+    // Record inputs only after a successful generate so a failed run never
+    // leaves a stamp that would wrongly skip the next attempt.
+    if (prepareHash) {
+      try {
+        fs.writeFileSync(PRISMA_PREPARE_STAMP, prepareHash);
+      } catch {
+        // Non-fatal: a missing stamp just means we regenerate next time.
+      }
+    }
     console.log(`Desktop SQLite database: ${DESKTOP_DB_PATH}`);
   } catch (err) {
     console.error("Failed to prepare SQLite Prisma Client:", err.message);
@@ -1159,12 +1407,19 @@ function startFileWatcher() {
     // リスタート中 or クールダウン中（3秒）はイベントを無視
     if (isHotRestarting) return;
     if (Date.now() - lastRestartCompletedAt < 3000) return;
-    // schema.prisma の変更はDB同期付きリスタート
-    if (filename.endsWith("schema.prisma")) {
+    // NOTE: fs.watch on Windows returns backslash-separated paths; normalize before matching.
+    const normalized = filename.replace(/\\/g, "/");
+    // NOTE: Covers prismaSchemaFolder layout (schema/*.prisma).
+    // `startsWith('schema.desktop/')` excludes re-generated files written during restart,
+    // which would otherwise trigger an infinite restart loop.
+    const isPrismaSchemaChange =
+      normalized.endsWith(".prisma") &&
+      !normalized.startsWith("schema.desktop/");
+    if (isPrismaSchemaChange) {
       pendingPrismaRestart = true;
     }
-    // .ts ファイルまたは schema.prisma のみ対象
-    if (!filename.endsWith(".ts") && !filename.endsWith("schema.prisma")) {
+    // .ts ファイルまたは prisma schema のみ対象
+    if (!filename.endsWith(".ts") && !isPrismaSchemaChange) {
       return;
     }
     pendingChanges.push(filename);
@@ -1264,12 +1519,41 @@ async function main() {
   console.log("\nCleaning up agent zombie processes...");
   cleanupAgentPidFiles();
 
+  // 残留 bun プロセスの安全 kill (Prisma DLL ロック対策)
+  // ※ ポート kill 後に行うと LISTEN してない bun (テスト・スクリプト orphan) を取り逃すため、
+  //   ポート確保より先に実行する。
+  killStrayBunProcesses();
+
   // ポートのクリーンアップ（前回クラッシュ時のゾンビプロセス対策）
   console.log("\nChecking ports...");
   actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
   actualFrontendPort = await ensurePortAvailable(FRONTEND_PORT);
 
-  syncDatabaseAndGenerateClient();
+  // Reclaim the local-LLM sidecar port so a llama-server orphaned by a previous
+  // crash/restart (which keeps a CPU core busy) is killed before we start again.
+  if (isPortListening(LLAMA_SERVER_PORT)) {
+    console.log(`  Port ${LLAMA_SERVER_PORT} (llama-server) in use, killing leftover...`);
+    forceKillAllOnPort(LLAMA_SERVER_PORT);
+  }
+
+  // syncDatabaseAndGenerateClient が EPERM で失敗した場合、bun が再び DLL を握っている
+  // 可能性があるので 1 度だけリトライする。
+  try {
+    syncDatabaseAndGenerateClient();
+  } catch (err) {
+    const msg = String(err && err.message ? err.message : err);
+    if (/EPERM|operation not permitted/i.test(msg)) {
+      console.warn(
+        "\n⚠️  Prisma generate hit EPERM (DLL locked). Retrying after extra bun kill...",
+      );
+      killStrayBunProcesses();
+      // ポートを再確保（リトライ前に何かが立ち上がった可能性）
+      actualBackendPort = await ensurePortAvailable(BACKEND_PORT);
+      syncDatabaseAndGenerateClient();
+    } else {
+      throw err;
+    }
+  }
   startBackend();
 
   // バックエンドのヘルスチェック（ゾンビソケットへの接続を検出）
@@ -1385,6 +1669,7 @@ function cleanupSync() {
     actualFrontendPort,
     BACKEND_PORT,
     FRONTEND_PORT,
+    LLAMA_SERVER_PORT,
   ]);
 
   for (const port of portsToClean) {

@@ -166,6 +166,19 @@ export interface SmartRouteOptions {
    * provider when picking for reviewer/verifier).
    */
   excludeProviders?: Provider[];
+  /**
+   * Minimum capability tier (a role floor). The complexity/budget tier is
+   * RAISED up to this — never below it — so capability-critical phases
+   * (implementer writing code, reviewer/verifier judging it) are not run on an
+   * economy model just because the task scored low complexity.
+   */
+  minTier?: ModelTier;
+  /**
+   * When false, skip building the (DB-heavy) `alternativeModels` list — it costs
+   * one `estimateCost` query per discovered model and is only used by the UI
+   * cost-explorer, NOT by the orchestrator's decision. Default true.
+   */
+  includeAlternatives?: boolean;
 }
 
 export async function getSmartRoute(
@@ -199,6 +212,16 @@ export async function getSmartRoute(
     recommendedTier = 'standard';
   } else {
     recommendedTier = isUrgent ? 'premium' : 'standard';
+  }
+
+  // Role floor: raise (never lower) the tier to the caller's minimum so
+  // capability-critical phases don't run on an economy model on a low-complexity
+  // task. TIER_ORDER index 0 = highest capability.
+  if (opts.minTier) {
+    const TIER_ORDER: ModelTier[] = ['premium', 'standard', 'economy', 'free'];
+    if (TIER_ORDER.indexOf(recommendedTier as ModelTier) > TIER_ORDER.indexOf(opts.minTier)) {
+      recommendedTier = opts.minTier;
+    }
   }
 
   // Run the dynamic discovery layer: probes CLI/API surfaces of every
@@ -237,22 +260,27 @@ export async function getSmartRoute(
     return `${PROVIDER_LABEL[m.provider]} ${m.tier}: ${tier}`;
   };
 
-  // Build cross-provider alternatives from the same discovered set.
+  // Build cross-provider alternatives from the same discovered set. Skipped on
+  // the orchestrator hot path (includeAlternatives:false) — each entry costs a
+  // DB query and only the UI cost-explorer consumes the list.
   const alternatives: RoutingDecision['alternativeModels'] = [];
-  for (const m of discovery.models) {
-    if (m.id === recommendedModel) continue;
-    const est = await estimateCost(complexity, m.id);
-    alternatives.push({
-      modelId: m.id,
-      estimatedCost: est.estimatedCost,
-      tradeoff: tradeoffLabel(m),
-    });
+  if (opts.includeAlternatives !== false) {
+    for (const m of discovery.models) {
+      if (m.id === recommendedModel) continue;
+      const est = await estimateCost(complexity, m.id);
+      alternatives.push({
+        modelId: m.id,
+        estimatedCost: est.estimatedCost,
+        tradeoff: tradeoffLabel(m),
+      });
+    }
+    alternatives.sort((a, b) => a.estimatedCost - b.estimatedCost);
   }
-  alternatives.sort((a, b) => a.estimatedCost - b.estimatedCost);
 
-  // Last-resort fallback: nothing was discovered. Keep previous behavior so
-  // the rest of the orchestrator does not crash on an empty model id.
-  const finalModel = recommendedModel ?? 'claude-sonnet-4-6-20250610';
+  // Last-resort fallback: nothing was discovered. Prefer any discovered model;
+  // else a valid current Sonnet id (NOT a date-suffixed one, which can be
+  // rejected at spawn) so the orchestrator never gets an empty/invalid id.
+  const finalModel = recommendedModel ?? discovery.models[0]?.id ?? 'claude-sonnet-4-6';
   const costEstimate = await estimateCost(complexity, finalModel);
 
   const reason = budgetPressure

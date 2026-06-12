@@ -90,7 +90,7 @@ describe('gantt-utils', () => {
       const task = {
         id: 2,
         title: 'テストタスク2',
-        status: 'in_progress',
+        status: 'in-progress',
         dueDate: null,
         estimatedHours: null,
       };
@@ -107,7 +107,7 @@ describe('gantt-utils', () => {
       const task = {
         id: 3,
         title: 'テストタスク3',
-        status: 'completed',
+        status: 'done',
         dueDate: '2024-01-20',
       };
 

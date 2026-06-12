@@ -395,8 +395,9 @@ export class AgentOrchestrator {
     branchName: string,
     taskId?: number,
     repositoryUrl?: string | null,
+    baseBranch?: string | null,
   ): Promise<string> {
-    return this.gitOps.createWorktree(baseDir, branchName, taskId, repositoryUrl);
+    return this.gitOps.createWorktree(baseDir, branchName, taskId, repositoryUrl, baseBranch);
   }
 
   /**

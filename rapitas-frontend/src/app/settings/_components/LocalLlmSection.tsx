@@ -109,7 +109,7 @@ export function LocalLlmSection({
               value={ollamaUrlInput}
               onChange={(e) => onOllamaUrlChange(e.target.value)}
               placeholder="http://localhost:11434"
-              className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
             />
             <button
               onClick={() => onSaveLocalLlmSettings({ ollamaUrl: ollamaUrlInput })}

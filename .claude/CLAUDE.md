@@ -201,6 +201,7 @@ When the plan meets **any** of the following thresholds, split into subtasks:
 5. Subtasks that share no files can be marked as parallelizable.
 
 **Subtask registration:**
+
 ```bash
 # Register subtasks via API (parent taskId = current task)
 curl -X POST http://localhost:3001/tasks \
@@ -209,6 +210,7 @@ curl -X POST http://localhost:3001/tasks \
 ```
 
 **Subtask workflow directory:**
+
 ```
 tasks/{categoryId}/{themeId}/{taskId}/
 ├── research.md
@@ -223,6 +225,7 @@ tasks/{categoryId}/{themeId}/{taskId}/
 ```
 
 **instruction.md format (for each subtask):**
+
 ```markdown
 # Subtask: <title>
 
@@ -245,6 +248,7 @@ tasks/{categoryId}/{themeId}/{taskId}/
 ```
 
 **Execution flow:**
+
 1. After plan approval, execute subtasks in dependency order.
 2. Parallelizable subtasks run concurrently.
 3. After ALL subtasks complete, create the parent task's `verify.md` covering all subtasks.
@@ -330,3 +334,7 @@ If verify.md has failures or unresolved concerns — do NOT commit/push/PR. Repo
 ## 9. Folder Organization Policy
 
 @FOLDER_ORGANIZATION_POLICY.md
+
+## 10. Icon Consistency Policy
+
+@ICON_POLICY.md

@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, mock } from 'bun:test';
 const mockExecutionFindMany = mock(() => Promise.resolve([] as unknown[]));
 
 mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     agentExecution: { findMany: mockExecutionFindMany },
   },

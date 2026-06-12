@@ -49,7 +49,7 @@ export function AddSubtaskForm({
         <div>
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
             value={newSubtaskTitle}
             onChange={(e) => onSetNewSubtaskTitle(e.target.value)}
             onKeyDown={(e) => {
@@ -66,7 +66,7 @@ export function AddSubtaskForm({
 
         <div>
           <textarea
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             value={newSubtaskDescription}
             onChange={(e) => onSetNewSubtaskDescription(e.target.value)}
             placeholder={t('subtaskDescriptionPlaceholder')}
@@ -84,7 +84,7 @@ export function AddSubtaskForm({
               type="number"
               step="0.5"
               min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
               placeholder="0"
               value={newSubtaskEstimatedHours}
               onChange={(e) => onSetNewSubtaskEstimatedHours(e.target.value)}
@@ -98,7 +98,7 @@ export function AddSubtaskForm({
             </label>
             <input
               type="text"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
               placeholder={t('labelsCommaSeparated')}
               value={newSubtaskLabels}
               onChange={(e) => onSetNewSubtaskLabels(e.target.value)}

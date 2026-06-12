@@ -10,6 +10,7 @@ import { NotFoundError, ValidationError, parseId } from '../../../middleware/err
 import { createLogger } from '../../../config/logger';
 import { VALID_WORKFLOW_STATUSES } from '../core/workflow-helpers';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
+import { previewMissingFilesForStatus } from '../../../services/workflow/workflow-invariants';
 
 const log = createLogger('routes:workflow:handlers:plan');
 
@@ -78,29 +79,53 @@ export async function handleApprovePlan({
     });
 
     if (parsedBody.approved) {
+      // Notify the theme auto-run scheduler so it can resume a paused theme.
+      try {
+        const { ThemeAutoRunScheduler } =
+          await import('../../../services/workflow/auto-run/theme-auto-run-scheduler');
+        await ThemeAutoRunScheduler.getInstance().onPlanApproved(taskId);
+      } catch (err) {
+        log.warn({ err }, '[Workflow] Failed to notify ThemeAutoRunScheduler of plan approval');
+      }
+
       try {
         const { AIOrchestra } = await import('../../../services/workflow/ai-orchestra');
-        AIOrchestra.getInstance()
-          .handlePlanApproved(taskId)
-          .catch((err) => {
+        const orchestra = AIOrchestra.getInstance();
+
+        // If the plan was split into subtasks, the parent does NOT implement
+        // directly — enqueue the subtasks for sequential execution instead of
+        // advancing the parent to its own implementer phase. Completing the last
+        // subtask triggers the parent's integration verify.md (→ PR → done).
+        const pendingSubtasks = await prisma.task.count({
+          where: { parentId: taskId, status: { notIn: ['done', 'cancelled', 'archived'] } },
+        });
+
+        if (pendingSubtasks > 0) {
+          await orchestra.enqueueSubtasksForExecution(taskId);
+        } else {
+          orchestra.handlePlanApproved(taskId).catch((err) => {
             log.warn(
               { err },
               `[Workflow] Orchestra resume failed for task ${taskId}, falling back to direct advance`,
             );
           });
 
-        const { WorkflowOrchestrator } =
-          await import('../../../services/workflow/workflow-orchestrator');
-        WorkflowOrchestrator.getInstance()
-          .advanceWorkflow(taskId, language)
-          .then((result) => {
-            log.info(
-              `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
-            );
-          })
-          .catch((err) => {
-            log.error({ err }, `[Workflow] Auto-advance after approval failed for task ${taskId}`);
-          });
+          const { WorkflowOrchestrator } =
+            await import('../../../services/workflow/workflow-orchestrator');
+          WorkflowOrchestrator.getInstance()
+            .advanceWorkflow(taskId, language)
+            .then((result) => {
+              log.info(
+                `[Workflow] Auto-advance after approval for task ${taskId}: ${result.success ? 'success' : result.error}`,
+              );
+            })
+            .catch((err) => {
+              log.error(
+                { err },
+                `[Workflow] Auto-advance after approval failed for task ${taskId}`,
+              );
+            });
+        }
       } catch (err) {
         log.error({ err }, '[Workflow] Failed to auto-advance after approval');
       }
@@ -144,7 +169,7 @@ export async function handleUpdateStatus({
   try {
     const taskId = parseId(params.taskId, 'task ID');
 
-    const parsedBody = body as { status: string; reason?: string };
+    const parsedBody = body as { status: string; reason?: string; force?: boolean };
     if (
       !parsedBody?.status ||
       !(VALID_WORKFLOW_STATUSES as readonly string[]).includes(parsedBody.status)
@@ -196,18 +221,50 @@ export async function handleUpdateStatus({
     const task = await prisma.task.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundError('Task not found');
 
+    // Pre-check: verify required files exist for the target status. Advancing to a
+    // status whose required files are absent is the primary root cause of invariant
+    // violations detected in the subsequent file-save step. Soft-block when files
+    // are missing unless the caller explicitly sets force=true (for intentional
+    // resets and special operational use cases).
+    const missingFiles = await previewMissingFilesForStatus(taskId, parsedBody.status);
+    if (missingFiles.length > 0) {
+      if (!parsedBody.force) {
+        set.status = 422;
+        return {
+          error: `ステータス "${parsedBody.status}" への変更を拒否しました: 必要なファイルがディスクに存在しません。`,
+          missingFiles,
+          hint: `不足ファイルを先に保存してください (PUT /workflow/tasks/${taskId}/files/<type>)、またはステータスを draft にリセットしてください。強制的に変更する場合は body に force: true を追加してください。`,
+        };
+      }
+      // force=true: apply but record the invariant violation for tracking.
+      log.warn(
+        { taskId, targetStatus: parsedBody.status, missingFiles },
+        '[Workflow] Manual status set with force=true despite missing files',
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: task.workflowStatus ?? null,
+        toStatus: parsedBody.status,
+        actor: 'user',
+        cause: 'manual_status_change',
+        metadata: { reason: parsedBody.reason ?? null, force: true, missingFiles },
+        invariantViolation: true,
+        invariantMessage: `manual status set with missing files (force): ${missingFiles.join(', ')}`,
+      });
+    } else {
+      await recordTransition({
+        taskId,
+        fromStatus: task.workflowStatus ?? null,
+        toStatus: parsedBody.status,
+        actor: 'user',
+        cause: 'manual_status_change',
+        metadata: { reason: parsedBody.reason ?? null },
+      });
+    }
+
     const updatedTask = await prisma.task.update({
       where: { id: taskId },
       data: { workflowStatus: parsedBody.status, updatedAt: new Date() },
-    });
-
-    await recordTransition({
-      taskId,
-      fromStatus: task.workflowStatus ?? null,
-      toStatus: parsedBody.status,
-      actor: 'user',
-      cause: 'manual_status_change',
-      metadata: {},
     });
 
     await prisma.activityLog.create({

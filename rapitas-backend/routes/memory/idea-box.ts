@@ -13,6 +13,7 @@ import {
   deleteIdea,
   getIdeaStats,
   markIdeaAsUsed,
+  normalizeIdeaPriority,
 } from '../../services/memory/idea-box-service';
 import { runInnovationSession } from '../../services/memory/innovation-session';
 import { prisma } from '../../config/database';
@@ -22,6 +23,18 @@ const log = createLogger('routes:idea-box');
 
 export const ideaBoxRoutes = new Elysia()
 
+  /**
+   * One-time maintenance: reclassify existing ideas. Moves concern-type items
+   * (bugs/refactors/perf) into the Concern Backlog and re-derives priorities.
+   * Runs in the background (serialised LLM enrichment); returns the queued count.
+   */
+  .post('/idea-box/reclassify', async () => {
+    const { reclassifyExistingIdeas } = await import('../../services/memory/idea-extractor');
+    const queued = await reclassifyExistingIdeas();
+    log.info({ queued }, 'Idea reclassification backfill triggered');
+    return { success: true, queued };
+  })
+
   /** List ideas with optional filters. */
   .get(
     '/idea-box',
@@ -30,10 +43,24 @@ export const ideaBoxRoutes = new Elysia()
       const themeId = query.themeId ? parseInt(query.themeId) : undefined;
       const unusedOnly = query.unusedOnly === 'true';
       const scope = query.scope as 'global' | 'project' | undefined;
+      const status =
+        query.status === 'open' || query.status === 'used' || query.status === 'all'
+          ? query.status
+          : undefined;
+      const priority = query.priority || undefined;
       const limit = query.limit ? parseInt(query.limit) : 20;
       const offset = query.offset ? parseInt(query.offset) : 0;
 
-      const result = await listIdeas({ categoryId, themeId, unusedOnly, scope, limit, offset });
+      const result = await listIdeas({
+        categoryId,
+        themeId,
+        unusedOnly,
+        scope,
+        status,
+        priority,
+        limit,
+        offset,
+      });
       return result;
     },
     {
@@ -42,6 +69,8 @@ export const ideaBoxRoutes = new Elysia()
         themeId: t.Optional(t.String()),
         unusedOnly: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         limit: t.Optional(t.String()),
         offset: t.Optional(t.String()),
       }),
@@ -63,6 +92,7 @@ export const ideaBoxRoutes = new Elysia()
           content: body.content.trim(),
           category: body.category ?? 'improvement',
           scope: (body.scope as 'global' | 'project') ?? 'global',
+          priority: normalizeIdeaPriority(body.priority),
           themeId: body.themeId ?? undefined,
           tags: body.tags ?? [],
           source: 'user',
@@ -81,6 +111,7 @@ export const ideaBoxRoutes = new Elysia()
         content: t.String({ minLength: 1 }),
         category: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         themeId: t.Optional(t.Number()),
         tags: t.Optional(t.Array(t.String())),
       }),
@@ -128,6 +159,7 @@ export const ideaBoxRoutes = new Elysia()
           content: body.content,
           category: body.category,
           scope: body.scope as 'global' | 'project' | undefined,
+          priority: body.priority === undefined ? undefined : normalizeIdeaPriority(body.priority),
           // null clears themeId, undefined leaves it as-is
           themeId:
             body.themeId === undefined ? undefined : body.themeId === null ? null : body.themeId,
@@ -151,6 +183,7 @@ export const ideaBoxRoutes = new Elysia()
         content: t.Optional(t.String()),
         category: t.Optional(t.String()),
         scope: t.Optional(t.String()),
+        priority: t.Optional(t.String()),
         themeId: t.Optional(t.Union([t.Number(), t.Null()])),
         tags: t.Optional(t.Array(t.String())),
       }),

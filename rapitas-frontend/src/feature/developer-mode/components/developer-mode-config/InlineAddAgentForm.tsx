@@ -94,7 +94,7 @@ export function InlineAddAgentForm({
         <select
           value={agentType}
           onChange={(e) => onAgentTypeChange(e.target.value)}
-          className="w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+          className="w-full px-2.5 py-1.5 bg-white dark:bg-indigo-dark-900 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-blue-400"
         >
           <option value="claude-code">Claude Code</option>
           <option value="codex">Codex CLI</option>

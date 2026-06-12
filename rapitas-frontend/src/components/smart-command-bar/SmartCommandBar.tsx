@@ -353,7 +353,7 @@ export default function SmartCommandBar() {
                     className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
                       s.status === 'done'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : s.status === 'in_progress'
+                        : s.status === 'in-progress'
                           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                           : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400'
                     }`}

@@ -117,9 +117,10 @@ export default function TaskSlidePanel({
 
   return (
     <>
-      {/* Overlay */}
+      {/* Overlay — sits below the header (top-16) so the header stays visible
+          and interactive, matching the side nav's backdrop. */}
       <div
-        className="fixed inset-0 z-40"
+        className="fixed inset-x-0 top-16 bottom-0 z-40"
         onClick={handleClose}
         style={{
           animation: isClosing
@@ -128,38 +129,38 @@ export default function TaskSlidePanel({
         }}
       />
 
-      {/* Slide panel */}
+      {/* Slide panel — positioned below the header (top-16) like the side nav,
+          so it no longer overlaps the sticky header. */}
       <div
-        className="fixed top-0 right-0 h-full w-full md:w-3/4 lg:w-2/3 xl:w-1/2 bg-white dark:bg-zinc-950 shadow-2xl z-50 overflow-hidden"
+        className="fixed top-16 right-0 bottom-0 w-full md:w-3/4 lg:w-2/3 xl:w-1/2 flex flex-col bg-white dark:bg-zinc-950 shadow-2xl z-50 overflow-hidden"
         style={{
           animation: isClosing
             ? `slideOut ${ANIMATION_DURATION}ms ease-in forwards`
             : `slideIn ${ANIMATION_DURATION}ms ease-out forwards`,
         }}
       >
-        {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-indigo-dark-900 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">タスク詳細</h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleClose}
-              className="p-2 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-              title="閉じる (Esc)"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
+        {/* Header (compact) */}
+        <div className="shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900 px-4 py-2.5">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">タスク詳細</h2>
+          <button
+            onClick={handleClose}
+            className="p-1.5 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            title="閉じる (Esc)"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
         </div>
 
-        {/* Content */}
-        <div ref={contentRef} className="h-full overflow-y-auto pb-16">
+        {/* Content — single scroll container (TaskDetailContent flows inside).
+            Marked so the quick-nav scroll-spy can resolve it deterministically. */}
+        <div ref={contentRef} data-task-scroll-container className="flex-1 min-h-0 overflow-y-auto">
           <TaskDetailClient taskId={taskId} onTaskUpdated={onTaskUpdated} onClose={handleClose} />
         </div>
       </div>

@@ -131,7 +131,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder={t('goalPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-base focus:outline-none focus:border-blue-400"
                 autoFocus
               />
             </div>
@@ -144,7 +144,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder={t('detailedDescriptionPlaceholder')}
                 rows={3}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400 resize-none"
               />
             </div>
           </div>
@@ -170,7 +170,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.currentLevel}
                 onChange={(e) => setFormData({ ...formData, currentLevel: e.target.value })}
                 placeholder={t('currentLevelPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
                 autoFocus
               />
             </div>
@@ -183,7 +183,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.targetLevel}
                 onChange={(e) => setFormData({ ...formData, targetLevel: e.target.value })}
                 placeholder={t('targetLevelPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
               />
             </div>
           </div>
@@ -209,7 +209,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                 value={formData.deadline}
                 onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
                 autoFocus
               />
               <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
@@ -254,7 +254,7 @@ export function GoalWizard({ categories, onSubmit, onCancel }: Props) {
                       categoryId: e.target.value ? parseInt(e.target.value) : undefined,
                     })
                   }
-                  className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:border-blue-400"
                 >
                   <option value="">{t('categoryAuto')}</option>
                   {categories.map((cat) => (

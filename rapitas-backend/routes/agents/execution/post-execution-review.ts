@@ -15,6 +15,9 @@ import { getLocalLLMStatus } from '../../../services/local-llm';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { createCommit } from '../../../services/agents/orchestrator/git-operations/core-ops';
 import { createPullRequest } from '../../../services/agents/orchestrator/git-operations/branch-pr-ops';
+import { runAutomatedVerification } from '../../../services/agents/verification/automated-verifier';
+import { retryOrBlock } from '../../../services/agents/verification/verification-retry';
+import { linkAutoCreatedPr } from '../../../services/github/pr-link';
 
 const log = createLogger('routes:post-execution-review');
 const agentWorkerManager = AgentWorkerManager.getInstance();
@@ -80,7 +83,9 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
         'Agent completed planning phase (research/plan saved). Awaiting user approval before implementation.',
       );
       await prisma.task
-        .update({ where: { id: taskId }, data: { status: 'in_progress' } })
+        // Canonical task.status is hyphenated 'in-progress' (see StatusConfig);
+        // the underscore form is the separate workflowStatus value.
+        .update({ where: { id: taskId }, data: { status: 'in-progress' } })
         .catch((err) => log.warn({ err, taskId }, 'Failed to update task status'));
       // Worktree is preserved so the next execution (after user approves the
       // plan in the UI) can pick up where this one left off.
@@ -204,6 +209,42 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
+  // 1.5 Automated verification gate — run REAL lint + typecheck + scoped tests
+  // (+ plan-scope when a plan exists) on the agent's changes (not the agent's
+  // prose claims). Blocks commit/PR (task=blocked, session=failed with
+  // evidence) on new failures. A verifier crash is non-fatal (gate opens).
+  // Shared with the verify.md auto-PR path. See verification-gate.ts.
+  const planContentForScope = await (async () => {
+    try {
+      const { resolveWorkflowDir, readWorkflowFile } =
+        await import('../../../services/workflow/workflow-file-utils');
+      const info = await resolveWorkflowDir(taskId);
+      return info ? (await readWorkflowFile(info.dir, 'plan')) || null : null;
+    } catch {
+      return null;
+    }
+  })();
+  const verification = await runAutomatedVerification(executionDir, {
+    planContent: planContentForScope,
+  }).catch((err) => {
+    log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
+    return null;
+  });
+  if (verification && !verification.ok) {
+    // Self-repair: feed the lint/type errors back to the implementer and re-run
+    // on the same worktree; block only after retries are exhausted. After the
+    // fix attempt we re-enter this pipeline (onReverify) to re-verify.
+    await retryOrBlock({
+      taskId,
+      sessionId,
+      taskTitle,
+      executionDir,
+      result: verification,
+      onReverify: () => reviewAndCommitWorktree(params),
+    });
+    return;
+  }
+
   // 2. AI Review
   const review = await runAIReview(taskTitle, diff);
   if (!review) {
@@ -237,6 +278,8 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     '',
     `Task: #${taskId}`,
     '',
+    `自動検証: ${verification ? verification.summary.replace(/^自動検証:\s*/, '') : 'スキップ'}`,
+    '',
     '---',
     '🤖 AI-reviewed and auto-committed by Rapitas',
   ].join('\n');
@@ -249,6 +292,31 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
   }
 
   log.info({ taskId, prUrl: prResult.prUrl, prNumber: prResult.prNumber }, 'PR created');
+
+  // Persist + link the PR locally so the task's "PRを開く" button can resolve
+  // task → local PR id (otherwise the by-task lookup 404s and nothing happens).
+  // The worktree's current branch is the PR head; `branchName` is the base
+  // (it is passed as createPullRequest's baseBranch above).
+  if (prResult.prNumber != null && prResult.prUrl) {
+    let headBranch = 'unknown';
+    try {
+      const { execSync } = await import('node:child_process');
+      headBranch =
+        execSync('git branch --show-current', { cwd: executionDir, encoding: 'utf-8' }).trim() ||
+        headBranch;
+    } catch {
+      /* display-only field — a later sync corrects it */
+    }
+    await linkAutoCreatedPr(prisma, {
+      taskId,
+      prNumber: prResult.prNumber,
+      prUrl: prResult.prUrl,
+      title: prTitle,
+      headBranch,
+      baseBranch: branchName ?? 'develop',
+      workingDirectory: executionDir,
+    });
+  }
 
   // 5. Cleanup worktree only after PR is confirmed
   await cleanupWorktree(workDir, executionDir, sessionId);

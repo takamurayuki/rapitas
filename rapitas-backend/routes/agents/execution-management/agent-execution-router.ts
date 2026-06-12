@@ -13,13 +13,11 @@ import { respondRoute } from '../execution/respond-route';
 import { stopRoute } from '../execution/stop-route';
 import { continueRoute } from '../execution/continue-route';
 import { resetRoute } from '../execution/reset-route';
+import { baseBranchesRoute } from '../execution/base-branches-route';
 
 // Re-export helpers for consumers that import directly from this module
 export { acquireTaskExecutionLock, releaseTaskExecutionLock } from '../execution/execution-lock';
-export {
-  updateSessionStatusWithRetry,
-  createCodeReviewApproval,
-} from '../execution/session-helpers';
+export { updateSessionStatusWithRetry } from '../execution/session-helpers';
 
 export const agentExecutionRouter = new Elysia()
   .use(executeRoute)
@@ -27,4 +25,5 @@ export const agentExecutionRouter = new Elysia()
   .use(respondRoute)
   .use(stopRoute)
   .use(continueRoute)
-  .use(resetRoute);
+  .use(resetRoute)
+  .use(baseBranchesRoute);

@@ -143,18 +143,31 @@ model WorkflowOptimizationRule {
   @@index([isActive])
 }
 
-// Prompt evolution records - history of prompt improvements
+// Prompt evolution records - history of prompt improvements.
+// NOTE: two-stage lifecycle. (1) status="pending" — queued by
+// prompt-evolution-runner when a role's 7-day success rate drops below
+// threshold; the before/after prompt pair is not generated yet. (2)
+// status="completed" — recordPromptEvolution (or a follow-up worker) fills in
+// the prompt pair and performanceDelta once the A/B result lands.
 model PromptEvolution {
   id            Int       @id @default(autoincrement())
   experimentId  Int?
   experiment    Experiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
-  category      String    // research, hypothesis, planning, execution, evaluation
-  beforePrompt  String
-  afterPrompt   String
+  // NOTE: kept non-null with "" default (not nullable) so generated types stay
+  // `string` for existing readers (e.g. agent-knowledge-sharing); empty while pending.
+  category      String    @default("") // research, hypothesis, planning, execution, evaluation
+  beforePrompt  String    @default("") // empty while status="pending"
+  afterPrompt   String    @default("") // empty while status="pending"
   improvement   String?   // what was improved
   performanceDelta Float  @default(0) // -1.0 to 1.0
+  // Fields below back the runner-queued "pending" candidate stage.
+  basePromptKey String?   // e.g. "workflow_role_planner" — which prompt to evolve
+  reason        String?   // why this candidate was queued (success-rate evidence summary)
+  status        String    @default("completed") // pending | completed; default keeps legacy writers as completed
+  evidenceJson  String?   // JSON: aggregated metrics that triggered evolution
   createdAt     DateTime  @default(now())
 
   @@index([category])
   @@index([performanceDelta])
+  @@index([status])
 }

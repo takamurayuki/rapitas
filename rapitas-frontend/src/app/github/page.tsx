@@ -9,16 +9,18 @@ import {
   CircleDot,
   Plus,
   RefreshCw,
-  Settings,
   ExternalLink,
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Loader2,
+  Check,
+  FolderGit2,
 } from 'lucide-react';
 import type { GitHubIntegration, GitHubPullRequest, GitHubIssue } from '@/types';
 import { getLabelsArray } from '@/utils/labels';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { GitHubPageSkeleton } from './_components/GitHubPageSkeleton';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('GitHubPage');
@@ -93,7 +95,7 @@ export default function GitHubPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <GitHubPageSkeleton />;
   }
 
   return (
@@ -194,13 +196,6 @@ export default function GitHubPage() {
                           className={`w-4 h-4 ${syncing === integration.id ? 'animate-spin' : ''}`}
                         />
                       </button>
-                      <Link
-                        href={`/github/integrations/${integration.id}/settings`}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded transition-colors"
-                        title={t('settings')}
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Link>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
@@ -354,6 +349,17 @@ export default function GitHubPage() {
   );
 }
 
+/** A repository surfaced by `gh repo list`, with whether it is already integrated. */
+interface AvailableRepo {
+  nameWithOwner: string;
+  name: string;
+  owner: string;
+  url: string;
+  description: string;
+  visibility: string;
+  alreadyAdded: boolean;
+}
+
 function AddIntegrationModal({
   onClose,
   onSuccess,
@@ -366,6 +372,67 @@ function AddIntegrationModal({
   const [repositoryUrl, setRepositoryUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // gh repo picker state
+  const [repos, setRepos] = useState<AvailableRepo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [reposLoaded, setReposLoaded] = useState(false);
+  const [repoError, setRepoError] = useState('');
+  const [addedSet, setAddedSet] = useState<Set<string>>(new Set());
+  const [addingRepo, setAddingRepo] = useState<string | null>(null);
+  // True once any repo was added via the picker; closing then refreshes the list.
+  const [changed, setChanged] = useState(false);
+
+  const loadRepos = async () => {
+    setLoadingRepos(true);
+    setRepoError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/available-repos?limit=100`);
+      if (res.ok) {
+        setRepos(await res.json());
+        setReposLoaded(true);
+      } else {
+        setRepoError(t('repoListFailed'));
+      }
+    } catch {
+      setRepoError(t('repoListFailed'));
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
+
+  // Auto-fetch the repo list when the modal opens so it appears without a click.
+  useEffect(() => {
+    loadRepos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addRepo = async (repo: AvailableRepo) => {
+    setAddingRepo(repo.nameWithOwner);
+    setRepoError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/integrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repositoryUrl: repo.url,
+          ownerName: repo.owner,
+          repositoryName: repo.name,
+        }),
+      });
+      if (res.ok) {
+        setAddedSet((prev) => new Set(prev).add(repo.nameWithOwner));
+        setChanged(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setRepoError(data.error || t('addFailed'));
+      }
+    } catch {
+      setRepoError(t('addFailed'));
+    } finally {
+      setAddingRepo(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -406,13 +473,115 @@ function AddIntegrationModal({
     }
   };
 
+  // Closing after a picker add must refresh the parent so new integrations show.
+  const handleClose = () => (changed ? onSuccess() : onClose());
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md bg-white dark:bg-zinc-800 rounded-lg shadow-xl">
+      <div className="w-full max-w-lg max-h-[85vh] overflow-y-auto bg-white dark:bg-zinc-800 rounded-lg shadow-xl scrollbar-thin">
         <div className="p-6">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             {t('addGitHubIntegration')}
           </h2>
+
+          {/* gh repo picker — one-click add from the authenticated user's repos. */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                {t('pickFromGh')}
+              </label>
+              <button
+                type="button"
+                onClick={loadRepos}
+                disabled={loadingRepos}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors disabled:opacity-50"
+              >
+                {loadingRepos ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                {reposLoaded ? t('reload') : t('fetchRepos')}
+              </button>
+            </div>
+
+            {repoError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-2">{repoError}</p>
+            )}
+
+            {loadingRepos ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-12 bg-zinc-100 dark:bg-zinc-700 rounded-lg animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : reposLoaded && repos.length === 0 ? (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">{t('noReposFound')}</p>
+            ) : repos.length > 0 ? (
+              <div className="max-h-56 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg divide-y divide-zinc-100 dark:divide-zinc-700 scrollbar-thin">
+                {repos.map((repo) => {
+                  const isAdded = repo.alreadyAdded || addedSet.has(repo.nameWithOwner);
+                  const isAdding = addingRepo === repo.nameWithOwner;
+                  return (
+                    <div
+                      key={repo.nameWithOwner}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-700/50"
+                    >
+                      <FolderGit2 className="w-4 h-4 shrink-0 text-indigo-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                            {repo.nameWithOwner}
+                          </span>
+                          {repo.visibility && (
+                            <span className="shrink-0 text-[10px] uppercase px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400">
+                              {repo.visibility}
+                            </span>
+                          )}
+                        </div>
+                        {repo.description && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                            {repo.description}
+                          </p>
+                        )}
+                      </div>
+                      {isAdded ? (
+                        <span className="flex items-center gap-1 shrink-0 text-xs text-green-600 dark:text-green-400">
+                          <Check className="w-3.5 h-3.5" />
+                          {t('added')}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => addRepo(repo)}
+                          disabled={isAdding}
+                          className="flex items-center gap-1 shrink-0 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isAdding ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Plus className="w-3.5 h-3.5" />
+                          )}
+                          {tc('add')}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          {/* Divider between picker and manual entry */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">{t('orAddManually')}</span>
+            <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
+          </div>
+
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -423,22 +592,21 @@ function AddIntegrationModal({
                 value={repositoryUrl}
                 onChange={(e) => setRepositoryUrl(e.target.value)}
                 placeholder="https://github.com/owner/repository"
-                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                required
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:border-blue-400"
               />
             </div>
             {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="px-4 py-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg transition-colors"
               >
-                {tc('cancel')}
+                {changed ? tc('close') : tc('cancel')}
               </button>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || !repositoryUrl.trim()}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
                 {saving ? t('adding') : tc('add')}

@@ -3,9 +3,8 @@
 /**
  * Learning Dashboard Page
  *
- * Unified view aggregating ExamGoal progress, Flashcard stats,
- * LearningGoal tracking, and StudyStreak data from
- * GET /learning/dashboard API.
+ * Unified view aggregating ExamGoal progress, LearningGoal tracking,
+ * and StudyStreak data from GET /learning/dashboard API.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -36,15 +35,6 @@ interface ExamGoalData {
   progressPercent: number;
 }
 
-interface FlashcardStats {
-  totalDecks: number;
-  totalCards: number;
-  dueToday: number;
-  reviewedToday: number;
-  masteredCards: number;
-  averageRetention: number;
-}
-
 interface LearningGoalData {
   id: number;
   title: string;
@@ -68,7 +58,6 @@ interface StudyStreakData {
 
 interface DashboardData {
   examGoals: ExamGoalData[];
-  flashcards: FlashcardStats;
   learningGoals: LearningGoalData[];
   studyStreak: StudyStreakData;
 }
@@ -112,7 +101,7 @@ export default function LearningDashboardPage() {
     return <div className="p-6 text-center text-zinc-500">{t('error')}</div>;
   }
 
-  const { examGoals, flashcards, learningGoals, studyStreak } = data;
+  const { examGoals, learningGoals, studyStreak } = data;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
@@ -173,28 +162,28 @@ export default function LearningDashboardPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={<BookOpen className="w-5 h-5 text-blue-500" />}
-          label="Flashcards"
-          value={flashcards.totalCards}
-          sub={`${flashcards.dueToday} due today`}
-        />
-        <StatCard
-          icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
-          label="Reviewed Today"
-          value={flashcards.reviewedToday}
-          sub={`${flashcards.masteredCards} mastered`}
-        />
-        <StatCard
           icon={<Target className="w-5 h-5 text-purple-500" />}
           label="Exam Goals"
           value={examGoals.length}
           sub={`${examGoals.filter((g) => !g.isCompleted).length} active`}
         />
         <StatCard
-          icon={<TrendingUp className="w-5 h-5 text-indigo-500" />}
-          label="Retention"
-          value={`${flashcards.averageRetention}%`}
-          sub="average"
+          icon={<BookOpen className="w-5 h-5 text-blue-500" />}
+          label="Learning Goals"
+          value={learningGoals.length}
+          sub={`${learningGoals.filter((g) => g.status === 'active').length} active`}
+        />
+        <StatCard
+          icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
+          label="Tasks Done Today"
+          value={studyStreak.todayTasksCompleted}
+          sub={`${studyStreak.todayMinutes}min studied`}
+        />
+        <StatCard
+          icon={<Clock className="w-5 h-5 text-indigo-500" />}
+          label="This Week"
+          value={`${studyStreak.weeklyMinutes}min`}
+          sub={`${studyStreak.longestStreak}d best streak`}
         />
       </div>
 

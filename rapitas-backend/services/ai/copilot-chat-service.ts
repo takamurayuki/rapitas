@@ -8,13 +8,16 @@
 //   4. Claude API (Sonnet) for high complexity → higher cost
 //
 // The complexity assessor + smart router decide which tier to use.
-// Task context (description, comments, subtasks, dependencies) is
-// automatically injected so the AI understands the current work.
+// Task context (description, comments, subtasks) PLUS knowledge-OS context
+// (past success/failure patterns and related knowledge — the same context
+// agents receive) is automatically injected so the copilot grounds answers in
+// what the project has already learned, not just the current task in isolation.
 
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { assessComplexity } from '../local-llm/complexity-assessor';
 import { getLocalLLMStatus } from '../local-llm';
+import { pickBestLocalModel } from '../local-llm/local-model-selector';
 import {
   getCachedResponse,
   setCachedResponse,
@@ -22,6 +25,7 @@ import {
 } from '../local-llm/response-cache';
 import { sendAIMessage, sendAIMessageStream } from '../../utils/ai-client';
 import type { AIMessage } from '../../utils/ai-client';
+import { gatherSharedKnowledge, formatKnowledgeContext } from '../agents/agent-knowledge-sharing';
 
 const log = createLogger('copilot-chat');
 
@@ -63,6 +67,16 @@ async function buildTaskContext(taskId: number): Promise<string> {
     );
   }
 
+  // Ground the copilot in the knowledge OS: past success/failure patterns and
+  // related knowledge for this task (the same context agents receive before
+  // execution). Non-fatal — falls back to task-local context on error.
+  try {
+    const knowledgeContext = formatKnowledgeContext(await gatherSharedKnowledge(taskId));
+    if (knowledgeContext) parts.push(`\n${knowledgeContext}`);
+  } catch {
+    // ignore — keep task-local context only
+  }
+
   return parts.join('\n');
 }
 
@@ -94,7 +108,7 @@ function selectModelTier(
   // Tier 3: Sonnet for complex analysis
   return {
     provider: 'claude',
-    model: 'claude-sonnet-4-6-20250610',
+    model: 'claude-sonnet-4-6',
     tier: 'standard',
   };
 }
@@ -105,6 +119,7 @@ const SYSTEM_PROMPT = `あなたはrapitasタスク管理アプリのAIコパイ
 ルール:
 - 日本語で回答
 - タスクの文脈が提供された場合、それを踏まえて回答
+- 「過去の失敗パターンに基づく警告」「関連する成功パターン」「関連する既存ナレッジ」が提供された場合は、必ずそれを根拠として具体的に助言する
 - 実装の提案は具体的なステップで
 - 不明な点は確認を求める
 - 200-400文字程度を目安に簡潔に`;
@@ -154,10 +169,17 @@ export async function sendCopilotMessage(options: CopilotChatOptions): Promise<C
   const localStatus = await getLocalLLMStatus().catch(() => ({
     available: false,
   }));
-  const { provider, model, tier } = selectModelTier(
-    message,
-    (localStatus as { available: boolean }).available,
-  );
+  const {
+    provider,
+    model: routedModel,
+    tier,
+  } = selectModelTier(message, (localStatus as { available: boolean }).available);
+  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
+  // name, so quality improves automatically when the user pulls a bigger model.
+  const model =
+    provider === 'ollama'
+      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
+      : routedModel;
 
   log.info({ provider, model, tier, messageLength: message.length }, 'Copilot routing');
 
@@ -225,10 +247,17 @@ export async function streamCopilotMessage(
   const localStatus = await getLocalLLMStatus().catch(() => ({
     available: false,
   }));
-  const { provider, model, tier } = selectModelTier(
-    message,
-    (localStatus as { available: boolean }).available,
-  );
+  const {
+    provider,
+    model: routedModel,
+    tier,
+  } = selectModelTier(message, (localStatus as { available: boolean }).available);
+  // Use the most capable installed local model (e.g. a 3B) instead of a fixed
+  // name, so quality improves automatically when the user pulls a bigger model.
+  const model =
+    provider === 'ollama'
+      ? pickBestLocalModel((localStatus as { models?: string[] }).models ?? [])
+      : routedModel;
 
   const messages: AIMessage[] = [
     ...conversationHistory.map((m) => ({

@@ -10,10 +10,12 @@ Tauri v2を使用したRapitasのデスクトップアプリケーション版�
 - [Bun](https://bun.sh/) (バックエンド用)
 
 ### Windows追加要件
+
 - Microsoft Visual Studio C++ Build Tools
 - WebView2 (Windows 10/11には標準搭載)
 
 ### macOS追加要件
+
 - Xcode Command Line Tools (`xcode-select --install`)
 
 ## セットアップ
@@ -50,6 +52,7 @@ pnpm run dev
 ```
 
 これにより:
+
 - Next.jsの開発サーバーが起動 (http://localhost:3000)
 - バックエンドサーバーが自動起動 (http://localhost:3001)
 - Tauriウィンドウが開きます
@@ -57,16 +60,19 @@ pnpm run dev
 ## ビルド
 
 ### 開発ビルド
+
 ```bash
 pnpm run build
 ```
 
 ### リリースビルド
+
 ```bash
 pnpm tauri build
 ```
 
 ビルド成果物は `src-tauri/target/release/bundle/` に出力されます:
+
 - Windows: `.msi`, `.exe`
 - macOS: `.dmg`, `.app`
 - Linux: `.deb`, `.AppImage`
@@ -95,15 +101,19 @@ rapitas-desktop/
 ## トラブルシューティング
 
 ### Rustがインストールされていない
+
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### WebView2エラー (Windows)
+
 https://developer.microsoft.com/en-us/microsoft-edge/webview2/ からダウンロード
 
 ### バックエンドが起動しない
+
 `rapitas-backend` ディレクトリで直接起動してエラーを確認:
+
 ```bash
 cd ../rapitas-backend
 bun run dev

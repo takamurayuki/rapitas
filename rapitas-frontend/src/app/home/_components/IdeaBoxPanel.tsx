@@ -185,7 +185,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="アイデアのタイトル"
                     autoFocus
-                    className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-amber-500 focus:outline-none dark:border-zinc-600"
+                    className="w-full rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none dark:border-zinc-600"
                   />
                   <div className="flex items-center gap-1.5">
                     <input
@@ -196,7 +196,7 @@ export function IdeaBoxPanel({ categoryId }: IdeaBoxPanelProps) {
                         if (e.key === 'Enter') handleSubmit();
                       }}
                       placeholder="具体的な内容"
-                      className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-amber-500 focus:outline-none dark:border-zinc-600"
+                      className="flex-1 rounded border border-zinc-300 bg-transparent px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none dark:border-zinc-600"
                     />
                     <button
                       onClick={() => {

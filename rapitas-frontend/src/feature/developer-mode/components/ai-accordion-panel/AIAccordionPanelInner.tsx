@@ -33,6 +33,8 @@ export function AIAccordionPanelInner({
   onPromptGenerated,
   onSubtasksCreated,
   showAgentPanel,
+  executionCapability = 'ready',
+  themeId,
   isExecuting,
   executionStatus,
   executionResult,
@@ -182,6 +184,9 @@ export function AIAccordionPanelInner({
     >
       {showAgentPanel && (
         <ExecutionSection
+          capability={executionCapability}
+          themeId={themeId}
+          taskId={taskId}
           isExpanded={expandedSection === 'execution'}
           onToggle={() => toggleSection('execution')}
           isRunning={exec.isRunning}
@@ -217,9 +222,12 @@ export function AIAccordionPanelInner({
           optimizedPrompt={optimizedPrompt}
           instruction={exec.instruction}
           branchName={exec.branchName}
+          baseBranch={exec.baseBranch}
+          baseBranches={exec.baseBranches}
           isGeneratingBranchName={exec.isGeneratingBranchName}
           onSetInstruction={exec.setInstruction}
           onSetBranchName={exec.setBranchName}
+          onSetBaseBranch={exec.setBaseBranch}
           onGenerateBranchName={exec.handleGenerateBranchName}
           onExecute={exec.handleExecute}
           onStop={exec.handleStopExecution}

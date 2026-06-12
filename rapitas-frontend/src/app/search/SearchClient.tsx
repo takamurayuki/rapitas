@@ -7,6 +7,7 @@ import { Search, SearchX } from 'lucide-react';
 import { useGlobalSearch, type SearchResultType } from '@/hooks/search/useGlobalSearch';
 import SearchResultCard from '@/feature/search/components/SearchResultCard';
 import Pagination from '@/components/ui/pagination/Pagination';
+import { SearchMissPanel } from './_components/SearchMissPanel';
 
 export default function SearchClient() {
   const t = useTranslations('search');
@@ -171,27 +172,28 @@ export default function SearchClient() {
         )}
 
         {!loading && results.length > 0 && (
-          <div className="space-y-3 animate-in fade-in-0 duration-300">
-            {results.map((result, index) => (
-              <div
-                key={`${result.type}-${result.id}`}
-                className="animate-in fade-in-0 slide-in-from-top-2 duration-300"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <SearchResultCard result={result} query={query} />
-              </div>
+          // NOTE: 以前は各結果カードに animationDelay (index * 50ms) を付けたカスケード
+          // フェードインだったが、検索クエリ変更ごとに全結果が再マウントされて毎回
+          // 上から順に流れていくのが「ちらつき」になっていた。コンテナの単発 fade-in
+          // のみに統一。
+          <div className="space-y-3 animate-in fade-in-0 duration-200">
+            {results.map((result) => (
+              <SearchResultCard key={`${result.type}-${result.id}`} result={result} query={query} />
             ))}
           </div>
         )}
 
         {!loading && query && results.length === 0 && !error && (
-          <div className="text-center py-16 animate-in fade-in-0 duration-300">
-            <SearchX className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400 mb-2">
-              {t('noMatchResults', { query })}
-            </p>
-            <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('tryDifferentKeyword')}</p>
-          </div>
+          <>
+            <div className="text-center py-12 animate-in fade-in-0 duration-300">
+              <SearchX className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
+              <p className="text-zinc-500 dark:text-zinc-400 mb-2">
+                {t('noMatchResults', { query })}
+              </p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">{t('tryDifferentKeyword')}</p>
+            </div>
+            <SearchMissPanel />
+          </>
         )}
 
         {!loading && !query && (
@@ -202,7 +204,7 @@ export default function SearchClient() {
         )}
       </div>
 
-      {!loading && totalPages > 1 && (
+      {!loading && totalPages >= 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

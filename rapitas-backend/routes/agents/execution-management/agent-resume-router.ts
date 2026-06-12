@@ -214,10 +214,30 @@ export const agentResumeRouter = new Elysia()
         orderBy: { startedAt: 'desc' },
       });
 
+      // Resolve parentId so the UI can show a running spinner on the PARENT card
+      // while one of its subtasks is the one actually executing (sequential
+      // subtasks each run under their own taskId).
+      const execTaskIds = [
+        ...new Set(
+          executingTasks
+            .map((e: (typeof executingTasks)[number]) => e.session.config.taskId)
+            .filter((id): id is number => typeof id === 'number'),
+        ),
+      ];
+      const parentById = new Map<number, number | null>();
+      if (execTaskIds.length > 0) {
+        const taskRows = await prisma.task.findMany({
+          where: { id: { in: execTaskIds } },
+          select: { id: true, parentId: true },
+        });
+        for (const row of taskRows) parentById.set(row.id, row.parentId);
+      }
+
       return executingTasks.map((execution: (typeof executingTasks)[number]) => ({
         executionId: execution.id,
         sessionId: execution.session.id,
         taskId: execution.session.config.taskId,
+        parentId: parentById.get(execution.session.config.taskId) ?? null,
         executionStatus: execution.status,
         startedAt: execution.startedAt,
       }));

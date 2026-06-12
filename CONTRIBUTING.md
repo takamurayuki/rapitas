@@ -75,16 +75,20 @@ We follow **Conventional Commits**, enforced by commitlint via husky.
 ```
 
 ### Allowed types
+
 `feat` `fix` `docs` `style` `refactor` `perf` `test` `chore` `ci` `revert`
 
 ### Allowed scopes (warning, not error)
+
 See [`commitlint.config.js`](commitlint.config.js). Most common:
+
 - Apps: `frontend`, `backend`, `desktop`, `tauri`
 - Cross-cutting: `repo`, `ci`, `docs`, `deps`, `config`, `scripts`
 - Backend domains: `tasks`, `agents`, `workflow`, `auth`, `prisma`, `db`, `api`, `ai`, `memory`, `github`, `schedule`
 - Frontend domains: `ui`, `editor`, `voice`, `kanban`, `calendar`, `pomodoro`, `i18n`, `theme`
 
 ### Rules
+
 - **English only**, imperative mood ("Add", not "Added")
 - Scope must be **kebab-case**
 - Body explains **why**, not what (the diff shows what)
@@ -119,6 +123,7 @@ frontend gate is **15%**; new PRs that meaningfully drop coverage will be
 asked to add tests.
 
 For new features, prioritize tests in this order:
+
 1. Pure functions in `lib/` and `utils/`
 2. Backend services (`services/task/`, `services/workflow/`, …)
 3. React hooks

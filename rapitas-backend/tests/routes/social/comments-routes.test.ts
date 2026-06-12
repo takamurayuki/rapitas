@@ -2,7 +2,7 @@
  * Comments Routes テスト
  * コメントCRUD操作のユニットテスト
  */
-import { describe, test, expect, mock, beforeEach } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test';
 import { Elysia } from 'elysia';
 
 const mockPrisma = {
@@ -24,7 +24,10 @@ const mockPrisma = {
   },
 };
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
@@ -339,5 +342,74 @@ describe('DELETE /comments/:id', () => {
     );
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /comments/search — DB プロバイダ別 mode 付与', () => {
+  let app: ReturnType<typeof createApp>;
+  // NOTE: env vars are backed up and restored per test to prevent cross-test pollution.
+  const savedProvider = process.env.RAPITAS_DB_PROVIDER;
+  const savedUrl = process.env.DATABASE_URL;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+    mockPrisma.comment.findMany.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    if (savedProvider === undefined) {
+      delete process.env.RAPITAS_DB_PROVIDER;
+    } else {
+      process.env.RAPITAS_DB_PROVIDER = savedProvider;
+    }
+    if (savedUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = savedUrl;
+    }
+  });
+
+  test('PostgreSQL 環境では mode: "insensitive" が where.content に含まれること', async () => {
+    process.env.RAPITAS_DB_PROVIDER = 'postgres';
+    process.env.DATABASE_URL = 'postgresql://localhost/test';
+
+    const res = await app.handle(new Request('http://localhost/comments/search?q=test'));
+
+    expect(res.status).toBe(200);
+    const whereArg = mockPrisma.comment.findMany.mock.calls[0][0].where;
+    expect(whereArg.content).toEqual({ contains: 'test', mode: 'insensitive' });
+  });
+
+  test('DATABASE_URL が file: の場合は mode が where.content に含まれないこと', async () => {
+    delete process.env.RAPITAS_DB_PROVIDER;
+    process.env.DATABASE_URL = 'file:./dev.db';
+
+    const res = await app.handle(new Request('http://localhost/comments/search?q=test'));
+
+    expect(res.status).toBe(200);
+    const whereArg = mockPrisma.comment.findMany.mock.calls[0][0].where;
+    expect(whereArg.content).toEqual({ contains: 'test' });
+    expect(whereArg.content.mode).toBeUndefined();
+  });
+
+  test('RAPITAS_DB_PROVIDER=sqlite の場合は mode が where.content に含まれないこと', async () => {
+    process.env.RAPITAS_DB_PROVIDER = 'sqlite';
+    process.env.DATABASE_URL = 'file:./dev.db';
+
+    const res = await app.handle(new Request('http://localhost/comments/search?q=test'));
+
+    expect(res.status).toBe(200);
+    const whereArg = mockPrisma.comment.findMany.mock.calls[0][0].where;
+    expect(whereArg.content).toEqual({ contains: 'test' });
+    expect(whereArg.content.mode).toBeUndefined();
+  });
+
+  test('q 未指定時は content 条件が付かないこと', async () => {
+    const res = await app.handle(new Request('http://localhost/comments/search'));
+
+    expect(res.status).toBe(200);
+    const whereArg = mockPrisma.comment.findMany.mock.calls[0][0].where;
+    expect(whereArg.content).toBeUndefined();
   });
 });

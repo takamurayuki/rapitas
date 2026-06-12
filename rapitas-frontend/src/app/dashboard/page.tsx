@@ -2,17 +2,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ExamGoal, StudyStreak } from '@/types';
-import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp, Award } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Flame, Target, TrendingUp } from 'lucide-react';
 import { API_BASE_URL } from '@/utils/api';
 import BurnupChart from '@/components/widgets/BurnupChart';
 import { ExamCountdown } from '@/components/exam-countdown/ExamCountdown';
 import { SuggestedTasksWidget } from '@/feature/intelligence/components/SuggestedTasksWidget';
-import { KnowledgeReminderWidget } from '@/feature/intelligence/components/KnowledgeReminderWidget';
 import { ProductivityHeatmap } from '@/feature/intelligence/components/ProductivityHeatmap';
-import { WorkflowLearningPanel } from '@/feature/intelligence/components/WorkflowLearningPanel';
-import { ProgressSummaryWidget } from '@/components/widgets/ProgressSummaryWidget';
-import { CostOptimizationWidget } from '@/components/widgets/CostOptimizationWidget';
-import SelfObservationWidget from '@/components/widgets/SelfObservationWidget';
 import { createLogger } from '@/lib/logger';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
@@ -135,60 +130,57 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-linear-to-br from-orange-500 to-red-500 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <Flame className="w-8 h-8" />
-            <span className="text-xs opacity-75">{t('streak')}</span>
+      {/* Compact KPI bar: keeps all four glanceable metrics but reclaims the
+          vertical space the previous full-height gradient cards consumed. */}
+      <div className="mb-6 grid grid-cols-2 divide-x divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white md:grid-cols-4 md:divide-y-0 dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Flame className="h-5 w-5 shrink-0 text-orange-500" />
+          <div className="min-w-0">
+            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+              {streakInfo?.currentStreak || 0}
+              {t('consecutiveDays')}
+            </div>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{t('streak')}</p>
           </div>
-          <div className="text-3xl font-bold mb-1">
-            {streakInfo?.currentStreak || 0}
-            {t('consecutiveDays')}
-          </div>
-          <p className="text-sm opacity-75">
-            {t('streak')}: {streakInfo?.longestStreak || 0}
-            {t('consecutiveDays')}
-          </p>
         </div>
 
-        <div className="bg-linear-to-br from-emerald-500 to-teal-500 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <CheckCircle2 className="w-8 h-8" />
-            <span className="text-xs opacity-75">{tc('today')}</span>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+          <div className="min-w-0">
+            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+              {overview?.tasks.todayCompleted || 0}
+            </div>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {tc('today')}
+              {t('taskComplete')}
+            </p>
           </div>
-          <div className="text-3xl font-bold mb-1">{overview?.tasks.todayCompleted || 0}</div>
-          <p className="text-sm opacity-75">{t('taskComplete')}</p>
         </div>
 
-        <div className="bg-linear-to-br from-blue-500 to-indigo-500 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <Clock className="w-8 h-8" />
-            <span className="text-xs opacity-75">{t('thisWeek')}</span>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Clock className="h-5 w-5 shrink-0 text-blue-500" />
+          <div className="min-w-0">
+            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+              {overview?.studyTime.weekHours || 0}h
+            </div>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {t('thisWeek')}
+              {t('studyHours')}
+            </p>
           </div>
-          <div className="text-3xl font-bold mb-1">{overview?.studyTime.weekHours || 0}h</div>
-          <p className="text-sm opacity-75">{t('studyHours')}</p>
         </div>
 
-        <div className="bg-linear-to-br from-violet-500 to-purple-500 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <TrendingUp className="w-8 h-8" />
-            <span className="text-xs opacity-75">{t('overall')}</span>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <TrendingUp className="h-5 w-5 shrink-0 text-violet-500" />
+          <div className="min-w-0">
+            <div className="text-xl font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+              {overview?.tasks.completionRate || 0}%
+            </div>
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {overview?.tasks.completed || 0}/{overview?.tasks.total || 0}
+            </p>
           </div>
-          <div className="text-3xl font-bold mb-1">{overview?.tasks.completionRate || 0}%</div>
-          <p className="text-sm opacity-75">
-            {overview?.tasks.completed || 0}/{overview?.tasks.total || 0} {t('taskComplete')}
-          </p>
         </div>
-      </div>
-
-      {/* AI Insights Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <ProgressSummaryWidget />
-        <CostOptimizationWidget />
-      </div>
-
-      <div className="mb-6">
-        <SelfObservationWidget />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -296,54 +288,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-        <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mb-4 flex items-center gap-2">
-          <Award className="w-5 h-5" />
-          {t('weeklySummary')}
-        </h2>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.tasks.weekCompleted || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('completedTasks')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.studyTime.weekHours || 0}h
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('studyHours')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {streakInfo?.currentStreak || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('consecutiveDays')}</div>
-          </div>
-
-          <div className="text-center p-3 rounded-lg bg-zinc-50 dark:bg-zinc-700/50">
-            <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-200">
-              {overview?.upcomingExams?.length || 0}
-            </div>
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('controllingExams')}</div>
-          </div>
-        </div>
-      </div>
-
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SuggestedTasksWidget />
-        <KnowledgeReminderWidget />
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ProductivityHeatmap />
-        <WorkflowLearningPanel />
       </div>
 
-      <div className="mt-4">
+      <div className="mt-6">
         <BurnupChart days={14} />
       </div>
     </div>

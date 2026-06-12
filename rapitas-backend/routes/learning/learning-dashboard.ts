@@ -1,9 +1,9 @@
 /**
  * Learning Dashboard Route
  *
- * Unified endpoint that aggregates ExamGoal, Flashcard, LearningGoal,
- * and StudyStreak data into a single response. Eliminates the need for
- * the frontend to make 4+ separate API calls to render a learning overview.
+ * Unified endpoint that aggregates ExamGoal, LearningGoal, and StudyStreak
+ * data into a single response. Eliminates the need for the frontend to make
+ * multiple separate API calls to render a learning overview.
  */
 import { Elysia } from 'elysia';
 import { prisma } from '../../config';
@@ -26,14 +26,6 @@ interface LearningDashboardResponse {
     completedTaskCount: number;
     progressPercent: number;
   }>;
-  flashcards: {
-    totalDecks: number;
-    totalCards: number;
-    dueToday: number;
-    reviewedToday: number;
-    masteredCards: number;
-    averageRetention: number;
-  };
   learningGoals: Array<{
     id: number;
     title: string;
@@ -66,41 +58,13 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
       weekAgo.setDate(weekAgo.getDate() - 7);
 
       // Parallel data fetching for all learning features
-      const [
-        examGoals,
-        flashcardStats,
-        dueCards,
-        reviewedToday,
-        learningGoals,
-        studyStreaks,
-        todayStreak,
-      ] = await Promise.all([
+      const [examGoals, learningGoals, studyStreaks, todayStreak] = await Promise.all([
         // Exam Goals with task counts
         prisma.examGoal.findMany({
           include: {
             tasks: { select: { id: true, status: true } },
           },
           orderBy: { examDate: 'asc' },
-        }),
-
-        // Flashcard aggregate stats
-        prisma.flashcard.aggregate({
-          _count: { id: true },
-          _avg: { stability: true },
-        }),
-
-        // Cards due today
-        prisma.flashcard.count({
-          where: {
-            OR: [{ nextReview: { lte: now } }, { nextReview: null, reviewCount: 0 }],
-          },
-        }),
-
-        // Cards reviewed today
-        prisma.flashcard.count({
-          where: {
-            lastReview: { gte: todayStart },
-          },
         }),
 
         // Learning Goals
@@ -119,14 +83,6 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
           where: { date: todayStart },
         }),
       ]);
-
-      // Deck count
-      const deckCount = await prisma.flashcardDeck.count();
-
-      // Mastered cards (state=2 with high stability)
-      const masteredCards = await prisma.flashcard.count({
-        where: { state: 2, stability: { gte: 10 } },
-      });
 
       // Calculate exam goal progress
       const examGoalData = examGoals.map((goal) => {
@@ -226,19 +182,8 @@ export const learningDashboardRouter = new Elysia({ prefix: '/learning' }).get(
         prevDate = s.date;
       }
 
-      const avgStability = flashcardStats._avg.stability ?? 0;
-      const averageRetention = Math.min(100, Math.round(avgStability * 10));
-
       return {
         examGoals: examGoalData,
-        flashcards: {
-          totalDecks: deckCount,
-          totalCards: flashcardStats._count.id,
-          dueToday: dueCards,
-          reviewedToday,
-          masteredCards,
-          averageRetention,
-        },
         learningGoals: learningGoalData,
         studyStreak: {
           currentStreak,

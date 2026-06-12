@@ -10,35 +10,49 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
+import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
-import { submitIdea } from './idea-box-service';
+import { submitIdea, resolveTaskThemeId } from './idea-box-service';
+import { submitConcern, type ConcernType } from './concern-backlog-service';
 
 const log = createLogger('memory:idea-extractor');
 
+/**
+ * Enrichment categories that are really *concerns* (bugs/refactors/perf), not
+ * value-uplift ideas. Items the enricher tags with these are re-filed into the
+ * Concern Backlog instead of cluttering the Idea Box.
+ */
+const CONCERN_CATEGORY_MAP: Record<string, ConcernType> = {
+  bug_noticed: 'bug',
+  security: 'security',
+  tech_debt: 'refactor',
+  performance: 'perf',
+};
+
 const MIN_CHAT_LENGTH = 5;
 
-const EXTRACTION_PROMPT = `あなたはソフトウェア開発のアイデア抽出AIです。
-以下のコンテンツから、ユーザー体験またはコード品質に直接影響する改善アイデアのみを抽出してください。
+const EXTRACTION_PROMPT = `あなたはソフトウェア開発の「改善アイデア」抽出AIです。
+以下のコンテンツから、プロダクトを**より良くする前向きなアイデアだけ**を抽出してください（今は壊れていないが、あれば価値・品質・生産性・UXが上がるもの）。
 
-抽出対象（厳格に判定）:
-1. 実装中に気づいた具体的な設計上の問題（ファイル名や関数名が特定できる）
-2. テストや検証で発見した未対処のエッジケース
-3. パフォーマンスのボトルネック（具体的な計測根拠あり）
-4. ユーザー体験を損なう具体的な問題（再現手順が示せる）
+抽出対象（前向きな改善・革新のみ・厳格に判定）:
+1. 新機能、または既存機能のブラッシュアップ
+2. UX・使い勝手の具体的な改善案
+3. 保守性・生産性を上げるしくみ（自動化・基盤改善・最適化など）
+4. 革新的なアイデア
 
 除外対象（必ず除外）:
+- **バグ・不具合・エラー・クラッシュ・脆弱性・セキュリティ上の問題・「将来バグの温床になりそう」な箇所**（これらは「懸念」であり、アイデアではない。ここでは絶対に抽出しない）
 - 「あると便利」レベルの曖昧な提案
-- 既に完了した作業の繰り返し・サマリー
+- 既に完了した作業の繰り返し・サマリー、ステータス報告、完了報告
 - 「検討する」「調査する」系の非実行型
-- 実行ログのエコー、ステータス報告、完了報告
-- 「テストが通った」「コミットした」などの作業報告
+- 実行ログのエコー、「テストが通った」「コミットした」などの作業報告
 - 一般論・ベストプラクティスの羅列
 - タスクのタイトルや説明文の言い換え
 
 JSON配列で返してください（他のテキスト不要、最大3件）:
-[{"title":"短い具体的タイトル","content":"何を・なぜ・どこで改善すべきかの説明"}]
+[{"title":"短い具体的タイトル","content":"何を・なぜ・期待される効果"}]
 
-該当なしは [] を返してください。アイデアが質を満たさない場合は無理に出さず [] にしてください。`;
+該当なしは [] を返してください。アイデアが質を満たさない、または「懸念」寄りの内容しかない場合は、無理に出さず [] にしてください。`;
 
 const ENRICHMENT_PROMPT = `以下のアイデアを評価してください。
 
@@ -163,18 +177,11 @@ export async function extractIdeasFromCopilotChat(
 }
 
 /**
- * Look up a task's themeId. Returns null when the task or its theme is missing.
+ * Resolve a task's theme for filed ideas, falling back to the working-directory
+ * theme and then the default theme so ideas aren't dropped into "global".
  */
 async function getTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
-    return task?.themeId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveTaskThemeId(taskId);
 }
 
 /**
@@ -184,14 +191,79 @@ async function getTaskThemeId(taskId: number): Promise<number | null> {
 const MIN_ACTIONABILITY = 0.4;
 const MIN_SPECIFICITY = 0.4;
 
-/** Run the full enrich → review pipeline as fire-and-forget. */
-function runEnrichAndReview(id: number, title: string, content: string): void {
-  enrichIdea(id, title, content)
-    .then((enriched) => {
-      if (!enriched.kept) return;
-      return reviewIdea(id);
+// Serial enrichment queue. A burst of new ideas (e.g. a scheduled innovation
+// session submitting several at once) otherwise fires many concurrent local-LLM
+// enrichment calls, spiking CPU and starving foreground requests. Chaining the
+// pipeline keeps it to one enrich/review at a time, spreading the load.
+let enrichChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs the enrich → review pipeline for an idea, serialised through a global
+ * queue. Fire-and-forget (never throws to the caller).
+ *
+ * @param id - Idea (knowledge entry) id / アイデアID
+ * @param title - Idea title / タイトル
+ * @param content - Idea content / 本文
+ */
+export function runEnrichAndReview(id: number, title: string, content: string): void {
+  const runId = crypto.randomUUID();
+  const startTime = Date.now();
+  let llmCallCount = 0;
+
+  log.info({ runId, ideaId: id }, 'enrichChain: start');
+
+  enrichChain = enrichChain
+    .then(async () => {
+      const result = await enrichIdea(id, title, content, { runId });
+      llmCallCount++;
+      return result;
     })
-    .catch(() => {});
+    .then(async (enriched) => {
+      if (enriched.kept) {
+        await reviewIdea(id, runId);
+        llmCallCount++;
+      }
+    })
+    .then(() => {
+      log.info(
+        { runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount, outcome: 'success' },
+        'enrichChain: complete',
+      );
+    })
+    .catch((err) => {
+      // NOTE: Errors here indicate a bug in enrichIdea/reviewIdea not catching internally.
+      log.warn(
+        { err, runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount },
+        'enrichChain: error',
+      );
+    });
+}
+
+/**
+ * One-time backfill: re-runs enrichment over every existing Idea Box entry so
+ * that (a) concern-type items (bugs/refactors/perf) move to the Concern Backlog
+ * and (b) priorities are re-derived from the latest scoring. Existing curated
+ * ideas are preserved (the low-quality cull is disabled) and user-authored
+ * entries are never reclassified and keep their priority. Work is serialised
+ * through the shared enrichment queue and runs in the background.
+ *
+ * @returns Number of ideas queued for reprocessing. / 再処理キューに積んだ件数
+ */
+export async function reclassifyExistingIdeas(): Promise<number> {
+  const ideas = await prisma.knowledgeEntry.findMany({
+    where: { sourceType: 'idea_box', forgettingStage: 'active' },
+    select: { id: true, title: true, content: true },
+  });
+  log.info({ count: ideas.length }, 'Idea reclassification backfill queued');
+  for (const idea of ideas) {
+    const loopIdeaId = idea.id;
+    enrichChain = enrichChain
+      .then(() => enrichIdea(loopIdeaId, idea.title, idea.content, { rejectLowQuality: false }))
+      .catch((err) => {
+        log.warn({ err, ideaId: loopIdeaId }, 'reclassifyExistingIdeas: enrichment error');
+      });
+  }
+  return ideas.length;
 }
 
 /** Hard-delete an idea that failed quality checks. */
@@ -207,13 +279,20 @@ async function rejectIdea(ideaId: number, reason: string): Promise<void> {
 /**
  * Step 1: Enrich — score actionability, specificity, impact via Ollama (free).
  *
+ * @param ideaId - ID of the idea to enrich / アイデアID
+ * @param title - Idea title / タイトル
+ * @param content - Idea content / 本文
+ * @param options - Optional flags / オプション
  * @returns kept=false when the idea was deleted for failing quality bars.
  */
 export async function enrichIdea(
   ideaId: number,
   title: string,
   content: string,
+  options: { rejectLowQuality?: boolean; runId?: string } = {},
 ): Promise<{ kept: boolean }> {
+  const { rejectLowQuality = true, runId } = options;
+  const startTime = Date.now();
   try {
     const prompt = ENRICHMENT_PROMPT.replace('{title}', title).replace('{content}', content);
     const response = await callLLM(prompt, 200, 'local');
@@ -232,8 +311,45 @@ export async function enrichIdea(
     const specificity = clamp(e.specificity ?? 0.5);
     const confidence = actionability * 0.6 + specificity * 0.4;
 
-    // Hard-reject ideas that fall below the quality bar.
-    if (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY) {
+    // Single read of the entry's metadata, reused for concern-routing and the
+    // user-priority guard below.
+    const meta = await prisma.knowledgeEntry.findUnique({
+      where: { id: ideaId },
+      select: { sourceId: true, taskId: true, themeId: true, tags: true },
+    });
+    const isUserAuthored = meta?.sourceId === 'user';
+
+    // Route concern-type material (bugs, refactors, perf) to the Concern Backlog
+    // instead of the Idea Box — the extractor surfaces both kinds but they
+    // belong in different inboxes. Skipped for user-authored entries (respect
+    // the user's own filing). Done BEFORE the idea quality bar so a genuine bug
+    // is never dropped just for being a poor "idea"; the idea entry is removed
+    // once the concern is filed.
+    const concernType = CONCERN_CATEGORY_MAP[e.suggestedCategory ?? ''];
+    if (concernType && !isUserAuthored) {
+      await submitConcern({
+        title,
+        detail: content,
+        type: concernType,
+        severity: deriveIdeaPriority(e.impact, actionability, specificity),
+        originTaskId: meta?.taskId ?? undefined,
+        themeId: meta?.themeId ?? undefined,
+        source: 'idea_reclassified',
+      });
+      await rejectIdea(ideaId, `reclassified-to-concern type=${concernType}`);
+      return { kept: false };
+    }
+
+    // Hard-reject ideas that fall below the quality bar. Skipped during a
+    // backfill (rejectLowQuality=false) so existing curated ideas aren't culled,
+    // AND for explicitly-filed ideas (sourceId='user' — manual or agent via POST
+    // /idea-box): a deliberately-filed idea must stay visible even on a low score.
+    // Only noisy machine-extracted ideas (source != 'user') are culled here.
+    if (
+      rejectLowQuality &&
+      !isUserAuthored &&
+      (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)
+    ) {
       await rejectIdea(
         ideaId,
         `enrich-below-threshold actionability=${actionability.toFixed(2)} specificity=${specificity.toFixed(2)}`,
@@ -241,11 +357,27 @@ export async function enrichIdea(
       return { kept: false };
     }
 
-    const tags = await getAndFilterTags(ideaId, ['actionability:', 'specificity:', 'impact:']);
+    // Map the enrichment signal to the idea's priority ("temperature") from
+    // impact + actionability + specificity so the temperature actually varies.
+    const derivedPriority = deriveIdeaPriority(e.impact, actionability, specificity);
+
+    // Respect a user's explicitly chosen priority — only auto-derive for
+    // machine-extracted ideas (source !== 'user').
+    const existingTags = JSON.parse(meta?.tags ?? '[]') as string[];
+    const existingPriority = existingTags
+      .find((t) => t.startsWith('priority:'))
+      ?.slice('priority:'.length);
+    const finalPriority = isUserAuthored && existingPriority ? existingPriority : derivedPriority;
+
+    const tags = existingTags.filter(
+      (t) =>
+        !['actionability:', 'specificity:', 'impact:', 'priority:'].some((p) => t.startsWith(p)),
+    );
     tags.push(
       `actionability:${actionability.toFixed(2)}`,
       `specificity:${specificity.toFixed(2)}`,
       `impact:${e.impact ?? 'medium'}`,
+      `priority:${finalPriority}`,
     );
 
     await prisma.knowledgeEntry.update({
@@ -258,10 +390,23 @@ export async function enrichIdea(
       },
     });
 
-    log.debug({ ideaId, actionability, specificity, confidence }, 'Idea enriched');
+    log.info(
+      {
+        ideaId,
+        actionability,
+        specificity,
+        confidence,
+        durationMs: Date.now() - startTime,
+        ...(runId && { runId }),
+      },
+      'Idea enriched',
+    );
     return { kept: true };
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea enrichment failed');
+    log.warn(
+      { err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea enrichment failed',
+    );
     return { kept: true };
   }
 }
@@ -270,12 +415,16 @@ export async function enrichIdea(
  * Step 2: Review — second opinion from a DIFFERENT LLM (Haiku).
  * Checks feasibility, analyzes benefits/risks, and optionally refines the idea.
  * Uses Haiku even if Ollama is available to get a genuinely different perspective.
+ *
+ * @param ideaId - ID of the idea to review / アイデアID
+ * @param runId - Correlation ID from the parent enrichChain run / 親実行ID
  */
-export async function reviewIdea(ideaId: number): Promise<void> {
+export async function reviewIdea(ideaId: number, runId?: string): Promise<void> {
+  const startTime = Date.now();
   try {
     const entry = await prisma.knowledgeEntry.findUnique({
       where: { id: ideaId },
-      select: { title: true, content: true, tags: true },
+      select: { title: true, content: true, tags: true, sourceId: true },
     });
     if (!entry) return;
 
@@ -300,8 +449,13 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       reviewNote?: string;
     };
 
-    // Hard-reject infeasible ideas — they should never make it into the box.
-    if (review.feasible === false) {
+    // Hard-reject infeasible ideas — but NEVER an explicitly-filed one
+    // (sourceId='user'; the Idea Box POST tags every submission, agent included,
+    // as 'user'). Deleting a deliberately-filed idea behind the user's back is
+    // the "ideas stopped appearing" regression. For those, keep the entry and let
+    // the feasible:false tag below record the verdict; only cull auto-extracted
+    // ideas (source != 'user') here.
+    if (review.feasible === false && entry.sourceId !== 'user') {
       await rejectIdea(ideaId, `review-infeasible note=${(review.reviewNote ?? '').slice(0, 80)}`);
       return;
     }
@@ -325,16 +479,21 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       data: updateData,
     });
 
-    log.debug(
+    log.info(
       {
         ideaId,
         feasible: review.feasible,
         refined: !!(review.refinedTitle || review.refinedContent),
+        durationMs: Date.now() - startTime,
+        ...(runId && { runId }),
       },
       'Idea reviewed',
     );
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea review failed (non-critical)');
+    log.warn(
+      { err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea review failed (non-critical)',
+    );
   }
 }
 
@@ -368,7 +527,7 @@ async function callLLM(
 
   const response = await sendAIMessage({
     provider: useLocal ? 'ollama' : 'claude',
-    model: useLocal ? 'llama3.2' : 'claude-haiku-4-5-20251001',
+    model: useLocal ? await getBestLocalModel() : 'claude-haiku-4-5-20251001',
     messages: [{ role: 'user', content: prompt }],
     maxTokens,
   });
@@ -377,6 +536,35 @@ async function callLLM(
 
 function clamp(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+/**
+ * Derive an idea's priority ("temperature") from the enrichment signal as a
+ * weighted score, so the result spreads across all four levels instead of
+ * collapsing to `medium` whenever the model returns a middling `impact`.
+ * `impact` dominates; actionability and specificity nudge it up.
+ *
+ * @param impact - Enrichment impact estimate (low | medium | high). / 影響度
+ * @param actionability - 0..1 how readily it can be acted on. / 着手しやすさ
+ * @param specificity - 0..1 how concrete/specific it is. / 具体性
+ * @returns A valid priority/severity string. / 優先度（懸念の重大度にも流用）
+ */
+function deriveIdeaPriority(
+  impact: string | undefined,
+  actionability: number,
+  specificity: number,
+): 'urgent' | 'high' | 'medium' | 'low' {
+  const impactWeight =
+    (impact ?? 'medium').toLowerCase() === 'high'
+      ? 0.7
+      : (impact ?? 'medium').toLowerCase() === 'low'
+        ? 0.1
+        : 0.4;
+  const score = impactWeight + actionability * 0.25 + specificity * 0.15;
+  if (score >= 0.85) return 'urgent';
+  if (score >= 0.6) return 'high';
+  if (score >= 0.35) return 'medium';
+  return 'low';
 }
 
 /** Get existing tags and filter out prefixes that will be replaced. */

@@ -1,3 +1,5 @@
+import { isServerRestarting } from '@/stores/server-restart-store';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
 const LEVELS: Record<LogLevel, number> = {
@@ -60,8 +62,11 @@ export function createLogger(name: string) {
   return {
     debug: (...a: unknown[]) => ok('debug') && console.debug(p, ...a),
     info: (...a: unknown[]) => ok('info') && console.info(p, ...a),
-    warn: (...a: unknown[]) => ok('warn') && console.warn(p, ...a),
-    error: (...a: unknown[]) => ok('error') && console.error(p, ...a),
+    // warn/error are silenced during an intentional backend restart: the
+    // frontend's pollers all fail for the ~15s the server is down, producing
+    // an expected flood of network errors that should not surface as noise.
+    warn: (...a: unknown[]) => !isServerRestarting() && ok('warn') && console.warn(p, ...a),
+    error: (...a: unknown[]) => !isServerRestarting() && ok('error') && console.error(p, ...a),
 
     /**
      * Error log with throttling
@@ -69,6 +74,7 @@ export function createLogger(name: string) {
      * Duplicates demoted to debug level
      */
     errorThrottled: (...a: unknown[]) => {
+      if (isServerRestarting()) return;
       if (!ok('warn')) return;
       const key = makeThrottleKey(p, a);
       if (shouldThrottle(key)) {
@@ -83,6 +89,7 @@ export function createLogger(name: string) {
      * Output transient errors at warn level, others at error level
      */
     transientError: (message: string, error?: unknown, ...rest: unknown[]) => {
+      if (isServerRestarting()) return;
       if (isTransientError(error)) {
         ok('warn') && console.warn(p, message, error, ...rest);
       } else {

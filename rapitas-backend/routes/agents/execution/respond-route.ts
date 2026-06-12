@@ -115,9 +115,11 @@ export const respondRoute = new Elysia().post(
       );
 
       if (result.success) {
-        // Restore task status from blocked (waiting) back to in_progress
+        // Restore task status from blocked (waiting) back to in-progress.
+        // Canonical task.status is hyphenated (see StatusConfig); the underscore
+        // form is the separate workflowStatus value.
         await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'in_progress' } })
+          .update({ where: { id: taskId }, data: { status: 'in-progress' } })
           .catch(() => {});
 
         return {

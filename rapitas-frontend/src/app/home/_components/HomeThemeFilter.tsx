@@ -1,8 +1,9 @@
 'use client';
 // HomeThemeFilter
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Priority, Theme } from '@/types';
+import { useTerminalContextStore } from '@/feature/terminal';
 import { Star, SwatchBook, ChevronDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 import { useTranslations } from 'next-intl';
@@ -69,6 +70,32 @@ export function HomeThemeFilter({
   const router = useRouter();
   const t = useTranslations('home');
 
+  // Point the integrated terminal at a real working directory so Ctrl+J / new
+  // tabs from the task list open there. Resolution order:
+  //   1. the explicitly-selected theme (when it has a workingDirectory),
+  //   2. the default theme (when it has one),
+  //   3. the first development theme that has a workingDirectory,
+  //   4. any theme with a workingDirectory.
+  // Steps 3-4 fix the default-selected state: the `isDefault` theme is often a
+  // NON-development theme with no workingDirectory, so without a fallback Ctrl+J
+  // opened in the process default dir instead of a project directory.
+  useEffect(() => {
+    const explicit = themes.find((theme) => theme.id === themeFilter);
+    const defaultTheme = themes.find((theme) => theme.isDefault);
+    const rooted =
+      (explicit?.workingDirectory ? explicit : null) ??
+      (defaultTheme?.workingDirectory ? defaultTheme : null) ??
+      themes.find((theme) => theme.isDevelopment && theme.workingDirectory) ??
+      themes.find((theme) => theme.workingDirectory) ??
+      explicit ??
+      defaultTheme ??
+      null;
+    useTerminalContextStore.getState().setTerminalContext({
+      cwd: rooted?.workingDirectory ?? null,
+      title: rooted?.name ?? null,
+    });
+  }, [themeFilter, themes]);
+
   const filteredThemes = themes.filter((theme) => {
     if (categoryFilter === null) return true;
     return theme.categoryId === categoryFilter;
@@ -109,29 +136,40 @@ export function HomeThemeFilter({
               </button>
             </div>
           ) : (
-            filteredThemes.map((theme) => {
-              const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
-              const isActive = themeFilter === theme.id;
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => onThemeChange(theme.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
-                    isActive
-                      ? 'shadow-lg font-bold text-white dark:text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                  style={{
-                    backgroundColor: isActive ? theme.color : undefined,
-                    color: isActive ? '#ffffff' : theme.color,
-                  }}
-                >
-                  <IconComponent className="w-3.5 h-3.5" />
-                  {theme.name}
-                  {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
-                </button>
-              );
-            })
+            <>
+              {filteredThemes.map((theme) => {
+                const IconComponent = getIconComponent(theme.icon || '') || SwatchBook;
+                const isActive = themeFilter === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => onThemeChange(theme.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs transition-all whitespace-nowrap shrink-0 rounded-sm ${
+                      isActive
+                        ? 'shadow-lg font-bold text-white dark:text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? theme.color : undefined,
+                      color: isActive ? '#ffffff' : theme.color,
+                    }}
+                  >
+                    <IconComponent className="w-3.5 h-3.5" />
+                    {theme.name}
+                    {theme.isDefault && <Star className="w-2.5 h-2.5 fill-current" />}
+                  </button>
+                );
+              })}
+              {/* Theme add — solid amber pill, distinct from the category add (slate folder tab). */}
+              <button
+                onClick={() => router.push('/themes')}
+                title="テーマを追加"
+                aria-label="テーマを追加"
+                className="shrink-0 flex items-center justify-center px-2.5 py-1.5 rounded-sm bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </>
           )}
         </div>
 
@@ -155,7 +193,7 @@ export function HomeThemeFilter({
           onClick={onFilterExpandedToggle}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-all shrink-0 ${
             isFilterExpanded
-              ? 'bg-amber-500 text-white shadow-md'
+              ? 'bg-indigo-500 text-white shadow-md'
               : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600'
           }`}
         >

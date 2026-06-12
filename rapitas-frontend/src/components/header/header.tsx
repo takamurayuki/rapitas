@@ -18,28 +18,35 @@ import {
   SwatchBook,
   FolderOpen,
   FolderKanban,
+  FolderGit2,
   Target,
   BarChart3,
+  GanttChartSquare,
   Flame,
   Brain,
   FileText,
+  FileCog,
   Calendar,
+  CalendarClock,
   Clock,
   GraduationCap,
   Bot,
-  CheckCircle,
   Settings,
   GitPullRequest,
   CircleDot,
+  Workflow,
   Code,
   Key,
   MessageSquare,
   Sparkles,
   Lightbulb,
+  Bug,
+  Inbox,
   NotebookTabs,
   Package,
   BookMarked,
   Keyboard,
+  Scale,
 } from 'lucide-react';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
@@ -82,7 +89,7 @@ export default function Header() {
       icon: Home,
       shortcut: h.getShortcutLabel('home'),
       children: [
-        { href: '/gantt', label: 'ガントチャート', icon: BarChart3 },
+        { href: '/gantt', label: 'ガントチャート', icon: GanttChartSquare },
         {
           href: '#',
           label: t('category'),
@@ -105,9 +112,15 @@ export default function Header() {
       ],
     },
     {
-      href: '/ideas',
-      label: 'アイデアボックス',
-      icon: Lightbulb,
+      href: '#',
+      label: 'バックログ',
+      icon: Inbox,
+      children: [
+        { href: '/ideas', label: 'アイデアボックス', icon: Lightbulb },
+        { href: '/concerns', label: '懸念バックログ', icon: Bug },
+        { href: '/decisions', label: 'デシジョンジャーナル', icon: Scale },
+        { href: '/backlog/settings', label: '設定', icon: CalendarClock },
+      ],
     },
     {
       href: '/dashboard',
@@ -127,7 +140,6 @@ export default function Header() {
           icon: BookMarked,
         },
         { href: '/exam-goals', label: t('examGoals'), icon: Target },
-        { href: '/flashcards', label: t('flashcards'), icon: Brain },
       ],
     },
     {
@@ -161,13 +173,14 @@ export default function Header() {
           label: 'GitHub',
           icon: Code,
           children: [
-            { href: '/github', label: t('devDashboard'), icon: BarChart3 },
+            { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {
               href: '/github/pull-requests',
               label: 'Pull Requests',
               icon: GitPullRequest,
             },
             { href: '/github/issues', label: 'Issues', icon: CircleDot },
+            { href: '/github/actions', label: 'CI/CD', icon: Workflow },
           ],
         },
         {
@@ -211,8 +224,6 @@ export default function Header() {
             },
           ],
         },
-        { href: '/orchestra', label: t('orchestra'), icon: Bot },
-        { href: '/approvals', label: t('approvals'), icon: CheckCircle },
         {
           href: '/system-prompts',
           label: t('promptManagement'),
@@ -221,8 +232,9 @@ export default function Header() {
         {
           href: '/claude-md-generator',
           label: t('claudeGeneration'),
-          icon: Sparkles,
+          icon: FileCog,
         },
+        { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
       ],
     },
     {
@@ -236,7 +248,6 @@ export default function Header() {
           icon: Settings,
         },
         { href: '/settings', label: t('apiKeySettings'), icon: Key },
-        { href: '/settings/cli-tools', label: t('cliTools'), icon: Package },
         {
           href: '/settings/shortcuts',
           label: t('shortcutSettings'),
@@ -250,7 +261,9 @@ export default function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
+      {/* z-110: above the task slide panel (z-50) and side nav (z-100) so header
+          menus are never hidden behind them, but below modal dialogs (z-200). */}
+      <header className="sticky top-0 z-110 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-indigo-dark-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -264,10 +277,10 @@ export default function Header() {
 
               <Link href="/" className="flex items-center gap-2 group">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-400 rounded-lg shadow-md">
+                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-500 rounded-lg">
                     <AppIcon size={20} className="text-white" />
                   </div>
-                  <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
+                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                     Rapi+
                   </span>
                 </div>

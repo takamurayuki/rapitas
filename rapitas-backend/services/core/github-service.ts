@@ -8,7 +8,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { isGhAvailable, isAuthenticated } from '../github/gh-client';
+import { isGhAvailable, isAuthenticated, listRepositories } from '../github/gh-client';
 import {
   getPullRequests,
   getPullRequest,
@@ -18,6 +18,9 @@ import {
   createPullRequestComment,
   approvePullRequest,
   requestChanges,
+  mergePullRequest,
+  changePullRequestBase,
+  syncLocalBranchWithRemote,
   createPullRequest,
 } from '../github/pr-operations';
 import { getIssues, getIssue, createIssue, addIssueComment } from '../github/issue-operations';
@@ -60,6 +63,11 @@ export class GitHubService {
   /** Check gh CLI authentication status / 認証状態を確認する */
   async isAuthenticated(): Promise<boolean> {
     return isAuthenticated();
+  }
+
+  /** @see gh-client.listRepositories */
+  async listRepositories(limit = 100) {
+    return listRepositories(limit);
   }
 
   // ==================== Pull Request Operations ====================
@@ -110,6 +118,25 @@ export class GitHubService {
   /** @see pr-operations.requestChanges */
   async requestChanges(repo: string, prNumber: number, body: string) {
     return requestChanges(repo, prNumber, body);
+  }
+
+  /** @see pr-operations.mergePullRequest */
+  async mergePullRequest(
+    repo: string,
+    prNumber: number,
+    options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
+  ) {
+    return mergePullRequest(repo, prNumber, options);
+  }
+
+  /** @see pr-operations.changePullRequestBase */
+  async changePullRequestBase(repo: string, prNumber: number, baseBranch: string) {
+    return changePullRequestBase(repo, prNumber, baseBranch);
+  }
+
+  /** @see pr-operations.syncLocalBranchWithRemote */
+  async syncLocalBranchWithRemote(workingDirectory: string, branch: string) {
+    return syncLocalBranchWithRemote(workingDirectory, branch);
   }
 
   /** @see pr-operations.createPullRequest */

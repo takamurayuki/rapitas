@@ -18,6 +18,9 @@ interface FieldSetters {
   setPriority: (v: Priority) => void;
   setEstimatedHours: (v: string) => void;
   setSelectedLabelIds: (v: number[]) => void;
+  setGoals: (v: string) => void;
+  setConstraints: (v: string) => void;
+  setAcceptanceCriteria: (v: string) => void;
 }
 
 /**
@@ -39,6 +42,7 @@ export function useTaskFormActions(
   const t = useTranslations('task');
 
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+  const [isDerivingSpec, setIsDerivingSpec] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(null);
 
@@ -205,6 +209,36 @@ export function useTaskFormActions(
     values.globalSettings?.autoGenerateTitleDelay,
   ]);
 
+  // ── Spec derivation (AI) ──────────────────────────────────────────────────
+
+  /**
+   * Derives structured goals / constraints / acceptance criteria from the free-text
+   * description via AI, then fills the corresponding form fields.
+   */
+  const deriveSpec = async () => {
+    if (!values.description.trim() || isDerivingSpec) return;
+    setIsDerivingSpec(true);
+    try {
+      const res = await fetch(`${API_BASE}/tasks/derive-spec`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: values.description.trim() }),
+      });
+      if (!res.ok) throw new Error(t('specDeriveFailed'));
+      const data = await res.json();
+      const join = (a: unknown): string => (Array.isArray(a) ? a.filter(Boolean).join('\n') : '');
+      setters.setGoals(join(data.goals));
+      setters.setConstraints(join(data.constraints));
+      setters.setAcceptanceCriteria(join(data.acceptanceCriteria));
+      showToast(t('specDerived'), 'success');
+    } catch (e) {
+      logger.error(e);
+      showToast(e instanceof Error ? e.message : t('specDeriveFailed'), 'error');
+    } finally {
+      setIsDerivingSpec(false);
+    }
+  };
+
   // ── Suggestion handling ───────────────────────────────────────────────────
 
   /**
@@ -248,6 +282,8 @@ export function useTaskFormActions(
     removeSubtask,
     resetSubtaskForm,
     handleGenerateTitle,
+    deriveSpec,
+    isDerivingSpec,
     handleSubmit,
     handleSubmitWithTitle,
     handleApplyTemplate,

@@ -104,6 +104,10 @@ export function ThemeList({
 
   const sortedItems = [...filteredItems].sort((a, b) => a.sortOrder - b.sortOrder);
 
+  // While editing, render only the theme being edited — hide the other themes.
+  const visibleItems =
+    editingId !== null ? sortedItems.filter((item) => item.id === editingId) : sortedItems;
+
   const currentCategoryId = selectedCategoryId ?? (categories.length > 0 ? categories[0].id : null);
 
   if (sortedItems.length === 0) {
@@ -121,7 +125,7 @@ export function ThemeList({
       <Droppable droppableId={`themes-category-${currentCategoryId}`}>
         {(provided) => (
           <div className="grid gap-3" ref={provided.innerRef} {...provided.droppableProps}>
-            {sortedItems.map((item, index) => (
+            {visibleItems.map((item, index) => (
               <Draggable
                 key={item.id}
                 draggableId={String(item.id)}

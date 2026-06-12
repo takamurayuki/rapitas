@@ -56,6 +56,48 @@ model UserSettings {
   updatedAt                   DateTime  @updatedAt
 }
 
+/**
+ * BacklogSchedule
+ *
+ * Per-job timing config for the backlog's periodic AI jobs (innovation session
+ * for the idea box; vulnerability/bug scan for the concern backlog). One row per
+ * `kind`. `lastRunAt` is persisted so the once-per-day guard survives restarts.
+ */
+model BacklogSchedule {
+  id         Int       @id @default(autoincrement())
+  kind       String    @unique // 'innovation' | 'vuln_scan'
+  enabled    Boolean   @default(false)
+  frequency  String    @default("weekly") // 'daily' | 'weekly'
+  hour       Int       @default(3) // 0-23, local hour the job fires
+  weekday    Int       @default(1) // 0-6 (Sun-Sat); used when frequency='weekly'
+  lastRunAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+/**
+ * ThemeBacklogSchedule
+ *
+ * Per-theme (per-project) override of a backlog job. Absence of a row means the
+ * job's global default applies. Holds only the per-theme bits: `enabled` (e.g.
+ * exclude a project from vuln_scan/innovation) and, for health_check, where and
+ * how to read that project's logs (`logDir` + `logFormat`). Scheduling timing
+ * stays global on BacklogSchedule. `themeId` is a plain id (no relation) to keep
+ * the Theme model untouched.
+ */
+model ThemeBacklogSchedule {
+  id         Int      @id @default(autoincrement())
+  kind       String   // 'innovation' | 'vuln_scan' | 'health_check'
+  themeId    Int
+  enabled    Boolean  @default(true)
+  logDir     String?  // health_check: directory to scan for this project's logs
+  logFormat  String?  // health_check: 'pino' | 'json' | 'text'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([kind, themeId])
+}
+
 // User authentication system
 model User {
   id                Int       @id @default(autoincrement())
@@ -101,4 +143,27 @@ model UserSession {
   @@index([userId])
   @@index([sessionToken])
   @@index([expiresAt])
+}
+
+/**
+ * SearchMiss
+ *
+ * 探索→発見→創造→再探索ループを支えるゼロ件検索の記録。
+ * 検索してもヒットしなかったクエリを蓄積し、不足コンテンツの発見とタスク提案に活用する。
+ */
+model SearchMiss {
+  id                  Int       @id @default(autoincrement())
+  query               String    @unique
+  hitCount            Int       @default(0)
+  lastSearchedAt      DateTime  @default(now())
+  status              String    @default("open")
+  suggestedTaskId     Int?
+  themeId             Int?
+  resolvedAt          DateTime?
+  resolvedResultCount Int?
+  createdAt           DateTime  @default(now())
+
+  @@index([status])
+  @@index([hitCount])
+  @@index([themeId])
 }

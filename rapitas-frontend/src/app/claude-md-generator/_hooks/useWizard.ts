@@ -4,8 +4,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { AppAnswers, AppProposal, DynamicItem, GenerateResult } from '../_types/types';
-import { proposeApps, generateClaudeMd, fetchSuggestions } from '../_utils/api';
-import { ELEMENTS, SUB_GENRES } from '../_utils/constants';
+import { proposeApps, generateClaudeMd } from '../_utils/api';
+import { AGENT_TARGETS, ELEMENTS, SUB_GENRES } from '../_utils/constants';
+
+/** lucide icon name for user-added custom sub-genres/elements. / 自由入力で追加した項目のアイコン */
+const CUSTOM_ICON = 'Plus';
+
+/**
+ * Builds a stable, collision-resistant id for a user-typed custom option.
+ *
+ * @param label - the free-text label / 自由入力されたラベル
+ * @returns a `custom_`-prefixed id / `custom_`接頭辞付きID
+ */
+function customId(label: string): string {
+  return `custom_${label.trim().toLowerCase().replace(/\s+/g, '_')}`;
+}
 
 export type WizardPhase =
   | 'intro'
@@ -39,16 +52,16 @@ export function useWizard() {
   const [aiErrorMessage, setAiErrorMessage] = useState('');
   const [pickedProp, setPickedProp] = useState<AppProposal | null>(null);
   const [result, setResult] = useState<GenerateResult | null>(null);
-  const [copied, setCopied] = useState(false);
   const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle');
+  // Primary AI agent the scaffolded repo targets — decides the guide file's
+  // name/location (.claude/CLAUDE.md, AGENTS.md, GEMINI.md, …).
+  const [agentTargetId, setAgentTargetId] = useState<string>(AGENT_TARGETS[0].id);
   const [createdThemePath, setCreatedThemePath] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   const [dynamicSubs, setDynamicSubs] = useState<DynamicItem[]>([]);
   const [dynamicElements, setDynamicElements] = useState<DynamicItem[]>([]);
-  const [subsLoading, setSubsLoading] = useState(false);
-  const [elementsLoading, setElementsLoading] = useState(false);
 
   // Platform phase local selections — kept at top level to avoid conditional hooks
   const [localPlatform, setLocalPlatform] = useState<string | null>(null);
@@ -74,54 +87,72 @@ export function useWizard() {
         : t('difficultyHard');
 
   /**
-   * Selects a genre, transitions to the sub-genre phase, and fetches AI suggestions.
+   * Selects a genre and transitions to the sub-genre phase, seeding the
+   * sub-genre options from the local static catalog (no AI call — options are
+   * self-owned; users add their own via the free-input field). Switching genre
+   * resets sub-genre selections since sub-genres are genre-specific.
    *
    * @param genreId - the genre id to select / 選択するジャンルID
    */
-  const handleSelectGenre = async (genreId: string) => {
+  const handleSelectGenre = (genreId: string) => {
     setAnswers((a) => ({ ...a, genre: genreId, subs: [], elements: [] }));
     setPhase('sub');
-    setSubsLoading(true);
-    setDynamicSubs([]);
-    const aiSubs = await fetchSuggestions('sub_genres', t('genre_' + genreId));
-    if (aiSubs) {
-      setDynamicSubs(aiSubs);
-    } else {
-      const staticSubs = SUB_GENRES[genreId] || [];
-      setDynamicSubs(
-        staticSubs.map((s) => ({
-          id: s.id,
-          icon: s.icon,
-          label: t(`sub_${genreId}_${s.id}`),
-        })),
-      );
-    }
-    setSubsLoading(false);
+    const staticSubs = SUB_GENRES[genreId] || [];
+    setDynamicSubs(
+      staticSubs.map((s) => ({ id: s.id, icon: s.icon, label: t(`sub_${genreId}_${s.id}`) })),
+    );
   };
 
   /**
-   * Advances from sub-genre to elements phase and fetches AI element suggestions.
+   * Advances from sub-genre to elements phase, seeding the element options from
+   * the local static catalog on first entry. Re-entry preserves any custom
+   * elements the user already added.
    *
-   * @param selectedSubIds - currently selected sub-genre ids / 選択済みサブジャンルID一覧
+   * @param _selectedSubIds - selected sub-genre ids (unused; selection lives in answers) / 選択済みサブジャンルID（未使用）
    */
-  const handleSubNext = async (selectedSubIds: string[]) => {
+  const handleSubNext = (_selectedSubIds: string[]) => {
     setPhase('elements');
-    setElementsLoading(true);
-    setDynamicElements([]);
+    setDynamicElements((prev) =>
+      prev.length > 0
+        ? prev
+        : ELEMENTS.map((e) => ({ id: e.id, icon: e.icon, label: t('elem_' + e.id) })),
+    );
+  };
 
-    const aiElements = await fetchSuggestions('elements', answers.genre, selectedSubIds);
-    if (aiElements) {
-      setDynamicElements(aiElements);
-    } else {
-      setDynamicElements(
-        ELEMENTS.map((e) => ({
-          id: e.id,
-          icon: e.icon,
-          label: t('elem_' + e.id),
-        })),
-      );
-    }
-    setElementsLoading(false);
+  /**
+   * Adds a user-typed custom sub-genre to the option list and selects it.
+   *
+   * @param label - free-text sub-genre name / 自由入力のサブジャンル名
+   */
+  const addCustomSub = (label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const id = customId(trimmed);
+    setDynamicSubs((prev) =>
+      prev.some((s) => s.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
+    );
+    setAnswers((a) => ({
+      ...a,
+      subs: a.subs?.includes(id) ? a.subs : [...(a.subs || []), id],
+    }));
+  };
+
+  /**
+   * Adds a user-typed custom element/feature to the option list and selects it.
+   *
+   * @param label - free-text element name / 自由入力の機能要素名
+   */
+  const addCustomElement = (label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const id = customId(trimmed);
+    setDynamicElements((prev) =>
+      prev.some((e) => e.id === id) ? prev : [...prev, { id, icon: CUSTOM_ICON, label: trimmed }],
+    );
+    setAnswers((a) => ({
+      ...a,
+      elements: a.elements?.includes(id) ? a.elements : [...(a.elements || []), id],
+    }));
   };
 
   /**
@@ -195,13 +226,17 @@ export function useWizard() {
     setSetupPhase('loading');
     setSetupError(null);
     try {
+      const target = AGENT_TARGETS.find((a) => a.id === agentTargetId) || AGENT_TARGETS[0];
       const response = await fetch('/api/setup-theme', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           appName: pickedProp.name,
           claudeMd: result.claude_md,
+          requirements: result.requirements,
+          design: result.design,
           description: pickedProp.tagline,
+          agentFilePath: target.path,
         }),
       });
       const data = await response.json();
@@ -219,15 +254,6 @@ export function useWizard() {
   };
 
   /**
-   * Copies the generated CLAUDE.md to the clipboard and briefly shows confirmation.
-   */
-  const handleCopy = () => {
-    navigator.clipboard.writeText(result?.claude_md || '');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  /**
    * Resets all wizard state back to the intro phase.
    */
   const handleRestart = () => {
@@ -238,6 +264,7 @@ export function useWizard() {
     setResult(null);
     // Reset setup state as well
     setSetupPhase('idle');
+    setAgentTargetId(AGENT_TARGETS[0].id);
     setCreatedThemePath(null);
     setSetupError(null);
   };
@@ -276,9 +303,10 @@ export function useWizard() {
     pickedProp,
     setPickedProp,
     result,
-    copied,
     setupPhase,
     setSetupPhase,
+    agentTargetId,
+    setAgentTargetId,
     createdThemePath,
     setCreatedThemePath,
     setupError,
@@ -286,8 +314,6 @@ export function useWizard() {
     topRef,
     dynamicSubs,
     dynamicElements,
-    subsLoading,
-    elementsLoading,
     localPlatform,
     setLocalPlatform,
     localScale,
@@ -297,11 +323,12 @@ export function useWizard() {
     diffLabel,
     handleSelectGenre,
     handleSubNext,
+    addCustomSub,
+    addCustomElement,
     handlePlatformGenerate,
     handleRegenerateProposals,
     handleGenerateClaudeMd,
     handleCreateTheme,
-    handleCopy,
     handleRestart,
     handleResetSetup,
     toggleSub,

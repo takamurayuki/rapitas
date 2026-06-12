@@ -74,7 +74,7 @@ export function CreateTaskModal({ selectedDate, onSubmit, onClose }: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={t('taskNamePlaceholder')}
-            className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 rounded-lg text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-blue-400"
             autoFocus
           />
           <div className="flex gap-2 mt-4">

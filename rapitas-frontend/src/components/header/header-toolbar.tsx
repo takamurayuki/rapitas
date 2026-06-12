@@ -27,6 +27,7 @@ import {
 import GlobalPomodoroWidget from '@/feature/tasks/pomodoro/GlobalPomodoroWidget';
 import NotificationBell from '@/components/NotificationBell';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
 import { useTranslations } from 'next-intl';
 import { hideToTray } from '@/utils/tauri';
 import type { UseHeaderReturn } from './useHeader';
@@ -84,6 +85,9 @@ export function HeaderToolbar({
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations('nav');
+  // True while the task detail is shown in the right slide panel (path stays on
+  // the list/kanban route, so the pathname check alone can't detect it).
+  const isTaskDetailVisible = useTaskDetailVisibilityStore((s) => s.isTaskDetailVisible);
 
   const isListView = pathname === '/' || !pathname?.startsWith('/kanban');
 
@@ -97,7 +101,9 @@ export function HeaderToolbar({
 
   return (
     <div className="flex items-center gap-3">
-      {!pathname?.startsWith('/tasks/') && <GlobalPomodoroWidget />}
+      {/* Hide the header pomodoro whenever a task detail is open — full-page
+          (/tasks/...) or the slide panel — to avoid duplicating its controls. */}
+      {!pathname?.startsWith('/tasks/') && !isTaskDetailVisible && <GlobalPomodoroWidget />}
 
       {(pathname === '/' || pathname === '/kanban') && (
         <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
@@ -130,6 +136,9 @@ export function HeaderToolbar({
 
       <NotificationBell />
 
+      {/* Guest sign-in is intentionally hidden: an account has no benefit on a
+          local single-user app. Re-add a `/auth/login` link here once cloud
+          sync / sharing makes accounts meaningful. */}
       {hasMounted && !isAuthLoading && isAuthenticated && user && (
         <div className="relative" ref={userMenuRef}>
           <button

@@ -8,13 +8,19 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile } from './workflow-file-utils';
-import { buildRoleContext } from './workflow-context-builder';
+import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
   executeAPIAgent,
   type RoleTransition,
   type WorkflowAdvanceResult,
 } from './workflow-agent-executor';
+import {
+  acquireTaskExecutionLock,
+  releaseTaskExecutionLock,
+  WORKFLOW_LOCK_TTL_MS,
+} from '../agents/task-execution-lock';
+import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -43,39 +49,31 @@ type WorkflowStatus =
   | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 
-// NOTE: Research is mandatory across ALL workflow modes. The read-only
-// research pipeline runs as the first step regardless of complexity, then:
-//   - lightweight skips plan/review and goes straight to implementation
-//   - standard adds plan + review
-//   - comprehensive matches standard at this point (kept distinct for
-//     future divergence in scope / depth)
-
-// Comprehensive mode - 5-step workflow (research → plan → review → impl → verify)
-const COMPREHENSIVE_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
-  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
-  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
-
-// Standard mode - 5-step (research now mandatory)
-const STANDARD_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'planner', outputFile: 'plan', nextStatus: 'plan_created' },
-  plan_created: { role: 'reviewer', outputFile: 'question', nextStatus: 'plan_created' }, // status stays
-  plan_approved: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
-
-// Lightweight mode - 3-step (research → implement → auto-verify)
-const LIGHTWEIGHT_MODE: Record<string, RoleTransition> = {
-  draft: { role: 'researcher', outputFile: 'research', nextStatus: 'research_done' },
-  research_done: { role: 'implementer', outputFile: null, nextStatus: 'in_progress' },
-  in_progress: { role: 'auto_verifier', outputFile: 'verify', nextStatus: 'verify_done' },
-};
+// NOTE: The per-mode transition tables were moved to workflow-mode-config.ts,
+// which builds them from DB-backed, UI-editable settings (single source of
+// truth, shared with role-resolver and the frontend). Research is mandatory in
+// every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
+
+/**
+ * Resolves the system prompt content for a given key.
+ *
+ * @param key - The system prompt key to look up. / 検索するシステムプロンプトキー。
+ * @returns The prompt content string. / プロンプト本文。
+ *   B-2: DB hit → DB の content を返す。
+ *   B-1: DB null + DEFAULT_SYSTEM_PROMPTS に key あり → default content を返す。
+ *   B-1': DB null + DEFAULT_SYSTEM_PROMPTS にも key なし → `''` を返す。
+ *
+ * NOTE: DB record の content が `''` であってもフォールバックしない。
+ * record の存在 = DB の意図として尊重するため、存在判定は `null` チェックのみ行う。
+ */
+export async function resolveSystemPromptContent(key: string): Promise<string> {
+  const sp = await prisma.systemPrompt.findUnique({ where: { key } });
+  if (sp !== null) return sp.content;
+  const defaultEntry = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === key);
+  return defaultEntry?.content ?? '';
+}
 
 export class WorkflowOrchestrator {
   private static instance: WorkflowOrchestrator;
@@ -106,11 +104,56 @@ export class WorkflowOrchestrator {
   /**
    * Execute the next phase of the workflow.
    *
+   * Acquires the process-wide per-task execution mutex BEFORE doing any work,
+   * guaranteeing at most one agent runs per task at a time. The many triggers
+   * that call this (queue runner, post-phase auto-advance setTimeouts, HTTP
+   * approve/advance handlers, plan auto-approve) would otherwise spawn
+   * duplicate agents for the same task. When the lock is already held, this
+   * returns `skipped: true` WITHOUT spawning — the holder will advance the
+   * workflow, so the duplicate trigger is a safe no-op.
+   *
    * @param taskId - The task whose workflow should advance. / ワークフローを進めるタスクID
    * @param language - Language for generated content. / 生成コンテンツの言語
    * @returns Result of the phase execution. / フェーズ実行の結果
    */
   async advanceWorkflow(
+    taskId: number,
+    language: 'ja' | 'en' = 'ja',
+  ): Promise<WorkflowAdvanceResult> {
+    // WORKFLOW_LOCK_TTL_MS (15min) intentionally exceeds the WorkflowRunner's
+    // 10-min per-phase timeout so a long phase cannot have its lock stolen.
+    if (!acquireTaskExecutionLock(taskId, WORKFLOW_LOCK_TTL_MS)) {
+      const current = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+        .catch(() => null);
+      log.info(
+        `[WorkflowOrchestrator] Task ${taskId} already has a phase running — skipping duplicate advance`,
+      );
+      return {
+        success: true,
+        skipped: true,
+        role: 'researcher',
+        status: ((current?.workflowStatus as WorkflowStatus) || 'draft') as WorkflowStatus,
+        output: 'skipped: another phase is already executing for this task',
+      };
+    }
+
+    try {
+      return await this.runAdvanceWorkflow(taskId, language);
+    } finally {
+      releaseTaskExecutionLock(taskId);
+    }
+  }
+
+  /**
+   * Inner implementation of {@link advanceWorkflow}. MUST only be called while
+   * the task execution lock is held (advanceWorkflow guarantees this).
+   *
+   * @param taskId - The task whose workflow should advance. / ワークフローを進めるタスクID
+   * @param language - Language for generated content. / 生成コンテンツの言語
+   * @returns Result of the phase execution. / フェーズ実行の結果
+   */
+  private async runAdvanceWorkflow(
     taskId: number,
     language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
@@ -127,14 +170,12 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // Select the appropriate transition map based on workflow mode
+    // Build the transition table from the (DB-backed, UI-editable) mode config.
+    // Single source of truth — see workflow-mode-config.ts.
     const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
-    const modeTransitions =
-      workflowMode === 'lightweight'
-        ? LIGHTWEIGHT_MODE
-        : workflowMode === 'standard'
-          ? STANDARD_MODE
-          : COMPREHENSIVE_MODE;
+    const { getModeSettings, buildTransitions } = await import('./workflow-mode-config');
+    const modeSettings = await getModeSettings(workflowMode);
+    const modeTransitions = buildTransitions(modeSettings);
 
     const currentStatus = (task.workflowStatus as string) || 'draft';
     const transition = modeTransitions[currentStatus];
@@ -152,15 +193,8 @@ export class WorkflowOrchestrator {
       where: { role: transition.role },
       include: { agentConfig: true },
     });
-    if (!roleConfig || !roleConfig.agentConfigId || !roleConfig.agentConfig) {
-      return {
-        success: false,
-        role: transition.role,
-        status: currentStatus as WorkflowStatus,
-        error: `ロール "${transition.role}" にエージェントが割り当てられていません。エージェント管理ページで設定してください。`,
-      };
-    }
-    if (!roleConfig.isEnabled) {
+    // An explicitly DISABLED role is a deliberate stop — respect it.
+    if (roleConfig && !roleConfig.isEnabled) {
       return {
         success: false,
         role: transition.role,
@@ -168,14 +202,73 @@ export class WorkflowOrchestrator {
         error: `ロール "${transition.role}" は無効化されています`,
       };
     }
+    // Resolve the agent for this role. When WorkflowRoleConfig has no agent
+    // assigned, fall back to the capability-based recommender — the SAME path
+    // execute-route uses. Without this fallback, queue-driven tasks (e.g. split
+    // subtasks) hard-failed at the very first phase whenever the user had not
+    // manually wired every role in the agent-management page, exhausting all
+    // retries in ~30ms with no agent ever spawned.
+    let agentConfig: {
+      id: number;
+      agentType: string;
+      name: string;
+      modelId: string | null;
+      apiKeyEncrypted: string | null;
+      endpoint: string | null;
+    } | null = roleConfig?.agentConfig ?? null;
+    if (!agentConfig) {
+      const { recommendAgentForRole } = await import('./role-recommender');
+      const recommended = await recommendAgentForRole(transition.role).catch(() => null);
+      if (recommended?.agentConfigId) {
+        agentConfig = await prisma.aIAgentConfig
+          .findUnique({ where: { id: recommended.agentConfigId } })
+          .catch(() => null);
+      }
+      if (agentConfig) {
+        log.info(
+          { taskId, role: transition.role, agentId: agentConfig.id, agentName: agentConfig.name },
+          '[WorkflowOrchestrator] No agent assigned to role — using capability-recommended agent',
+        );
+      }
+    }
+    if (!agentConfig) {
+      // Last resort: the built-in Claude Code agent (id: -1). This is the SAME
+      // default execute-route uses, so a workflow can run even when the DB has
+      // zero AIAgentConfig rows and every role is unassigned. The execution
+      // layer (task-executor) maps the unknown id back to the built-in and
+      // nulls the agentConfig FK so AgentExecution creation does not fail.
+      const { getDefaultAgent } = await import('../agent-config/defaults');
+      const builtIn = await getDefaultAgent().catch(() => null);
+      if (builtIn) {
+        agentConfig = {
+          id: builtIn.id,
+          agentType: builtIn.agentType,
+          name: builtIn.name,
+          modelId: builtIn.modelId ?? null,
+          apiKeyEncrypted: builtIn.apiKeyEncrypted ?? null,
+          endpoint: builtIn.endpoint ?? null,
+        };
+        log.info(
+          { taskId, role: transition.role, agentName: agentConfig.name },
+          '[WorkflowOrchestrator] No assigned/recommended agent — using built-in default agent',
+        );
+      }
+    }
+    if (!agentConfig) {
+      return {
+        success: false,
+        role: transition.role,
+        status: currentStatus as WorkflowStatus,
+        error: `ロール "${transition.role}" にエージェントが割り当てられていません。エージェント管理ページで設定してください。`,
+      };
+    }
 
-    // Get system prompt
+    // Get system prompt — DB-stored content takes priority.
+    // NOTE: If the seed has not been run yet, fall back to the compiled DEFAULT_SYSTEM_PROMPTS
+    // so the researcher receives the correct template even on a fresh install.
     let systemPromptContent = '';
-    if (roleConfig.systemPromptKey) {
-      const sp = await prisma.systemPrompt.findUnique({
-        where: { key: roleConfig.systemPromptKey },
-      });
-      if (sp) systemPromptContent = sp.content;
+    if (roleConfig?.systemPromptKey) {
+      systemPromptContent = await resolveSystemPromptContent(roleConfig.systemPromptKey);
     }
 
     // Resolve workflow directory
@@ -187,6 +280,20 @@ export class WorkflowOrchestrator {
         status: currentStatus as WorkflowStatus,
         error: 'パス解決に失敗しました',
       };
+    }
+
+    // Plan-optional framing: the role prompts assume plan.md, but the lightweight
+    // (research→implement→verify) workflow produces none. Prepend an authoritative
+    // mode directive so the implementer/verifier work from research.md + task
+    // requirements instead of a non-existent plan/checklist/planner. Applies to
+    // implementer/verifier only; no-op for other roles.
+    if (systemPromptContent) {
+      const planContent = await readWorkflowFile(workflowInfo.dir, 'plan');
+      systemPromptContent = applyPlanModeDirective(
+        transition.role,
+        systemPromptContent,
+        !!planContent?.trim(),
+      );
     }
 
     // If output file already exists, skip agent execution and advance status only
@@ -217,9 +324,9 @@ export class WorkflowOrchestrator {
       language,
     );
 
-    const agentConfig = roleConfig.agentConfig;
+    // agentConfig is resolved above (role assignment or capability fallback).
     // Model resolution: role override → agent default → smart auto-select
-    const roleModelId = (roleConfig as { modelId?: string | null }).modelId;
+    const roleModelId = (roleConfig as { modelId?: string | null } | null)?.modelId ?? null;
     let effectiveModelId = roleModelId || agentConfig.modelId;
 
     // Auto-select: when modelId is 'auto' or unset, use Smart Model Router.
@@ -228,12 +335,66 @@ export class WorkflowOrchestrator {
     // roles, to mitigate self-evaluation bias).
     if (!effectiveModelId || effectiveModelId === 'auto') {
       try {
-        const [{ getSmartRoute }, { resolveRoleProviderPreferences }] = await Promise.all([
+        // Ensure the task has a complexity score BEFORE routing. Only the manual
+        // execute-route scored it; the auto-run path never did, so every
+        // auto-run phase fell back to SmartRouter's complexity=50 default
+        // ('standard'). NOTE: this score is a metadata heuristic (title /
+        // description / structured-spec counts), NOT a scan of the actual repo
+        // code — an a-priori estimate, refined by history elsewhere.
+        if (task.complexityScore == null) {
+          await scoreTaskComplexity(taskId, task).catch((err) =>
+            log.warn({ err, taskId }, '[WorkflowOrchestrator] Complexity scoring failed'),
+          );
+        }
+
+        const [
+          { getSmartRoute },
+          { resolveRoleProviderPreferences },
+          { computeMinTier, detectHighRisk },
+          { WorkflowQueueService },
+        ] = await Promise.all([
           import('../ai/smart-model-router'),
           import('./role-provider-resolver'),
+          import('./routing-policy'),
+          import('./workflow-queue'),
         ]);
         const prefs = await resolveRoleProviderPreferences(transition.role, taskId);
-        const route = await getSmartRoute(taskId, prefs);
+
+        // Failure escalation: a phase that already failed (queue retryCount > 0)
+        // gets a STRONGER model on the retry instead of re-running the same weak
+        // one. Reuses the existing per-task queue retry counter.
+        const queueItem = await WorkflowQueueService.getInstance()
+          .findByTaskId(taskId)
+          .catch(() => null);
+        const escalation = queueItem?.retryCount ?? 0;
+
+        // Risk override: schema / auth / payment / security work forces premium
+        // regardless of complexity. For code phases, also scan plan.md for risky
+        // planned file paths.
+        const planContent =
+          transition.role === 'implementer' ||
+          transition.role === 'reviewer' ||
+          transition.role === 'verifier' ||
+          transition.role === 'auto_verifier'
+            ? await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null)
+            : null;
+        const labelsText =
+          typeof (task as { labels?: unknown }).labels === 'string'
+            ? ((task as { labels?: string }).labels ?? '')
+            : '';
+        const { high: riskHigh, reason: riskReason } = detectHighRisk({
+          text: `${task.title} ${task.description ?? ''} ${labelsText}`,
+          planContent,
+        });
+
+        // Role floor + escalation + risk → the minimum tier SmartRouter may not
+        // go below (it still RAISES further when complexity is high).
+        const minTier = computeMinTier({ role: transition.role, escalation, riskHigh });
+        const route = await getSmartRoute(taskId, {
+          ...prefs,
+          minTier,
+          includeAlternatives: false,
+        });
         effectiveModelId = route.recommendedModel;
         log.info(
           {
@@ -241,6 +402,10 @@ export class WorkflowOrchestrator {
             role: transition.role,
             model: effectiveModelId,
             tier: route.recommendedTier,
+            minTier: minTier ?? null,
+            escalation,
+            riskHigh,
+            riskReason: riskReason ?? null,
             preferredProvider: prefs.preferredProvider ?? null,
             excludeProviders: prefs.excludeProviders ?? [],
           },
@@ -356,6 +521,65 @@ export class WorkflowOrchestrator {
       };
     }
   }
+}
+
+/**
+ * Score and persist a task's complexity so SmartRouter routes by real
+ * complexity instead of its 50 default. The score is a heuristic over task
+ * METADATA (title / description keywords, structured-spec counts, estimated
+ * hours, priority, labels) — it does NOT scan the actual repository code.
+ *
+ * @param taskId - Task to score. / 対象タスクID
+ * @param task - Already-loaded task row (scalar fields). / 取得済みタスク行
+ */
+async function scoreTaskComplexity(
+  taskId: number,
+  task: {
+    title: string;
+    description: string | null;
+    estimatedHours: number | null;
+    priority: string | null;
+    themeId: number | null;
+    labels?: unknown;
+    goals?: unknown;
+    constraints?: unknown;
+    acceptanceCriteria?: unknown;
+  },
+): Promise<void> {
+  const { analyzeTaskComplexity } = await import('./complexity-analyzer');
+  // labels/goals/constraints/acceptanceCriteria are persisted as JSON strings
+  // (or already arrays). Parse tolerantly — never throw on malformed data.
+  const parseArr = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
+    if (typeof v === 'string' && v.trim()) {
+      try {
+        const p: unknown = JSON.parse(v);
+        return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const scored = analyzeTaskComplexity({
+    title: task.title,
+    description: task.description,
+    estimatedHours: task.estimatedHours,
+    labels: parseArr(task.labels),
+    priority: task.priority ?? undefined,
+    themeId: task.themeId,
+    goals: parseArr(task.goals),
+    constraints: parseArr(task.constraints),
+    acceptanceCriteria: parseArr(task.acceptanceCriteria),
+  });
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { complexityScore: scored.complexityScore },
+  });
+  log.info(
+    { taskId, complexityScore: scored.complexityScore },
+    '[WorkflowOrchestrator] Scored task complexity for routing',
+  );
 }
 
 async function resolveExecutableAgentConfig<

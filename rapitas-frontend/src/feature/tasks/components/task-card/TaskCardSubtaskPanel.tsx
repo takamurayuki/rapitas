@@ -2,7 +2,12 @@
 // TaskCardSubtaskPanel
 import type { Task } from '@/types';
 import SubtaskStatusButtons from '@/feature/tasks/components/SubtaskStatusButtons';
-import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
+import {
+  statusConfig,
+  renderStatusIcon,
+  isInProgressStatus,
+} from '@/feature/tasks/config/StatusConfig';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 
 interface TaskCardSubtaskPanelProps {
   subtasks: Task[];
@@ -20,6 +25,9 @@ export default function TaskCardSubtaskPanel({
   onTaskUpdated,
   onStatusChange,
 }: TaskCardSubtaskPanelProps) {
+  // Live agent-execution state (GET /tasks/executing polling). The spinner is
+  // driven by THIS — actual agent execution — not the in-progress status.
+  const executingTasks = useExecutionStateStore((s) => s.executingTasks);
   return (
     <div
       className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-indigo-dark-900/50 p-3"
@@ -28,6 +36,15 @@ export default function TaskCardSubtaskPanel({
       {subtasks.map((subtask, index) => {
         const subtaskStatus =
           statusConfig[subtask.status as keyof typeof statusConfig] || statusConfig.todo;
+        // in-progress STATUS drives the box look; agent EXECUTION drives the spinner.
+        const inProgress = isInProgressStatus(subtask.status);
+        // A done subtask must never show the running spinner even if a stale
+        // execution-state entry lingers (orphaned agentExecution row still
+        // returned by /tasks/executing) — trust the persisted terminal status.
+        const liveStatus = executingTasks.get(subtask.id)?.status;
+        const isExecuting =
+          subtask.status !== 'done' &&
+          (liveStatus === 'running' || liveStatus === 'waiting_for_input');
         const isFirst = index === 0;
         const isLast = index === subtasks.length - 1;
         const roundedClass =
@@ -44,14 +61,43 @@ export default function TaskCardSubtaskPanel({
             className={`flex items-center gap-2 p-2 ${roundedClass} transition-colors border-l-2 ${subtaskStatus.borderColor} ${subtaskStatus.bgColor} dark:bg-indigo-dark-900`}
           >
             <div
-              className={`flex items-center justify-center w-6 h-6 rounded ${
+              className={`relative flex items-center justify-center w-6 h-6 rounded ${
                 subtaskStatus.color
-              } ${subtaskStatus.bgColor} border ${subtaskStatus.borderColor.replace(
-                'border-l-',
-                'border-',
-              )} shrink-0`}
+              } ${subtaskStatus.bgColor} ${
+                inProgress
+                  ? ''
+                  : `border ${subtaskStatus.borderColor.replace('border-l-', 'border-')}`
+              } shrink-0`}
               aria-label={subtaskStatus.label}
             >
+              {/* Spinner only while an agent is actually executing this subtask
+                  (not for a manually-set in-progress status). */}
+              {isExecuting && (
+                <svg
+                  className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+                  viewBox="0 0 32 32"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="1"
+                    y="1"
+                    width="30"
+                    height="30"
+                    rx="7"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeDasharray="20 87.96"
+                    strokeLinecap="round"
+                    fill="none"
+                    style={{
+                      animation: 'icon-outer-border-spin 1.5s linear infinite',
+                      willChange: 'stroke-dashoffset',
+                      transform: 'translateZ(0)',
+                    }}
+                  />
+                </svg>
+              )}
               {renderStatusIcon(subtask.status)}
             </div>
             <span

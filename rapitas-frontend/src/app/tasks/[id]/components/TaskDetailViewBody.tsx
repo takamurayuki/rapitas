@@ -127,9 +127,21 @@ export default function TaskDetailViewBody({
 }: TaskDetailViewBodyProps) {
   const isTaskStatusLoading = useExecutionStateStore((s) => s.loadingTaskIds.has(taskId));
 
+  // Context for the copilot's "next action" recommender (rule-based, see
+  // next-action-recommender.ts). canRunAgent mirrors the execute-route gate.
+  const subtasks = task.subtasks ?? [];
+  const nextActionContext = {
+    status: task.status,
+    subtaskTotal: subtasks.length,
+    subtaskDone: subtasks.filter((s) => s.status === 'done').length,
+    complexityScore: task.complexityScore ?? null,
+    estimatedHours: task.estimatedHours ?? null,
+    canRunAgent: !!(task.theme?.isDevelopment && task.theme?.workingDirectory),
+  };
+
   return (
     <>
-      <div className="mb-6">
+      <div id="td-info" className="mb-6 scroll-mt-16">
         <CompactTaskDetailCard
           task={task}
           onStatusUpdate={taskActions.updateStatus}
@@ -152,14 +164,19 @@ export default function TaskDetailViewBody({
       </div>
 
       {/* Unified AI panel — copilot with execution inside */}
-      <div className="mb-6">
+      <div id="td-ai" className="mb-6 scroll-mt-16">
         <CopilotChatPanel
           taskId={taskId}
           taskTitle={task.title}
           taskStatus={task.status}
           taskDescription={task.description}
           onTaskUpdated={onTaskUpdated}
+          nextActionContext={nextActionContext}
         >
+          {/* NOTE: Always render the agent execution accordion. The component
+              itself shows a capability-aware body when the task lacks a theme,
+              workingDirectory, or API key. The legacy showAIPanel gate is
+              kept as a kill-switch but defaults to true. */}
           {showAIPanel && (
             <ErrorBoundary section="エージェント実行">
               <TaskAISection
@@ -174,62 +191,66 @@ export default function TaskDetailViewBody({
       </div>
 
       {task.theme?.isDevelopment === true && (
-        <TaskWorkflowSection
-          task={task}
-          taskId={taskId}
-          currentWorkflowStatus={currentWorkflowStatus}
-          setCurrentWorkflowStatus={setCurrentWorkflowStatus}
-          isWorkflowLoading={isWorkflowLoading}
-          workflowError={workflowError}
-          onPlanApprovalRequest={onPlanApprovalRequest}
-          onWorkflowComplete={onWorkflowComplete}
-          onTaskUpdated={onTaskUpdated}
-          setTask={setTask}
-        />
+        <div id="td-workflow" className="scroll-mt-16">
+          <TaskWorkflowSection
+            task={task}
+            taskId={taskId}
+            currentWorkflowStatus={currentWorkflowStatus}
+            setCurrentWorkflowStatus={setCurrentWorkflowStatus}
+            isWorkflowLoading={isWorkflowLoading}
+            workflowError={workflowError}
+            onPlanApprovalRequest={onPlanApprovalRequest}
+            onWorkflowComplete={onWorkflowComplete}
+            onTaskUpdated={onTaskUpdated}
+            setTask={setTask}
+          />
+        </div>
       )}
 
-      <SubtaskSection
-        subtasks={task.subtasks || []}
-        isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
-        selectedSubtaskIds={taskActions.selectedSubtaskIds}
-        showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
-        editingSubtaskId={taskActions.editingSubtaskId}
-        editingSubtaskTitle={taskActions.editingSubtaskTitle}
-        editingSubtaskDescription={taskActions.editingSubtaskDescription}
-        editingSubtaskPriority={taskActions.editingSubtaskPriority}
-        editingSubtaskLabels={taskActions.editingSubtaskLabels}
-        editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
-        isParallelExecutionRunning={isParallelExecutionRunning}
-        getSubtaskStatus={getSubtaskStatus}
-        onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
-        onSelectAll={taskActions.selectAllSubtasks}
-        onDeselectAll={taskActions.deselectAllSubtasks}
-        onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
-        onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
-        onDeleteAll={taskActions.handleDeleteAllSubtasks}
-        onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
-        onStartEditingSubtask={taskActions.startEditingSubtask}
-        onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-        onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
-        onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
-        onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
-        onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
-        onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
-        onCancelEditingSubtask={taskActions.cancelEditingSubtask}
-        onUpdateStatus={taskActions.updateStatus}
-        isAddingSubtask={taskActions.isAddingSubtask}
-        newSubtaskTitle={taskActions.newSubtaskTitle}
-        newSubtaskDescription={taskActions.newSubtaskDescription}
-        newSubtaskLabels={taskActions.newSubtaskLabels}
-        newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
-        onToggleAddSubtask={taskActions.toggleAddSubtask}
-        onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
-        onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
-        onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
-        onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
-        onAddSubtask={taskActions.addSubtask}
-        onCancelAddSubtask={taskActions.cancelAddSubtask}
-      />
+      <div id="td-subtasks" className="scroll-mt-16">
+        <SubtaskSection
+          subtasks={task.subtasks || []}
+          isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
+          selectedSubtaskIds={taskActions.selectedSubtaskIds}
+          showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
+          editingSubtaskId={taskActions.editingSubtaskId}
+          editingSubtaskTitle={taskActions.editingSubtaskTitle}
+          editingSubtaskDescription={taskActions.editingSubtaskDescription}
+          editingSubtaskPriority={taskActions.editingSubtaskPriority}
+          editingSubtaskLabels={taskActions.editingSubtaskLabels}
+          editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
+          isParallelExecutionRunning={isParallelExecutionRunning}
+          getSubtaskStatus={getSubtaskStatus}
+          onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
+          onSelectAll={taskActions.selectAllSubtasks}
+          onDeselectAll={taskActions.deselectAllSubtasks}
+          onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
+          onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
+          onDeleteAll={taskActions.handleDeleteAllSubtasks}
+          onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
+          onStartEditingSubtask={taskActions.startEditingSubtask}
+          onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
+          onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
+          onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
+          onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
+          onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
+          onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
+          onCancelEditingSubtask={taskActions.cancelEditingSubtask}
+          onUpdateStatus={taskActions.updateStatus}
+          isAddingSubtask={taskActions.isAddingSubtask}
+          newSubtaskTitle={taskActions.newSubtaskTitle}
+          newSubtaskDescription={taskActions.newSubtaskDescription}
+          newSubtaskLabels={taskActions.newSubtaskLabels}
+          newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
+          onToggleAddSubtask={taskActions.toggleAddSubtask}
+          onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
+          onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
+          onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
+          onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
+          onAddSubtask={taskActions.addSubtask}
+          onCancelAddSubtask={taskActions.cancelAddSubtask}
+        />
+      </div>
     </>
   );
 }

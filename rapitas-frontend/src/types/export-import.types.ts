@@ -68,8 +68,6 @@ export interface BackupResponse {
     themes: number;
     habits: number;
     habitLogs: number;
-    flashcardDecks: number;
-    flashcards: number;
     examGoals: number;
     learningGoals: number;
     studyStreaks: number;
@@ -86,8 +84,6 @@ export interface BackupResponse {
     themes: unknown[];
     habits: unknown[];
     habitLogs: unknown[];
-    flashcardDecks: unknown[];
-    flashcards: unknown[];
     examGoals: unknown[];
     learningGoals: unknown[];
     studyStreaks: unknown[];

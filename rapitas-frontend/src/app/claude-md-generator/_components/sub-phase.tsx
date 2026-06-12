@@ -1,11 +1,13 @@
 'use client';
 // sub-phase
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { DynamicItem } from '../_types/types';
 import { SUB_GENRES } from '../_utils/constants';
 import { PageWrap } from './page-wrap';
 import { CheckIcon } from './icons';
+import { CustomOptionInput } from './custom-option-input';
+import { WizardIcon } from './wizard-icons';
 
 interface SubPhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -15,12 +17,12 @@ interface SubPhaseProps {
   genre: string;
   /** Currently selected sub-genre ids / 選択済みサブジャンルID一覧 */
   selectedSubs: string[];
-  /** AI-generated sub-genre items; falls back to static list when empty / AIが生成したサブジャンル一覧 */
+  /** Sub-genre options (static catalog + user-added custom items) / サブジャンル選択肢（静的＋自由入力） */
   dynamicSubs: DynamicItem[];
-  /** True while AI suggestions are loading / AI提案取得中はtrue */
-  subsLoading: boolean;
   /** Toggles a sub-genre selection by id / IDでサブジャンル選択を切り替える */
   onToggle: (id: string) => void;
+  /** Adds a user-typed custom sub-genre / 自由入力のサブジャンルを追加 */
+  onAddCustom: (label: string) => void;
   /** Advances to elements phase; receives the resolved sub items for element suggestions / 要素フェーズへ進む */
   onNext: (selectedSubIds: string[]) => void;
   /** Returns to genre phase / ジャンルフェーズへ戻る */
@@ -28,7 +30,9 @@ interface SubPhaseProps {
 }
 
 /**
- * Sub-genre multi-select grid wrapped in the shared PageWrap layout.
+ * Sub-genre multi-select grid with a free-input field for custom entries,
+ * wrapped in the shared PageWrap layout. Options come from the local static
+ * catalog — no per-selection AI call.
  *
  * @param props - SubPhaseProps / SubPhaseProps参照
  */
@@ -38,8 +42,8 @@ export function SubPhase({
   genre,
   selectedSubs,
   dynamicSubs,
-  subsLoading,
   onToggle,
+  onAddCustom,
   onNext,
   onBack,
 }: SubPhaseProps) {
@@ -51,6 +55,14 @@ export function SubPhase({
           icon: s.icon,
           label: t(`sub_${genre}_${s.id}`),
         }));
+
+  const [pulse, setPulse] = useState(false);
+  const handleAdd = (label: string) => {
+    onAddCustom(label);
+    // Brief highlight cue so the newly added (and auto-selected) item is noticed.
+    setPulse(true);
+    setTimeout(() => setPulse(false), 400);
+  };
 
   return (
     <PageWrap
@@ -72,65 +84,45 @@ export function SubPhase({
           display: 'grid',
           gridTemplateColumns: 'repeat(2,1fr)',
           gap: 10,
-          marginBottom: 32,
+          marginBottom: 16,
         }}
       >
-        {subsLoading
-          ? Array.from({ length: 6 }, (_, i) => (
-              <div
-                key={`skeleton-${i}`}
-                className="card"
-                style={{ opacity: 0.6, pointerEvents: 'none' }}
-              >
+        {subs.map((s) => {
+          const isSel = selectedSubs.includes(s.id);
+          const isCustom = s.id.startsWith('custom_');
+          return (
+            <div
+              key={s.id}
+              className={`card ${isSel ? 'sel' : ''}`}
+              style={pulse && isCustom ? { borderColor: 'var(--accent)' } : undefined}
+              onClick={() => onToggle(s.id)}
+            >
+              <div className="card-checkb">{isSel && <CheckIcon />}</div>
+              <div style={{ flex: 1 }}>
                 <div
                   style={{
                     fontSize: 14,
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 8,
                   }}
                 >
-                  <span>⏳</span>
-                  <span
-                    style={{
-                      background: 'var(--border)',
-                      borderRadius: 4,
-                      height: 16,
-                      width: 80,
-                    }}
-                  >
-                    &nbsp;
-                  </span>
+                  <WizardIcon name={s.icon} size={16} />
+                  <span>{s.label}</span>
                 </div>
               </div>
-            ))
-          : subs.map((s) => {
-              const isSel = selectedSubs.includes(s.id);
-              return (
-                <div
-                  key={s.id}
-                  className={`card ${isSel ? 'sel' : ''}`}
-                  onClick={() => onToggle(s.id)}
-                >
-                  <div className="card-checkb">{isSel && <CheckIcon />}</div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      <span>{s.icon}</span>
-                      <span>{s.label}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <CustomOptionInput
+          placeholder={t('customSubPlaceholder')}
+          addLabel={t('addCustom')}
+          onAdd={handleAdd}
+        />
       </div>
     </PageWrap>
   );

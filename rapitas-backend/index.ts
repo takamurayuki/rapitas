@@ -40,7 +40,16 @@ import { realtimeService } from './services/communication/realtime-service';
 // Ensure database connection before starting server
 await ensureDatabaseConnection();
 
+import { resolveBindHost, createApiTokenGuard } from './middleware/local-auth';
+
 const app = new Elysia();
+
+// Exposure guard: when RAPITAS_API_TOKEN is set (required for any non-loopback
+// bind), every request must carry it. No-op in the default loopback deployment.
+const apiTokenGuard = createApiTokenGuard();
+if (apiTokenGuard) {
+  app.onRequest(apiTokenGuard);
+}
 
 // Apply middleware
 app.use(
@@ -108,59 +117,98 @@ app.use(
 // Apply all modular routes (82 Elysia instances, organized by domain)
 registerAllRoutes(app);
 
-// Start behavior scheduler
+// Warm-up tasks (schedulers, memory system, agent worker manager, recovery)
+// are imported here but deliberately NOT invoked until AFTER app.listen() —
+// see runStartupWarmup() below. Previously they were all kicked off before
+// listen, which forced the single JS thread to run CPU-heavy init (model
+// loads, recovery scans, child-process spawns) before it could serve any
+// request. An already-open task-detail page then stalled long enough to hit
+// the frontend's 30s request timeout on every (re)start.
 import { BehaviorScheduler } from './src/services/behavior-scheduler';
-BehaviorScheduler.start();
-
-// Initialize memory system
 import { initializeMemorySystem, shutdownMemorySystem } from './services/memory';
-initializeMemorySystem().catch((error) => {
-  log.error({ err: error }, 'Failed to initialize memory system');
-});
-
-// Initialize AI Orchestra recovery
 import { AIOrchestra } from './services/workflow/ai-orchestra';
-AIOrchestra.getInstance()
-  .recoverOnStartup()
-  .catch((error) => {
-    log.error({ err: error }, 'AI Orchestra startup recovery failed');
-  });
-
-// Move legacy in-repo workflow files (`<cwd>/tasks/...`) to the user data
-// dir (`~/.rapitas/workflows/...`). Idempotent — only acts when legacy files
-// remain. See services/workflow/workflow-legacy-migrator.ts.
 import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-migrator';
-migrateLegacyWorkflowFiles().catch((error) => {
-  log.warn({ err: error }, 'Legacy workflow file migration failed (non-fatal)');
-});
-
-// Initialize Agent Worker Manager for processing agent execution in separate processes
-workerManager.initialize().catch((error) => {
-  log.error({ err: error }, 'Failed to initialize Agent Worker Manager');
-});
-
-// Start innovation session scheduler (generates novel ideas twice daily)
-import { startInnovationScheduler } from './services/memory/innovation-session';
-startInnovationScheduler();
-
-// Start weekly DB backup scheduler (~/.rapitas/backups/, 8-week retention).
+import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startBackupScheduler } from './services/system/backup-scheduler';
-startBackupScheduler();
+import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
+// NOTE: Loopback by default — the API has no user auth and its agent endpoints
+// can run arbitrary code, so LAN exposure (the previous 0.0.0.0 bind) was an
+// unauthenticated-RCE surface. Explicit IPv4 loopback also keeps the IPv6
+// zombie-socket interference fix intact. Non-loopback requires RAPITAS_BIND_HOST
+// + RAPITAS_API_TOKEN (see middleware/local-auth.ts).
+const BIND_HOST = resolveBindHost();
 app.listen({
   port: PORT,
-  hostname: '0.0.0.0', // IPv4 only - prevents IPv6 zombie socket interference
+  hostname: BIND_HOST,
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
-  reusePort: true, // allows binding even with TIME_WAIT zombie sockets
+  // NOTE: reusePort is intentionally OFF. It previously let a fresh process bind
+  // a SECOND listen socket on top of one orphaned by a force-killed predecessor;
+  // Windows then split incoming connections between the live and the dead socket,
+  // and the requests routed to the dead one hung (HTTP 000). Without reusePort a
+  // dirty port fails fast at bind (EADDRINUSE), so dev.js can detect a true
+  // zombie socket and tell the user to reboot instead of masking it as a hang.
 });
-log.info(`Rapitas backend running on http://127.0.0.1:${PORT}`);
+log.info(`Rapitas backend running on http://${BIND_HOST}:${PORT}`);
 
-// Set server stop callback for proper port release during graceful shutdown
+// Set server stop callback for proper port release during graceful shutdown.
+// NOTE: stop(true) force-closes ALL active connections, not just the listener.
+// Long-lived frontend connections (SSE, executing-tasks polling, health checks)
+// never finish on their own; a graceful stop() leaves them half-open and they
+// orphan as CLOSE_WAIT sockets under the dying PID — the root cause of the
+// port-3001 zombie-socket lockups that previously required a Windows reboot.
 setServerStopCallback(() => {
-  app.stop();
+  app.stop(true);
 });
+
+/**
+ * Run heavy startup warm-up AFTER the listener is open, one task at a time and
+ * yielding to the event loop between each, so the single JS thread stays free
+ * to answer requests during boot (fixes the "task-detail page open across a
+ * restart hits the 30s request timeout" symptom).
+ *
+ * Every task is individually timed and logged (`warmupMs`) so a slow/blocking
+ * initializer is identifiable from the logs instead of guessed at.
+ */
+const runStartupWarmup = async (): Promise<void> => {
+  const yieldToLoop = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const timed = async (label: string, fn: () => unknown | Promise<unknown>): Promise<void> => {
+    const startedAt = Date.now();
+    try {
+      await fn();
+      log.info({ warmupMs: Date.now() - startedAt }, `Warm-up: ${label} ready`);
+    } catch (err) {
+      log.error({ err, warmupMs: Date.now() - startedAt }, `Warm-up: ${label} failed`);
+    }
+  };
+
+  // Brief grace so the listener can answer the first in-flight requests
+  // before we start CPU-heavy init on the single JS thread.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  await timed('behavior-scheduler', () => BehaviorScheduler.start());
+  await yieldToLoop();
+  await timed('memory-system', () => initializeMemorySystem());
+  await yieldToLoop();
+  await timed('ai-orchestra-recovery', () => AIOrchestra.getInstance().recoverOnStartup());
+  await yieldToLoop();
+  await timed('legacy-workflow-migration', () => migrateLegacyWorkflowFiles());
+  await yieldToLoop();
+  await timed('agent-worker-manager', () => workerManager.initialize());
+  await yieldToLoop();
+  // Schedulers only register intervals — cheap, grouped at the end.
+  await timed('backlog-scheduler', () => startBacklogScheduler());
+  await timed('backup-scheduler', () => startBackupScheduler());
+  await timed('worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler());
+
+  log.info('Startup warm-up complete');
+};
+
+// Fire-and-forget: never blocks the listener; each task self-reports timing.
+void runStartupWarmup();
 
 // Signal handling from bun --watch (for dev:simple mode)
 // Close SSE connections immediately on SIGTERM/SIGINT to prevent CLOSE_WAIT accumulation
@@ -178,10 +226,14 @@ const handleProcessSignal = async (signal: string) => {
   }, 8000);
 
   try {
-    // Step 1: First close the listening socket (reject new connections)
-    log.info('Step 1: Stopping listener (no new connections)...');
+    // Step 1: Close the listener AND force-close every active connection.
+    // stop(true) is critical: a plain stop() only rejects new connections and
+    // waits for in-flight ones to finish, but the frontend's persistent polling /
+    // SSE connections never finish, so they would be left half-open and orphan as
+    // CLOSE_WAIT sockets when the process exits (zombie-socket port lockup).
+    log.info('Step 1: Stopping listener + force-closing active connections...');
     try {
-      app.stop();
+      app.stop(true);
     } catch (error) {
       log.error({ err: error }, 'Error stopping listener');
     }
@@ -254,10 +306,97 @@ const handleProcessSignal = async (signal: string) => {
 
 process.on('SIGTERM', () => handleProcessSignal('SIGTERM'));
 process.on('SIGINT', () => handleProcessSignal('SIGINT'));
+// Windows: SIGBREAK fires on Ctrl+Break and (often) console-window close; SIGHUP
+// covers parent-terminated / hangup paths. Registering them is a no-op where the
+// signal never fires, so it is safe cross-platform.
+process.on('SIGBREAK', () => handleProcessSignal('SIGBREAK'));
+process.on('SIGHUP', () => handleProcessSignal('SIGHUP'));
+
+// Last-resort synchronous safety net. If the process exits through a path that
+// bypassed the async handler above (e.g. an unexpected process.exit()), still
+// force-close the listener + active connections so nothing is left in CLOSE_WAIT
+// on port 3001. Bun's server.stop(true) is synchronous-safe to call here.
+process.on('exit', () => {
+  try {
+    app.server?.stop(true);
+  } catch {
+    /* best-effort: nothing more we can do during exit */
+  }
+});
+
+// An uncaught exception would otherwise terminate the process via Bun's default
+// handler, which skips the async drain window — closing the listener at the JS
+// layer but exiting before the Windows kernel finishes tearing the socket down,
+// leaving it orphaned as a zombie LISTEN on port 3001 (needs a reboot). Route it
+// through the SAME graceful shutdown (force-close connections + drain) so the
+// port is always released cleanly even on a crash.
+process.on('uncaughtException', (err) => {
+  log.error({ err }, 'Uncaught exception — shutting down gracefully to avoid zombie sockets');
+  handleProcessSignal('uncaughtException');
+});
+
+// NOTE: An unhandled rejection is NOT necessarily fatal and MUST NOT tear down
+// the live backend — doing so would sever in-flight agent work and the agent's
+// own self-connection (see CLAUDE.md). Log it for triage; a genuinely fatal
+// error surfaces as the uncaughtException handled above.
+process.on('unhandledRejection', (reason) => {
+  log.error({ err: reason }, 'Unhandled promise rejection (non-fatal; backend stays up)');
+});
+
+// Parent-liveness watchdog. Under `tauri dev` (and some Windows terminal-close
+// paths) the parent kills this process WITHOUT delivering SIGINT/SIGTERM — so the
+// graceful handler above never runs and the frontend's persistent connections
+// orphan as CLOSE_WAIT zombie sockets on port 3001 (the lockup that needed a
+// reboot). Polling the parent PID guarantees we still run the graceful shutdown
+// (which force-closes every connection) the instant the parent disappears, with
+// no dependency on signal delivery.
+const PARENT_PID = process.ppid;
+if (PARENT_PID && PARENT_PID > 1) {
+  const parentWatch = setInterval(() => {
+    let parentAlive = true;
+    try {
+      // signal 0 only probes existence; it never actually signals the process.
+      process.kill(PARENT_PID, 0);
+    } catch (err) {
+      // EPERM = process exists but we lack permission (still alive). Anything
+      // else (ESRCH) = the parent is gone.
+      parentAlive = (err as NodeJS.ErrnoException).code === 'EPERM';
+    }
+    if (!parentAlive && !isShuttingDown) {
+      clearInterval(parentWatch);
+      log.warn(
+        `Parent process ${PARENT_PID} exited — initiating graceful shutdown to avoid zombie sockets`,
+      );
+      handleProcessSignal('parent-exit');
+    }
+  }, 3000);
+  // Don't keep the event loop alive solely for this watchdog.
+  parentWatch.unref?.();
+}
 
 // Startup recovery: mark stale running/pending executions as interrupted
 // and update related Task/Session statuses, then auto-resume if enabled
 const startupRecovery = async () => {
+  // One-time data normalization: legacy agent-execution paths wrote the
+  // non-canonical underscore 'in_progress' to task.status (canonical is the
+  // hyphenated 'in-progress' — see the frontend StatusConfig). Such tasks render
+  // as 'todo' and are missed by status='in-progress' queries, so subtasks
+  // appeared stuck after an agent run. Reconcile any existing rows on startup.
+  try {
+    const normalized = await prisma.task.updateMany({
+      where: { status: 'in_progress' },
+      data: { status: 'in-progress' },
+    });
+    if (normalized.count > 0) {
+      log.info(
+        { count: normalized.count },
+        'Startup: normalized legacy in_progress task statuses to in-progress',
+      );
+    }
+  } catch (err) {
+    log.warn({ err }, 'Startup: failed to normalize legacy task statuses');
+  }
+
   // Wait for worker process to start
   await new Promise((resolve) => setTimeout(resolve, 3000));
 

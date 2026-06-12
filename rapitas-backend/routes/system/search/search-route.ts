@@ -5,9 +5,15 @@
  * Scoring and excerpt logic delegated to helpers.ts.
  */
 import { Elysia } from 'elysia';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
+// NOTE: PrismaClientKnownRequestError is not exported from '@prisma/client' directly;
+// it lives in the runtime library. P2021 = "The table does not exist".
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { createLogger } from '../../../config/logger';
+import { getInsensitiveMode } from '../../../config/db-provider';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
+import { recordSearchMiss } from '../../../services/search/search-miss-service';
 
 const log = createLogger('routes:search:main');
 
@@ -45,14 +51,19 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
     const results: SearchResultItem[] = [];
 
+    // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
+    // omits the field from StringFilter, causing PrismaClientValidationError at
+    // runtime. getInsensitiveMode() centralises the provider check.
+    const insensitive = getInsensitiveMode();
+
     if (types.includes('task')) {
       // HACK(agent): `any` used for dynamic Prisma where clause construction — no typed builder available.
       const taskWhere: any = {
         AND: [
           ...words.map((word) => ({
             OR: [
-              { title: { contains: word, mode: 'insensitive' as const } },
-              { description: { contains: word, mode: 'insensitive' as const } },
+              { title: { contains: word, ...insensitive } },
+              { description: { contains: word, ...insensitive } },
             ],
           })),
         ],
@@ -62,8 +73,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
       if (priorityFilter) taskWhere.AND.push({ priority: { in: priorityFilter } });
       if (themeIdFilter) taskWhere.AND.push({ themeId: themeIdFilter });
       if (dateFrom || dateTo) {
-        // HACK(agent): `any` used for optional date condition object construction.
-        const dateCondition: any = {};
+        const dateCondition: { gte?: Date; lte?: Date } = {};
         if (dateFrom) dateCondition.gte = dateFrom;
         if (dateTo) dateCondition.lte = dateTo;
         taskWhere.AND.push({ updatedAt: dateCondition });
@@ -74,8 +84,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         });
       }
 
-      // HACK(agent): `any` used for dynamic orderBy — Prisma doesn't export the union type.
-      const orderBy: any =
+      const orderBy: Prisma.TaskOrderByWithRelationInput =
         sortBy === 'updatedAt'
           ? { updatedAt: 'desc' }
           : sortBy === 'createdAt'
@@ -131,7 +140,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         AND: [
           { note: { not: null } },
           ...words.map((word) => ({
-            note: { contains: word, mode: 'insensitive' as const },
+            note: { contains: word, ...insensitive },
           })),
         ],
       };
@@ -173,7 +182,7 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         AND: [
           { note: { not: null } },
           ...words.map((word) => ({
-            note: { contains: word, mode: 'insensitive' as const },
+            note: { contains: word, ...insensitive },
           })),
         ],
       };
@@ -212,36 +221,53 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     }
 
     if (types.includes('comment')) {
-      const commentWhere = {
-        AND: words.map((word) => ({
-          content: { contains: word, mode: 'insensitive' as const },
-        })),
-      };
+      try {
+        const commentWhere = {
+          AND: words.map((word) => ({
+            content: { contains: word, ...insensitive },
+          })),
+        };
 
-      const comments = await prisma.comment.findMany({
-        where: commentWhere,
-        include: { task: { select: { id: true, title: true } } },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      });
-
-      for (const comment of comments) {
-        results.push({
-          id: comment.id,
-          type: 'comment',
-          title: comment.task ? `Comment on: ${comment.task.title}` : `Comment #${comment.id}`,
-          excerpt: createExcerpt(comment.content, searchQuery),
-          relevance:
-            calculateRelevance(comment.content, null, searchQuery, {
-              updatedAt: comment.updatedAt,
-            }) * 0.6,
-          metadata: {
-            taskId: comment.taskId,
-            taskTitle: comment.task?.title,
-          },
-          createdAt: comment.createdAt,
-          updatedAt: comment.updatedAt,
+        const comments = await prisma.comment.findMany({
+          where: commentWhere,
+          include: { task: { select: { id: true, title: true } } },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
         });
+
+        for (const comment of comments) {
+          results.push({
+            id: comment.id,
+            type: 'comment',
+            title: comment.task ? `Comment on: ${comment.task.title}` : `Comment #${comment.id}`,
+            excerpt: createExcerpt(comment.content, searchQuery),
+            relevance:
+              calculateRelevance(comment.content, null, searchQuery, {
+                updatedAt: comment.updatedAt,
+              }) * 0.6,
+            metadata: {
+              taskId: comment.taskId,
+              taskTitle: comment.task?.title,
+            },
+            createdAt: comment.createdAt,
+            updatedAt: comment.updatedAt,
+          });
+        }
+      } catch (err) {
+        // NOTE: P2021 means the Comment table does not yet exist in the SQLite DB.
+        // The desktop-sqlite self-heal (config/desktop-sqlite.ts) repairs this on
+        // the next server restart. Skip comment results rather than failing the
+        // entire search with HTTP 500.
+        // Duck-type check instead of instanceof so unit tests can mock this error
+        // without constructing a real PrismaClientKnownRequestError instance.
+        if ((err as PrismaClientKnownRequestError).code === 'P2021') {
+          log.warn(
+            { err },
+            'Comment table missing from SQLite DB — skipping comment search results',
+          );
+        } else {
+          throw err;
+        }
       }
     }
 
@@ -249,8 +275,8 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
       const resourceWhere = {
         AND: words.map((word) => ({
           OR: [
-            { title: { contains: word, mode: 'insensitive' as const } },
-            { description: { contains: word, mode: 'insensitive' as const } },
+            { title: { contains: word, ...insensitive } },
+            { description: { contains: word, ...insensitive } },
           ],
         })),
       };
@@ -304,6 +330,11 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
 
     const total = results.length;
     const paginatedResults = results.slice(offset, offset + limit);
+
+    // NOTE: Record zero-result queries as SearchMiss so gaps can be tracked and resolved via tasks.
+    if (total === 0) {
+      recordSearchMiss(searchQuery).catch(() => {});
+    }
 
     return {
       success: true,

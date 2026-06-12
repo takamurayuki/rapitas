@@ -6,6 +6,7 @@
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import { createLogger } from '../../config/logger';
+import { getDbProvider } from '../../config/db-provider';
 import { UserBehaviorService } from '../../src/services/user-behavior-service';
 import {
   analyzeTaskComplexityWithLearning,
@@ -19,7 +20,7 @@ type PrismaInstance = InstanceType<typeof PrismaClient>;
 const logger = createLogger('task-create-helpers');
 
 function titleEqualsFilter(title: string) {
-  if (process.env.RAPITAS_DB_PROVIDER === 'sqlite') {
+  if (getDbProvider() === 'sqlite') {
     return { equals: title };
   }
   return { equals: title, mode: 'insensitive' };
@@ -86,6 +87,14 @@ export async function createSubtask(
           ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
           ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
           ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+          // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+          ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+          ...(data.constraints &&
+            data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+          ...(data.acceptanceCriteria &&
+            data.acceptanceCriteria.length > 0 && {
+              acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+            }),
         },
       });
 
@@ -135,6 +144,14 @@ export async function createParentTask(
       ...(data.examGoalId !== undefined && { examGoalId: data.examGoalId }),
       ...(data.isDeveloperMode !== undefined && { isDeveloperMode: data.isDeveloperMode }),
       ...(data.isAiTaskAnalysis !== undefined && { isAiTaskAnalysis: data.isAiTaskAnalysis }),
+      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+      ...(data.goals && data.goals.length > 0 && { goals: JSON.stringify(data.goals) }),
+      ...(data.constraints &&
+        data.constraints.length > 0 && { constraints: JSON.stringify(data.constraints) }),
+      ...(data.acceptanceCriteria &&
+        data.acceptanceCriteria.length > 0 && {
+          acceptanceCriteria: JSON.stringify(data.acceptanceCriteria),
+        }),
     },
   });
 
@@ -159,19 +176,34 @@ export async function createParentTask(
         description: data.description || undefined,
         estimatedHours: data.estimatedHours || undefined,
         priority: (data.priority as 'low' | 'medium' | 'high' | 'urgent') || 'medium',
-        labels: [],
+        // Real label names + theme + structured spec so every factor (and the
+        // learning lookup) gets meaningful input instead of neutral defaults.
+        labels: createdTask.taskLabels?.map((tl) => tl.label.name) ?? [],
+        themeId: data.themeId,
+        goals: data.goals,
+        constraints: data.constraints,
+        acceptanceCriteria: data.acceptanceCriteria,
       };
       const analysis = await analyzeTaskComplexityWithLearning(complexityInput);
+
+      // Map the score to a mode via the DB-configured complexity ranges
+      // (UI-editable) instead of the hardcoded 35/70 split.
+      const { getAllModeSettings, recommendModeFromSettings } =
+        await import('../workflow/workflow-mode-config');
+      const recommendedMode = recommendModeFromSettings(
+        analysis.complexityScore,
+        await getAllModeSettings(),
+      );
 
       await prisma.task.update({
         where: { id: createdTask.id },
         data: {
-          workflowMode: analysis.recommendedMode,
+          workflowMode: recommendedMode,
           complexityScore: analysis.complexityScore,
         },
       });
       logger.info(
-        `[task-create-helpers] Auto-assigned workflow mode: ${analysis.recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
+        `[task-create-helpers] Auto-assigned workflow mode: ${recommendedMode} (score: ${analysis.complexityScore}) for task ${createdTask.id}`,
       );
     } catch (err) {
       // NOTE: Complexity analysis failure should not block task creation

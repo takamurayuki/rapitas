@@ -1,25 +1,40 @@
 /**
  * styles
  *
- * Global CSS string injected as a <style> tag throughout the CLAUDE.md
- * generator wizard. Uses CSS custom properties so all phases share one
- * consistent dark-theme design token set without Tailwind interference.
+ * Global CSS string injected as a <style> tag throughout the spec-document
+ * generator wizard. Tokens are theme-aware (light by default, overridden under
+ * `html.dark`) and aligned with the app's zinc/indigo palette so the wizard is
+ * visually consistent with the rest of the product instead of a bespoke dark world.
  */
 
 export const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 .cmd-gen,
 .cmd-gen *,
 .cmd-gen *::before,
 .cmd-gen *::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#08080c;--s1:#0f0f15;--s2:#16161f;--s3:#1e1e2a;
-  --border:#252535;--border2:#32324a;
-  --accent:#6366f1;--accent2:#a78bfa;--accent3:#38bdf8;
-  --text:#eeeef5;--muted:#6b6b85;--dimmed:#3a3a55;
-  --green:#4ade80;--amber:#fbbf24;--red:#f87171;
+
+/* Light theme tokens (default) — zinc surfaces + indigo accent */
+.cmd-gen{
+  --bg:var(--background,#fafafa);--s1:#ffffff;--s2:#f4f4f5;--s3:#e4e4e7;
+  --border:#e4e4e7;--border2:#d4d4d8;
+  --accent:#6366f1;--accent2:#4f46e5;--accent3:#0ea5e9;
+  --text:#18181b;--muted:#71717a;--dimmed:#a1a1aa;
+  --green:#16a34a;--amber:#d97706;--red:#dc2626;
+  --code-bg:#f4f4f5;--code-text:#3f3f46;
+  color:var(--text);
 }
-.cmd-gen{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif}
+/* Dark theme tokens — app toggles dark via html.dark */
+html.dark .cmd-gen{
+  --bg:var(--background,#09090b);--s1:#18181b;--s2:#27272a;--s3:#3f3f46;
+  --border:#27272a;--border2:#3f3f46;
+  --accent:#6366f1;--accent2:#a78bfa;--accent3:#38bdf8;
+  --text:#fafafa;--muted:#a1a1aa;--dimmed:#52525b;
+  --green:#4ade80;--amber:#fbbf24;--red:#f87171;
+  --code-bg:#0a0a0f;--code-text:#9090b8;
+}
+/* Inherit the app font instead of forcing a bespoke display face */
+.cmd-gen{font-family:inherit}
+.cmd-gen h1,.cmd-gen h2,.cmd-gen h3{font-family:inherit !important}
 
 .fade{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -27,9 +42,10 @@ export const GLOBAL_CSS = `
 
 /* Cards */
 .card{
+  display:flex;align-items:center;gap:12px;
   border:1.5px solid var(--border);border-radius:12px;
   background:var(--s1);padding:14px 16px;cursor:pointer;
-  transition:border-color .15s,background .15s,transform .12s;
+  transition:border-color .15s,background .15s,transform .12s,box-shadow .15s;
   user-select:none;position:relative;overflow:hidden;
 }
 .card:hover{border-color:var(--border2);background:var(--s2);transform:translateY(-1px)}
@@ -52,18 +68,18 @@ export const GLOBAL_CSS = `
 
 /* Buttons */
 .btn{border:none;border-radius:9px;padding:12px 26px;
-  font-family:'Outfit',sans-serif;font-size:15px;font-weight:600;
+  font-family:inherit;font-size:15px;font-weight:600;
   cursor:pointer;transition:all .18s;letter-spacing:.01em}
 .btn-p{background:var(--accent);color:#fff}
-.btn-p:hover{filter:brightness(1.12)}
-.btn-p:disabled{opacity:.3;cursor:not-allowed;filter:none}
+.btn-p:hover{filter:brightness(1.08)}
+.btn-p:disabled{opacity:.4;cursor:not-allowed;filter:none}
 .btn-g{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
 .btn-g:hover{border-color:var(--border2);color:var(--text)}
 .btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
 .btn-outline:hover{background:rgba(99,102,241,.1)}
 
 /* Progress */
-.prog{height:3px;background:var(--s3);border-radius:3px;overflow:hidden}
+.prog{height:4px;background:var(--s3);border-radius:3px;overflow:hidden}
 .prog-f{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));
   border-radius:3px;transition:width .5s ease}
 
@@ -80,12 +96,12 @@ export const GLOBAL_CSS = `
 
 /* Code box */
 .codebox{
-  background:#060609;border:1px solid var(--border);border-radius:12px;
-  padding:26px 30px;font-family:'JetBrains Mono',monospace;font-size:12px;
-  line-height:2;white-space:pre-wrap;color:#9090b8;
+  background:var(--code-bg);border:1px solid var(--border);border-radius:12px;
+  padding:24px 26px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;
+  line-height:1.9;white-space:pre-wrap;color:var(--code-text);
   max-height:540px;overflow-y:auto;
 }
-.codebox::-webkit-scrollbar{width:5px}
+.codebox::-webkit-scrollbar{width:6px}
 .codebox::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 
 /* Spinner */
@@ -99,7 +115,7 @@ export const GLOBAL_CSS = `
   display:inline-block;border-radius:6px;padding:3px 10px;
   font-size:11px;margin:2px 3px;font-weight:600;letter-spacing:.04em;
 }
-.tag-accent{background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:var(--accent2)}
-.tag-green{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--green)}
-.tag-amber{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:var(--amber)}
+.tag-accent{background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:var(--accent2)}
+.tag-green{background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.25);color:var(--green)}
+.tag-amber{background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.25);color:var(--amber)}
 `;

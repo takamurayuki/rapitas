@@ -15,13 +15,56 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
-import { clearWorktreeDependenciesTracking } from './dependency-installer';
+import {
+  clearWorktreeDependenciesTracking,
+  awaitWorktreeDependencies,
+} from './dependency-installer';
+import { preflightWorktree } from './worktree-preflight';
 import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/worktree-ops');
+
+/**
+ * Remove a directory with exponential-backoff retry to absorb Windows EBUSY errors.
+ * Does NOT throw — callers decide how to handle a false return value.
+ *
+ * @param dirPath - Absolute path to remove / 削除する絶対パス
+ * @param opts.maxAttempts - Maximum attempts before giving up (default: 5) / 最大試行回数（デフォルト: 5）
+ * @param opts.sleepFn - Delay function between retries; inject a no-op in tests to avoid real waits / テスト時に即時解決の関数を渡してリアル待機を回避できる
+ * @returns true when removal succeeded, false when all attempts failed / 成功でtrue、全失敗でfalse
+ */
+export async function rmDirWithRetry(
+  dirPath: string,
+  opts?: { maxAttempts?: number; sleepFn?: (ms: number) => Promise<void> },
+): Promise<boolean> {
+  const maxAttempts = opts?.maxAttempts ?? 5;
+  // NOTE: Default uses exponential backoff (1 s, 2 s, 3 s, 4 s…). Override in tests.
+  const sleepFn = opts?.sleepFn ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await fsPromises.rm(dirPath, { recursive: true, force: true });
+      return true;
+    } catch (err) {
+      if (attempt < maxAttempts) {
+        logger.debug(
+          { err, attempt, maxAttempts, dirPath },
+          `[rmDirWithRetry] rm attempt ${attempt}/${maxAttempts} failed, retrying in ${attempt}s`,
+        );
+        await sleepFn(1000 * attempt);
+      } else {
+        logger.warn(
+          { err, dirPath },
+          `[rmDirWithRetry] All ${maxAttempts} attempts failed for ${dirPath}`,
+        );
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Create a git worktree with a new branch for isolated task execution.
@@ -38,6 +81,7 @@ export async function createWorktree(
   branchName: string,
   taskId?: number,
   repositoryUrl?: string | null,
+  baseBranch?: string | null,
 ): Promise<string> {
   const isRepo = await ensureGitRepository(baseDir, repositoryUrl);
   if (!isRepo) {
@@ -93,20 +137,56 @@ export async function createWorktree(
       });
     } else {
       let parentBranch = 'develop';
-      try {
-        const { stdout: developCheck } = await execAsync('git branch --list develop', {
+      // Prefer the explicitly chosen base branch (from the execute form /
+      // theme default). Cut from origin/<base> when present so the feature
+      // branch starts at the up-to-date remote tip; else the local branch.
+      // Fall back to the develop→main→master heuristic when the chosen base
+      // can't be resolved (keeps branch-from === PR-into for the common case).
+      let resolvedBase: string | null = null;
+      if (baseBranch) {
+        const originRef = `origin/${baseBranch}`;
+        const originExists = await execAsync(`git branch -r --list "${originRef}"`, {
           cwd: baseDir,
           encoding: 'utf8',
-        });
-        if (!developCheck.trim()) {
-          const { stdout: mainCheck } = await execAsync('git branch --list main', {
+        })
+          .then((r) => !!r.stdout.trim())
+          .catch(() => false);
+        if (originExists) {
+          resolvedBase = originRef;
+        } else {
+          const localExists = await execAsync(`git branch --list "${baseBranch}"`, {
+            cwd: baseDir,
+            encoding: 'utf8',
+          })
+            .then((r) => !!r.stdout.trim())
+            .catch(() => false);
+          if (localExists) resolvedBase = baseBranch;
+        }
+        if (!resolvedBase) {
+          logger.warn(
+            `[createWorktree] Requested base branch "${baseBranch}" not found (origin or local); falling back to default detection`,
+          );
+        }
+      }
+
+      if (resolvedBase) {
+        parentBranch = resolvedBase;
+      } else {
+        try {
+          const { stdout: developCheck } = await execAsync('git branch --list develop', {
             cwd: baseDir,
             encoding: 'utf8',
           });
-          parentBranch = mainCheck.trim() ? 'main' : 'master';
+          if (!developCheck.trim()) {
+            const { stdout: mainCheck } = await execAsync('git branch --list main', {
+              cwd: baseDir,
+              encoding: 'utf8',
+            });
+            parentBranch = mainCheck.trim() ? 'main' : 'master';
+          }
+        } catch {
+          parentBranch = 'main';
         }
-      } catch {
-        parentBranch = 'main';
       }
 
       logger.info(
@@ -121,6 +201,38 @@ export async function createWorktree(
     logger.info(
       `[createWorktree] Worktree created: ${worktreePath} (branch: ${effectiveBranchName})`,
     );
+
+    // Ignore the agent's transient workflow temp file. claude-code writes
+    // `.wf-tmp.md` into the working dir and curl's it to the workflow API
+    // (see prompt-builder.ts); the file then lingered in the worktree and
+    // showed up as the ONLY "changed file" in verify reports / auto-commits
+    // (e.g. "変更: 1件 + .wf-tmp.md"). Adding it to the worktree-local git
+    // exclude keeps it out of status / diff / `git add .` entirely.
+    try {
+      const { stdout: excludeRel } = await execAsync('git rev-parse --git-path info/exclude', {
+        cwd: worktreePath,
+        encoding: 'utf8',
+      });
+      let excludePath = excludeRel.trim();
+      if (!excludePath.match(/^([a-zA-Z]:[\\/]|[\\/])/)) {
+        excludePath = join(worktreePath, excludePath);
+      }
+      await fsPromises.mkdir(join(excludePath, '..'), { recursive: true });
+      await fsPromises.appendFile(
+        excludePath,
+        '\n# rapitas agent transient files\n.wf-tmp.md\n.wf-tmp*\n',
+        'utf8',
+      );
+    } catch (excErr) {
+      logger.warn(
+        { err: excErr, worktreePath },
+        '[createWorktree] Failed to add .wf-tmp.md to git exclude (non-fatal)',
+      );
+    }
+
+    // Environment preflight: auto-run setup-worktree.cjs (previously a manual
+    // CLAUDE.md rule agents forgot) and fail fast on a broken managed env.
+    await preflightWorktree(worktreePath);
 
     // NOTE: Dependency install is intentionally NOT awaited here. The caller
     // (executeRoute) decides whether/when to install based on task heuristics
@@ -156,6 +268,18 @@ export async function removeWorktree(
     return;
   }
 
+  // NOTE: Wait for any in-flight dependency setup (setup-worktree.cjs) to complete before
+  // tearing down the directory. On Windows a running node process holds handles inside
+  // node_modules and causes EBUSY on the subsequent rm. When no setup is in flight
+  // (e.g. after a backend restart) awaitWorktreeDependencies starts a brief idempotent
+  // link-check that resolves within seconds, so rm proceeds safely either way.
+  try {
+    await awaitWorktreeDependencies(worktreePath);
+  } catch {
+    // NOTE: Setup failure is non-fatal for removal — the worker may never have needed it.
+    logger.debug('[removeWorktree] awaitWorktreeDependencies failed (non-fatal), proceeding');
+  }
+
   let branchName: string | null = null;
   if (deleteBranch) {
     try {
@@ -184,6 +308,29 @@ export async function removeWorktree(
       logger.warn({ err: error }, `[removeWorktree] Failed to get branch name for worktree`);
     }
   }
+
+  // Unlink the junctions/symlinks (node_modules, etc.) that setup-worktree.cjs
+  // created BEFORE removing the worktree. On Windows, leftover junctions confuse
+  // `git worktree remove` and `rm -rf`, surfacing as "Filename too long" / EPERM.
+  const teardownScript = join(worktreePath, 'scripts', 'setup-worktree.cjs');
+  if (existsSync(teardownScript)) {
+    try {
+      await execAsync(`node "${teardownScript}" --teardown`, {
+        cwd: worktreePath,
+        encoding: 'utf8',
+      });
+      logger.info('[removeWorktree] Unlinked shared resources via setup-worktree.cjs --teardown');
+    } catch (tdErr) {
+      logger.debug(
+        { err: tdErr },
+        '[removeWorktree] setup-worktree.cjs --teardown failed (non-fatal)',
+      );
+    }
+  }
+
+  // NOTE: Windows NTFS/junction handles can linger for ~100-200ms after the teardown
+  // script closes them. This wait prevents EBUSY on the subsequent git worktree remove.
+  await new Promise<void>((r) => setTimeout(r, 200));
 
   // NOTE: Always run `git worktree prune` BEFORE attempting remove. This
   // clears stale entries left behind by previous failed removes (commonly
@@ -228,30 +375,12 @@ export async function removeWorktree(
         }
       }
 
-      // NOTE: Windows often fails the first rm pass with EBUSY/EFAULT when a
-      // codex / pnpm / SSE process still holds a handle inside node_modules.
-      // Retry up to 3 times with backoff so transient holds release.
-      const maxAttempts = 3;
-      let lastErr: unknown;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          await fsPromises.rm(worktreePath, { recursive: true, force: true });
-          logger.info(
-            `[removeWorktree] Cleaned up directory: ${worktreePath} (attempt ${attempt})`,
-          );
-          lastErr = null;
-          break;
-        } catch (fsError) {
-          lastErr = fsError;
-          if (attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
-          }
-        }
-      }
-      if (lastErr) {
-        logger.error(
-          { err: lastErr },
-          `[removeWorktree] Failed to clean up directory after ${maxAttempts} attempts: ${worktreePath}`,
+      const removed = await rmDirWithRetry(worktreePath);
+      if (removed) {
+        logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
+      } else {
+        logger.warn(
+          `[removeWorktree] Could not remove ${worktreePath} after retries (held handles); leaving for the cleanup scheduler`,
         );
       }
     }
@@ -349,9 +478,13 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
  * Removes worktrees for completed/failed/cancelled sessions and updates the database.
  *
  * @param baseDir - The main repository root / メインリポジトリのルート
+ * @param rmOpts - Options forwarded to rmDirWithRetry (inject sleepFn/maxAttempts in tests to avoid real waits) / テスト時にsleepFnを注入してリアル待機を回避できる
  * @returns Number of worktrees cleaned up / クリーンアップしたworktreeの数
  */
-export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number> {
+export async function cleanupOrphanedWorktrees(
+  baseDir: string,
+  rmOpts?: { maxAttempts?: number; sleepFn?: (ms: number) => Promise<void> },
+): Promise<number> {
   let cleanedCount = 0;
 
   try {
@@ -428,16 +561,17 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
           // If directory exists but is not tracked by git, it's an orphan
           if (!gitTrackedPaths.has(normalizedDirPath)) {
             if (isPathSafeForWorktreeOperation(dirPath, baseDir)) {
-              try {
-                await fsPromises.rm(dirPath, { recursive: true, force: true });
+              const removed = await rmDirWithRetry(dirPath, rmOpts);
+              if (removed) {
                 cleanedCount++;
                 logger.info(
                   `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`,
                 );
-              } catch (fsError) {
+              } else {
+                // NOTE: Do NOT throw — one orphan failing must not abort the entire cleanup cycle.
                 logger.warn(
-                  { err: fsError },
-                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory: ${dirPath}`,
+                  { dirPath },
+                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: ${dirPath}`,
                 );
               }
             } else {

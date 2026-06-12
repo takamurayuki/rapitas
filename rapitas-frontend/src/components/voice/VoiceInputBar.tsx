@@ -421,7 +421,7 @@ export default function VoiceInputBar({ isOpen, onClose, target }: VoiceInputBar
                 type="text"
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
-                className="flex-1 bg-zinc-800 text-zinc-100 rounded-lg px-3 py-2 text-sm border border-zinc-700 focus:border-indigo-500 outline-none"
+                className="flex-1 bg-zinc-800 text-zinc-100 rounded-lg px-3 py-2 text-sm border border-zinc-700 focus:border-blue-400 outline-none"
                 placeholder="音声テキストを編集..."
               />
               <button

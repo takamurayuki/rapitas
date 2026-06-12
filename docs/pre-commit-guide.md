@@ -128,10 +128,6 @@ git commit -m "your message" --no-verify
 
 自動修正を手動で実行したい場合：
 
-## 📋 手動コマンド
-
-自動修正を手動で実行したい場合：
-
 ```bash
 # 全ファイルの自動修正
 npm run lint:fix

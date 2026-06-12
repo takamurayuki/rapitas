@@ -11,8 +11,10 @@ import ExternalLinksProvider from '@/components/providers/ExternalLinksProvider'
 import NoteProvider from '@/components/note/NoteProvider';
 import CacheWarmupInitializer from '@/components/common/CacheWarmupInitializer';
 import SmartCommandBar from '@/components/smart-command-bar/SmartCommandBar';
+import { TerminalProvider } from '@/feature/terminal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import ConditionalHeader from '@/components/common/conditional-header';
+import AppContent from '@/components/common/AppContent';
 import IntlProvider from '@/components/providers/IntlProvider';
 import { VoiceInputProvider } from '@/components/voice';
 import OfflineIndicatorLoader from '@/components/common/OfflineIndicatorLoader';
@@ -140,7 +142,7 @@ export default function RootLayout({
                         <ConditionalHeader />
                       </Suspense>
                       {/* <WindowResizeOptimizer /> */}
-                      {children}
+                      <AppContent>{children}</AppContent>
                       <Suspense fallback={null}>
                         <KeyboardShortcuts />
                       </Suspense>
@@ -165,6 +167,7 @@ export default function RootLayout({
                       <Suspense fallback={null}>
                         <SmartCommandBar />
                       </Suspense>
+                      <TerminalProvider />
                     </Suspense>
                   </ExternalLinksProvider>
                 </VoiceInputProvider>

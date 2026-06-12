@@ -1,6 +1,6 @@
 'use client';
 
-import { type Task, type Label, type Resource, type Comment } from '@/types';
+import { type Task, type Label, type Resource, type Comment, type Priority } from '@/types';
 import TaskDescription from '@/feature/tasks/components/TaskDescription';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
@@ -14,11 +14,14 @@ import {
 import { SelectedLabelsDisplay } from '@/feature/tasks/components/LabelSelector';
 import FileUploader from '@/feature/tasks/components/FileUploader';
 import MemoSection from '@/feature/tasks/components/MemoSection';
-import { Clock, Calendar, Tag, FileText, Info, Paperclip, StickyNote, Repeat } from 'lucide-react';
-import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import { Clock, Tag, FileText, Paperclip, StickyNote, Repeat } from 'lucide-react';
+import PriorityInlineSelect from '@/feature/tasks/components/PriorityInlineSelect';
 import RecurrenceSelector from '@/feature/tasks/components/RecurrenceSelector';
 import { useLocaleStore } from '@/stores/locale-store';
 import { toDateLocale } from '@/lib/utils';
+import { API_BASE_URL } from '@/utils/api';
+import { clearApiCache } from '@/lib/api-client';
+import InlineEditableText from '@/feature/tasks/components/InlineEditableText';
 
 /**
  * Wrapper for RecurrenceSelector that can close the accordion
@@ -86,28 +89,70 @@ export default function CompactTaskDetailCard({
   );
   const hasMetaInfo = (task.taskLabels && task.taskLabels.length > 0) || task.estimatedHours;
 
+  /**
+   * Persists a single inline-edited field (title/description) via PATCH, then
+   * refreshes the task. Mirrors the full-edit save path.
+   *
+   * @param field - Field to update / 更新するフィールド
+   * @param value - New value / 新しい値
+   */
+  const saveField = async (field: 'title' | 'description' | 'priority', value: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) throw new Error('update failed');
+      clearApiCache(`/tasks/${task.id}`);
+      onTaskUpdated?.();
+    } catch {
+      alert('保存に失敗しました');
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
       {/* Header: Title & Status in one compact row */}
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
           {/* Title with Priority Icon */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate">
-              {task.title}
-            </h1>
-            <PriorityIcon priority={task.priority} size="md" />
+            <InlineEditableText
+              value={task.title}
+              onSave={(v) => saveField('title', v)}
+              required
+              ariaLabel="タスクのタイトル"
+              className="flex-1 min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-50 leading-tight truncate"
+            />
+            <PriorityInlineSelect
+              value={task.priority as Priority}
+              onChange={(p) => saveField('priority', p)}
+            />
           </div>
 
-          {/* Status Buttons - Compact inline with title */}
+          {/* Status Buttons - Compact inline with title.
+              Normalize so the active button always highlights: `blocked` is an
+              internal mid-workflow state shown as 進行中 (see StatusConfig), and
+              legacy `completed` maps to `done`. Without this, such tasks render
+              with NO status selected. */}
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
               const config = statusConfig[status];
+              // `task.status` is typed to the 3 toggle values, but at runtime it
+              // can also be 'blocked'/'completed' — compare as string to normalize.
+              const rawStatus = task.status as string;
+              const normalizedCurrent =
+                rawStatus === 'blocked'
+                  ? 'in-progress'
+                  : rawStatus === 'completed'
+                    ? 'done'
+                    : task.status;
               return (
                 <TaskStatusChange
                   key={status}
                   status={status}
-                  currentStatus={task.status}
+                  currentStatus={normalizedCurrent}
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(newStatus) => onStatusUpdate(task.id, newStatus)}
@@ -126,23 +171,27 @@ export default function CompactTaskDetailCard({
         allowMultiple={true}
         className="border-t border-zinc-100 dark:border-zinc-800"
       >
-        {/* Description - Default expanded */}
-        {task.description && (
-          <AccordionItem id="description">
-            <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
-              説明
-            </AccordionTrigger>
-            <AccordionContent id="description">
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
-                <TaskDescription
-                  description={task.description}
-                  isCompact={true}
-                  maxInitialLength={300}
-                />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+        {/* Description - Default expanded; double-click to edit, blur to save */}
+        <AccordionItem id="description">
+          <AccordionTrigger id="description" icon={<FileText className="w-4 h-4" />}>
+            説明
+          </AccordionTrigger>
+          <AccordionContent id="description">
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-4">
+              <InlineEditableText
+                value={task.description ?? ''}
+                onSave={(v) => saveField('description', v)}
+                multiline
+                placeholder="説明を追加（ダブルクリックで編集）"
+                ariaLabel="タスクの説明"
+                className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300"
+                renderDisplay={(v) => (
+                  <TaskDescription description={v} isCompact={true} maxInitialLength={300} />
+                )}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
         {/* Meta Information - Collapsible */}
         {hasMetaInfo && (
@@ -178,34 +227,6 @@ export default function CompactTaskDetailCard({
             </AccordionContent>
           </AccordionItem>
         )}
-
-        {/* Details with AI Features - Collapsible */}
-        <AccordionItem id="details">
-          <AccordionTrigger
-            id="details"
-            icon={<Info className="w-4 h-4" />}
-            badge={
-              <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                更新: {new Date(task.updatedAt).toLocaleDateString(dateLocale)}
-              </span>
-            }
-          >
-            詳細情報
-          </AccordionTrigger>
-          <AccordionContent id="details">
-            {/* Timestamps */}
-            <div className="flex flex-wrap items-center gap-4 pt-3 text-sm text-zinc-500 dark:text-zinc-400">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>作成: {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>更新: {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
 
         {/* Recurrence Settings - Collapsible */}
         <AccordionItem id="recurrence">
@@ -286,6 +307,19 @@ export default function CompactTaskDetailCard({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Created / updated timestamps — quiet meta footer as right-aligned,
+          compact chips. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">作成</span>
+          {new Date(task.createdAt).toLocaleString(dateLocale)}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">更新</span>
+          {new Date(task.updatedAt).toLocaleString(dateLocale)}
+        </span>
+      </div>
     </div>
   );
 }

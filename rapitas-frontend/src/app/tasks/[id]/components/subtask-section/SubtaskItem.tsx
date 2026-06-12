@@ -7,16 +7,15 @@
  * or delegates to SubtaskEditForm when this item is being edited.
  */
 
-import { Circle, Check, Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
-import {
-  SubtaskTitleIndicator,
-  type ParallelExecutionStatus,
-} from '@/feature/tasks/components/SubtaskExecutionStatus';
+import { Pencil, CheckSquare, Square, Bot, Clock } from 'lucide-react';
+import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import {
   statusConfig as sharedStatusConfig,
   renderStatusIcon,
+  isInProgressStatus,
 } from '@/feature/tasks/config/StatusConfig';
 import { useTranslations } from 'next-intl';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
@@ -80,6 +79,17 @@ export function SubtaskItem({
 }: SubtaskItemProps) {
   const t = useTranslations('task');
 
+  // Live agent-execution state for THIS subtask (from GET /tasks/executing polling).
+  // Sequential subtasks each run their own agent, so the running one shows a spinner.
+  const liveExecStatus = useExecutionStateStore((s) => s.getExecutingTaskStatus(subtask.id));
+  // A finished subtask must never show the running spinner even if a stale
+  // execution-state entry lingers (e.g. an orphaned agentExecution row the
+  // /tasks/executing poll still returns) — trust the persisted terminal status.
+  const isTerminalSubtask = subtask.status === 'done';
+  const showRunning =
+    !isTerminalSubtask &&
+    (liveExecStatus !== null || (isParallelExecutionRunning && executionStatus === 'running'));
+
   return (
     <div
       className={`transition-colors ${
@@ -116,49 +126,59 @@ export function SubtaskItem({
                   )}
                 </button>
               )}
-              {!isSelectionMode && isParallelExecutionRunning && executionStatus ? (
-                <SubtaskTitleIndicator executionStatus={executionStatus} size="sm" />
-              ) : (
-                !isSelectionMode && (
-                  <div className="shrink-0">
-                    {subtask.status === 'done' ? (
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                    ) : subtask.status === 'in-progress' ? (
-                      <div className="relative w-5 h-5 rounded-md bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                        <svg
-                          className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
-                          viewBox="0 0 32 32"
-                          fill="none"
-                        >
-                          <rect
-                            x="1"
-                            y="1"
-                            width="30"
-                            height="30"
-                            rx="7"
-                            stroke="#3b82f6"
-                            strokeWidth="2"
-                            strokeDasharray="20 87.96"
-                            strokeLinecap="round"
+              {!isSelectionMode && (
+                <div className="shrink-0">
+                  {(() => {
+                    // Mirror the task-list status icon exactly: StatusConfig colours
+                    // + renderStatusIcon glyph in a rounded box, and — when the
+                    // subtask is in-progress/running — the same outer-border
+                    // spinning loader the task list uses (icon-outer-border-spin).
+                    const cfg =
+                      sharedStatusConfig[subtask.status as keyof typeof sharedStatusConfig] ??
+                      sharedStatusConfig.todo;
+                    const inProgress = isInProgressStatus(subtask.status) || showRunning;
+                    return (
+                      <div
+                        className={`relative flex w-6 h-6 items-center justify-center rounded-md ${cfg.color} ${cfg.bgColor} ${
+                          inProgress
+                            ? ''
+                            : `border-2 ${cfg.borderColor.replaceAll('border-l-', 'border-')}`
+                        }`}
+                        aria-label={cfg.label}
+                      >
+                        {/* Spinner only while an agent is actually executing this
+                            subtask — not for a manually-set in-progress status. */}
+                        {showRunning && (
+                          <svg
+                            className="absolute -inset-0.5 w-[calc(100%+4px)] h-[calc(100%+4px)] pointer-events-none"
+                            viewBox="0 0 32 32"
                             fill="none"
-                            style={{
-                              animation: 'icon-outer-border-spin 1.5s linear infinite',
-                              willChange: 'stroke-dashoffset',
-                              transform: 'translateZ(0)',
-                            }}
-                          />
-                        </svg>
-                        <Circle className="w-3 h-3" />
+                            aria-hidden="true"
+                          >
+                            <rect
+                              x="1"
+                              y="1"
+                              width="30"
+                              height="30"
+                              rx="7"
+                              stroke="#3b82f6"
+                              strokeWidth="2"
+                              strokeDasharray="20 87.96"
+                              strokeLinecap="round"
+                              fill="none"
+                              style={{
+                                animation: 'icon-outer-border-spin 1.5s linear infinite',
+                                willChange: 'stroke-dashoffset',
+                                transform: 'translateZ(0)',
+                              }}
+                            />
+                          </svg>
+                        )}
+                        {renderStatusIcon(subtask.status)}
                       </div>
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                        <Circle className="w-3 h-3 text-zinc-400" />
-                      </div>
-                    )}
-                  </div>
-                )
+                    );
+                  })()}
+                </div>
               )}
               <span
                 className={`text-sm truncate ${subtask.status === 'done' ? 'text-zinc-400 line-through' : 'text-zinc-900 dark:text-zinc-50'}`}
@@ -215,7 +235,7 @@ export function SubtaskItem({
               })}
               <button
                 onClick={() => onStartEditing(subtask)}
-                className="flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 shadow-sm transition-all duration-300 hover:border-blue-500 dark:hover:border-blue-400 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+                className="flex items-center justify-center rounded-lg p-1.5 text-zinc-400 dark:text-zinc-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 transition-colors"
                 title={t('subtaskDetails')}
               >
                 <Pencil className="w-3.5 h-3.5" />

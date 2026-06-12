@@ -26,6 +26,7 @@ two visible problems:
    tests use `bun test`.
 
 A first attempt to clean this up failed because:
+
 - Bun is **required** for `rapitas-backend` (Elysia is Bun-first; the standalone
   `bun build --compile` produces the Tauri sidecar binary in CI).
 - pnpm is **required** for `rapitas-desktop` (Tauri's CLI integrations and the
@@ -53,6 +54,7 @@ following rules to keep it manageable:
 ## Alternatives considered
 
 ### A. Unify on pnpm everywhere
+
 - Pros: Single lockfile format, well-supported workspaces, fewer surprises.
 - Cons: Loses Bun's `--compile` step that produces the Tauri sidecar binary;
   `bun test` is significantly faster than vitest for the backend's
@@ -60,6 +62,7 @@ following rules to keep it manageable:
 - Verdict: Rejected — the build pipeline depends on Bun's compile output.
 
 ### B. Unify on Bun everywhere
+
 - Pros: Single runtime, fastest install, zero npm/pnpm fallback.
 - Cons: Bun + Playwright pipe protocol hangs on Windows
   ([oven-sh/bun#23826](https://github.com/oven-sh/bun/issues/23826), already
@@ -68,6 +71,7 @@ following rules to keep it manageable:
 - Verdict: Rejected — Windows compatibility is a hard requirement.
 
 ### C. Drop the root `package.json` entirely
+
 - Pros: Eliminates the npm dependency.
 - Cons: Loses cross-project orchestration (`npm run dev`, `npm run install:all`,
   husky setup). Each subproject would need duplicated setup steps.
@@ -76,6 +80,7 @@ following rules to keep it manageable:
 ## Consequences
 
 ### Positive
+
 - Honest documentation of why three runtimes exist; no more "we should fix
   this someday" hand-waving.
 - New contributors get a single canonical answer.
@@ -83,6 +88,7 @@ following rules to keep it manageable:
   cross-project negotiation.
 
 ### Negative
+
 - Continued install overhead (3 toolchains).
 - Dependabot must run 5 ecosystem updates (root npm, backend npm, frontend
   npm, desktop npm, cargo) instead of one — already configured in
@@ -90,6 +96,7 @@ following rules to keep it manageable:
 - CI workflows must `setup-node` AND `setup-bun` in most jobs.
 
 ### Neutral
+
 - The root `package.json` remains a "tool launcher", not an app manifest.
 - Lockfile cleanup is opportunistic, not mandatory.
 

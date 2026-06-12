@@ -136,18 +136,21 @@ worse than the cost of one carefully reviewed PR.
 ## Alternatives considered
 
 ### A. Leave the monolith alone
+
 - Pros: Zero risk. No cross-file dependencies to worry about.
 - Cons: Editor lag and reviewer pain compound as more models land. Blocks
   ADR-0003 Phase 2 from being clean.
 - Verdict: Rejected.
 
 ### B. Split by **layer** (enums / models / relations) instead of by domain
+
 - Pros: Mechanical, less judgement required.
 - Cons: Layer-based splits separate things that change together. Adding a
   new feature would touch all three files instead of one.
 - Verdict: Rejected.
 
 ### C. Split incrementally (one domain per PR)
+
 - Pros: Smaller PRs.
 - Cons: Intermediate states have a half-monolith and a half-folder, which
   Prisma does not support cleanly. Each intermediate PR is broken until the
@@ -156,6 +159,7 @@ worse than the cost of one carefully reviewed PR.
   schema model.
 
 ### D. Switch to a non-Prisma tool that supports modular schemas natively
+
 - Pros: Drizzle, Atlas, etc. have first-class multi-file schemas.
 - Cons: Massive migration cost. Loses the Prisma client TypeScript
   ergonomics that the entire backend relies on.
@@ -164,6 +168,7 @@ worse than the cost of one carefully reviewed PR.
 ## Consequences
 
 ### Positive
+
 - Each sub-domain becomes navigable in isolation.
 - CODEOWNERS can route schema PRs to per-domain owners (when team grows).
 - ADR-0003 Phase 2 baseline migration is generated against a cleaner source.
@@ -171,6 +176,7 @@ worse than the cost of one carefully reviewed PR.
   benchmarks for the folder feature).
 
 ### Negative
+
 - ~~`prismaSchemaFolder` is still a **preview feature** as of Prisma 6.x.~~
   **Update 2026-04-10**: the feature graduated to GA in Prisma 6.x. The
   `previewFeatures = ["prismaSchemaFolder"]` line was removed from
@@ -183,6 +189,7 @@ worse than the cost of one carefully reviewed PR.
   the same PR.
 
 ### Neutral
+
 - This decision is independent of ADR-0003 (migration strategy) and
   ADR-0004 (TS strictness). The three can land in any order, but the
   recommended order is: this ADR → ADR-0003 → ADR-0004 step 0.

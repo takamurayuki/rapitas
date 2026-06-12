@@ -63,7 +63,10 @@ const mockPrisma = {
   $transaction: mock((fn: Function) => fn(mockPrisma)),
 };
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
   getProjectRoot: () => '/tmp/rapitas-test',
@@ -107,10 +110,6 @@ mock.module('../../../utils/db-helpers', () => ({
       return null;
     }
   }),
-}));
-
-mock.module('../../../services/misc/screenshot-service', () => ({
-  captureScreenshotsForDiff: mock(() => Promise.resolve([])),
 }));
 
 const { approvalsRoutes } = await import('../../../routes/agents/integrations/approvals');

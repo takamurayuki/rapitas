@@ -55,6 +55,7 @@ the rollout (Step 0).
 | 5 | `exactOptionalPropertyTypes` | 2026-06-24 | 2026-07-08 |
 
 Each step lands as **one PR per subproject** that:
+
 1. Enables the flag in the relevant tsconfig
 2. Fixes (not silences) the resulting errors
 3. Updates this ADR's "Status of each flag" table
@@ -80,6 +81,7 @@ Independent of the flag ratchet, we set a regression baseline using
   hold it flat — never raise it
 
 Wire the ceiling via:
+
 ```bash
 node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 ```
@@ -87,23 +89,27 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 ## Alternatives considered
 
 ### A. Enable everything in one PR
+
 - Pros: Done in one shot. No multi-month tracking.
 - Cons: Hundreds of errors. Unreviewable. High revert risk.
 - Verdict: Rejected.
 
 ### B. Opt-in per file via `// @ts-strict`
+
 - Pros: Lets motivated authors push ahead without a global gate.
 - Cons: TypeScript has no built-in per-file strict mode. Workarounds (file
   globs in separate `tsconfig.strict.json`) double maintenance.
 - Verdict: Rejected.
 
 ### C. Tighten only the backend; leave the frontend alone
+
 - Pros: Backend is the higher-stakes surface (data integrity).
 - Cons: Frontend bugs ship to users; declining to fix them is asymmetric
   in the wrong direction.
 - Verdict: Rejected.
 
 ### D. Adopt a third-party ruleset (e.g. `tsconfig/strictest`)
+
 - Pros: Pre-curated.
 - Cons: Hides the per-flag reasoning we need for the ratchet narrative.
 - Verdict: Rejected — we can copy the same flags individually with
@@ -112,6 +118,7 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
 ## Consequences
 
 ### Positive
+
 - A clear, dated path from "strict-only" to "strictest" without permanent
   red CI.
 - HACK ceiling forces refactoring of the messiest parts of the codebase
@@ -120,12 +127,14 @@ node scripts/check-todos.cjs --max-hack 14 --max-fixme 1
   rather than two divergent tsconfigs.
 
 ### Negative
+
 - Six steps × 2 weeks = at least 3 months of overhead per subproject.
 - Step-PRs may conflict with feature work in the same files.
 - The `extends` migration in Step 0 must preserve every existing field of
   each subproject's tsconfig — manual review required.
 
 ### Neutral
+
 - The CLAUDE.md "no any" rule remains review-enforced; the type checker
   doesn't help until Step 4 (`noUncheckedIndexedAccess`) at the earliest.
 

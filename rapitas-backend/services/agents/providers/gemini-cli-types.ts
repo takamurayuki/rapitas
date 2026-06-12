@@ -110,8 +110,9 @@ export function processStreamEvent(json: GeminiStreamEvent): StreamEventResult {
     case 'result':
       if (json.result && typeof json.result === 'string') {
         const duration = json.duration_ms ? ` (${(json.duration_ms / 1000).toFixed(1)}s)` : '';
-        const cost = json.cost_usd ? ` $${json.cost_usd.toFixed(4)}` : '';
-        output += `\n[Result: completed${duration}${cost}]\n${json.result}\n`;
+        // NOTE: per-run cost intentionally omitted from the log line — actual
+        // usage/cost is surfaced separately, not inline as "$0.xxxx".
+        output += `\n[Result: completed${duration}]\n${json.result}\n`;
       }
       break;
   }

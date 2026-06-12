@@ -26,66 +26,99 @@ interface ClaudeMdRequest {
   };
 }
 
-const systemPrompt = `あなたはシニアアーキテクトとClaude Codeエキスパートです。
-アプリ要件からClaude Codeが迷わず・高品質に実装できるCLAUDE.mdを生成します。
+interface GenerateResult {
+  tech_rationale: string;
+  score: number;
+  requirements: string;
+  design: string;
+  claude_md: string;
+}
 
-出力形式（JSONのみ）:
+// NOTE: The wizard now produces a 3-document implementation package — a
+// requirements spec, a design spec, and an agent behavior guide — so an AI
+// coding agent can start implementing immediately without further clarification.
+const systemPrompt = `あなたはシニアプロダクトマネージャー兼ソフトウェアアーキテクトです。
+与えられたアプリ要件から、AIコーディングエージェントが追加質問なしで即実装に着手できる
+「要件定義書」「設計書」「エージェント行動規範(CLAUDE.md)」の3点セットを生成します。
+
+出力形式（JSONのみ・他の文字列は一切含めない）:
 {
-  "tech_rationale": "技術選定理由（非技術者向け平易な日本語・3〜4文）",
+  "tech_rationale": "技術選定理由（非技術者向けの平易な日本語・3〜4文）",
   "score": 数値,
+  "requirements": "要件定義書の全文（マークダウン）",
+  "design": "設計書の全文（マークダウン）",
   "claude_md": "CLAUDE.mdの全文（マークダウン）"
 }
 
-## 生成ルール（厳守）
+## 共通ルール（厳守）
+- 技術は必ず1つに確定する。"AかB" のような曖昧表現は禁止（❌"Next.js または Nuxt" → ✅"Next.js 14（理由:...）"）。
+- 具体的・実装可能なレベルまで落とし込む。抽象的な一般論で埋めない。
+- 日本語で記述する（コード・コマンド・識別子は英語のまま）。
 
-### 技術は必ず1つに確定する
-❌ "Next.js または Nuxt.js" → ✅ "Next.js 14（理由: ...）"
-❌ "Firebase か Supabase" → ✅ "Supabase（理由: ...）"
+## requirements（要件定義書）に必ず含めるセクション（この順序）
+1. # 概要（アプリ名・解決する課題・ターゲットユーザー・提供価値）
+2. # ユーザーストーリー（「〜として、〜したい、なぜなら〜」形式で主要5〜8件）
+3. # 機能要件（機能ごとにID付き [F-01] 形式・入力/処理/出力を明記）
+4. # 画面一覧（画面名・目的・主要UI要素・画面遷移）
+5. # 非機能要件（性能・セキュリティ・可用性・対応端末/ブラウザ）
+6. # 受け入れ基準（機能IDごとにGiven/When/Thenのチェックリスト）
+7. # スコープ外（今回作らないものを明記）
 
-### 必須セクション（この順序で）
-1. # Project Overview（アプリ名・コンセプト・対象ユーザー・規模）
-2. # Tech Stack（確定技術 + 各選定理由）
-3. # Architecture（ディレクトリ構成スケルトン付き）
-4. # Development Commands（実際のコマンドをコードブロックで全列挙）
-5. # Coding Rules（命名規則・禁止パターン・❌NG例付き）
-6. # Testing Policy（レイヤー別テスト・ツール・カバレッジ目標）
-7. # Git Policy（ブランチ戦略・コミット規約・PRルール）
-8. # Claude Behavior ← 最重要・最も詳細に書く
-9. # Security & Scale（スケール・セキュリティ方針）
-10. # Environment Variables（必要な環境変数一覧 .env.example形式）
-11. # Important Notes（禁止事項リスト・地雷リスト）
+## design（設計書）に必ず含めるセクション（この順序）
+1. # アーキテクチャ概要（構成図をテキスト/Mermaidで・各層の責務）
+2. # 技術スタック（確定技術 + バージョン + 各選定理由）
+3. # ディレクトリ構成（実際のツリーをコードブロックで）
+4. # データモデル（主要エンティティ・属性・型・リレーション。可能ならPrisma/SQLスキーマ例）
+5. # API設計（エンドポイント・メソッド・リクエスト/レスポンス例。機能IDと対応付け）
+6. # 主要処理フロー（重要ユースケースのシーケンスを箇条書き/Mermaidで）
+7. # エラーハンドリング/バリデーション方針
+8. # 環境変数（.env.example形式の一覧）
 
-### Claude Behaviorに必ず含める内容
-- 実装前に設計提案が必要なケース（DBスキーマ変更・新API・認証フロー変更など）
-- 不明点は仮定で進めず必ず質問する
-- テスト・ドキュメントも同時に更新する
-- 禁止行動（本番DB操作・APIキーハードコード・承認なしのスキーマ変更など）
-- コミットのタイミングと粒度
-- チェックリスト形式で「実装前・実装中・実装後」の行動指針
+## claude_md（CLAUDE.md / エージェント行動規範）に必ず含めるセクション
+1. # Project Overview（アプリ名・1行コンセプト・関連ドキュメントへの参照: docs/requirements.md, docs/design.md）
+2. # Development Commands（実際のコマンドをコードブロックで全列挙）
+3. # Coding Rules（命名規則・禁止パターン・❌NG例付き）
+4. # Testing Policy（レイヤー別・ツール・カバレッジ目標）
+5. # Git Policy（ブランチ戦略・コミット規約・PRルール）
+6. # Claude Behavior（最重要・最も詳細に）:
+   - 実装前に設計提案が必要なケース（DBスキーマ変更・新API・認証フロー変更）
+   - 不明点は仮定で進めず必ず質問する
+   - テスト・ドキュメントも同時に更新する
+   - 禁止行動（本番DB操作・APIキーハードコード・承認なしのスキーマ変更）
+   - 「実装前・実装中・実装後」のチェックリスト
 
 ### スコア基準
-Claude Codeの実用スコアを100点満点で自己採点（95点以上を目標に生成）
+3点セット全体が「AIエージェントが即実装着手できる」完成度を100点満点で自己採点（95点以上を目標）。
 
 JSONのみ出力。`;
 
-function parseAIResponse(
-  content: string,
-): { tech_rationale: string; score: number; claude_md: string } | null {
+/**
+ * Parse the AI JSON envelope into the 3-document result, tolerating code fences
+ * and surrounding prose. / コードフェンスや前後の文章を許容してJSONを抽出する。
+ */
+function parseAIResponse(content: string): GenerateResult | null {
   let cleaned = content.trim();
   cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
+  const accept = (parsed: Record<string, unknown>): GenerateResult | null => {
+    if (typeof parsed.claude_md !== 'string' || !parsed.claude_md) return null;
+    return {
+      tech_rationale: typeof parsed.tech_rationale === 'string' ? parsed.tech_rationale : '',
+      score: typeof parsed.score === 'number' ? parsed.score : 95,
+      requirements: typeof parsed.requirements === 'string' ? parsed.requirements : '',
+      design: typeof parsed.design === 'string' ? parsed.design : '',
+      claude_md: parsed.claude_md,
+    };
+  };
+
   try {
-    const parsed = JSON.parse(cleaned);
-    if (parsed.tech_rationale && typeof parsed.score === 'number' && parsed.claude_md) {
-      return parsed;
-    }
+    return accept(JSON.parse(cleaned));
   } catch {
     const jsonMatch = cleaned.match(/\{[\s\S]*"claude_md"[\s\S]*\}/);
     if (jsonMatch) {
       try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed.claude_md) return parsed;
+        return accept(JSON.parse(jsonMatch[0]));
       } catch {
         // Fall through
       }
@@ -94,7 +127,15 @@ function parseAIResponse(
   return null;
 }
 
-function buildFallbackResponse(proposal: ClaudeMdRequest['proposal'], plat: string, scale: string) {
+/**
+ * Build a deterministic 3-document package when the AI provider is unavailable,
+ * so the wizard still yields a usable scaffold. / AI不在時の決定的フォールバック。
+ */
+function buildFallbackResponse(
+  proposal: ClaudeMdRequest['proposal'],
+  plat: string,
+  scale: string,
+): GenerateResult {
   const scaleLabel =
     scale === 'solo'
       ? '個人利用者'
@@ -103,95 +144,121 @@ function buildFallbackResponse(proposal: ClaudeMdRequest['proposal'], plat: stri
         : scale === 'mid'
           ? '中規模組織（〜1万人）'
           : '大規模組織（1万人以上）';
+  const stack = proposal.tech_hint?.length
+    ? proposal.tech_hint
+    : ['Next.js 14', 'Supabase', 'TypeScript'];
+
   return {
-    tech_rationale: `${proposal.tech_hint?.[0] || 'Next.js'}と${proposal.tech_hint?.[1] || 'Supabase'}を中心とした技術スタックを選定しました。${proposal.concept}というコンセプトに最適なフレームワークと、開発効率を重視した構成です。${proposal.tech_hint?.[2] || 'TypeScript'}による型安全性と保守性を確保します。`,
+    tech_rationale: `${stack[0]}と${stack[1] || 'Supabase'}を中心とした技術スタックを選定しました。${proposal.concept}というコンセプトに最適なフレームワークと、開発効率を重視した構成です。${stack[2] || 'TypeScript'}による型安全性と保守性を確保します。`,
     score: 96,
+    requirements: `# 概要
+
+**アプリ名**: ${proposal.name}
+**解決する課題**: ${proposal.concept}
+**ターゲットユーザー**: ${scaleLabel}
+**提供価値**: ${proposal.unique}
+**プラットフォーム**: ${plat}
+
+# ユーザーストーリー
+
+- ユーザーとして、${proposal.concept}を達成したい。なぜなら${proposal.unique}だから。
+- 新規ユーザーとして、迷わず初期設定を終えたい。なぜなら離脱したくないから。
+
+# 機能要件
+
+- **[F-01] コア機能**: ${proposal.unique}（入力 → 処理 → 出力を実装時に具体化する）
+- **[F-02] 認証**: サインアップ / ログイン / ログアウト
+- **[F-03] データ管理**: 主要エンティティのCRUD
+
+# 画面一覧
+
+- ランディング / ダッシュボード / 詳細 / 設定
+
+# 非機能要件
+
+- 性能: 主要操作のレスポンス 300ms 以内（目標）
+- セキュリティ: 入力値サニタイズ・秘匿情報は環境変数
+
+# 受け入れ基準
+
+- [ ] [F-01] Given 前提 / When 操作 / Then 期待結果
+
+# スコープ外
+
+- 実装フェーズで合意するまで未確定の機能は対象外。`,
+    design: `# アーキテクチャ概要
+
+クライアント（${plat}） → アプリケーション層 → データストア の3層構成。
+
+# 技術スタック
+
+${stack.map((t) => `- **${t}**`).join('\n')}
+
+# ディレクトリ構成
+
+\`\`\`
+src/
+├── app/          # 画面・ルーティング
+├── components/   # UIコンポーネント
+├── lib/          # ドメインロジック
+└── types/        # 型定義
+\`\`\`
+
+# データモデル
+
+主要エンティティを実装時に確定する（例: User, ${proposal.name.replace(/\s+/g, '')}Item）。
+
+# API設計
+
+- \`GET /api/items\` 一覧取得 / \`POST /api/items\` 作成（[F-03] と対応）
+
+# 環境変数
+
+\`\`\`env
+NEXT_PUBLIC_APP_NAME=${proposal.name}
+\`\`\``,
     claude_md: `# Project Overview
 
 **アプリ名**: ${proposal.name}
 **コンセプト**: ${proposal.concept}
-**独自機能**: ${proposal.unique}
-**対象ユーザー**: ${scaleLabel}
-**プラットフォーム**: ${plat}
-
-# Tech Stack
-
-${(proposal.tech_hint || []).map((t: string) => `- **${t}**`).join('\n')}
-
-# Architecture
-
-プロジェクト構成は提案された技術スタックに基づいて設計してください。
+**関連ドキュメント**: \`docs/requirements.md\`（要件定義） / \`docs/design.md\`（設計）
 
 # Development Commands
 
 \`\`\`bash
-# 開発サーバー起動
-npm run dev
-
-# ビルド
-npm run build
-
-# テスト実行
-npm test
+npm run dev    # 開発サーバー起動
+npm run build  # ビルド
+npm test       # テスト実行
 \`\`\`
 
 # Coding Rules
 
-## 命名規則
-- **コンポーネント**: PascalCase
-- **hooks**: camelCase + useプレフィックス
-- **関数・変数**: camelCase
-- **定数**: UPPER_SNAKE_CASE
-- **ファイル名**: kebab-case
-
-## 禁止パターン
-- any型の使用
-- ハードコードされたAPIキー
-- console.logの本番環境残留
+- **コンポーネント**: PascalCase / **hooks**: useプレフィックス + camelCase
+- **関数・変数**: camelCase / **定数**: UPPER_SNAKE_CASE / **ファイル名**: kebab-case
+- 禁止: any型 / ハードコードされたAPIキー / console.logの本番残留
 
 # Testing Policy
 
-- **ユニットテスト**: 全ユーティリティ関数・hooks（80%カバレッジ）
-- **結合テスト**: 主要コンポーネント
-- **E2Eテスト**: 重要ユーザーフロー
+- ユニット: ユーティリティ・hooks（80%カバレッジ）
+- 結合: 主要コンポーネント / E2E: 重要ユーザーフロー
 
 # Git Policy
 
-## コミット規約
-feat: 新機能追加 / fix: バグ修正 / docs: ドキュメント更新
+- feat / fix / docs / refactor / test / chore（imperative mood・英語）
 
 # Claude Behavior
 
 ## 実装前チェックリスト
 - [ ] 要件が明確か？不明点は必ず質問する
-- [ ] DBスキーマ変更の場合、設計提案を行う
+- [ ] DBスキーマ変更時は設計提案を行う
 - [ ] セキュリティ影響を評価する
 
 ## 絶対禁止事項
-- 本番データベースの直接操作
-- APIキーのハードコード
-- 承認なしのスキーマ変更
-- テストなしの重要機能実装
-
-# Security & Scale
-
-- 入力値サニタイゼーション
-- 環境変数での秘匿情報管理
-- コード分割・遅延ローディング
-
-# Environment Variables
-
-\`\`\`env
-# .env.local に設定
-NEXT_PUBLIC_APP_NAME=${proposal.name}
-\`\`\`
-
-# Important Notes
-
-- AIプロバイダーのAPIキーを設定すると、より詳細なCLAUDE.mdが生成されます。
+- 本番データベースの直接操作 / APIキーのハードコード
+- 承認なしのスキーマ変更 / テストなしの重要機能実装
 
 ---
-このCLAUDE.mdは${proposal.name}プロジェクト専用に最適化されています。`,
+AIプロバイダーのAPIキーを設定すると、より詳細な3点セットが生成されます。`,
   };
 }
 
@@ -222,7 +289,8 @@ export async function POST(request: NextRequest) {
           systemPrompt,
           conversationHistory: [],
         }),
-        signal: AbortSignal.timeout(90000),
+        // NOTE: Larger timeout than single-doc generation — three documents take longer.
+        signal: AbortSignal.timeout(150000),
       });
 
       if (response.ok) {
@@ -232,7 +300,7 @@ export async function POST(request: NextRequest) {
           if (parsed) {
             return NextResponse.json(parsed);
           }
-          logger.warn('AI response could not be parsed as valid CLAUDE.md JSON');
+          logger.warn('AI response could not be parsed as valid document-package JSON');
         }
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -245,7 +313,7 @@ export async function POST(request: NextRequest) {
     // Fallback
     return NextResponse.json(buildFallbackResponse(proposal, plat, scale));
   } catch (error) {
-    logger.error('Error generating Claude MD:', error);
-    return NextResponse.json({ error: 'CLAUDE.mdの生成に失敗しました' }, { status: 500 });
+    logger.error('Error generating document package:', error);
+    return NextResponse.json({ error: 'ドキュメントの生成に失敗しました' }, { status: 500 });
   }
 }

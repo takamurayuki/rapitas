@@ -41,8 +41,12 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
   lastError: null,
 
   fetchAll: async () => {
-    // If already initialized, use fetchUpdates
-    if (get().initialized) {
+    // Delegate to the incremental path only when we have a baseline to diff
+    // against. NOTE: a failed fetchAll leaves `initialized=true` but
+    // `lastFetchedAt=null`; without the lastFetchedAt guard, fetchAll →
+    // fetchUpdates → fetchAll recurses infinitely (stack overflow) whenever
+    // GET /tasks keeps failing. Requiring lastFetchedAt breaks that loop.
+    if (get().initialized && get().lastFetchedAt) {
       logger.debug('[taskCacheStore] fetchAll: Already initialized, calling fetchUpdates instead');
       return get().fetchUpdates();
     }
@@ -149,6 +153,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
         }
 
         // If activeIds provided, detect deleted tasks
+        let deletedCount = 0;
         if (activeIds.length > 0) {
           const activeIdSet = new Set(activeIds);
           const beforeCount = taskMap.size;
@@ -160,7 +165,7 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
             }
           }
 
-          const deletedCount = beforeCount - taskMap.size;
+          deletedCount = beforeCount - taskMap.size;
           if (deletedCount > 0) {
             logger.info(`[taskCacheStore] fetchUpdates: Removed ${deletedCount} deleted tasks`);
           }
@@ -173,6 +178,18 @@ export const useTaskCacheStore = create<TaskCacheState>()((set, get) => ({
             set({ loading: false });
           }
           return get().fetchAll();
+        }
+
+        // NOTE: No updates and no deletions this cycle — skip rewriting `tasks`.
+        // A fresh Array.from() would change the array reference and force
+        // useFilteredTasks/useTaskSorting to recompute, flickering the list on
+        // every poll. Advance lastFetchedAt only so the next fetch stays incremental.
+        if (updatedTasks.length === 0 && deletedCount === 0) {
+          set({ lastFetchedAt: new Date().toISOString() });
+          if (!silent) {
+            set({ loading: false });
+          }
+          return;
         }
 
         const merged = Array.from(taskMap.values());

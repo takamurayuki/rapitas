@@ -9,13 +9,38 @@ import { ChevronDown, Loader2, Save, ArrowDown, ShieldCheck, Cpu } from 'lucide-
 import type { AIAgentConfig, WorkflowRole, WorkflowRoleConfig } from '@/types';
 import { Toggle } from '@/components/ui/Toggle';
 import {
-  ROLE_CONFIG,
-  ROLE_ORDER,
   ROLES_SUPPORTING_CROSS_PROVIDER,
   type ModelOption,
   type SystemPrompt,
   type RoleConfigItem,
 } from './workflow-role-constants';
+
+/** Maps an installed agent's `agentType` to its provider family. */
+const AGENT_TYPE_TO_PROVIDER: Record<string, 'claude' | 'openai' | 'gemini' | 'ollama'> = {
+  'claude-code': 'claude',
+  'anthropic-api': 'claude',
+  claude: 'claude',
+  anthropic: 'claude',
+  codex: 'openai',
+  'codex-cli': 'openai',
+  openai: 'openai',
+  'openai-api': 'openai',
+  gemini: 'gemini',
+  'gemini-cli': 'gemini',
+  google: 'gemini',
+  ollama: 'ollama',
+  local: 'ollama',
+};
+
+/** Human label per provider for the preferred-provider dropdown. */
+const PROVIDER_LABEL: Record<'claude' | 'openai' | 'gemini' | 'ollama', string> = {
+  claude: 'Claude',
+  openai: 'OpenAI',
+  gemini: 'Gemini',
+  ollama: 'Ollama (ローカル)',
+};
+
+const ALL_PROVIDERS = ['claude', 'openai', 'gemini', 'ollama'] as const;
 
 interface WorkflowRoleCardProps {
   roleKey: WorkflowRole;
@@ -29,6 +54,10 @@ interface WorkflowRoleCardProps {
   isSaving: boolean;
   isSaved: boolean;
   isExpanded: boolean;
+  /** Last card in the current tier — suppresses the trailing baton arrow. */
+  isLast?: boolean;
+  /** Show the user-approval gate in the arrow AFTER this card (before 実装). */
+  approvalAfter?: boolean;
   onToggleExpand: () => void;
   onAgentChange: (agentConfigId: number | null) => void;
   onModelChange: (modelId: string | null) => void;
@@ -53,6 +82,8 @@ export function WorkflowRoleCard({
   isSaving,
   isSaved,
   isExpanded,
+  isLast = false,
+  approvalAfter = false,
   onToggleExpand,
   onAgentChange,
   onModelChange,
@@ -66,6 +97,19 @@ export function WorkflowRoleCard({
   const selectedAgent = roleData?.agentConfig;
   const effectiveModelId = roleData?.modelId || selectedAgent?.modelId || null;
   const isAutoSelect = !roleData?.modelId || roleData.modelId === 'auto';
+
+  // Only offer providers that actually have an installed/active agent. Keep the
+  // currently-saved provider in the list even if its agent was removed, so the
+  // saved value still displays instead of silently blanking.
+  const installedProviders = new Set(
+    activeAgents
+      .map((a) => AGENT_TYPE_TO_PROVIDER[a.agentType])
+      .filter((p): p is 'claude' | 'openai' | 'gemini' | 'ollama' => !!p),
+  );
+  const savedProvider = roleData?.preferredProviderOverride ?? null;
+  const providerOptions = ALL_PROVIDERS.filter(
+    (p) => installedProviders.has(p) || p === savedProvider,
+  );
 
   return (
     <div key={roleKey}>
@@ -158,7 +202,9 @@ export function WorkflowRoleCard({
                     onModelChange(null);
                     return;
                   }
-                  // Toggle OFF: must seed a real modelId
+                  // Toggle OFF → manual: seed a concrete modelId from the
+                  // selected agent (or the first active agent). Models are
+                  // agent-scoped, so a configured agent is required.
                   const targetAgent = selectedAgent ?? activeAgents[0] ?? null;
                   const targetAgentModels = targetAgent
                     ? (availableModels[targetAgent.agentType] ?? [])
@@ -187,12 +233,14 @@ export function WorkflowRoleCard({
                     value={roleData?.preferredProviderOverride ?? ''}
                     onChange={(e) => onPreferredProviderChange(e.target.value || null)}
                     disabled={isSaving}
-                    className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                   >
                     <option value="">デフォルト設定に従う</option>
-                    <option value="claude">Claude</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="gemini">Gemini</option>
+                    {providerOptions.map((p) => (
+                      <option key={p} value={p}>
+                        {PROVIDER_LABEL[p]}
+                      </option>
+                    ))}
                     {ROLES_SUPPORTING_CROSS_PROVIDER.has(roleKey) && (
                       <option value="cross-provider">
                         🔀 別プロバイダ（前フェーズと違うものを選ぶ）
@@ -225,7 +273,7 @@ export function WorkflowRoleCard({
                         onAgentChange(val ? parseInt(val) : null);
                       }}
                       disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                     >
                       <option value="">未設定</option>
                       {activeAgents.map((agent) => (
@@ -251,7 +299,7 @@ export function WorkflowRoleCard({
                         onModelChange(val || null);
                       }}
                       disabled={isSaving || !selectedAgent || models.length === 0}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                     >
                       <option value="" disabled>
                         {!selectedAgent
@@ -284,7 +332,7 @@ export function WorkflowRoleCard({
                         onPromptChange(val || null);
                       }}
                       disabled={isSaving}
-                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full appearance-none bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg px-3 py-2 pr-8 text-sm text-zinc-900 dark:text-white disabled:opacity-50 focus:border-blue-400"
                     >
                       <option value="">デフォルト</option>
                       {systemPrompts.map((sp) => (
@@ -318,12 +366,15 @@ export function WorkflowRoleCard({
         )}
       </div>
 
-      {/* Baton arrow (except last role) */}
-      {index < ROLE_ORDER.length - 1 && (
+      {/* Baton arrow between phases. Suppressed after the last phase of the
+          tier (no trailing arrow after 検証). When this card precedes 実装 and
+          the tier has a plan, the gap is the user-approval gate (reviews
+          plan.md) — otherwise it shows this phase's output artifact. */}
+      {!isLast && (
         <div className="flex items-center justify-center py-1.5">
           <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
             <ArrowDown className="h-4 w-4" />
-            {index === 2 ? (
+            {approvalAfter ? (
               <span className="flex items-center gap-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
                 <span className="text-indigo-500 dark:text-indigo-400 font-medium">
@@ -331,7 +382,7 @@ export function WorkflowRoleCard({
                 </span>
               </span>
             ) : (
-              <span>{ROLE_CONFIG[ROLE_ORDER[index]].outputFile}</span>
+              <span>{config.outputFile}</span>
             )}
             <ArrowDown className="h-4 w-4" />
           </div>

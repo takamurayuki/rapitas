@@ -37,7 +37,7 @@ type ToggleSize = keyof typeof SIZE_STYLES;
  */
 const COLOR_STYLES = {
   indigo: 'peer-checked:bg-indigo-500 peer-focus-visible:ring-indigo-500/60',
-  blue: 'peer-checked:bg-blue-500 peer-focus-visible:ring-blue-500/60',
+  blue: 'peer-checked:bg-blue-500 peer-focus-visible:ring-indigo-500/60',
   green: 'peer-checked:bg-emerald-500 peer-focus-visible:ring-emerald-500/60',
   amber: 'peer-checked:bg-amber-500 peer-focus-visible:ring-amber-500/60',
   red: 'peer-checked:bg-red-500 peer-focus-visible:ring-red-500/60',

@@ -145,7 +145,7 @@ export function BrowserModal({
                 if (e.key === 'Enter') onGoToPath();
               }}
               placeholder="パスを直接入力 (例: C:\Projects, D:\)"
-              className="flex-1 px-3 py-1.5 text-sm font-mono bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              className="flex-1 px-3 py-1.5 text-sm font-mono bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-blue-400"
             />
             <button
               onClick={onGoToPath}

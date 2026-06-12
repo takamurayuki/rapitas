@@ -144,8 +144,9 @@ export class GitOperations {
     branchName: string,
     taskId?: number,
     repositoryUrl?: string | null,
+    baseBranch?: string | null,
   ): Promise<string> {
-    return createWorktree(baseDir, branchName, taskId, repositoryUrl);
+    return createWorktree(baseDir, branchName, taskId, repositoryUrl, baseBranch);
   }
 
   /** @see removeWorktree */

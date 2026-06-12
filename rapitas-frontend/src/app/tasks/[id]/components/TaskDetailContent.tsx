@@ -2,10 +2,10 @@
 // TaskDetailContent
 import { useRef, useState, useEffect } from 'react';
 import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } from '@/types';
-import TaskDetailHeader from './TaskDetailHeader';
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
-import TaskEditForm from './TaskEditForm';
 import TaskDetailModals from './TaskDetailModals';
+import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
+import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -107,57 +107,55 @@ export default function TaskDetailContent({
     }
   }, [showSkeleton]);
 
+  // Quick-jump targets — must match the section ids in TaskDetailViewBody.
+  const quickNavSections: QuickNavSection[] = [
+    { id: 'td-info', label: '詳細', icon: Info },
+    { id: 'td-ai', label: 'AI', icon: Bot },
+    ...(task.theme?.isDevelopment === true
+      ? [{ id: 'td-workflow', label: 'ワークフロー', icon: GitBranch }]
+      : []),
+    { id: 'td-subtasks', label: 'サブタスク', icon: ListTodo },
+  ];
+
   return (
     <div
       ref={containerRef}
-      className={`h-[calc(100vh-5rem)] bg-background scrollbar-thin transition-opacity duration-200 ${
-        contentReady ? 'overflow-auto opacity-100' : 'overflow-hidden opacity-0'
+      // In page mode this is the scroll container (fixed viewport height). In
+      // panel mode the parent panel scrolls, so we drop the height/overflow here
+      // to avoid a nested second scrollbar.
+      // Mark as the scroll container ONLY in page mode so the quick-nav scroll-spy
+      // resolves it via closest(); in panel mode the marker lives on the panel div.
+      data-task-scroll-container={isPageMode ? '' : undefined}
+      className={`bg-background scrollbar-thin transition-opacity duration-200 ${
+        isPageMode ? 'h-[calc(100vh-5rem)]' : ''
+      } ${
+        contentReady
+          ? `opacity-100 ${isPageMode ? 'overflow-auto' : ''}`
+          : `opacity-0 ${isPageMode ? 'overflow-hidden' : ''}`
       }`}
     >
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 sm:pt-8 pb-4">
-        <TaskDetailHeader
-          task={task}
-          isEditing={taskActions.isEditing}
-          isPageMode={isPageMode}
-          isThisTaskTimer={isThisTaskTimer}
-          pomodoroState={pomodoroState}
-          onBack={onBack}
-          onStartEditing={taskActions.startEditing}
-          onSaveTask={taskActions.saveTask}
-          onCancelEditing={taskActions.cancelEditing}
-          onDuplicateTask={taskActions.duplicateTask}
-          onDeleteTask={taskActions.deleteTask}
-          onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
-          onOpenPomodoro={() => setShowPomodoroModal(true)}
-        />
-      </div>
+      <TaskDetailQuickNav
+        sections={quickNavSections}
+        task={task}
+        isPageMode={isPageMode}
+        isThisTaskTimer={isThisTaskTimer}
+        pomodoroState={pomodoroState}
+        onBack={onBack}
+        onOpenPomodoro={() => setShowPomodoroModal(true)}
+        onDuplicateTask={taskActions.duplicateTask}
+        onDeleteTask={taskActions.deleteTask}
+        onOpenSaveTemplate={() => setShowSaveTemplateDialog(true)}
+      />
 
       {/* Main content — single column */}
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pb-8">
-        {taskActions.isEditing ? (
-          <TaskEditForm
-            editTitle={taskActions.editTitle}
-            setEditTitle={taskActions.setEditTitle}
-            editStatus={taskActions.editStatus}
-            setEditStatus={taskActions.setEditStatus}
-            editDescription={taskActions.editDescription}
-            setEditDescription={taskActions.setEditDescription}
-            editLabelIds={taskActions.editLabelIds}
-            setEditLabelIds={taskActions.setEditLabelIds}
-            editPriority={taskActions.editPriority}
-            setEditPriority={taskActions.setEditPriority}
-            editEstimatedHours={taskActions.editEstimatedHours}
-            setEditEstimatedHours={taskActions.setEditEstimatedHours}
-          />
-        ) : (
-          <TaskDetailViewBody
-            task={task}
-            taskId={taskId}
-            resolvedTaskId={resolvedTaskId}
-            taskActions={taskActions}
-            {...viewBodyProps}
-          />
-        )}
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-4 pb-8">
+        <TaskDetailViewBody
+          task={task}
+          taskId={taskId}
+          resolvedTaskId={resolvedTaskId}
+          taskActions={taskActions}
+          {...viewBodyProps}
+        />
       </div>
 
       <TaskDetailModals

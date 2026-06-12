@@ -7,7 +7,7 @@
  */
 
 import type { WorkflowFileType, WorkflowStatus, WorkflowRole } from '@/types';
-import { Search, FileText, CheckCircle, MessageSquare, Code } from 'lucide-react';
+import { Search, FileText, FlaskConical, MessageSquare, Code } from 'lucide-react';
 import type { WorkflowMode } from './CompactWorkflowSelector';
 
 export interface WorkflowTab {
@@ -46,7 +46,7 @@ export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
     {
       id: 'verify',
       label: '検証',
-      icon: CheckCircle,
+      icon: FlaskConical,
       emptyText: '実装完了後にAIエージェントがverify.mdを生成します',
     },
   ];
@@ -60,12 +60,13 @@ export const getWorkflowTabs = (workflowMode: string): WorkflowTab[] => {
       // Lightweight: research + verify (skip plan / Q&A)
       return allTabs.filter((tab) => ['research', 'verify'].includes(tab.id));
     case 'standard':
-      // Standard: research + plan + Q&A + verify (skip nothing now that
-      // research is mandatory)
+      // Standard: research + plan + Q&A + verify. Q&A stays available for
+      // clarifying questions (which can occur in any mode); the difference vs
+      // comprehensive is the plan-REVIEW phase, not the Q&A artifact view.
       return allTabs.filter((tab) => ['research', 'question', 'plan', 'verify'].includes(tab.id));
     case 'comprehensive':
     default:
-      // Comprehensive: all tabs (same as standard at present)
+      // Comprehensive: all tabs + the plan-review pass (see getStatusToNextRole).
       return allTabs;
   }
 };
@@ -83,31 +84,27 @@ export interface NextRoleInfo {
  * @returns Record mapping workflow status strings to their next-role info
  */
 export const getStatusToNextRole = (workflowMode: string): Record<string, NextRoleInfo> => {
-  // NOTE: All modes now start with the researcher role (research.md is a
-  // mandatory first artifact). lightweight skips plan/review and goes
-  // research → implement; standard inserts plan/review; comprehensive is
-  // the same as standard at this point — kept distinct for future
-  // divergence.
+  // NOTE: All modes start with the researcher role (research.md is mandatory).
+  // The tiers then diverge by ceremony, matching the backend mode tables:
+  //   - lightweight (低): research → implement → auto-verify (no plan, no review)
+  //   - standard    (中): research → plan → implement → verify (NO review phase)
+  //   - comprehensive(高): research → plan → review → implement → verify (full)
   const lightweightMode: Record<string, NextRoleInfo> = {
     draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
     research_done: { role: 'implementer', label: '実装開始', icon: Code },
     in_progress: {
       role: 'auto_verifier',
       label: '自動検証実行',
-      icon: CheckCircle,
+      icon: FlaskConical,
     },
   };
 
+  // Standard skips the plan-review pass — plan goes straight to implementation.
   const standardMode: Record<string, NextRoleInfo> = {
     draft: { role: 'researcher', label: 'リサーチ実行', icon: Search },
     research_done: { role: 'planner', label: '計画作成', icon: FileText },
-    plan_created: {
-      role: 'reviewer',
-      label: 'レビュー実行',
-      icon: MessageSquare,
-    },
     plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
+    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
   };
 
   const comprehensiveMode: Record<string, NextRoleInfo> = {
@@ -119,7 +116,7 @@ export const getStatusToNextRole = (workflowMode: string): Record<string, NextRo
       icon: MessageSquare,
     },
     plan_approved: { role: 'implementer', label: '実装開始', icon: Code },
-    in_progress: { role: 'verifier', label: '検証実行', icon: CheckCircle },
+    in_progress: { role: 'verifier', label: '検証実行', icon: FlaskConical },
   };
 
   switch (workflowMode) {

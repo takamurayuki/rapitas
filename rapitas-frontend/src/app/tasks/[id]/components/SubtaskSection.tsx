@@ -104,7 +104,7 @@ export default function SubtaskSection({
   const progressPercent = hasSubtasks ? Math.round((doneCount / subtasks.length) * 100) : 0;
 
   return (
-    <div className="bg-white dark:bg-indigo-dark-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-800 overflow-hidden mb-6">
+    <div className="bg-white dark:bg-indigo-dark-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-6">
       <SubtaskHeader
         subtasks={subtasks}
         doneCount={doneCount}

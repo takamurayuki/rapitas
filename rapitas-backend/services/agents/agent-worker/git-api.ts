@@ -40,6 +40,7 @@ export async function createWorktree(
   branchName: string,
   taskId?: number,
   repositoryUrl?: string | null,
+  baseBranch?: string | null,
 ): Promise<string> {
   // NOTE: Generous timeout (10 min) covers worst-case scenarios:
   //   - First-ever worktree on a fresh machine where pnpm store is cold
@@ -49,7 +50,7 @@ export async function createWorktree(
   // in <5s, so this ceiling is effectively unused on a restarted backend.
   return ipc(
     'create-worktree',
-    { baseDir, branchName, taskId, repositoryUrl },
+    { baseDir, branchName, taskId, repositoryUrl, baseBranch },
     10 * 60 * 1000,
   ) as Promise<string>;
 }

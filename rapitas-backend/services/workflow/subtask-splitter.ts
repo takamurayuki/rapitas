@@ -11,8 +11,18 @@ import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
+import { extractFirstJsonArray } from './extract-json-array';
 
 const log = createLogger('subtask-splitter');
+
+// Hard cap on the (optional) AI subtask-generation call. This runs INLINE in the
+// plan.md save request, so an unbounded LLM call would block the whole HTTP
+// response (a real run blocked ~54s). On timeout we fall back to the
+// deterministic split, which produces valid subtasks without the LLM.
+// NOTE: Raised from 10_000 to 15_000 to give the increased maxTokens (8000) enough
+// runway — truncated responses come back fast, so the added buffer only affects
+// slow providers that would already fall back via the deterministic path.
+const AI_SUBTASK_GEN_TIMEOUT_MS = 15_000;
 
 /** Thresholds for when to split a task into subtasks. */
 const SPLIT_THRESHOLDS = {
@@ -21,6 +31,26 @@ const SPLIT_THRESHOLDS = {
   MIN_CHECKLIST_ITEMS: 10,
   MIN_INDEPENDENT_GROUPS: 3,
 };
+
+// Standard plan-template section headings (JP + EN). These describe the plan
+// itself, not independent units of work, so they must NEVER be counted as
+// "independent groups" or turned into subtasks — doing so produced bogus
+// subtasks like 「実装チェックリスト」「完了条件」 that blocked the parent.
+const META_SECTION_PATTERNS: RegExp[] = [
+  /summary|overview|scope|risk|done|definition|acceptance|test|note|depend|background|purpose|goal|objective|constraint|checklist|subtask/i,
+  /概要|サマリ|目的|ゴール|スコープ|リスク|完了|受入|受け入れ|テスト|検証|注意|備考|依存|影響|背景|前提|方針|制約|チェックリスト|サブタスク|定義|タスク/,
+];
+
+/**
+ * True when a section heading is a standard plan meta-section (not a unit of
+ * work). Used to keep splitting at an appropriate granularity.
+ *
+ * @param heading - The `##` heading text (without the `## `) / 見出しテキスト
+ * @returns true for meta sections / メタ節なら true
+ */
+function isMetaSection(heading: string): boolean {
+  return META_SECTION_PATTERNS.some((re) => re.test(heading));
+}
 
 /** Parsed subtask from plan analysis. */
 type PlannedSubtask = {
@@ -84,9 +114,10 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   // Estimate lines changed (heuristic: 50 lines per checklist item)
   const estimatedLines = checklistItems.length * 50;
 
-  // Detect independent groups (sections with ## headers)
+  // Detect independent groups: ## sections that are real work units, NOT the
+  // plan's standard meta sections (概要/リスク/完了条件/実装チェックリスト/…).
   const sectionHeaders = lines.filter(
-    (l) => /^##\s+/.test(l) && !/summary|risk|done|definition/i.test(l),
+    (l) => /^##\s+/.test(l) && !isMetaSection(l.replace(/^##\s+/, '')),
   );
   const independentGroups = sectionHeaders.length;
 
@@ -125,18 +156,143 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   };
 }
 
+/** System prompt for AI-driven subtask decomposition. */
+const SUBTASK_GEN_SYSTEM_PROMPT = [
+  'あなたは実装計画(plan.md)を、AIエージェントが「作成順に1つずつ」実行できる適切な粒度のサブタスクへ分割する専門家です。',
+  '次の原則を厳守してください:',
+  '- 1サブタスク = 3〜5ファイル程度、または1つの論理的な変更単位（大きすぎず小さすぎず）。',
+  '- 配列の順序が実行順序です。依存順に並べ、後のサブタスクは前のサブタスクの成果物に依存してよい。',
+  '- instructions には「何を実施するか」を具体的な操作手順で書く（曖昧な列挙ではなく、実際に行う変更）。',
+  '- acceptanceCriteria には「測定可能で具体的な受入基準」を書く（"テストが通る"のような汎用句だけでなく、そのサブタスク固有の確認項目）。',
+  '出力は次のJSON配列のみ。前後に説明文・コードフェンスを付けない:',
+  '[{"title":"短いタイトル","scope":["相対パス",...],"instructions":["手順1","手順2",...],"acceptanceCriteria":["具体的・測定可能な基準1",...]}]',
+].join('\n');
+
+/**
+ * Generate subtasks from plan.md (and research.md) using the LLM, producing
+ * concrete instructions and specific acceptance criteria at an appropriate
+ * granularity. Falls back to null on any failure so the caller can use the
+ * deterministic split instead.
+ *
+ * NOTE: array order IS execution order — each subtask depends on the previous
+ * one (parallelizable=false), matching the strict sequential execution policy.
+ *
+ * @param planContent - plan.md content / 計画書
+ * @param researchContent - research.md content (optional context) / 調査結果
+ * @returns Ordered planned subtasks, or null when generation is unavailable.
+ */
+async function generateSubtasksWithAI(
+  planContent: string,
+  researchContent?: string,
+): Promise<PlannedSubtask[] | null> {
+  try {
+    // Dynamic import keeps the ai-client (and its config dependencies) off the
+    // module-load path, avoiding a circular-import edge through config/index.
+    const { sendAIMessage } = await import('../../utils/ai-client');
+    const parts = ['# plan.md', planContent];
+    if (researchContent) parts.push('\n# research.md（参考）', researchContent.slice(0, 4000));
+    // Time-box the LLM call so a slow/hanging provider cannot stall the plan-save
+    // request; a timeout is treated like any other failure (deterministic fallback).
+    const res = await Promise.race([
+      sendAIMessage({
+        systemPrompt: SUBTASK_GEN_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: parts.join('\n') }],
+        // NOTE: Raised from 3000 to 8000 so that 5 Japanese subtasks with
+        // instructions + acceptanceCriteria fit within finish_reason=stop.
+        // The greedy-regex extraction bug was the primary fix; this reduces the
+        // probability that a truncated response reaches the extractor at all.
+        maxTokens: 8000,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(`AI subtask generation timed out after ${AI_SUBTASK_GEN_TIMEOUT_MS}ms`),
+            ),
+          AI_SUBTASK_GEN_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+
+    // NOTE: extractFirstJsonArray replaces the former greedy regex
+    // `/\[[\s\S]*\]/`. The old regex matched from the first `[` to the LAST `]`
+    // in the entire response, which caused it to swallow trailing text containing
+    // `]` and pass a truncated/invalid string to JSON.parse — producing the
+    // "Unterminated string" SyntaxError. The bracket-depth scanner avoids both
+    // the greedy-match and the truncation-exception issues.
+    const jsonStr = extractFirstJsonArray(res.content);
+    if (!jsonStr) {
+      const preview = res.content.slice(0, 500);
+      const suffix = res.content.length > 500 ? `…(+${res.content.length - 500} chars)` : '';
+      log.warn(
+        { contentLength: res.content.length, contentPreview: preview + suffix },
+        '[SubtaskSplitter] AI response contained no valid JSON array — falling back to deterministic split',
+      );
+      return null;
+    }
+    const parsed = JSON.parse(jsonStr) as Array<{
+      title?: string;
+      scope?: unknown;
+      instructions?: unknown;
+      acceptanceCriteria?: unknown;
+    }>;
+    if (!Array.isArray(parsed)) return null;
+
+    const toStringArray = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x) => typeof x === 'string').map((x) => x as string) : [];
+
+    const valid = parsed
+      .map((s) => ({
+        title: typeof s.title === 'string' ? s.title.trim() : '',
+        scope: toStringArray(s.scope),
+        instructions: toStringArray(s.instructions),
+        acceptanceCriteria: toStringArray(s.acceptanceCriteria),
+      }))
+      .filter((s) => s.title && s.instructions.length > 0 && s.acceptanceCriteria.length > 0);
+
+    if (valid.length === 0) return null;
+
+    return valid.map((s, i) => ({
+      order: i + 1,
+      title: s.title.slice(0, 200),
+      scope: s.scope,
+      instructions: s.instructions,
+      // Sequential policy: never run in parallel; start only after the previous one.
+      constraints: ['前のサブタスクが完了してから着手する', '担当スコープ外のファイルは変更しない'],
+      acceptanceCriteria: s.acceptanceCriteria,
+      dependsOn: i > 0 ? [i] : [], // order=i+1, so the previous subtask has order i
+      parallelizable: false,
+      estimatedFiles: Math.max(s.scope.length, 1),
+    }));
+  } catch (err) {
+    // NOTE: err.message contains the timeout string or JSON.parse error text.
+    // For JSON.parse failures the raw content is already logged above (at the
+    // extractFirstJsonArray null-return site); here we only log the error itself
+    // so the two log lines can be correlated by timestamp / request-id.
+    log.warn(
+      { err },
+      '[SubtaskSplitter] AI subtask generation failed — falling back to deterministic split',
+    );
+    return null;
+  }
+}
+
 /**
  * Create subtasks in DB and generate instruction.md files.
  *
  * @param parentTaskId - Parent task ID / 親タスクID
  * @param analysis - Split analysis result / 分割分析結果
  * @param researchContent - Research.md content to include in context / research.mdの内容
+ * @param planContent - plan.md content; when provided, subtasks are generated by
+ *   the LLM with concrete instructions + acceptance criteria, falling back to the
+ *   deterministic split in `analysis.subtasks`. / 計画書（AI生成の入力）
  * @returns Creation result / 作成結果
  */
 export async function createSubtasksFromPlan(
   parentTaskId: number,
   analysis: SplitAnalysis,
   researchContent?: string,
+  planContent?: string,
 ): Promise<SplitResult> {
   if (!analysis.shouldSplit || analysis.subtasks.length === 0) {
     return {
@@ -146,6 +302,19 @@ export async function createSubtasksFromPlan(
       subtaskIds: [],
       error: 'No split needed',
     };
+  }
+
+  // Prefer AI-generated subtasks (concrete instructions + specific acceptance
+  // criteria); fall back to the deterministic section/file split.
+  let plannedSubtasks: PlannedSubtask[] = analysis.subtasks;
+  if (planContent) {
+    const aiSubtasks = await generateSubtasksWithAI(planContent, researchContent);
+    if (aiSubtasks && aiSubtasks.length > 0) {
+      plannedSubtasks = aiSubtasks;
+      log.info(`[SubtaskSplitter] Using ${aiSubtasks.length} AI-generated subtasks`);
+    } else {
+      log.info('[SubtaskSplitter] AI generation unavailable — using deterministic split');
+    }
   }
 
   try {
@@ -166,7 +335,7 @@ export async function createSubtasksFromPlan(
 
     const subtaskIds: number[] = [];
 
-    for (const planned of analysis.subtasks) {
+    for (const planned of plannedSubtasks) {
       // Build instruction.md content first (used for both file and DB description)
       const instructionContent = buildInstructionMd(planned, researchContent, subtaskIds);
 
@@ -193,6 +362,10 @@ export async function createSubtasksFromPlan(
           themeId: parentTask.themeId,
           priority: parentTask.priority,
           status: 'todo',
+          // Always seed a workflowStatus so the task never sits with a null
+          // workflow state (the runner treats null as draft, but an explicit
+          // value keeps status displays and queries consistent).
+          workflowStatus: 'draft',
           isDeveloperMode: true,
           workflowMode: 'lightweight',
           autoApprovePlan: true,
@@ -267,8 +440,9 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
   let order = 0;
 
   for (const line of lines) {
-    // Detect section headers as subtask boundaries
-    if (/^##\s+/.test(line) && !/summary|risk|done|definition|task/i.test(line)) {
+    // Detect section headers as subtask boundaries — but only genuine work
+    // sections, never the plan's standard meta sections.
+    if (/^##\s+/.test(line) && !isMetaSection(line.replace(/^##\s+/, ''))) {
       if (currentSection && currentItems.length > 0) {
         order++;
         subtasks.push(

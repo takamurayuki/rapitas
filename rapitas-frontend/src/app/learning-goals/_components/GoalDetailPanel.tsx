@@ -18,7 +18,6 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Layers,
 } from 'lucide-react';
 import type { LearningGoal, GeneratedLearningPlan } from '@/types';
 import { useLocaleStore } from '@/stores/locale-store';
@@ -160,13 +159,6 @@ export function GoalDetailPanel({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <a
-              href={`/flashcards?learningGoalId=${goal.id}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
-            >
-              <Layers className="w-4 h-4" />
-              {t('flashcardReview')}
-            </a>
             {progress.rate >= 0.3 && (
               <button
                 onClick={onAdapt}

@@ -1,7 +1,8 @@
 'use client';
 // HomeCategoryFilter
+import Link from 'next/link';
 import type { Category, Theme, UserSettings } from '@/types';
-import { Star, FolderKanban } from 'lucide-react';
+import { Star, FolderKanban, FolderPlus } from 'lucide-react';
 import { getIconComponent } from '@/components/category/icon-data';
 
 interface HomeCategoryFilterProps {
@@ -80,6 +81,15 @@ export function HomeCategoryFilter({
           </button>
         );
       })}
+      {/* Category add — sits immediately right of the tabs (not pinned to the far edge). */}
+      <Link
+        href="/categories"
+        title="カテゴリを追加"
+        aria-label="カテゴリを追加"
+        className="shrink-0 flex items-center justify-center px-3 py-2 border-r border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/30 transition-colors"
+      >
+        <FolderPlus className="w-4 h-4" />
+      </Link>
     </div>
   );
 }

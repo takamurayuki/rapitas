@@ -109,9 +109,20 @@ export const agentSessionRouter = new Elysia({ prefix: '/agents' })
       const workerManager = orchestrator as unknown as {
         getActiveExecutionIdsAsync?: () => Promise<number[]>;
       };
-      const currentActiveIds = workerManager.getActiveExecutionIdsAsync
+      const workerActiveIds = workerManager.getActiveExecutionIdsAsync
         ? await workerManager.getActiveExecutionIdsAsync()
         : orchestrator.getActiveExecutions().map((e: { executionId: number }) => e.executionId);
+
+      // Workflow / auto-run agents run in the MAIN-process AgentOrchestrator
+      // (workflow-cli-executor calls AgentOrchestrator.getInstance directly),
+      // NOT the worker — so the worker's active-id list above misses them and
+      // the running banner never appeared during auto-execution. Union both so
+      // every live execution (manual via worker + auto-run via main) is shown.
+      const { AgentOrchestrator } = await import('../../../services/agents/agent-orchestrator');
+      const mainActiveIds = AgentOrchestrator.getInstance(prisma)
+        .getActiveAgentInfos()
+        .map((i) => i.executionId);
+      const currentActiveIds = Array.from(new Set([...workerActiveIds, ...mainActiveIds]));
 
       const resumableExecutions = await prisma.agentExecution.findMany({
         where: {

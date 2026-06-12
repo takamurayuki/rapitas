@@ -7,6 +7,7 @@
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
+import { getInsensitiveMode } from '../../../config/db-provider';
 import { getMatchContext } from './helpers';
 
 const log = createLogger('routes:search:suggest');
@@ -23,11 +24,17 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
 
     const words = searchQuery.split(/\s+/).filter((w) => w.length > 0);
 
-    const taskWhere = {
+    // NOTE: `mode: 'insensitive'` is PostgreSQL-only; the SQLite Prisma client
+    // omits the field from StringFilter, causing PrismaClientValidationError at
+    // runtime. getInsensitiveMode() centralises the provider check.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `mode` exists only on the Postgres StringFilter; typing as any lets this spread compile against the SQLite-generated client too.
+    const insensitive: any = getInsensitiveMode();
+
+    const taskWhere: any = {
       AND: words.map((word) => ({
         OR: [
-          { title: { contains: word, mode: 'insensitive' as const } },
-          { description: { contains: word, mode: 'insensitive' as const } },
+          { title: { contains: word, ...insensitive } },
+          { description: { contains: word, ...insensitive } },
         ],
       })),
     };
@@ -45,9 +52,9 @@ export const searchSuggestRoute = new Elysia().get('/suggest', async ({ query: q
       orderBy: { updatedAt: 'desc' },
     });
 
-    const commentWhere = {
+    const commentWhere: any = {
       AND: words.map((word) => ({
-        content: { contains: word, mode: 'insensitive' as const },
+        content: { contains: word, ...insensitive },
       })),
     };
 

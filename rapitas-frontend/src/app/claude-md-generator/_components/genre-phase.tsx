@@ -4,6 +4,7 @@
 import React from 'react';
 import { GENRES } from '../_utils/constants';
 import { PageWrap } from './page-wrap';
+import { WizardIcon } from './wizard-icons';
 
 interface GenrePhaseProps {
   topRef: React.RefObject<HTMLDivElement | null>;
@@ -36,9 +37,16 @@ export function GenrePhase({ topRef, t, onSelectGenre }: GenrePhaseProps) {
         }}
       >
         {GENRES.map((g) => (
-          <div key={g.id} className="card" onClick={() => onSelectGenre(g.id)}>
-            <div style={{ fontSize: 24, marginBottom: 6 }}>{g.icon}</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{t('genre_' + g.id)}</div>
+          <div
+            key={g.id}
+            className="card"
+            onClick={() => onSelectGenre(g.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+          >
+            <span style={{ color: 'var(--accent)', display: 'flex', flexShrink: 0 }}>
+              <WizardIcon name={g.icon} size={20} />
+            </span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{t('genre_' + g.id)}</span>
           </div>
         ))}
       </div>

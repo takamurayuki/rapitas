@@ -100,9 +100,11 @@ export function taskToBar(
 
   // ステータスに基づく色
   let color = task.theme?.color || '#6366F1';
-  if (task.status === 'completed') {
+  // Canonical task.status values are 'done' / 'in-progress' (see StatusConfig);
+  // the old 'completed' / 'in_progress' forms never matched a real task.
+  if (task.status === 'done') {
     color = '#10B981'; // green-500
-  } else if (task.status === 'in_progress') {
+  } else if (task.status === 'in-progress') {
     color = '#3B82F6'; // blue-500
   } else if (task.status === 'blocked') {
     color = '#F59E0B'; // amber-500

@@ -137,6 +137,7 @@ app/feature-name/
 ```
 
 **Rules:**
+
 - Only `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx` remain at directory root.
 - Barrel files (`index.ts`) stay at root if they serve as re-exports.
 - Underscore prefix (`_`) prevents Next.js from treating them as routes.
@@ -154,6 +155,7 @@ export { createTask, updateTask } from './task-mutations';
 ```
 
 **Rules:**
+
 - New code: import from the specific file or subdirectory barrel.
 - Existing code: may continue importing from old paths during migration.
 - After migration: update all imports in the same commit.

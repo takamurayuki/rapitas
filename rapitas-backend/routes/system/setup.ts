@@ -16,23 +16,11 @@ import path from 'path';
 import { Elysia } from 'elysia';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
+import { getDbProvider, type DbProvider } from '../../config/db-provider';
 import { discoverModels } from '../../services/ai/model-discovery';
 import { getLocalLLMStatus } from '../../services/local-llm';
 
 const log = createLogger('routes:setup');
-
-type DbProvider = 'sqlite' | 'postgresql' | 'unknown';
-
-function detectProvider(): DbProvider {
-  if (
-    process.env.RAPITAS_DB_PROVIDER === 'sqlite' ||
-    process.env.DATABASE_URL?.startsWith('file:')
-  ) {
-    return 'sqlite';
-  }
-  if (process.env.DATABASE_URL?.startsWith('postgres')) return 'postgresql';
-  return 'unknown';
-}
 
 interface DbStatus {
   provider: DbProvider;
@@ -45,7 +33,7 @@ interface DbStatus {
 }
 
 async function checkDatabase(): Promise<DbStatus> {
-  const provider = detectProvider();
+  const provider = getDbProvider();
 
   if (provider === 'sqlite') {
     const url = process.env.DATABASE_URL ?? '';
@@ -79,24 +67,17 @@ async function checkDatabase(): Promise<DbStatus> {
     }
   }
 
-  if (provider === 'postgresql') {
-    try {
-      await prisma.$queryRawUnsafe<Array<{ ok: number }>>('SELECT 1 as ok');
-      return { provider, connected: true, detail: 'PostgreSQL reachable' };
-    } catch (err) {
-      return {
-        provider,
-        connected: false,
-        detail: err instanceof Error ? err.message : 'PostgreSQL connection failed',
-      };
-    }
+  // provider === 'postgresql'
+  try {
+    await prisma.$queryRawUnsafe<Array<{ ok: number }>>('SELECT 1 as ok');
+    return { provider, connected: true, detail: 'PostgreSQL reachable' };
+  } catch (err) {
+    return {
+      provider,
+      connected: false,
+      detail: err instanceof Error ? err.message : 'PostgreSQL connection failed',
+    };
   }
-
-  return {
-    provider: 'unknown',
-    connected: false,
-    detail: 'DATABASE_URL is unset or unrecognized',
-  };
 }
 
 interface ProviderStatus {

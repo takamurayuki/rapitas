@@ -114,6 +114,7 @@ idle → running → waiting_for_input → running → completed
 ### データベースフィールド
 
 AgentExecutionテーブル:
+
 - `status`: 実行状態（'waiting_for_input'を含む）
 - `question`: 質問内容（テキスト）
 - `questionType`: 質問検出方法（'tool_call' | null）

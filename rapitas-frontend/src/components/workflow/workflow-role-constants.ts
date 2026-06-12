@@ -4,7 +4,7 @@
  * @module workflow-role-constants
  */
 import type { LucideIcon } from 'lucide-react';
-import { Search, FileText, MessageSquare, Code, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Search, FileText, MessageSquare, Code, FlaskConical } from 'lucide-react';
 import type { WorkflowRole } from '@/types';
 
 export type SystemPrompt = {
@@ -45,7 +45,7 @@ export const ROLES_SUPPORTING_CROSS_PROVIDER = new Set<WorkflowRole>([
 
 export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
   researcher: {
-    label: 'リサーチャー',
+    label: '調査',
     icon: Search,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-50 dark:bg-blue-900/20',
@@ -56,7 +56,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'タスク情報',
   },
   planner: {
-    label: 'プランナー',
+    label: '計画',
     icon: FileText,
     color: 'text-amber-600 dark:text-amber-400',
     bgColor: 'bg-amber-50 dark:bg-amber-900/20',
@@ -67,7 +67,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'research.md',
   },
   reviewer: {
-    label: 'レビュアー',
+    label: 'レビュー',
     icon: MessageSquare,
     color: 'text-purple-600 dark:text-purple-400',
     bgColor: 'bg-purple-50 dark:bg-purple-900/20',
@@ -78,7 +78,7 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'plan.md',
   },
   implementer: {
-    label: '実装者',
+    label: '実装',
     icon: Code,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-50 dark:bg-green-900/20',
@@ -89,8 +89,8 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'plan.md + question.md',
   },
   verifier: {
-    label: '検証者',
-    icon: CheckCircle,
+    label: '検証',
+    icon: FlaskConical,
     color: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     borderColor: 'border-emerald-200 dark:border-emerald-800',
@@ -100,8 +100,8 @@ export const ROLE_CONFIG: Record<WorkflowRole, RoleConfigItem> = {
     inputLabel: 'plan.md + diff',
   },
   auto_verifier: {
-    label: '自動検証',
-    icon: ShieldCheck,
+    label: '検証',
+    icon: FlaskConical,
     color: 'text-teal-600 dark:text-teal-400',
     bgColor: 'bg-teal-50 dark:bg-teal-900/20',
     borderColor: 'border-teal-200 dark:border-teal-800',

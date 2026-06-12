@@ -8,7 +8,11 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
-import { realtimeService } from '../communication/realtime-service';
+import {
+  logPhaseTransition,
+  broadcastRunnerStatus,
+  broadcastItemUpdate,
+} from './workflow-runner-events';
 
 const log = createLogger('workflow-runner');
 
@@ -81,9 +85,16 @@ export class WorkflowRunner {
       this.pollTimer = null;
     }
 
-    // Cancel active executions
+    // Cancel active executions. Aborting the controller only stops the loop
+    // from starting the NEXT phase — the agent process spawned for the CURRENT
+    // phase keeps running until killed. stopTaskAgents kills every in-flight
+    // agent for the task so shutdown actually halts work in progress.
+    const { stopTaskAgents } = await import('../agents/stop-task-agents');
     for (const [itemId, exec] of this.activeExecutions) {
       exec.abortController.abort();
+      await stopTaskAgents(exec.taskId, { errorMessage: 'Runner shutdown' }).catch((e) => {
+        log.warn({ err: e, taskId: exec.taskId }, '[WorkflowRunner] Failed to stop agents');
+      });
       try {
         await this.queue.updateStatus(itemId, 'queued', {
           errorMessage: 'Runner shutdown - returned to queue',
@@ -96,6 +107,30 @@ export class WorkflowRunner {
 
     log.info('[WorkflowRunner] Stopped processing');
     this.broadcastStatus('runner_stopped');
+  }
+
+  /**
+   * Abort the in-flight phase loop(s) for a task. Used by stop paths (auto-run
+   * stop / manual stop) so the runner does NOT advance to or retry another
+   * phase after the agent is killed. Without this, a stop that landed between
+   * phases let the loop spawn the next phase's agent — the agent "wouldn't
+   * stop". Combined with the cancelled-item retry guard in WorkflowQueueService.
+   *
+   * @param taskId - The task whose in-flight execution should be aborted. / 中断対象タスクID
+   * @returns Number of executions aborted. / 中断した実行数
+   */
+  abortTask(taskId: number): number {
+    let aborted = 0;
+    for (const exec of this.activeExecutions.values()) {
+      if (exec.taskId === taskId && !exec.abortController.signal.aborted) {
+        exec.abortController.abort();
+        aborted++;
+      }
+    }
+    if (aborted > 0) {
+      log.info(`[WorkflowRunner] Aborted ${aborted} in-flight execution(s) for task ${taskId}`);
+    }
+    return aborted;
   }
 
   /**
@@ -176,6 +211,21 @@ export class WorkflowRunner {
             result: JSON.stringify({ completedAt: new Date().toISOString() }),
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'workflow_completed', currentStatus);
+
+          // Propagate completion to the parent when this was a subtask. The
+          // subtask reaches its terminal state here (queue-driven), not via the
+          // task API, so this is the path that must notify the parent. The
+          // handler no-ops for non-subtasks (parentId === null).
+          if (task.parentId) {
+            const { onSubtaskCompleted } = await import('./subtask-completion-handler');
+            onSubtaskCompleted(item.taskId).catch((err) => {
+              log.warn(
+                { err, taskId: item.taskId, parentId: task.parentId },
+                '[WorkflowRunner] Failed to propagate subtask completion to parent',
+              );
+            });
+          }
+
           continueLoop = false;
           break;
         }
@@ -187,6 +237,7 @@ export class WorkflowRunner {
               'verify.md was saved, but the task did not pass the completion gate. Check commit/PR/merge automation results.',
           });
           this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
+          await this.notifyParentOnSubtaskFailure(item.taskId);
           continueLoop = false;
           break;
         }
@@ -206,10 +257,13 @@ export class WorkflowRunner {
             (isSubtask && (userSettings as Record<string, unknown>)?.autoApproveSubtaskPlan);
 
           if (shouldAutoApprove) {
-            // NOTE: Auto-approve — skip waiting and advance immediately
+            // NOTE: Auto-approve — skip waiting and advance immediately. Keep
+            // task.status in sync with the workflow phase so the subtask-
+            // completion handler (which reads both fields) never sees a stale
+            // status and strands the parent.
             await prisma.task.update({
               where: { id: item.taskId },
-              data: { workflowStatus: 'plan_approved' },
+              data: { workflowStatus: 'plan_approved', status: 'in-progress' },
             });
             this.broadcastItemUpdate(item.id, item.taskId, 'phase_completed', 'plan_created');
             log.info(`[WorkflowRunner] Plan auto-approved for task ${item.taskId}`);
@@ -242,14 +296,49 @@ export class WorkflowRunner {
 
         const result = await Promise.race([executionPromise, timeoutPromise]);
 
+        // Another trigger already holds the task's execution lock and is
+        // running this phase (the per-task mutex collapsed a duplicate). Do NOT
+        // fail the item — return it to the queue so the next poll re-checks
+        // once the in-flight phase has advanced the workflowStatus.
+        if (result.skipped) {
+          log.info(
+            { taskId: item.taskId, phase: currentStatus },
+            '[WorkflowRunner] Phase already running elsewhere — re-queuing item',
+          );
+          await this.queue.updateStatus(item.id, 'queued', { currentPhase: currentStatus });
+          this.broadcastItemUpdate(item.id, item.taskId, 'execution_requeued', currentStatus);
+          continueLoop = false;
+          break;
+        }
+
         if (!result.success) {
-          // Check if retry is possible
-          const retried = await this.queue.retryIfPossible(item.id);
+          // Surface WHY the phase failed. This used to be swallowed — only the
+          // generic "Max retries (3) exceeded" surfaced — which hid root causes
+          // like "role has no agent assigned" behind a silent retry loop.
+          log.warn(
+            { taskId: item.taskId, phase: currentStatus, role: result.role, error: result.error },
+            `[WorkflowRunner] Phase failed for task ${item.taskId}: ${result.error ?? 'unknown error'}`,
+          );
+          // Persist the reason on the queue item so it is visible after retries.
+          const retried = await this.queue.retryIfPossible(item.id, result.error ?? undefined);
           if (!retried) {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_failed', currentStatus);
           } else {
             this.broadcastItemUpdate(item.id, item.taskId, 'execution_retrying', currentStatus);
           }
+          continueLoop = false;
+          break;
+        }
+
+        // Stop here if the run was aborted (e.g. auto-run stopped) — even when
+        // the phase just succeeded. Advancing / writing 'running' would resurrect
+        // the queue item that the stop path cancelled and spawn the next phase's
+        // agent, so the "stop" would never actually stop.
+        if (abortController.signal.aborted) {
+          log.info(
+            { taskId: item.taskId, phase: currentStatus },
+            '[WorkflowRunner] Execution aborted — stopping loop without advancing',
+          );
           continueLoop = false;
           break;
         }
@@ -282,10 +371,28 @@ export class WorkflowRunner {
       const errorMsg = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowRunner] Execution error for task ${item.taskId}: ${errorMsg}`);
 
+      // Kill any in-flight agent BEFORE retrying/failing. The phase timeout only
+      // rejects the race — the agent process it abandoned keeps running and
+      // holds the task's execution lock, so every retry would collapse to
+      // 'skipped' while the zombie agent burns tokens (indefinitely for items
+      // outside auto-run, which have no theme wall guard). No-op when the agent
+      // already exited (normal failures).
       try {
-        const retried = await this.queue.retryIfPossible(item.id);
+        const { stopTaskAgents } = await import('../agents/stop-task-agents');
+        await stopTaskAgents(item.taskId, { errorMessage: `Phase failed: ${errorMsg}` });
+      } catch (stopError) {
+        log.warn(
+          { err: stopError, taskId: item.taskId },
+          '[WorkflowRunner] Failed to stop agents after phase error',
+        );
+      }
+
+      try {
+        const retried = await this.queue.retryIfPossible(item.id, errorMsg);
         if (!retried) {
           await this.queue.updateStatus(item.id, 'failed', { errorMessage: errorMsg });
+          // Terminal failure (no retry left) — let a split parent finalize.
+          await this.notifyParentOnSubtaskFailure(item.taskId);
         }
       } catch (retryError) {
         log.error({ err: retryError }, `[WorkflowRunner] Failed to retry/fail item ${item.id}`);
@@ -294,6 +401,38 @@ export class WorkflowRunner {
     } finally {
       this.activeExecutions.delete(item.id);
       this.processedTotal++;
+    }
+  }
+
+  /**
+   * When a SUBTASK's queue item ends in a non-completed terminal state, the
+   * 'completed' path that normally notifies the parent never runs — so the
+   * parent's "all siblings terminal" gate (onSubtaskCompleted) is never
+   * re-evaluated and the parent hangs forever at in-progress. Terminalize the
+   * subtask's task.status and notify the parent so it can finalize (as blocked
+   * when a subtask failed). No-op for non-subtasks (parentId === null).
+   *
+   * @param taskId - The failed subtask's id / 失敗したサブタスクID
+   */
+  private async notifyParentOnSubtaskFailure(taskId: number): Promise<void> {
+    try {
+      const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { parentId: true, status: true },
+      });
+      if (!task?.parentId) return;
+      // 'failed' is terminal for onSubtaskCompleted's all-siblings-done gate.
+      if (!['done', 'failed', 'cancelled', 'archived'].includes(task.status)) {
+        await prisma.task
+          .update({ where: { id: taskId }, data: { status: 'failed', completedAt: new Date() } })
+          .catch(() => {});
+      }
+      const { onSubtaskCompleted } = await import('./subtask-completion-handler');
+      await onSubtaskCompleted(taskId).catch((err) => {
+        log.warn({ err, taskId }, '[WorkflowRunner] Parent finalize after subtask failure failed');
+      });
+    } catch (err) {
+      log.warn({ err, taskId }, '[WorkflowRunner] notifyParentOnSubtaskFailure failed');
     }
   }
 
@@ -313,87 +452,22 @@ export class WorkflowRunner {
     return true;
   }
 
-  /**
-   * Record workflow phase transitions in ActivityLog and broadcast via SSE.
-   */
+  /** Delegate: record + broadcast a phase transition (see workflow-runner-events). */
   private async logPhaseTransition(
     taskId: number,
     previousPhase: string,
     newPhase: string,
   ): Promise<void> {
-    const phaseLabels: Record<string, string> = {
-      draft: '初期化',
-      research_done: '調査完了',
-      plan_created: '計画作成',
-      plan_approved: '計画承認',
-      in_progress: '実装中',
-      verify_done: '検証完了',
-      completed: '完了',
-      advancing: '次フェーズへ進行中',
-    };
-
-    try {
-      await prisma.activityLog.create({
-        data: {
-          taskId,
-          action: 'workflow_phase_transition',
-          metadata: JSON.stringify({
-            previousPhase,
-            newPhase,
-            previousLabel: phaseLabels[previousPhase] || previousPhase,
-            newLabel: phaseLabels[newPhase] || newPhase,
-            timestamp: new Date().toISOString(),
-          }),
-          createdAt: new Date(),
-        },
-      });
-
-      // Notify frontend of phase transition via SSE
-      realtimeService.broadcast('orchestra', 'phase_transition', {
-        taskId,
-        previousPhase,
-        newPhase,
-        previousLabel: phaseLabels[previousPhase] || previousPhase,
-        newLabel: phaseLabels[newPhase] || newPhase,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      log.warn(
-        { err: error },
-        `[WorkflowRunner] Failed to log phase transition for task ${taskId}`,
-      );
-    }
+    await logPhaseTransition(taskId, previousPhase, newPhase);
   }
 
-  /**
-   * Broadcast status via SSE.
-   */
+  /** Delegate: broadcast runner lifecycle status (see workflow-runner-events). */
   private broadcastStatus(event: string): void {
-    try {
-      realtimeService.broadcast('orchestra', event, {
-        runner: this.getStatus(),
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      // Runner continues even if SSE is unavailable
-    }
+    broadcastRunnerStatus(event, this.getStatus());
   }
 
-  /**
-   * Broadcast item updates via SSE.
-   */
+  /** Delegate: broadcast a queue-item update (see workflow-runner-events). */
   private broadcastItemUpdate(itemId: number, taskId: number, event: string, phase: string): void {
-    try {
-      realtimeService.broadcast('orchestra', 'item_update', {
-        event,
-        itemId,
-        taskId,
-        phase,
-        activeCount: this.activeExecutions.size,
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      // Runner continues even if SSE is unavailable
-    }
+    broadcastItemUpdate(itemId, taskId, event, phase, this.activeExecutions.size);
   }
 }

@@ -5,10 +5,10 @@
  * scheduling debounced server restarts. Defers restarts while agent
  * executions are active and polls until they complete.
  */
-import { spawn } from 'bun';
 import { watch, existsSync } from 'fs';
 import { join } from 'path';
 import { startServer, ROOT_DIR, INDEX_FILE, getServerPort, log } from './server-manager';
+import { syncDevSchema } from './prisma-sync';
 
 // NOTE: These module-level variables track deferred-restart state across watch callbacks.
 let isRestarting = false;
@@ -54,15 +54,17 @@ export async function isAgentExecutionActive(): Promise<boolean> {
 /**
  * Handles Prisma schema changes: runs db push, generate, and restarts the server.
  * Defers the operation if an agent execution is active.
+ *
+ * @param changedFile - Relative path of the changed file for deferred log tracking / 変更ファイルの相対パス（遅延ログ用）
  */
-export async function handlePrismaChange(): Promise<void> {
+export async function handlePrismaChange(changedFile?: string): Promise<void> {
   log.info('Prisma schema change detected...');
 
   const agentActive = await isAgentExecutionActive();
   if (agentActive) {
     hasDeferredChanges = true;
     deferredPrismaChange = true;
-    deferredFiles.push('prisma/schema.prisma');
+    deferredFiles.push(changedFile ?? 'prisma/schema/*.prisma');
     log.warn(
       `Deferring Prisma restart — agent execution active (${deferredFiles.length} files queued)`,
     );
@@ -71,32 +73,13 @@ export async function handlePrismaChange(): Promise<void> {
   }
 
   try {
-    log.info('Running prisma db push...');
-    const pushResult = spawn({
-      cmd: ['bunx', 'prisma', 'db', 'push', '--skip-generate'],
-      cwd: ROOT_DIR,
-      stdio: ['inherit', 'inherit', 'inherit'],
-    });
-    await pushResult.exited;
-
-    if (pushResult.exitCode !== 0) {
-      log.error('prisma db push failed');
+    // syncDevSchema() pins RAPITAS_DB_PROVIDER from DATABASE_URL, regenerates
+    // the SQLite schema artifact when needed, then runs db push + generate.
+    // It returns false (and logs loudly) on any failure — skip the restart so
+    // the running server keeps the last-known-good client.
+    if (!(await syncDevSchema({ generate: true }))) {
       return;
     }
-
-    log.info('Running prisma generate...');
-    const generateResult = spawn({
-      cmd: ['bunx', 'prisma', 'generate'],
-      cwd: ROOT_DIR,
-      stdio: ['inherit', 'inherit', 'inherit'],
-    });
-    await generateResult.exited;
-
-    if (generateResult.exitCode !== 0) {
-      log.error('prisma generate failed');
-      return;
-    }
-
     log.success('Prisma schema update complete');
     await startServer();
   } catch (error) {
@@ -233,7 +216,7 @@ export function watchPrismaSchema(): void {
     if (now - lastChangeTime < 1000) return;
     lastChangeTime = now;
 
-    await handlePrismaChange();
+    await handlePrismaChange(filename?.toString());
   });
 
   log.info(`Watching Prisma schema at ${watchTarget} for changes`);

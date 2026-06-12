@@ -22,16 +22,16 @@ const mockPrisma = {
   task: {
     create: mock(() => Promise.resolve({ id: 1, title: 'タスク' })),
   },
-  flashcardDeck: {
-    create: mock(() => Promise.resolve({ id: 1, name: 'Deck' })),
-  },
 };
 
 const mockSendAIMessage = mock(() => Promise.resolve({ content: '{}', tokensUsed: 100 }));
 const mockGetDefaultProvider = mock(() => Promise.resolve('claude'));
 const mockIsAnyApiKeyConfigured = mock(() => Promise.resolve(true));
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
@@ -63,11 +63,8 @@ function resetAllMocks() {
   mockIsAnyApiKeyConfigured.mockReset();
 
   mockGetDefaultProvider.mockResolvedValue('claude');
-  // Set isAnyApiKeyConfigured to false by default to avoid AI flashcard generation issues
+  // Default to no API key so plan-generation falls back deterministically
   mockIsAnyApiKeyConfigured.mockResolvedValue(false);
-
-  // Set default mock for flashcardDeck.create
-  mockPrisma.flashcardDeck.create.mockResolvedValue({ id: 1, name: 'Deck' });
 }
 
 function createApp() {

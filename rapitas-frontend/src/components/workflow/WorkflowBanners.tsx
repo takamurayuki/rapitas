@@ -1,7 +1,7 @@
 'use client';
 // WorkflowBanners
 
-import { ShieldCheck, CheckCircle, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle, RefreshCw, Play } from 'lucide-react';
 import type { WorkflowStatus, WorkflowRoleConfig } from '@/types';
 import { getStatusToNextRole } from './workflow-viewer-utils';
 import type { WorkflowMode } from './CompactWorkflowSelector';
@@ -51,63 +51,8 @@ export function PlanApprovalBanner({
   );
 }
 
-interface VerifyDoneBannerProps {
-  onNavigateToVerify: () => void;
-  onCompleteRequest: () => void;
-}
-
-/**
- * Banner shown when verification has completed and user action is required.
- *
- * @param onNavigateToVerify - Switches the active tab to 'verify' / タブを検証に切り替える
- * @param onCompleteRequest - Triggers the task-completion flow / タスク完了フローを起動する
- */
-export function VerifyDoneBanner({ onNavigateToVerify, onCompleteRequest }: VerifyDoneBannerProps) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/20 border-b border-teal-200 dark:border-teal-800/50">
-      <div className="flex items-center gap-2.5">
-        <div className="p-1.5 bg-teal-100 dark:bg-teal-800/50 rounded-full">
-          <CheckCircle className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-teal-800 dark:text-teal-200">検証が完了しました</p>
-          <p className="text-xs text-teal-600 dark:text-teal-400">
-            検証タブで内容を確認し、問題なければタスクを完了にしてください
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={() => {
-          onNavigateToVerify();
-          onCompleteRequest();
-        }}
-        className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-      >
-        <CheckCircle className="h-3.5 w-3.5" />
-        検証結果を確認
-      </button>
-    </div>
-  );
-}
-
-/**
- * Banner shown while an async AI agent execution is in progress.
- */
-export function AsyncExecutionBanner() {
-  return (
-    <div className="flex items-center gap-2.5 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800/50">
-      <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
-      <div>
-        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-          AIエージェントが実行中です...
-        </p>
-        <p className="text-xs text-blue-600 dark:text-blue-400">
-          完了すると自動的に表示が更新されます
-        </p>
-      </div>
-    </div>
-  );
-}
+// NOTE: VerifyDoneBanner (the "検証結果を確認" button) was removed — verification
+// now auto-completes the task on success, so the manual prompt was dead UI.
 
 interface NextPhaseButtonProps {
   effectiveStatus: WorkflowStatus;

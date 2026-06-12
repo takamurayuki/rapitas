@@ -24,7 +24,14 @@ export interface ValidationResult {
   summary: string;
 }
 
-const RESEARCH_REQUIRED_SECTIONS = ['影響範囲', '依存', '類似実装', 'リスク', 'テスト戦略'];
+// NOTE: '類似機能' is the current template heading; '類似実装' is accepted for backward compatibility.
+const RESEARCH_REQUIRED_SECTIONS: (string | string[])[] = [
+  '影響範囲',
+  '依存',
+  ['類似機能', '類似実装'],
+  'リスク',
+  'テスト戦略',
+];
 
 const PLAN_REQUIRED_SECTIONS = [
   '設計判断の根拠',
@@ -116,7 +123,9 @@ export function validateVerify(content: string): ValidationResult {
   // Detect the explicit "tests did not complete" or "❌" mark — surface
   // as a soft failure so the workflow does not silently auto-PR a
   // broken implementation.
-  if (/❌\s*検証失敗|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
+  // Accept the common verdicts the verifier actually writes, JP + EN. The ❌
+  // anchor on the Japanese verdicts avoids false positives like "不合格項目: なし".
+  if (/❌\s*(検証失敗|不合格|不適合)|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
     return {
       ok: false,
       missingSections: [],
@@ -133,16 +142,24 @@ export function validateVerify(content: string): ValidationResult {
  * level-2 / level-3 headings (## / ###) and considers a section present if
  * any heading contains the keyword (substring match, case-insensitive).
  *
+ * Each entry in `required` may be either a single keyword (string) or an
+ * OR-group (string[]) where ANY alternative satisfies the requirement.
+ * Missing section labels use the first element of an OR-group.
+ *
  * @param content - markdown document / マークダウン本文
- * @param required - required section keywords / 必須セクションのキーワード
+ * @param required - required section keywords, plain or OR-groups / 必須セクションのキーワード（単一またはOR候補配列）
  * @param label - label for the summary / サマリのラベル
  * @returns validation result / バリデーション結果
  */
-function validateSections(content: string, required: string[], label: string): ValidationResult {
+function validateSections(
+  content: string,
+  required: (string | string[])[],
+  label: string,
+): ValidationResult {
   if (!content || !content.trim()) {
     return {
       ok: false,
-      missingSections: required.slice(),
+      missingSections: required.map((s) => (Array.isArray(s) ? s[0] : s)),
       severity: 100,
       summary: `${label} is empty`,
     };
@@ -154,16 +171,30 @@ function validateSections(content: string, required: string[], label: string): V
     .map((line) => line.toLowerCase());
   const headingsBlob = headingLines.join('\n');
 
-  const missing = required.filter((section) => !headingsBlob.includes(section.toLowerCase()));
+  const missingSections: string[] = [];
+  for (const section of required) {
+    if (Array.isArray(section)) {
+      // OR match: any alternative satisfies the requirement
+      const found = section.some((alt) => headingsBlob.includes(alt.toLowerCase()));
+      if (!found) {
+        // Use the first element as the canonical label for reporting
+        missingSections.push(section[0]);
+      }
+    } else {
+      if (!headingsBlob.includes(section.toLowerCase())) {
+        missingSections.push(section);
+      }
+    }
+  }
 
-  const severity = Math.round((missing.length / required.length) * 100);
+  const severity = Math.round((missingSections.length / required.length) * 100);
   return {
-    ok: missing.length === 0,
-    missingSections: missing,
+    ok: missingSections.length === 0,
+    missingSections,
     severity,
     summary:
-      missing.length === 0
+      missingSections.length === 0
         ? `${label} is well-formed`
-        : `${label} missing sections: ${missing.join(', ')}`,
+        : `${label} missing sections: ${missingSections.join(', ')}`,
   };
 }

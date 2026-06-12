@@ -74,7 +74,7 @@ describe('handleExternalLinkClick', () => {
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
 
-  it('prevents default and opens split view for external links', () => {
+  it('prevents default and opens external links in the default browser', () => {
     const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const event = {
       ctrlKey: false,

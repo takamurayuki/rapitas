@@ -243,15 +243,11 @@ function HomeClientPage() {
     setTimeout(() => setSelectedTaskId(null), 300);
   }, [hideTaskDetail, setIsPanelOpen, setSelectedTaskId]);
 
-  useExecutingTasksPolling({
-    interval: 5000,
-    onExecutingTaskFound: useCallback(
-      (taskId: number) => {
-        if (!isPanelOpen) openTaskPanel(taskId);
-      },
-      [isPanelOpen, openTaskPanel],
-    ),
-  });
+  // NOTE: Poll only to reflect executing state onto task cards (spinner). Do NOT
+  // auto-open the detail panel on execution — its backdrop covered the list and
+  // made it look frozen / stuck-loading while an agent ran. The user opens a task
+  // manually via onTaskClick when they want to watch progress.
+  useExecutingTasksPolling({ interval: 5000 });
 
   const handleSelectAll = () => {
     const allSelected = selectedTasks.size === paginatedTasks.length && paginatedTasks.length > 0;
@@ -260,6 +256,12 @@ function HomeClientPage() {
       setIsSelectionMode(false);
     } else setSelectedTasks(new Set(paginatedTasks.map((t) => t.id)));
   };
+
+  // The toolbar auto-execution toggle controls the ACTIVE development theme's
+  // auto-run. Resolve the selected (or default) theme and gate on isDevelopment;
+  // null hides the toggle for non-dev themes.
+  const selectedThemeForAutoRun = themes.find((th) => th.id === themeFilter) ?? defaultTheme;
+  const autoRunTheme = selectedThemeForAutoRun?.isDevelopment ? selectedThemeForAutoRun : null;
 
   // --- Render ---
   return (
@@ -274,7 +276,7 @@ function HomeClientPage() {
           isQuickAdding={isQuickAdding}
           themeFilter={themeFilter}
           defaultThemeId={defaultTheme?.id}
-          categoryFilter={categoryFilter}
+          autoRunTheme={autoRunTheme}
           onQuickAddToggle={() => setIsQuickAdding(!isQuickAdding)}
           onBulkUpdateStatus={bulkUpdateStatus}
           onBulkDelete={bulkDelete}
@@ -336,6 +338,7 @@ function HomeClientPage() {
           paginatedTasks={paginatedTasks}
           sortedTasksCount={sortedTasks.length}
           isLoading={taskCacheLoading}
+          initialized={taskCacheInitialized}
           categoryFilter={categoryFilter}
           themesInCategoryCount={themesInCategoryCount}
           themeFilter={themeFilter}

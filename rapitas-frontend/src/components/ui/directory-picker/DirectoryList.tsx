@@ -80,7 +80,7 @@ function NewFolderForm({
             }
           }}
           placeholder="フォルダ名を入力..."
-          className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+          className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-md focus:outline-none focus:border-blue-400"
           disabled={isCreating}
         />
         <button

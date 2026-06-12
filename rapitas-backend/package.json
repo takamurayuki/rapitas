@@ -13,6 +13,7 @@
     "test:integration": "bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
+    "test:sqlite": "node scripts/run-sqlite-tests.cjs",
     "test:coverage": "bun test --coverage",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
@@ -23,7 +24,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.ts\" --ignore-path .gitignore",
-    "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore"
+    "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore",
+    "e2e": "bun run scripts/restart-loop-smoke.ts",
+    "test:e2e": "bun run scripts/restart-loop-smoke.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -66,6 +69,7 @@
     "protobufjs"
   ],
   "overrides": {
+    "sharp": "^0.34.5",
     "protobufjs": "^7.5.5",
     "defu": "^6.1.5",
     "minimatch": "^9.0.7",

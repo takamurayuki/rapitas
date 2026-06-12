@@ -9,8 +9,6 @@ export { default as TaskWorkflowSection } from './TaskWorkflowSection';
 export { default as TaskEditForm } from './TaskEditForm';
 export { default as SubtaskSection } from './SubtaskSection';
 export { default as TaskDetailModals } from './TaskDetailModals';
-export { default as TaskDetailHeader } from './TaskDetailHeader';
-export type { TaskDetailHeaderProps } from './TaskDetailHeader';
 export { default as TaskDetailErrorState } from './TaskDetailErrorState';
 export type { TaskDetailErrorStateProps } from './TaskDetailErrorState';
 export { default as TaskAISection } from './TaskAISection';

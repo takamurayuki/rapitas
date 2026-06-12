@@ -32,6 +32,11 @@ export const themeSchema = {
   setupFromClaudeMd: t.Object({
     appName: t.String({ minLength: 1 }),
     claudeMd: t.String({ minLength: 1 }),
+    // Optional companion docs written to docs/ alongside the agent guide.
+    requirements: t.Optional(t.String()),
+    design: t.Optional(t.String()),
+    // Repo-relative path for the agent guide (defaults to .claude/CLAUDE.md).
+    agentFilePath: t.Optional(t.String()),
     basePath: t.Optional(t.String()),
     description: t.Optional(t.String()),
   }),

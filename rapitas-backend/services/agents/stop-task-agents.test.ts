@@ -1,0 +1,127 @@
+/**
+ * stop-task-agents テスト
+ *
+ * 停止時にタスクの「全」実行中エージェントを、worker とメインプロセス両方の
+ * オーケストレータへ停止要求して止め、ロックを解放することを検証する。
+ */
+import { describe, test, expect, mock, beforeEach } from 'bun:test';
+
+const workerStopMock = mock((_id: number) => Promise.resolve(true));
+const mainStopMock = mock((_id: number) => Promise.resolve(true));
+
+const mockPrisma = {
+  agentExecution: {
+    findMany: mock(() => Promise.resolve([] as { id: number }[])),
+    update: mock(() => Promise.resolve({})),
+  },
+  agentExecutionLog: {
+    deleteMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  task: {
+    findMany: mock(() => Promise.resolve([] as { id: number }[])),
+  },
+};
+
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
+mock.module('../../config/logger', () => ({
+  createLogger: () => ({ info: () => {}, error: () => {}, warn: () => {}, debug: () => {} }),
+}));
+mock.module('./agent-worker-manager', () => ({
+  AgentWorkerManager: {
+    getInstance: () => ({ stopExecution: workerStopMock }),
+  },
+}));
+mock.module('./agent-orchestrator', () => ({
+  AgentOrchestrator: {
+    getInstance: () => ({ stopExecution: mainStopMock }),
+  },
+}));
+
+const { stopTaskAgents, stopThemeAgents } = await import('./stop-task-agents');
+const { acquireTaskExecutionLock, isTaskExecutionLocked } = await import('./task-execution-lock');
+
+function resetMocks() {
+  workerStopMock.mockClear();
+  mainStopMock.mockClear();
+  mockPrisma.agentExecution.findMany.mockReset();
+  mockPrisma.agentExecution.update.mockReset();
+  mockPrisma.agentExecutionLog.deleteMany.mockReset();
+  mockPrisma.task.findMany.mockReset();
+  mockPrisma.agentExecution.update.mockResolvedValue({});
+  mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.task.findMany.mockResolvedValue([]);
+}
+
+describe('stopTaskAgents', () => {
+  beforeEach(resetMocks);
+
+  test('実行中の全エージェントを停止する（1つだけでなく）', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([{ id: 11 }, { id: 22 }, { id: 33 }]);
+
+    const result = await stopTaskAgents(5001, { errorMessage: 'Cancelled by user' });
+
+    expect(result.stoppedCount).toBe(3);
+    expect(result.executionIds).toEqual([11, 22, 33]);
+    // Every execution is asked to BOTH orchestrators (worker + main process).
+    expect(workerStopMock).toHaveBeenCalledTimes(3);
+    expect(mainStopMock).toHaveBeenCalledTimes(3);
+    expect(mockPrisma.agentExecution.update).toHaveBeenCalledTimes(3);
+  });
+
+  test('停止後にタスク実行ロックを解放する', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([{ id: 1 }]);
+    acquireTaskExecutionLock(5002);
+    expect(isTaskExecutionLocked(5002)).toBe(true);
+
+    await stopTaskAgents(5002);
+
+    expect(isTaskExecutionLocked(5002)).toBe(false);
+  });
+
+  test('実行が無くてもロックを解放し 0 を返す', async () => {
+    mockPrisma.agentExecution.findMany.mockResolvedValue([]);
+    acquireTaskExecutionLock(5003);
+
+    const result = await stopTaskAgents(5003);
+
+    expect(result.stoppedCount).toBe(0);
+    expect(workerStopMock).not.toHaveBeenCalled();
+    expect(mainStopMock).not.toHaveBeenCalled();
+    expect(isTaskExecutionLocked(5003)).toBe(false);
+  });
+});
+
+describe('stopThemeAgents', () => {
+  beforeEach(resetMocks);
+
+  test('現在タスク・サブタスク・テーマ内タスクの全エージェントを停止する', async () => {
+    // 1st task.findMany → theme top-level tasks; 2nd → their subtasks.
+    mockPrisma.task.findMany
+      .mockResolvedValueOnce([{ id: 200 }, { id: 201 }]) // theme tasks
+      .mockResolvedValueOnce([{ id: 300 }]); // subtasks
+    mockPrisma.agentExecution.findMany.mockResolvedValue([{ id: 91 }, { id: 92 }]);
+
+    const result = await stopThemeAgents(42, 200, { errorMessage: 'Auto-run stopped' });
+
+    expect(result.stoppedCount).toBe(2);
+    expect(workerStopMock).toHaveBeenCalledTimes(2);
+    expect(mainStopMock).toHaveBeenCalledTimes(2);
+    // The execution query must include the current task, theme tasks, and subtasks.
+    const where = mockPrisma.agentExecution.findMany.mock.calls[0][0].where;
+    const queriedIds = where.session.config.taskId.in as number[];
+    expect(queriedIds).toEqual(expect.arrayContaining([200, 201, 300]));
+  });
+
+  test('currentTaskId が null でもテーマ内タスクを掃く', async () => {
+    mockPrisma.task.findMany.mockResolvedValueOnce([{ id: 200 }]).mockResolvedValueOnce([]);
+    mockPrisma.agentExecution.findMany.mockResolvedValue([]);
+
+    const result = await stopThemeAgents(42, null);
+
+    expect(result.stoppedCount).toBe(0);
+    expect(mockPrisma.task.findMany).toHaveBeenCalled();
+  });
+});

@@ -22,8 +22,12 @@ import { useFilterDataStore } from '@/stores/filter-data-store';
 import { getIconComponent } from '@/components/category/icon-data';
 import { IdeaBoxHeader } from './IdeaBoxHeader';
 import Pagination from '@/components/ui/pagination/Pagination';
+import { Modal } from '@/components/ui/modal/Modal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 
 type IdeaScope = 'global' | 'project';
+type IdeaPriority = 'urgent' | 'high' | 'medium' | 'low';
 
 interface Idea {
   id: number;
@@ -31,6 +35,7 @@ interface Idea {
   content: string;
   category: string;
   scope: IdeaScope;
+  priority: IdeaPriority;
   tags: string[];
   themeId: number | null;
   source: string;
@@ -42,6 +47,18 @@ interface IdeaStats {
   total: number;
   unused: number;
 }
+
+/**
+ * Idea priority = how much it would innovate / raise the app's value if built.
+ * Rendered with the same PriorityIcon as the task list for consistency.
+ */
+const PRIORITY_ORDER: IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
+const PRIORITY_HINT: Record<IdeaPriority, string> = {
+  urgent: '最優先で取り組むべき',
+  high: '革新的・アプリ価値を大きく底上げ',
+  medium: '着実に価値を高める',
+  low: '小さな改善・あれば良い',
+};
 
 const SOURCE_ICONS: Record<string, typeof User> = {
   user: User,
@@ -57,26 +74,33 @@ export default function IdeasClient() {
 
   // ページネーション状態
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('ideaBox.itemsPerPage', 15);
+  // Default 10 per page to match the task list pagination.
+  const [itemsPerPage, setItemsPerPage] = useLocalStorageState('ideaBox.itemsPerPage', 10);
   const [totalPages, setTotalPages] = useState(0);
   const [totalIdeas, setTotalIdeas] = useState(0);
 
-  const [scopeFilter, setScopeFilter] = useState<IdeaScope | 'all'>('all');
   const [filterCategoryId, setFilterCategoryId] = useState<number | null>(null);
   const [filterThemeId, setFilterThemeId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'open' | 'used' | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | IdeaPriority>('all');
   const searchParams = useSearchParams();
   const searchQuery = searchParams?.get('search')?.trim() ?? '';
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newScope, setNewScope] = useState<IdeaScope>('global');
+  const [newPriority, setNewPriority] = useState<IdeaPriority>('medium');
   const [newCategoryId, setNewCategoryId] = useState<number | null>(null);
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const { categories, themes } = useFilterDataStore();
+  const { showToast } = useToast();
+  // Ideas are turned into tasks that run in a theme's repo, so theme pulldowns
+  // only offer themes that have a working directory set. (Shared rule with the
+  // concern backlog.) Theme-name display still uses the full `themes` list.
+  const wdThemes = themes.filter((t) => t.workingDirectory);
 
   // 詳細テキストエリアの高さを内容に合わせて自動調整。
   // showQuickAdd / editingId 切替時にも再計測する（編集時にプリセット内容の高さに合わせるため）。
@@ -91,34 +115,22 @@ export default function IdeasClient() {
   const [convertingIdeaId, setConvertingIdeaId] = useState<number | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
-  // 手動タスク化モーダル状態
-  const [manualConvertIdea, setManualConvertIdea] = useState<Idea | null>(null);
-  const [manualTitle, setManualTitle] = useState('');
-  const [manualDescription, setManualDescription] = useState('');
-  const [manualPriority, setManualPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>(
-    'medium',
-  );
-  const [manualEstimatedHours, setManualEstimatedHours] = useState<string>('');
-  const [manualThemeId, setManualThemeId] = useState<number | null>(null);
-  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
-  const [manualError, setManualError] = useState<string | null>(null);
-
-  // テーマ未設定アイデアの AI タスク化前テーマ選択モーダル状態
+  // テーマ未設定アイデアのタスク化前テーマ選択モーダル状態
   // NOTE: グローバルアイデア（テーマ未設定）はそのままタスク化するとワークフローで起票できないため、必ずテーマを選ばせる。
   const [themePickerIdea, setThemePickerIdea] = useState<Idea | null>(null);
   const [themePickerCategoryId, setThemePickerCategoryId] = useState<number | null>(null);
   const [themePickerThemeId, setThemePickerThemeId] = useState<number | null>(null);
   const themePickerThemes = themePickerCategoryId
-    ? themes.filter((t) => t.categoryId === themePickerCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === themePickerCategoryId)
+    : wdThemes;
 
   const filteredThemes = newCategoryId
-    ? themes.filter((t) => t.categoryId === newCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === newCategoryId)
+    : wdThemes;
 
   const filterThemes = filterCategoryId
-    ? themes.filter((t) => t.categoryId === filterCategoryId)
-    : themes;
+    ? wdThemes.filter((t) => t.categoryId === filterCategoryId)
+    : wdThemes;
 
   const fetchIdeas = useCallback(async () => {
     setIsLoading(true);
@@ -127,10 +139,11 @@ export default function IdeasClient() {
         limit: String(itemsPerPage),
         offset: String((currentPage - 1) * itemsPerPage),
       });
-      if (scopeFilter !== 'all') params.set('scope', scopeFilter);
       if (filterCategoryId) params.set('categoryId', String(filterCategoryId));
       // NOTE: themeIdフィルタリングもサーバーサイドで処理するため追加
       if (filterThemeId) params.set('themeId', String(filterThemeId));
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
 
       const [ideasRes, statsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/idea-box?${params}`),
@@ -149,7 +162,7 @@ export default function IdeasClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [scopeFilter, filterCategoryId, filterThemeId, currentPage, itemsPerPage]);
+  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchIdeas();
@@ -158,7 +171,7 @@ export default function IdeasClient() {
   // フィルタ変更時のページリセット
   useEffect(() => {
     setCurrentPage(1);
-  }, [scopeFilter, filterCategoryId, filterThemeId, searchQuery]);
+  }, [filterCategoryId, filterThemeId, statusFilter, priorityFilter, searchQuery]);
 
   // ページネーションハンドラー
   const handlePageChange = useCallback((page: number) => {
@@ -179,54 +192,89 @@ export default function IdeasClient() {
     setEditingId(null);
     setNewTitle('');
     setNewContent('');
-    setNewScope('global');
+    setNewPriority('medium');
     setNewCategoryId(null);
     setNewThemeId(null);
   }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!newTitle.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        title: newTitle.trim(),
-        content: newContent.trim() || newTitle.trim(),
-        scope: newScope,
-        // Send null for global scope so PATCH clears any prior themeId.
-        themeId: newScope === 'project' ? (newThemeId ?? null) : null,
-      };
-      if (editingId !== null) {
+
+    const payload = {
+      title: newTitle.trim(),
+      content: newContent.trim() || newTitle.trim(),
+      scope: 'project' as IdeaScope,
+      priority: newPriority,
+      // Ideas are always project-scoped now; null themeId = unassigned project.
+      themeId: newThemeId ?? null,
+    };
+
+    // Edit path keeps the simple await-then-refetch flow.
+    if (editingId !== null) {
+      setIsSubmitting(true);
+      try {
         await fetch(`${API_BASE_URL}/idea-box/${editingId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-      } else {
-        // POST does not accept themeId=null, so omit it for global.
-        const { themeId, ...rest } = payload;
-        const body = themeId !== null ? { ...rest, themeId } : rest;
-        await fetch(`${API_BASE_URL}/idea-box`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
+        resetForm();
+        setShowQuickAdd(false);
+        await fetchIdeas();
+      } catch {
+        showToast('アイデアの更新に失敗しました', 'error');
+      } finally {
+        setIsSubmitting(false);
       }
-      resetForm();
-      setShowQuickAdd(false);
+      return;
+    }
+
+    // Add path: show the idea optimistically so it appears instantly regardless
+    // of request/refetch latency, then reconcile with the server in the
+    // background (and roll back on failure).
+    const tempId = -Date.now();
+    const optimistic: Idea = {
+      id: tempId,
+      title: payload.title,
+      content: payload.content,
+      category: 'improvement',
+      scope: 'project',
+      priority: newPriority,
+      tags: [],
+      themeId: payload.themeId,
+      source: 'user',
+      usedInTaskId: null,
+      createdAt: new Date().toISOString(),
+    };
+    setIdeas((prev) => [optimistic, ...prev]);
+    resetForm();
+    // Keep the modal open (cleared) so the user can add another right away.
+    setTimeout(() => titleRef.current?.focus(), 0);
+
+    try {
+      // POST does not accept themeId=null, so omit it for global.
+      const { themeId, ...rest } = payload;
+      const body = themeId !== null ? { ...rest, themeId } : rest;
+      const res = await fetch(`${API_BASE_URL}/idea-box`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchIdeas();
     } catch {
-      /* error */
-    } finally {
-      setIsSubmitting(false);
+      // Roll back the optimistic entry if the submission failed.
+      setIdeas((prev) => prev.filter((i) => i.id !== tempId));
+      showToast('アイデアの登録に失敗しました', 'error');
     }
-  }, [editingId, newTitle, newContent, newScope, newThemeId, fetchIdeas, resetForm]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm, showToast]);
 
   const handleEdit = useCallback(
     (idea: Idea) => {
       setEditingId(idea.id);
       setNewTitle(idea.title);
       setNewContent(idea.content === idea.title ? '' : idea.content);
-      setNewScope(idea.scope);
+      setNewPriority(idea.priority);
       const theme = themes.find((t) => t.id === idea.themeId);
       setNewCategoryId(theme?.categoryId ?? null);
       setNewThemeId(idea.themeId);
@@ -240,29 +288,53 @@ export default function IdeasClient() {
     setShowQuickAdd(false);
   }, [resetForm]);
 
-  const handleDelete = useCallback(async (id: number) => {
-    try {
-      await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
-      setIdeas((prev) => prev.filter((i) => i.id !== id));
-    } catch {
-      /* non-critical */
-    }
-  }, []);
+  const handleDelete = useCallback(
+    async (id: number) => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/idea-box/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          showToast('アイデアの削除に失敗しました', 'error');
+          return;
+        }
+        // 楽観的に即削除して反応を即時化
+        setIdeas((prev) => prev.filter((i) => i.id !== id));
+        // 削除後ページが空になる場合は1ページ戻す（戻した先で fetchIdeas が走る）
+        // それ以外は同じページで再取得し、次ページから1件繰り上げて itemsPerPage 件を保つ
+        if (ideas.length - 1 === 0 && currentPage > 1) {
+          setCurrentPage((p) => p - 1);
+        } else {
+          await fetchIdeas();
+        }
+      } catch {
+        showToast('アイデアの削除に失敗しました', 'error');
+      }
+    },
+    [ideas.length, currentPage, fetchIdeas, showToast],
+  );
 
-  const executeAiConvert = useCallback(
+  /**
+   * Convert an idea straight to a task WITHOUT AI, using the idea's own
+   * title/content/priority (the manual conversion endpoint). Immediate — no
+   * field-editing modal.
+   */
+  const executeQuickConvert = useCallback(
     async (idea: Idea, themeId: number) => {
       setConvertingIdeaId(idea.id);
       setIsConverting(true);
 
       try {
-        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task`, {
+        const response = await fetch(`${API_BASE_URL}/idea-box/${idea.id}/convert-to-task-manual`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ themeId }),
+          body: JSON.stringify({
+            title: idea.title,
+            description: idea.content,
+            priority: idea.priority,
+            themeId,
+          }),
         });
 
         if (response.ok) {
-          await response.json();
           await fetchIdeas();
         } else {
           console.error('Failed to convert idea to task');
@@ -279,16 +351,17 @@ export default function IdeasClient() {
 
   const handleConvertToTask = useCallback(
     (idea: Idea) => {
-      // テーマが無いアイデアはそのまま起票するとワークフローで利用できないため、テーマ選択モーダルを挟む。
+      // A theme is required for workflow registration; global (theme-less) ideas
+      // still need one, so pick it first — but the conversion stays non-AI.
       if (idea.themeId === null) {
         setThemePickerIdea(idea);
         setThemePickerCategoryId(null);
         setThemePickerThemeId(null);
         return;
       }
-      void executeAiConvert(idea, idea.themeId);
+      void executeQuickConvert(idea, idea.themeId);
     },
-    [executeAiConvert],
+    [executeQuickConvert],
   );
 
   const closeThemePicker = useCallback(() => {
@@ -302,82 +375,53 @@ export default function IdeasClient() {
     const idea = themePickerIdea;
     const themeId = themePickerThemeId;
     closeThemePicker();
-    await executeAiConvert(idea, themeId);
-  }, [themePickerIdea, themePickerThemeId, executeAiConvert, closeThemePicker]);
+    await executeQuickConvert(idea, themeId);
+  }, [themePickerIdea, themePickerThemeId, executeQuickConvert, closeThemePicker]);
 
   /**
-   * Open the manual-convert modal pre-filled with the idea's title and
-   * content. The user can edit fields before submitting; AI is NOT used.
+   * Save the open edit form AND immediately file it as a task (non-AI), so the
+   * user can change fields and create the task in one action. Requires a theme
+   * (workflow registration); the button is disabled without one.
    */
-  const openManualConvert = useCallback((idea: Idea) => {
-    setManualConvertIdea(idea);
-    setManualTitle(idea.title);
-    setManualDescription(idea.content);
-    setManualPriority('medium');
-    setManualEstimatedHours('');
-    setManualThemeId(idea.themeId);
-    setManualError(null);
-  }, []);
-
-  const closeManualConvert = useCallback(() => {
-    setManualConvertIdea(null);
-    setManualError(null);
-    setIsManualSubmitting(false);
-  }, []);
-
-  const submitManualConvert = useCallback(async () => {
-    if (!manualConvertIdea) return;
-    if (!manualTitle.trim()) {
-      setManualError('タイトルは必須です');
-      return;
-    }
-    if (manualThemeId === null) {
-      // テーマ未設定だとワークフロー登録ができないため必須化。
-      setManualError('テーマを選択してください');
-      return;
-    }
-    setIsManualSubmitting(true);
-    setManualError(null);
+  const handleSaveAndConvert = useCallback(async () => {
+    if (editingId === null || !newTitle.trim() || newThemeId === null) return;
+    setIsSubmitting(true);
     try {
-      const hoursNum = manualEstimatedHours.trim() ? Number(manualEstimatedHours) : undefined;
-      const res = await fetch(
-        `${API_BASE_URL}/idea-box/${manualConvertIdea.id}/convert-to-task-manual`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: manualTitle.trim(),
-            description: manualDescription,
-            priority: manualPriority,
-            ...(typeof hoursNum === 'number' && !Number.isNaN(hoursNum) && hoursNum >= 0
-              ? { estimatedHours: hoursNum }
-              : {}),
-            ...(manualThemeId !== null ? { themeId: manualThemeId } : {}),
-          }),
-        },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setManualError(data.error || `HTTP ${res.status}`);
-        return;
-      }
+      const id = editingId;
+      const title = newTitle.trim();
+      const content = newContent.trim() || title;
+      // Persist the edits first.
+      await fetch(`${API_BASE_URL}/idea-box/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          scope: 'project',
+          priority: newPriority,
+          themeId: newThemeId,
+        }),
+      });
+      // Then convert it to a task using the edited values (no AI).
+      await fetch(`${API_BASE_URL}/idea-box/${id}/convert-to-task-manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: content,
+          priority: newPriority,
+          themeId: newThemeId,
+        }),
+      });
+      resetForm();
+      setShowQuickAdd(false);
       await fetchIdeas();
-      closeManualConvert();
-    } catch (err) {
-      setManualError(err instanceof Error ? err.message : '送信に失敗しました');
+    } catch {
+      showToast('タスクへの変換に失敗しました', 'error');
     } finally {
-      setIsManualSubmitting(false);
+      setIsSubmitting(false);
     }
-  }, [
-    manualConvertIdea,
-    manualTitle,
-    manualDescription,
-    manualPriority,
-    manualEstimatedHours,
-    manualThemeId,
-    fetchIdeas,
-    closeManualConvert,
-  ]);
+  }, [editingId, newTitle, newContent, newPriority, newThemeId, fetchIdeas, resetForm, showToast]);
 
   // NOTE: filterThemeIdはサーバーサイドで処理されるため、クライアント側ではsearchQueryのみフィルタリング
   const filtered = ideas.filter((idea) => {
@@ -414,125 +458,174 @@ export default function IdeasClient() {
           }}
         />
 
-        {/* Quick Add — inline card that appears at the top */}
-        {showQuickAdd && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
-            <div className="space-y-3">
-              <input
-                ref={titleRef}
-                type="text"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
-                  if (e.key === 'Escape') handleCancel();
-                }}
-                placeholder="💡 アイデアをひとことで..."
-                className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
-              />
-              <textarea
-                ref={contentTextareaRef}
-                value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                placeholder="詳細（任意）"
-                className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
-                style={{ overflowY: 'auto' }}
-              />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {/* Scope toggle */}
-                  <div className="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <button
-                      onClick={() => setNewScope('global')}
-                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'global' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-                    >
-                      <Globe className="h-3 w-3" />
-                      グローバル
-                    </button>
-                    <button
-                      onClick={() => setNewScope('project')}
-                      className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors ${newScope === 'project' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'}`}
-                    >
-                      <FolderOpen className="h-3 w-3" />
-                      プロジェクト
-                    </button>
-                  </div>
-                  {/* Category → Theme selector (project scope only) */}
-                  {newScope === 'project' && (
-                    <>
-                      <select
-                        value={newCategoryId ?? ''}
-                        onChange={(e) => {
-                          const id = e.target.value ? parseInt(e.target.value) : null;
-                          setNewCategoryId(id);
-                          setNewThemeId(null);
-                        }}
-                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                      >
-                        <option value="">カテゴリ</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={newThemeId ?? ''}
-                        onChange={(e) =>
-                          setNewThemeId(e.target.value ? parseInt(e.target.value) : null)
-                        }
-                        className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-800"
-                      >
-                        <option value="">テーマ</option>
-                        {filteredThemes.map((th) => (
-                          <option key={th.id} value={th.id}>
-                            {th.name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
+        {/* Quick Add — modal so adding keeps you on the page (continuous adding) */}
+        <Modal
+          open={showQuickAdd}
+          onClose={handleCancel}
+          icon={<Lightbulb className="h-4 w-4 text-amber-500" />}
+          maxWidthClass="max-w-2xl"
+          title={editingId !== null ? 'アイデアを編集' : 'アイデアを追加'}
+          footer={
+            <>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={!newTitle.trim() || isSubmitting}
+                className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : editingId !== null ? (
+                  <Pencil className="h-3 w-3" />
+                ) : (
+                  <Lightbulb className="h-3 w-3" />
+                )}
+                {editingId !== null ? '更新' : '保存'}
+              </button>
+              {/* When editing, save the changes AND file the task in one click.
+                  Needs a theme (workflow registration). */}
+              {editingId !== null && (
+                <button
+                  onClick={handleSaveAndConvert}
+                  disabled={!newTitle.trim() || isSubmitting || newThemeId === null}
+                  title={
+                    newThemeId === null ? 'タスク化にはテーマが必要です' : '変更を保存してタスク化'
+                  }
+                  className="flex items-center gap-1 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ListPlus className="h-3 w-3" />
                   )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCancel}
-                    className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!newTitle.trim() || isSubmitting}
-                    className="flex items-center gap-1 rounded-lg bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : editingId !== null ? (
-                      <Pencil className="h-3 w-3" />
-                    ) : (
-                      <Lightbulb className="h-3 w-3" />
-                    )}
-                    {editingId !== null ? '更新' : '保存'}
-                  </button>
-                </div>
-              </div>
+                  保存してタスク化
+                </button>
+              )}
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <input
+              ref={titleRef}
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTitle.trim()) handleSubmit();
+                if (e.key === 'Escape') handleCancel();
+              }}
+              placeholder="アイデアをひとことで..."
+              className="w-full rounded-lg border-0 bg-white px-4 py-3 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500"
+            />
+            <textarea
+              ref={contentTextareaRef}
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              placeholder="詳細（任意）"
+              className="w-full rounded-lg border-0 bg-white px-4 py-2.5 text-xs shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:bg-zinc-800 dark:placeholder:text-zinc-500 resize-none overflow-hidden min-h-[3rem] max-h-[60vh]"
+              style={{ overflowY: 'auto' }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Priority — moved below the title */}
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] text-zinc-500 dark:text-zinc-400">優先度</span>
+                <span
+                  className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700"
+                  title="優先度（アプリへの革新性・価値の底上げ度合い）"
+                >
+                  {PRIORITY_ORDER.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setNewPriority(p)}
+                      title={PRIORITY_HINT[p]}
+                      className={`px-2 py-1 transition-colors ${
+                        newPriority === p
+                          ? 'bg-zinc-100 dark:bg-zinc-800'
+                          : 'opacity-40 hover:opacity-100 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <PriorityIcon priority={p} size="sm" showTitle />
+                    </button>
+                  ))}
+                </span>
+              </span>
+              {/* Category → Theme — ideas are always project-scoped */}
+              <select
+                value={newCategoryId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value ? parseInt(e.target.value) : null;
+                  setNewCategoryId(id);
+                  setNewThemeId(null);
+                }}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">カテゴリ</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={newThemeId ?? ''}
+                onChange={(e) => setNewThemeId(e.target.value ? parseInt(e.target.value) : null)}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                <option value="">テーマ</option>
+                {filteredThemes.map((th) => (
+                  <option key={th.id} value={th.id}>
+                    {th.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-        )}
+        </Modal>
 
-        {/* 編集中・追加フォーム表示中は一覧・フィルタ・ページネーションを隠して、入力 UI に集中させる */}
-        {editingId === null && !showQuickAdd && (
+        {/* List + filters + pagination (always visible; the add/edit modal overlays). */}
+        {
           <>
-            {/* Filters — three dropdowns: scope / category / theme */}
+            {/* Filters — status / priority / category / theme */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
+              {/* Status */}
+              <div className="flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                {(
+                  [
+                    { value: 'open', label: '未対応' },
+                    { value: 'used', label: 'タスク化済み' },
+                    { value: 'all', label: 'すべて' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => setStatusFilter(tab.value)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      statusFilter === tab.value
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                        : 'text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {/* Priority */}
               <select
-                value={scopeFilter}
-                onChange={(e) => setScopeFilter(e.target.value as IdeaScope | 'all')}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as 'all' | IdeaPriority)}
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
-                <option value="all">すべて</option>
-                <option value="global">グローバル</option>
-                <option value="project">プロジェクト</option>
+                <option value="all">すべての優先度</option>
+                <option value="urgent">緊急</option>
+                <option value="high">高</option>
+                <option value="medium">中</option>
+                <option value="low">低</option>
               </select>
               <select
                 value={filterCategoryId ?? ''}
@@ -541,7 +634,7 @@ export default function IdeasClient() {
                   setFilterCategoryId(id);
                   setFilterThemeId(null);
                 }}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">すべてのカテゴリ</option>
                 {categories.map((cat) => (
@@ -553,7 +646,7 @@ export default function IdeasClient() {
               <select
                 value={filterThemeId ?? ''}
                 onChange={(e) => setFilterThemeId(e.target.value ? parseInt(e.target.value) : null)}
-                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-800"
+                className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
               >
                 <option value="">すべてのテーマ</option>
                 {filterThemes.map((th) => (
@@ -601,28 +694,45 @@ export default function IdeasClient() {
                         <Lightbulb className="mt-0.5 h-4 w-4 text-amber-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                            {/* Title, then theme + priority icon right beside it */}
+                            <span className="min-w-0 truncate font-medium text-sm text-zinc-900 dark:text-zinc-100">
                               {idea.title}
                             </span>
-                            {idea.scope === 'global' ? (
-                              <Globe className="h-3 w-3 text-indigo-400" />
-                            ) : (
-                              (() => {
-                                const currentTheme = themes.find((t) => t.id === idea.themeId);
-                                const ThemeIcon =
-                                  getIconComponent(currentTheme?.icon || '') || FolderOpen;
-                                const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
-                                return (
-                                  <span
-                                    className="flex items-center gap-0.5 text-[9px]"
-                                    style={{ color: themeColor }}
-                                  >
-                                    <ThemeIcon className="h-3 w-3" />
-                                    {currentTheme?.name ?? 'プロジェクト'}
-                                  </span>
-                                );
-                              })()
-                            )}
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              {idea.scope === 'global' ? (
+                                <Globe className="h-3 w-3 text-indigo-400" />
+                              ) : (
+                                (() => {
+                                  const currentTheme = themes.find((t) => t.id === idea.themeId);
+                                  const ThemeIcon =
+                                    getIconComponent(currentTheme?.icon || '') || FolderOpen;
+                                  const themeColor = currentTheme?.color || '#059669'; // fallback to emerald-600
+                                  return (
+                                    <span
+                                      className="flex items-center gap-0.5 text-[9px]"
+                                      style={{ color: themeColor }}
+                                    >
+                                      <ThemeIcon className="h-3 w-3" />
+                                      {currentTheme?.name ?? 'プロジェクト'}
+                                    </span>
+                                  );
+                                })()
+                              )}
+                              <span title={`優先度: ${PRIORITY_HINT[idea.priority]}`}>
+                                <PriorityIcon priority={idea.priority} size="sm" />
+                              </span>
+                            </span>
+                            {/* Source (manual / agent / AI assistant) — far right */}
+                            <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-400">
+                              <SourceIcon className="h-2.5 w-2.5" />
+                              {idea.source === 'user'
+                                ? '手動'
+                                : idea.source === 'agent_execution'
+                                  ? 'エージェント'
+                                  : idea.source === 'copilot'
+                                    ? 'AIアシスタント'
+                                    : idea.source}
+                            </span>
                           </div>
                           {idea.content !== idea.title && (
                             <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
@@ -630,63 +740,49 @@ export default function IdeasClient() {
                             </p>
                           )}
                           <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
-                            <span className="flex items-center gap-0.5">
-                              <SourceIcon className="h-2.5 w-2.5" />
-                              {idea.source === 'user'
-                                ? '手動'
-                                : idea.source === 'agent_execution'
-                                  ? 'エージェント'
-                                  : idea.source === 'copilot'
-                                    ? 'コパイロット'
-                                    : idea.source}
-                            </span>
                             <span>{new Date(idea.createdAt).toLocaleDateString('ja-JP')}</span>
                             {idea.usedInTaskId && (
                               <span className="text-emerald-500">タスク化済み</span>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          {!idea.usedInTaskId && (
-                            <>
-                              <button
-                                onClick={() => openManualConvert(idea)}
-                                className="rounded p-1 text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                                aria-label="手動でタスク化"
-                                title="手動でタスク化 (フィールドを編集してから起票)"
-                              >
-                                <ListPlus className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleConvertToTask(idea)}
-                                disabled={isConverting && convertingIdeaId === idea.id}
-                                className="rounded p-1 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
-                                aria-label="AI でタスク化"
-                                title="AI が内容を整形してタスク化"
-                              >
-                                {isConverting && convertingIdeaId === idea.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <ArrowRight className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => handleEdit(idea)}
-                            className="rounded p-1 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                            aria-label="編集"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(idea.id)}
-                            className="rounded p-1 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            aria-label="削除"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                      </div>
+                      {/* Actions — grouped at the bottom (always visible), like
+                          the concern card. タスク化 files immediately (no AI). */}
+                      <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-700/50">
+                        {!idea.usedInTaskId && (
+                          <>
+                            <button
+                              onClick={() => handleConvertToTask(idea)}
+                              disabled={isConverting && convertingIdeaId === idea.id}
+                              title="タスク化（すぐ起票・AIなし）"
+                              className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-600 disabled:opacity-50"
+                            >
+                              {isConverting && convertingIdeaId === idea.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <ListPlus className="h-3 w-3" />
+                              )}
+                              タスク化
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleEdit(idea)}
+                          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-amber-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400 transition-colors"
+                          aria-label="アイデアを編集"
+                          title="アイデアを編集"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(idea.id)}
+                          className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-800 transition-colors"
+                          aria-label="削除"
+                          title="削除"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -702,140 +798,14 @@ export default function IdeasClient() {
                 itemsPerPage={itemsPerPage}
                 onPageChange={handlePageChange}
                 onItemsPerPageChange={handleItemsPerPageChange}
-                itemsPerPageOptions={[5, 10, 15]}
+                alwaysShow
               />
             )}
           </>
-        )}
+        }
       </div>
 
-      {/* 手動タスク化モーダル */}
-      {manualConvertIdea && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={closeManualConvert}
-        >
-          <div
-            className="w-full max-w-lg mx-3 bg-white dark:bg-zinc-900 rounded-lg shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-700">
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                アイデアをタスクとして起票
-              </h2>
-              <button
-                onClick={closeManualConvert}
-                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                aria-label="閉じる"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  タイトル <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={manualTitle}
-                  onChange={(e) => setManualTitle(e.target.value)}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="タスクのタイトル"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  説明
-                </label>
-                <textarea
-                  value={manualDescription}
-                  onChange={(e) => setManualDescription(e.target.value)}
-                  rows={5}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="タスクの詳細"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    優先度
-                  </label>
-                  <select
-                    value={manualPriority}
-                    onChange={(e) => setManualPriority(e.target.value as typeof manualPriority)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="low">低</option>
-                    <option value="medium">中</option>
-                    <option value="high">高</option>
-                    <option value="urgent">緊急</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    予想時間 (h)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={manualEstimatedHours}
-                    onChange={(e) => setManualEstimatedHours(e.target.value)}
-                    className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    placeholder="任意"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  テーマ <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={manualThemeId ?? ''}
-                  onChange={(e) =>
-                    setManualThemeId(e.target.value ? parseInt(e.target.value) : null)
-                  }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="">テーマを選択してください</option>
-                  {themes.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {manualError && (
-                <p className="text-xs text-red-600 dark:text-red-400">{manualError}</p>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 rounded-b-lg">
-              <button
-                onClick={closeManualConvert}
-                disabled={isManualSubmitting}
-                className="rounded px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={submitManualConvert}
-                disabled={isManualSubmitting || !manualTitle.trim() || manualThemeId === null}
-                className="flex items-center gap-1.5 rounded bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {isManualSubmitting ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ListPlus className="h-3.5 w-3.5" />
-                )}
-                タスク化
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* テーマ選択モーダル — グローバルアイデアの AI タスク化前に表示 */}
+      {/* テーマ選択モーダル — テーマ未設定アイデアのタスク化前に表示（ワークフロー登録にテーマ必須） */}
       {themePickerIdea && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -877,7 +847,7 @@ export default function IdeasClient() {
                     setThemePickerCategoryId(value);
                     setThemePickerThemeId(null);
                   }}
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">すべて</option>
                   {categories.map((c) => (
@@ -896,7 +866,7 @@ export default function IdeasClient() {
                   onChange={(e) =>
                     setThemePickerThemeId(e.target.value ? parseInt(e.target.value) : null)
                   }
-                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-blue-400"
                 >
                   <option value="">テーマを選択してください</option>
                   {themePickerThemes.map((th) => (

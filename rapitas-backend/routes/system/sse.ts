@@ -8,15 +8,47 @@ import { createLogger } from '../../config/logger';
 
 const log = createLogger('routes:sse');
 
+// Must mirror the cors() allowlist in index.ts.
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'tauri://localhost',
+];
+
+/**
+ * Build SSE response headers INCLUDING CORS. These routes return a raw
+ * `new Response(stream)`, which bypasses the cors() middleware entirely — so
+ * browser EventSources (cross-origin: 3000 → 3001) got no
+ * Access-Control-Allow-Origin and fatally closed the moment the response
+ * arrived. Every SSE stream in the browser was silently dead because of this;
+ * curl worked (no Origin header), which masked it.
+ *
+ * @param request - Incoming request (for the Origin header) / リクエスト
+ * @returns Headers for the streaming response / ストリーム応答ヘッダ
+ */
+function sseHeaders(request: Request): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  };
+  const origin = request.headers.get('origin');
+  const allowed = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : DEFAULT_ALLOWED_ORIGINS;
+  if (origin && allowed.includes(origin)) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    headers['Access-Control-Allow-Credentials'] = 'true';
+    headers['Vary'] = 'Origin';
+  }
+  return headers;
+}
+
 export const sseRoutes = new Elysia({ prefix: '/events' })
   // Stream all events
   .get('/stream', (context) => {
-    const { set } = context;
-    set.headers = {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    };
+    const { set, request } = context;
+    set.headers = sseHeaders(request);
 
     const clientId = realtimeService.registerClient(
       {
@@ -55,26 +87,18 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
         },
       }),
       {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
+        headers: sseHeaders(request),
       },
     );
   })
 
   // Subscribe to specific channel
   .get('/subscribe/:channel', (context) => {
-    const { params, query, set } = context;
+    const { params, query, set, request } = context;
     const { channel } = params;
     const { lastEventId } = query;
 
-    set.headers = {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    };
+    set.headers = sseHeaders(request);
 
     log.info(`[SSE] Client connecting to channel: ${channel}`);
 
@@ -122,11 +146,7 @@ export const sseRoutes = new Elysia({ prefix: '/events' })
         },
       }),
       {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
+        headers: sseHeaders(request),
       },
     );
   })

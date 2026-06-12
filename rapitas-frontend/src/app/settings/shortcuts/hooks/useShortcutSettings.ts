@@ -28,6 +28,83 @@ export {
 
 const logger = createLogger('useShortcutSettings');
 
+// ────────────────────────────────────────────────────────────────────────────
+// Keyboard Recording Hooks
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Hook for recording global keyboard shortcuts.
+ */
+function useGlobalShortcutRecording(
+  isRecording: boolean,
+  onRecord: (modifiers: ModifierKey[], key: string) => void,
+  onStop: () => void,
+) {
+  useEffect(() => {
+    if (!isRecording) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+
+      const modifiers: ModifierKey[] = [];
+      if (e.ctrlKey) modifiers.push('Ctrl');
+      if (e.altKey) modifiers.push('Alt');
+      if (e.shiftKey) modifiers.push('Shift');
+
+      const key = resolveKeyFromEvent(e);
+      if (key && AVAILABLE_KEYS.includes(key)) {
+        onRecord(modifiers, key);
+      }
+      onStop();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isRecording, onRecord, onStop]);
+}
+
+/**
+ * Hook for recording in-app keyboard shortcuts.
+ */
+function useInAppShortcutRecording(
+  isRecording: boolean,
+  editingId: ShortcutId | null,
+  onRecord: (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => void,
+  onStop: () => void,
+) {
+  useEffect(() => {
+    if (!isRecording || !editingId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+
+      const key = resolveKeyFromEvent(e);
+      if (!key) return;
+
+      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
+        key,
+        meta: e.ctrlKey || e.metaKey,
+        shift: e.shiftKey,
+        ctrl: false,
+      };
+
+      onRecord(binding);
+      onStop();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isRecording, editingId, onRecord, onStop]);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Main Hook
+// ────────────────────────────────────────────────────────────────────────────
+
 /**
  * Manages global shortcut state, in-app shortcut editing, and keyboard recording.
  *
@@ -101,62 +178,38 @@ export function useShortcutSettings() {
     loadGlobalShortcut();
   }, [loadGlobalShortcut]);
 
-  // Global shortcut keyboard recording
-  useEffect(() => {
-    if (!isRecordingGlobal) return;
+  // Handle global shortcut recording result
+  const handleGlobalRecord = useCallback((modifiers: ModifierKey[], key: string) => {
+    setGlobalModifiers(modifiers);
+    setGlobalKey(key);
+    setGlobalMessage(null);
+  }, []);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
-
-      const modifiers: ModifierKey[] = [];
-      if (e.ctrlKey) modifiers.push('Ctrl');
-      if (e.altKey) modifiers.push('Alt');
-      if (e.shiftKey) modifiers.push('Shift');
-
-      const key = resolveKeyFromEvent(e);
-      if (key && AVAILABLE_KEYS.includes(key)) {
-        setGlobalModifiers(modifiers);
-        setGlobalKey(key);
-        setGlobalMessage(null);
-      }
-      setIsRecordingGlobal(false);
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isRecordingGlobal]);
-
-  // In-app shortcut keyboard recording
-  useEffect(() => {
-    if (!isRecordingInApp || !editingId) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
-
-      const key = resolveKeyFromEvent(e);
-      if (!key) return;
-
-      const binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'> = {
-        key,
-        meta: e.ctrlKey || e.metaKey,
-        shift: e.shiftKey,
-        ctrl: false,
-      };
-
+  // Handle in-app shortcut recording result
+  const handleInAppRecord = useCallback(
+    (binding: Pick<ShortcutBinding, 'key' | 'meta' | 'shift' | 'ctrl'>) => {
       setEditBinding(binding);
-      setIsRecordingInApp(false);
+      if (editingId) {
+        const dup = findDuplicate(editingId, binding);
+        setDuplicateWarning(dup ? t('duplicateWith', { label: dup.label }) : null);
+      }
+    },
+    [editingId, findDuplicate, t],
+  );
 
-      const dup = findDuplicate(editingId, binding);
-      setDuplicateWarning(dup ? t('duplicateWith', { label: dup.label }) : null);
-    };
+  // Use extracted keyboard recording hooks
+  useGlobalShortcutRecording(
+    isRecordingGlobal,
+    handleGlobalRecord,
+    useCallback(() => setIsRecordingGlobal(false), []),
+  );
 
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isRecordingInApp, editingId, findDuplicate]);
+  useInAppShortcutRecording(
+    isRecordingInApp,
+    editingId,
+    handleInAppRecord,
+    useCallback(() => setIsRecordingInApp(false), []),
+  );
 
   const toggleGlobalModifier = (mod: ModifierKey) => {
     setGlobalModifiers((prev) =>

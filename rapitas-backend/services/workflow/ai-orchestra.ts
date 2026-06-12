@@ -1,8 +1,11 @@
 /**
  * AI Orchestra Service
  *
- * Coordinates and manages multi-task execution like a conductor.
- * Handles task prioritization, dependency analysis, and concurrent execution.
+ * Drives subtask execution for split parent tasks via the workflow queue/runner.
+ * NOTE: The manual multi-task "conductor" surface (conductWorkflow/stop/resume +
+ * dependency analysis/prioritization helpers) was removed along with its
+ * /orchestra control-panel page as unused — subtask execution and plan-approval
+ * resume are the only live entry points.
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
@@ -11,19 +14,6 @@ import { WorkflowRunner } from './workflow-runner';
 import { realtimeService } from '../communication/realtime-service';
 
 const log = createLogger('ai-orchestra');
-
-export interface OrchestraConfig {
-  maxConcurrency?: number;
-  autoStart?: boolean;
-  priorityStrategy?: 'fifo' | 'priority' | 'dependency_aware';
-}
-
-export interface ConductResult {
-  sessionId: number;
-  enqueuedTasks: number;
-  skippedTasks: number;
-  errors: Array<{ taskId: number; error: string }>;
-}
 
 export interface OrchestraState {
   session: {
@@ -48,19 +38,6 @@ export interface OrchestraState {
   };
 }
 
-interface TaskWithRelations {
-  id: number;
-  title: string;
-  description: string | null;
-  priority: string;
-  status: string;
-  estimatedHours: number | null;
-  workflowStatus: string | null;
-  workflowMode: string | null;
-  themeId: number | null;
-  parentId: number | null;
-}
-
 export class AIOrchestra {
   private static instance: AIOrchestra;
   private currentSessionId: number | null = null;
@@ -77,145 +54,6 @@ export class AIOrchestra {
       AIOrchestra.instance = new AIOrchestra();
     }
     return AIOrchestra.instance;
-  }
-
-  /**
-   * Start orchestration for multiple tasks.
-   */
-  async conductWorkflow(taskIds: number[], config: OrchestraConfig = {}): Promise<ConductResult> {
-    const { maxConcurrency = 3, autoStart = true, priorityStrategy = 'dependency_aware' } = config;
-
-    // Stop existing active session if any
-    if (this.currentSessionId) {
-      await this.stop();
-    }
-
-    // Create session
-    const session = await prisma.orchestraSession.create({
-      data: {
-        status: 'conducting',
-        maxConcurrency,
-        totalTasks: taskIds.length,
-        startedAt: new Date(),
-        metadata: JSON.stringify({ priorityStrategy, config }),
-      },
-    });
-    this.currentSessionId = session.id;
-
-    // Set queue concurrency
-    this.queue.setMaxConcurrency(maxConcurrency);
-
-    // Fetch task information
-    const tasks = (await prisma.task.findMany({
-      where: { id: { in: taskIds } },
-    })) as TaskWithRelations[];
-
-    // Analyze dependencies
-    const dependencyMap = await this.analyzeDependencies(tasks);
-
-    // Calculate priorities
-    const prioritizedTasks = this.prioritizeTasks(tasks, dependencyMap, priorityStrategy);
-
-    // Enqueue tasks
-    const errors: Array<{ taskId: number; error: string }> = [];
-    let enqueuedCount = 0;
-    let skippedCount = 0;
-
-    for (const { task, priority, dependencies } of prioritizedTasks) {
-      // Skip completed tasks
-      if (task.status === 'done' || task.workflowStatus === 'completed') {
-        skippedCount++;
-        continue;
-      }
-
-      try {
-        await this.queue.enqueue({
-          taskId: task.id,
-          priority,
-          dependencies,
-          orchestraSessionId: session.id,
-        });
-        enqueuedCount++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        errors.push({ taskId: task.id, error: msg });
-        log.warn(`[AIOrchestra] Failed to enqueue task ${task.id}: ${msg}`);
-      }
-    }
-
-    // Update session
-    await prisma.orchestraSession.update({
-      where: { id: session.id },
-      data: { totalTasks: enqueuedCount },
-    });
-
-    log.info(
-      `[AIOrchestra] Session ${session.id}: enqueued ${enqueuedCount}, skipped ${skippedCount}, errors ${errors.length}`,
-    );
-
-    // Start runner
-    if (autoStart && enqueuedCount > 0) {
-      this.runner.startProcessing();
-    }
-
-    this.broadcastState('orchestra_started');
-
-    return {
-      sessionId: session.id,
-      enqueuedTasks: enqueuedCount,
-      skippedTasks: skippedCount,
-      errors,
-    };
-  }
-
-  /**
-   * Stop orchestration.
-   */
-  async stop(): Promise<void> {
-    await this.runner.stopProcessing();
-
-    if (this.currentSessionId) {
-      // Tally completed and failed counts
-      const items = await this.queue.getSessionItems(this.currentSessionId);
-      const completed = items.filter((i) => i.status === 'completed').length;
-      const failed = items.filter((i) => i.status === 'failed').length;
-
-      await prisma.orchestraSession.update({
-        where: { id: this.currentSessionId },
-        data: {
-          status: 'paused',
-          completedTasks: completed,
-          failedTasks: failed,
-        },
-      });
-      log.info(`[AIOrchestra] Session ${this.currentSessionId} paused`);
-    }
-
-    this.broadcastState('orchestra_stopped');
-  }
-
-  /**
-   * Resume a paused orchestration.
-   */
-  async resume(): Promise<boolean> {
-    if (!this.currentSessionId) {
-      // Find the latest paused session
-      const session = await prisma.orchestraSession.findFirst({
-        where: { status: 'paused' },
-        orderBy: { updatedAt: 'desc' },
-      });
-      if (!session) return false;
-      this.currentSessionId = session.id;
-    }
-
-    await prisma.orchestraSession.update({
-      where: { id: this.currentSessionId },
-      data: { status: 'conducting' },
-    });
-
-    this.runner.startProcessing();
-    this.broadcastState('orchestra_resumed');
-    return true;
   }
 
   /**
@@ -298,150 +136,62 @@ export class AIOrchestra {
   }
 
   /**
-   * Analyze inter-task dependencies (with cycle detection).
+   * Enqueue all not-yet-done subtasks of a parent for SEQUENTIAL execution
+   * (ascending id = creation order). The queue's sibling guard runs them one at
+   * a time. Used after a parent plan is approved and split into subtasks: the
+   * parent never implements directly — its subtasks do, and completing the last
+   * one triggers the parent's integration verify.md (→ PR → parent done).
+   *
+   * @param parentTaskId - The split parent task. / 分割された親タスク
+   * @returns Number of subtasks enqueued. / enqueue したサブタスク数
    */
-  private async analyzeDependencies(tasks: TaskWithRelations[]): Promise<Map<number, number[]>> {
-    const depMap = new Map<number, number[]>();
-    const taskIdSet = new Set(tasks.map((t) => t.id));
-
-    for (const task of tasks) {
-      const deps: number[] = [];
-
-      // Dependency on parent task
-      if (task.parentId && taskIdSet.has(task.parentId)) {
-        deps.push(task.parentId);
-      }
-
-      // Dependencies are inferred from parent-child links + same-theme ordering only;
-      // explicit TaskDependency rows were removed as a feature.
-
-      // Same-theme preceding tasks (sequential to avoid git conflicts)
-      if (task.themeId) {
-        const sameThemeTasks = tasks.filter(
-          (t) => t.themeId === task.themeId && t.id !== task.id && t.id < task.id,
-        );
-        for (const st of sameThemeTasks) {
-          if (!deps.includes(st.id)) {
-            deps.push(st.id);
-          }
-        }
-      }
-
-      depMap.set(task.id, deps);
-    }
-
-    // Cycle detection
-    const cycles = this.detectCyclicDependencies(depMap);
-    if (cycles.length > 0) {
-      const cycleStrings = cycles.map((cycle) => cycle.join(' -> '));
-      log.warn(`[AIOrchestra] Circular dependencies detected: ${cycleStrings.join(', ')}`);
-      throw new Error(`Circular dependencies detected: ${cycleStrings.join(', ')}`);
-    }
-
-    return depMap;
-  }
-
-  /**
-   * Detect cyclic dependencies (DFS with White/Gray/Black state tracking).
-   */
-  private detectCyclicDependencies(depMap: Map<number, number[]>): number[][] {
-    const WHITE = 0; // Unvisited
-    const GRAY = 1; // In progress (on stack)
-    const BLACK = 2; // Completed
-
-    const colors = new Map<number, number>();
-    const cycles: number[][] = [];
-    const currentPath: number[] = [];
-
-    // Initialize all nodes
-    for (const taskId of depMap.keys()) {
-      colors.set(taskId, WHITE);
-    }
-
-    const dfs = (taskId: number): boolean => {
-      if (colors.get(taskId) === GRAY) {
-        // Cycle detected
-        const cycleStart = currentPath.indexOf(taskId);
-        if (cycleStart >= 0) {
-          cycles.push([...currentPath.slice(cycleStart), taskId]);
-        }
-        return true;
-      }
-
-      if (colors.get(taskId) === BLACK) {
-        return false; // Already processed
-      }
-
-      colors.set(taskId, GRAY);
-      currentPath.push(taskId);
-
-      const dependencies = depMap.get(taskId) || [];
-      for (const depTaskId of dependencies) {
-        if (dfs(depTaskId)) {
-          return true; // Cycle already detected
-        }
-      }
-
-      currentPath.pop();
-      colors.set(taskId, BLACK);
-      return false;
-    };
-
-    // Explore all nodes
-    for (const taskId of depMap.keys()) {
-      if (colors.get(taskId) === WHITE) {
-        dfs(taskId);
-      }
-    }
-
-    return cycles;
-  }
-
-  /**
-   * Calculate task priorities.
-   */
-  private prioritizeTasks(
-    tasks: TaskWithRelations[],
-    dependencyMap: Map<number, number[]>,
-    strategy: string,
-  ): Array<{ task: TaskWithRelations; priority: number; dependencies: number[] }> {
-    const result = tasks.map((task) => {
-      let priority = 50; // Default
-
-      if (strategy === 'fifo') {
-        // FIFO: lower ID goes first
-        priority = Math.max(0, 100 - task.id);
-      } else {
-        // priority/dependency_aware
-        // Convert task priority string to numeric score
-        const priorityScore: Record<string, number> = {
-          urgent: 90,
-          high: 75,
-          medium: 50,
-          low: 25,
-        };
-        priority = priorityScore[task.priority] || 50;
-
-        // Slight priority boost for short-estimate tasks (small-task-first)
-        if (task.estimatedHours && task.estimatedHours <= 1) {
-          priority += 10;
-        }
-
-        // Fewer dependencies = higher priority
-        const deps = dependencyMap.get(task.id) || [];
-        priority += Math.max(0, 10 - deps.length * 3);
-      }
-
-      return {
-        task,
-        priority: Math.max(0, Math.min(100, priority)),
-        dependencies: dependencyMap.get(task.id) || [],
-      };
+  async enqueueSubtasksForExecution(parentTaskId: number): Promise<number> {
+    const subtasks = await prisma.task.findMany({
+      where: {
+        parentId: parentTaskId,
+        status: { notIn: ['done', 'cancelled', 'archived'] },
+      },
+      orderBy: { id: 'asc' },
+      select: { id: true },
     });
 
-    // Sort by priority descending
-    result.sort((a, b) => b.priority - a.priority);
-    return result;
+    // The parent never implements directly — its subtasks do. Move it to
+    // `in_progress` so (a) the UI shows it actively running its subtasks
+    // instead of being stuck at plan_approved, and (b) the workflow file
+    // guard later accepts the parent's integration verify.md (which is
+    // rejected at plan_approved). Without this the parent was orphaned at
+    // plan_approved and never completed after its subtasks finished.
+    if (subtasks.length > 0) {
+      await prisma.task
+        .update({
+          where: { id: parentTaskId },
+          data: { workflowStatus: 'in_progress', status: 'in-progress' },
+        })
+        .catch((err) => {
+          log.warn(
+            { err, parentTaskId },
+            '[AIOrchestra] Failed to move split parent to in_progress before enqueue',
+          );
+        });
+    }
+
+    let enqueued = 0;
+    for (const st of subtasks) {
+      try {
+        const res = await this.enqueueTask({ taskId: st.id });
+        if (res.success) enqueued++;
+      } catch (err) {
+        // enqueue throws on a duplicate (already queued/running) — non-fatal.
+        log.warn({ err, subtaskId: st.id, parentTaskId }, '[AIOrchestra] Subtask enqueue skipped');
+      }
+    }
+    if (enqueued > 0) {
+      log.info(
+        { parentTaskId, enqueued },
+        '[AIOrchestra] Enqueued subtasks for sequential execution',
+      );
+    }
+    return enqueued;
   }
 
   /**
@@ -474,6 +224,14 @@ export class AIOrchestra {
 
       // Auto-resume
       this.runner.startProcessing();
+    }
+
+    // Recover theme auto-run state (must run AFTER recoverStaleItems requeues items)
+    try {
+      const { ThemeAutoRunScheduler } = await import('./auto-run/theme-auto-run-scheduler');
+      await ThemeAutoRunScheduler.getInstance().recoverOnStartup();
+    } catch (err) {
+      log.warn({ err }, '[AIOrchestra] Failed to recover theme auto-run state');
     }
   }
 

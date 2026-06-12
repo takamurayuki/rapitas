@@ -24,7 +24,7 @@ export function LoadingPhase({ topRef, t, variant }: LoadingPhaseProps) {
     <div
       className="cmd-gen"
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - 4rem - 1px)',
         background: 'var(--bg)',
         display: 'flex',
         alignItems: 'center',

@@ -14,6 +14,7 @@ For production releases, it's recommended to sign your Tauri application:
 - **`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`**: Password for the signing key
 
 To generate signing keys:
+
 ```bash
 cd rapitas-desktop
 pnpm tauri signer generate
@@ -28,12 +29,14 @@ The `GITHUB_TOKEN` is automatically provided by GitHub Actions and doesn't need 
 The CI/CD pipeline consists of several workflow files:
 
 ### 1. `tauri-build.yml`
+
 - **Purpose**: Build Tauri applications for all platforms
 - **Triggers**: Push to main branches, tags, PRs, manual dispatch
 - **Outputs**: Platform-specific installers (exe, msi, dmg, AppImage, deb, rpm)
 - **Platforms**: Windows, macOS (Intel & Apple Silicon), Linux
 
 ### 2. `test-lint.yml`
+
 - **Purpose**: Run tests and linting checks
 - **Triggers**: Push to main branches, PRs
 - **Jobs**:
@@ -43,6 +46,7 @@ The CI/CD pipeline consists of several workflow files:
   - Rust code formatting and Clippy checks
 
 ### 3. `security-scan.yml`
+
 - **Purpose**: Security vulnerability scanning
 - **Triggers**: Push to main branches, PRs, weekly schedule
 - **Scans**:
@@ -52,11 +56,13 @@ The CI/CD pipeline consists of several workflow files:
   - CodeQL for code-level security issues
 
 ### 4. `pr-preview.yml`
+
 - **Purpose**: Quick build checks for PRs
 - **Triggers**: Pull requests with code changes
 - **Features**: Posts build status as PR comment
 
 ### 5. `update-releases.yml`
+
 - **Purpose**: Generate update metadata for Tauri auto-updater
 - **Triggers**: Release events, manual dispatch
 - **Output**: `update.json` file for Tauri updater
@@ -72,6 +78,7 @@ The CI/CD pipeline consists of several workflow files:
    - Add the required secrets mentioned above
 
 3. **Create Release Tags**:
+
    ```bash
    git tag v1.0.0
    git push origin v1.0.0
@@ -94,6 +101,7 @@ Build artifacts are automatically uploaded for each platform:
 The Tauri auto-updater is configured to check for updates using the `update.json` file generated during releases.
 
 To enable auto-updates in your application:
+
 1. Ensure the `update-releases.yml` workflow runs on releases
 2. Configure the updater endpoint in your Tauri configuration
 3. Implement update checking in your application code
@@ -118,11 +126,13 @@ The CI/CD pipeline uses a special configuration to avoid database dependencies a
 ### Database Dependencies in CI
 
 The CI/CD pipeline does NOT require PostgreSQL to be running because:
+
 - The Tauri CI configuration (`tauri.ci.conf.json`) bypasses the dev.js script
 - Frontend and backend are built independently
 - No database operations are performed during the build process
 
 If you see PostgreSQL connection errors in CI, ensure:
+
 1. The build is using `--config src-tauri/tauri.ci.conf.json`
 2. The `ci:prepare` script is run instead of the regular dev script
 
@@ -135,11 +145,13 @@ If you encounter `Unknown lockfile version` errors:
 1. **Temporary Fix**: The CI/CD pipeline is configured with `BUN_LOCKFILE_SKIP=true` to bypass lockfile validation
 2. **Root Cause**: This occurs due to lockfile version compatibility between different Bun versions
 3. **Local Fix**: To regenerate the lockfile locally:
+
    ```bash
    cd rapitas-backend
    rm -f bun.lock
    bun install
    ```
+
 4. **Automated Fix**: Run the `fix-bun-lock.yml` workflow manually to create a PR with updated lockfile
 5. **Long-term Solution**: Keep Bun version consistent across local development and CI
 
@@ -150,12 +162,14 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 1. **Temporary Fix**: The CI/CD pipeline now uses `pnpm install --no-frozen-lockfile` to allow lockfile updates
 2. **Root Cause**: New dependencies were added to package.json but the lockfile wasn't updated
 3. **Local Fix**: To update the lockfile locally:
+
    ```bash
    cd rapitas-frontend  # or rapitas-desktop
    pnpm install
    git add pnpm-lock.yaml
    git commit -m "fix: update pnpm lockfile"
    ```
+
 4. **Prevention**: Always commit lockfile changes when adding/updating dependencies
 5. **CI Behavior**: The `--no-frozen-lockfile` flag allows CI to update the lockfile automatically, but changes won't be persisted
 
@@ -190,6 +204,7 @@ If you encounter `pnpm-lock.yaml is not up to date` errors:
 ## Support
 
 For CI/CD issues:
+
 1. Check workflow logs in the Actions tab
 2. Review this documentation
 3. Open an issue with relevant logs and context

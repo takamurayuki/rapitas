@@ -54,7 +54,7 @@ export function SubtaskEditForm({
       <div className="space-y-4">
         <input
           type="text"
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm font-medium shadow-sm focus:outline-none focus:border-blue-400"
           value={editingSubtaskTitle}
           onChange={(e) => onSetEditingTitle(e.target.value)}
           placeholder={t('subtaskTitle')}
@@ -62,7 +62,7 @@ export function SubtaskEditForm({
         />
 
         <textarea
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-2 text-sm shadow-sm focus:outline-none focus:border-blue-400"
           value={editingSubtaskDescription}
           onChange={(e) => onSetEditingDescription(e.target.value)}
           placeholder={t('descriptionMarkdown')}
@@ -113,7 +113,7 @@ export function SubtaskEditForm({
               type="number"
               step="0.5"
               min="0"
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
               placeholder="0"
               value={editingSubtaskEstimatedHours}
               onChange={(e) => onSetEditingEstimatedHours(e.target.value)}
@@ -128,7 +128,7 @@ export function SubtaskEditForm({
           </label>
           <input
             type="text"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-indigo-dark-900 px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:border-blue-400"
             placeholder={t('labelsCommaSeparated')}
             value={editingSubtaskLabels}
             onChange={(e) => onSetEditingLabels(e.target.value)}

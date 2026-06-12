@@ -104,7 +104,7 @@ export function ThemeForm({
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder={t('themeNamePlaceholder')}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
             autoFocus
           />
         </div>
@@ -119,7 +119,7 @@ export function ThemeForm({
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder={t('descriptionPlaceholder')}
             rows={1}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none"
+            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
           />
         </div>
 
@@ -140,7 +140,7 @@ export function ThemeForm({
                 type="text"
                 value={formData.color}
                 onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
+                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all font-mono"
               />
             </div>
           </div>
@@ -174,7 +174,7 @@ export function ThemeForm({
               value={iconSearchQuery}
               onChange={(e) => setIconSearchQuery(e.target.value)}
               placeholder={t('searchIconPlaceholder')}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-blue-400 transition-all"
             />
           </div>
 
@@ -197,8 +197,8 @@ export function ThemeForm({
         </div>
       </div>
 
-      {/* Category selector */}
-      {categories.length > 0 && (
+      {/* Category selector — hidden while editing: the active category tab already shows it. */}
+      {!isEdit && categories.length > 0 && (
         <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 space-y-3">
           <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
             {t('belongsToCategory')} <span className="text-red-500">*</span>
@@ -232,7 +232,7 @@ export function ThemeForm({
                   categoryId: e.target.value ? Number(e.target.value) : null,
                 })
               }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
             >
               <option value="" disabled>
                 {t('selectCategory')}

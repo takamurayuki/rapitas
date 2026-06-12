@@ -1,7 +1,7 @@
 'use client';
 // WorkflowTabBar
 
-import { Clock } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle2 } from 'lucide-react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
 import type { WorkflowTab } from './workflow-viewer-utils';
 
@@ -16,6 +16,12 @@ interface WorkflowTabBarProps {
   effectiveStatus: WorkflowStatus | null;
   /** Called when user clicks a tab */
   onTabChange: (tab: WorkflowFileType) => void;
+  /** Active file's last-modified time; undefined when no file is shown. */
+  lastModified?: string | null;
+  /** Manual reload trigger (rendered at the right of the tab row). */
+  onRefetch?: () => void;
+  /** Whether a reload is in flight. */
+  isRefetching?: boolean;
 }
 
 /**
@@ -33,9 +39,14 @@ export function WorkflowTabBar({
   tabStatus,
   effectiveStatus,
   onTabChange,
+  lastModified,
+  onRefetch,
+  isRefetching,
 }: WorkflowTabBarProps) {
   return (
-    <div className="border-b border-zinc-200 dark:border-zinc-700">
+    // Sticky below the task-detail toolbar (top-11) so the tabs stay reachable
+    // while scrolling the file; the in-file TOC sticks just beneath this bar.
+    <div className="sticky top-11 z-[6] flex items-center justify-between border-b border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
       <nav className="flex">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -57,22 +68,41 @@ export function WorkflowTabBar({
             >
               <TabIcon className="h-4 w-4" />
               <span>{tab.label}</span>
-              {needsAttention ? (
-                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
-                  <Clock className="h-2.5 w-2.5" />
-                  承認待ち
-                </span>
-              ) : (
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    hasContent ? 'bg-green-500' : 'bg-zinc-300 dark:bg-zinc-600'
-                  }`}
-                />
-              )}
+              {
+                needsAttention ? (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
+                    <Clock className="h-2.5 w-2.5" />
+                    承認待ち
+                  </span>
+                ) : hasContent ? (
+                  // A filled check reads as "this phase is done" — the previous
+                  // solid green dot looked like a live/active status light.
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                ) : null
+                // Not produced yet: show nothing — an in-progress phase surfaces
+                // its own loading indicator elsewhere.
+              }
             </button>
           );
         })}
       </nav>
+      {onRefetch && (
+        <div className="flex shrink-0 items-center gap-2 px-3 text-xs text-zinc-500 dark:text-zinc-400">
+          {lastModified !== undefined && (
+            <span>
+              更新: {lastModified ? new Date(lastModified).toLocaleString('ja-JP') : '不明'}
+            </span>
+          )}
+          <button
+            onClick={onRefetch}
+            disabled={isRefetching}
+            title="再読み込み"
+            className="text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

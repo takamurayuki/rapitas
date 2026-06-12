@@ -35,12 +35,27 @@ async function getThemeIdsForCategory(categoryId: number): Promise<number[]> {
 
 export type IdeaScope = 'global' | 'project';
 
+/**
+ * How much the idea would innovate or raise the app's value if built. Conveys
+ * the idea's "temperature": high = transformative, low = nice-to-have.
+ */
+export type IdeaPriority = 'urgent' | 'high' | 'medium' | 'low';
+
+const VALID_PRIORITIES: readonly IdeaPriority[] = ['urgent', 'high', 'medium', 'low'];
+
+/** Coerces an arbitrary value to a valid priority, defaulting to medium. */
+export function normalizeIdeaPriority(value: unknown): IdeaPriority {
+  return VALID_PRIORITIES.includes(value as IdeaPriority) ? (value as IdeaPriority) : 'medium';
+}
+
 export interface IdeaBoxEntry {
   id: number;
   title: string;
   content: string;
   category: string;
   scope: IdeaScope;
+  /** Innovation / value-uplift priority (idea "temperature"). */
+  priority: IdeaPriority;
   tags: string[];
   confidence: number;
   themeId: number | null;
@@ -56,6 +71,8 @@ export interface SubmitIdeaInput {
   category?: string;
   /** "global" for cross-project ideas, "project" for project-specific */
   scope?: IdeaScope;
+  /** Innovation / value-uplift priority (idea "temperature"). */
+  priority?: IdeaPriority;
   themeId?: number;
   taskId?: number;
   tags?: string[];
@@ -70,6 +87,40 @@ export interface SubmitIdeaInput {
  * @param input - Idea details / アイデアの詳細
  * @returns Created KnowledgeEntry ID, or existing ID if duplicate / 作成されたID
  */
+/**
+ * Resolve the most appropriate theme for ideas filed against a task, so they
+ * don't fall into the "global" bucket just because the task itself has no theme.
+ * Order: the task's own theme → a theme whose working directory matches the
+ * task's → the default theme. Returns null only when none can be found (then the
+ * idea is genuinely global).
+ *
+ * @param taskId - Task the idea came from / アイデアの発生元タスクID
+ * @returns The best theme id, or null. / 最適なテーマID、無ければnull
+ */
+export async function resolveTaskThemeId(taskId: number): Promise<number | null> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { themeId: true, workingDirectory: true },
+    });
+    if (task?.themeId != null) return task.themeId;
+    if (task?.workingDirectory) {
+      const byDir = await prisma.theme.findFirst({
+        where: { workingDirectory: task.workingDirectory },
+        select: { id: true },
+      });
+      if (byDir) return byDir.id;
+    }
+    const def = await prisma.theme.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
+    return def?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   const hash = createContentHash(`${input.title}:${input.content}`);
 
@@ -85,7 +136,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   }
 
   const scope = input.scope ?? (input.themeId ? 'project' : 'global');
-  const allTags = [...(input.tags ?? []), `scope:${scope}`];
+  const priority = normalizeIdeaPriority(input.priority);
+  const allTags = [...(input.tags ?? []), `scope:${scope}`, `priority:${priority}`];
 
   const entry = await prisma.knowledgeEntry.create({
     data: {
@@ -107,13 +159,11 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
 
   log.info({ id: entry.id, title: input.title }, 'Idea submitted');
 
-  // Pipeline: enrich (Ollama) → review (Haiku) asynchronously
+  // Pipeline: enrich (Ollama) → review (Haiku) asynchronously, serialised via
+  // the shared enrichment queue so bursts of submissions don't fire concurrent
+  // local-LLM calls (which can spike CPU and starve foreground requests).
   import('./idea-extractor')
-    .then(({ enrichIdea }) =>
-      enrichIdea(entry.id, input.title, input.content).then(() =>
-        import('./idea-extractor').then(({ reviewIdea }) => reviewIdea(entry.id)),
-      ),
-    )
+    .then(({ runEnrichAndReview }) => runEnrichAndReview(entry.id, input.title, input.content))
     .catch(() => {});
 
   return entry.id;
@@ -130,12 +180,32 @@ export async function listIdeas(options: {
   themeId?: number;
   unusedOnly?: boolean;
   scope?: IdeaScope;
+  /** Lifecycle filter: open = not yet turned into a task, used = already turned. */
+  status?: 'open' | 'used' | 'all';
+  /** Filter by priority level (urgent | high | medium | low). */
+  priority?: string;
   limit?: number;
   offset?: number;
 }): Promise<{ ideas: IdeaBoxEntry[]; total: number }> {
-  const { categoryId, themeId, unusedOnly = false, scope, limit = 20, offset = 0 } = options;
+  const {
+    categoryId,
+    themeId,
+    unusedOnly = false,
+    scope,
+    status,
+    priority,
+    limit = 20,
+    offset = 0,
+  } = options;
 
-  const where = await buildWhereClause(categoryId, themeId, unusedOnly, scope);
+  const where = await buildWhereClause({
+    categoryId,
+    themeId,
+    unusedOnly,
+    scope,
+    status,
+    priority,
+  });
 
   // PERF: project the FE-shown columns only. The default Prisma select
   // pulls every column from KnowledgeEntry — including `content` (often
@@ -208,6 +278,8 @@ export interface UpdateIdeaInput {
   content?: string;
   category?: string;
   scope?: IdeaScope;
+  /** Innovation / value-uplift priority. Omit to keep the current value. */
+  priority?: IdeaPriority;
   /** Pass null to clear the existing themeId; undefined to leave unchanged. */
   themeId?: number | null;
   tags?: string[];
@@ -251,10 +323,17 @@ export async function updateIdea(ideaId: number, input: UpdateIdeaInput): Promis
   // Reconcile scope tag with the new themeId. Explicit scope wins, otherwise
   // derive from themeId presence.
   const existingTags = JSON.parse(existing.tags || '[]') as string[];
-  const userTags = (input.tags ?? existingTags).filter((t) => !t.startsWith('scope:'));
+  const userTags = (input.tags ?? existingTags).filter(
+    (t) => !t.startsWith('scope:') && !t.startsWith('priority:'),
+  );
   const nextScope: IdeaScope =
     input.scope ?? (nextThemeId !== null && nextThemeId !== undefined ? 'project' : 'global');
-  const nextTags = [...userTags, `scope:${nextScope}`];
+  // Keep the existing priority unless explicitly changed.
+  const existingPriorityTag = existingTags.find((t) => t.startsWith('priority:'));
+  const nextPriority = normalizeIdeaPriority(
+    input.priority ?? existingPriorityTag?.slice('priority:'.length),
+  );
+  const nextTags = [...userTags, `scope:${nextScope}`, `priority:${nextPriority}`];
 
   const nextHash = createContentHash(`${nextTitle}:${nextContent}`);
 
@@ -355,12 +434,15 @@ export async function getIdeaStats(categoryId?: number): Promise<{
 }
 
 /** Build Prisma where clause for idea queries. */
-async function buildWhereClause(
-  categoryId?: number,
-  themeId?: number,
-  unusedOnly?: boolean,
-  scope?: IdeaScope,
-) {
+async function buildWhereClause(opts: {
+  categoryId?: number;
+  themeId?: number;
+  unusedOnly?: boolean;
+  scope?: IdeaScope;
+  status?: 'open' | 'used' | 'all';
+  priority?: string;
+}) {
+  const { categoryId, themeId, unusedOnly, scope, status, priority } = opts;
   // themeIdが直接指定されている場合はそれを優先、そうでなければcategoryIdからthemeIdsを取得
   let themeFilter: Record<string, unknown> = {};
   if (themeId) {
@@ -395,12 +477,35 @@ async function buildWhereClause(
     scopeFilter = { themeId: -1 };
   }
 
+  // Lifecycle: an idea is "used" once it has been turned into a task
+  // (markIdeaAsUsed sets sourceId to `used_task_<id>`). `status` takes
+  // precedence over the legacy `unusedOnly` flag.
+  const usedCond = { sourceId: { startsWith: 'used_task_' } };
+  let statusFilter: Record<string, unknown> = {};
+  if (status === 'used') statusFilter = usedCond;
+  else if (status === 'open') statusFilter = { NOT: usedCond };
+  else if (unusedOnly) statusFilter = { NOT: usedCond };
+
+  // Priority is stored as a `priority:<level>` tag; ideas with no such tag are
+  // shown as 'medium' (see toIdeaBoxEntry). To make the filter match what the UI
+  // shows, 'medium' also matches ideas that have no priority tag at all. Other
+  // levels match their explicit tag. Only filter when a level is requested.
+  let priorityFilter: Record<string, unknown> = {};
+  if (priority === 'medium') {
+    priorityFilter = {
+      OR: [{ tags: { contains: 'priority:medium' } }, { NOT: { tags: { contains: 'priority:' } } }],
+    };
+  } else if (priority) {
+    priorityFilter = { tags: { contains: `priority:${priority}` } };
+  }
+
   return {
     sourceType: 'idea_box' as const,
     forgettingStage: 'active',
-    ...(unusedOnly ? { NOT: { sourceId: { startsWith: 'used_task_' } } } : {}),
+    ...statusFilter,
     ...themeFilter,
     ...scopeFilter,
+    ...priorityFilter,
   };
 }
 
@@ -421,13 +526,17 @@ function toIdeaBoxEntry(entry: {
   const parsedTags = JSON.parse(entry.tags || '[]') as string[];
   const scopeTag = parsedTags.find((t) => t.startsWith('scope:'));
   const scope: IdeaScope = scopeTag === 'scope:project' ? 'project' : 'global';
+  const priorityTag = parsedTags.find((t) => t.startsWith('priority:'));
+  const priority = normalizeIdeaPriority(priorityTag?.slice('priority:'.length));
   return {
     id: entry.id,
     title: entry.title,
     content: entry.content,
     category: entry.category,
     scope,
-    tags: parsedTags.filter((t) => !t.startsWith('scope:')),
+    priority,
+    // Hide internal scope:/priority: markers from the FE-visible tag list.
+    tags: parsedTags.filter((t) => !t.startsWith('scope:') && !t.startsWith('priority:')),
     confidence: entry.confidence,
     themeId: entry.themeId,
     taskId: entry.taskId,

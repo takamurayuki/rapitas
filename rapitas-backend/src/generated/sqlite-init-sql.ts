@@ -385,6 +385,9 @@ CREATE TABLE "Task" (
     "agentGenerated" BOOLEAN NOT NULL DEFAULT false,
     "agentExecutable" BOOLEAN NOT NULL DEFAULT false,
     "executionInstructions" TEXT,
+    "goals" TEXT,
+    "constraints" TEXT,
+    "acceptanceCriteria" TEXT,
     "githubIssueId" INTEGER,
     "githubPrId" INTEGER,
     "autoExecutable" BOOLEAN NOT NULL DEFAULT false,
@@ -603,11 +606,15 @@ CREATE TABLE "WorkflowOptimizationRule" (
 CREATE TABLE "PromptEvolution" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "experimentId" INTEGER,
-    "category" TEXT NOT NULL,
-    "beforePrompt" TEXT NOT NULL,
-    "afterPrompt" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT '',
+    "beforePrompt" TEXT NOT NULL DEFAULT '',
+    "afterPrompt" TEXT NOT NULL DEFAULT '',
     "improvement" TEXT,
     "performanceDelta" REAL NOT NULL DEFAULT 0,
+    "basePromptKey" TEXT,
+    "reason" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'completed',
+    "evidenceJson" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "PromptEvolution_experimentId_fkey" FOREIGN KEY ("experimentId") REFERENCES "Experiment" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -687,6 +694,7 @@ CREATE TABLE "GitHubIssue" (
     "authorLogin" TEXT NOT NULL,
     "url" TEXT NOT NULL,
     "linkedTaskId" INTEGER,
+    "linkedConcernId" INTEGER,
     "lastSyncedAt" DATETIME NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
@@ -800,39 +808,6 @@ CREATE TABLE "Resource" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "Resource_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "Task" ("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- CreateTable
-CREATE TABLE "FlashcardDeck" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "color" TEXT NOT NULL DEFAULT '#3B82F6',
-    "taskId" INTEGER,
-    "learningGoalId" INTEGER,
-    "phaseIndex" INTEGER,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "Flashcard" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "deckId" INTEGER NOT NULL,
-    "front" TEXT NOT NULL,
-    "back" TEXT NOT NULL,
-    "nextReview" DATETIME,
-    "interval" INTEGER NOT NULL DEFAULT 1,
-    "easeFactor" REAL NOT NULL DEFAULT 2.5,
-    "reviewCount" INTEGER NOT NULL DEFAULT 0,
-    "stability" REAL NOT NULL DEFAULT 0,
-    "difficulty" REAL NOT NULL DEFAULT 0,
-    "state" INTEGER NOT NULL DEFAULT 0,
-    "lapses" INTEGER NOT NULL DEFAULT 0,
-    "lastReview" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
-    CONSTRAINT "Flashcard_deckId_fkey" FOREIGN KEY ("deckId") REFERENCES "FlashcardDeck" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -983,6 +958,25 @@ CREATE TABLE "KnowledgeGraphEdge" (
 );
 
 -- CreateTable
+CREATE TABLE "DecisionLog" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "decision" TEXT NOT NULL,
+    "context" TEXT NOT NULL,
+    "rationale" TEXT,
+    "predictedOutcome" TEXT NOT NULL,
+    "confidence" REAL NOT NULL DEFAULT 0.5,
+    "reviewDate" DATETIME,
+    "actualOutcome" TEXT,
+    "calibration" TEXT NOT NULL DEFAULT 'pending',
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "themeId" INTEGER,
+    "taskId" INTEGER,
+    "reviewedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "EpisodeMemory" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "experimentId" INTEGER NOT NULL,
@@ -1080,6 +1074,31 @@ CREATE TABLE "UserSettings" (
 );
 
 -- CreateTable
+CREATE TABLE "BacklogSchedule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "kind" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT false,
+    "frequency" TEXT NOT NULL DEFAULT 'weekly',
+    "hour" INTEGER NOT NULL DEFAULT 3,
+    "weekday" INTEGER NOT NULL DEFAULT 1,
+    "lastRunAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "ThemeBacklogSchedule" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "kind" TEXT NOT NULL,
+    "themeId" INTEGER NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "logDir" TEXT,
+    "logFormat" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "username" TEXT NOT NULL,
@@ -1114,6 +1133,20 @@ CREATE TABLE "UserSession" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "UserSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "SearchMiss" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "query" TEXT NOT NULL,
+    "hitCount" INTEGER NOT NULL DEFAULT 0,
+    "lastSearchedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" TEXT NOT NULL DEFAULT 'open',
+    "suggestedTaskId" INTEGER,
+    "themeId" INTEGER,
+    "resolvedAt" DATETIME,
+    "resolvedResultCount" INTEGER,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -1257,6 +1290,7 @@ CREATE TABLE "WorkflowTransition" (
 CREATE TABLE "WorkflowQueueItem" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "taskId" INTEGER NOT NULL,
+    "themeId" INTEGER,
     "orchestraSessionId" INTEGER,
     "priority" INTEGER NOT NULL DEFAULT 50,
     "status" TEXT NOT NULL DEFAULT 'queued',
@@ -1272,6 +1306,22 @@ CREATE TABLE "WorkflowQueueItem" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "WorkflowQueueItem_orchestraSessionId_fkey" FOREIGN KEY ("orchestraSessionId") REFERENCES "OrchestraSession" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "ThemeAutoRun" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "themeId" INTEGER NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT false,
+    "status" TEXT NOT NULL DEFAULT 'idle',
+    "order" TEXT NOT NULL DEFAULT 'priority',
+    "currentTaskId" INTEGER,
+    "processedCount" INTEGER NOT NULL DEFAULT 0,
+    "lastError" TEXT,
+    "lastRunAt" DATETIME,
+    "startedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateIndex
@@ -1428,6 +1478,9 @@ CREATE INDEX "PromptEvolution_category_idx" ON "PromptEvolution"("category");
 CREATE INDEX "PromptEvolution_performanceDelta_idx" ON "PromptEvolution"("performanceDelta");
 
 -- CreateIndex
+CREATE INDEX "PromptEvolution_status_idx" ON "PromptEvolution"("status");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "GitHubIntegration_repositoryUrl_key" ON "GitHubIntegration"("repositoryUrl");
 
 -- CreateIndex
@@ -1536,6 +1589,15 @@ CREATE INDEX "KnowledgeGraphEdge_edgeType_idx" ON "KnowledgeGraphEdge"("edgeType
 CREATE UNIQUE INDEX "KnowledgeGraphEdge_fromNodeId_toNodeId_edgeType_key" ON "KnowledgeGraphEdge"("fromNodeId", "toNodeId", "edgeType");
 
 -- CreateIndex
+CREATE INDEX "DecisionLog_status_reviewDate_idx" ON "DecisionLog"("status", "reviewDate");
+
+-- CreateIndex
+CREATE INDEX "DecisionLog_calibration_idx" ON "DecisionLog"("calibration");
+
+-- CreateIndex
+CREATE INDEX "DecisionLog_themeId_idx" ON "DecisionLog"("themeId");
+
+-- CreateIndex
 CREATE INDEX "EpisodeMemory_experimentId_idx" ON "EpisodeMemory"("experimentId");
 
 -- CreateIndex
@@ -1564,6 +1626,12 @@ CREATE INDEX "PaidLeaveBalance_fiscalYear_idx" ON "PaidLeaveBalance"("fiscalYear
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PaidLeaveBalance_userId_fiscalYear_key" ON "PaidLeaveBalance"("userId", "fiscalYear");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BacklogSchedule_kind_key" ON "BacklogSchedule"("kind");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThemeBacklogSchedule_kind_themeId_key" ON "ThemeBacklogSchedule"("kind", "themeId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
@@ -1597,6 +1665,18 @@ CREATE INDEX "UserSession_sessionToken_idx" ON "UserSession"("sessionToken");
 
 -- CreateIndex
 CREATE INDEX "UserSession_expiresAt_idx" ON "UserSession"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SearchMiss_query_key" ON "SearchMiss"("query");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_status_idx" ON "SearchMiss"("status");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_hitCount_idx" ON "SearchMiss"("hitCount");
+
+-- CreateIndex
+CREATE INDEX "SearchMiss_themeId_idx" ON "SearchMiss"("themeId");
 
 -- CreateIndex
 CREATE INDEX "PomodoroSession_status_idx" ON "PomodoroSession"("status");
@@ -1641,5 +1721,14 @@ CREATE INDEX "WorkflowQueueItem_orchestraSessionId_idx" ON "WorkflowQueueItem"("
 CREATE INDEX "WorkflowQueueItem_taskId_idx" ON "WorkflowQueueItem"("taskId");
 
 -- CreateIndex
+CREATE INDEX "WorkflowQueueItem_themeId_status_idx" ON "WorkflowQueueItem"("themeId", "status");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowQueueItem_taskId_orchestraSessionId_key" ON "WorkflowQueueItem"("taskId", "orchestraSessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ThemeAutoRun_themeId_key" ON "ThemeAutoRun"("themeId");
+
+-- CreateIndex
+CREATE INDEX "ThemeAutoRun_status_idx" ON "ThemeAutoRun"("status");
 `;

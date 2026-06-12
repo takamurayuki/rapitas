@@ -21,6 +21,7 @@ import type { QuestionWaitingState } from '../question-detection';
 import type { WorkerOutputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
+import { prisma } from '../../../config/database';
 import { checkClaudeAvailable } from './cli-utils';
 import { handleWorkerMessage } from './worker-message-handler';
 import type { WorkerResultUsageSnapshot } from './worker-message-handler';
@@ -66,6 +67,11 @@ export class ClaudeCodeAgent extends BaseAgent {
   public config: ClaudeCodeAgentConfig;
   /** @internal */
   public outputBuffer: string = '';
+  /**
+   * @internal The clean FINAL assistant message from the stream-json `result`
+   * event (no narration / tool output). Used by investigation phases.
+   */
+  public finalResultText: string = '';
   /** @internal */
   public errorBuffer: string = '';
   /** @internal Buffer for parsing stream-json format */
@@ -170,6 +176,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     workDir: string,
     startTime: number,
     resolve: (result: AgentExecutionResult) => void,
+    taskId?: number,
   ): () => void {
     return buildResolveAfterParse(
       this as unknown as Parameters<typeof buildResolveAfterParse>[0],
@@ -179,6 +186,30 @@ export class ClaudeCodeAgent extends BaseAgent {
       resolve,
       () => this.workerArtifacts,
       () => this.workerCommits,
+      // A plan saved via the workflow API flips workflowStatus to plan_created;
+      // treat that as "awaiting approval" rather than a do-nothing failure.
+      async () => {
+        if (!taskId) return false;
+        try {
+          const t = await prisma.task.findUnique({
+            where: { id: taskId },
+            select: { workflowStatus: true },
+          });
+          if (t?.workflowStatus === 'plan_created' || t?.workflowStatus === 'plan_approved') {
+            return true;
+          }
+          // A plan that was split into subtasks delegates all implementation
+          // to those subtasks, so the parent's own run legitimately produces
+          // no code — and by then it has already auto-advanced to in_progress.
+          // Without this, a split parent was reported as a "no code changes"
+          // failure even though splitting was the correct outcome.
+          const subtaskCount = await prisma.task.count({ where: { parentId: taskId } });
+          return subtaskCount > 0;
+        } catch {
+          return false;
+        }
+      },
+      this.config.investigationMode,
     );
   }
 
@@ -239,7 +270,7 @@ export class ClaudeCodeAgent extends BaseAgent {
 
     return new Promise((resolve) => {
       runClaudeExecution(this, task, workDir, startTime, timeout, resolve, (code, wd, st, res) =>
-        this.buildResolveAfterParse(code, wd, st, res),
+        this.buildResolveAfterParse(code, wd, st, res, task.id),
       );
     });
   }

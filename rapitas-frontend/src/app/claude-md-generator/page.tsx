@@ -28,8 +28,8 @@ export default function ClaudeMdGeneratorPage() {
         genre={w.answers.genre}
         selectedSubs={w.answers.subs || []}
         dynamicSubs={w.dynamicSubs}
-        subsLoading={w.subsLoading}
         onToggle={w.toggleSub}
+        onAddCustom={w.addCustomSub}
         onNext={w.handleSubNext}
         onBack={() => w.setPhase('genre')}
       />
@@ -42,8 +42,8 @@ export default function ClaudeMdGeneratorPage() {
         t={w.t}
         selectedElements={w.answers.elements || []}
         dynamicElements={w.dynamicElements}
-        elementsLoading={w.elementsLoading}
         onToggle={w.toggleElement}
+        onAddCustom={w.addCustomElement}
         onNext={() => w.setPhase('platform')}
         onBack={() => w.setPhase('sub')}
       />
@@ -92,11 +92,11 @@ export default function ClaudeMdGeneratorPage() {
         t={w.t}
         pickedProp={w.pickedProp}
         result={w.result}
-        copied={w.copied}
         setupPhase={w.setupPhase}
+        agentTargetId={w.agentTargetId}
+        onSetAgentTarget={w.setAgentTargetId}
         createdThemePath={w.createdThemePath}
         setupError={w.setupError}
-        onCopy={w.handleCopy}
         onRestart={w.handleRestart}
         onCreateTheme={w.handleCreateTheme}
         onResetSetup={w.handleResetSetup}

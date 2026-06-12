@@ -36,6 +36,13 @@ const mockPrisma = {
   userBehaviorSummary: {
     findFirst: mock(() => Promise.resolve(null)),
   },
+  activityLog: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+  },
+  notification: {
+    create: mock(() => Promise.resolve({ id: 1 })),
+    updateMany: mock(() => Promise.resolve({ count: 0 })),
+  },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
 };
 
@@ -123,6 +130,9 @@ function resetAllMocks() {
   mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
     fn(mockPrisma),
   );
+  // createTask chains `notification.create(...).catch(...)`; a reset
+  // (undefined-returning) mock would throw on `.catch` of undefined → 500.
+  mockPrisma.notification.create.mockResolvedValue({ id: 1 });
 }
 
 function createApp() {
@@ -519,5 +529,69 @@ describe('GET /tasks/search', () => {
       where: { themeId?: number };
     };
     expect(call.where.themeId).toBe(3);
+  });
+});
+
+describe('POST /tasks/:id/retry', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    // resetAllMocks clears the default implementations too — the retry route
+    // chains .catch() on these, so they must resolve (undefined.catch throws).
+    mockPrisma.activityLog.create.mockResolvedValue({ id: 1 });
+    mockPrisma.notification.updateMany.mockResolvedValue({ count: 0 });
+    app = createApp();
+  });
+
+  test('blocked タスクを todo に戻すこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ status: 'blocked' });
+    mockPrisma.task.update.mockResolvedValue({ id: 5, status: 'todo' });
+
+    const res = await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('todo');
+    const updateArg = mockPrisma.task.update.mock.calls[0]![0] as {
+      where: { id: number };
+      data: { status: string };
+    };
+    expect(updateArg.where.id).toBe(5);
+    expect(updateArg.data.status).toBe('todo');
+  });
+
+  test('スキップ通知を既読化して再発時の通知抑止を解除すること', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ status: 'failed' });
+    mockPrisma.task.update.mockResolvedValue({ id: 5, status: 'todo' });
+
+    await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    const notifArg = mockPrisma.notification.updateMany.mock.calls[0]![0] as {
+      where: { type: string; metadata: { contains: string } };
+      data: { isRead: boolean };
+    };
+    expect(notifArg.where.type).toBe('auto_run_task_skipped');
+    expect(notifArg.where.metadata.contains).toContain('auto_run_task_skipped:5');
+    expect(notifArg.data.isRead).toBe(true);
+  });
+
+  test('blocked / failed 以外は 400 を返すこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ status: 'in-progress' });
+
+    const res = await app.handle(new Request('http://localhost/tasks/5/retry', { method: 'POST' }));
+
+    expect(res.status).toBe(400);
+    expect(mockPrisma.task.update).not.toHaveBeenCalled();
+  });
+
+  test('存在しないタスクは 404 を返すこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue(null);
+
+    const res = await app.handle(
+      new Request('http://localhost/tasks/999/retry', { method: 'POST' }),
+    );
+
+    expect(res.status).toBe(404);
   });
 });

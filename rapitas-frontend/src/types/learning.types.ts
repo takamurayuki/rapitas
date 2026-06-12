@@ -2,7 +2,7 @@
  * learning.types
  *
  * Type definitions for learning-related domain entities: labels, exam goals, study streaks,
- * learning goals, habits, resources, and flashcards.
+ * learning goals, habits, and resources.
  */
 
 export type Label = {
@@ -138,32 +138,6 @@ export type Resource = {
   fileName?: string | null;
   fileSize?: number | null;
   mimeType?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type FlashcardDeck = {
-  id: number;
-  name: string;
-  description?: string | null;
-  color: string;
-  taskId?: number | null;
-  cards?: Flashcard[];
-  _count?: { cards: number };
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Flashcard = {
-  id: number;
-  deckId: number;
-  front: string;
-  back: string;
-  nextReview?: string | null;
-  interval: number;
-  easeFactor: number;
-  reviewCount: number;
-  deck?: FlashcardDeck;
   createdAt: string;
   updatedAt: string;
 };

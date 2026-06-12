@@ -72,6 +72,13 @@ describe('filterDataStore', () => {
       expect(state.isInitialized).toBe(false);
       expect(state.error).toBeNull();
     });
+
+    it('should also evict the api-client cache for categories and themes', () => {
+      (clearApiCache as ReturnType<typeof vi.fn>).mockClear();
+      useFilterDataStore.getState().clearCache();
+      expect(clearApiCache).toHaveBeenCalledWith('/categories');
+      expect(clearApiCache).toHaveBeenCalledWith('/themes');
+    });
   });
 
   describe('isDataFresh', () => {
@@ -139,6 +146,25 @@ describe('filterDataStore', () => {
       });
       await useFilterDataStore.getState().initializeData();
       expect(apiFetch).not.toHaveBeenCalled();
+    });
+
+    it('should refetch when initialized and fresh but categories is empty (stale empty cache)', async () => {
+      useFilterDataStore.setState({
+        isInitialized: true,
+        lastUpdated: Date.now(),
+        categories: [] as never[],
+        themes: [] as never[],
+      });
+      const mockCategories = [{ id: 1, name: 'Cat1' }];
+      const mockThemes = [{ id: 1, name: 'Theme1' }];
+      vi.mocked(apiFetch).mockResolvedValueOnce(mockCategories).mockResolvedValueOnce(mockThemes);
+
+      await useFilterDataStore.getState().initializeData();
+
+      expect(apiFetch).toHaveBeenCalled();
+      const state = useFilterDataStore.getState();
+      expect(state.categories).toEqual(mockCategories);
+      expect(state.themes).toEqual(mockThemes);
     });
 
     it('should fetch categories and themes on initialization', async () => {

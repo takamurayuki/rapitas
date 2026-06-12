@@ -287,6 +287,16 @@ export class ExecutionFileLogger {
   }
 
   /**
+   * Record a warning.
+   *
+   * @param message - Warning description / 警告説明
+   * @param context - Optional structured context / 追加コンテキスト（省略可）
+   */
+  logWarn(message: string, context?: Record<string, unknown>): void {
+    this.log('WARN', 'error', message, context);
+  }
+
+  /**
    * Record an error.
    *
    * @param message - Error description / エラー説明

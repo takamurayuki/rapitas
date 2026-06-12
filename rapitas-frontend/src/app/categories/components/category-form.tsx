@@ -57,8 +57,8 @@ interface CategoryFormProps {
   iconSearchQuery: string;
   /** Setter for icon search query / アイコン検索クエリのセッター */
   setIconSearchQuery: (q: string) => void;
-  /** Icons matching the current search query (max 50) / 検索結果のアイコン一覧 */
-  filteredIcons: { name: string }[];
+  /** Icon names matching the current search query (max 50) / 検索結果のアイコン名一覧 */
+  filteredIcons: string[];
   /** Debounced icon search query used to detect the 50-result cap / デバウンス済みクエリ */
   debouncedIconSearchQuery: string;
   /** Called when the user cancels the form / キャンセル時のコールバック */
@@ -97,7 +97,7 @@ export function CategoryForm({
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder={t('categoryNamePlaceholder')}
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all"
           autoFocus
         />
       </div>
@@ -111,7 +111,7 @@ export function CategoryForm({
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder={t('categoryDescriptionPlaceholder')}
           rows={1}
-          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+          className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all resize-none"
         />
       </div>
 
@@ -131,7 +131,7 @@ export function CategoryForm({
               type="text"
               value={formData.color}
               onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-              className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono"
+              className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-blue-400 transition-all font-mono"
             />
           </div>
         </div>
@@ -164,7 +164,7 @@ export function CategoryForm({
             value={iconSearchQuery}
             onChange={(e) => setIconSearchQuery(e.target.value)}
             placeholder={t('searchIconPlaceholder')}
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:border-blue-400 transition-all"
           />
         </div>
 
@@ -176,7 +176,7 @@ export function CategoryForm({
           )}
           <div className="grid grid-cols-8 gap-1 p-2">
             <IconGrid
-              icons={filteredIcons.map((i) => i.name)}
+              icons={filteredIcons}
               selectedIcon={formData.icon}
               onIconSelect={(iconName) => setFormData({ ...formData, icon: iconName })}
               renderIcon={renderIcon}

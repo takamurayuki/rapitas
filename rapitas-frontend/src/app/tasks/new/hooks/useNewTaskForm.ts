@@ -39,6 +39,10 @@ export function useNewTaskForm() {
   const [dueDate, setDueDate] = useState('');
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('comprehensive');
   const [isWorkflowModeOverride, setIsWorkflowModeOverride] = useState(false);
+  // Structured spec (one item per line); folded into description on submit.
+  const [goals, setGoals] = useState('');
+  const [constraints, setConstraints] = useState('');
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState('');
 
   // ── Remote data + derived values ──────────────────────────────────────────
   const { themes, categories, globalSettings, selectedTheme, visibleThemes } = useTaskFormData({
@@ -58,6 +62,9 @@ export function useNewTaskForm() {
       dueDate,
       workflowMode,
       isWorkflowModeOverride,
+      goals,
+      constraints,
+      acceptanceCriteria,
       selectedTheme,
       globalSettings,
     },
@@ -67,6 +74,9 @@ export function useNewTaskForm() {
       setPriority,
       setEstimatedHours,
       setSelectedLabelIds,
+      setGoals,
+      setConstraints,
+      setAcceptanceCriteria,
     },
   );
 
@@ -94,6 +104,12 @@ export function useNewTaskForm() {
     setWorkflowMode,
     isWorkflowModeOverride,
     setIsWorkflowModeOverride,
+    goals,
+    setGoals,
+    constraints,
+    setConstraints,
+    acceptanceCriteria,
+    setAcceptanceCriteria,
     // remote data
     themes,
     categories,

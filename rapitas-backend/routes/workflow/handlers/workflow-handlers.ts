@@ -13,3 +13,4 @@ export {
   handleAdvanceWorkflow,
 } from './workflow-handlers-plan';
 export { handleSetMode, handleAnalyzeComplexity, handleGetModes } from './workflow-handlers-mode';
+export { handleResumeFromQuestion } from './workflow-handlers-resume';

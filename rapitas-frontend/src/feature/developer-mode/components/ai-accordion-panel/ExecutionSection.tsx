@@ -13,13 +13,26 @@ import {
   RefreshCw,
   ExternalLink,
 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import type { Task } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
 import type { ExecutionLogStatus } from '../ExecutionLogViewer';
 import type { ParallelExecutionStatus } from '@/feature/tasks/components/SubtaskExecutionStatus';
 import { ExecutionBody, workflowPhaseLabel } from './ExecutionBody';
+import { ExecutionCapabilityGuide, type ExecutionCapability } from './ExecutionCapabilityGuide';
 
 export type ExecutionSectionProps = {
+  /**
+   * Capability state. When not `ready`, the body renders an inline setup
+   * guide instead of the execution UI, and the header "実行" button is
+   * disabled. Defaults to `ready` for backward compatibility.
+   */
+  capability?: ExecutionCapability;
+  /** Theme ID for deep-linking the capability guide. */
+  themeId?: number | null;
+  /** Task ID — used to open this task's PR detail page after completion. */
+  taskId: number;
   isExpanded: boolean;
   onToggle: () => void;
   // Status flags
@@ -65,9 +78,12 @@ export type ExecutionSectionProps = {
   optimizedPrompt?: string | null;
   instruction: string;
   branchName: string;
+  baseBranch: string;
+  baseBranches: string[];
   isGeneratingBranchName: boolean;
   onSetInstruction: (v: string) => void;
   onSetBranchName: (v: string) => void;
+  onSetBaseBranch: (v: string) => void;
   onGenerateBranchName: () => Promise<void>;
   // Action handlers
   onExecute: () => Promise<void>;
@@ -83,6 +99,9 @@ export type ExecutionSectionProps = {
  * @param props - All derived state and event handlers from the parent component.
  */
 export function ExecutionSection({
+  capability = 'ready',
+  themeId,
+  taskId,
   isExpanded,
   onToggle,
   isRunning,
@@ -118,15 +137,55 @@ export function ExecutionSection({
   optimizedPrompt,
   instruction,
   branchName,
+  baseBranch,
+  baseBranches,
   isGeneratingBranchName,
   onSetInstruction,
   onSetBranchName,
+  onSetBaseBranch,
   onGenerateBranchName,
   onExecute,
   onStop,
   onReset,
   onRerun,
 }: ExecutionSectionProps) {
+  const router = useRouter();
+  const [prError, setPrError] = useState<string | null>(null);
+
+  // Open this task's PR detail page (replaces the old approval-page link). The
+  // PR is auto-created on completion, so resolve it by task and navigate. When
+  // it can't be resolved, surface why (not created vs. created-but-not-synced)
+  // instead of silently doing nothing.
+  const openTaskPr = async () => {
+    setPrError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
+      if (res.ok) {
+        const pr = (await res.json()) as { id: number };
+        router.push(`/github/pull-requests/${pr.id}`);
+        return;
+      }
+      const body = (await res.json().catch(() => null)) as {
+        reason?: string;
+        prUrl?: string;
+        error?: string;
+      } | null;
+      // PR exists on GitHub but isn't synced locally — open it on GitHub.
+      if (body?.reason === 'not_synced') {
+        if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
+        setPrError(
+          body.prUrl
+            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
+            : (body.error ?? 'PRはローカルに同期されていません。'),
+        );
+        return;
+      }
+      setPrError(body?.error ?? 'このタスクのPRはまだ作成されていません。');
+    } catch {
+      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
+    }
+  };
+
   return (
     <div>
       {/* Accordion header with action buttons */}
@@ -210,14 +269,16 @@ export function ExecutionSection({
                 <RefreshCw className="w-2.5 h-2.5" />
                 リセット
               </button>
-              <Link
-                href="/approvals"
-                onClick={(e) => e.stopPropagation()}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTaskPr();
+                }}
                 className="flex items-center gap-1 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-medium rounded transition-colors"
               >
                 <ExternalLink className="w-2.5 h-2.5" />
-                承認
-              </Link>
+                PRを開く
+              </button>
             </>
           )}
           {isCancelled && (
@@ -284,10 +345,15 @@ export function ExecutionSection({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onExecute();
+                if (capability === 'ready') onExecute();
               }}
-              disabled={isExecuting}
-              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50"
+              disabled={isExecuting || capability !== 'ready'}
+              title={
+                capability !== 'ready'
+                  ? 'タスクの設定が完了するとエージェントを実行できます'
+                  : '実行開始'
+              }
+              className="flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="実行開始"
             >
               <Play className="w-2.5 h-2.5" />
@@ -302,7 +368,20 @@ export function ExecutionSection({
         </div>
       </div>
 
-      {isExpanded && (
+      {prError && (
+        <div className="px-4 pb-2 -mt-1 flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>{prError}</span>
+        </div>
+      )}
+
+      {isExpanded && capability !== 'ready' && (
+        <div id="execution-section-content" className="px-4 pb-3 space-y-3">
+          <ExecutionCapabilityGuide capability={capability} themeId={themeId} />
+        </div>
+      )}
+
+      {isExpanded && capability === 'ready' && (
         <div id="execution-section-content" className="px-4 pb-3 space-y-3">
           <ExecutionBody
             isRunning={isRunning}
@@ -336,9 +415,12 @@ export function ExecutionSection({
             optimizedPrompt={optimizedPrompt}
             instruction={instruction}
             branchName={branchName}
+            baseBranch={baseBranch}
+            baseBranches={baseBranches}
             isGeneratingBranchName={isGeneratingBranchName}
             onSetInstruction={onSetInstruction}
             onSetBranchName={onSetBranchName}
+            onSetBaseBranch={onSetBaseBranch}
             onGenerateBranchName={onGenerateBranchName}
           />
         </div>

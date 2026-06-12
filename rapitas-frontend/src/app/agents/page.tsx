@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
-import { Activity, Brain } from 'lucide-react';
 import type { AIAgentConfig } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import WorkflowRolesConfig from '@/components/workflow/WorkflowRolesConfig';
@@ -126,34 +124,15 @@ export default function AgentsPage() {
     fetchData();
   }, [fetchData]);
 
+  // NOTE: No inner fixed-height overflow container. The header is `sticky
+  // top-0`, so a single document-level scroll keeps it pinned — adding an
+  // inner `h-[calc(100vh-Nrem)] overflow-auto` produced a SECOND scrollbar.
   return (
-    <div className="h-[calc(100vh-5rem)] overflow-auto bg-background scrollbar-thin">
+    <div className="min-h-[calc(100vh-4rem)] bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                {t('pageTitle')}
-              </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link
-                href="/agents/memory"
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                <Brain className="w-4 h-4" />
-                記憶
-              </Link>
-              <Link
-                href="/agents/metrics"
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <Activity className="w-4 h-4" />
-                {t('metrics')}
-              </Link>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{t('pageTitle')}</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('pageSubtitle')}</p>
         </div>
 
         <div className="mb-6 space-y-3">

@@ -55,6 +55,8 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
     `## Workflow Steps`,
     `Please execute the task in the following order:`,
     `1. Research → Save research.md`,
+    `   - **調査は時間を区切る**: 問題を理解できる程度に調べたら、すぐ research.md を書いて次へ進む。完全に原因特定できなくても、現時点の所見・仮説・未解明点を research.md に記録すること（延々と grep/read を繰り返さない）。`,
+    `   - **調査で Task/Agent（サブエージェント）を起動しない**: 自分で直接調べる。サブエージェントは時間とトークンを浪費する。`,
     `2. If unclear points exist, save question.md + AskUserQuestion (MUST use multiple-choice options — see Question Format below)`,
     task.autoApprovePlan
       ? `3. Create and save plan.md → **Plan will be auto-approved. Proceed to implementation immediately after saving.**`
@@ -64,7 +66,12 @@ function buildSimplePrompt(task: AgentTask, workDir: string): string {
       : `4. Implement after approval`,
     `5. Save verify.md`,
     ``,
-    `**ファイル保存API**: \`curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/{research|question|plan|verify} -H 'Content-Type: application/json' -d '{"content":"..."}\`\``,
+    `**ファイル保存API（UTF-8厳守）**:`,
+    `1. 保存内容を Write ツールで UTF-8 の一時ファイルに書き出す（例: \`${workDir}/.wf-tmp.md\`。プロジェクトルートには作らない）`,
+    `2. 生ファイルを送信: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
+    `3. 2xx 応答後に一時ファイルを削除`,
+    `- **重要**: Windows では PowerShell のパイプや \`-d\` のインライン文字列で curl に渡さない（既定の US-ASCII で日本語が "?" に化ける）。必ず上記の一時ファイル+\`--data-binary\` 方式・\`curl.exe\` を使う。`,
+    `- 文字化け("?"置換)を検出すると保存APIは HTTP 422 で拒否する。その場合は UTF-8 で再送信する。`,
     ``,
     `## Question Format (MANDATORY)`,
     `When asking questions via AskUserQuestion, you MUST provide multiple-choice options.`,
@@ -181,6 +188,12 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
   sections.push('');
   sections.push('1. **Research**: Investigate the codebase and save results as research.md');
   sections.push(
+    '   - **Time-box the investigation**: once you understand the problem well enough, WRITE research.md and move on. If you cannot fully pin the root cause, record your findings, hypotheses, and open questions in research.md instead of grepping/reading indefinitely.',
+  );
+  sections.push(
+    '   - **Do NOT spawn sub-agents (Task/Agent tool) to investigate** — investigate directly; sub-agents waste time and tokens.',
+  );
+  sections.push(
     '2. **Questions**: If there are unclear points, save as question.md and ask with AskUserQuestion.',
   );
   sections.push(
@@ -205,43 +218,34 @@ function buildAnalysisPrompt(task: AgentTask, workDir: string): string {
       ? '4. **Implementation**: Implement immediately (auto-approved — do not wait for user approval)'
       : '4. **Implementation**: Implement after user approves the plan (do not ask questions at this stage)',
   );
-  sections.push('5. **Verification**: Save implementation results as verify.md');
-  sections.push('');
-  sections.push('### How to Save Workflow Files');
   sections.push(
-    '**Important**: Workflow files must be saved using the following API. Do not create them directly on the filesystem with mkdir/Write etc.',
+    '5. **Verification**: Save implementation results as verify.md. If you made NO code changes because none were actually needed, you MUST state that reason explicitly (e.g. "変更不要: 既に正しく実装されている") in verify.md — a passing verify with an empty diff and no such justification is rejected as an incomplete (silently-skipped) implementation.',
   );
   sections.push('');
-  sections.push('**Prohibited Actions**:');
-  sections.push('- **Never create files in the project root. Temporary files are no exception.**');
+  sections.push('### How to Save Workflow Files (UTF-8 — IMPORTANT)');
   sections.push(
-    '- File creation in project root using Write tool or Bash tool (mkdir/echo) is prohibited.',
-  );
-  sections.push(
-    '- **Do not create temporary files like implementation_*.md, temp_*.md, *_content.json, etc.**',
+    'Save each workflow file via the API below. To avoid character corruption (Japanese turning into "?"), DO NOT inline the content into the shell command.',
   );
   sections.push('');
-  sections.push('```bash');
-  sections.push(`# Save research.md`);
+  sections.push('**Procedure (per file):**');
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/research -H 'Content-Type: application/json' -d '{"content":"# Research Results\\n..."}'`,
+    `1. Write the markdown to a UTF-8 temp file with your Write tool inside the working directory (e.g. \`${workDir}/.wf-tmp.md\`) — NOT in the project root.`,
   );
+  sections.push(
+    `2. Send the raw file as the body: \`curl.exe -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/<research|question|plan|verify> -H "Content-Type: text/markdown; charset=utf-8" --data-binary @${workDir}/.wf-tmp.md\``,
+  );
+  sections.push('3. Delete the temp file after a successful (2xx) response.');
   sections.push('');
-  sections.push(`# Save question.md`);
+  sections.push('**Rules:**');
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/question -H 'Content-Type: application/json' -d '{"content":"# Unclear Points\\n..."}'`,
+    '- On Windows, NEVER pipe content to curl in PowerShell and NEVER use `-d` with inline Japanese — PowerShell\'s default US-ASCII OutputEncoding corrupts it to "?". Always use the temp-file + `--data-binary` method above, with `curl.exe` (not the PowerShell `curl` alias).',
   );
-  sections.push('');
-  sections.push(`# Save plan.md`);
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/plan -H 'Content-Type: application/json' -d '{"content":"# Implementation Plan\\n..."}'`,
+    '- If the content is corrupted ("?" replacement), the API rejects the save with HTTP 422 — re-send as UTF-8 using the method above.',
   );
-  sections.push('');
-  sections.push(`# Save verify.md`);
   sections.push(
-    `curl -X PUT http://localhost:${port}/workflow/tasks/${task.id}/files/verify -H 'Content-Type: application/json' -d '{"content":"# Verification Report\\n..."}'`,
+    '- The ONLY file you may create outside the proper output is the single transmission temp file above (inside the working directory). Never create files in the project root.',
   );
-  sections.push('```');
   sections.push('');
 
   sections.push('## Execution Instructions');

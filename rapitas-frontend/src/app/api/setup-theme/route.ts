@@ -11,6 +11,12 @@ const BACKEND_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
 interface SetupThemeRequest {
   appName: string;
   claudeMd: string;
+  /** 要件定義書のマークダウン全文（docs/requirements.md として書き込む） / Requirements doc */
+  requirements?: string;
+  /** 設計書のマークダウン全文（docs/design.md として書き込む） / Design doc */
+  design?: string;
+  /** エージェント指示ファイルの相対パス（例 .claude/CLAUDE.md / AGENTS.md） / Agent guide repo-relative path */
+  agentFilePath?: string;
   basePath?: string;
   description?: string;
 }
@@ -18,7 +24,7 @@ interface SetupThemeRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: SetupThemeRequest = await request.json();
-    const { appName, claudeMd, basePath, description } = body;
+    const { appName, claudeMd, requirements, design, agentFilePath, basePath, description } = body;
 
     if (!appName || !claudeMd) {
       return NextResponse.json(
@@ -38,6 +44,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         appName,
         claudeMd,
+        requirements,
+        design,
+        agentFilePath,
         basePath,
         description,
       }),

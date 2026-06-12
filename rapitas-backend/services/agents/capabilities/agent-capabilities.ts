@@ -88,7 +88,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     // Codex can run as researcher/planner/reviewer ONLY when wrapped in
     // investigationMode (--sandbox=read-only --ask-for-approval=never -o).
     // workflow-cli-executor enables this automatically for non-impl phases.
-    bestForRoles: ['implementer', 'researcher', 'planner', 'reviewer'],
+    bestForRoles: ['implementer', 'researcher', 'planner', 'reviewer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Optimized for direct code implementation. For research/plan/review phases, MUST be wrapped in investigationMode (--sandbox=read-only --ask-for-approval=never -o file.md) so it cannot modify code at the OS level. Otherwise prefers claude-code or API agents.',
@@ -101,7 +101,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier'],
+    bestForRoles: ['researcher', 'planner', 'reviewer', 'implementer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Generalist agent. Respects role-scoped prompts and produces clean markdown artifacts. Good fit for any phase.',
@@ -114,7 +114,7 @@ export const AGENT_CAPABILITIES: Readonly<Record<AgentType, AgentCapability>> = 
     goodForPlanning: true,
     goodForReview: true,
     supportsReadOnlySandbox: true,
-    bestForRoles: ['researcher', 'planner', 'reviewer', 'verifier'],
+    bestForRoles: ['researcher', 'planner', 'reviewer', 'verifier', 'auto_verifier'],
     avoidForRoles: [],
     notes:
       'Strong at analytical tasks (research, planning, review). Good markdown output. Slightly less consistent for raw code implementation than codex.',

@@ -16,6 +16,26 @@ import {
 } from './types';
 
 /**
+ * Tests whether a keyword occurs in text. ASCII keywords are matched on word
+ * boundaries so short tokens don't produce substring false positives (e.g. "ui"
+ * inside "build", "log" inside "login", "api" inside "capital"). CJK keywords
+ * have no word boundaries, so substring containment is used for them.
+ *
+ * @param text - Lowercased haystack / 小文字化済みの検索対象
+ * @param keyword - Keyword to look for / 検索キーワード
+ * @returns True if the keyword is present / キーワードが含まれていれば true
+ */
+function keywordMatches(text: string, keyword: string): boolean {
+  const k = keyword.toLowerCase();
+  // Printable-ASCII-only keyword → boundary match.
+  if (/^[\x20-\x7e]+$/.test(k)) {
+    const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`).test(text);
+  }
+  return text.includes(k);
+}
+
+/**
  * Keyword-based analysis.
  *
  * @param input - Task complexity input data / タスク複雑度の入力データ
@@ -30,7 +50,7 @@ export function analyzeKeywords(input: TaskComplexityInput): { score: number; re
 
   // Detect lightweight keywords
   for (const keyword of LIGHTWEIGHT_KEYWORDS) {
-    if (text.includes(keyword.toLowerCase())) {
+    if (keywordMatches(text, keyword)) {
       lightweightMatches++;
       reasons.push(`Lightweight keyword detected: "${keyword}"`);
     }
@@ -38,7 +58,7 @@ export function analyzeKeywords(input: TaskComplexityInput): { score: number; re
 
   // Detect heavyweight keywords
   for (const keyword of HEAVYWEIGHT_KEYWORDS) {
-    if (text.includes(keyword.toLowerCase())) {
+    if (keywordMatches(text, keyword)) {
       heavyweightMatches++;
       reasons.push(`Heavyweight keyword detected: "${keyword}"`);
     }
@@ -196,6 +216,61 @@ export function analyzeLabels(input: TaskComplexityInput): { score: number; reas
 }
 
 /**
+ * Scope / structure analysis.
+ *
+ * Uses concrete difficulty signals that scale with task size: the length of the
+ * description and the number of structured-spec items (goals + constraints +
+ * acceptance criteria). More detail and more criteria ⇒ a harder task. Returns a
+ * neutral 50 when neither signal is present.
+ *
+ * @param input - Task complexity input data / タスク複雑度の入力データ
+ * @returns Score 0-100 and reasoning strings / スコアと理由の文字列
+ */
+export function analyzeScope(input: TaskComplexityInput): { score: number; reasons: string[] } {
+  const reasons: string[] = [];
+  const descLength = (input.description ?? '').trim().length;
+  const specCount =
+    (input.goals?.length ?? 0) +
+    (input.constraints?.length ?? 0) +
+    (input.acceptanceCriteria?.length ?? 0);
+
+  if (descLength === 0 && specCount === 0) {
+    reasons.push('スコープ情報なし（説明・スペック未設定 → デフォルト値）');
+    return { score: 50, reasons };
+  }
+
+  // Description length → difficulty band.
+  let descScore: number | null = null;
+  if (descLength > 0) {
+    if (descLength < 80) descScore = 30;
+    else if (descLength < 250) descScore = 50;
+    else if (descLength < 600) descScore = 70;
+    else descScore = 85;
+    reasons.push(`説明文 ${descLength} 文字 (scope score ${descScore})`);
+  }
+
+  // Structured-spec count → difficulty band. Explicit criteria are a stronger
+  // signal than prose, so this is weighted higher when both are present.
+  let specScore: number | null = null;
+  if (specCount > 0) {
+    if (specCount <= 2) specScore = 45;
+    else if (specCount <= 5) specScore = 62;
+    else if (specCount <= 9) specScore = 78;
+    else specScore = 92;
+    reasons.push(`スペック項目 ${specCount} 件 (scope score ${specScore})`);
+  }
+
+  let score: number;
+  if (descScore !== null && specScore !== null) {
+    score = Math.round(descScore * 0.45 + specScore * 0.55);
+  } else {
+    score = (descScore ?? specScore) as number;
+  }
+
+  return { score, reasons };
+}
+
+/**
  * Determine recommended mode from complexity score.
  *
  * @param complexityScore - Aggregated complexity score 0-100 / 集計された複雑度スコア
@@ -241,6 +316,7 @@ export function calculateEstimatedExecutionTime(
  * @param timeScore - Score from time analysis / 時間分析スコア
  * @param priorityScore - Score from priority analysis / 優先度分析スコア
  * @param labelScore - Score from label analysis / ラベル分析スコア
+ * @param scopeScore - Score from scope analysis / スコープ分析スコア
  * @param hasEstimatedTime - Whether estimated time was provided / 推定時間が設定されているか
  * @returns Confidence value 0-1 / 確信度 0-1
  */
@@ -249,6 +325,7 @@ export function calculateConfidence(
   timeScore: number,
   priorityScore: number,
   labelScore: number,
+  scopeScore: number,
   hasEstimatedTime: boolean,
 ): number {
   // Weighted confidence from each analysis factor
@@ -264,7 +341,7 @@ export function calculateConfidence(
   confidence += Math.min(0.3, keywordDeviation / 100);
 
   // Consistency across analysis results
-  const scores = [keywordScore, timeScore, priorityScore, labelScore];
+  const scores = [keywordScore, timeScore, priorityScore, labelScore, scopeScore];
   const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
   const variance =
     scores.reduce((sum, score) => sum + Math.pow(score - avgScore, 2), 0) / scores.length;

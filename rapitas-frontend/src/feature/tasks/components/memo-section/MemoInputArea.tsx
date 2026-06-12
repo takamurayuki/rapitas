@@ -89,7 +89,7 @@ export function MemoInputArea({
             className={`w-full px-2.5 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border rounded-lg outline-none focus:ring-1 placeholder:text-zinc-400 resize-none transition-colors ${
               selectedMemoType !== 'general'
                 ? `${MEMO_TYPE_CONFIG[selectedMemoType].color.border} focus:border-current focus:ring-current/30`
-                : 'border-zinc-200 dark:border-zinc-700 focus:border-blue-400 focus:ring-blue-400/30'
+                : 'border-zinc-200 dark:border-zinc-700 focus:border-blue-400 focus:ring-indigo-400/30'
             }`}
             disabled={isAddingComment}
             rows={2}

@@ -7,6 +7,7 @@ import TaskDetailSkeleton from '@/components/ui/skeleton/TaskDetailSkeleton';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { useWorkflowFiles } from '@/hooks/workflow/useWorkflowFiles';
 import { createLogger } from '@/lib/logger';
+import { API_BASE_URL } from '@/utils/api';
 
 // Extracted hooks
 import { useTaskActions } from './hooks/useTaskActions';
@@ -22,6 +23,7 @@ import { useDeveloperModeSetup } from './hooks/useDeveloperModeSetup';
 import TaskDetailErrorState from './components/TaskDetailErrorState';
 import TaskDetailContent from './components/TaskDetailContent';
 import type { TaskDetailViewBodyProps } from './components/TaskDetailViewBody';
+import { useTaskTerminalContext } from '@/feature/terminal';
 
 const logger = createLogger('TaskDetailClient');
 
@@ -54,6 +56,9 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
 
   const taskId = resolvedTaskId ? parseInt(resolvedTaskId) : 0;
 
+  // Point the integrated terminal at this task's directory while detail is open.
+  useTaskTerminalContext(taskId);
+
   // ─── Data fetching ────────────────────────────────────────────────────────
   const {
     task,
@@ -66,6 +71,7 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     resources,
     setResources,
     globalSettings,
+    cliAvailability,
     showAIAssistant,
     setShowAIAssistant,
     refreshTask,
@@ -141,7 +147,29 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
   const parallelSessionId: string | null = null;
   const isParallelExecutionRunning = false;
   const getSubtaskStatus = (_id: number) => undefined;
-  const startSession = async () => {};
+  // Run (or re-run) the subtasks of a split parent. The execute button routes
+  // here whenever the task has subtasks (see useExecutionManager.handleExecute).
+  // This used to be a no-op stub, so pressing 実行 on a split task did nothing —
+  // the cause of "リセット後に実行できない".
+  const startSession = async () => {
+    if (!taskId) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/workflow/orchestra/run-subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+      if (!res.ok) {
+        logger.error('Failed to start subtask execution:', res.status);
+        return;
+      }
+      // Pick up the parent's in_progress transition and subtask status changes.
+      refreshTask();
+      refetchWorkflowFiles();
+    } catch (error) {
+      logger.error('Error starting subtask execution:', error);
+    }
+  };
   const subtaskLogs:
     | Map<number, { logs: Array<{ timestamp: string; message: string; level: string }> }>
     | undefined = undefined;
@@ -231,19 +259,17 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     return <TaskDetailErrorState error={error} onBackToHome={() => router.push('/')} />;
   }
 
-  const showAIPanel =
-    task.theme?.isDevelopment === true &&
-    (showAIAssistant ||
-      devModeConfig?.isEnabled === true ||
-      isExecuting ||
-      isParallelExecutionRunning ||
-      executionResult !== null ||
-      analysisResult !== null ||
-      isTaskExecutingInStore ||
-      isRestoringState);
+  // NOTE: The AI agent execution accordion is always rendered for every task.
+  // Inside, TaskAISection shows a capability-aware body that tells the user
+  // what to set up (theme / workingDirectory / API key) when the task can't
+  // actually execute. The old gate hid the UI behind isDevelopment + activity
+  // flags, which made the feature invisible on fresh tasks.
+  const showAIPanel = true;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   const aiSectionProps = {
+    globalSettings,
+    cliAvailability,
     devModeConfig,
     isAnalyzing,
     analysisResult,

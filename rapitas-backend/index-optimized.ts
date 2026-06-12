@@ -21,13 +21,13 @@ import {
   notificationsRoutes,
   settingsRoutes,
   tasksRoutes,
+  ganttDataRoute,
   examGoalsRoutes,
   studyStreaksRoutes,
   resourcesRoutes,
   directoriesRoutes,
   statisticsRoutes,
   habitsRoutes,
-  flashcardsRoutes,
   templatesRoutes,
   reportsRoutes,
   promptsRoutes,
@@ -43,7 +43,6 @@ import {
   executionLogsRoutes,
   schedulesRoutes,
   dailyScheduleRoutes,
-  screenshotsRoutes,
   learningGoalsRoutes,
   rateLimitRoutes,
   paidLeaveRoutes,
@@ -152,13 +151,13 @@ app.use(commentsRoutes);
 app.use(notificationsRoutes);
 app.use(settingsRoutes);
 app.use(tasksRoutes);
+app.use(ganttDataRoute);
 app.use(examGoalsRoutes);
 app.use(studyStreaksRoutes);
 app.use(resourcesRoutes);
 app.use(directoriesRoutes);
 app.use(statisticsRoutes);
 app.use(habitsRoutes);
-app.use(flashcardsRoutes);
 app.use(templatesRoutes);
 app.use(reportsRoutes);
 app.use(promptsRoutes);
@@ -174,7 +173,6 @@ app.use(agentExecutionConfigRoutes);
 app.use(executionLogsRoutes);
 app.use(schedulesRoutes);
 app.use(dailyScheduleRoutes);
-app.use(screenshotsRoutes);
 app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
 app.use(paidLeaveRoutes);
@@ -209,8 +207,12 @@ app.get('/health', (context: Context) => {
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
+// NOTE: Loopback by default — same unauthenticated-RCE exposure rationale as
+// index.ts (see middleware/local-auth.ts). Bun's implicit default is 0.0.0.0.
+const { resolveBindHost } = await import('./middleware/local-auth');
 app.listen({
   port: PORT,
+  hostname: resolveBindHost(),
   idleTimeout: 30, // 30-second idle timeout to prevent CLOSE_WAIT accumulation
   reusePort: true, // allows binding even with TIME_WAIT zombie sockets
 });

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Bot, ChevronDown, ChevronUp, RotateCcw, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTaskDetailVisibilityStore } from '@/stores/task-detail-visibility-store';
+import { useServerRestartStore } from '@/stores/server-restart-store';
 import { useResumableExecutions } from '../resumable-executions/useResumableExecutions';
 import { ExecutionItem } from '../resumable-executions/ExecutionItem';
 import { QuickActions } from '../resumable-executions/QuickActions';
@@ -16,6 +17,7 @@ export function ResumableExecutionsBanner() {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const isTaskDetailVisible = useTaskDetailVisibilityStore((state) => state.isTaskDetailVisible);
+  const isServerRestarting = useServerRestartStore((state) => state.isRestarting);
 
   const {
     executions,
@@ -52,10 +54,10 @@ export function ResumableExecutionsBanner() {
 
   // Connection error state (suppress during intentional backend restart)
   if (connectionError && !isConnected) {
-    if (isIntentionalRestart) return null;
+    if (isIntentionalRestart || isServerRestarting) return null;
 
     return (
-      <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+      <div className="fixed bottom-20 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
         <div className="border rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm bg-red-50 dark:bg-red-950/95 border-red-200/80 dark:border-red-700/60">
           <div className="px-4 py-3.5">
             <div className="flex items-center gap-3">
@@ -118,7 +120,7 @@ export function ResumableExecutionsBanner() {
     : 'hover:bg-amber-200/60 dark:hover:bg-amber-800/40';
 
   return (
-    <div className="fixed bottom-20 right-6 z-50 max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
+    <div className="fixed bottom-20 right-6 z-[60] max-w-sm w-full animate-in slide-in-from-right-4 duration-300">
       <div className={`border rounded-2xl shadow-xl backdrop-blur-sm ${bannerBg}`}>
         {/* Collapsible header */}
         <div

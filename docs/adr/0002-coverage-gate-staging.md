@@ -55,9 +55,11 @@ to lower the threshold.
    shifted by the start date.
 
 ### Branches and modules
+
 The gate applies to **the whole codebase**, not per-module. Module-level
 gates are tempting but produce brittle CI; instead, prioritize testing in
 order of business risk:
+
 1. `services/task/`, `routes/tasks/`
 2. `services/workflow/`
 3. `services/agents/` (especially the orchestrator)
@@ -67,18 +69,21 @@ order of business risk:
 ## Alternatives considered
 
 ### A. Hard 80% gate from day one
+
 - Pros: Matches CLAUDE.md verbatim. No ambiguity.
 - Cons: Permanent red CI. Encourages disabling tests or marking files as
   excluded just to get a PR through.
 - Verdict: Rejected.
 
 ### B. Per-module gates with file-level allowlists
+
 - Pros: Targets the gate at the modules that matter most.
 - Cons: Allowlist files become a bottleneck and rot quickly. Coverage tools
   vary in how they support per-file thresholds.
 - Verdict: Rejected — added complexity not worth the targeting precision.
 
 ### C. Coverage-as-a-comment-only (no gate)
+
 - Pros: Zero false positives.
 - Cons: No forcing function. Coverage will not improve on its own.
 - Verdict: Rejected — the whole point is to ratchet upward.
@@ -86,17 +91,20 @@ order of business risk:
 ## Consequences
 
 ### Positive
+
 - Clear, dated commitments make the ratchet auditable.
 - New code naturally needs tests once existing coverage is close to the
   threshold.
 - Backend coverage becomes visible (currently invisible).
 
 ### Negative
+
 - Two-week observation periods slow down the ramp.
 - Backend "Phase A" requires CI changes that aren't done yet.
 - The schedule is calendar-driven; if the team is small, it may need to slip.
 
 ### Neutral
+
 - The CLAUDE.md target (80%) does not change — only the path to it.
 
 ## Follow-ups

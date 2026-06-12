@@ -121,6 +121,7 @@ rapitas-backend/
 | **Knowledge Memory** | KnowledgeEntry + KnowledgeGraphNode | 抽象化された知識 | 忘却曲線で管理 |
 
 ### Experiment (実験ログ)
+
 ```sql
 id            SERIAL PRIMARY KEY
 taskId        INT            -- 関連タスクID
@@ -138,6 +139,7 @@ duration      INT            -- 実行時間(ms)
 ```
 
 ### KnowledgeGraphNode (知識グラフノード)
+
 ```sql
 id            SERIAL PRIMARY KEY
 label         TEXT           -- ノード名 (UNIQUE with nodeType)
@@ -149,6 +151,7 @@ accessCount   INT            -- アクセス回数
 ```
 
 ### KnowledgeGraphEdge (知識グラフエッジ)
+
 ```sql
 id            SERIAL PRIMARY KEY
 fromNodeId    INT REFERENCES KnowledgeGraphNode
@@ -212,41 +215,48 @@ UNIQUE(fromNodeId, toNodeId, edgeType)
 ## 5. 各モジュールの責務
 
 ### Task Manager (既存: task-executor.ts)
+
 - タスクの受付・分配
 - 実行の優先度管理
 - 進捗の追跡
 
 ### Experiment Engine (experiment-engine.ts)
+
 - 実験ライフサイクルの管理
 - Research → Hypothesis → Plan → Execute → Evaluate → Learn ループの制御
 - 実験データの永続化
 - 過去の実験の検索・参照
 
 ### Hypothesis Manager (hypothesis.ts)
+
 - AI による仮説の生成
 - 仮説の信頼度・優先度によるランキング
 - 仮説の検証結果の追跡
 - 仮説の改訂チェーン管理
 
 ### Critic System (critic.ts)
+
 - **仮説の妥当性チェック**: 根拠の有無、具体性、論理性を評価
 - **計画の不足検出**: テスト戦略、リスク対策、ロールバック計画の有無
 - **実装の品質チェック**: 実行結果の完全性、エラー処理の適切さ
 - **評価スコア算出**: accuracy × 0.4 + logic × 0.35 + coverage × 0.25
 
 ### Learning Engine (learning-engine.ts)
+
 - **失敗パターン分析**: 繰り返し発生する失敗の原因特定
 - **成功戦略抽出**: 成功した実験からのベストプラクティス抽出
 - **プロンプト改善**: before/after のプロンプト進化を記録・適用
 - **パターン管理**: success_strategy, failure_pattern, optimization, anti_pattern
 
 ### Knowledge Graph (knowledge-graph.ts)
+
 - **ノード管理**: concept, problem, solution, technology, pattern の5種類
 - **エッジ管理**: related, causes, solves, requires, part_of, similar_to の6種類
 - **グラフ探索**: BFS によるサブグラフ取得
 - **ノード統合**: 重複ノードのマージ
 
 ### Episode Memory (episode-memory.ts)
+
 - 各実験フェーズの詳細記録
 - 類似エピソードの検索
 - 実験の要約生成
@@ -255,6 +265,7 @@ UNIQUE(fromNodeId, toNodeId, edgeType)
 ## 6. API エンドポイント一覧
 
 ### Experiments API (/experiments)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | / | 実験一覧 |
@@ -275,6 +286,7 @@ UNIQUE(fromNodeId, toNodeId, edgeType)
 | POST | /:id/episodes | エピソード保存 |
 
 ### Knowledge Graph API (/knowledge-graph)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /nodes | ノード一覧 |
@@ -287,6 +299,7 @@ UNIQUE(fromNodeId, toNodeId, edgeType)
 | GET | /stats | グラフ統計 |
 
 ### Learning API (/learning)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /patterns | パターン一覧 |

@@ -13,6 +13,7 @@ export { templatesRoutes } from './organization/templates';
 
 // Tasks
 export { tasksRoutes } from './tasks/tasks';
+export { ganttDataRoute } from './tasks/gantt-data';
 export { tempStatisticsRoutes } from './tasks/temp-statistics';
 export { taskAnalysisConfigRoutes } from './tasks/task-analysis-config';
 export { batchRoutes } from './tasks/batch';
@@ -51,7 +52,6 @@ export { timeEntriesRoutes } from './scheduling/time-entries';
 export { examGoalsRoutes } from './learning/exam-goals';
 export { studyStreaksRoutes } from './learning/study-streaks';
 export { learningGoalsRoutes } from './learning/learning-goals';
-export { flashcardsRoutes } from './learning/flashcards';
 export { resourcesRoutes } from './learning/resources';
 export { learningDashboardRouter } from './learning/learning-dashboard';
 
@@ -63,7 +63,6 @@ export { developerModeRoutes } from './system/developer-mode';
 export { notificationsRoutes } from './system/notifications';
 export { searchRoutes } from './system/search';
 export { urlMetadataRoutes } from './system/url-metadata';
-export { screenshotsRoutes } from './system/screenshots';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
@@ -87,7 +86,8 @@ export { workflowRoutes } from './workflow/core/workflow';
 export { workflowRolesRoutes } from './workflow/core/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
-export { intentRoutes } from './workflow/intent-routes';
+export { taskSpecRoutes } from './tasks/task-spec-routes';
+export { themeAutoRunRoutes } from './workflow/theme-auto-run';
 
 // Social
 export { commentsRoutes } from './social/comments';
@@ -109,6 +109,9 @@ export { knowledgeRoutes } from './memory/knowledge';
 export { memorySystemRoutes } from './memory/memory-system';
 export { crossProjectKnowledgeRoutes } from './memory/cross-project-knowledge';
 export { ideaBoxRoutes } from './memory/idea-box';
+export { concernBacklogRoutes } from './memory/concern-backlog';
+export { decisionJournalRoutes } from './memory/decision-journal';
+export { backlogScheduleRoutes, backlogThemeOverrideRoutes } from './backlog';
 
 // Self-Learning
 export { experimentsRoutes } from './self-learning/experiments';

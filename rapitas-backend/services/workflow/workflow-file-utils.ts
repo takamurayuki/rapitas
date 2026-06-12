@@ -235,51 +235,99 @@ export async function cleanupRootWorkflowFiles(_taskId: number): Promise<void> {
 }
 
 /**
- * Extract Markdown content from CLI agent output.
+ * The canonical report heading per workflow file type. We slice the agent's
+ * output from the LAST occurrence of this heading so any execution-log preamble
+ * (status lines, tool dumps, error stack traces, "Uncaught ReferenceError: …")
+ * is dropped wholesale — the report is the first byte of what we persist.
+ */
+const REPORT_HEADERS: Partial<Record<string, RegExp>> = {
+  research: /^#\s+(調査レポート|research report)\s*$/gim,
+  verify: /^#\s+(検証レポート|verification report)\s*$/gim,
+  plan: /^#\s+(実装計画|計画|implementation plan)\s*$/gim,
+  question: /^#\s+(レビュー(指摘)?|review(\s+feedback)?)\s*$/gim,
+};
+
+/** ANSI/VT escape sequences (colours, cursor moves) emitted by CLI agents. */
+const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+
+/**
+ * Line-level noise emitted by CLI agents that must never reach a workflow .md.
+ * Conservative: every pattern is anchored at line-start and targets a log shape,
+ * not prose, so legitimate report lines (which may *mention* "error") survive.
+ */
+const NOISE_LINE_RES: RegExp[] = [
+  /^[⏺•·]?\s*\[(Tool|Result|完了|フェーズ完了|ExecLog|smoke)[:\]]/i, // tool/exec markers
+  /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏⏺]/, // spinner glyphs
+  /^\[\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}.*\]\s*(INFO|WARN|ERROR|DEBUG|TRACE|FATAL)/i, // pino-style timestamped log
+  /^(INFO|WARN|ERROR|DEBUG|TRACE|FATAL)\b[:\s]/, // bare level-prefixed log line
+  /^\s*at\s+.+:\d+:\d+\)?\s*$/, // JS stack-trace frame
+  /^\s*at\s+(async\s+)?[\w.$<>[\] ]+\s*$/, // stack frame without location
+  /^(Uncaught\s+)?(Reference|Type|Syntax|Range|Eval|URI)Error\b/, // thrown-error header
+  /^\s*(node:internal\/|file:\/\/\/|\s+--\>\s)/, // node internals / prisma error arrows
+];
+
+/**
+ * Whether a piece of text reads as an agent execution log rather than a report.
+ * Used by the quality gate to reject contaminated content outright.
  *
- * CLI agent output contains tool call logs ([Tool: ...], [Result: ...], etc.).
- * This function strips those logs and returns the actual Markdown content.
+ * @param text - Candidate markdown body. / 判定対象テキスト
+ * @returns true when it looks like a raw log dump. / ログダンプと見なせる場合 true
+ */
+export function looksLikeAgentLog(text: string): boolean {
+  const lines = text.split('\n').filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return true;
+  const noisy = lines.filter((l) => NOISE_LINE_RES.some((re) => re.test(l))).length;
+  // A genuine report is overwhelmingly prose/markdown; >25% noise lines == a log.
+  return noisy / lines.length > 0.25;
+}
+
+/**
+ * Extract a clean Markdown report from raw CLI/API agent output.
+ *
+ * The agent's stdout/finalMessage can be polluted with execution logs (tool
+ * dumps, spinners, ANSI colours, log lines, and crash stack traces such as
+ * "Uncaught ReferenceError: Workflow is not defined"). Persisting that into a
+ * workflow .md corrupts the artifact that the whole pipeline depends on. This:
+ *   1. strips ANSI escapes,
+ *   2. slices from the LAST canonical report heading for `fileType` (dropping
+ *      any log preamble entirely), and
+ *   3. removes residual noise lines, then
+ *   4. QUALITY-GATES the result — returning null (so the caller writes NO file)
+ *      when what's left is too short, has no Markdown structure, or still reads
+ *      as a log. A missing file fails the phase cleanly; a contaminated file
+ *      would silently poison every downstream consumer.
  *
  * @param output - Raw agent output string. / エージェントの生出力文字列
- * @param fileType - The expected file type (used for logging only). / 期待するファイルタイプ
- * @returns Extracted Markdown string or null if insufficient content. / 抽出されたMarkdownまたはnull
+ * @param fileType - The workflow file type, selects the report heading. / ワークフローファイル種別
+ * @returns Clean Markdown, or null when the output is not a usable report. / 整形済みMarkdown、使用不可ならnull
  */
 export function extractMarkdownFromOutput(output: string, fileType: string): string | null {
-  // Suppress unused-variable lint; fileType is retained for caller-side logging
-  void fileType;
+  if (!output) return null;
+  let text = output.replace(/\r\n/g, '\n').replace(ANSI_RE, '');
 
-  const lines = output.split('\n');
-  const contentLines: string[] = [];
-  let inToolBlock = false;
-
-  for (const line of lines) {
-    if (line.match(/^\[Tool:\s/)) {
-      inToolBlock = true;
-      continue;
-    }
-    if (line.match(/^\[Result:\s/) || line.match(/^\[完了\]/) || line.match(/^\[フェーズ完了\]/)) {
-      inToolBlock = false;
-      continue;
-    }
-    // Skip spinner/status lines
-    if (line.match(/^⏺|^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)) {
-      continue;
-    }
-    if (!inToolBlock) {
-      contentLines.push(line);
-    }
+  // 1) Slice from the report heading when present — the strongest defense, as it
+  // discards everything logged before the report begins.
+  const headerRe = REPORT_HEADERS[fileType];
+  if (headerRe) {
+    headerRe.lastIndex = 0;
+    let lastIndex = -1;
+    let m: RegExpExecArray | null;
+    while ((m = headerRe.exec(text)) !== null) lastIndex = m.index;
+    if (lastIndex >= 0) text = text.slice(lastIndex);
   }
 
+  // 2) Drop residual tool/log/spinner/stack-trace lines.
+  const contentLines = text
+    .split('\n')
+    .filter((line) => !NOISE_LINE_RES.some((re) => re.test(line)));
   const content = contentLines.join('\n').trim();
 
-  if (content.length < 50) return null;
-  if (!content.match(/^#+\s|^\-\s|^\*\s|^\d+\.\s/m)) {
-    // If no Markdown structure found, fall back to the raw output when it looks like Markdown
-    if (output.trim().length > 100 && output.match(/^#+\s|^\-\s|^\*\s/m)) {
-      return output.trim();
-    }
-    return null;
-  }
+  // 3) Quality gate — reject anything that isn't a substantive Markdown report.
+  // Length is a coarse floor; structure + log-shape are the real discriminators
+  // (a tiny crash residue has neither a heading nor low noise).
+  if (content.length < 40) return null;
+  if (!/^#+\s|^[-*]\s|^\d+\.\s/m.test(content)) return null;
+  if (looksLikeAgentLog(content)) return null;
 
   return content;
 }

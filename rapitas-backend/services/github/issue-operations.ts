@@ -97,6 +97,25 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
  * @returns Created issue / 作成されたイシュー
  * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
  */
+/**
+ * Ensure each label exists in the repo, creating any that are missing. Failures
+ * (including "label already exists") are ignored — best-effort so a label that
+ * already exists doesn't block issue creation.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param labels - Label names to ensure / 作成を保証するラベル名
+ */
+async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> {
+  for (const label of labels) {
+    try {
+      await runGhCommand(['label', 'create', label, '--repo', repo]);
+    } catch {
+      // Already exists, or can't be created — the issue create will still
+      // attach it if present. Non-fatal.
+    }
+  }
+}
+
 export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
   const args = ['issue', 'create', '--repo', repo, '--title', input.title];
 
@@ -104,6 +123,10 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
     args.push('--body', input.body);
   }
   if (input.labels && input.labels.length > 0) {
+    // `gh issue create --label` fails if a label doesn't exist in the repo
+    // (e.g. our `type:*` / `priority:*` labels on a fresh repo), so ensure they
+    // exist first. Idempotent: creating an existing label is ignored.
+    await ensureLabelsExist(repo, input.labels);
     args.push('--label', input.labels.join(','));
   }
   if (input.assignees && input.assignees.length > 0) {
@@ -126,6 +149,18 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
   }
 
   return issue;
+}
+
+/**
+ * Close an issue on GitHub.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param issueNumber - Issue number / イシュー番号
+ * @throws {Error} When the gh command fails / コマンド失敗時
+ */
+export async function closeIssue(repo: string, issueNumber: number): Promise<void> {
+  await runGhCommand(['issue', 'close', String(issueNumber), '--repo', repo]);
+  log.info({ repo, issueNumber }, 'Issue closed');
 }
 
 /**

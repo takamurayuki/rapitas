@@ -233,4 +233,46 @@ export const workflowRolesRoutes = new Elysia()
     });
 
     return { message: 'ロール初期化完了', roles };
+  })
+
+  /**
+   * GET /workflow-modes — list the per-complexity-tier workflow mode settings
+   * (lightweight/standard/comprehensive), including the derived phase sequence
+   * for display. Seeds defaults on first read.
+   */
+  .get('/workflow-modes', async () => {
+    const { getAllModeSettings, buildTransitions } =
+      await import('../../../services/workflow/workflow-mode-config');
+    const all = await getAllModeSettings();
+    return {
+      modes: Object.values(all).map((s) => ({
+        ...s,
+        // Ordered phase keys for UI preview (research/plan/review/implement/verify).
+        phases: Object.values(buildTransitions(s)).map((t) => t.role),
+      })),
+    };
+  })
+
+  /**
+   * PUT /workflow-modes/:mode — update one tier's phase toggles and complexity
+   * range. Body: { includePlan?, includeReview?, autoVerify?, complexityMin?,
+   * complexityMax?, isEnabled? }.
+   */
+  .put('/workflow-modes/:mode', async ({ params, body, set }) => {
+    const mode = params.mode as 'lightweight' | 'standard' | 'comprehensive';
+    if (!['lightweight', 'standard', 'comprehensive'].includes(mode)) {
+      set.status = 400;
+      return { error: 'Invalid mode' };
+    }
+    const b = (body ?? {}) as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    for (const k of ['includePlan', 'includeReview', 'autoVerify', 'isEnabled'] as const) {
+      if (typeof b[k] === 'boolean') patch[k] = b[k];
+    }
+    for (const k of ['complexityMin', 'complexityMax'] as const) {
+      if (typeof b[k] === 'number') patch[k] = b[k];
+    }
+    const { updateModeSettings } = await import('../../../services/workflow/workflow-mode-config');
+    const updated = await updateModeSettings(mode, patch);
+    return { success: true, mode: updated };
   });

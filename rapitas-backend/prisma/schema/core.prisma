@@ -100,6 +100,9 @@ model Task {
   agentGenerated        Boolean       @default(false)
   agentExecutable       Boolean       @default(false)
   executionInstructions String?
+  goals                 String?       // JSON array of goal strings (Phase 2 structured spec)
+  constraints           String?       // JSON array of constraint strings
+  acceptanceCriteria    String?       // JSON array of acceptance-criteria strings
   developerModeConfig   DeveloperModeConfig?
   taskAnalysisConfig    TaskAnalysisConfig?
   agentExecutionConfig  AgentExecutionConfig?

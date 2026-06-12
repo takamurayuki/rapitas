@@ -44,6 +44,8 @@ export interface WorkerMessageContext {
 
   // ─── Mutable state (direct field access) ─────────────────────────────
   outputBuffer: string;
+  /** Clean FINAL assistant message from the stream-json `result` event. */
+  finalResultText: string;
   claudeSessionId: string | null;
   detectedQuestion: QuestionWaitingState;
   hasFileModifyingToolCalls: boolean;
@@ -134,6 +136,11 @@ export function handleWorkerMessage(ctx: WorkerMessageContext, msg: WorkerOutput
       if (msg.displayOutput) {
         ctx.outputBuffer += msg.displayOutput;
         ctx.emitOutputInternal(msg.displayOutput);
+      }
+      // Capture the clean final assistant message (no narration / tool logs).
+      // Investigation phases save this instead of the noisy outputBuffer.
+      if (typeof msg.result === 'string' && msg.result.trim()) {
+        ctx.finalResultText = msg.result;
       }
       ctx.workerResultUsage = {
         costUsd: msg.costUsd,

@@ -8,7 +8,6 @@
 
 import { usePathname } from 'next/navigation';
 import { Keyboard, Pin, PinOff } from 'lucide-react';
-import AppIcon from '@/components/common/app-icon';
 import { OPEN_SHORTCUTS_EVENT } from '@/components/common/KeyboardShortcuts';
 import { useTranslations } from 'next-intl';
 import { type NavItem } from './types';
@@ -68,72 +67,82 @@ export function SideNav({
   };
 
   return (
-    <nav
-      ref={menuRef}
-      className={`fixed left-0 top-0 h-full w-72 flex flex-col bg-white dark:bg-indigo-dark-900 shadow-2xl z-100 transform transition-transform duration-300 ${
-        isMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
-    >
-      <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-400 shadow-md">
-            <AppIcon size={20} className="text-white" />
-          </div>
-          <span className="text-lg font-bold bg-indigo-400 bg-clip-text text-transparent">
-            Rapi+
+    <>
+      {/* Dim the page behind the panel for focus. Hidden when pinned so the
+          page stays usable alongside the nav. Sits below the header (top-16)
+          so the header remains interactive. */}
+      <div
+        onClick={() => setIsMenuOpen(false)}
+        aria-hidden
+        className={`fixed inset-x-0 top-16 bottom-0 z-90 bg-zinc-900/20 backdrop-blur-[1px] transition-opacity duration-300 ${
+          isMenuOpen && !isMenuPinned ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      />
+
+      <nav
+        ref={menuRef}
+        className={`fixed left-0 top-16 bottom-0 w-72 flex flex-col bg-white dark:bg-indigo-dark-900 border-r border-zinc-200 dark:border-zinc-800 shadow-lg z-100 transform transition-transform duration-300 ${
+          isMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Slim bar: section label + pin toggle. The app name/icon live in the
+            header, so they are intentionally not repeated here. */}
+        <div className="flex items-center justify-between h-12 px-4 border-b border-zinc-200 dark:border-zinc-800">
+          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            {t('menu')}
           </span>
-        </div>
-        <button
-          onClick={() => setIsMenuPinned(!isMenuPinned)}
-          className={`p-2 rounded-lg transition-colors ${
-            isMenuPinned
-              ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
-              : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-          }`}
-          aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
-          title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
-        >
-          {isMenuPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
-        <div className="p-4 space-y-1 flex-1">
-          {filteredNavItems.map((item) => (
-            <NavItemRenderer
-              key={item.label}
-              item={item}
-              depth={0}
-              isActive={isActive}
-              isChildActive={isChildActive}
-              expandedItems={expandedItems}
-              toggleExpand={toggleExpand}
-              isMenuPinned={isMenuPinned}
-              setIsMenuOpen={setIsMenuOpen}
-            />
-          ))}
-        </div>
-
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
           <button
-            onClick={() => {
-              if (!isMenuPinned) {
-                setIsMenuOpen(false);
-              }
-              window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
-            }}
-            className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            onClick={() => setIsMenuPinned(!isMenuPinned)}
+            className={`p-2 rounded-lg transition-colors ${
+              isMenuPinned
+                ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30'
+                : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+            }`}
+            aria-label={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
+            title={isMenuPinned ? t('unpinMenu') : t('pinMenu')}
           >
-            <div className="flex items-center gap-3">
-              <Keyboard className="w-4 h-4" />
-              <span className="text-sm">{t('keyboardShortcuts')}</span>
-            </div>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
-              {getShortcutLabel('shortcutHelp') || '⌘/'}
-            </kbd>
+            {isMenuPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
           </button>
         </div>
-      </div>
-    </nav>
+
+        <div className="flex-1 overflow-y-auto flex flex-col scrollbar-thin">
+          <div className="p-4 space-y-1 flex-1">
+            {filteredNavItems.map((item) => (
+              <NavItemRenderer
+                key={item.label}
+                item={item}
+                depth={0}
+                isActive={isActive}
+                isChildActive={isChildActive}
+                expandedItems={expandedItems}
+                toggleExpand={toggleExpand}
+                isMenuPinned={isMenuPinned}
+                setIsMenuOpen={setIsMenuOpen}
+              />
+            ))}
+          </div>
+
+          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
+            <button
+              onClick={() => {
+                if (!isMenuPinned) {
+                  setIsMenuOpen(false);
+                }
+                window.dispatchEvent(new CustomEvent(OPEN_SHORTCUTS_EVENT));
+              }}
+              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Keyboard className="w-4 h-4" />
+                <span className="text-sm">{t('keyboardShortcuts')}</span>
+              </div>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 dark:text-zinc-500 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
+                {getShortcutLabel('shortcutHelp') || '⌘/'}
+              </kbd>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </>
   );
 }

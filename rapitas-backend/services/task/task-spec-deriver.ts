@@ -1,0 +1,92 @@
+/**
+ * Task Spec Deriver
+ *
+ * Derives a structured task spec (goals / constraints / acceptance criteria) from a
+ * free-text task description using the configured AI provider.
+ * Does NOT persist anything — callers decide how to use the derived spec.
+ */
+import { createLogger } from '../../config/logger';
+import {
+  sendAIMessage,
+  getDefaultProvider,
+  isAnyApiKeyConfigured,
+  type AIMessage,
+} from '../../utils/ai-client';
+
+const logger = createLogger('task-spec-deriver');
+
+/** Structured spec derived from a free-text description. */
+export interface DerivedTaskSpec {
+  goals: string[];
+  constraints: string[];
+  acceptanceCriteria: string[];
+}
+
+const SYSTEM_PROMPT = `あなたはソフトウェア開発タスクの仕様を整理するアシスタントです。
+ユーザーが書いた自由記述のタスク説明から、次の3つを日本語で抽出してください。
+- goals: このタスクで達成すべきゴール（What）
+- constraints: 守るべき制約・前提（スコープ外、技術制約、後方互換性など）
+- acceptanceCriteria: 完了を判定できる、検証可能な受入基準
+
+出力は必ず次のJSONのみ。前後に説明文やコードブロックを付けないこと:
+{"goals":["..."],"constraints":["..."],"acceptanceCriteria":["..."]}
+
+各配列は0〜6項目。該当が無ければ空配列にする。説明文から妥当に導けるものに限定し、過度な推測はしない。`;
+
+const EMPTY: DerivedTaskSpec = { goals: [], constraints: [], acceptanceCriteria: [] };
+
+/** Extracts a clean string[] from an unknown JSON value. */
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .map((v) => v.trim())
+    .slice(0, 6);
+}
+
+/** Parses the AI response (expected JSON object) into a DerivedTaskSpec. */
+function parseSpec(content: string): DerivedTaskSpec {
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) return { ...EMPTY };
+  try {
+    const parsed = JSON.parse(match[0]);
+    return {
+      goals: toStringArray(parsed.goals),
+      constraints: toStringArray(parsed.constraints),
+      acceptanceCriteria: toStringArray(parsed.acceptanceCriteria),
+    };
+  } catch {
+    return { ...EMPTY };
+  }
+}
+
+/**
+ * Derive structured goals/constraints/acceptance criteria from a free-text description.
+ *
+ * @param description - Free-text task description / 自由記述のタスク説明
+ * @returns Derived spec plus a source indicator / 抽出結果とソース種別
+ */
+export async function deriveTaskSpec(
+  description: string,
+): Promise<{ spec: DerivedTaskSpec; source: 'ai' | 'empty' | 'no_ai' | 'ai_error' }> {
+  if (!description.trim()) return { spec: { ...EMPTY }, source: 'empty' };
+
+  if (!(await isAnyApiKeyConfigured())) {
+    return { spec: { ...EMPTY }, source: 'no_ai' };
+  }
+
+  try {
+    const provider = await getDefaultProvider();
+    const messages: AIMessage[] = [{ role: 'user', content: description.trim() }];
+    const response = await sendAIMessage({
+      provider,
+      messages,
+      systemPrompt: SYSTEM_PROMPT,
+      maxTokens: 1024,
+    });
+    return { spec: parseSpec(response.content), source: 'ai' };
+  } catch (error) {
+    logger.error({ err: error }, '[task-spec-deriver] derive failed');
+    return { spec: { ...EMPTY }, source: 'ai_error' };
+  }
+}

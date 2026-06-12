@@ -14,6 +14,11 @@ import { onGeneratedTaskCompleted } from '../scheduling/recurring-task-service';
 import { createSubtask, createParentTask } from './task-create-helpers';
 import { realtimeService } from '../communication/realtime-service';
 import { syncTaskToCalendar } from '../scheduling/task-calendar-sync';
+import {
+  linkTaskToMiss,
+  autoLinkMatchingMisses,
+  resolveSearchMissForTask,
+} from '../search/search-miss-service';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
 
@@ -51,6 +56,12 @@ export interface CreateTaskInput {
   examGoalId?: number;
   isDeveloperMode?: boolean;
   isAiTaskAnalysis?: boolean;
+  /** Structured spec — stored as JSON-array strings (mirrors `labels`). */
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
+  /** SearchMiss ID to link on creation — bridges gap resolution flow. */
+  searchMissId?: number;
 }
 
 /**
@@ -61,7 +72,7 @@ export interface CreateTaskInput {
  * @returns Created task with full includes / フルインクルード付きの作成タスク
  */
 export async function createTask(prisma: PrismaInstance, input: CreateTaskInput) {
-  const { parentId, title, labelIds, ...rest } = input;
+  const { parentId, title, labelIds, searchMissId, ...rest } = input;
 
   const task = parentId
     ? await createSubtask(prisma, parentId, title, labelIds, rest)
@@ -69,6 +80,15 @@ export async function createTask(prisma: PrismaInstance, input: CreateTaskInput)
 
   // NOTE: Broadcast task creation via SSE for real-time list updates.
   if (task) {
+    // NOTE: Gap resolution — link SearchMiss to the new task so it can be resolved on completion.
+    // If searchMissId is provided (task created from SearchMissPanel), link directly.
+    // Otherwise, fall back to title-match auto-linking for tasks created via normal flow.
+    if (searchMissId) {
+      linkTaskToMiss(prisma, searchMissId, task.id).catch(() => {});
+    } else {
+      autoLinkMatchingMisses(prisma, task.id, title).catch(() => {});
+    }
+
     realtimeService.sendTaskUpdate(task.id, 'task_created', {
       taskId: task.id,
       title: task.title,
@@ -119,6 +139,9 @@ export interface UpdateTaskInput {
   milestoneId?: number;
   examGoalId?: number;
   autoApprovePlan?: boolean;
+  goals?: string[];
+  constraints?: string[];
+  acceptanceCriteria?: string[];
 }
 
 /**
@@ -135,7 +158,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   const currentTask = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { status: true, parentId: true },
+    select: { status: true, parentId: true, workflowStatus: true },
   });
 
   if (!currentTask) {
@@ -161,6 +184,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
       ...(fields.status === 'done' && { completedAt: new Date() }),
+      // Keep workflowStatus in lock-step when a workflow task is marked done.
+      // The card badge reads workflowStatus, so a task completed via the kanban
+      // (or any path through updateTask) would otherwise still show "進行中"
+      // because only `status` flipped to done. Only touch genuine workflow tasks
+      // (workflowStatus set) that aren't already completed; leave plain tasks be.
+      ...(fields.status === 'done' &&
+        currentTask?.workflowStatus &&
+        currentTask.workflowStatus !== 'completed' && { workflowStatus: 'completed' }),
       ...(fields.status === 'in-progress' &&
         currentTask?.status !== 'in-progress' && { startedAt: new Date() }),
       ...(fields.priority && { priority: fields.priority }),
@@ -174,6 +205,12 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.milestoneId !== undefined && { milestoneId: fields.milestoneId }),
       ...(fields.examGoalId !== undefined && { examGoalId: fields.examGoalId }),
       ...(fields.autoApprovePlan !== undefined && { autoApprovePlan: fields.autoApprovePlan }),
+      // NOTE: Structured spec stored as JSON-array strings, mirroring `labels`.
+      ...(fields.goals !== undefined && { goals: JSON.stringify(fields.goals) }),
+      ...(fields.constraints !== undefined && { constraints: JSON.stringify(fields.constraints) }),
+      ...(fields.acceptanceCriteria !== undefined && {
+        acceptanceCriteria: JSON.stringify(fields.acceptanceCriteria),
+      }),
     },
   });
 
@@ -217,17 +254,6 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       }
     }
 
-    // Subtask completion: check if all siblings are done → generate parent verify.md
-    if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
-      import('../workflow/subtask-completion-handler')
-        .then(({ onSubtaskCompleted }) => {
-          onSubtaskCompleted(taskId).catch((err) => {
-            logger.warn({ err, taskId }, 'Failed to handle subtask completion');
-          });
-        })
-        .catch(() => {});
-    }
-
     if (
       fields.title ||
       fields.description !== undefined ||
@@ -247,6 +273,30 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
         },
       });
     }
+  }
+
+  // Subtask completion: when a SUBTASK (has parentId) is marked done via the
+  // task API, check whether all siblings are done and finalize the parent.
+  // NOTE: this MUST live outside the `!currentTask?.parentId` (parent-only)
+  // block above — it was previously nested inside it with a contradictory
+  // `currentTask?.parentId` guard, making it dead code that never ran, so a
+  // split parent was never driven to completion after its subtasks finished.
+  if (fields.status === 'done' && currentTask?.parentId && updatedTask) {
+    import('../workflow/subtask-completion-handler')
+      .then(({ onSubtaskCompleted }) => {
+        onSubtaskCompleted(taskId).catch((err) => {
+          logger.warn({ err, taskId }, 'Failed to handle subtask completion');
+        });
+      })
+      .catch(() => {});
+  }
+
+  // NOTE: Resolve linked SearchMiss records when a task is marked done.
+  // SearchMiss is task-hierarchy-agnostic, so this fires for both parent tasks and subtasks.
+  if (fields.status === 'done') {
+    resolveSearchMissForTask(prisma, taskId).catch((err) => {
+      logger.warn({ err, taskId }, 'Failed to resolve search miss for task');
+    });
   }
 
   // NOTE: Broadcast task update via SSE — enables real-time sync across all connected clients.

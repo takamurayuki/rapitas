@@ -13,7 +13,9 @@ import { isTauri } from '@/utils/tauri';
 import { API_BASE_URL } from '@/utils/api';
 import { useShortcutStore, type ShortcutId } from '@/stores/shortcut-store';
 import { useAppModeStore } from '@/stores/app-mode-store';
+import { useNavStore } from '@/stores/nav-store';
 import { useNoteStore } from '@/stores/note-store';
+import { useServerRestartStore } from '@/stores/server-restart-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslations } from 'next-intl';
 import { checkIsTaskDetailPage } from './types';
@@ -111,7 +113,6 @@ export function useHeader(): UseHeaderReturn {
   const tc = useTranslations('common');
 
   // Click-outside handlers — stable references required by useClickOutside dep array
-  const closeMenu = useCallback(() => setIsMenuOpen(false), []);
   const closeMoreMenu = useCallback(() => setIsMoreMenuOpen(false), []);
   const closeUserMenu = useCallback(() => setIsUserMenuOpen(false), []);
 
@@ -125,6 +126,21 @@ export function useHeader(): UseHeaderReturn {
   );
   useClickOutside(moreMenuRef, closeMoreMenu, isMoreMenuOpen);
   useClickOutside(userMenuRef, closeUserMenu, isUserMenuOpen);
+
+  // Escape closes transient menus — a baseline keyboard expectation. The pinned
+  // side nav is intentionally persistent, so Escape leaves it open (matching the
+  // click-outside guard above).
+  useEffect(() => {
+    if (!isMenuOpen && !isMoreMenuOpen && !isUserMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (isMoreMenuOpen) setIsMoreMenuOpen(false);
+      if (isUserMenuOpen) setIsUserMenuOpen(false);
+      if (isMenuOpen && !isMenuPinned) setIsMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMenuOpen, isMoreMenuOpen, isUserMenuOpen, isMenuPinned]);
 
   /**
    * Converts a shortcut binding id into a displayable key combination string.
@@ -148,6 +164,9 @@ export function useHeader(): UseHeaderReturn {
    */
   const executeRestart = async () => {
     setIsRestarting(true);
+    // Flag the restart globally so the logger + connection-error UI go quiet
+    // immediately, before the SSE shutdown event would otherwise set it.
+    useServerRestartStore.getState().setRestarting(true);
     setRestartConfirmDialog({ open: false, activeExecutions: 0 });
     setIsMoreMenuOpen(false);
     try {
@@ -170,6 +189,8 @@ export function useHeader(): UseHeaderReturn {
         }
       }
       setIsRestarting(false);
+      // Restart didn't complete in time — re-enable logging so real errors show.
+      useServerRestartStore.getState().setRestarting(false);
       alert(t('restartTimeout'));
     };
     waitForServer();
@@ -247,6 +268,13 @@ export function useHeader(): UseHeaderReturn {
   useEffect(() => {
     localStorage.setItem('menuPinned', isMenuPinned.toString());
   }, [isMenuPinned]);
+
+  // Mirror the pin state into the shared store so the content wrapper can make
+  // room for the pinned panel (see AppContent).
+  const setNavPinned = useNavStore((state) => state.setMenuPinned);
+  useEffect(() => {
+    setNavPinned(isMenuPinned);
+  }, [isMenuPinned, setNavPinned]);
 
   // Debounced search → URL sync
   useEffect(() => {

@@ -94,6 +94,8 @@ export type GitHubIssue = {
   authorLogin: string;
   url: string;
   linkedTaskId?: number | null;
+  /** Concern (KnowledgeEntry id) this issue was published from / imported into. */
+  linkedConcernId?: number | null;
   lastSyncedAt: string;
   createdAt: string;
   updatedAt: string;

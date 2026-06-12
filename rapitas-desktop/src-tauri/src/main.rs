@@ -18,6 +18,8 @@ mod split_screen_manager;
 mod voice_recognition;
 mod wake_word;
 
+mod terminal;
+
 #[cfg(not(debug_assertions))]
 mod release;
 
@@ -80,9 +82,14 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
     Ok(shortcut)
 }
 
-/// Tauri command: open a URL in split-screen view using the native browser.
+/// Tauri command: open a URL in split-screen view using the chosen (App
+/// Settings) or native browser. `browser` is a preset key (chrome/msedge/firefox).
 #[tauri::command]
-async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
+async fn open_split_view(
+    app: tauri::AppHandle,
+    url: String,
+    browser: Option<String>,
+) -> Result<(), String> {
     let monitor = app
         .primary_monitor()
         .map_err(|e| format!("Failed to get monitor: {e}"))?
@@ -94,11 +101,17 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
 
     #[cfg(target_os = "windows")]
     {
-        split_screen_manager::split_screen_with_browser(&url, screen_width, screen_height)?;
+        split_screen_manager::split_screen_with_browser(
+            &url,
+            screen_width,
+            screen_height,
+            browser.as_deref(),
+        )?;
     }
 
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = &browser; // non-Windows split uses the OS default browser
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.unmaximize().ok();
             main_window
@@ -123,6 +136,59 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.set_focus().ok();
         }
+    }
+
+    Ok(())
+}
+
+/// Open a URL in a SPECIFIC browser chosen in App Settings.
+///
+/// `browser` is a preset key (`chrome` / `msedge` / `firefox`) mapped to the
+/// per-OS launcher. On Windows we go through `cmd /C start`, which resolves the
+/// browser via the registry App Paths — a bare process spawn of "chrome" fails
+/// because it isn't on PATH (the cause of the "not found" error users hit).
+#[tauri::command]
+async fn open_url_in_browser(url: String, browser: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "chrome",
+            "msedge" | "edge" => "msedge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "Google Chrome",
+            "msedge" | "edge" => "Microsoft Edge",
+            "firefox" => "Firefox",
+            other => other,
+        };
+        std::process::Command::new("open")
+            .args(["-a", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "google-chrome",
+            "msedge" | "edge" => "microsoft-edge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new(app)
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
     }
 
     Ok(())
@@ -212,6 +278,9 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 show_main_window(app);
             }
             "quit" => {
+                // Kill all integrated-terminal PTYs so no shell (and its
+                // children) is orphaned when the app exits.
+                terminal::kill_all(app);
                 #[cfg(not(debug_assertions))]
                 release::kill_backend(app);
                 app.exit(0);
@@ -272,17 +341,23 @@ fn main() {
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
             .manage(Mutex::new(release::BackendState { child: None }))
+            .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
                 voice_stop_recording,
                 wake_word_start,
                 wake_word_stop,
-                wake_word_status
+                wake_word_status,
+                terminal::terminal_create,
+                terminal::terminal_write,
+                terminal::terminal_resize,
+                terminal::terminal_close
             ])
             .setup(|app| {
                 release::setup_sidecar(app);
@@ -309,17 +384,23 @@ fn main() {
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_updater::Builder::new().build())
             .plugin(tauri_plugin_process::init())
+            .manage(terminal::TerminalManager::new())
             .invoke_handler(tauri::generate_handler![
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
                 voice_stop_recording,
                 wake_word_start,
                 wake_word_stop,
-                wake_word_status
+                wake_word_status,
+                terminal::terminal_create,
+                terminal::terminal_write,
+                terminal::terminal_resize,
+                terminal::terminal_close
             ])
             .setup(|app| {
                 setup_tray(app)?;

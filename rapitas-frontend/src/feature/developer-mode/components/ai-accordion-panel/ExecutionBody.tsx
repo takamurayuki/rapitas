@@ -66,9 +66,12 @@ export type ExecutionBodyProps = {
   optimizedPrompt?: string | null;
   instruction: string;
   branchName: string;
+  baseBranch: string;
+  baseBranches: string[];
   isGeneratingBranchName: boolean;
   onSetInstruction: (v: string) => void;
   onSetBranchName: (v: string) => void;
+  onSetBaseBranch: (v: string) => void;
   onGenerateBranchName: () => Promise<void>;
 };
 
@@ -127,9 +130,12 @@ export function ExecutionBody({
   optimizedPrompt,
   instruction,
   branchName,
+  baseBranch,
+  baseBranches,
   isGeneratingBranchName,
   onSetInstruction,
   onSetBranchName,
+  onSetBaseBranch,
   onGenerateBranchName,
 }: ExecutionBodyProps) {
   const hasSubtaskLogs = !!(hasSubtasks && subtaskLogs && parallelSessionId);
@@ -263,8 +269,11 @@ export function ExecutionBody({
       optimizedPrompt={optimizedPrompt}
       instruction={instruction}
       branchName={branchName}
+      baseBranch={baseBranch}
+      baseBranches={baseBranches}
       onSetInstruction={onSetInstruction}
       onSetBranchName={onSetBranchName}
+      onSetBaseBranch={onSetBaseBranch}
     />
   );
 }
@@ -274,14 +283,20 @@ function IdleExecutionForm({
   optimizedPrompt,
   instruction,
   branchName,
+  baseBranch,
+  baseBranches,
   onSetInstruction,
   onSetBranchName,
+  onSetBaseBranch,
 }: {
   optimizedPrompt?: string | null;
   instruction: string;
   branchName: string;
+  baseBranch: string;
+  baseBranches: string[];
   onSetInstruction: (v: string) => void;
   onSetBranchName: (v: string) => void;
+  onSetBaseBranch: (v: string) => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
 
@@ -294,7 +309,7 @@ function IdleExecutionForm({
           value={instruction}
           onChange={(e) => onSetInstruction(e.target.value)}
           placeholder="追加指示があれば入力...（任意）"
-          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-xs focus:outline-none focus:border-blue-400"
           aria-label="追加の実装指示"
         />
       </div>
@@ -335,9 +350,43 @@ function IdleExecutionForm({
               value={branchName}
               onChange={(e) => onSetBranchName(e.target.value)}
               placeholder="自動生成されます"
-              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-blue-400"
               aria-label="ブランチ名"
             />
+          </div>
+
+          {/* Base branch: the branch the new feature branch is cut from and the
+              PR targets. Populated with the repo's origin branches; defaults to
+              the theme's default branch. */}
+          <div>
+            <label className="flex items-center gap-1 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1">
+              <GitBranch className="w-2.5 h-2.5" />
+              ベースブランチ
+              <span className="text-zinc-400 dark:text-zinc-500">（PR作成先 / 分岐元）</span>
+            </label>
+            {baseBranches.length > 0 ? (
+              <select
+                value={baseBranch}
+                onChange={(e) => onSetBaseBranch(e.target.value)}
+                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-blue-400"
+                aria-label="ベースブランチ"
+              >
+                {baseBranches.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={baseBranch}
+                onChange={(e) => onSetBaseBranch(e.target.value)}
+                placeholder="develop"
+                className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-[10px] font-mono focus:outline-none focus:border-blue-400"
+                aria-label="ベースブランチ"
+              />
+            )}
           </div>
         </div>
       )}

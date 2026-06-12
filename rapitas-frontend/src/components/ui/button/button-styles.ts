@@ -19,7 +19,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
  */
 export const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-purple-600 hover:bg-purple-700 text-white border-transparent dark:bg-purple-600 dark:hover:bg-purple-500',
+    'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent dark:bg-indigo-500 dark:hover:bg-indigo-600',
   secondary:
     'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 dark:border-zinc-700',
   success:

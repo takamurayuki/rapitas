@@ -17,17 +17,23 @@ import { API_BASE_URL } from '@/utils/api';
 
 const logger = createLogger('ExecutionStream');
 
-/** Workflow phase completion messages keyed by sessionMode */
+// Workflow phase completion messages keyed by sessionMode.
+// NOTE: researcher/planner/reviewer are auto-advancing phases — the orchestrator
+// proceeds to the next phase automatically (planner/reviewer also auto-approve
+// when the setting is on). The messages must NOT imply a hard manual stop, which
+// previously contradicted the actual auto-run ("自動承認なのに実装実行をお願いします").
 const WORKFLOW_PHASE_LABELS: Record<string, string> = {
-  'workflow-researcher':
-    '[調査完了] リサーチフェーズが完了しました。次は計画フェーズを実行してください。',
+  // NOTE: The researcher run sometimes also produces & auto-approves the plan in
+  // the same pass, so don't claim "→ plan phase" (which read as a contradiction
+  // right after "プランは自動承認されました"). Stay neutral about which phase is next.
+  'workflow-researcher': '[調査完了] 調査フェーズが完了しました。次のフェーズへ自動で進みます...',
   'workflow-planner':
-    '[計画作成完了] 計画フェーズが完了しました。計画内容を確認し、承認してください。',
+    '[計画作成完了] 計画フェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-reviewer':
-    '[レビュー完了] レビューフェーズが完了しました。計画内容を確認し、承認してください。',
+    '[レビュー完了] レビューフェーズが完了しました。自動承認が有効な場合はそのまま実装へ進みます（無効の場合のみ計画タブで承認してください）。',
   'workflow-implementer': '[実装完了] 実装フェーズが完了しました。検証フェーズを自動実行中...',
   'workflow-verifier':
-    '[検証完了] 検証フェーズが完了しました。検証結果を確認し、問題なければタスクを完了にしてください。',
+    '[検証完了] 検証フェーズが完了しました。問題がなければステータスは自動で「完了」になります。',
 };
 
 export type PollRefs = {
@@ -99,16 +105,13 @@ export function handleCompleted(
       '\n';
   }
 
-  // PHASE-COMPLETE BUT NOT TASK-COMPLETE: when an auto-advancing workflow
-  // phase ends (researcher/planner/reviewer/implementer), reset internal
-  // tracking so the NEXT phase's execution can be picked up by the same
-  // polling loop without a page reload. The caller (`executePoll`) checks
-  // `isAutoAdvancing` to decide whether to call `stopPolling()`.
-  if (isAutoAdvancingPhase(sessionMode)) {
-    refs.lastProcessedStatusRef.current = null;
-    refs.hasAddedFinalLogRef.current = false;
-    refs.lastProcessedQuestionRef.current = null;
-  }
+  // PHASE-COMPLETE BUT NOT TASK-COMPLETE: do NOT reset the dedup refs here.
+  // Resetting on every 'completed' poll made this handler re-run and re-emit the
+  // phase-completion message on EVERY subsequent poll while the same completed
+  // execution row persisted (the "[調査完了]…自動で進みます" spam when the next
+  // phase hadn't spawned yet). The NEXT phase is detected by the executionId
+  // rollover check in executePoll(), which resets these refs when a genuinely
+  // new AgentExecution appears — so the same completed phase is logged once.
 
   return (prev) => ({
     ...prev,
@@ -394,6 +397,15 @@ export async function executePoll(
           totalSessionTokens: nextTotalSessionTokens,
         };
       });
+    }
+
+    // Keep sessionMode current on EVERY poll. handleCompleted only sets it on a
+    // terminal row, but the UI needs it during running phases too so it can tell
+    // a multi-phase workflow run (use the cross-phase polling log) from a single
+    // execution (use real-time SSE).
+    if (typeof data.sessionMode === 'string') {
+      const mode = data.sessionMode as string;
+      setState((prev) => (prev.sessionMode === mode ? prev : { ...prev, sessionMode: mode }));
     }
 
     // Append new output diff

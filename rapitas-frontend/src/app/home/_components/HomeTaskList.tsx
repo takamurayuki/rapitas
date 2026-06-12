@@ -12,6 +12,8 @@ interface HomeTaskListProps {
   paginatedTasks: Task[];
   sortedTasksCount: number;
   isLoading: boolean;
+  /** Whether the task cache has completed its first fetch / タスクキャッシュが初回取得を終えたか */
+  initialized: boolean;
   categoryFilter: number | null;
   themesInCategoryCount: number;
   themeFilter: number | null;
@@ -41,6 +43,7 @@ export function HomeTaskList({
   paginatedTasks,
   sortedTasksCount,
   isLoading,
+  initialized,
   categoryFilter,
   themesInCategoryCount,
   themeFilter,
@@ -62,7 +65,9 @@ export function HomeTaskList({
   const router = useRouter();
   const t = useTranslations('home');
 
-  if (isLoading && sortedTasksCount === 0) {
+  // Show the skeleton until the cache's first fetch resolves (initialized) as well
+  // as during loads — otherwise the empty state flashes for a frame on initial mount.
+  if ((!initialized || isLoading) && sortedTasksCount === 0) {
     return <TaskCardsSkeleton count={10} />;
   }
 
@@ -122,31 +127,26 @@ export function HomeTaskList({
   return (
     <>
       {/* NOTE: grid-cols-1 (= minmax(0, 1fr)) を明示しないとカラムが content-sized になり、
-          長いタイトルがコンテナ幅を押し広げて truncate が効かなくなる。min-w-0 と併せて指定する。 */}
+          長いタイトルがコンテナ幅を押し広げて truncate が効かなくなる。min-w-0 と併せて指定する。
+          NOTE: 以前は各カードに slide-in-bottom + animationDelay、その後コンテナ単発の
+          animate-in fade-in を付けていたが、グリッドが 0件↔正値で再マウントされるたびに
+          再生されちらつく原因になっていたため撤去。スケルトン→グリッドの遷移自体で十分。 */}
       <div className="grid grid-cols-1 gap-3 min-w-0">
-        {paginatedTasks.map((task, index) => (
-          <div
+        {paginatedTasks.map((task) => (
+          <TaskCard
             key={task.id}
-            className="slide-in-bottom min-w-0"
-            style={{
-              animationDelay: `${index * 0.02}s`,
-              animationFillMode: 'both',
+            task={task}
+            isSelected={selectedTasks.has(task.id)}
+            isSelectionMode={isSelectionMode}
+            onTaskClick={onTaskClick}
+            onStatusChange={(taskId: number, status: Status, cardElement?: HTMLElement) => {
+              onStatusChange(taskId, status, cardElement);
             }}
-          >
-            <TaskCard
-              task={task}
-              isSelected={selectedTasks.has(task.id)}
-              isSelectionMode={isSelectionMode}
-              onTaskClick={onTaskClick}
-              onStatusChange={(taskId: number, status: Status, cardElement?: HTMLElement) => {
-                onStatusChange(taskId, status, cardElement);
-              }}
-              onToggleSelect={onToggleSelect}
-              onTaskUpdated={onTaskUpdated}
-              onOpenInPage={onOpenInPage}
-              sweepingTaskId={sweepingTaskId}
-            />
-          </div>
+            onToggleSelect={onToggleSelect}
+            onTaskUpdated={onTaskUpdated}
+            onOpenInPage={onOpenInPage}
+            sweepingTaskId={sweepingTaskId}
+          />
         ))}
       </div>
 

@@ -8,6 +8,7 @@ without having to reconstruct the reasoning from git archeology.
 ## When to write an ADR
 
 Write one when a decision:
+
 - Constrains how future code must be structured
 - Trades off two reasonable approaches (and the loser is non-obvious)
 - Reverses a previous decision
