@@ -41,7 +41,7 @@ export async function runGhCommand(args: string[], cwd?: string): Promise<string
       error && typeof error === 'object' && 'stderr' in error
         ? (error as { stderr: string }).stderr
         : undefined;
-    log.error({ message }, `gh command failed: gh ${args.join(' ')}`);
+    log.error({ message, stderr }, `gh command failed: gh ${args.join(' ')}`);
     throw new Error(stderr || message);
   }
 }

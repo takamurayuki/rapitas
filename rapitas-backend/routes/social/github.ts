@@ -434,17 +434,22 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     if (!pr) return { success: false, error: 'PR not found' };
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    let mergeResult: { autoQueued: boolean };
     try {
-      await githubService.mergePullRequest(repo, pr.prNumber, { method, deleteBranch, auto });
+      mergeResult = await githubService.mergePullRequest(repo, pr.prNumber, {
+        method,
+        deleteBranch,
+        auto,
+      });
     } catch (err) {
       // gh fails on conflicts / branch protection / not-approved — surface it.
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: `マージに失敗しました: ${message}` };
     }
 
-    // With --auto the merge is only QUEUED (completes later once requirements are
-    // met), so don't mark it merged or sync the local branch yet.
-    if (auto) {
+    // When the merge was queued via auto-merge, it completes later once all
+    // required checks pass — don't mark it merged or sync the local branch yet.
+    if (mergeResult.autoQueued) {
       return { success: true, autoQueued: true };
     }
 

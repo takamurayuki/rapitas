@@ -14,6 +14,11 @@ import type { PullRequestComment, CreatePRCommentInput, GhComment } from './type
 const log = createLogger('github-service:pr-write');
 const execAsync = promisify(exec);
 
+// gh CLI error messages that indicate auto-merge is not configured on the repository.
+// These errors are non-recoverable with --auto; falling back to direct merge is safe.
+const AUTO_MERGE_UNSUPPORTED_RE =
+  /auto.?merge is not allowed|not in a state that can be auto.?merged/i;
+
 /**
  * Post a comment on a pull request (inline or general).
  *
@@ -104,22 +109,53 @@ export async function requestChanges(repo: string, prNumber: number, body: strin
 /**
  * Merge a pull request via `gh pr merge`.
  *
+ * When `options.auto` is true, first attempts `--auto` (queued merge that waits
+ * for required checks). If the repository does not have auto-merge enabled,
+ * gh returns an error; in that case, falls back to a direct merge and logs a
+ * warning so operators know to enable "Allow auto-merge" in the repo settings.
+ *
  * @param repo - Repository in owner/name format / リポジトリ名
  * @param prNumber - PR number / PR番号
  * @param options - Merge method (default squash), branch deletion, and auto-merge / マージ方式・ブランチ削除・自動マージ
+ * @returns Whether the merge was queued via auto-merge or completed immediately / 自動マージキューに入ったか即時マージかを返す
+ * @throws {Error} When the merge command fails for a reason unrelated to auto-merge / 自動マージ以外の理由でマージ失敗時
  */
 export async function mergePullRequest(
   repo: string,
   prNumber: number,
   options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
-): Promise<void> {
+): Promise<{ autoQueued: boolean }> {
   const method = options?.method ?? 'squash';
-  const args = ['pr', 'merge', String(prNumber), '--repo', repo, `--${method}`];
-  if (options?.deleteBranch) args.push('--delete-branch');
-  // --auto queues the merge so GitHub completes it once requirements are met
-  // (pending checks, etc.). It does NOT resolve a true merge conflict.
-  if (options?.auto) args.push('--auto');
-  await runGhCommand(args);
+  const baseArgs = ['pr', 'merge', String(prNumber), '--repo', repo, `--${method}`];
+  if (options?.deleteBranch) baseArgs.push('--delete-branch');
+
+  if (!options?.auto) {
+    await runGhCommand(baseArgs);
+    return { autoQueued: false };
+  }
+
+  // --auto queues the merge so GitHub completes it once required checks pass.
+  try {
+    await runGhCommand([...baseArgs, '--auto']);
+    return { autoQueued: true };
+  } catch (err) {
+    const errMessage = err instanceof Error ? err.message : String(err);
+
+    if (!AUTO_MERGE_UNSUPPORTED_RE.test(errMessage)) {
+      // Unrelated failure (conflict, branch protection, auth, etc.) — propagate.
+      throw err;
+    }
+
+    // NOTE: --auto requires "Allow auto-merge" enabled in GitHub repository
+    // settings plus branch protection rules with required status checks.
+    // Retrying as a direct merge because this repository is not configured for it.
+    log.warn(
+      { repo, prNumber, ghError: errMessage },
+      'gh --auto failed: auto-merge not enabled on repository; retrying as direct merge',
+    );
+    await runGhCommand(baseArgs);
+    return { autoQueued: false };
+  }
 }
 
 /**
