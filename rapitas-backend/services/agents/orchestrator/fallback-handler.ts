@@ -120,8 +120,9 @@ export async function handleResumeFailureFallbacks(
   claudeSessionId: string,
 ): Promise<AgentExecutionResult> {
   logger.info(`[FallbackHandler] Session resume failed. Retrying --resume after delay...`);
-  fileLogger.logError(
+  fileLogger.logWarn(
     `Session resume failed with --resume ${claudeSessionId}. Retrying after 3s delay.`,
+    { claudeSessionId, fallbackStage: 'resume_retry' },
   );
 
   await agentFactory.removeAgent(currentAgent.id);
@@ -161,7 +162,10 @@ export async function handleResumeFailureFallbacks(
 
   // Fall back to --continue
   logger.info(`[FallbackHandler] --resume retry also failed. Attempting --continue...`);
-  fileLogger.logError(`--resume retry also failed. Attempting --continue fallback.`);
+  fileLogger.logWarn(`--resume retry also failed. Attempting --continue fallback.`, {
+    claudeSessionId,
+    fallbackStage: 'continue_fallback',
+  });
   await agentFactory.removeAgent(retryAgent.id);
 
   const fallbackAgent = agentFactory.createAgent({
@@ -201,7 +205,10 @@ export async function handleResumeFailureFallbacks(
 
   // Final fallback: start new session with context
   logger.info(`[FallbackHandler] --continue also failed. Starting new session with context...`);
-  fileLogger.logError(`--continue fallback also failed. Starting new session with context.`);
+  fileLogger.logWarn(`--continue fallback also failed. Starting new session with context.`, {
+    claudeSessionId,
+    fallbackStage: 'new_session',
+  });
   await agentFactory.removeAgent(fallbackAgent.id);
 
   const newAgent = agentFactory.createAgent({
