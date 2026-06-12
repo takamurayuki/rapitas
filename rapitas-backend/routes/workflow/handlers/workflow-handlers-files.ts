@@ -23,7 +23,10 @@ import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
-import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
+import {
+  checkWorkflowInvariants,
+  normalizeWorkflowStatus,
+} from '../../../services/workflow/workflow-invariants';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -188,7 +191,9 @@ export async function handleSaveFile({
       verify_done: new Set([]),
       completed: new Set([]),
     };
-    const currentStatusForGuard = resolved.task.workflowStatus ?? 'draft';
+    // NOTE: normalizeWorkflowStatus handles null/undefined/empty-string — an empty workflowStatus
+    // would cause ALLOWED_FILE_TYPES_BY_STATUS[""] to return undefined and skip the guard entirely.
+    const currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
     const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
     if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
       log.warn(
@@ -451,8 +456,23 @@ export async function handleSaveFile({
             : undefined,
       });
       if (violations.length > 0) {
+        const missingFiles = violations
+          .filter((v) => v.code === 'missing_file')
+          .map((v) => {
+            const m = v.message.match(/but (\S+\.md) is missing/);
+            return m ? m[1] : 'unknown';
+          });
         log.warn(
-          { taskId, violations },
+          {
+            taskId,
+            violations,
+            workflowDir: dir,
+            missingFiles,
+            hint:
+              missingFiles.length > 0
+                ? `save the missing file(s) via PUT /workflow/tasks/${taskId}/files/<type>, or reset status to draft`
+                : 'check task.status consistency or open subtasks',
+          },
           '[Workflow] Invariant violations detected after status update',
         );
       }
