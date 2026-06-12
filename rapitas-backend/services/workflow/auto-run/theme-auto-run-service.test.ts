@@ -4,18 +4,18 @@
  * Unit tests for ThemeAutoRun state transitions.
  * Mocks the prisma import so no live DB is needed.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock prisma before importing the module under test
+// Mock functions — defined before mock.module() so the factory can close over them
 // ---------------------------------------------------------------------------
-const mockUpsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockUpdateMany = vi.fn();
-const mockFindUnique = vi.fn();
-const mockCreate = vi.fn();
+const mockUpsert = mock(() => Promise.resolve({}));
+const mockUpdate = mock(() => Promise.resolve({}));
+const mockUpdateMany = mock(() => Promise.resolve({ count: 0 }));
+const mockFindUnique = mock(() => Promise.resolve(null));
+const mockCreate = mock(() => Promise.resolve({}));
 
-vi.mock('../../../config', () => ({
+mock.module('../../../config', () => ({
   prisma: {
     themeAutoRun: {
       findUnique: mockFindUnique,
@@ -28,14 +28,14 @@ vi.mock('../../../config', () => ({
 }));
 
 // Re-import AFTER mock is installed
-import {
+const {
   startAutoRun,
   pauseAutoRun,
   stopAutoRun,
   resumeAutoRun,
   isThemeAutoRunActive,
   finalizeStop,
-} from './theme-auto-run-service';
+} = await import('./theme-auto-run-service');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,12 +58,20 @@ function makeRecord(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function resetMocks() {
+  mockUpsert.mockClear();
+  mockUpdate.mockClear();
+  mockUpdateMany.mockClear();
+  mockFindUnique.mockClear();
+  mockCreate.mockClear();
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('isThemeAutoRunActive', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('returns false for null themeId', async () => {
     expect(await isThemeAutoRunActive(null)).toBe(false);
@@ -91,7 +99,7 @@ describe('isThemeAutoRunActive', () => {
 });
 
 describe('startAutoRun', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('upserts with status running', async () => {
     const record = makeRecord({ status: 'running' });
@@ -122,7 +130,7 @@ describe('startAutoRun', () => {
 });
 
 describe('pauseAutoRun', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('sets status to paused', async () => {
     mockUpsert.mockResolvedValue(makeRecord({ status: 'paused' }));
@@ -137,7 +145,7 @@ describe('pauseAutoRun', () => {
 });
 
 describe('stopAutoRun', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('sets status to stopping', async () => {
     mockUpsert.mockResolvedValue(makeRecord({ status: 'stopping' }));
@@ -152,7 +160,7 @@ describe('stopAutoRun', () => {
 });
 
 describe('resumeAutoRun', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('transitions paused → running', async () => {
     mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused' }));
@@ -181,7 +189,7 @@ describe('resumeAutoRun', () => {
 });
 
 describe('finalizeStop', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   it('sets idle + disabled + clears currentTaskId', async () => {
     mockUpdateMany.mockResolvedValue({ count: 1 });

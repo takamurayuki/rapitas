@@ -1,57 +1,58 @@
-// @ts-nocheck — Uses vitest API in a bun:test project. Needs migration.
+// @ts-nocheck — Loosely-typed mock setup; types are not the concern of this test file.
 /**
  * Tests for stop-route worktree cleanup functionality
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { stopRoute } from './stop-route';
+import { describe, it, expect, beforeEach, mock } from 'bun:test';
 
-const mocked = <T>(value: T) => value as any;
+// ---------------------------------------------------------------------------
+// Pre-defined mock functions — must be defined before mock.module() calls
+// ---------------------------------------------------------------------------
 
-// Mock modules
-vi.mock('../../../config/database', () => ({
-  prisma: {
-    task: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    developerModeConfig: {
-      findUnique: vi.fn(),
-    },
-    agentExecution: {
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    agentExecutionLog: {
-      deleteMany: vi.fn(),
-    },
-    agentSession: {
-      update: vi.fn(),
-    },
+const mockDb = {
+  task: {
+    findUnique: mock(() => Promise.resolve(null)),
+    update: mock(() => Promise.resolve({})),
   },
+  developerModeConfig: {
+    findUnique: mock(() => Promise.resolve(null)),
+  },
+  agentExecution: {
+    findFirst: mock(() => Promise.resolve(null)),
+    findUnique: mock(() => Promise.resolve(null)),
+    update: mock(() => Promise.resolve({})),
+  },
+  agentExecutionLog: {
+    deleteMany: mock(() => Promise.resolve({ count: 0 })),
+  },
+  agentSession: {
+    update: mock(() => Promise.resolve({})),
+  },
+};
+
+const mockOrchestratorInst = {
+  stopExecution: mock(() => Promise.resolve(true)),
+};
+
+const mockAgentWorkerGetInstance = mock(() => ({
+  getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+  stopExecution: mock(),
+  revertChanges: mock(),
 }));
-vi.mock('../../../config', () => ({
-  prisma: {
-    task: {
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    developerModeConfig: {
-      findUnique: vi.fn(),
-    },
-    agentExecution: {
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-    },
-    agentExecutionLog: {
-      deleteMany: vi.fn(),
-    },
-    agentSession: {
-      update: vi.fn(),
-    },
-  },
+
+const mockRemoveWorktreeFn = mock(() => Promise.resolve(undefined));
+const mockReleaseTaskExecLock = mock(() => Promise.resolve(undefined));
+
+// ---------------------------------------------------------------------------
+// Module mocks — must be registered before dynamic imports
+// ---------------------------------------------------------------------------
+
+mock.module('../../../config/database', () => ({
+  prisma: mockDb,
+}));
+
+mock.module('../../../config', () => ({
+  prisma: mockDb,
   getProjectRoot: () => '/tmp/rapitas-test',
   createLogger: () => ({
     info: () => {},
@@ -61,43 +62,75 @@ vi.mock('../../../config', () => ({
   }),
 }));
 
-vi.mock('../../../services/core/orchestrator-instance', () => ({
-  orchestrator: {
-    stopExecution: vi.fn(),
-  },
+mock.module('../../../services/core/orchestrator-instance', () => ({
+  orchestrator: mockOrchestratorInst,
 }));
 
-vi.mock('../../../services/agents/agent-worker-manager', () => ({
+mock.module('../../../services/agents/agent-worker-manager', () => ({
   AgentWorkerManager: {
-    getInstance: vi.fn(() => ({
-      getSessionExecutionsAsync: vi.fn(() => Promise.resolve([])),
-      stopExecution: vi.fn(),
-      revertChanges: vi.fn(),
-    })),
+    getInstance: mockAgentWorkerGetInstance,
   },
 }));
 
-vi.mock('./execution-lock', () => ({
-  releaseTaskExecutionLock: vi.fn(),
+mock.module('./execution-lock', () => ({
+  releaseTaskExecutionLock: mockReleaseTaskExecLock,
 }));
 
-vi.mock('../../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
-  removeWorktree: vi.fn(),
+// NOTE: All exports provided to prevent named-export resolution errors from index.ts re-exports.
+mock.module('../../../services/agents/orchestrator/git-operations/worktree-ops', () => ({
+  removeWorktree: mockRemoveWorktreeFn,
+  cleanupStaleWorktrees: mock(() => Promise.resolve(0)),
+  cleanupOrphanedWorktrees: mock(() => Promise.resolve(0)),
+  createWorktree: mock(() => Promise.resolve('')),
+  ensureGitRepository: mock(() => Promise.resolve()),
+  validateAndSetupRemote: mock(() => Promise.resolve()),
 }));
 
+// NOTE: Mock stop-task-agents to prevent loading agent-orchestrator and its deep dependency chain.
+mock.module('../../../services/agents/stop-task-agents', () => ({
+  stopTaskAgents: mock(() => Promise.resolve({ stopped: [], failed: [] })),
+  stopThemeAgents: mock(() => Promise.resolve()),
+}));
+
+// ---------------------------------------------------------------------------
+// Dynamic imports AFTER mocks are registered
+// ---------------------------------------------------------------------------
+
+const { stopRoute } = await import('./stop-route');
 const { prisma } = await import('../../../config/database');
 const { orchestrator } = await import('../../../services/core/orchestrator-instance');
 const { removeWorktree } =
   await import('../../../services/agents/orchestrator/git-operations/worktree-ops');
 
-const mockPrisma = mocked(prisma);
-const mockOrchestrator = mocked(orchestrator);
-const mockRemoveWorktree = mocked(removeWorktree);
+// Aliases matching the original test variable names
+const mockPrisma = mockDb;
+const mockOrchestrator = mockOrchestratorInst;
+const mockRemoveWorktree = mockRemoveWorktreeFn;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function resetMocks() {
+  mockDb.task.findUnique.mockClear();
+  mockDb.task.update.mockClear();
+  mockDb.developerModeConfig.findUnique.mockClear();
+  mockDb.agentExecution.findFirst.mockClear();
+  mockDb.agentExecution.findUnique.mockClear();
+  mockDb.agentExecution.update.mockClear();
+  mockDb.agentExecutionLog.deleteMany.mockClear();
+  mockDb.agentSession.update.mockClear();
+  mockOrchestratorInst.stopExecution.mockClear();
+  mockRemoveWorktreeFn.mockClear();
+  mockReleaseTaskExecLock.mockClear();
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 describe('stop-route worktree cleanup', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(resetMocks);
 
   it.skip('should clean up worktree on single execution stop', async () => {
     const taskId = 123;
@@ -127,9 +160,9 @@ describe('stop-route worktree cleanup', () => {
 
     mockOrchestrator.stopExecution.mockResolvedValue(true);
     mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.agentExecution.update.mockResolvedValue({} as any);
-    mockPrisma.task.update.mockResolvedValue({} as any);
-    mockPrisma.agentSession.update.mockResolvedValue({} as any);
+    mockPrisma.agentExecution.update.mockResolvedValue({});
+    mockPrisma.task.update.mockResolvedValue({});
+    mockPrisma.agentSession.update.mockResolvedValue({});
     mockRemoveWorktree.mockResolvedValue(undefined);
 
     // Create test context
@@ -138,10 +171,10 @@ describe('stop-route worktree cleanup', () => {
     };
 
     // Call the route handler
-    const app = { post: vi.fn() };
-    const routeHandler = vi.fn();
+    const app = { post: mock() };
+    const routeHandler = mock();
 
-    stopRoute.post = vi.fn((path, handler) => {
+    stopRoute.post = mock((path, handler) => {
       routeHandler.mockImplementation(handler);
       return app;
     });
@@ -180,18 +213,18 @@ describe('stop-route worktree cleanup', () => {
     });
 
     const mockAgentWorkerManager = {
-      getSessionExecutionsAsync: vi.fn(() => Promise.resolve([])),
-      stopExecution: vi.fn(),
-      revertChanges: vi.fn(),
+      getSessionExecutionsAsync: mock(() => Promise.resolve([])),
+      stopExecution: mock(),
+      revertChanges: mock(),
     };
 
     // Mock AgentWorkerManager
     const { AgentWorkerManager } = await import('../../../services/agents/agent-worker-manager');
-    vi.mocked(AgentWorkerManager.getInstance).mockReturnValue(mockAgentWorkerManager as any);
+    AgentWorkerManager.getInstance.mockReturnValue(mockAgentWorkerManager);
 
     mockPrisma.agentExecution.findMany.mockResolvedValue([]);
-    mockPrisma.agentSession.update.mockResolvedValue({} as any);
-    mockPrisma.task.update.mockResolvedValue({} as any);
+    mockPrisma.agentSession.update.mockResolvedValue({});
+    mockPrisma.task.update.mockResolvedValue({});
     mockRemoveWorktree.mockResolvedValue(undefined);
 
     // Create test context
@@ -200,11 +233,11 @@ describe('stop-route worktree cleanup', () => {
     };
 
     // Create a mock route handler
-    const routeHandler = vi.fn();
+    const routeHandler = mock();
 
     // Mock the Elysia route
     const mockElysia = {
-      post: vi.fn((path, handler) => {
+      post: mock((path, handler) => {
         routeHandler.mockImplementation(handler);
         return mockElysia;
       }),
@@ -245,8 +278,8 @@ describe('stop-route worktree cleanup', () => {
 
     mockOrchestrator.stopExecution.mockResolvedValue(true);
     mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.agentExecution.update.mockResolvedValue({} as any);
-    mockPrisma.task.update.mockResolvedValue({} as any);
+    mockPrisma.agentExecution.update.mockResolvedValue({});
+    mockPrisma.task.update.mockResolvedValue({});
 
     // Mock worktree cleanup failure
     mockRemoveWorktree.mockRejectedValue(new Error('Cleanup failed'));
@@ -286,8 +319,8 @@ describe('stop-route worktree cleanup', () => {
 
     mockOrchestrator.stopExecution.mockResolvedValue(true);
     mockPrisma.agentExecutionLog.deleteMany.mockResolvedValue({ count: 0 });
-    mockPrisma.agentExecution.update.mockResolvedValue({} as any);
-    mockPrisma.task.update.mockResolvedValue({} as any);
+    mockPrisma.agentExecution.update.mockResolvedValue({});
+    mockPrisma.task.update.mockResolvedValue({});
 
     // Create test context
     const context = {
