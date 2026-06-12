@@ -31,4 +31,3 @@ export type AnalysisData = {
     estimatedHours?: number;
   }>;
 };
-

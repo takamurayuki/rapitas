@@ -64,9 +64,7 @@ describe('extractFirstJsonArray', () => {
     const input = '[{"scope":["a.ts","b.ts"],"tags":["fix","perf"]}]';
     const result = extractFirstJsonArray(input);
     expect(result).toBe(input);
-    expect(JSON.parse(result!)).toEqual([
-      { scope: ['a.ts', 'b.ts'], tags: ['fix', 'perf'] },
-    ]);
+    expect(JSON.parse(result!)).toEqual([{ scope: ['a.ts', 'b.ts'], tags: ['fix', 'perf'] }]);
   });
 
   it('前置きテキストがある場合でも配列を抽出する', () => {

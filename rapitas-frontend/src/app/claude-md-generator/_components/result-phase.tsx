@@ -100,7 +100,11 @@ export function ResultPhase({
   return (
     <div
       className="cmd-gen"
-      style={{ minHeight: 'calc(100vh - 4rem - 1px)', background: 'var(--bg)', padding: '40px 20px' }}
+      style={{
+        minHeight: 'calc(100vh - 4rem - 1px)',
+        background: 'var(--bg)',
+        padding: '40px 20px',
+      }}
     >
       <style>{GLOBAL_CSS}</style>
       <div style={{ maxWidth: 820, margin: '0 auto' }} className="fade" ref={topRef}>
@@ -374,7 +378,9 @@ export function ResultPhase({
                 <XCircle size={16} strokeWidth={1.75} /> {t('themeCreateError')}
               </div>
               {setupError && (
-                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>{setupError}</p>
+                <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
+                  {setupError}
+                </p>
               )}
               <button
                 className="btn btn-outline"

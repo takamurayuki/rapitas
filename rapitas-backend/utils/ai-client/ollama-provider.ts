@@ -102,7 +102,12 @@ export async function callOllama(
   const isLlamaServer = baseUrl.includes(`:${LLAMA_SERVER_PORT}`);
   const url = isLlamaServer ? `${baseUrl}/v1/chat/completions` : `${baseUrl}/api/chat`;
   const body = isLlamaServer
-    ? JSON.stringify({ model, messages: chatMessages, max_tokens: maxTokens || 256, temperature: 0.7 })
+    ? JSON.stringify({
+        model,
+        messages: chatMessages,
+        max_tokens: maxTokens || 256,
+        temperature: 0.7,
+      })
     : JSON.stringify({
         model,
         messages: chatMessages,
@@ -143,9 +148,7 @@ export async function callOllama(
           prompt_eval_count?: number;
         };
 
-        const content = isLlamaServer
-          ? data.choices?.[0]?.message?.content
-          : data.message?.content;
+        const content = isLlamaServer ? data.choices?.[0]?.message?.content : data.message?.content;
         if (!content) {
           throw new Error('Local LLM returned empty response');
         }

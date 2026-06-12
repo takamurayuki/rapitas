@@ -17,9 +17,8 @@ mock.module('../../config/logger', () => ({
   }),
 }));
 
-const { getActiveExecutionIdsAsync } = await import(
-  '../../services/agents/agent-worker/public-api'
-);
+const { getActiveExecutionIdsAsync } =
+  await import('../../services/agents/agent-worker/public-api');
 
 describe('getActiveExecutionIdsAsync (public-api.ts)', () => {
   beforeEach(() => {

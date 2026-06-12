@@ -261,7 +261,10 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
         // Duck-type check instead of instanceof so unit tests can mock this error
         // without constructing a real PrismaClientKnownRequestError instance.
         if ((err as PrismaClientKnownRequestError).code === 'P2021') {
-          log.warn({ err }, 'Comment table missing from SQLite DB — skipping comment search results');
+          log.warn(
+            { err },
+            'Comment table missing from SQLite DB — skipping comment search results',
+          );
         } else {
           throw err;
         }

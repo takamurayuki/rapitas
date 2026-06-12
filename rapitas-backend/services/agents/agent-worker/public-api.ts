@@ -182,7 +182,10 @@ export async function getActiveExecutionIdsAsync(ipc: IpcSender): Promise<number
     // Any other error (IPC timeout, abnormal worker response) is a genuine anomaly — keep as WARN.
     // NOTE: The fixed string 'Worker not ready' is thrown in ipc.ts:58 — update both sites together if changed.
     if (error instanceof Error && error.message === 'Worker not ready') {
-      logger.debug({ err: error }, '[AgentWorkerManager] Worker not ready — skipping active execution ID fetch');
+      logger.debug(
+        { err: error },
+        '[AgentWorkerManager] Worker not ready — skipping active execution ID fetch',
+      );
     } else {
       logger.warn({ err: error }, '[AgentWorkerManager] Failed to get active execution IDs');
     }

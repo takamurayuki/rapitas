@@ -42,8 +42,7 @@ export async function rmDirWithRetry(
 ): Promise<boolean> {
   const maxAttempts = opts?.maxAttempts ?? 5;
   // NOTE: Default uses exponential backoff (1 s, 2 s, 3 s, 4 s…). Override in tests.
-  const sleepFn =
-    opts?.sleepFn ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const sleepFn = opts?.sleepFn ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {

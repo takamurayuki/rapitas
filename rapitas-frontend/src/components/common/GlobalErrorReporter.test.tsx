@@ -105,9 +105,7 @@ describe('matchesPattern()', () => {
     });
 
     it('passes through on non-matching UA', () => {
-      expect(
-        matchesPattern(uaEntry, 'WebGL: INVALID_OPERATION', { ua: 'Chrome/124' }),
-      ).toBe(false);
+      expect(matchesPattern(uaEntry, 'WebGL: INVALID_OPERATION', { ua: 'Chrome/124' })).toBe(false);
     });
 
     it('skips UA constraint when ctx.ua is undefined (navigator absent)', () => {
@@ -189,9 +187,9 @@ describe('isBenign()', () => {
 
     it('skips UA constraint for built-in entries (ua field absent on entry)', () => {
       // Built-in entries have no ua — they are valid for all browsers.
-      expect(
-        isBenign('Script error.', { ua: 'some-unusual-ua-string', env: 'production' }),
-      ).toBe(true);
+      expect(isBenign('Script error.', { ua: 'some-unusual-ua-string', env: 'production' })).toBe(
+        true,
+      );
     });
   });
 });

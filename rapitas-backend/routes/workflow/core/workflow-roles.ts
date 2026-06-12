@@ -241,9 +241,8 @@ export const workflowRolesRoutes = new Elysia()
    * for display. Seeds defaults on first read.
    */
   .get('/workflow-modes', async () => {
-    const { getAllModeSettings, buildTransitions } = await import(
-      '../../../services/workflow/workflow-mode-config'
-    );
+    const { getAllModeSettings, buildTransitions } =
+      await import('../../../services/workflow/workflow-mode-config');
     const all = await getAllModeSettings();
     return {
       modes: Object.values(all).map((s) => ({
@@ -273,9 +272,7 @@ export const workflowRolesRoutes = new Elysia()
     for (const k of ['complexityMin', 'complexityMax'] as const) {
       if (typeof b[k] === 'number') patch[k] = b[k];
     }
-    const { updateModeSettings } = await import(
-      '../../../services/workflow/workflow-mode-config'
-    );
+    const { updateModeSettings } = await import('../../../services/workflow/workflow-mode-config');
     const updated = await updateModeSettings(mode, patch);
     return { success: true, mode: updated };
   });

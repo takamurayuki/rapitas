@@ -8,7 +8,9 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // Mock declarations are hoisted by bun before static imports.
-const mockRunGhCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => Promise.resolve(''));
+const mockRunGhCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) =>
+  Promise.resolve(''),
+);
 
 mock.module('./gh-client', () => ({
   runGhCommand: mockRunGhCommand,
@@ -72,14 +74,20 @@ describe('mergePullRequest', () => {
 
       await mergePullRequest('owner/repo', 7, { auto: true });
 
-      const [, , opts] = mockRunGhCommand.mock.calls[0] as [string[], string | undefined, { skipLog?: boolean } | undefined];
+      const [, , opts] = mockRunGhCommand.mock.calls[0] as [
+        string[],
+        string | undefined,
+        { skipLog?: boolean } | undefined,
+      ];
       expect(opts?.skipLog).toBe(true);
     });
 
     it('falls back to direct merge when auto-merge is not allowed, returns autoQueued: false', async () => {
       // First call (--auto) fails with the GitHub "not allowed" message.
       mockRunGhCommand.mockRejectedValueOnce(
-        new Error('GraphQL: Auto-merge is not allowed for this repository (addPullRequestToMergeQueue)'),
+        new Error(
+          'GraphQL: Auto-merge is not allowed for this repository (addPullRequestToMergeQueue)',
+        ),
       );
       // Second call (direct merge) succeeds.
       mockRunGhCommand.mockResolvedValueOnce('');
@@ -124,7 +132,9 @@ describe('mergePullRequest', () => {
       const directMergeError = new Error('Pull request is not mergeable');
       mockRunGhCommand.mockRejectedValueOnce(directMergeError);
 
-      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(directMergeError);
+      await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(
+        directMergeError,
+      );
       expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });
 

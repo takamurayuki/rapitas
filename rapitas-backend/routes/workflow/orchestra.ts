@@ -41,9 +41,7 @@ export const orchestraRoutes = new Elysia()
       throw new ValidationError('Task has no subtasks to run');
     }
 
-    const pending = subtasks.filter(
-      (s) => !['done', 'cancelled', 'archived'].includes(s.status),
-    );
+    const pending = subtasks.filter((s) => !['done', 'cancelled', 'archived'].includes(s.status));
 
     // No pending work → treat the click as a re-run: reset every not-cancelled
     // subtask to a runnable state, then enqueue them all again.

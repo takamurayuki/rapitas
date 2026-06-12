@@ -391,12 +391,22 @@ export async function enrichIdea(
     });
 
     log.info(
-      { ideaId, actionability, specificity, confidence, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      {
+        ideaId,
+        actionability,
+        specificity,
+        confidence,
+        durationMs: Date.now() - startTime,
+        ...(runId && { runId }),
+      },
       'Idea enriched',
     );
     return { kept: true };
   } catch (err) {
-    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea enrichment failed');
+    log.warn(
+      { err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea enrichment failed',
+    );
     return { kept: true };
   }
 }
@@ -480,7 +490,10 @@ export async function reviewIdea(ideaId: number, runId?: string): Promise<void> 
       'Idea reviewed',
     );
   } catch (err) {
-    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea review failed (non-critical)');
+    log.warn(
+      { err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea review failed (non-critical)',
+    );
   }
 }
 

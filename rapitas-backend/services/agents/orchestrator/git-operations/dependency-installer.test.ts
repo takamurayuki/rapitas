@@ -123,7 +123,9 @@ describe('installWorktreeDependencies', () => {
       },
     );
 
-    await expect(installWorktreeDependencies(worktree)).rejects.toThrow(/setup-worktree\.cjs failed/);
+    await expect(installWorktreeDependencies(worktree)).rejects.toThrow(
+      /setup-worktree\.cjs failed/,
+    );
   });
 });
 

@@ -118,7 +118,11 @@ export function SubPhase({
       </div>
 
       <div style={{ marginBottom: 32 }}>
-        <CustomOptionInput placeholder={t('customSubPlaceholder')} addLabel={t('addCustom')} onAdd={handleAdd} />
+        <CustomOptionInput
+          placeholder={t('customSubPlaceholder')}
+          addLabel={t('addCustom')}
+          onAdd={handleAdd}
+        />
       </div>
     </PageWrap>
   );

@@ -31,7 +31,13 @@ const PROVIDER_NAME: Record<string, string> = {
 };
 
 export interface AutoRegisterResult {
-  registered: Array<{ id: number; agentType: string; name: string; modelId: string | null; isDefault: boolean }>;
+  registered: Array<{
+    id: number;
+    agentType: string;
+    name: string;
+    modelId: string | null;
+    isDefault: boolean;
+  }>;
   skipped: Array<{ provider: string; reason: string }>;
 }
 
@@ -64,7 +70,11 @@ export async function autoRegisterAvailableAgents(): Promise<AutoRegisterResult>
           where: { id: existing.id },
           // Reactivate; only seed a model if none was set so we don't clobber a
           // user's explicit choice.
-          data: { isActive: true, isInstalled: true, ...(existing.modelId ? {} : { modelId: defaultModel }) },
+          data: {
+            isActive: true,
+            isInstalled: true,
+            ...(existing.modelId ? {} : { modelId: defaultModel }),
+          },
         })
       : await prisma.aIAgentConfig.create({
           data: {

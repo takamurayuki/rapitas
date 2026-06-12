@@ -66,7 +66,12 @@ describe('CopilotChatPanel', () => {
   it('runs the grounded retrospective endpoint for a done task', async () => {
     const ctxDone: NextActionContext = { ...ctxTodoManual, status: 'done' };
     render(
-      <CopilotChatPanel taskId={1} taskTitle="test" taskStatus="done" nextActionContext={ctxDone} />,
+      <CopilotChatPanel
+        taskId={1}
+        taskTitle="test"
+        taskStatus="done"
+        nextActionContext={ctxDone}
+      />,
     );
     fireEvent.click(screen.getByText('振り返りをする'));
     await waitFor(() => {
@@ -76,7 +81,9 @@ describe('CopilotChatPanel', () => {
   });
 
   it('renders message log with aria-live attribute', () => {
-    const { container } = render(<CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />);
+    const { container } = render(
+      <CopilotChatPanel taskId={1} taskTitle="test" taskStatus="todo" />,
+    );
     const log = container.querySelector('[role="log"]');
     expect(log).toHaveAttribute('aria-live', 'polite');
   });

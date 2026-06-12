@@ -193,62 +193,62 @@ export default function TaskDetailViewBody({
       {task.theme?.isDevelopment === true && (
         <div id="td-workflow" className="scroll-mt-16">
           <TaskWorkflowSection
-          task={task}
-          taskId={taskId}
-          currentWorkflowStatus={currentWorkflowStatus}
-          setCurrentWorkflowStatus={setCurrentWorkflowStatus}
-          isWorkflowLoading={isWorkflowLoading}
-          workflowError={workflowError}
-          onPlanApprovalRequest={onPlanApprovalRequest}
-          onWorkflowComplete={onWorkflowComplete}
-          onTaskUpdated={onTaskUpdated}
-          setTask={setTask}
+            task={task}
+            taskId={taskId}
+            currentWorkflowStatus={currentWorkflowStatus}
+            setCurrentWorkflowStatus={setCurrentWorkflowStatus}
+            isWorkflowLoading={isWorkflowLoading}
+            workflowError={workflowError}
+            onPlanApprovalRequest={onPlanApprovalRequest}
+            onWorkflowComplete={onWorkflowComplete}
+            onTaskUpdated={onTaskUpdated}
+            setTask={setTask}
           />
         </div>
       )}
 
       <div id="td-subtasks" className="scroll-mt-16">
         <SubtaskSection
-        subtasks={task.subtasks || []}
-        isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
-        selectedSubtaskIds={taskActions.selectedSubtaskIds}
-        showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
-        editingSubtaskId={taskActions.editingSubtaskId}
-        editingSubtaskTitle={taskActions.editingSubtaskTitle}
-        editingSubtaskDescription={taskActions.editingSubtaskDescription}
-        editingSubtaskPriority={taskActions.editingSubtaskPriority}
-        editingSubtaskLabels={taskActions.editingSubtaskLabels}
-        editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
-        isParallelExecutionRunning={isParallelExecutionRunning}
-        getSubtaskStatus={getSubtaskStatus}
-        onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
-        onSelectAll={taskActions.selectAllSubtasks}
-        onDeselectAll={taskActions.deselectAllSubtasks}
-        onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
-        onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
-        onDeleteAll={taskActions.handleDeleteAllSubtasks}
-        onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
-        onStartEditingSubtask={taskActions.startEditingSubtask}
-        onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
-        onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
-        onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
-        onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
-        onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
-        onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
-        onCancelEditingSubtask={taskActions.cancelEditingSubtask}
-        onUpdateStatus={taskActions.updateStatus}
-        isAddingSubtask={taskActions.isAddingSubtask}
-        newSubtaskTitle={taskActions.newSubtaskTitle}
-        newSubtaskDescription={taskActions.newSubtaskDescription}
-        newSubtaskLabels={taskActions.newSubtaskLabels}
-        newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
-        onToggleAddSubtask={taskActions.toggleAddSubtask}
-        onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
-        onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
-        onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
-        onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
-        onAddSubtask={taskActions.addSubtask}
-        onCancelAddSubtask={taskActions.cancelAddSubtask}
+          subtasks={task.subtasks || []}
+          isSubtaskSelectionMode={taskActions.isSubtaskSelectionMode}
+          selectedSubtaskIds={taskActions.selectedSubtaskIds}
+          showSubtaskDeleteConfirm={taskActions.showSubtaskDeleteConfirm}
+          editingSubtaskId={taskActions.editingSubtaskId}
+          editingSubtaskTitle={taskActions.editingSubtaskTitle}
+          editingSubtaskDescription={taskActions.editingSubtaskDescription}
+          editingSubtaskPriority={taskActions.editingSubtaskPriority}
+          editingSubtaskLabels={taskActions.editingSubtaskLabels}
+          editingSubtaskEstimatedHours={taskActions.editingSubtaskEstimatedHours}
+          isParallelExecutionRunning={isParallelExecutionRunning}
+          getSubtaskStatus={getSubtaskStatus}
+          onToggleSelectionMode={taskActions.toggleSubtaskSelectionMode}
+          onSelectAll={taskActions.selectAllSubtasks}
+          onDeselectAll={taskActions.deselectAllSubtasks}
+          onToggleSubtaskSelection={taskActions.toggleSubtaskSelection}
+          onSetDeleteConfirm={taskActions.setShowSubtaskDeleteConfirm}
+          onDeleteAll={taskActions.handleDeleteAllSubtasks}
+          onDeleteSelected={taskActions.handleDeleteSelectedSubtasks}
+          onStartEditingSubtask={taskActions.startEditingSubtask}
+          onSetEditingSubtaskTitle={taskActions.setEditingSubtaskTitle}
+          onSetEditingSubtaskDescription={taskActions.setEditingSubtaskDescription}
+          onSetEditingSubtaskPriority={taskActions.setEditingSubtaskPriority}
+          onSetEditingSubtaskLabels={taskActions.setEditingSubtaskLabels}
+          onSetEditingSubtaskEstimatedHours={taskActions.setEditingSubtaskEstimatedHours}
+          onSaveSubtaskEdit={taskActions.saveSubtaskEdit}
+          onCancelEditingSubtask={taskActions.cancelEditingSubtask}
+          onUpdateStatus={taskActions.updateStatus}
+          isAddingSubtask={taskActions.isAddingSubtask}
+          newSubtaskTitle={taskActions.newSubtaskTitle}
+          newSubtaskDescription={taskActions.newSubtaskDescription}
+          newSubtaskLabels={taskActions.newSubtaskLabels}
+          newSubtaskEstimatedHours={taskActions.newSubtaskEstimatedHours}
+          onToggleAddSubtask={taskActions.toggleAddSubtask}
+          onSetNewSubtaskTitle={taskActions.setNewSubtaskTitle}
+          onSetNewSubtaskDescription={taskActions.setNewSubtaskDescription}
+          onSetNewSubtaskLabels={taskActions.setNewSubtaskLabels}
+          onSetNewSubtaskEstimatedHours={taskActions.setNewSubtaskEstimatedHours}
+          onAddSubtask={taskActions.addSubtask}
+          onCancelAddSubtask={taskActions.cancelAddSubtask}
         />
       </div>
     </>

@@ -80,10 +80,7 @@ function guideContent(
  * Inline guide panel rendered in place of the execution body when the task
  * is not yet able to run an agent.
  */
-export function ExecutionCapabilityGuide({
-  capability,
-  themeId,
-}: ExecutionCapabilityGuideProps) {
+export function ExecutionCapabilityGuide({ capability, themeId }: ExecutionCapabilityGuideProps) {
   const { icon: Icon, title, body, href, cta } = guideContent(capability, themeId);
 
   return (

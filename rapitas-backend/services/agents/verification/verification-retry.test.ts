@@ -6,11 +6,7 @@
  * The DB-driven retryOrBlock flow is an integration concern covered elsewhere.
  */
 import { describe, it, expect } from 'bun:test';
-import {
-  parseRetryCount,
-  withRetryCount,
-  buildFixInstruction,
-} from './verification-retry';
+import { parseRetryCount, withRetryCount, buildFixInstruction } from './verification-retry';
 import type { VerificationResult } from './automated-verifier';
 
 describe('parseRetryCount', () => {

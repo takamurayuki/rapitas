@@ -188,9 +188,8 @@ export async function createParentTask(
 
       // Map the score to a mode via the DB-configured complexity ranges
       // (UI-editable) instead of the hardcoded 35/70 split.
-      const { getAllModeSettings, recommendModeFromSettings } = await import(
-        '../workflow/workflow-mode-config'
-      );
+      const { getAllModeSettings, recommendModeFromSettings } =
+        await import('../workflow/workflow-mode-config');
       const recommendedMode = recommendModeFromSettings(
         analysis.complexityScore,
         await getAllModeSettings(),

@@ -92,7 +92,11 @@ export function NextActionRecommendations({
                 isPrimary ? 'text-indigo-600 dark:text-indigo-400' : 'text-indigo-500'
               }`}
             >
-              {isActive ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+              {isActive ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Icon className="h-4 w-4" />
+              )}
             </span>
             <span className="min-w-0">
               <span

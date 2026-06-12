@@ -38,9 +38,8 @@ mock.module('../../config/logger', () => ({
 }));
 
 // Import after mocks so the module sees the mocked implementations.
-const { resolveCliPath, getClaudePath } = await import(
-  '../../services/agents/claude-code/cli-utils'
-);
+const { resolveCliPath, getClaudePath } =
+  await import('../../services/agents/claude-code/cli-utils');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -118,9 +117,7 @@ describe('resolveCliPath', () => {
     resolveCliPath(name);
 
     expect(callCount).toBe(1); // where は1回だけ呼ばれる
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('[resolveCliPath]'),
-    );
+    expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('[resolveCliPath]'));
   });
 
   it('where と .cmd 再試行の両方が失敗したとき WARN を出して元の名前を返す', () => {
@@ -135,9 +132,7 @@ describe('resolveCliPath', () => {
     const result = resolveCliPath(name);
 
     expect(result).toBe(name);
-    expect(mockWarn).toHaveBeenCalledWith(
-      expect.stringContaining('[resolveCliPath]'),
-    );
+    expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('[resolveCliPath]'));
   });
 
   it('同じ名前への2回目の呼び出しはキャッシュから返す（where は再呼び出しされない）', () => {

@@ -32,9 +32,8 @@ mock.module('../../../config/logger', () => ({
 }));
 
 const { listKnowledgeEntries } = await import('../../../services/memory/index');
-const { searchCrossProjectKnowledge } = await import(
-  '../../../services/memory/task-knowledge-extractor'
-);
+const { searchCrossProjectKnowledge } =
+  await import('../../../services/memory/task-knowledge-extractor');
 
 // ---- 環境変数ヘルパー ----
 

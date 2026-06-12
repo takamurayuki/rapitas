@@ -74,7 +74,11 @@ export default function DeveloperModeSettingsPage() {
           onToggle={toggleAutoResume}
         />
 
-        <WorkflowConfigCard settings={settings} isSaving={isSaving} onUpdateSettings={updateSettings} />
+        <WorkflowConfigCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
+        />
       </div>
     </div>
   );

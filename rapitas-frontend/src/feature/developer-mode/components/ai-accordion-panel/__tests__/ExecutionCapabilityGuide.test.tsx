@@ -19,18 +19,14 @@ vi.mock('next/link', () => ({
 describe('ExecutionCapabilityGuide', () => {
   test('renders the no-theme state with a link to /themes', () => {
     render(<ExecutionCapabilityGuide capability="no-theme" />);
-    expect(
-      screen.getByText('テーマを設定するとエージェント実行できます'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('テーマを設定するとエージェント実行できます')).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /テーマを設定する/ });
     expect(cta).toHaveAttribute('href', '/themes');
   });
 
   test('renders the no-working-directory state and deep-links by themeId', () => {
     render(<ExecutionCapabilityGuide capability="no-working-directory" themeId={42} />);
-    expect(
-      screen.getByText('テーマに作業ディレクトリを設定してください'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('テーマに作業ディレクトリを設定してください')).toBeInTheDocument();
     const cta = screen.getByRole('link', { name: /テーマを編集する/ });
     expect(cta).toHaveAttribute('href', '/themes?edit=42');
   });

@@ -34,7 +34,12 @@ describe('complexity-analyzer', () => {
       priority: 'high',
       goals: ['OAuth2.0対応', 'リフレッシュトークン', 'SSO連携'],
       constraints: ['既存ユーザー移行', 'ダウンタイムなし'],
-      acceptanceCriteria: ['全テスト通過', 'セキュリティ監査合格', 'パフォーマンス維持', '移行スクリプト完備'],
+      acceptanceCriteria: [
+        '全テスト通過',
+        'セキュリティ監査合格',
+        'パフォーマンス維持',
+        '移行スクリプト完備',
+      ],
     });
     expect(r.complexityScore).toBeGreaterThan(70);
     expect(r.recommendedMode).toBe('comprehensive');

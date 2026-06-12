@@ -55,7 +55,6 @@ function rolesForMode(s: ModeSettings): WorkflowRole[] {
   return r;
 }
 
-
 /**
  * Adapt a role's input/description to the active tier. The implementer and the
  * verifier consume different artifacts depending on which phases the tier runs
@@ -374,9 +373,7 @@ export default function WorkflowRolesConfig({ agents, availableModels }: Workflo
                 isLast={index === tabRoles.length - 1}
                 // Approval gate (reviews plan.md) sits right before 実装 — only
                 // when this tier has a plan.
-                approvalAfter={
-                  activeMode.includePlan && tabRoles[index + 1] === 'implementer'
-                }
+                approvalAfter={activeMode.includePlan && tabRoles[index + 1] === 'implementer'}
                 onToggleExpand={() => setExpandedRole(expandedRole === roleKey ? null : roleKey)}
                 onAgentChange={(id) => handleAgentChange(roleKey, id)}
                 onModelChange={(id) => handleModelChange(roleKey, id)}

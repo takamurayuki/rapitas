@@ -33,9 +33,7 @@ mock.module('../../services/agents/agent-worker/worker-shutdown', () => ({
   gracefulShutdown: mock(async () => {}),
 }));
 
-const { AgentWorkerManager } = await import(
-  '../../services/agents/agent-worker-manager'
-);
+const { AgentWorkerManager } = await import('../../services/agents/agent-worker-manager');
 
 /** AgentWorkerManager の private state に型安全にアクセスするためのヘルパー型 */
 type ManagerWithPrivateState = {

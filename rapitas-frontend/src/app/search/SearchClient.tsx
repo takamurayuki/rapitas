@@ -178,11 +178,7 @@ export default function SearchClient() {
           // のみに統一。
           <div className="space-y-3 animate-in fade-in-0 duration-200">
             {results.map((result) => (
-              <SearchResultCard
-                key={`${result.type}-${result.id}`}
-                result={result}
-                query={query}
-              />
+              <SearchResultCard key={`${result.type}-${result.id}`} result={result} query={query} />
             ))}
           </div>
         )}

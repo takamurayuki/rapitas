@@ -68,18 +68,19 @@ export function WorkflowTabBar({
             >
               <TabIcon className="h-4 w-4" />
               <span>{tab.label}</span>
-              {needsAttention ? (
-                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
-                  <Clock className="h-2.5 w-2.5" />
-                  承認待ち
-                </span>
-              ) : hasContent ? (
-                // A filled check reads as "this phase is done" — the previous
-                // solid green dot looked like a live/active status light.
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-              ) : null
-              // Not produced yet: show nothing — an in-progress phase surfaces
-              // its own loading indicator elsewhere.
+              {
+                needsAttention ? (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 text-[10px] font-medium rounded-full">
+                    <Clock className="h-2.5 w-2.5" />
+                    承認待ち
+                  </span>
+                ) : hasContent ? (
+                  // A filled check reads as "this phase is done" — the previous
+                  // solid green dot looked like a live/active status light.
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                ) : null
+                // Not produced yet: show nothing — an in-progress phase surfaces
+                // its own loading indicator elsewhere.
               }
             </button>
           );

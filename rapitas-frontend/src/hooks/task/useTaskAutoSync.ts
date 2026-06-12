@@ -78,14 +78,7 @@ export function useTaskAutoSync(options: UseTaskAutoSyncOptions = {}) {
         intervalRef.current = null;
       }
     };
-  }, [
-    enabled,
-    initialized,
-    interval,
-    silent,
-    skipDuringExecution,
-    fetchUpdates,
-  ]);
+  }, [enabled, initialized, interval, silent, skipDuringExecution, fetchUpdates]);
 
   // Update when page gains focus
   useEffect(() => {

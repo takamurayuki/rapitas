@@ -97,8 +97,13 @@ mock.module('../../utils/ai-client', () => ({
   sendAIMessage: mockSendAIMessage,
 }));
 
-const { extractIdeasFromExecutionLog, extractIdeasFromCopilotChat, enrichIdea, reviewIdea, runEnrichAndReview } =
-  await import('../../services/memory/idea-extractor');
+const {
+  extractIdeasFromExecutionLog,
+  extractIdeasFromCopilotChat,
+  enrichIdea,
+  reviewIdea,
+  runEnrichAndReview,
+} = await import('../../services/memory/idea-extractor');
 
 describe('Idea Extractor', () => {
   beforeEach(() => {
@@ -192,7 +197,12 @@ describe('Idea Extractor — structured logging', () => {
     mockLogWarn.mockClear();
     mockSendAIMessage.mockReset().mockReturnValue(
       Promise.resolve({
-        content: JSON.stringify({ actionability: 0.8, specificity: 0.7, impact: 'high', suggestedCategory: 'improvement' }),
+        content: JSON.stringify({
+          actionability: 0.8,
+          specificity: 0.7,
+          impact: 'high',
+          suggestedCategory: 'improvement',
+        }),
         tokensUsed: 30,
       } as AIMessageResult),
     );
@@ -213,7 +223,9 @@ describe('Idea Extractor — structured logging', () => {
     await enrichIdea(42, 'タイトル', 'コンテンツ', { runId });
 
     const infoCalls = mockLogInfo.mock.calls as Array<[Record<string, unknown>, string]>;
-    const enrichedCall = infoCalls.find(([fields]) => fields?.ideaId === 42 && fields?.runId === runId);
+    const enrichedCall = infoCalls.find(
+      ([fields]) => fields?.ideaId === 42 && fields?.runId === runId,
+    );
     expect(enrichedCall).toBeDefined();
     expect(enrichedCall?.[0]?.runId).toBe(runId);
   });
@@ -232,16 +244,33 @@ describe('Idea Extractor — structured logging', () => {
 
   test('reviewIdea 成功時に durationMs と feasible を log.info で出力する', async () => {
     mockKnowledgeEntry.findUnique.mockReturnValue(
-      Promise.resolve({ title: 'T', content: 'C', tags: '[]', sourceId: 'agent' } as MockKnowledgeEntry),
+      Promise.resolve({
+        title: 'T',
+        content: 'C',
+        tags: '[]',
+        sourceId: 'agent',
+      } as MockKnowledgeEntry),
     );
     mockSendAIMessage.mockReturnValue(
       Promise.resolve({
-        content: JSON.stringify({ feasible: true, benefits: ['速い'], risks: [], reviewNote: 'OK' }),
+        content: JSON.stringify({
+          feasible: true,
+          benefits: ['速い'],
+          risks: [],
+          reviewNote: 'OK',
+        }),
         tokensUsed: 40,
       } as AIMessageResult),
     );
     mockKnowledgeEntry.findUnique
-      .mockReturnValueOnce(Promise.resolve({ title: 'T', content: 'C', tags: '[]', sourceId: 'agent' } as MockKnowledgeEntry))
+      .mockReturnValueOnce(
+        Promise.resolve({
+          title: 'T',
+          content: 'C',
+          tags: '[]',
+          sourceId: 'agent',
+        } as MockKnowledgeEntry),
+      )
       .mockReturnValue(Promise.resolve({ tags: '[]' } as MockKnowledgeEntry));
 
     await reviewIdea(77);
@@ -256,7 +285,14 @@ describe('Idea Extractor — structured logging', () => {
   test('reviewIdea runId 引数指定時に runId がログに含まれる', async () => {
     const runId = 'review-run-id-456';
     mockKnowledgeEntry.findUnique
-      .mockReturnValueOnce(Promise.resolve({ title: 'T', content: 'C', tags: '[]', sourceId: 'agent' } as MockKnowledgeEntry))
+      .mockReturnValueOnce(
+        Promise.resolve({
+          title: 'T',
+          content: 'C',
+          tags: '[]',
+          sourceId: 'agent',
+        } as MockKnowledgeEntry),
+      )
       .mockReturnValue(Promise.resolve({ tags: '[]' } as MockKnowledgeEntry));
     mockSendAIMessage.mockReturnValue(
       Promise.resolve({
@@ -268,7 +304,9 @@ describe('Idea Extractor — structured logging', () => {
     await reviewIdea(88, runId);
 
     const infoCalls = mockLogInfo.mock.calls as Array<[Record<string, unknown>, string]>;
-    const reviewCall = infoCalls.find(([fields]) => fields?.ideaId === 88 && fields?.runId === runId);
+    const reviewCall = infoCalls.find(
+      ([fields]) => fields?.ideaId === 88 && fields?.runId === runId,
+    );
     expect(reviewCall).toBeDefined();
   });
 

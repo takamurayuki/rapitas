@@ -266,8 +266,7 @@ export async function listKnowledgeEntries(options: KnowledgeListOptions = {}) {
   // runtime. Detect SQLite the same way config/database.ts does — a `file:` DATABASE_URL
   // — and fall back to case-sensitive `contains` on SQLite.
   const isPostgres =
-    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-    !process.env.DATABASE_URL?.startsWith('file:');
+    process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');
   const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
 
   if (search) {
