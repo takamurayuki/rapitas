@@ -209,6 +209,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           return false;
         }
       },
+      this.config.investigationMode,
     );
   }
 

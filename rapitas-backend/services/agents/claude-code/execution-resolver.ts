@@ -58,6 +58,11 @@ export interface ResolverContext {
  * @param checkPlanCreated - Async check for whether the agent created a plan
  *   awaiting approval (so "no code changes" is a pause, not a failure) /
  *   承認待ちのプランを作成したか（コード変更なしを失敗ではなく一時停止として扱うため）
+ * @param investigationMode - When true, skip the git-diff check and return success if
+ *   meaningful output is present. Mirrors the codex contract (success === exit 0 with output).
+ *   Empty output still falls through to the existing no-change failure path. /
+ *   trueの場合、git-diffチェックをスキップし、有意な出力があれば成功を返す。
+ *   出力が空の場合は従来の失敗パスにフォールスルーする
  * @returns Callback to invoke after Worker finishes / Worker終了後に呼び出すコールバック
  */
 export function buildResolveAfterParse(
@@ -69,6 +74,7 @@ export function buildResolveAfterParse(
   getArtifacts: () => AgentArtifact[],
   getCommits: () => GitCommitInfo[],
   checkPlanCreated?: () => Promise<boolean>,
+  investigationMode?: boolean,
 ): () => void {
   return () => {
     const artifacts = getArtifacts();
@@ -238,6 +244,37 @@ export function buildResolveAfterParse(
     if (ctx.idleTimeoutForceKilled) {
       logger.info(
         `${ctx.logPrefix} Process was force-killed due to idle hang (exitCode: ${code}). Proceeding to git diff check for completion determination.`,
+      );
+    }
+
+    // investigation mode (research/plan/review): file mutation is blocked by
+    // --disallowedTools, so git diff is ALWAYS empty by design. Skipping the
+    // diff check here prevents a successful read-only phase from being reported
+    // as a "no code changes" failure (which fired a spurious ERROR log + daily
+    // false concern). Mirrors the codex contract (success === exit 0).
+    if (investigationMode) {
+      const hasMeaningfulOutput =
+        (finalMessage?.length ?? 0) > 0 || ctx.outputBuffer.trim().length >= 200;
+      if (hasMeaningfulOutput) {
+        logger.info(
+          `${ctx.logPrefix} Investigation mode: meaningful output present, resolving as success (skipping git diff check)`,
+        );
+        ctx.status = 'completed'; // determineExecutionStatus remaps to post_processing for investigation
+        resolve({
+          success: true,
+          output: ctx.outputBuffer,
+          artifacts,
+          commits,
+          executionTimeMs,
+          waitingForInput: false,
+          claudeSessionId: ctx.claudeSessionId || undefined,
+          ...usageFields,
+        });
+        return;
+      }
+      // empty output → fall through to the existing no-change failure path
+      logger.info(
+        `${ctx.logPrefix} Investigation mode: output is empty, falling through to no-change failure path`,
       );
     }
 
