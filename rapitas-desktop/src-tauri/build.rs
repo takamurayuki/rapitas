@@ -173,5 +173,31 @@ fn main() {
         println!("cargo:rustc-env=RAPITAS_BACKEND_PATH=binaries/rapitas-backend-not-found");
     }
 
+    // The `binaries/*query_engine*` resource glob (tauri.conf.json) requires the
+    // Prisma query engine, which is only fetched for real release builds. In CI
+    // clippy/check the engine is absent, so the glob matches nothing and Tauri's
+    // resource validation fails ("glob pattern ... path not found"). Create a
+    // placeholder so the check builds; real release builds already have the
+    // engine present, so the placeholder is not created then.
+    if env::var("CI").is_ok() {
+        let _ = fs::create_dir_all(&binaries_dir);
+        let has_engine = fs::read_dir(&binaries_dir)
+            .map(|rd| {
+                rd.flatten()
+                    .any(|e| e.file_name().to_string_lossy().contains("query_engine"))
+            })
+            .unwrap_or(false);
+        if !has_engine {
+            let engine_placeholder = binaries_dir.join("query_engine-placeholder.node");
+            match fs::write(&engine_placeholder, b"") {
+                Ok(()) => println!(
+                    "cargo:warning=Created query_engine placeholder: {}",
+                    engine_placeholder.display()
+                ),
+                Err(e) => println!("cargo:warning=Failed to create query_engine placeholder: {e}"),
+            }
+        }
+    }
+
     tauri_build::build()
 }
