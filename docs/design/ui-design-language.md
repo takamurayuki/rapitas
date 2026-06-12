@@ -5,7 +5,7 @@
 > original, intuitive, usable. Consult this before building or restyling any UI.
 >
 > Adopt it **incrementally**: improve one screen/component at a time, log the
-> change in [§5 Change log](#5-change-log), and refine this doc as we learn.
+> change in [§5 Change log](#5-change-log-incremental-adoption), and refine this doc as we learn.
 > It complements `.claude/COMPONENT_SPLITTING_POLICY.md` (structure) — this doc
 > governs *aesthetics & interaction*.
 
@@ -109,6 +109,7 @@ Track each screen/component as it is brought in line, so coverage is visible.
 | 2026-05-29 | Task detail | Flatten the primary cards (task meta, subtasks, workflow) onto the surface system: `rounded-2xl shadow-xl` → `rounded-lg`, no shadow, unified border; one content radius. Hid the internal workflow file path (`tasks/1/17`). Focus rings → indigo (earlier). | #1, #3, #6 |
 
 ### Candidate next steps (not yet done — pick one at a time)
+
 - **Dashboard** (`app/dashboard`): 7+ equally-loud widgets, no hierarchy → lead with one focal area, group the rest (tell #6, #8).
 - **Ideas** (`app/ideas/_components/IdeasClient.tsx`): sparkle icons, dense controls → simplify, reserve accent (tell #5, #1).
 - **Empty states** across list pages → concrete next-action copy (tell #9).

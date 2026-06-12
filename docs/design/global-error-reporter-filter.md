@@ -79,6 +79,7 @@ interface BenignErrorPattern {
 UA フィルタは `navigator.userAgent.includes(entry.ua)` で評価します（部分一致）。
 
 正規表現を採用しない理由:
+
 - ReDoS リスクがある
 - UA 文字列は `includes` で十分な粒度が得られる
 - レビューコストと誤設定リスクが不必要に増える

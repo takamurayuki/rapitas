@@ -33,6 +33,7 @@ Provider resolution (`scripts/dev/prisma-sync.ts → resolveDbProvider`) mirrors
 `DATABASE_URL` ⇒ `sqlite`; else ⇒ `postgresql`.
 
 `syncDevSchema()` then runs, pinning `RAPITAS_DB_PROVIDER` on the CLI:
+
 - **SQLite**: regenerate `schema.desktop` → `db push --skip-generate` → (generate)
 - **PostgreSQL**: `db push --skip-generate` → (generate)
 
@@ -42,6 +43,7 @@ Triggers: startup (`dev.ts`, push only) and any `prisma/schema/*.prisma` save
 ## Launcher B — desktop/Tauri (`rapitas-desktop/scripts/dev.js`)
 
 This is the launcher CLAUDE.md §2 refers to as "managed by dev.js". It:
+
 - sets `RAPITAS_DB_PROVIDER=sqlite` and an **absolute** `DATABASE_URL=file:<repo>/rapitas-desktop/.data/rapitas-dev.db`,
 - runs `bun run db:prepare:sqlite` = regenerate the init SQL
   (`generate-sqlite-init-sql.cjs`) + `prisma generate --schema prisma/schema.desktop`.
@@ -61,6 +63,7 @@ runs the generated `SQLITE_INIT_SQL` and self-heals the live DB against it.
 it); only the DB table lacked it.
 
 ### Launcher A bug
+
 `dev.ts` ran a bare `bunx prisma db push` with no provider. With a `file:`
 `DATABASE_URL`, `prisma.config.ts` defaulted to the **PostgreSQL** schema; the
 provider/URL mismatch failed the push, and the non-zero exit was **swallowed**
@@ -70,6 +73,7 @@ regenerated `schema.desktop`. → Fixed by `scripts/dev/prisma-sync.ts`
 loud actionable error).
 
 ### Launcher B bug (the one actually hit here)
+
 `dev.js` applies schema only via the init-SQL self-heal, which used
 `CREATE TABLE IF NOT EXISTS` semantics — it created **missing tables** but
 **never `ALTER`ed an existing table to add a new column**. So `Task.goals`
@@ -85,6 +89,7 @@ This is the column-level analogue of the earlier missing-table self-heal added
 after the `WorkflowTransition` incident — same pattern, finer granularity.
 
 ### One-time recovery for an already-drifted dev DB
+
 The columns are nullable, so a direct additive `ALTER` is safe and needs no
 restart (the running client already knows them). For the desktop DB:
 

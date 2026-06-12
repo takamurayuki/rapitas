@@ -95,6 +95,7 @@ rapitas-frontend/src/
 ```
 
 State management split:
+
 - **zustand** — global UI state (theme, filters, modal stacks)
 - **SWR** — server data fetching, caching, revalidation
 - **React Context** — auth, dark mode, locale
@@ -102,6 +103,7 @@ State management split:
 ### 2.3 Desktop (`rapitas-desktop/`)
 
 Tauri 2.10 with the system WebView. The Rust shell only does:
+
 1. Spawn the Bun-compiled backend binary as a **sidecar**
 2. Load the statically exported frontend (`out/`)
 3. Provide native integrations (notifications, file system, autoupdate)
@@ -130,6 +132,7 @@ them at generate time. They cluster as follows:
 | **System** | `User`, `UserSession`, `UserSettings`, `Notification`, `ApprovalRequest` | Identity, settings, approvals |
 
 > Layout:
+>
 > ```
 > rapitas-backend/prisma/schema/
 > ├── _generators.prisma   # generator + datasource
@@ -151,6 +154,7 @@ them at generate time. They cluster as follows:
 ## 4. Runtime considerations
 
 ### Three runtimes coexist
+
 - **Bun** for `rapitas-backend` (hot-reload + standalone compile for sidecar)
 - **pnpm** for `rapitas-frontend` and `rapitas-desktop` (Next.js + Tauri ecosystem)
 - **npm** for the root workspace (legacy; planned migration — see ADR 0001)
@@ -160,6 +164,7 @@ This is a known source of friction. The mitigation is in
 `npm run dev`.
 
 ### AI agent self-modification loop
+
 The backend exposes a **workflow API** (`/workflow/tasks/{taskId}/files/...`)
 that AI agents — including Claude Code itself — call to write
 `research.md`, `plan.md`, and `verify.md` into `rapitas-backend/tasks/`.
@@ -167,6 +172,7 @@ that AI agents — including Claude Code itself — call to write
 the agent would lose its own connection.
 
 ### Realtime
+
 A single transport: **native `ws`** end-to-end. The backend exposes a
 WebSocket endpoint via Elysia's plugin
 (`rapitas-backend/services/communication/websocket-service.ts`); the
@@ -178,16 +184,21 @@ layer — see [ADR-0005](adr/0005-realtime-transport.md) for the history.
 ## 5. Build & deploy
 
 ### Development
+
 ```bash
 cd rapitas-desktop && node scripts/dev.js
 ```
+
 or, web only:
+
 ```bash
 npm run dev
 ```
 
 ### Production (desktop)
+
 GitHub Actions (`.github/workflows/tauri-build.yml`) builds 4 targets:
+
 - `x86_64-pc-windows-msvc`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
@@ -199,9 +210,11 @@ bundles `.exe`/`.msi`/`.dmg`/`.deb`/`.rpm` artifacts. Releases are triggered
 by tags matching `v*`.
 
 ### Web
+
 ```bash
 npm run build:web
 ```
+
 Switches Prisma datasource via `scripts/switch-to-postgres.cjs`, then runs
 the standard Next.js build.
 
@@ -245,6 +258,7 @@ See also: `.github/CI_CD_SETUP.md`.
 ---
 
 ## See also
+
 - `CLAUDE.md` — agent operating constraints (section 1 is non-negotiable)
 - `docs/adr/` — architecture decision records
 - `COMPONENT_SPLITTING_POLICY.md` — file/dir size limits

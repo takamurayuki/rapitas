@@ -13,9 +13,11 @@ Defines specifications for duplicate execution prevention and timeout auto-conti
    - Timeout handlers and user responses compete causing duplicate execution
 
 2. **Exception Errors**
+
    ```
    error: Execution is not waiting for input: running
    ```
+
    - Status has already been changed to `running` when calling `executeContinuation`
 
 ## Solution
@@ -208,6 +210,7 @@ await prisma.agentExecution.update({
 ### Unit Tests
 
 `tests/continuation-lock.test.ts`:
+
 - Lock acquisition/release tests
 - Conflict scenario tests
 - Timeout processing tests

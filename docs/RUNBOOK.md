@@ -35,6 +35,7 @@ commands at the bottom of each section only as a last resort.
 **Diagnosis:** A previous backend or frontend process did not exit cleanly.
 
 **Fix:**
+
 ```bash
 # Find the process
 # macOS / Linux
@@ -63,6 +64,7 @@ common causes: uncaught promise rejection, OOM in a worker, Prisma connection
 loss.
 
 **Fix:**
+
 ```bash
 # Check backend logs
 tail -n 200 rapitas-backend/logs/backend.log
@@ -72,6 +74,7 @@ make backend
 ```
 
 If the crash repeats, run with verbose logging:
+
 ```bash
 cd rapitas-backend && DEBUG=* bun run dev
 ```
@@ -86,6 +89,7 @@ type 'PrismaClient'` after pulling.
 **Diagnosis:** The schema changed but `prisma generate` was not re-run.
 
 **Fix:**
+
 ```bash
 make db-generate
 # or manually:
@@ -106,6 +110,7 @@ localhost:5432`.
 **Diagnosis:** PostgreSQL is not running, or `DATABASE_URL` is wrong.
 
 **Fix:**
+
 ```bash
 # Validate the .env first
 make env-check
@@ -140,6 +145,7 @@ runtime on Windows. Tracked at
 **Fix:** Already mitigated. Screenshot capture runs via a Node.js subprocess
 (`screenshot-worker.cjs`), not directly under Bun. If you see this hang again,
 verify the worker is being spawned via Node:
+
 ```bash
 grep -r "screenshot-worker" rapitas-backend/services/screenshot/
 ```
@@ -157,6 +163,7 @@ through the Node worker instead.
 debt that lint-staged would have caught at commit time.
 
 **Fix:**
+
 ```bash
 # Auto-fix everything you can
 make lint-fix
@@ -179,6 +186,7 @@ in sync with your Prisma schema file`.
 were testing earlier, but `develop` doesn't expect them.
 
 **Fix (development DB only — not production):**
+
 ```bash
 cd rapitas-backend
 npx prisma migrate reset       # DESTRUCTIVE: wipes data
@@ -187,6 +195,7 @@ npx prisma db push --force-reset
 ```
 
 If you need the data, dump it first:
+
 ```bash
 pg_dump -d rapitas > backup-$(date +%F).sql
 ```
@@ -205,6 +214,7 @@ instead of the workflow API. CLAUDE.md §1 prohibits this — the API is the
 only path that triggers status auto-transitions.
 
 **Fix:**
+
 ```bash
 # Re-save via the API
 curl -X PUT http://localhost:3001/workflow/tasks/{taskId}/files/research \
@@ -233,6 +243,7 @@ steps (`Verify backend binary before configuration` for both Windows and
 Unix). Read the job log for the listing of `src-tauri/binaries/`.
 
 **Fix locally:**
+
 ```bash
 cd rapitas-backend
 bun build index.ts --compile --outfile rapitas-backend
@@ -248,12 +259,14 @@ cp rapitas-backend ../rapitas-desktop/src-tauri/binaries/
 or peer-dependency warnings on every install.
 
 **Fix:**
+
 ```bash
 make clean-deep   # removes all node_modules
 make install      # reinstall
 ```
 
 If only the root tools are broken:
+
 ```bash
 rm -rf node_modules package-lock.json
 npm install
@@ -261,7 +274,7 @@ npm install
 
 ---
 
-## 11. Dev schema change not applied (`column ... does not exist`)
+## 11. Dev schema change not applied (column does not exist)
 
 **Symptom:** After adding a column/table to `prisma/schema/` and restarting,
 every API call touching it returns HTTP 500, e.g.

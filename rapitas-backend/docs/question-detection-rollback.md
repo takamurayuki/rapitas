@@ -95,7 +95,7 @@ export type AgentExecutionResult = {
 };
 ```
 
-2. `claude-code-agent.ts`から`questionKey`の設定を削除:
+1. `claude-code-agent.ts`から`questionKey`の設定を削除:
 
 ```typescript
 // resolve() から questionKey を削除
@@ -107,7 +107,7 @@ resolve({
 });
 ```
 
-3. `agent-orchestrator.ts`のイベント発火から`questionKey`を削除:
+1. `agent-orchestrator.ts`のイベント発火から`questionKey`を削除:
 
 ```typescript
 // emitEvent の data から questionKey を削除

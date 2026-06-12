@@ -157,25 +157,30 @@ rapitas/                    # Monorepo root
 ### 3.3 API Endpoints (Key)
 
 #### Task Management
+
 - `GET/POST/PATCH/DELETE /tasks` - CRUD operations
 - `GET/PATCH /tasks/:id/time-entries` - Time tracking
 - `POST /tasks/:id/execute` - **AI agent execution**
 
 #### Developer Mode (AI)
+
 - `POST /developer-mode/analyze/:taskId` - AI task analysis
 - `POST /developer-mode/optimize-prompt/:taskId` - Prompt optimization
 - `GET /developer-mode/sessions/:taskId` - Session history
 
 #### Approvals
+
 - `GET/POST /approvals` - Approval workflow for AI changes
 - `POST /approvals/:id/approve` - Approve AI-generated code
 
 #### GitHub Integration
+
 - `GET/POST /github/integrations` - Manage integrations
 - `POST /github/integrations/:id/sync-prs` - Sync pull requests
 - `POST /github/integrations/:id/sync-issues` - Sync issues
 
 #### Real-time
+
 - `GET /events/stream` - Server-Sent Events subscription
 - `GET /events/subscribe/:channel` - Channel subscription
 
@@ -204,6 +209,7 @@ rapitas/                    # Monorepo root
 ### 4.3 Coding Conventions
 
 #### Naming Rules
+
 | Target | Convention | Example |
 |--------|-----------|---------|
 | Components | PascalCase | `TaskCard.tsx` |
@@ -213,6 +219,7 @@ rapitas/                    # Monorepo root
 | Files (non-component) | kebab-case | `claude-agent.ts` |
 
 #### Commit Messages (Conventional Commits)
+
 ```
 <type>(<scope>): <description>
 
@@ -394,6 +401,7 @@ main (master)         # Production-ready code
 ### 8.1 Claude (Anthropic)
 
 #### Effective Prompts
+
 ```markdown
 ## Context
 Working on Rapitas: a Next.js 16 + Elysia + Prisma task management app.
@@ -409,6 +417,7 @@ Working on Rapitas: a Next.js 16 + Elysia + Prisma task management app.
 ```
 
 #### Best Practices
+
 1. **Reference specific files** - Always mention exact paths
 2. **Include types** - Rapitas has comprehensive TypeScript types
 3. **Mention the layer** - Specify frontend/backend/shared
@@ -416,6 +425,7 @@ Working on Rapitas: a Next.js 16 + Elysia + Prisma task management app.
 5. **Check `.claude/CLAUDE.md`** - Contains project-specific rules
 
 #### Agent Capabilities
+
 ```typescript
 type ClaudeAgentCapability = {
   codeGeneration: true;
@@ -431,6 +441,7 @@ type ClaudeAgentCapability = {
 ### 8.2 GPT-4 / ChatGPT (OpenAI)
 
 #### Effective Prompts
+
 ```markdown
 I'm working on Rapitas, a monorepo task management app with:
 - Frontend: Next.js 16 (App Router) + React 19 + Tailwind CSS 4
@@ -444,6 +455,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ```
 
 #### Best Practices
+
 1. **Provide tech stack context** - GPT needs explicit framework info
 2. **Include version numbers** - Next.js 16 differs from 14
 3. **Share relevant code snippets** - Context improves accuracy
@@ -452,6 +464,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ### 8.3 GitHub Copilot
 
 #### Workspace Configuration
+
 ```json
 // .vscode/settings.json
 {
@@ -465,6 +478,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ```
 
 #### Best Practices
+
 1. **Use descriptive function names** - Copilot learns from context
 2. **Write JSDoc comments first** - Copilot uses them for generation
 3. **Keep related code visible** - Open relevant files as context
@@ -473,6 +487,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ### 8.4 Amazon CodeWhisperer
 
 #### Best Practices
+
 1. **Enable AWS toolkit** - Better integration with AWS services
 2. **Use type annotations** - CodeWhisperer benefits from explicit types
 3. **Comment the expected behavior** - Improves suggestion quality
@@ -481,6 +496,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ### 8.5 Google Gemini
 
 #### Best Practices
+
 1. **Provide full file context** - Gemini handles large contexts well
 2. **Use structured prompts** - Markdown formatting improves responses
 3. **Ask for explanations** - Good at reasoning about code
@@ -489,6 +505,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ### 8.6 Common Patterns for All AI Agents
 
 #### When Adding a New Feature
+
 ```markdown
 ## Task: Add [feature name]
 
@@ -509,6 +526,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ```
 
 #### When Fixing a Bug
+
 ```markdown
 ## Bug Description
 [Describe the issue]
@@ -525,7 +543,9 @@ Path alias: @/* maps to ./src/* in frontend.
 
 ## Error Message (if any)
 ```
+
 [Error message]
+
 ```
 ```
 
@@ -536,6 +556,7 @@ Path alias: @/* maps to ./src/* in frontend.
 ### 9.1 Common Issues
 
 #### Database Connection Failed
+
 ```bash
 # Check PostgreSQL is running
 pg_isready
@@ -545,6 +566,7 @@ npm run prisma:migrate reset
 ```
 
 #### Bun Installation Issues
+
 ```bash
 # Reinstall Bun
 curl -fsSL https://bun.sh/install | bash
@@ -554,6 +576,7 @@ bun pm cache rm
 ```
 
 #### Frontend Build Errors
+
 ```bash
 # Clear Next.js cache
 rm -rf rapitas-frontend/.next
@@ -562,6 +585,7 @@ pnpm run build
 ```
 
 #### Tauri Build Fails
+
 ```bash
 # Update Rust
 rustup update
@@ -575,21 +599,25 @@ npm run tauri build
 ### 9.2 Environment-Specific Issues
 
 #### Windows
+
 - Use PowerShell or Git Bash
 - May need `cross-env` for environment variables
 - Path separators: use forward slashes in code
 
 #### macOS
+
 - Install Xcode Command Line Tools
 - May need Rosetta for M1/M2 chips with some dependencies
 
 #### Linux
+
 - Install required system libraries for Tauri
 - May need `libwebkit2gtk-4.0-dev` and `libappindicator3-dev`
 
 ### 9.3 AI Agent Integration Issues
 
 #### Claude Code Not Working
+
 ```bash
 # Verify Claude CLI is installed
 claude --version
@@ -602,6 +630,7 @@ claude "Hello, world"
 ```
 
 #### GitHub Integration Fails
+
 ```bash
 # Verify gh CLI authentication
 gh auth status

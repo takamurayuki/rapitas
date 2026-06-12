@@ -41,9 +41,11 @@ _No quick wins identified._
 Function "executeTask" has 505 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-backend\services\agents\orchestrator\task-executor.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -55,9 +57,11 @@ Function "executeTask" has 505 lines. Break it down into smaller, testable funct
 Function "spawnCodexProcess" has 440 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-backend\services\agents\codex-cli-agent\process-runner.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -69,9 +73,11 @@ Function "spawnCodexProcess" has 440 lines. Break it down into smaller, testable
 Function "useSpeechRecognition" has 416 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\hooks\common\useSpeechRecognition.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -83,9 +89,11 @@ Function "useSpeechRecognition" has 416 lines. Break it down into smaller, testa
 Function "useSettingsData" has 385 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\app\settings\_hooks\useSettingsData.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -97,9 +105,11 @@ Function "useSettingsData" has 385 lines. Break it down into smaller, testable f
 Function "useAgentExecution" has 336 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\feature\developer-mode\components\agent-execution\useAgentExecution.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -111,9 +121,11 @@ Function "useAgentExecution" has 336 lines. Break it down into smaller, testable
 Function "parseNaturalLanguageTask" has 306 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-backend\services\ai\natural-language-parser.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -125,9 +137,11 @@ Function "parseNaturalLanguageTask" has 306 lines. Break it down into smaller, t
 Function "useNoteEditor" has 300 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\components\note\editor\useNoteEditor.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -139,9 +153,11 @@ Function "useNoteEditor" has 300 lines. Break it down into smaller, testable fun
 Function "useWizard" has 284 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\app\claude-md-generator\_hooks\useWizard.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -153,9 +169,11 @@ Function "useWizard" has 284 lines. Break it down into smaller, testable functio
 Function "useShortcutSettings" has 284 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\app\settings\shortcuts\hooks\useShortcutSettings.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -167,9 +185,11 @@ Function "useShortcutSettings" has 284 lines. Break it down into smaller, testab
 Function "useAgentExecutionActions" has 282 lines. Break it down into smaller, testable functions.
 
 **Files:**
+
 - `rapitas-frontend\src\feature\developer-mode\hooks\useAgentExecutionActions.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Function is split into multiple functions under 50 lines each
 - [ ] Each extracted function has a clear, descriptive name
 - [ ] Unit tests are added for new functions
@@ -181,9 +201,11 @@ Function "useAgentExecutionActions" has 282 lines. Break it down into smaller, t
 Max nesting depth: 9 levels
 
 **Files:**
+
 - `rapitas-backend\utils\database\prisma-optimization.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Maximum nesting depth is reduced to 4 or less
 - [ ] Early returns are used where appropriate
 - [ ] Complex conditions are extracted to named functions
@@ -195,9 +217,11 @@ Max nesting depth: 9 levels
 Max nesting depth: 9 levels
 
 **Files:**
+
 - `rapitas-frontend\src\components\note\editor\editor-keydown.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Maximum nesting depth is reduced to 4 or less
 - [ ] Early returns are used where appropriate
 - [ ] Complex conditions are extracted to named functions
@@ -209,9 +233,11 @@ Max nesting depth: 9 levels
 Max nesting depth: 9 levels
 
 **Files:**
+
 - `rapitas-frontend\src\app\calendar\_components\CalendarGrid.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Maximum nesting depth is reduced to 4 or less
 - [ ] Early returns are used where appropriate
 - [ ] Complex conditions are extracted to named functions
@@ -223,9 +249,11 @@ Max nesting depth: 9 levels
 Max nesting depth: 9 levels
 
 **Files:**
+
 - `rapitas-frontend\src\app\tasks\[id]\components\TaskAISection.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Maximum nesting depth is reduced to 4 or less
 - [ ] Early returns are used where appropriate
 - [ ] Complex conditions are extracted to named functions
@@ -237,9 +265,11 @@ Max nesting depth: 9 levels
 Max nesting depth: 9 levels
 
 **Files:**
+
 - `rapitas-backend\services\agents\orchestrator\stale-execution-recovery.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Maximum nesting depth is reduced to 4 or less
 - [ ] Early returns are used where appropriate
 - [ ] Complex conditions are extracted to named functions
@@ -253,9 +283,11 @@ Max nesting depth: 9 levels
 Critical file with 1646 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\src\generated\sqlite-init-sql.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -267,9 +299,11 @@ Critical file with 1646 lines has no test coverage. Add unit tests to ensure rel
 Critical file with 768 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\routes\agents\execution\execute-post-handler.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -281,9 +315,11 @@ Critical file with 768 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 685 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\scripts\analyze-codebase\agent-report-generator.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -295,9 +331,11 @@ Critical file with 685 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 671 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\services\workflow\workflow-cli-executor.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -309,9 +347,11 @@ Critical file with 671 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 590 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\services\agents\codex-cli-agent\process-runner.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -323,9 +363,11 @@ Critical file with 590 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 578 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\routes\agents\execution\execute-route.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -337,9 +379,11 @@ Critical file with 578 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 568 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-frontend\src\feature\developer-mode\components\ai-accordion-panel\ExecutionBody.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -351,9 +395,11 @@ Critical file with 568 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 561 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\services\workflow\workflow-orchestrator.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -365,9 +411,11 @@ Critical file with 561 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 560 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-frontend\src\feature\developer-mode\hooks\execution-poll-handlers.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -379,9 +427,11 @@ Critical file with 560 lines has no test coverage. Add unit tests to ensure reli
 Critical file with 540 lines has no test coverage. Add unit tests to ensure reliability.
 
 **Files:**
+
 - `rapitas-backend\services\agents\orchestrator\task-executor.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Unit tests cover main functionality
 - [ ] Edge cases are tested
 - [ ] Test coverage is at least 80% for this file
@@ -393,6 +443,7 @@ Critical file with 540 lines has no test coverage. Add unit tests to ensure reli
 Feature has only 9% coverage. 166 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\tasks\batch-v2.ts`
 - `rapitas-backend\routes\tasks\recurring-tasks.ts`
 - `rapitas-backend\routes\tasks\task-analysis-config.ts`
@@ -400,6 +451,7 @@ Feature has only 9% coverage. 166 files need tests.
 - `rapitas-backend\routes\tasks\task-quick-create.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -411,6 +463,7 @@ Feature has only 9% coverage. 166 files need tests.
 Feature has only 21% coverage. 15 files need tests.
 
 **Files:**
+
 - `rapitas-frontend\src\app\tasks\[id]\components\TaskPomodoroButton.tsx`
 - `rapitas-frontend\src\feature\tasks\components\PomodoroTimer.tsx`
 - `rapitas-frontend\src\feature\tasks\components\TaskTimerManagement.tsx`
@@ -418,6 +471,7 @@ Feature has only 21% coverage. 15 files need tests.
 - `rapitas-frontend\src\feature\tasks\pomodoro\GlobalPomodoroWidget.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -429,6 +483,7 @@ Feature has only 21% coverage. 15 files need tests.
 Feature has only 11% coverage. 273 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\agents\agent-metrics\performance-query.ts`
 - `rapitas-backend\routes\agents\agent-metrics\queries.ts`
 - `rapitas-backend\routes\agents\agent-metrics\types.ts`
@@ -436,6 +491,7 @@ Feature has only 11% coverage. 273 files need tests.
 - `rapitas-backend\routes\agents\agent-version\version-registry.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -447,6 +503,7 @@ Feature has only 11% coverage. 273 files need tests.
 Feature has only 8% coverage. 72 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\ai\system-prompts\default-prompts-workflow-riv.ts`
 - `rapitas-backend\routes\ai\system-prompts\default-prompts-workflow-rp.ts`
 - `rapitas-backend\routes\ai\system-prompts\default-prompts-workflow.ts`
@@ -454,6 +511,7 @@ Feature has only 8% coverage. 72 files need tests.
 - `rapitas-backend\routes\workflow\handlers\workflow-handlers-files.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -465,6 +523,7 @@ Feature has only 8% coverage. 72 files need tests.
 Feature has only 8% coverage. 24 files need tests.
 
 **Files:**
+
 - `rapitas-backend\schemas\github.schema.ts`
 - `rapitas-backend\services\github\gh-client.ts`
 - `rapitas-backend\services\github\issue-operations.ts`
@@ -472,6 +531,7 @@ Feature has only 8% coverage. 24 files need tests.
 - `rapitas-backend\services\github\pr-read.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -483,6 +543,7 @@ Feature has only 8% coverage. 24 files need tests.
 Feature has only 25% coverage. 15 files need tests.
 
 **Files:**
+
 - `rapitas-backend\register-routes.ts`
 - `rapitas-backend\routes\agents\execution\session-helpers.ts`
 - `rapitas-backend\routes\system\auth\google-oauth.ts`
@@ -490,6 +551,7 @@ Feature has only 25% coverage. 15 files need tests.
 - `rapitas-backend\routes\system\auth\rate-limiter.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -501,6 +563,7 @@ Feature has only 25% coverage. 15 files need tests.
 Feature has only 29% coverage. 25 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\agents\execution\research-prompt-builder.ts`
 - `rapitas-backend\routes\system\search\helpers.ts`
 - `rapitas-backend\routes\system\search\index.ts`
@@ -508,6 +571,7 @@ Feature has only 29% coverage. 25 files need tests.
 - `rapitas-frontend\src\app\agents\metrics\_components\MetricsFilters.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -519,6 +583,7 @@ Feature has only 29% coverage. 25 files need tests.
 Feature has only 12% coverage. 29 files need tests.
 
 **Files:**
+
 - `rapitas-backend\services\scheduling\task-calendar-sync.ts`
 - `rapitas-backend\services\system\backup-scheduler.ts`
 - `rapitas-backend\src\services\behavior-scheduler.ts`
@@ -526,6 +591,7 @@ Feature has only 12% coverage. 29 files need tests.
 - `rapitas-frontend\src\app\calendar\page.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -537,6 +603,7 @@ Feature has only 12% coverage. 29 files need tests.
 Feature has only 12% coverage. 69 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\learning\flashcards\ai-generate-routes.ts`
 - `rapitas-backend\routes\learning\flashcards\ai-prompts.ts`
 - `rapitas-backend\routes\learning\flashcards\crud-routes.ts`
@@ -544,6 +611,7 @@ Feature has only 12% coverage. 69 files need tests.
 - `rapitas-backend\routes\learning\handlers\learning-goal-apply-handler.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -555,6 +623,7 @@ Feature has only 12% coverage. 69 files need tests.
 Feature has only 14% coverage. 25 files need tests.
 
 **Files:**
+
 - `rapitas-backend\routes\analytics\intelligent-suggestions.ts`
 - `rapitas-backend\routes\analytics\weekly-review.ts`
 - `rapitas-backend\routes\system\monitoring\progress-summary.ts`
@@ -562,6 +631,7 @@ Feature has only 14% coverage. 25 files need tests.
 - `rapitas-backend\scripts\analyze-codebase\agent-report-generator.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Coverage increased to at least 50%
 - [ ] Critical paths are tested
 - [ ] Integration tests added for main workflows
@@ -576,8 +646,8 @@ Replace `any` types with proper TypeScript types for better type safety and IDE 
 
 **Files:**
 
-
 **Acceptance Criteria:**
+
 - [ ] any usage reduced by at least 50%
 - [ ] Proper types defined for complex objects
 - [ ] No new any types introduced
@@ -591,6 +661,7 @@ Replace `any` types with proper TypeScript types for better type safety and IDE 
 REST best practice: use HTTP methods for actions, not URL verbs. E.g., POST /tasks/:id instead of POST /tasks/:id/create
 
 **Files:**
+
 - `rapitas-backend\routes\agents\config\agent-config-router.ts`
 - `rapitas-backend\routes\agents\monitoring\execution-logs.ts`
 - `rapitas-backend\routes\agents\system\agent-system-router.ts`
@@ -602,6 +673,7 @@ REST best practice: use HTTP methods for actions, not URL verbs. E.g., POST /tas
 - `rapitas-backend\routes\workflow\core\workflow.ts`
 
 **Acceptance Criteria:**
+
 - [ ] URLs use nouns, not verbs
 - [ ] HTTP methods indicate the action
 - [ ] API documentation is updated
@@ -665,4 +737,3 @@ Files with multiple issues should be prioritized for refactoring.
 - When splitting files, maintain backward compatibility with re-exports
 - Run tests after each change to ensure nothing breaks
 - Commit changes in logical units matching action items
-

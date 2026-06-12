@@ -71,6 +71,7 @@
 ### 2.2 現在の型定義
 
 #### AgentCapability（能力定義）
+
 ```typescript
 type AgentCapability = {
   codeGeneration: boolean;   // コード生成
@@ -84,6 +85,7 @@ type AgentCapability = {
 ```
 
 #### AgentStatus（実行状態）
+
 ```typescript
 type AgentStatus =
   | 'idle'               // 待機中
@@ -96,6 +98,7 @@ type AgentStatus =
 ```
 
 #### AgentExecutionResult（実行結果）
+
 ```typescript
 type AgentExecutionResult = {
   success: boolean;
@@ -573,6 +576,7 @@ type ExecutionMetrics = {
 
 **実行方式**: CLI子プロセス（spawn）
 **特徴**:
+
 - ストリーミング出力
 - AskUserQuestionツールによる質問検出
 - セッション継続（--resume）
@@ -606,6 +610,7 @@ class ClaudeCodeProvider implements IAgentProvider {
 
 **実行方式**: API直接呼び出し（REST/SDK）
 **特徴**:
+
 - Function calling による構造化出力
 - Assistants API による会話継続
 - Code Interpreter による実行環境
@@ -642,6 +647,7 @@ class OpenAICodexProvider implements IAgentProvider {
 
 **実行方式**: API直接呼び出し（REST/SDK）
 **特徴**:
+
 - マルチモーダル入力対応
 - 長いコンテキストウィンドウ
 - Google Cloud統合
@@ -792,21 +798,25 @@ class AgentError extends Error {
 ## 7. 実装優先順位
 
 ### Phase 1: 基盤整備
+
 1. 統一インターフェース型定義の追加
 2. 既存ClaudeCodeAgentのリファクタリング
 3. 新しいAgentFactoryの実装
 
 ### Phase 2: OpenAI Codex対応
+
 1. OpenAICodexProviderの実装
 2. Assistants API統合
 3. テストケースの作成
 
 ### Phase 3: Google Gemini対応
+
 1. GeminiProviderの実装
 2. Vertex AI統合
 3. テストケースの作成
 
 ### Phase 4: 並列実行最適化
+
 1. マルチプロバイダー並列実行
 2. 動的負荷分散
 3. コスト最適化
