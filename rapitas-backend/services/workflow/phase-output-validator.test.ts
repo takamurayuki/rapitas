@@ -60,7 +60,7 @@ foo`;
     expect(result.missingSections.length).toBeGreaterThan(0);
   });
 
-  test('accepts complete research', () => {
+  test('accepts complete research with 類似実装 heading (backward compat)', () => {
     const complete = `# 調査
 ## 影響範囲
 a
@@ -74,6 +74,45 @@ d
 e`;
     const result = validateResearch(complete);
     expect(result.ok).toBe(true);
+  });
+
+  test('accepts complete research with 類似機能 heading (current template)', () => {
+    const complete = `# 調査
+## 影響範囲分析
+a
+### 依存関係マップ
+b
+### 類似機能の有無
+c
+## リスク評価
+d
+## テスト戦略
+e`;
+    const result = validateResearch(complete);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('reports 類似機能 as the label when both alternatives are missing', () => {
+    const missing = `# 調査
+## 影響範囲
+a
+## 依存関係
+b
+## リスク評価
+d
+## テスト戦略
+e`;
+    const result = validateResearch(missing);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('類似機能');
+    expect(result.missingSections).not.toContain('類似実装');
+  });
+
+  test('returns severity=100 for empty content', () => {
+    const result = validateResearch('');
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(100);
   });
 });
 

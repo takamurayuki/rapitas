@@ -263,7 +263,9 @@ export class WorkflowOrchestrator {
       };
     }
 
-    // Get system prompt
+    // Get system prompt — DB-stored content takes priority.
+    // NOTE: If the seed has not been run yet, fall back to the compiled DEFAULT_SYSTEM_PROMPTS
+    // so the researcher receives the correct template even on a fresh install.
     let systemPromptContent = '';
     if (roleConfig?.systemPromptKey) {
       systemPromptContent = await resolveSystemPromptContent(roleConfig.systemPromptKey);
