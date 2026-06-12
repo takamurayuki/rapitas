@@ -56,6 +56,25 @@ export async function getAutoRunState(themeId: number): Promise<ThemeAutoRunStat
 }
 
 /**
+ * Whether a theme's auto-run is the actor currently executing `taskId`.
+ *
+ * When the user stops such a task, the loop must also be halted — otherwise the
+ * scheduler re-selects the just-stopped task on its next poll (the "press stop,
+ * it runs again" bug). True only when auto-run is actively driving THIS task.
+ *
+ * @param state - The theme's auto-run state (or null). / テーマのauto-run状態（またはnull）
+ * @param taskId - The task being stopped. / 停止対象タスクID
+ * @returns true when auto-run is currently running this task. / auto-runが当該タスクを実行中ならtrue
+ */
+export function isAutoRunHandlingTask(state: ThemeAutoRunState | null, taskId: number): boolean {
+  if (!state) return false;
+  return (
+    state.currentTaskId === taskId &&
+    (state.status === 'running' || state.status === 'paused' || state.status === 'stopping')
+  );
+}
+
+/**
  * Start auto-run for a theme (idle → running).
  * Creates the record if it does not exist.
  * No-op if already running.
