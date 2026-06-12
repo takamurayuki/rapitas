@@ -15,7 +15,10 @@ import { randomBytes } from 'node:crypto';
 import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
-import { clearWorktreeDependenciesTracking } from './dependency-installer';
+import {
+  clearWorktreeDependenciesTracking,
+  awaitWorktreeDependencies,
+} from './dependency-installer';
 import { preflightWorktree } from './worktree-preflight';
 import { prisma } from '../../../../config/database';
 
@@ -23,6 +26,46 @@ export { ensureGitRepository, validateAndSetupRemote };
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/worktree-ops');
+
+/**
+ * Remove a directory with exponential-backoff retry to absorb Windows EBUSY errors.
+ * Does NOT throw — callers decide how to handle a false return value.
+ *
+ * @param dirPath - Absolute path to remove / 削除する絶対パス
+ * @param opts.maxAttempts - Maximum attempts before giving up (default: 5) / 最大試行回数（デフォルト: 5）
+ * @param opts.sleepFn - Delay function between retries; inject a no-op in tests to avoid real waits / テスト時に即時解決の関数を渡してリアル待機を回避できる
+ * @returns true when removal succeeded, false when all attempts failed / 成功でtrue、全失敗でfalse
+ */
+export async function rmDirWithRetry(
+  dirPath: string,
+  opts?: { maxAttempts?: number; sleepFn?: (ms: number) => Promise<void> },
+): Promise<boolean> {
+  const maxAttempts = opts?.maxAttempts ?? 5;
+  // NOTE: Default uses exponential backoff (1 s, 2 s, 3 s, 4 s…). Override in tests.
+  const sleepFn =
+    opts?.sleepFn ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await fsPromises.rm(dirPath, { recursive: true, force: true });
+      return true;
+    } catch (err) {
+      if (attempt < maxAttempts) {
+        logger.debug(
+          { err, attempt, maxAttempts, dirPath },
+          `[rmDirWithRetry] rm attempt ${attempt}/${maxAttempts} failed, retrying in ${attempt}s`,
+        );
+        await sleepFn(1000 * attempt);
+      } else {
+        logger.warn(
+          { err, dirPath },
+          `[rmDirWithRetry] All ${maxAttempts} attempts failed for ${dirPath}`,
+        );
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Create a git worktree with a new branch for isolated task execution.
@@ -226,6 +269,18 @@ export async function removeWorktree(
     return;
   }
 
+  // NOTE: Wait for any in-flight dependency setup (setup-worktree.cjs) to complete before
+  // tearing down the directory. On Windows a running node process holds handles inside
+  // node_modules and causes EBUSY on the subsequent rm. When no setup is in flight
+  // (e.g. after a backend restart) awaitWorktreeDependencies starts a brief idempotent
+  // link-check that resolves within seconds, so rm proceeds safely either way.
+  try {
+    await awaitWorktreeDependencies(worktreePath);
+  } catch {
+    // NOTE: Setup failure is non-fatal for removal — the worker may never have needed it.
+    logger.debug('[removeWorktree] awaitWorktreeDependencies failed (non-fatal), proceeding');
+  }
+
   let branchName: string | null = null;
   if (deleteBranch) {
     try {
@@ -274,6 +329,10 @@ export async function removeWorktree(
     }
   }
 
+  // NOTE: Windows NTFS/junction handles can linger for ~100-200ms after the teardown
+  // script closes them. This wait prevents EBUSY on the subsequent git worktree remove.
+  await new Promise<void>((r) => setTimeout(r, 200));
+
   // NOTE: Always run `git worktree prune` BEFORE attempting remove. This
   // clears stale entries left behind by previous failed removes (commonly
   // happens when a long-running codex/install process held a file handle
@@ -317,33 +376,12 @@ export async function removeWorktree(
         }
       }
 
-      // NOTE: Windows often fails the first rm pass with EBUSY/EFAULT when a
-      // codex / pnpm / SSE process still holds a handle inside node_modules.
-      // Most handles release within a few seconds, so retry with a longer
-      // backoff (1s,2s,3s,4s ≈ 10s total) before giving up. Any leftover is
-      // swept later by the worktree-cleanup scheduler, so this never blocks the
-      // workflow — it just reduces orphaned directories.
-      const maxAttempts = 5;
-      let lastErr: unknown;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          await fsPromises.rm(worktreePath, { recursive: true, force: true });
-          logger.info(
-            `[removeWorktree] Cleaned up directory: ${worktreePath} (attempt ${attempt})`,
-          );
-          lastErr = null;
-          break;
-        } catch (fsError) {
-          lastErr = fsError;
-          if (attempt < maxAttempts) {
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
-          }
-        }
-      }
-      if (lastErr) {
+      const removed = await rmDirWithRetry(worktreePath);
+      if (removed) {
+        logger.info(`[removeWorktree] Cleaned up directory: ${worktreePath}`);
+      } else {
         logger.warn(
-          { err: lastErr },
-          `[removeWorktree] Could not remove ${worktreePath} after ${maxAttempts} attempts (held handles); leaving for the cleanup scheduler`,
+          `[removeWorktree] Could not remove ${worktreePath} after retries (held handles); leaving for the cleanup scheduler`,
         );
       }
     }
@@ -441,9 +479,13 @@ export async function cleanupStaleWorktrees(baseDir: string): Promise<number> {
  * Removes worktrees for completed/failed/cancelled sessions and updates the database.
  *
  * @param baseDir - The main repository root / メインリポジトリのルート
+ * @param rmOpts - Options forwarded to rmDirWithRetry (inject sleepFn/maxAttempts in tests to avoid real waits) / テスト時にsleepFnを注入してリアル待機を回避できる
  * @returns Number of worktrees cleaned up / クリーンアップしたworktreeの数
  */
-export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number> {
+export async function cleanupOrphanedWorktrees(
+  baseDir: string,
+  rmOpts?: { maxAttempts?: number; sleepFn?: (ms: number) => Promise<void> },
+): Promise<number> {
   let cleanedCount = 0;
 
   try {
@@ -520,16 +562,17 @@ export async function cleanupOrphanedWorktrees(baseDir: string): Promise<number>
           // If directory exists but is not tracked by git, it's an orphan
           if (!gitTrackedPaths.has(normalizedDirPath)) {
             if (isPathSafeForWorktreeOperation(dirPath, baseDir)) {
-              try {
-                await fsPromises.rm(dirPath, { recursive: true, force: true });
+              const removed = await rmDirWithRetry(dirPath, rmOpts);
+              if (removed) {
                 cleanedCount++;
                 logger.info(
                   `[cleanupOrphanedWorktrees] Removed orphaned filesystem directory: ${dirPath}`,
                 );
-              } catch (fsError) {
+              } else {
+                // NOTE: Do NOT throw — one orphan failing must not abort the entire cleanup cycle.
                 logger.warn(
-                  { err: fsError },
-                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory: ${dirPath}`,
+                  { dirPath },
+                  `[cleanupOrphanedWorktrees] Failed to remove orphaned directory after retries: ${dirPath}`,
                 );
               }
             } else {
