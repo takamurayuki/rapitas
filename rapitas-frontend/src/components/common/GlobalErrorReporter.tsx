@@ -9,10 +9,22 @@
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/utils/api';
 
+// Non-fatal browser-generated events that indicate no real application failure.
+// Filtering them here prevents noise in the Recent Errors panel.
+const BENIGN_ERRORS = [
+  // Fired when a ResizeObserver callback causes DOM changes before the browser
+  // finishes delivering all notifications in one animation frame. Non-fatal;
+  // the browser retries delivery in the next frame automatically.
+  'ResizeObserver loop completed with undelivered notifications',
+  // Chromium-era variant of the same ResizeObserver warning.
+  'ResizeObserver loop limit exceeded',
+];
+
 let recentMessages: { msg: string; ts: number }[] = [];
 const DEDUPE_WINDOW_MS = 10_000;
 
 function shouldReport(message: string): boolean {
+  if (BENIGN_ERRORS.some((e) => message.includes(e))) return false;
   const now = Date.now();
   recentMessages = recentMessages.filter((r) => now - r.ts < DEDUPE_WINDOW_MS);
   if (recentMessages.some((r) => r.msg === message)) return false;
