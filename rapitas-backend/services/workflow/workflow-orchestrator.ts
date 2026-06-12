@@ -8,7 +8,7 @@
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { resolveWorkflowDir, readWorkflowFile } from './workflow-file-utils';
-import { buildRoleContext } from './workflow-context-builder';
+import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
   executeAPIAgent,
@@ -55,6 +55,25 @@ type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 // every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
+
+/**
+ * Resolves the system prompt content for a given key.
+ *
+ * @param key - The system prompt key to look up. / 検索するシステムプロンプトキー。
+ * @returns The prompt content string. / プロンプト本文。
+ *   B-2: DB hit → DB の content を返す。
+ *   B-1: DB null + DEFAULT_SYSTEM_PROMPTS に key あり → default content を返す。
+ *   B-1': DB null + DEFAULT_SYSTEM_PROMPTS にも key なし → `''` を返す。
+ *
+ * NOTE: DB record の content が `''` であってもフォールバックしない。
+ * record の存在 = DB の意図として尊重するため、存在判定は `null` チェックのみ行う。
+ */
+export async function resolveSystemPromptContent(key: string): Promise<string> {
+  const sp = await prisma.systemPrompt.findUnique({ where: { key } });
+  if (sp !== null) return sp.content;
+  const defaultEntry = DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === key);
+  return defaultEntry?.content ?? '';
+}
 
 export class WorkflowOrchestrator {
   private static instance: WorkflowOrchestrator;
@@ -249,15 +268,7 @@ export class WorkflowOrchestrator {
     // so the researcher receives the correct template even on a fresh install.
     let systemPromptContent = '';
     if (roleConfig?.systemPromptKey) {
-      const sp = await prisma.systemPrompt.findUnique({
-        where: { key: roleConfig.systemPromptKey },
-      });
-      if (sp) {
-        systemPromptContent = sp.content;
-      } else {
-        systemPromptContent =
-          DEFAULT_SYSTEM_PROMPTS.find((p) => p.key === roleConfig.systemPromptKey)?.content ?? '';
-      }
+      systemPromptContent = await resolveSystemPromptContent(roleConfig.systemPromptKey);
     }
 
     // Resolve workflow directory
@@ -269,6 +280,20 @@ export class WorkflowOrchestrator {
         status: currentStatus as WorkflowStatus,
         error: 'パス解決に失敗しました',
       };
+    }
+
+    // Plan-optional framing: the role prompts assume plan.md, but the lightweight
+    // (research→implement→verify) workflow produces none. Prepend an authoritative
+    // mode directive so the implementer/verifier work from research.md + task
+    // requirements instead of a non-existent plan/checklist/planner. Applies to
+    // implementer/verifier only; no-op for other roles.
+    if (systemPromptContent) {
+      const planContent = await readWorkflowFile(workflowInfo.dir, 'plan');
+      systemPromptContent = applyPlanModeDirective(
+        transition.role,
+        systemPromptContent,
+        !!planContent?.trim(),
+      );
     }
 
     // If output file already exists, skip agent execution and advance status only

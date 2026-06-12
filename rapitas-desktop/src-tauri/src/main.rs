@@ -82,9 +82,14 @@ fn set_global_shortcut(app: tauri::AppHandle, shortcut: String) -> Result<String
     Ok(shortcut)
 }
 
-/// Tauri command: open a URL in split-screen view using the native browser.
+/// Tauri command: open a URL in split-screen view using the chosen (App
+/// Settings) or native browser. `browser` is a preset key (chrome/msedge/firefox).
 #[tauri::command]
-async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), String> {
+async fn open_split_view(
+    app: tauri::AppHandle,
+    url: String,
+    browser: Option<String>,
+) -> Result<(), String> {
     let monitor = app
         .primary_monitor()
         .map_err(|e| format!("Failed to get monitor: {e}"))?
@@ -96,11 +101,17 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
 
     #[cfg(target_os = "windows")]
     {
-        split_screen_manager::split_screen_with_browser(&url, screen_width, screen_height)?;
+        split_screen_manager::split_screen_with_browser(
+            &url,
+            screen_width,
+            screen_height,
+            browser.as_deref(),
+        )?;
     }
 
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = &browser; // non-Windows split uses the OS default browser
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.unmaximize().ok();
             main_window
@@ -125,6 +136,59 @@ async fn open_split_view(app: tauri::AppHandle, url: String) -> Result<(), Strin
         if let Some(main_window) = app.get_webview_window("main") {
             main_window.set_focus().ok();
         }
+    }
+
+    Ok(())
+}
+
+/// Open a URL in a SPECIFIC browser chosen in App Settings.
+///
+/// `browser` is a preset key (`chrome` / `msedge` / `firefox`) mapped to the
+/// per-OS launcher. On Windows we go through `cmd /C start`, which resolves the
+/// browser via the registry App Paths — a bare process spawn of "chrome" fails
+/// because it isn't on PATH (the cause of the "not found" error users hit).
+#[tauri::command]
+async fn open_url_in_browser(url: String, browser: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "chrome",
+            "msedge" | "edge" => "msedge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "Google Chrome",
+            "msedge" | "edge" => "Microsoft Edge",
+            "firefox" => "Firefox",
+            other => other,
+        };
+        std::process::Command::new("open")
+            .args(["-a", app, &url])
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let app = match browser.as_str() {
+            "chrome" => "google-chrome",
+            "msedge" | "edge" => "microsoft-edge",
+            "firefox" => "firefox",
+            other => other,
+        };
+        std::process::Command::new(app)
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to launch {app}: {e}"))?;
     }
 
     Ok(())
@@ -282,6 +346,7 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,
@@ -324,6 +389,7 @@ fn main() {
                 get_global_shortcut,
                 set_global_shortcut,
                 open_split_view,
+                open_url_in_browser,
                 get_window_decorations,
                 voice_model_status,
                 voice_start_recording,

@@ -208,6 +208,44 @@ export function cleanupZombieProcesses(): number {
 }
 
 /**
+ * Force-kill a single process tree, enforcing the port-3001 protection.
+ *
+ * Used to reap an agent CLI process that lingered after its run completed
+ * (on Windows, stdio 'close' does not guarantee the process exited, so a done
+ * `claude --print` can stay resident as a zombie). No-op when the process is
+ * already gone, and NEVER kills a process listening on port 3001 (the backend).
+ *
+ * @param pid - Process ID whose tree should be terminated / 終了対象のプロセスID
+ * @returns true if a kill was issued / killを実行したら true
+ */
+export function killProcessTreeSafely(pid: number): boolean {
+  try {
+    if (!isProcessAlive(pid)) return false;
+    if (isListeningOnBackendPort(pid)) {
+      logger.warn(
+        { pid },
+        '[ProcessTracker] Refusing to kill — listening on port 3001 (backend protection)',
+      );
+      return false;
+    }
+    if (process.platform === 'win32') {
+      execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'pipe', timeout: 5000 });
+    } else {
+      process.kill(pid, 'SIGKILL');
+    }
+    logger.info({ pid }, '[ProcessTracker] Reaped lingering process tree');
+    return true;
+  } catch (err) {
+    // Most failures mean the process already exited between the check and kill.
+    logger.debug(
+      { err, pid },
+      '[ProcessTracker] killProcessTreeSafely no-op (likely already gone)',
+    );
+    return false;
+  }
+}
+
+/**
  * Delete all PID files without killing processes (for dev.js startup cleanup).
  */
 export function clearAllPidFiles(): void {

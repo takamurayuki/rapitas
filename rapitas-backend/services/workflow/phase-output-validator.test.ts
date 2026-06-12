@@ -146,4 +146,35 @@ TypeScript: 1 件のエラー
 - 未達`;
     expect(validateVerify(failed).ok).toBe(false);
   });
+
+  // Regression tests for the auto_verifier WARN: lightweight mode (no plan.md) must still
+  // emit the 3 required headings so validateVerify does not produce the WARN.
+  test('accepts auto_verifier output with チェックリスト消化状況 heading (no plan)', () => {
+    const autoVerifierOutput = `# 実装結果検証レポート
+## 検証結果サマリ
+全体判定: ✅ 合格
+## テスト結果
+bun test: 5 passed, 0 failed
+## チェックリスト消化状況
+| 実装内容 | 状態 |
+| --- | --- |
+| case auto_verifier 追加 | ✅ 完了 |`;
+    const result = validateVerify(autoVerifierOutput);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('reproduces the WARN: auto_verifier output missing チェックリスト and 検証結果サマリ', () => {
+    // This is the pattern that was triggering
+    // "[WorkflowCLIExecutor] verify.md missing sections: チェックリスト, 検証結果サマリ"
+    const missingBothSections = `# 実装結果検証レポート
+## テスト結果
+bun test: 5 passed, 0 failed
+## 変更ファイル一覧
+- workflow-context-builder.ts`;
+    const result = validateVerify(missingBothSections);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('チェックリスト');
+    expect(result.missingSections).toContain('検証結果サマリ');
+  });
 });

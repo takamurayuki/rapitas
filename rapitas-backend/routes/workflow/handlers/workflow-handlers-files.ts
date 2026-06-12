@@ -23,7 +23,10 @@ import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
-import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
+import {
+  checkWorkflowInvariants,
+  normalizeWorkflowStatus,
+} from '../../../services/workflow/workflow-invariants';
 import { maybeAutoApprovePlan } from '../../../services/workflow/plan-auto-approve';
 
 const log = createLogger('routes:workflow:handlers:files');
@@ -188,7 +191,9 @@ export async function handleSaveFile({
       verify_done: new Set([]),
       completed: new Set([]),
     };
-    const currentStatusForGuard = resolved.task.workflowStatus ?? 'draft';
+    // NOTE: normalizeWorkflowStatus handles null/undefined/empty-string — an empty workflowStatus
+    // would cause ALLOWED_FILE_TYPES_BY_STATUS[""] to return undefined and skip the guard entirely.
+    const currentStatusForGuard = normalizeWorkflowStatus(resolved.task.workflowStatus);
     const allowedForCurrent = ALLOWED_FILE_TYPES_BY_STATUS[currentStatusForGuard];
     if (allowedForCurrent && !allowedForCurrent.has(fileType)) {
       log.warn(
@@ -358,35 +363,57 @@ export async function handleSaveFile({
           await import('../../../services/workflow/phase-output-validator');
         const verifyValidation = validateVerify(savedContent);
         if (!verifyValidation.ok && verifyValidation.severity >= 80) {
-          log.warn(
-            { taskId, summary: verifyValidation.summary },
-            '[Workflow] verify.md failed validation — blocking task instead of marking verify_done',
-          );
-          await prisma.task
-            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-            .catch(() => {});
-          // Align the execution/session to failed so the log viewer doesn't show
-          // 「完了」 while the task is blocked (the status gap).
-          await markLatestExecutionFailed(
+          // Self-repair loop: bounce the workflow back to the implementer with
+          // the failure as feedback so the runner re-runs implement → verify,
+          // instead of dead-ending at `blocked`. Only block once the bounded
+          // repair attempts are exhausted.
+          const { attemptVerifyRepair } =
+            await import('../../../services/workflow/verify-self-repair');
+          const repair = await attemptVerifyRepair(
             taskId,
-            `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
+            currentStatus ?? null,
+            verifyValidation.summary,
+            savedContent,
           );
-          await recordTransition({
-            taskId,
-            fromStatus: currentStatus ?? null,
-            toStatus: currentStatus ?? 'in_progress',
-            actor: 'verifier',
-            cause: 'verify_validation_failed',
-            phase: 'verify',
-            metadata: {
-              sizeBytes: savedContent.length,
-              reason: verifyValidation.summary,
-            },
-            invariantViolation: true,
-            invariantMessage: verifyValidation.summary,
-          });
-          // newStatus stays undefined — caller skips the verify_done
-          // transition + auto-commit/PR pipeline below.
+
+          if (repair.bounced && repair.newStatus) {
+            log.warn(
+              { taskId, attempt: repair.attempt, newStatus: repair.newStatus },
+              '[Workflow] verify.md failed validation — re-running implement→verify (self-repair)',
+            );
+            // Bounce: the runner re-runs the implementer from this status.
+            newStatus = repair.newStatus;
+          } else {
+            log.warn(
+              { taskId, summary: verifyValidation.summary },
+              '[Workflow] verify.md failed validation and repairs exhausted — blocking task',
+            );
+            await prisma.task
+              .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+              .catch(() => {});
+            // Align the execution/session to failed so the log viewer doesn't show
+            // 「完了」 while the task is blocked (the status gap).
+            await markLatestExecutionFailed(
+              taskId,
+              `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
+            );
+            await recordTransition({
+              taskId,
+              fromStatus: currentStatus ?? null,
+              toStatus: currentStatus ?? 'in_progress',
+              actor: 'verifier',
+              cause: 'verify_validation_failed',
+              phase: 'verify',
+              metadata: {
+                sizeBytes: savedContent.length,
+                reason: verifyValidation.summary,
+              },
+              invariantViolation: true,
+              invariantMessage: verifyValidation.summary,
+            });
+            // newStatus stays undefined — caller skips the verify_done
+            // transition + auto-commit/PR pipeline below.
+          }
         } else {
           log.info(`[Workflow] Verification saved: setting newStatus to verify_done`);
           newStatus = 'verify_done';
@@ -429,8 +456,23 @@ export async function handleSaveFile({
             : undefined,
       });
       if (violations.length > 0) {
+        const missingFiles = violations
+          .filter((v) => v.code === 'missing_file')
+          .map((v) => {
+            const m = v.message.match(/but (\S+\.md) is missing/);
+            return m ? m[1] : 'unknown';
+          });
         log.warn(
-          { taskId, violations },
+          {
+            taskId,
+            violations,
+            workflowDir: dir,
+            missingFiles,
+            hint:
+              missingFiles.length > 0
+                ? `save the missing file(s) via PUT /workflow/tasks/${taskId}/files/<type>, or reset status to draft`
+                : 'check task.status consistency or open subtasks',
+          },
           '[Workflow] Invariant violations detected after status update',
         );
       }

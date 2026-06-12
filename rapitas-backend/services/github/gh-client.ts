@@ -23,10 +23,15 @@ const GH_BIN = process.platform === 'win32' ? 'C:\\Program Files\\GitHub CLI\\gh
  *
  * @param args - Array of CLI arguments / CLIコマンド引数
  * @param cwd - Optional working directory / 作業ディレクトリ
+ * @param opts - Options: skipLog suppresses the error log so callers can handle expected failures / オプション
  * @returns Trimmed stdout string / 標準出力文字列
  * @throws {Error} When gh command exits with non-zero status / コマンド失敗時
  */
-export async function runGhCommand(args: string[], cwd?: string): Promise<string> {
+export async function runGhCommand(
+  args: string[],
+  cwd?: string,
+  opts?: { skipLog?: boolean },
+): Promise<string> {
   try {
     const { stdout } = await execFileAsync(GH_BIN, args, {
       cwd,
@@ -41,7 +46,9 @@ export async function runGhCommand(args: string[], cwd?: string): Promise<string
       error && typeof error === 'object' && 'stderr' in error
         ? (error as { stderr: string }).stderr
         : undefined;
-    log.error({ message }, `gh command failed: gh ${args.join(' ')}`);
+    if (!opts?.skipLog) {
+      log.error({ message, stderr }, `gh command failed: gh ${args.join(' ')}`);
+    }
     throw new Error(stderr || message);
   }
 }

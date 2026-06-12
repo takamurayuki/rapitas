@@ -1,7 +1,7 @@
 'use client';
 // ExecutionCompletedPanel
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Play,
   AlertCircle,
@@ -11,7 +11,8 @@ import {
   MessageSquarePlus,
   Zap,
 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '@/utils/api';
 import type { PrState } from './agent-execution-types';
 import { formatTokenCount } from './agent-execution-utils';
 import { PrMergeSection } from './PrMergeSection';
@@ -74,6 +75,8 @@ type Props = {
   onCreatePR: () => void;
   /** Approve and merge the open PR. */
   onApproveMerge: () => void;
+  /** Task id — used to open this task's PR detail page. */
+  taskId: number;
 };
 
 /**
@@ -96,10 +99,47 @@ export function ExecutionCompletedPanel({
   onReset,
   onCreatePR,
   onApproveMerge,
+  taskId,
 }: Props) {
+  const router = useRouter();
+  const [prError, setPrError] = useState<string | null>(null);
   const workflowPhaseInfo = pollingSessionMode?.startsWith('workflow-')
     ? (WORKFLOW_PHASE_MAP[pollingSessionMode] ?? null)
     : null;
+
+  // Open this task's PR detail page. Replaces the old "承認ページへ" link — the
+  // PR is auto-created on completion, so we jump straight to it. If no PR is
+  // found yet, hint at the PR-create control below.
+  const openTaskPr = async () => {
+    setPrError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/by-task/${taskId}`);
+      if (res.ok) {
+        const pr = (await res.json()) as { id: number };
+        router.push(`/github/pull-requests/${pr.id}`);
+        return;
+      }
+      const body = (await res.json().catch(() => null)) as {
+        reason?: string;
+        prUrl?: string;
+        error?: string;
+      } | null;
+      // PR exists on GitHub but isn't synced into the local DB — open it on
+      // GitHub so the button still does something useful.
+      if (body?.reason === 'not_synced') {
+        if (body.prUrl) window.open(body.prUrl, '_blank', 'noopener,noreferrer');
+        setPrError(
+          body.prUrl
+            ? 'PRはローカル未同期のため、GitHubで開きました。統合ページで同期すると一覧にも表示されます。'
+            : (body.error ?? 'PRはローカルに同期されていません。'),
+        );
+        return;
+      }
+      setPrError(body?.error ?? 'PRがまだ作成されていません。下の「PR作成」から作成してください。');
+    } catch {
+      setPrError('PR情報の取得に失敗しました。時間をおいて再度お試しください。');
+    }
+  };
 
   return (
     <>
@@ -118,9 +158,14 @@ export function ExecutionCompletedPanel({
                 {workflowPhaseInfo?.message || 'AIエージェントによる実行が完了しました。'}
               </p>
               <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-2">
-                {workflowPhaseInfo?.nextAction ||
-                  '承認ページでコードレビューを行い、変更をコミットしてください。'}
+                {workflowPhaseInfo?.nextAction || 'このタスクのPRページで変更を確認してください。'}
               </p>
+              {prError && (
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {prError}
+                </p>
+              )}
               {(pollingTokensUsed ?? 0) > 0 && (
                 <div className="flex items-center gap-1.5 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                   <Zap className="w-3.5 h-3.5" />
@@ -136,13 +181,13 @@ export function ExecutionCompletedPanel({
                 <RefreshCw className="w-4 h-4" />
                 リセット
               </button>
-              <Link
-                href="/approvals"
+              <button
+                onClick={openTaskPr}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
-                承認ページへ
-              </Link>
+                PRを開く
+              </button>
             </div>
           </div>
         </div>

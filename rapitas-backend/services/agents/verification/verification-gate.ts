@@ -16,8 +16,27 @@ import {
   renderVerificationMarkdown,
   type VerificationResult,
 } from './automated-verifier';
+import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
 
 const log = createLogger('agents:verification-gate');
+
+/**
+ * Loads plan.md content for the scope check. Best-effort: a missing plan
+ * (lightweight mode) or a resolution failure simply disables the scope check
+ * rather than affecting the gate.
+ *
+ * @param taskId - Task whose plan to load / 対象タスク
+ * @returns plan.md content or null / plan.md の内容
+ */
+async function loadPlanContent(taskId: number): Promise<string | null> {
+  try {
+    const info = await resolveWorkflowDir(taskId);
+    if (!info) return null;
+    return (await readWorkflowFile(info.dir, 'plan')) || null;
+  } catch {
+    return null;
+  }
+}
 
 export interface GateOutcome {
   /** True when the gate is open (no new failures, or verifier skipped/crashed). */
@@ -39,7 +58,8 @@ export async function runVerificationGate(
   worktreePath: string,
   sessionId?: number,
 ): Promise<GateOutcome> {
-  const result = await runAutomatedVerification(worktreePath).catch((err) => {
+  const planContent = await loadPlanContent(taskId);
+  const result = await runAutomatedVerification(worktreePath, { planContent }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;
   });
@@ -67,7 +87,10 @@ export async function blockTaskForVerification(
   result: VerificationResult,
   sessionId?: number,
 ): Promise<void> {
-  log.error({ taskId, sessionId, summary: result.summary }, 'Automated verification failed — blocking');
+  log.error(
+    { taskId, sessionId, summary: result.summary },
+    'Automated verification failed — blocking',
+  );
   await prisma.task
     .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
     .catch((err) => log.warn({ err, taskId }, 'Failed to mark task blocked'));

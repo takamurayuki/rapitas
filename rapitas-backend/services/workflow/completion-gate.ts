@@ -22,10 +22,17 @@ const log = createLogger('workflow:completion-gate');
 const NO_CHANGE_JUSTIFICATIONS: RegExp[] = [
   /変更(は)?不要/,
   /修正(は)?不要/,
+  /対応(は)?不要/,
   /コード(の)?変更(は)?(なし|ありません|不要)/,
-  /既に(実装|対応|修正|解決)済/,
+  /変更点(は)?(なし|ありません)/,
+  /(実装|対応|修正|解決|完了|反映|適用|取り込み)済(み)?/,
+  /既存(の)?(実装|コード)で(対応|充足|満た)/,
+  /別(の)?(コミット|PR|ブランチ|タスク)で(対応|実装|完了|解決)/,
+  /(検証|テスト|確認|調査|ドキュメント)のみ/,
   /no\s+(code\s+)?changes?\s+(are\s+)?(needed|required|necessary)/i,
-  /already\s+(implemented|fixed|handled|correct)/i,
+  /no\s+changes?\s+(were\s+)?(made|necessary)/i,
+  /already\s+(implemented|fixed|handled|resolved|correct|done|present)/i,
+  /(verification|docs?|documentation|test)[-\s]?only/i,
 ];
 
 /** True when verify.md explicitly states no code change was required. */

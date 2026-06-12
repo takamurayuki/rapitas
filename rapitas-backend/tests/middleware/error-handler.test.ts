@@ -154,3 +154,40 @@ describe('errorHandler middleware (inline onError)', () => {
     expect(body.error).toBe('データベースクエリエラー');
   });
 });
+
+describe('errorHandler plugin propagation (as: global)', () => {
+  // The REAL fix: a route on a SEPARATE app that merely `.use(errorHandler)`
+  // must have its thrown AppError handled. Before `{ as: 'global' }` the
+  // onError was plugin-scoped, so every route's AppError fell through to
+  // Elysia's default handler as a raw-message HTTP 500.
+  function appUsingPlugin(handler: () => never) {
+    return new Elysia().use(errorHandler).get('/test', handler);
+  }
+
+  test('use(errorHandler) した別アプリの ValidationError が 400+JSON になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new ValidationError('無効なIDです');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = (await res.json()) as ErrorResponseBody;
+    expect(body.error).toBe('無効なIDです');
+  });
+
+  test('AppError の statusCode がそのまま反映されること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new AppError(422, 'Unprocessable', 'UNPROCESSABLE');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(422);
+  });
+
+  test('NotFoundError が 404 になること', async () => {
+    const app = appUsingPlugin(() => {
+      throw new NotFoundError('見つかりません');
+    });
+    const res = await app.handle(new Request('http://localhost/test'));
+    expect(res.status).toBe(404);
+  });
+});

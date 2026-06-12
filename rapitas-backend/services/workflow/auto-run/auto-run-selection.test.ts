@@ -4,7 +4,7 @@
  * Unit tests for the pure selection logic in auto-run-selection.ts.
  * Uses an in-memory mock of the PrismaClient — no live DB required.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, mock } from 'bun:test';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   getGlobalAutoRunActiveCount,
@@ -22,11 +22,11 @@ import type { PrismaClient } from '@prisma/client';
 function makePrisma(overrides: Partial<Record<string, unknown>> = {}): PrismaClient {
   return {
     workflowQueueItem: {
-      count: vi.fn().mockResolvedValue(0),
-      findMany: vi.fn().mockResolvedValue([]),
+      count: mock().mockResolvedValue(0),
+      findMany: mock().mockResolvedValue([]),
     },
     task: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: mock().mockResolvedValue([]),
     },
     ...overrides,
   } as unknown as PrismaClient;
@@ -66,9 +66,9 @@ describe('hasItemAwaitingApproval', () => {
 
 describe('getGlobalAutoRunActiveCount', () => {
   it('calls count with themeId not null and active statuses', async () => {
-    const mockCount = vi.fn().mockResolvedValue(2);
+    const mockCount = mock().mockResolvedValue(2);
     const prisma = makePrisma({
-      workflowQueueItem: { count: mockCount, findMany: vi.fn() },
+      workflowQueueItem: { count: mockCount, findMany: mock() },
     });
     const result = await getGlobalAutoRunActiveCount(prisma);
     expect(result).toBe(2);
@@ -83,9 +83,9 @@ describe('getGlobalAutoRunActiveCount', () => {
 
 describe('getThemeActiveQueueItems', () => {
   it('scopes query to themeId and active statuses', async () => {
-    const mockFindMany = vi.fn().mockResolvedValue([{ id: 1, taskId: 42, status: 'running' }]);
+    const mockFindMany = mock().mockResolvedValue([{ id: 1, taskId: 42, status: 'running' }]);
     const prisma = makePrisma({
-      workflowQueueItem: { findMany: mockFindMany, count: vi.fn() },
+      workflowQueueItem: { findMany: mockFindMany, count: mock() },
     });
     const items = await getThemeActiveQueueItems(prisma, 7);
     expect(items).toHaveLength(1);
@@ -97,8 +97,6 @@ describe('getThemeActiveQueueItems', () => {
 });
 
 describe('selectNextTask', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('returns concurrency_limit when globalActiveCount >= MAX', async () => {
     const prisma = makePrisma();
     const result = await selectNextTask(prisma, 1, 'priority', [], AUTO_RUN_GLOBAL_MAX_CONCURRENCY);
@@ -106,7 +104,7 @@ describe('selectNextTask', () => {
   });
 
   it('returns all_done when no eligible tasks exist', async () => {
-    const mockFindMany = vi.fn().mockResolvedValue([]);
+    const mockFindMany = mock().mockResolvedValue([]);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: false, reason: 'all_done' });
@@ -116,7 +114,7 @@ describe('selectNextTask', () => {
     const tasks = [
       { id: 10, status: 'todo', workflowStatus: 'draft', priority: 'high', createdAt: new Date() },
     ];
-    const mockFindMany = vi.fn().mockResolvedValue(tasks);
+    const mockFindMany = mock().mockResolvedValue(tasks);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: true, taskId: 10 });
@@ -139,7 +137,7 @@ describe('selectNextTask', () => {
         createdAt: new Date(),
       },
     ];
-    const mockFindMany = vi.fn().mockResolvedValue(tasks);
+    const mockFindMany = mock().mockResolvedValue(tasks);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: true, taskId: 11 });
@@ -155,7 +153,7 @@ describe('selectNextTask', () => {
         createdAt: new Date(),
       },
     ];
-    const mockFindMany = vi.fn().mockResolvedValue(tasks);
+    const mockFindMany = mock().mockResolvedValue(tasks);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     await selectNextTask(prisma, 1, 'priority', [5], 0);
     // findMany is called with id: { notIn: [5] } so the mock still returns it;
@@ -168,7 +166,7 @@ describe('selectNextTask', () => {
   });
 
   it('passes correct orderBy for "created" order', async () => {
-    const mockFindMany = vi.fn().mockResolvedValue([]);
+    const mockFindMany = mock().mockResolvedValue([]);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     await selectNextTask(prisma, 1, 'created', [], 0);
     expect(mockFindMany).toHaveBeenCalledWith(
@@ -195,7 +193,7 @@ describe('selectNextTask', () => {
         createdAt: new Date(base + 2000),
       },
     ];
-    const mockFindMany = vi.fn().mockResolvedValue(tasks);
+    const mockFindMany = mock().mockResolvedValue(tasks);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     // urgent wins even though it is neither first nor oldest — proves JS ranking,
@@ -224,7 +222,7 @@ describe('selectNextTask', () => {
         createdAt: new Date(base + 1000),
       },
     ];
-    const prisma = makePrisma({ task: { findMany: vi.fn().mockResolvedValue(tasks) } });
+    const prisma = makePrisma({ task: { findMany: mock().mockResolvedValue(tasks) } });
     const result = await selectNextTask(prisma, 1, 'priority', [], 0);
     expect(result).toEqual({ found: true, taskId: 11 });
   });
@@ -232,7 +230,7 @@ describe('selectNextTask', () => {
   it('keeps fresh todo tasks (null workflowStatus) eligible', async () => {
     // Regression: `notIn` alone drops NULLs in SQL, which skipped brand-new tasks.
     // The where clause must OR-in `workflowStatus: null`.
-    const mockFindMany = vi.fn().mockResolvedValue([]);
+    const mockFindMany = mock().mockResolvedValue([]);
     const prisma = makePrisma({ task: { findMany: mockFindMany } });
     await selectNextTask(prisma, 1, 'priority', [], 0);
     const arg = mockFindMany.mock.calls[0]![0] as { where: { OR?: unknown[] } };

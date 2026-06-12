@@ -177,6 +177,45 @@ export async function hideToTray(): Promise<void> {
  * @param url URL to open
  * @param title Window title (unused, kept for compatibility)
  */
+/**
+ * localStorage key for the user's preferred external-link browser. Empty / unset
+ * means the OS default browser. Otherwise it's an app name passed to the shell
+ * open command (e.g. "chrome", "msedge", "firefox").
+ */
+export const EXTERNAL_BROWSER_KEY = 'rapitas.externalBrowser';
+
+/**
+ * Open a URL in a browser. In Tauri this uses the shell plugin's `open`
+ * (permitted by tauri.conf `shell.open` + the `shell:allow-open` capability),
+ * honouring the user's chosen browser (App Settings) — falling back to the OS
+ * default. On the web it opens a new tab.
+ *
+ * @param url - The URL to open externally. / 外部で開くURL
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isTauri()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const browser =
+      (typeof localStorage !== 'undefined' && localStorage.getItem(EXTERNAL_BROWSER_KEY)) || '';
+    if (browser) {
+      // Specific browser → native command that resolves it per-OS (Windows uses
+      // `start`, which finds chrome/msedge/firefox via the registry App Paths;
+      // the shell plugin's `open with` spawns the name directly and fails).
+      await invoke('open_url_in_browser', { url, browser });
+    } else {
+      // Default browser via the shell plugin's open (OS default handler).
+      await invoke('plugin:shell|open', { path: url });
+    }
+  } catch (error) {
+    logger.error('Failed to open URL in browser:', error);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 export async function openExternalUrlInSplitView(
   url: string,
   title: string = 'External Link',
@@ -189,9 +228,12 @@ export async function openExternalUrlInSplitView(
   logger.debug('Opening external URL in split view:', url);
 
   try {
-    // Call Rust open_split_view command
+    // Call Rust open_split_view command, honouring the chosen browser (App
+    // Settings) so the split opens the user's preferred browser.
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('open_split_view', { url });
+    const browser =
+      (typeof localStorage !== 'undefined' && localStorage.getItem(EXTERNAL_BROWSER_KEY)) || '';
+    await invoke('open_split_view', browser ? { url, browser } : { url });
 
     logger.debug('Split view opened successfully');
 

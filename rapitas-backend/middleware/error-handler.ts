@@ -116,7 +116,13 @@ function isPrismaError(error: unknown): boolean {
 /**
  * Error handler middleware plugin
  */
+// NOTE: `as: 'global'` is REQUIRED. Elysia 1.x scopes lifecycle hooks to the
+// defining plugin by default, so without it this onError only caught errors
+// thrown inside the (empty) error-handler plugin — every route's AppError fell
+// through to Elysia's default handler and returned the raw message as HTTP 500
+// (e.g. a ValidationError surfaced as 500 "無効なIDです" instead of 400 JSON).
 export const errorHandler = new Elysia({ name: 'error-handler' }).onError(
+  { as: 'global' },
   ({ code, error, set }) => {
     // Ensure JSON content type for all error responses
     set.headers['Content-Type'] = 'application/json; charset=utf-8';

@@ -166,7 +166,9 @@ export class AgentEventEmitter {
       try {
         await listener.handler(event);
       } catch (error) {
-        log.error({ err: error }, `Event handler error for ${event.type}`);
+        // NOTE: warn instead of error — the emitter intentionally isolates handler
+        // failures and continues; this is degraded-but-handled, not fatal.
+        log.warn({ err: error }, `Event handler error for ${event.type}`);
       }
 
       if (listener.once) {
@@ -188,7 +190,8 @@ export class AgentEventEmitter {
       try {
         await listener.handler(event);
       } catch (error) {
-        log.error({ err: error }, `All-event handler error`);
+        // NOTE: same isolation rationale as type-specific handlers above.
+        log.warn({ err: error }, `All-event handler error`);
       }
 
       if (listener.once) {

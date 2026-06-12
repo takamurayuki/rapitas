@@ -131,15 +131,28 @@ export default function CompactTaskDetailCard({
             />
           </div>
 
-          {/* Status Buttons - Compact inline with title */}
+          {/* Status Buttons - Compact inline with title.
+              Normalize so the active button always highlights: `blocked` is an
+              internal mid-workflow state shown as 進行中 (see StatusConfig), and
+              legacy `completed` maps to `done`. Without this, such tasks render
+              with NO status selected. */}
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
               const config = statusConfig[status];
+              // `task.status` is typed to the 3 toggle values, but at runtime it
+              // can also be 'blocked'/'completed' — compare as string to normalize.
+              const rawStatus = task.status as string;
+              const normalizedCurrent =
+                rawStatus === 'blocked'
+                  ? 'in-progress'
+                  : rawStatus === 'completed'
+                    ? 'done'
+                    : task.status;
               return (
                 <TaskStatusChange
                   key={status}
                   status={status}
-                  currentStatus={task.status}
+                  currentStatus={normalizedCurrent}
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(newStatus) => onStatusUpdate(task.id, newStatus)}
@@ -295,11 +308,17 @@ export default function CompactTaskDetailCard({
         </AccordionItem>
       </Accordion>
 
-      {/* Created / updated timestamps — quiet meta footer, not worth its own section. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-400 dark:text-zinc-500">
-        <span>作成 {new Date(task.createdAt).toLocaleString(dateLocale)}</span>
-        <span aria-hidden>·</span>
-        <span>更新 {new Date(task.updatedAt).toLocaleString(dateLocale)}</span>
+      {/* Created / updated timestamps — quiet meta footer as right-aligned,
+          compact chips. */}
+      <div className="flex flex-wrap items-center justify-end gap-1.5 px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">作成</span>
+          {new Date(task.createdAt).toLocaleString(dateLocale)}
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800/60 dark:text-zinc-400">
+          <span className="font-medium text-zinc-400 dark:text-zinc-500">更新</span>
+          {new Date(task.updatedAt).toLocaleString(dateLocale)}
+        </span>
       </div>
     </div>
   );

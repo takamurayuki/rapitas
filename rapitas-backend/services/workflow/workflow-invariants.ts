@@ -23,6 +23,72 @@ export interface Violation {
 }
 
 /**
+ * Normalize a raw workflowStatus value to a safe default.
+ * Empty strings and whitespace-only values are treated as 'draft' to prevent
+ * `ALLOWED_FILE_TYPES_BY_STATUS[""]` from returning `undefined` and skipping
+ * the file-type guard entirely.
+ *
+ * @param s - Raw workflowStatus from DB (may be null, undefined, or empty). / DBから取得した生の値
+ * @returns Normalized status string, defaulting to 'draft'. / 正規化済みステータス
+ */
+export function normalizeWorkflowStatus(s?: string | null): string {
+  if (s && s.trim().length > 0) return s.trim();
+  return 'draft';
+}
+
+/**
+ * Return the list of workflow Markdown files that MUST exist on disk for the
+ * given workflowStatus. This is the single source of truth for the
+ * status→required-file mapping used by both `checkWorkflowInvariants` and
+ * `previewMissingFilesForStatus`.
+ *
+ * @param status - Normalized workflowStatus string. / 正規化済みワークフローステータス
+ * @returns File names that must exist (e.g. ['research.md', 'plan.md']). / 必須ファイル名リスト
+ */
+export function requiredWorkflowFiles(status: string): string[] {
+  switch (status) {
+    case 'research_done':
+      return ['research.md'];
+    case 'plan_created':
+    case 'plan_approved':
+    case 'in_progress':
+      return ['research.md', 'plan.md'];
+    case 'verify_done':
+    case 'completed':
+      return ['research.md', 'plan.md', 'verify.md'];
+    default:
+      // draft, awaiting_question, and any unknown status require no files.
+      return [];
+  }
+}
+
+/**
+ * Preview which required files are missing on disk for a given status without
+ * mutating any state. Used by the manual status update API to pre-check before
+ * applying the change.
+ *
+ * @param taskId - Task to inspect. / 検査対象タスクID
+ * @param status - Target workflowStatus to check requirements for. / 対象ステータス
+ * @returns List of missing file names (empty = all present). / 不足ファイル名リスト
+ */
+export async function previewMissingFilesForStatus(
+  taskId: number,
+  status: string,
+): Promise<string[]> {
+  const task = await prisma.task
+    .findUnique({
+      where: { id: taskId },
+      select: { themeId: true, theme: { select: { categoryId: true } } },
+    })
+    .catch(() => null);
+  if (!task) return [];
+
+  const dir = getTaskWorkflowDir(task.theme?.categoryId ?? null, task.themeId ?? null, taskId);
+  const required = requiredWorkflowFiles(normalizeWorkflowStatus(status));
+  return required.filter((file) => !existsSync(join(dir, file)));
+}
+
+/**
  * Verify the on-disk artifacts and DB columns line up with `workflowStatus`.
  *
  * @param taskId - Task to verify. / 検査対象タスクID
@@ -48,41 +114,16 @@ export async function checkWorkflowInvariants(taskId: number): Promise<Violation
   const dir = getTaskWorkflowDir(task.theme?.categoryId ?? null, task.themeId ?? null, taskId);
   const has = (file: string) => existsSync(join(dir, file));
 
-  const wf = task.workflowStatus ?? 'draft';
+  const wf = normalizeWorkflowStatus(task.workflowStatus);
 
   // Forward expectations: status implies certain files are on disk.
-  if (
-    (wf === 'plan_created' ||
-      wf === 'plan_approved' ||
-      wf === 'in_progress' ||
-      wf === 'verify_done' ||
-      wf === 'completed') &&
-    !has('plan.md')
-  ) {
-    violations.push({
-      code: 'missing_file',
-      message: `workflowStatus="${wf}" but plan.md is missing on disk`,
-    });
-  }
-  if (
-    (wf === 'research_done' ||
-      wf === 'plan_created' ||
-      wf === 'plan_approved' ||
-      wf === 'in_progress' ||
-      wf === 'verify_done' ||
-      wf === 'completed') &&
-    !has('research.md')
-  ) {
-    violations.push({
-      code: 'missing_file',
-      message: `workflowStatus="${wf}" but research.md is missing on disk`,
-    });
-  }
-  if ((wf === 'verify_done' || wf === 'completed') && !has('verify.md')) {
-    violations.push({
-      code: 'missing_file',
-      message: `workflowStatus="${wf}" but verify.md is missing on disk`,
-    });
+  for (const file of requiredWorkflowFiles(wf)) {
+    if (!has(file)) {
+      violations.push({
+        code: 'missing_file',
+        message: `workflowStatus="${wf}" but ${file} is missing on disk`,
+      });
+    }
   }
 
   // Cross-column consistency.

@@ -1,12 +1,22 @@
 'use client';
 // NewTaskClient
-import { Layers, Flag, FileText, Settings2, CheckCircle2, Sparkles, Loader2, Target } from 'lucide-react';
+import {
+  Layers,
+  Flag,
+  FileText,
+  Settings2,
+  CheckCircle2,
+  Sparkles,
+  Loader2,
+  Target,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import LabelSelector from '@/feature/tasks/components/LabelSelector';
 import TaskTitleAutocomplete from '@/feature/tasks/components/TaskTitleAutocomplete';
 import { CompactAccordionGroup, InlineFieldGroup, FieldItem } from '@/components/ui/accordion';
 import ApplyTemplateDialog from '@/feature/tasks/components/dialog/ApplyTemplateDialog';
 import { RelatedKnowledgePanel } from '@/feature/intelligence/components/RelatedKnowledgePanel';
+import { RelatedSearchMissPanel } from '@/feature/intelligence/components/RelatedSearchMissPanel';
 import { requireAuth } from '@/contexts/AuthContext';
 import { Calendar, Clock, Tag } from 'lucide-react';
 import {
@@ -69,7 +79,11 @@ function NewTaskClient() {
           {/* Priority + Theme inline row */}
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
             <InlineFieldGroup>
-              <FieldItem label={t('priority')} icon={<Flag className="w-3.5 h-3.5" />} className="flex-1">
+              <FieldItem
+                label={t('priority')}
+                icon={<Flag className="w-3.5 h-3.5" />}
+                className="flex-1"
+              >
                 <PrioritySelector
                   value={form.priority}
                   onChange={form.setPriority}
@@ -77,7 +91,11 @@ function NewTaskClient() {
                 />
               </FieldItem>
 
-              <FieldItem label={t('theme')} icon={<Layers className="w-3.5 h-3.5" />} className="flex-1">
+              <FieldItem
+                label={t('theme')}
+                icon={<Layers className="w-3.5 h-3.5" />}
+                className="flex-1"
+              >
                 <ThemeSelector
                   themes={form.visibleThemes}
                   themeId={form.themeId}
@@ -128,13 +146,16 @@ function NewTaskClient() {
             />
           </CompactAccordionGroup>
 
-          {/* Related knowledge panel (shown when title is meaningful) */}
+          {/* Related knowledge + past search-miss panels (shown when title is meaningful) */}
           {form.title.length >= 3 && (
-            <RelatedKnowledgePanel
-              title={form.title}
-              description={form.description || null}
-              themeId={form.themeId}
-            />
+            <div className="px-4 py-3 space-y-3 border-b border-zinc-100 dark:border-zinc-800">
+              <RelatedKnowledgePanel
+                title={form.title}
+                description={form.description || null}
+                themeId={form.themeId}
+              />
+              <RelatedSearchMissPanel title={form.title} description={form.description || null} />
+            </div>
           )}
 
           {/* Structured spec: goals / constraints / acceptance criteria.
