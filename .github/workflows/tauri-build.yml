@@ -106,7 +106,7 @@ jobs:
             libgcc-s1
 
       - name: Install pnpm
-        run: npm install -g pnpm@latest
+        run: npm install -g pnpm@10
 
       - name: Get pnpm store directory
         id: pnpm_cache_dir
@@ -174,8 +174,59 @@ jobs:
             Copy-Item rapitas-backend.exe ../rapitas-desktop/src-tauri/binaries/rapitas-backend
           }
 
+          # Bundle the Prisma query engine — bun's single-file compile cannot
+          # embed .node native libraries and user machines have no node_modules,
+          # so without this the installed backend dies at startup (the
+          # PrismaClientInitializationError incident).
+          Copy-Item node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          echo "Bundled Prisma engine(s):"
+          Get-ChildItem ../rapitas-desktop/src-tauri/binaries/*query_engine* | Format-Table Name, Length
+
           echo "Backend binary copied to Tauri binaries directory"
           dir ../rapitas-desktop/src-tauri/binaries/
+
+      # Boot the compiled exe from a clean directory WITHOUT node_modules so a
+      # missing bundled Prisma engine (or any other packaging breakage) fails
+      # HERE instead of on user machines — the installed-app "could not locate
+      # the Query Engine" incident shipped because the binary was never booted
+      # outside the repo checkout.
+      - name: Smoke test backend binary (Windows)
+        if: matrix.platform == 'windows-latest'
+        working-directory: rapitas-backend
+        shell: pwsh
+        run: |
+          $smokeDir = Join-Path $env:RUNNER_TEMP "backend-smoke"
+          New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
+          Copy-Item rapitas-backend.exe (Join-Path $smokeDir "rapitas-backend.exe")
+          # Mirror the installed layout: engine beside the exe + explicit path
+          # (release.rs does the same at runtime).
+          Copy-Item node_modules/.prisma/client/*query_engine*.node $smokeDir
+          $engine = Get-ChildItem (Join-Path $smokeDir "*query_engine*.node") | Select-Object -First 1
+          $env:PRISMA_QUERY_ENGINE_LIBRARY = $engine.FullName
+
+          $env:RAPITAS_DB_PROVIDER = "sqlite"
+          $env:DATABASE_URL = "file:$smokeDir\smoke.db"
+          $env:RAPITAS_DATA_DIR = "$smokeDir"
+          $env:PORT = "3199"
+          $proc = Start-Process -FilePath (Join-Path $smokeDir "rapitas-backend.exe") -WorkingDirectory $smokeDir -PassThru -NoNewWindow
+
+          $ok = $false
+          foreach ($i in 1..30) {
+            Start-Sleep -Seconds 2
+            if ($proc.HasExited) { Write-Host "Backend process exited early (code $($proc.ExitCode))"; break }
+            $code = & curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:3199/categories
+            if ($code -eq "200") { $ok = $true; break }
+          }
+
+          if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+
+          if (-not $ok) {
+            Write-Host "::error::Backend smoke test FAILED - compiled binary did not serve GET /categories with 200"
+            Get-ChildItem (Join-Path $smokeDir "logs") -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "--- $($_.Name) ---"; Get-Content $_.FullName -Tail 40 }
+            exit 1
+          }
+          Write-Host "Backend smoke test passed (GET /categories -> 200)"
 
       - name: Build backend binary (Unix)
         if: matrix.platform != 'windows-latest'
@@ -246,6 +297,13 @@ jobs:
 
           chmod +x ../rapitas-desktop/src-tauri/binaries/rapitas-backend*
 
+          # Bundle the Prisma query engine — bun's single-file compile cannot
+          # embed .node native libraries and user machines have no node_modules,
+          # so without this the installed backend dies at startup.
+          cp node_modules/.prisma/client/*query_engine*.node ../rapitas-desktop/src-tauri/binaries/
+          echo "Bundled Prisma engine(s):"
+          ls -la ../rapitas-desktop/src-tauri/binaries/*query_engine*
+
           echo "Backend binary copied to Tauri binaries directory"
           ls -la ../rapitas-desktop/src-tauri/binaries/
 
@@ -280,6 +338,53 @@ jobs:
               fi
             fi
           fi
+
+      # Same packaging smoke test as Windows: boot the compiled binary outside
+      # the repo (no node_modules) and require a 200 from a DB-backed route.
+      - name: Smoke test backend binary (Unix)
+        if: matrix.platform != 'windows-latest'
+        working-directory: rapitas-backend
+        shell: bash
+        run: |
+          SMOKE_DIR="${RUNNER_TEMP}/backend-smoke"
+          mkdir -p "$SMOKE_DIR"
+          cp rapitas-backend "$SMOKE_DIR/rapitas-backend"
+          # Mirror the installed layout: engine beside the exe + explicit path
+          # (release.rs does the same at runtime).
+          cp node_modules/.prisma/client/*query_engine*.node "$SMOKE_DIR/"
+          ENGINE=$(ls "$SMOKE_DIR"/*query_engine*.node | head -1)
+          cd "$SMOKE_DIR"
+
+          PRISMA_QUERY_ENGINE_LIBRARY="$ENGINE" \
+          RAPITAS_DB_PROVIDER=sqlite \
+          DATABASE_URL="file:$SMOKE_DIR/smoke.db" \
+          RAPITAS_DATA_DIR="$SMOKE_DIR" \
+          PORT=3199 \
+          ./rapitas-backend > smoke-stdout.log 2>&1 &
+          BACKEND_PID=$!
+
+          ok=0
+          for _ in $(seq 1 30); do
+            sleep 2
+            if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+              echo "Backend process exited early"
+              break
+            fi
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3199/categories || true)
+            if [ "$code" = "200" ]; then ok=1; break; fi
+          done
+
+          kill "$BACKEND_PID" 2>/dev/null || true
+
+          if [ "$ok" != "1" ]; then
+            echo "::error::Backend smoke test FAILED - compiled binary did not serve GET /categories with 200"
+            echo "--- smoke-stdout.log (tail) ---"
+            tail -n 60 smoke-stdout.log 2>/dev/null || true
+            echo "--- backend log (tail) ---"
+            tail -n 40 logs/backend-*.log 2>/dev/null || true
+            exit 1
+          fi
+          echo "Backend smoke test passed (GET /categories -> 200)"
 
       - name: Build frontend
         working-directory: rapitas-frontend

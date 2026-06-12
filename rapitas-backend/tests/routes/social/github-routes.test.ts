@@ -15,6 +15,7 @@ const mockPrisma = {
   },
   gitHubPullRequest: {
     findMany: mock(() => Promise.resolve([])),
+    findFirst: mock(() => Promise.resolve(null)),
     findUnique: mock(() => Promise.resolve(null)),
     update: mock(() => Promise.resolve({})),
   },
@@ -34,6 +35,9 @@ const mockPrisma = {
     findUnique: mock(() => Promise.resolve(null)),
     create: mock(() => Promise.resolve({ id: 1, title: 'Task' })),
     update: mock(() => Promise.resolve({})),
+  },
+  activityLog: {
+    findFirst: mock(() => Promise.resolve(null)),
   },
 };
 
@@ -77,15 +81,24 @@ class MockGitHubService {
   handleWebhook = mockHandleWebhook;
 }
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
-mock.module('../../../config/logger', () => ({
-  createLogger: () => ({
-    info: () => {},
-    error: () => {},
-    warn: () => {},
-    debug: () => {},
-  }),
+// NOTE: Must mirror every export of config/database — the config barrel
+// (config/index.ts) re-exports `ensureDatabaseConnection` from here, and github.ts's
+// service imports pull in that barrel. Omitting it makes the barrel re-export throw
+// "export 'ensureDatabaseConnection' not found" before any test runs.
+mock.module('../../../config/database', () => ({
+  prisma: mockPrisma,
+  ensureDatabaseConnection: () => Promise.resolve(),
 }));
+// NOTE: Mirror every config/logger export the barrel re-exports (`logger`,
+// `createLogger`, `getBackendLogFilePath`) — see the database mock note above.
+mock.module('../../../config/logger', () => {
+  const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
+  return {
+    createLogger: () => noopLogger,
+    logger: noopLogger,
+    getBackendLogFilePath: () => '/tmp/backend.log',
+  };
+});
 mock.module('../../../services/core/github-service', () => ({
   GitHubService: MockGitHubService,
 }));
@@ -609,5 +622,82 @@ describe('POST /tasks/:id/create-github-issue (taskGithubRoutes)', () => {
     const body = await res.json();
 
     expect(body.error).toBeDefined();
+  });
+});
+
+describe('GET /github/pull-requests/by-task/:taskId', () => {
+  let app: ReturnType<typeof createApp>;
+
+  beforeEach(() => {
+    resetAllMocks();
+    app = createApp();
+  });
+
+  test('linkedTaskId で直接解決すること', async () => {
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValueOnce({
+      id: 11,
+      prNumber: 3,
+      url: 'https://github.com/o/r/pull/3',
+      state: 'open',
+    });
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/42'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(11);
+    // 直接解決時は title フォールバックの backfill 更新を行わない
+    expect(mockPrisma.gitHubPullRequest.update).not.toHaveBeenCalled();
+  });
+
+  test('未リンクでも title `[Task-{id}]` 一致で解決し backfill すること', async () => {
+    // githubPrId が null なので githubPrId 経路の findFirst はスキップされる。
+    // 1回目(linkedTaskId)が miss → 2回目(title)で hit。
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: 7,
+      prNumber: 9,
+      url: 'https://github.com/o/r/pull/9',
+      state: 'open',
+    });
+    mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: null });
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/42'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.id).toBe(7);
+    // backfill: PR.linkedTaskId と Task.githubPrId を更新
+    expect(mockPrisma.gitHubPullRequest.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.task.update).toHaveBeenCalledTimes(1);
+    const taskArg = mockPrisma.task.update.mock.calls[0][0] as { data: { githubPrId: number } };
+    expect(taskArg.data.githubPrId).toBe(9);
+  });
+
+  test('PR未作成なら 404 + reason=not_created を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: null });
+    mockPrisma.activityLog.findFirst.mockResolvedValue(null);
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/999'));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.reason).toBe('not_created');
+  });
+
+  test('PR作成済みだがローカル未同期なら reason=not_synced + prUrl を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValue(null);
+    mockPrisma.task.findUnique.mockResolvedValue({ githubPrId: null });
+    mockPrisma.activityLog.findFirst.mockResolvedValue({
+      metadata: JSON.stringify({ prUrl: 'https://github.com/o/r/pull/12', prNumber: 12 }),
+    });
+
+    const res = await app.handle(new Request('http://localhost/github/pull-requests/by-task/999'));
+    const body = await res.json();
+
+    expect(res.status).toBe(404);
+    expect(body.reason).toBe('not_synced');
+    expect(body.prUrl).toBe('https://github.com/o/r/pull/12');
+    expect(body.prNumber).toBe(12);
   });
 });

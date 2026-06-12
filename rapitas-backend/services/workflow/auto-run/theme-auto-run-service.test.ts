@@ -7,15 +7,13 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // ---------------------------------------------------------------------------
-// Mock prisma before importing the module under test
-// NOTE: mock.module is not hoisted (unlike vi.mock), so it must precede
-// the dynamic import of the module under test.
+// Mock functions — defined before mock.module() so the factory can close over them
 // ---------------------------------------------------------------------------
-const mockUpsert = mock();
-const mockUpdate = mock();
-const mockUpdateMany = mock();
-const mockFindUnique = mock();
-const mockCreate = mock();
+const mockUpsert = mock(() => Promise.resolve({}));
+const mockUpdate = mock(() => Promise.resolve({}));
+const mockUpdateMany = mock(() => Promise.resolve({ count: 0 }));
+const mockFindUnique = mock(() => Promise.resolve(null));
+const mockCreate = mock(() => Promise.resolve({}));
 
 mock.module('../../../config', () => ({
   prisma: {
@@ -29,7 +27,7 @@ mock.module('../../../config', () => ({
   },
 }));
 
-// Re-import AFTER mock is installed (dynamic import required — mock.module is not hoisted)
+// Re-import AFTER mock is installed
 const {
   startAutoRun,
   pauseAutoRun,
@@ -60,18 +58,20 @@ function makeRecord(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+function resetMocks() {
+  mockUpsert.mockClear();
+  mockUpdate.mockClear();
+  mockUpdateMany.mockClear();
+  mockFindUnique.mockClear();
+  mockCreate.mockClear();
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('isThemeAutoRunActive', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('returns false for null themeId', async () => {
     expect(await isThemeAutoRunActive(null)).toBe(false);
@@ -99,13 +99,7 @@ describe('isThemeAutoRunActive', () => {
 });
 
 describe('startAutoRun', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('upserts with status running', async () => {
     const record = makeRecord({ status: 'running' });
@@ -136,13 +130,7 @@ describe('startAutoRun', () => {
 });
 
 describe('pauseAutoRun', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('sets status to paused', async () => {
     mockUpsert.mockResolvedValue(makeRecord({ status: 'paused' }));
@@ -157,13 +145,7 @@ describe('pauseAutoRun', () => {
 });
 
 describe('stopAutoRun', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('sets status to stopping', async () => {
     mockUpsert.mockResolvedValue(makeRecord({ status: 'stopping' }));
@@ -178,13 +160,7 @@ describe('stopAutoRun', () => {
 });
 
 describe('resumeAutoRun', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('transitions paused → running', async () => {
     mockFindUnique.mockResolvedValue(makeRecord({ status: 'paused' }));
@@ -213,13 +189,7 @@ describe('resumeAutoRun', () => {
 });
 
 describe('finalizeStop', () => {
-  beforeEach(() => {
-    mockUpsert.mockReset();
-    mockUpdate.mockReset();
-    mockUpdateMany.mockReset();
-    mockFindUnique.mockReset();
-    mockCreate.mockReset();
-  });
+  beforeEach(resetMocks);
 
   it('sets idle + disabled + clears currentTaskId', async () => {
     mockUpdateMany.mockResolvedValue({ count: 1 });

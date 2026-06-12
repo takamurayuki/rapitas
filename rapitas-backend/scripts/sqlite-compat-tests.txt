@@ -1,0 +1,25 @@
+# SQLite 互換テスト マニフェスト
+#
+# このファイルに記載されたテストのみが `bun run test:sqlite` で実行される。
+# 1 行 1 ファイル（rapitas-backend/ からの相対パス）。
+# '#' 始まりはコメント、空行は無視される。
+#
+# --- 追加ルール ---
+# - 追加前に `bun run test:sqlite <file>` でグリーンを確認してから有効化すること。
+# - グリーンにならないファイルは修正せずコメントアウトのまま据え置き、
+#   懸念バックログ (POST /concerns, originTaskId:215) に起票して引き継ぐこと。
+# ------------------
+
+# ===== 必須 (Prisma 非依存 / bun:sqlite 直接使用 — 確実グリーン) =====
+tests/config/desktop-sqlite-self-heal.test.ts
+tests/utils/postgres-to-sqlite-migration.test.ts
+
+# ===== 検証済み (SQLite env 下でグリーン確認済み) =====
+tests/services/search-miss-service.test.ts
+tests/routes/system/search-routes.test.ts
+tests/services/backup-service.test.ts
+
+# ===== 検証レッド — 修正不可 (スコープ外) / 懸念バックログ起票済み =====
+# tests/routes/system/setup.test.ts
+#   失敗内容: setupComplete が false (SQLite 環境で DB 接続確認が false を返す)
+#   起票先: 懸念バックログ originTaskId:215

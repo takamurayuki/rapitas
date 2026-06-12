@@ -131,15 +131,28 @@ export default function CompactTaskDetailCard({
             />
           </div>
 
-          {/* Status Buttons - Compact inline with title */}
+          {/* Status Buttons - Compact inline with title.
+              Normalize so the active button always highlights: `blocked` is an
+              internal mid-workflow state shown as 進行中 (see StatusConfig), and
+              legacy `completed` maps to `done`. Without this, such tasks render
+              with NO status selected. */}
           <div className="flex items-center gap-1 shrink-0">
             {(['todo', 'in-progress', 'done'] as const).map((status) => {
               const config = statusConfig[status];
+              // `task.status` is typed to the 3 toggle values, but at runtime it
+              // can also be 'blocked'/'completed' — compare as string to normalize.
+              const rawStatus = task.status as string;
+              const normalizedCurrent =
+                rawStatus === 'blocked'
+                  ? 'in-progress'
+                  : rawStatus === 'completed'
+                    ? 'done'
+                    : task.status;
               return (
                 <TaskStatusChange
                   key={status}
                   status={status}
-                  currentStatus={task.status}
+                  currentStatus={normalizedCurrent}
                   config={config}
                   renderIcon={renderStatusIcon}
                   onClick={(newStatus) => onStatusUpdate(task.id, newStatus)}

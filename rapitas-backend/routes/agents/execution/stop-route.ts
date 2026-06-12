@@ -11,6 +11,11 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { stopTaskAgents } from '../../../services/agents/stop-task-agents';
+import {
+  getAutoRunState,
+  finalizeStop,
+  isAutoRunHandlingTask,
+} from '../../../services/workflow/auto-run/theme-auto-run-service';
 import { releaseTaskExecutionLock } from './execution-lock';
 import { removeWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-ops';
 
@@ -26,7 +31,11 @@ export const stopRoute = new Elysia().post(
     try {
       const task = await prisma.task.findUnique({
         where: { id: taskId },
-        select: { workingDirectory: true, theme: { select: { workingDirectory: true } } },
+        select: {
+          themeId: true,
+          workingDirectory: true,
+          theme: { select: { workingDirectory: true } },
+        },
       });
       const workingDirectory = task?.workingDirectory || task?.theme?.workingDirectory || null;
 
@@ -72,6 +81,28 @@ export const stopRoute = new Elysia().post(
         .catch((err) => {
           log.warn({ err, taskId }, '[stop-execution] Failed to cancel agent sessions');
         });
+
+      // If the theme's auto-run is the actor driving THIS task, halt the loop
+      // now (before the status reset below). Otherwise the scheduler either
+      // re-selects the just-reset 'todo' task or advances to the next task and
+      // launches a fresh agent mid-stop — the "press stop, it runs again" bug.
+      // finalizeStop is immediate (idle + disabled + currentTaskId=null), so it
+      // doesn't depend on the next scheduler tick. Only fires when auto-run is
+      // actually running this task — a manual single-task stop is unaffected.
+      if (task?.themeId != null) {
+        const autoRunState = await getAutoRunState(task.themeId).catch(() => null);
+        if (isAutoRunHandlingTask(autoRunState, taskId)) {
+          await finalizeStop(task.themeId).catch((err) =>
+            log.warn(
+              { err, taskId, themeId: task.themeId },
+              '[stop-execution] Failed to halt theme auto-run',
+            ),
+          );
+          log.info(
+            `[stop-execution] Halted theme ${task.themeId} auto-run (was running task ${taskId})`,
+          );
+        }
+      }
 
       // Revert uncommitted changes in the task's working directory.
       if (workingDirectory) {

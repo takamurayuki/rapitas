@@ -8,6 +8,7 @@
 export {
   recordSearchMiss,
   getTopMissedQueries,
+  getRelatedMisses,
   linkTaskToMiss,
   autoLinkMatchingMisses,
   resolveSearchMissForTask,

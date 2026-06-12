@@ -42,11 +42,49 @@ export default function PullRequestDetailClient() {
   const [merging, setMerging] = useState(false);
   const [mergeMethod, setMergeMethod] = useState<MergeMethod>('squash');
   const [deleteBranch, setDeleteBranch] = useState(true);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [changingBase, setChangingBase] = useState(false);
+  const [autoMerge, setAutoMerge] = useState(false);
+  const [resolvingConflicts, setResolvingConflicts] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     fetchPRData();
   }, [id]);
+
+  // Load the repo's branches so the user can change the merge target branch.
+  const repositoryUrl = pr?.integration?.repositoryUrl;
+  useEffect(() => {
+    if (!repositoryUrl) return;
+    fetch(`${API_BASE_URL}/themes/branches?repositoryUrl=${encodeURIComponent(repositoryUrl)}`)
+      .then((res) => (res.ok ? res.json() : { branches: [] }))
+      .then((data: { branches?: string[] }) => setBranches(data.branches ?? []))
+      .catch(() => setBranches([]));
+  }, [repositoryUrl]);
+
+  const handleChangeBase = async (baseBranch: string) => {
+    if (!pr || baseBranch === pr.baseBranch) return;
+    setChangingBase(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/base`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseBranch }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        showToast(`マージ先を ${baseBranch} に変更しました`, 'success');
+        await fetchPRData();
+      } else {
+        showToast(data.error || 'マージ先の変更に失敗しました', 'error');
+      }
+    } catch (error) {
+      logger.error('Failed to change base branch:', error);
+      showToast('マージ先の変更に失敗しました', 'error');
+    } finally {
+      setChangingBase(false);
+    }
+  };
 
   const fetchPRData = async () => {
     setLoading(true);
@@ -106,6 +144,33 @@ export default function PullRequestDetailClient() {
     }
   };
 
+  const handleResolveConflicts = async () => {
+    if (!pr) return;
+    setResolvingConflicts(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/resolve-conflicts`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.resolved) {
+        showToast(data.detail || 'ベースを取り込み、ブランチを更新しました', 'success');
+        await fetchPRData();
+      } else if (res.ok && data.taskId) {
+        showToast(
+          `競合があります（${data.conflicts?.length ?? 0}件）。解消タスク #${data.taskId} を作成しました。タスク画面で実行してください。`,
+          'success',
+        );
+      } else {
+        showToast(data.error || data.detail || '競合解消に失敗しました', 'error');
+      }
+    } catch (error) {
+      logger.error('Failed to resolve conflicts:', error);
+      showToast('競合解消に失敗しました', 'error');
+    } finally {
+      setResolvingConflicts(false);
+    }
+  };
+
   const handleMerge = async () => {
     if (!pr) return;
     setMerging(true);
@@ -113,11 +178,22 @@ export default function PullRequestDetailClient() {
       const res = await fetch(`${API_BASE_URL}/github/pull-requests/${id}/merge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: mergeMethod, deleteBranch }),
+        body: JSON.stringify({ method: mergeMethod, deleteBranch, auto: autoMerge }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
+        if (data.autoQueued) {
+          showToast('条件を満たし次第、自動マージされます', 'success');
+          await fetchPRData();
+          return;
+        }
         showToast(`PR #${pr.prNumber} をマージしました`, 'success');
+        // Report the local base-branch sync outcome (best-effort on the server).
+        if (data.localSync?.synced) {
+          showToast(data.localSync.detail, 'success');
+        } else if (data.localSync && !data.localSync.synced) {
+          showToast(`ローカル同期に失敗しました: ${data.localSync.detail}`, 'error');
+        }
         await fetchPRData();
       } else {
         showToast(data.error || 'マージに失敗しました', 'error');
@@ -163,6 +239,24 @@ export default function PullRequestDetailClient() {
       {/* Merge bar — only for open PRs. Review the diff/approve first, then merge. */}
       {pr.state === 'open' && (
         <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800">
+          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ先</span>
+          <select
+            value={pr.baseBranch}
+            onChange={(e) => handleChangeBase(e.target.value)}
+            disabled={changingBase}
+            className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm disabled:opacity-50"
+          >
+            {/* Ensure the current base is selectable even if the branch list hasn't loaded. */}
+            {!branches.includes(pr.baseBranch) && (
+              <option value={pr.baseBranch}>{pr.baseBranch}</option>
+            )}
+            {branches.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
+          {changingBase && <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />}
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">マージ方式</span>
           <select
             value={mergeMethod}
@@ -182,10 +276,35 @@ export default function PullRequestDetailClient() {
             />
             ブランチを削除
           </label>
+          <label
+            className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400"
+            title="今すぐマージできない場合（チェック保留など）、条件を満たし次第GitHubが自動マージします。競合は解消されません。"
+          >
+            <input
+              type="checkbox"
+              checked={autoMerge}
+              onChange={(e) => setAutoMerge(e.target.checked)}
+              className="rounded"
+            />
+            自動マージ
+          </label>
+          <button
+            onClick={handleResolveConflicts}
+            disabled={resolvingConflicts}
+            title="ベースを取り込み、競合があればエージェント解消タスクを作成します"
+            className="ml-auto flex items-center gap-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-200 text-sm font-medium rounded-lg transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-50"
+          >
+            {resolvingConflicts ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <GitMerge className="w-4 h-4" />
+            )}
+            競合を解消
+          </button>
           <button
             onClick={handleMerge}
             disabled={merging}
-            className="ml-auto flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
           >
             {merging ? (
               <Loader2 className="w-4 h-4 animate-spin" />

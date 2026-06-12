@@ -72,7 +72,8 @@ describe('scoreAgentForRole', () => {
   test('verifier and auto_verifier score the same positive (registry matches scoring)', () => {
     // Regression: auto_verifier was missing from bestForRoles so it scored 0,
     // tripping "[recommendAgentForRole] No suitable agent for role".
-    for (const agent of ['claude-code', 'gemini']) {
+    // NOTE: codex added here — it was previously omitted from the regression check.
+    for (const agent of ['claude-code', 'gemini', 'codex']) {
       const verifier = scoreAgentForRole(agent, 'verifier');
       const autoVerifier = scoreAgentForRole(agent, 'auto_verifier');
       expect(autoVerifier).toBeGreaterThan(0);

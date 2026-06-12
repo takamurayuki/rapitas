@@ -18,10 +18,15 @@ const errorMock = mock(() => {});
 mock.module('../../config/logger', () => ({
   createLogger: () => ({ info: infoMock, debug: debugMock, warn: warnMock, error: errorMock }),
 }));
-// recordSearchMiss / getTopMissedQueries use the module-level prisma singleton; mock it away.
-mock.module('../../config/database', () => ({ prisma: {} }));
+// recordSearchMiss / getTopMissedQueries / getRelatedMisses use the module-level
+// prisma singleton; mock it with a searchMiss.findMany we can assert against.
+const relatedFindMany = mock((_args: unknown) => Promise.resolve([] as unknown[]));
+mock.module('../../config/database', () => ({
+  prisma: { searchMiss: { findMany: relatedFindMany } },
+}));
 
-const { resolveSearchMissForTask } = await import('../../services/search/search-miss-service');
+const { resolveSearchMissForTask, getRelatedMisses } =
+  await import('../../services/search/search-miss-service');
 
 // ---- Fixtures ----
 
@@ -248,5 +253,38 @@ describe('resolveSearchMissForTask', () => {
     expect(ctx.query).toBe(MISS_A.query);
     expect(ctx.taskId).toBe(10);
     expect(msg).toContain('notification');
+  });
+});
+
+describe('getRelatedMisses', () => {
+  afterEach(() => {
+    relatedFindMany.mockClear();
+  });
+
+  test('語が3文字未満/空のみのときは findMany を呼ばず [] を返す', async () => {
+    const res = await getRelatedMisses(['ab', '  ', 'x'], 5);
+    expect(res).toEqual([]);
+    expect(relatedFindMany).not.toHaveBeenCalled();
+  });
+
+  test('有効な語を小文字化・重複排除し status:open + OR contains で問い合わせる', async () => {
+    await getRelatedMisses(['Dashboard', 'dashboard', 'API'], 7);
+
+    expect(relatedFindMany).toHaveBeenCalledTimes(1);
+    const [arg] = relatedFindMany.mock.calls[0] as [
+      {
+        where: { status: string; OR: Array<{ query: { contains: string } }> };
+        take: number;
+        orderBy: { hitCount: string };
+      },
+    ];
+    expect(arg.where.status).toBe('open');
+    const terms = arg.where.OR.map((o) => o.query.contains);
+    expect(terms).toContain('dashboard');
+    expect(terms).toContain('api');
+    // 'Dashboard' と 'dashboard' は同一語として 1 件に重複排除される。
+    expect(terms.filter((t) => t === 'dashboard')).toHaveLength(1);
+    expect(arg.take).toBe(7);
+    expect(arg.orderBy.hitCount).toBe('desc');
   });
 });

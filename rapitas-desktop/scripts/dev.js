@@ -1407,12 +1407,19 @@ function startFileWatcher() {
     // リスタート中 or クールダウン中（3秒）はイベントを無視
     if (isHotRestarting) return;
     if (Date.now() - lastRestartCompletedAt < 3000) return;
-    // schema.prisma の変更はDB同期付きリスタート
-    if (filename.endsWith("schema.prisma")) {
+    // NOTE: fs.watch on Windows returns backslash-separated paths; normalize before matching.
+    const normalized = filename.replace(/\\/g, "/");
+    // NOTE: Covers prismaSchemaFolder layout (schema/*.prisma).
+    // `startsWith('schema.desktop/')` excludes re-generated files written during restart,
+    // which would otherwise trigger an infinite restart loop.
+    const isPrismaSchemaChange =
+      normalized.endsWith(".prisma") &&
+      !normalized.startsWith("schema.desktop/");
+    if (isPrismaSchemaChange) {
       pendingPrismaRestart = true;
     }
-    // .ts ファイルまたは schema.prisma のみ対象
-    if (!filename.endsWith(".ts") && !filename.endsWith("schema.prisma")) {
+    // .ts ファイルまたは prisma schema のみ対象
+    if (!filename.endsWith(".ts") && !isPrismaSchemaChange) {
       return;
     }
     pendingChanges.push(filename);

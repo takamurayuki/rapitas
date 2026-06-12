@@ -1,6 +1,34 @@
 #[cfg(target_os = "windows")]
 use std::process::Command;
 
+/// Resolve a preset browser key (`chrome` / `msedge` / `firefox`) to an actually
+/// installed exe path on Windows. Probes the common install locations (incl. the
+/// per-user one) and returns the first that exists; None falls back to the OS
+/// default so a missing path never aborts the split.
+#[cfg(target_os = "windows")]
+fn browser_path_for_preset(preset: &str) -> Option<String> {
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let candidates: Vec<String> = match preset {
+        "chrome" => vec![
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe".to_string(),
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe".to_string(),
+            format!(r"{local}\Google\Chrome\Application\chrome.exe"),
+        ],
+        "msedge" | "edge" => vec![
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe".to_string(),
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe".to_string(),
+        ],
+        "firefox" => vec![
+            r"C:\Program Files\Mozilla Firefox\firefox.exe".to_string(),
+            r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe".to_string(),
+        ],
+        _ => vec![],
+    };
+    candidates
+        .into_iter()
+        .find(|p| std::path::Path::new(p).exists())
+}
+
 #[cfg(target_os = "windows")]
 pub fn launch_browser_with_size(
     url: &str,
@@ -8,8 +36,13 @@ pub fn launch_browser_with_size(
     y: i32,
     width: i32,
     height: i32,
+    browser: Option<&str>,
 ) -> Result<(), String> {
-    let browser_result = get_default_browser();
+    // Prefer the user-chosen browser (App Settings); fall back to the OS default.
+    let browser_result = match browser.and_then(browser_path_for_preset) {
+        Some(path) => Ok(path),
+        None => get_default_browser(),
+    };
 
     if let Ok(browser_path) = browser_result {
         let browser_name = browser_path.to_lowercase();
@@ -161,6 +194,7 @@ pub fn launch_browser_with_size(
     _y: i32,
     _width: i32,
     _height: i32,
+    _browser: Option<&str>,
 ) -> Result<(), String> {
     open::that(url).map_err(|e| format!("Failed to launch browser: {e}"))
 }

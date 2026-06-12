@@ -4,7 +4,6 @@
  * Extracts [IDEA] markers from agent output and submits to IdeaBox.
  */
 import { createLogger } from '../../../config/logger';
-import { prisma as defaultPrisma } from '../../../config/database';
 
 const logger = createLogger('idea-extractor');
 
@@ -19,11 +18,10 @@ const taskThemeIdCache = new Map<number, number | null>();
 async function resolveThemeIdForTask(taskId: number): Promise<number | null> {
   if (taskThemeIdCache.has(taskId)) return taskThemeIdCache.get(taskId) ?? null;
   try {
-    const task = await defaultPrisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
-    const themeId = task?.themeId ?? null;
+    // Use the shared resolver so ideas inherit the task's theme (or its
+    // working-directory / default theme) instead of falling back to "global".
+    const { resolveTaskThemeId } = await import('../../memory/idea-box-service');
+    const themeId = await resolveTaskThemeId(taskId);
     taskThemeIdCache.set(taskId, themeId);
     // Bound the cache to prevent leaks across many executions.
     if (taskThemeIdCache.size > 500) {

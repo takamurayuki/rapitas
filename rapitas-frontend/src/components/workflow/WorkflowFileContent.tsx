@@ -140,14 +140,21 @@ export function WorkflowFileContent({
       setTocHeight(0);
       return;
     }
-    const update = () => setTocHeight(el.offsetHeight);
-    update();
-    // ResizeObserver is absent in jsdom/older runtimes; the one-shot measure above
-    // still gives a usable offset there.
+    // Measure synchronously on first render so scroll-margin-top is correct from
+    // the first paint. RAF is used only for subsequent resize callbacks to prevent
+    // "ResizeObserver loop completed with undelivered notifications".
+    setTocHeight(el.offsetHeight);
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(update);
+    let rafId: number;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => setTocHeight(el.offsetHeight));
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
   }, [headings, tocOpen]);
   const scrollMarginTop = tocHeight > 0 ? tocHeight + 88 + 8 : 132;
 

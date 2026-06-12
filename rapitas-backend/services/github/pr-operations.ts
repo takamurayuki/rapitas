@@ -19,5 +19,7 @@ export {
   approvePullRequest,
   requestChanges,
   mergePullRequest,
+  changePullRequestBase,
+  syncLocalBranchWithRemote,
   createPullRequest,
 } from './pr-write';

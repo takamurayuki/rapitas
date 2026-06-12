@@ -3,25 +3,15 @@
  *
  * Shared async utilities used across multiple execution route handlers:
  * - Updating AgentSession status with retry logic
- * - Creating code review ApprovalRequest records after task completion
+ *
+ * (Code-review ApprovalRequest creation was removed — a completed task's PR is
+ * opened directly instead of going through a review/approval step.)
  */
 
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
-import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
-import { toJsonString } from '../../../utils/database/db-helpers';
-import {
-  cleanImplementationSummary,
-  sanitizeScreenshots,
-} from '../../../utils/agent/agent-response-cleaner';
-import { captureScreenshotsForDiff } from '../../../services/misc/screenshot-service';
-import type { ScreenshotResult } from '../../../services/misc/screenshot-service';
 
 const log = createLogger('routes:agent-execution:helpers');
-const agentWorkerManager = AgentWorkerManager.getInstance();
-
-// NOTE: sanitizeScreenshots is imported for potential future use in approval payloads.
-void sanitizeScreenshots;
 
 /**
  * Updates an AgentSession's terminal status with exponential-backoff retry.
@@ -74,118 +64,4 @@ export async function updateSessionStatusWithRetry(
     { err: lastError },
     `${logPrefix} Failed to update session ${sessionId} status after ${maxRetries} attempts`,
   );
-}
-
-/** Parameters for createCodeReviewApproval. */
-export interface CreateCodeReviewApprovalParams {
-  taskId: number;
-  taskTitle: string;
-  configId: number;
-  sessionId: number;
-  workDir: string;
-  branchName?: string;
-  resultOutput?: string;
-  executionTimeMs?: number;
-  logPrefix: string;
-}
-
-/**
- * Creates an ApprovalRequest for code review after task execution completes.
- * Captures screenshots for changed UI files and respects the autoApprove config flag.
- * Non-fatal: errors are logged but not re-thrown.
- *
- * @param params - Code review approval parameters / コードレビュー承認リクエストパラメータ
- */
-export async function createCodeReviewApproval(
-  params: CreateCodeReviewApprovalParams,
-): Promise<void> {
-  const {
-    taskId,
-    taskTitle,
-    configId,
-    sessionId,
-    workDir,
-    branchName,
-    resultOutput,
-    executionTimeMs,
-    logPrefix,
-  } = params;
-
-  try {
-    const diff = await agentWorkerManager.getFullGitDiff(workDir);
-    const structuredDiff = await agentWorkerManager.getDiff(workDir);
-
-    if (diff && diff !== 'No changes detected') {
-      const implementationSummary = cleanImplementationSummary(
-        resultOutput || 'Implementation completed.',
-      );
-
-      let screenshots: ScreenshotResult[] = [];
-      try {
-        screenshots = await captureScreenshotsForDiff(structuredDiff, {
-          workingDirectory: workDir,
-          agentOutput: resultOutput || '',
-        });
-        if (screenshots.length > 0) {
-          log.info(
-            `${logPrefix} Captured ${screenshots.length} screenshots for task ${taskId}: ${screenshots.map((s) => s.page).join(', ')}`,
-          );
-        }
-      } catch (screenshotErr) {
-        log.warn({ err: screenshotErr }, `${logPrefix} Screenshot capture failed (non-fatal)`);
-      }
-
-      const devConfig = await prisma.developerModeConfig.findUnique({
-        where: { id: configId },
-        select: { autoApprove: true },
-      });
-      const isAutoApprove = devConfig?.autoApprove === true;
-
-      try {
-        const approvalRequest = await prisma.approvalRequest.create({
-          data: {
-            configId,
-            requestType: 'code_review',
-            title: `Code review for "${taskTitle}"`,
-            description: implementationSummary,
-            status: isAutoApprove ? 'approved' : 'pending',
-            proposedChanges:
-              toJsonString({
-                taskId,
-                sessionId,
-                workingDirectory: workDir,
-                branchName,
-                structuredDiff,
-                implementationSummary,
-                executionTimeMs,
-                screenshots,
-              }) ?? '',
-            executionType: 'code_review',
-            estimatedChanges: toJsonString({
-              filesChanged: structuredDiff.length,
-              summary: implementationSummary.substring(0, 500),
-            }),
-            ...(isAutoApprove && { approvedAt: new Date() }),
-          },
-        });
-
-        if (isAutoApprove) {
-          log.info(
-            `${logPrefix} Auto-approved code review for task ${taskId} (approval #${approvalRequest.id})`,
-          );
-        } else {
-          log.info(
-            `${logPrefix} Created code review approval #${approvalRequest.id} for task ${taskId}`,
-          );
-        }
-      } catch (approvalError) {
-        log.error(
-          { err: approvalError },
-          `${logPrefix} Failed to create approval request for task ${taskId}`,
-        );
-      }
-    }
-  } catch (diffError) {
-    log.error({ err: diffError }, `${logPrefix} Failed to get diff for task ${taskId}`);
-  }
 }

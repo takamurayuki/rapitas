@@ -1,0 +1,164 @@
+/**
+ * verify-self-repair
+ *
+ * When the verify.md validator rejects a verifier's output (self-contradiction:
+ * claims pass but body shows failures, or an explicit ❌ verdict), instead of
+ * dead-ending the task at `blocked` this bounces the workflow BACK to the
+ * implementer phase with the failure as feedback, so the runner re-runs
+ * implement → verify automatically. Bounded by a per-task attempt cap (counted
+ * from WorkflowTransition rows — no schema change); once exhausted the caller
+ * blocks as before. Not responsible for spawning agents — the status-driven
+ * WorkflowRunner picks up the re-implement phase on its next poll.
+ */
+import { prisma } from '../../config/database';
+import { createLogger } from '../../config/logger';
+import { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
+import { recordTransition } from './transition-recorder';
+
+const log = createLogger('workflow:verify-self-repair');
+
+/** WorkflowTransition.cause used to count + identify repair bounces. */
+const REPAIR_CAUSE = 'verify_repair';
+
+/** Default max verify→implement repair cycles before giving up and blocking. */
+const DEFAULT_MAX_VERIFY_REPAIRS = Math.max(
+  0,
+  parseInt(process.env.RAPITAS_MAX_VERIFY_REPAIRS ?? '2', 10) || 2,
+);
+
+export interface VerifyRepairResult {
+  /** True when the workflow was bounced back to implement (caller must NOT block). */
+  bounced: boolean;
+  /** The workflowStatus to set so the implementer re-runs (when bounced). */
+  newStatus?: string;
+  /** 1-based attempt number for this bounce. */
+  attempt?: number;
+}
+
+/**
+ * Count how many verify→implement repair bounces this task has already had.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns Prior repair count / これまでの修復回数
+ */
+async function countPriorRepairs(taskId: number): Promise<number> {
+  return prisma.workflowTransition.count({ where: { taskId, cause: REPAIR_CAUSE } }).catch(() => 0);
+}
+
+/**
+ * Resolve the implementer's ENTRY status for a task: `plan_approved` when a
+ * plan.md exists (standard/comprehensive), else `research_done` (lightweight) —
+ * matching buildTransitions(). Setting workflowStatus to this makes the runner
+ * re-run implement → verify.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns The status to bounce to / 戻す先のstatus
+ */
+async function resolveImplementEntryStatus(
+  taskId: number,
+): Promise<'plan_approved' | 'research_done'> {
+  const plan = await prisma.workflowFile
+    .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
+    .catch(() => null);
+  return plan ? 'plan_approved' : 'research_done';
+}
+
+/**
+ * Write the verify failure back to question.md so the re-run implementer reads
+ * it as feedback (the implementer context surfaces question.md). Preserves any
+ * existing content by appending a clearly-marked section. Best-effort.
+ *
+ * @param taskId - Task id / タスクID
+ * @param reason - Validator summary / バリデータの要約
+ * @param verifyContent - The rejected verify.md (for the agent's reference) / 却下されたverify.md
+ * @param attempt - 1-based attempt number / 試行回数
+ */
+async function writeRepairFeedback(
+  taskId: number,
+  reason: string,
+  verifyContent: string,
+  attempt: number,
+): Promise<void> {
+  try {
+    const info = await resolveWorkflowDir(taskId);
+    if (!info) return;
+    const prior = (await readWorkflowFile(info.dir, 'question')) ?? '';
+    const block = [
+      `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
+      '',
+      `直前の検証 (verify.md) が不合格でした: ${reason}`,
+      '',
+      '以下を厳守して **実装を修正** してください:',
+      '- verify.md に出ている失敗（失敗テスト・型/lint エラー・未達の受け入れ基準）を実際に解消する。',
+      '- 「成功した」と書くだけ・テスト結果を偽るのは禁止。テストを実際に通すこと。',
+      '- スコープ厳守（plan.md 記載外のファイルは変更しない）。',
+      '',
+      '## 参考: 不合格となった verify.md の冒頭',
+      '```md',
+      verifyContent.slice(0, 1500),
+      '```',
+    ].join('\n');
+    const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
+    await writeWorkflowFile(info.dir, 'question', next, taskId);
+  } catch (err) {
+    log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to question.md');
+  }
+}
+
+/**
+ * Attempt a verify→implement self-repair bounce. Returns `bounced:false` (caller
+ * should block) once the per-task attempt cap is reached, or when repairs are
+ * disabled (RAPITAS_MAX_VERIFY_REPAIRS=0).
+ *
+ * @param taskId - Task being verified / 検証対象タスク
+ * @param currentStatus - The workflowStatus at the time verify.md was saved / 現在のstatus
+ * @param reason - Validator failure summary / 失敗要約
+ * @param verifyContent - The rejected verify.md body / 却下されたverify.md
+ * @returns Whether the workflow was bounced and to which status / 戻したか・戻し先
+ */
+export async function attemptVerifyRepair(
+  taskId: number,
+  currentStatus: string | null,
+  reason: string,
+  verifyContent: string,
+): Promise<VerifyRepairResult> {
+  if (DEFAULT_MAX_VERIFY_REPAIRS === 0) return { bounced: false };
+
+  const prior = await countPriorRepairs(taskId);
+  if (prior >= DEFAULT_MAX_VERIFY_REPAIRS) {
+    log.warn(
+      { taskId, prior, max: DEFAULT_MAX_VERIFY_REPAIRS },
+      '[verify-repair] Repair attempts exhausted — caller should block',
+    );
+    return { bounced: false };
+  }
+
+  const attempt = prior + 1;
+  const newStatus = await resolveImplementEntryStatus(taskId);
+
+  await writeRepairFeedback(taskId, reason, verifyContent, attempt);
+
+  // Keep the task non-terminal so the auto-run scheduler holds it and the runner
+  // re-runs implement → verify (rather than treating it as failed/blocked).
+  await prisma.task
+    .update({ where: { id: taskId }, data: { status: 'in-progress', updatedAt: new Date() } })
+    .catch((err) =>
+      log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress'),
+    );
+
+  await recordTransition({
+    taskId,
+    fromStatus: currentStatus ?? null,
+    toStatus: newStatus,
+    actor: 'system',
+    cause: REPAIR_CAUSE,
+    phase: 'verify',
+    metadata: { attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, reason },
+  });
+
+  log.info(
+    { taskId, attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, newStatus },
+    '[verify-repair] Bounced verify failure back to implementer',
+  );
+  return { bounced: true, newStatus, attempt };
+}

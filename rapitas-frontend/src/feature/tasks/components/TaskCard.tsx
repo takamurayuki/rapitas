@@ -5,7 +5,9 @@ import type { Task, Status } from '@/types';
 import TaskStatusChange from '@/feature/tasks/components/TaskStatusChange';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import { statusConfig, renderStatusIcon } from '@/feature/tasks/config/StatusConfig';
-import { ExternalLink, Tag, Repeat } from 'lucide-react';
+import { ExternalLink, Tag, Repeat, RefreshCw } from 'lucide-react';
+import { API_BASE_URL } from '@/utils/api';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import { getLabelsArray, hasLabels } from '@/utils/labels';
 import { getIconComponent } from '@/components/category/icon-data';
 import { CardLightSweep } from './TaskCompletionAnimation';
@@ -41,8 +43,32 @@ const TaskCard = memo(function TaskCard({
 }: TaskCardProps) {
   const t = useTranslations('task');
   const tHome = useTranslations('home');
+  const { showToast } = useToast();
 
   const tc = useTaskCard(task, onStatusChange, onTaskUpdated, onTaskClick);
+
+  // NOTE: The frontend Status type only covers todo/in-progress/done, but the
+  // backend also parks tasks as 'blocked' (auto-run skip) / 'failed' — compare
+  // as string until the type catches up.
+  const isRetryable = (task.status as string) === 'blocked' || (task.status as string) === 'failed';
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isRetrying) return;
+    setIsRetrying(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${task.id}/retry`, { method: 'POST' });
+      if (res.ok) {
+        await onTaskUpdated?.();
+      } else {
+        showToast('再実行への切り替えに失敗しました', 'error');
+      }
+    } catch {
+      showToast('再実行への切り替えに失敗しました', 'error');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // NOTE: cardSize is kept local because it only drives the perimeter calculation
   // which is currently unused (_perimeter). Kept for future progress-ring feature.
@@ -307,6 +333,23 @@ const TaskCard = memo(function TaskCard({
             onMouseDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
+            {/* Blocked/failed recovery: one click returns the task to 'todo' so
+                auto-run selection picks it up again — previously the only way
+                out was manually editing the status. */}
+            {isRetryable && (
+              <button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                title="再実行（todo に戻して自動実行の対象に戻します）"
+                aria-label="タスクを再実行"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-all duration-200 ease-out hover:scale-110 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
             {['todo', 'in-progress', 'done'].map((status) => {
               // NOTE: Amber override applied to in-progress button when task is waiting_for_input
               const baseConfig = statusConfig[status as keyof typeof statusConfig];

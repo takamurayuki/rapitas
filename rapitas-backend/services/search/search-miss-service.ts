@@ -48,6 +48,31 @@ export async function getTopMissedQueries(limit = 10): Promise<SearchMiss[]> {
   });
 }
 
+/**
+ * Returns OPEN search misses related to the given keywords — past zero-result
+ * searches in the same resource area — so a new-task author can spot pitfalls.
+ * Matches against the (already lowercased) stored query.
+ *
+ * @param keywords - Candidate terms from a draft task title/description / 下書きタスクの語
+ * @param limit - Maximum records to return / 返す最大件数
+ * @returns Related open SearchMiss records, most-missed first / 関連するオープンなSearchMiss
+ */
+export async function getRelatedMisses(keywords: string[], limit = 5): Promise<SearchMiss[]> {
+  const terms = [
+    ...new Set(keywords.map((k) => k.trim().toLowerCase()).filter((k) => k.length >= 3)),
+  ];
+  if (terms.length === 0) return [];
+
+  return prisma.searchMiss.findMany({
+    where: {
+      status: 'open',
+      OR: terms.map((t) => ({ query: { contains: t } })),
+    },
+    orderBy: { hitCount: 'desc' },
+    take: limit,
+  });
+}
+
 /** Analytics snapshot broken down by status. */
 interface MissAnalytics {
   open: number;

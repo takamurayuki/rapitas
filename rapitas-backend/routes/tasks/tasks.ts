@@ -281,6 +281,54 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
     return await updateTask(prisma, taskId, body as Parameters<typeof updateTask>[2]);
   })
 
+  // Retry a task that auto-run parked as blocked (or that failed): return it to
+  // 'todo' so the next selection picks it up. Without this the only recovery
+  // path was manually editing the status — blocked tasks just accumulated.
+  .post('/:id/retry', async (context) => {
+    const { params, set } = context;
+    const id = parseInt(params.id);
+    if (isNaN(id)) {
+      throw new ValidationError('無効なIDです');
+    }
+    const task = await prisma.task.findUnique({ where: { id }, select: { status: true } });
+    if (!task) {
+      set.status = 404;
+      return { error: 'タスクが見つかりません' };
+    }
+    if (task.status !== 'blocked' && task.status !== 'failed') {
+      throw new ValidationError('blocked / failed のタスクのみ再実行できます');
+    }
+
+    const updated = await prisma.task.update({ where: { id }, data: { status: 'todo' } });
+
+    await prisma.activityLog
+      .create({
+        data: {
+          taskId: id,
+          action: 'task_retried',
+          metadata: JSON.stringify({ from: task.status }),
+          createdAt: new Date(),
+        },
+      })
+      .catch(() => {});
+
+    // Mark the skip notification read — notifyOnce dedups on an UNREAD
+    // notification of the same task, so leaving it unread would suppress the
+    // alert if this retry fails and the task is skipped again.
+    await prisma.notification
+      .updateMany({
+        where: {
+          type: 'auto_run_task_skipped',
+          isRead: false,
+          metadata: { contains: `"dedupKey":"auto_run_task_skipped:${id}"` },
+        },
+        data: { isRead: true, readAt: new Date() },
+      })
+      .catch(() => {});
+
+    return updated;
+  })
+
   // Delete task
   .delete('/:id', async (context) => {
     const { params } = context;

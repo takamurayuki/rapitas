@@ -152,9 +152,61 @@ export async function executeAPIAgent(
 
     if (transition.outputFile && output.trim()) {
       await writeWorkflowFile(workflowDir, transition.outputFile, output, taskId);
+
+      // verify.md honesty gate + self-repair — API agents save directly here
+      // (bypassing the workflow file HTTP handler), so without this they could
+      // advance a hallucinated "all pass" verify.md straight to verify_done and
+      // auto-PR. Mirror the CLI path: validate, and on failure bounce back to
+      // the implementer (bounded) instead of advancing.
+      let resolvedNextStatus: string = transition.nextStatus;
+      if (transition.outputFile === 'verify') {
+        const { validateVerify } = await import('./phase-output-validator');
+        const verifyValidation = validateVerify(output);
+        if (!verifyValidation.ok && verifyValidation.severity >= 80) {
+          const { attemptVerifyRepair } = await import('./verify-self-repair');
+          const repair = await attemptVerifyRepair(
+            taskId,
+            transition.nextStatus,
+            verifyValidation.summary,
+            output,
+          );
+          if (repair.bounced && repair.newStatus) {
+            resolvedNextStatus = repair.newStatus;
+          } else {
+            // Exhausted — block; do NOT advance to verify_done.
+            await prisma.task
+              .update({ where: { id: taskId }, data: { status: 'blocked' } })
+              .catch(() => {});
+            await prisma.agentExecution
+              .update({
+                where: { id: execution.id },
+                data: { status: 'completed', output: output.substring(0, 10000), executionTimeMs },
+              })
+              .catch(() => {});
+            await prisma.agentSession
+              .update({
+                where: { id: session.id },
+                data: {
+                  status: 'failed',
+                  completedAt: new Date(),
+                  errorMessage: `検証に失敗したためブロックしました: ${verifyValidation.summary}`,
+                },
+              })
+              .catch(() => {});
+            return {
+              success: false,
+              role: transition.role,
+              status: transition.nextStatus,
+              error: verifyValidation.summary,
+              executionId: execution.id,
+            };
+          }
+        }
+      }
+
       await prisma.task.update({
         where: { id: taskId },
-        data: { workflowStatus: transition.nextStatus },
+        data: { workflowStatus: resolvedNextStatus },
       });
     } else if (transition.outputFile) {
       throw new Error(`${transition.outputFile}.md was not generated`);

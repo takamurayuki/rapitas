@@ -1,16 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  Bell,
-  BookOpen,
-  Check,
-  CheckCheck,
-  ExternalLink,
-  Lightbulb,
-  ListPlus,
-  X,
-} from 'lucide-react';
+import { Bell, BookOpen, Check, CheckCheck, Lightbulb, ListPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useNotifications } from '@/feature/developer-mode/hooks/useNotifications';
@@ -226,16 +217,6 @@ export default function NotificationBell() {
               ))
             )}
           </div>
-
-          {/* Footer */}
-          <Link
-            href="/approvals"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center justify-center gap-2 px-4 py-3 text-sm text-violet-600 dark:text-violet-400 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-800 transition-colors"
-          >
-            <span>{t('viewPendingApprovals')}</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </Link>
         </div>
       )}
     </div>

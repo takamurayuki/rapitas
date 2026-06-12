@@ -7,11 +7,33 @@ use winapi::um::winuser::{
 use std::thread;
 use std::time::Duration;
 
+/// Does a window title belong to the target browser? When a specific browser is
+/// chosen (App Settings) we only match THAT browser, so a different browser
+/// already running (e.g. Edge) isn't grabbed as the split target instead of the
+/// chosen one. With no preference, any known browser matches.
+#[cfg(target_os = "windows")]
+fn title_matches_browser(title_lower: &str, browser: Option<&str>) -> bool {
+    match browser {
+        Some("chrome") => title_lower.contains("chrome"),
+        Some("msedge") | Some("edge") => title_lower.contains("edge"),
+        Some("firefox") => title_lower.contains("firefox"),
+        _ => {
+            title_lower.contains("chrome")
+                || title_lower.contains("edge")
+                || title_lower.contains("firefox")
+                || title_lower.contains("opera")
+                || title_lower.contains("brave")
+                || title_lower.contains("vivaldi")
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 pub fn split_screen_with_browser(
     url: &str,
     _screen_width: i32,
     _screen_height: i32,
+    browser: Option<&str>,
 ) -> Result<(), String> {
     use crate::browser_launcher;
     use crate::window_manager::*;
@@ -27,16 +49,8 @@ pub fn split_screen_with_browser(
 
     for window in &all_windows {
         let title_lower = window.title.to_lowercase();
-        // Match browser windows by title keywords
-        if title_lower.contains("chrome")
-            || title_lower.contains("edge")
-            || title_lower.contains("firefox")
-            || title_lower.contains("opera")
-            || title_lower.contains("brave")
-            || title_lower.contains("vivaldi")
-            || title_lower.contains("microsoft edge")
-            || title_lower.contains("google chrome")
-        {
+        // Only the chosen browser's windows are split candidates.
+        if title_matches_browser(&title_lower, browser) {
             unsafe {
                 let mut placement = WINDOWPLACEMENT {
                     length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
@@ -101,31 +115,36 @@ pub fn split_screen_with_browser(
     }
 
     // Step 4: Open the URL as a new tab in the existing browser
-    browser_launcher::launch_browser_with_size(url, work_x, work_y, work_width / 2, work_height)?;
+    browser_launcher::launch_browser_with_size(
+        url,
+        work_x,
+        work_y,
+        work_width / 2,
+        work_height,
+        browser,
+    )?;
 
-    // Step 5: Position the browser window in the left half
-    thread::sleep(Duration::from_millis(1000));
+    // Step 5: Position the browser window in the left half.
+    thread::sleep(Duration::from_millis(500));
 
-    // Prefer the foreground browser window; fall back to any existing one
+    // Prefer a browser window that already existed (the new tab opens in it).
     let browser_to_use = active_browser_hwnd.or(existing_browser_hwnd);
 
     if let Some(hwnd) = browser_to_use {
         set_window_split_left_with_height(hwnd, work_width, work_height);
     } else {
-        // Find and position the newly opened browser window
-        let latest_windows = get_all_windows();
-        for window in latest_windows {
-            let title_lower = window.title.to_lowercase();
-            if title_lower.contains("chrome")
-                || title_lower.contains("edge")
-                || title_lower.contains("firefox")
-                || title_lower.contains("opera")
-                || title_lower.contains("brave")
-                || title_lower.contains("vivaldi")
-            {
+        // No existing window — the browser is cold-starting and its window may
+        // not exist yet (it would otherwise stay maximized). Poll for it for a
+        // few seconds, then restore + position it in the left half.
+        for _ in 0..25 {
+            let found = get_all_windows()
+                .into_iter()
+                .find(|w| title_matches_browser(&w.title.to_lowercase(), browser));
+            if let Some(window) = found {
                 set_window_split_left_with_height(window.hwnd, work_width, work_height);
                 break;
             }
+            thread::sleep(Duration::from_millis(200));
         }
     }
 

@@ -8,7 +8,11 @@ import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
 import { WorkflowQueueService, type QueueItem } from './workflow-queue';
 import { WorkflowOrchestrator } from './workflow-orchestrator';
-import { realtimeService } from '../communication/realtime-service';
+import {
+  logPhaseTransition,
+  broadcastRunnerStatus,
+  broadcastItemUpdate,
+} from './workflow-runner-events';
 
 const log = createLogger('workflow-runner');
 
@@ -367,6 +371,22 @@ export class WorkflowRunner {
       const errorMsg = error instanceof Error ? error.message : String(error);
       log.error(`[WorkflowRunner] Execution error for task ${item.taskId}: ${errorMsg}`);
 
+      // Kill any in-flight agent BEFORE retrying/failing. The phase timeout only
+      // rejects the race — the agent process it abandoned keeps running and
+      // holds the task's execution lock, so every retry would collapse to
+      // 'skipped' while the zombie agent burns tokens (indefinitely for items
+      // outside auto-run, which have no theme wall guard). No-op when the agent
+      // already exited (normal failures).
+      try {
+        const { stopTaskAgents } = await import('../agents/stop-task-agents');
+        await stopTaskAgents(item.taskId, { errorMessage: `Phase failed: ${errorMsg}` });
+      } catch (stopError) {
+        log.warn(
+          { err: stopError, taskId: item.taskId },
+          '[WorkflowRunner] Failed to stop agents after phase error',
+        );
+      }
+
       try {
         const retried = await this.queue.retryIfPossible(item.id, errorMsg);
         if (!retried) {
@@ -432,87 +452,22 @@ export class WorkflowRunner {
     return true;
   }
 
-  /**
-   * Record workflow phase transitions in ActivityLog and broadcast via SSE.
-   */
+  /** Delegate: record + broadcast a phase transition (see workflow-runner-events). */
   private async logPhaseTransition(
     taskId: number,
     previousPhase: string,
     newPhase: string,
   ): Promise<void> {
-    const phaseLabels: Record<string, string> = {
-      draft: '初期化',
-      research_done: '調査完了',
-      plan_created: '計画作成',
-      plan_approved: '計画承認',
-      in_progress: '実装中',
-      verify_done: '検証完了',
-      completed: '完了',
-      advancing: '次フェーズへ進行中',
-    };
-
-    try {
-      await prisma.activityLog.create({
-        data: {
-          taskId,
-          action: 'workflow_phase_transition',
-          metadata: JSON.stringify({
-            previousPhase,
-            newPhase,
-            previousLabel: phaseLabels[previousPhase] || previousPhase,
-            newLabel: phaseLabels[newPhase] || newPhase,
-            timestamp: new Date().toISOString(),
-          }),
-          createdAt: new Date(),
-        },
-      });
-
-      // Notify frontend of phase transition via SSE
-      realtimeService.broadcast('orchestra', 'phase_transition', {
-        taskId,
-        previousPhase,
-        newPhase,
-        previousLabel: phaseLabels[previousPhase] || previousPhase,
-        newLabel: phaseLabels[newPhase] || newPhase,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      log.warn(
-        { err: error },
-        `[WorkflowRunner] Failed to log phase transition for task ${taskId}`,
-      );
-    }
+    await logPhaseTransition(taskId, previousPhase, newPhase);
   }
 
-  /**
-   * Broadcast status via SSE.
-   */
+  /** Delegate: broadcast runner lifecycle status (see workflow-runner-events). */
   private broadcastStatus(event: string): void {
-    try {
-      realtimeService.broadcast('orchestra', event, {
-        runner: this.getStatus(),
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      // Runner continues even if SSE is unavailable
-    }
+    broadcastRunnerStatus(event, this.getStatus());
   }
 
-  /**
-   * Broadcast item updates via SSE.
-   */
+  /** Delegate: broadcast a queue-item update (see workflow-runner-events). */
   private broadcastItemUpdate(itemId: number, taskId: number, event: string, phase: string): void {
-    try {
-      realtimeService.broadcast('orchestra', 'item_update', {
-        event,
-        itemId,
-        taskId,
-        phase,
-        activeCount: this.activeExecutions.size,
-        timestamp: new Date().toISOString(),
-      });
-    } catch {
-      // Runner continues even if SSE is unavailable
-    }
+    broadcastItemUpdate(itemId, taskId, event, phase, this.activeExecutions.size);
   }
 }

@@ -186,6 +186,7 @@ export function AIAccordionPanelInner({
         <ExecutionSection
           capability={executionCapability}
           themeId={themeId}
+          taskId={taskId}
           isExpanded={expandedSection === 'execution'}
           onToggle={() => toggleSection('execution')}
           isRunning={exec.isRunning}

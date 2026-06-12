@@ -66,7 +66,20 @@ mock.module('../../services/agents/agent-orchestrator', () => ({
   },
 }));
 
-const { WorkflowOrchestrator } = await import('../../services/workflow/workflow-orchestrator');
+mock.module('../../routes/ai/system-prompts/default-prompts', () => ({
+  DEFAULT_SYSTEM_PROMPTS: [
+    {
+      key: 'workflow_role_researcher',
+      name: 'Researcher',
+      description: 'test',
+      category: 'workflow',
+      content: 'FALLBACK_CONTENT',
+    },
+  ],
+}));
+
+const { WorkflowOrchestrator, resolveSystemPromptContent } =
+  await import('../../services/workflow/workflow-orchestrator');
 const { acquireTaskExecutionLock, releaseTaskExecutionLock } =
   await import('../../services/agents/task-execution-lock');
 
@@ -220,6 +233,41 @@ describe('WorkflowOrchestrator', () => {
       expect(result.success).toBe(false);
       // "verify_done" has no transition in standard mode
       expect(result.error).toContain('次のフェーズを実行できません');
+    });
+  });
+
+  describe('resolveSystemPromptContent', () => {
+    beforeEach(() => {
+      resetAllMocks();
+    });
+
+    test('B-2: DB に record が存在する場合、DB の content を返すこと', async () => {
+      mockPrisma.systemPrompt.findUnique.mockResolvedValue({ content: 'DB_CONTENT' });
+
+      const result = await resolveSystemPromptContent('workflow_role_researcher');
+      expect(result).toBe('DB_CONTENT');
+    });
+
+    test('B-1: DB が null かつ DEFAULT_SYSTEM_PROMPTS に key が存在する場合、fallback content を返すこと', async () => {
+      mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+
+      const result = await resolveSystemPromptContent('workflow_role_researcher');
+      expect(result).toBe('FALLBACK_CONTENT');
+    });
+
+    test("B-1': DB が null かつ DEFAULT_SYSTEM_PROMPTS にも key がない場合、空文字を返すこと", async () => {
+      mockPrisma.systemPrompt.findUnique.mockResolvedValue(null);
+
+      const result = await resolveSystemPromptContent('workflow_role_auto_verifier');
+      expect(result).toBe('');
+    });
+
+    test('B-2 エッジ: DB record の content が空文字でも DEFAULT_SYSTEM_PROMPTS へフォールバックしないこと', async () => {
+      // NOTE: DB record が存在する = DB の意図。content が空文字でも record がある以上 B-2 扱い。
+      mockPrisma.systemPrompt.findUnique.mockResolvedValue({ content: '' });
+
+      const result = await resolveSystemPromptContent('workflow_role_researcher');
+      expect(result).toBe('');
     });
   });
 });

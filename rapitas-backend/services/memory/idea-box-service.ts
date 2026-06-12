@@ -87,6 +87,40 @@ export interface SubmitIdeaInput {
  * @param input - Idea details / アイデアの詳細
  * @returns Created KnowledgeEntry ID, or existing ID if duplicate / 作成されたID
  */
+/**
+ * Resolve the most appropriate theme for ideas filed against a task, so they
+ * don't fall into the "global" bucket just because the task itself has no theme.
+ * Order: the task's own theme → a theme whose working directory matches the
+ * task's → the default theme. Returns null only when none can be found (then the
+ * idea is genuinely global).
+ *
+ * @param taskId - Task the idea came from / アイデアの発生元タスクID
+ * @returns The best theme id, or null. / 最適なテーマID、無ければnull
+ */
+export async function resolveTaskThemeId(taskId: number): Promise<number | null> {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { themeId: true, workingDirectory: true },
+    });
+    if (task?.themeId != null) return task.themeId;
+    if (task?.workingDirectory) {
+      const byDir = await prisma.theme.findFirst({
+        where: { workingDirectory: task.workingDirectory },
+        select: { id: true },
+      });
+      if (byDir) return byDir.id;
+    }
+    const def = await prisma.theme.findFirst({
+      where: { isDefault: true },
+      select: { id: true },
+    });
+    return def?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
   const hash = createContentHash(`${input.title}:${input.content}`);
 
@@ -164,7 +198,14 @@ export async function listIdeas(options: {
     offset = 0,
   } = options;
 
-  const where = await buildWhereClause({ categoryId, themeId, unusedOnly, scope, status, priority });
+  const where = await buildWhereClause({
+    categoryId,
+    themeId,
+    unusedOnly,
+    scope,
+    status,
+    priority,
+  });
 
   // PERF: project the FE-shown columns only. The default Prisma select
   // pulls every column from KnowledgeEntry — including `content` (often

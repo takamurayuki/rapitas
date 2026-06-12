@@ -10,7 +10,7 @@
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
-import { updateSessionStatusWithRetry, createCodeReviewApproval } from './session-helpers';
+import { updateSessionStatusWithRetry } from './session-helpers';
 import { releaseTaskExecutionLock } from './execution-lock';
 
 const log = createLogger('routes:agent-execution:continue-post');
@@ -38,21 +38,12 @@ export interface HandleContinueResultParams {
 
 /**
  * Handles the async result of a continuation execution: updates task/session
- * status, creates code review approval, and removes the worktree on success.
+ * status and removes the worktree on success.
  *
  * @param params - Continuation context and result / 継続実行コンテキストと結果
  */
 export async function handleContinueResult(params: HandleContinueResultParams): Promise<void> {
-  const {
-    result,
-    taskId,
-    taskTitle,
-    targetSessionId,
-    configId,
-    branchName,
-    workingDirectory,
-    executionDir,
-  } = params;
+  const { result, taskId, targetSessionId, workingDirectory, executionDir } = params;
 
   if (result.success) {
     try {
@@ -88,20 +79,6 @@ export async function handleContinueResult(params: HandleContinueResultParams): 
     }
 
     await updateSessionStatusWithRetry(targetSessionId, 'completed', '[continue-execution]', 3);
-
-    if (configId) {
-      await createCodeReviewApproval({
-        taskId,
-        taskTitle,
-        configId,
-        sessionId: targetSessionId,
-        workDir: executionDir,
-        branchName: branchName || undefined,
-        resultOutput: result.output,
-        executionTimeMs: result.executionTimeMs,
-        logPrefix: '[continue-execution]',
-      });
-    }
 
     // NOTE: Clean up worktree after successful continued execution
     if (executionDir !== workingDirectory) {

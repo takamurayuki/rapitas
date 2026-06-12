@@ -4,7 +4,7 @@
  * Unit tests for the pure selection logic in auto-run-selection.ts.
  * Uses an in-memory mock of the PrismaClient — no live DB required.
  */
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, mock } from 'bun:test';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   getGlobalAutoRunActiveCount,
@@ -97,9 +97,6 @@ describe('getThemeActiveQueueItems', () => {
 });
 
 describe('selectNextTask', () => {
-  // NOTE: mocks are created fresh per test via makePrisma(), so no global reset needed.
-  beforeEach(() => {});
-
   it('returns concurrency_limit when globalActiveCount >= MAX', async () => {
     const prisma = makePrisma();
     const result = await selectNextTask(prisma, 1, 'priority', [], AUTO_RUN_GLOBAL_MAX_CONCURRENCY);

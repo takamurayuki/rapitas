@@ -34,19 +34,34 @@ export function resolveCliPath(cliName: string): string {
   if (cached !== undefined) return cached;
 
   let result = cliName;
-  try {
-    const resolved = execSync(`where ${cliName}`, {
-      encoding: 'utf8',
-      timeout: 5000,
-      windowsHide: true,
-    })
-      .trim()
-      .split(/\r?\n/)[0];
-    if (resolved && existsSync(resolved)) {
-      logger.info(`[resolveCliPath] Resolved ${cliName} -> ${resolved}`);
-      result = resolved;
+
+  // NOTE: npm global bins on Windows are .cmd shims. `where claude` fails when the npm
+  // bin directory is not yet in the bun process's PATH (inherited from the parent shell),
+  // but `where claude.cmd` succeeds because cmd.exe always resolves shims. Try the bare
+  // name first, then fall back to the .cmd shim before giving up.
+  const tryWhere = (name: string): string | null => {
+    try {
+      const resolved = execSync(`where ${name}`, {
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true,
+      })
+        .trim()
+        .split(/\r?\n/)[0];
+      return resolved && existsSync(resolved) ? resolved : null;
+    } catch {
+      return null;
     }
-  } catch {
+  };
+
+  const resolved =
+    tryWhere(cliName) ?? (!cliName.endsWith('.cmd') ? tryWhere(`${cliName}.cmd`) : null);
+  if (resolved) {
+    logger.info(`[resolveCliPath] Resolved ${cliName} -> ${resolved}`);
+    result = resolved;
+  } else {
+    // NOTE: Both `where {name}` and `where {name}.cmd` failed. spawn({ shell: true })
+    // still works because cmd.exe re-resolves the PATH at execution time.
     logger.warn(`[resolveCliPath] Failed to resolve ${cliName}, using relative path`);
   }
   cliPathCache.set(cliName, result);
