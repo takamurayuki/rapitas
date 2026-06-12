@@ -5,28 +5,25 @@
  * pg_dump / SQLite encryption paths are exercised by the
  * scripts/backup-smoke.ts script and not in unit tests (they need a live DB).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { listBackups, pruneOldBackups } from '../../services/system/backup-service';
 
-let originalHome: string | undefined;
 let tmpHome: string;
+let homeSpy: ReturnType<typeof spyOn>;
 
 beforeEach(() => {
-  originalHome = process.env.HOME ?? process.env.USERPROFILE;
   tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'rapitas-backup-test-'));
-  // backup-service uses os.homedir() — override platform-dependent vars.
-  process.env.HOME = tmpHome;
-  process.env.USERPROFILE = tmpHome;
+  // backup-service reads os.homedir(); spy it directly. Overriding process.env.HOME
+  // is unreliable — bun's os.homedir() does not re-read it at runtime on Linux,
+  // so the CI sqlite suite saw the real home and listed 0 backups.
+  homeSpy = spyOn(os, 'homedir').mockReturnValue(tmpHome);
 });
 
 afterEach(() => {
-  if (originalHome) {
-    process.env.HOME = originalHome;
-    process.env.USERPROFILE = originalHome;
-  }
+  homeSpy.mockRestore();
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
 
