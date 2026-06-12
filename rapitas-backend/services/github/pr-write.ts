@@ -136,7 +136,9 @@ export async function mergePullRequest(
 
   // --auto queues the merge so GitHub completes it once required checks pass.
   try {
-    await runGhCommand([...baseArgs, '--auto']);
+    // NOTE: skipLog suppresses the ERROR that runGhCommand would emit on failure;
+    // the catch block below logs at warn level when the failure is expected.
+    await runGhCommand([...baseArgs, '--auto'], undefined, { skipLog: true });
     return { autoQueued: true };
   } catch (err) {
     const errMessage = err instanceof Error ? err.message : String(err);

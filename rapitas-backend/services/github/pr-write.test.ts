@@ -8,7 +8,7 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // Mock declarations are hoisted by bun before static imports.
-const mockRunGhCommand = mock((_args: string[]) => Promise.resolve(''));
+const mockRunGhCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) => Promise.resolve(''));
 
 mock.module('./gh-client', () => ({
   runGhCommand: mockRunGhCommand,
@@ -65,6 +65,15 @@ describe('mergePullRequest', () => {
       expect(mockRunGhCommand).toHaveBeenCalledTimes(1);
       const [args] = mockRunGhCommand.mock.calls[0] as [string[]];
       expect(args).toContain('--auto');
+    });
+
+    it('passes skipLog: true for the --auto attempt to suppress spurious ERROR logs', async () => {
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      await mergePullRequest('owner/repo', 7, { auto: true });
+
+      const [, , opts] = mockRunGhCommand.mock.calls[0] as [string[], string | undefined, { skipLog?: boolean } | undefined];
+      expect(opts?.skipLog).toBe(true);
     });
 
     it('falls back to direct merge when auto-merge is not allowed, returns autoQueued: false', async () => {
