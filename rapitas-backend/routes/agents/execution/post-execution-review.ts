@@ -209,12 +209,24 @@ export async function reviewAndCommitWorktree(params: ReviewParams): Promise<voi
     return;
   }
 
-  // 1.5 Automated verification gate — run REAL lint + typecheck on the agent's
-  // changes (not the agent's prose claims). Blocks commit/PR (task=blocked,
-  // session=failed with evidence) if the agent introduced new lint/type errors.
-  // A verifier crash is non-fatal (gate opens). Shared with the verify.md auto-PR
-  // path. See services/agents/verification/verification-gate.ts.
-  const verification = await runAutomatedVerification(executionDir).catch((err) => {
+  // 1.5 Automated verification gate — run REAL lint + typecheck + scoped tests
+  // (+ plan-scope when a plan exists) on the agent's changes (not the agent's
+  // prose claims). Blocks commit/PR (task=blocked, session=failed with
+  // evidence) on new failures. A verifier crash is non-fatal (gate opens).
+  // Shared with the verify.md auto-PR path. See verification-gate.ts.
+  const planContentForScope = await (async () => {
+    try {
+      const { resolveWorkflowDir, readWorkflowFile } =
+        await import('../../../services/workflow/workflow-file-utils');
+      const info = await resolveWorkflowDir(taskId);
+      return info ? (await readWorkflowFile(info.dir, 'plan')) || null : null;
+    } catch {
+      return null;
+    }
+  })();
+  const verification = await runAutomatedVerification(executionDir, {
+    planContent: planContentForScope,
+  }).catch((err) => {
     log.warn({ err, taskId }, 'Automated verification crashed — skipping gate');
     return null;
   });
