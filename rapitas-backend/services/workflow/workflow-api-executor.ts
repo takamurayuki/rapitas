@@ -151,7 +151,13 @@ export async function executeAPIAgent(
     const executionTimeMs = Date.now() - startTime;
 
     if (transition.outputFile && output.trim()) {
-      await writeWorkflowFile(workflowDir, transition.outputFile, output, taskId);
+      // Strip any stray ANSI/log noise before persisting. API agents return text
+      // directly (not stdout), so contamination is rare — fall back to the raw
+      // output when the sanitiser finds no report rather than dropping a valid
+      // response. The CLI path (the real contamination source) is stricter.
+      const { extractMarkdownFromOutput } = await import('./workflow-file-utils');
+      const cleaned = extractMarkdownFromOutput(output, transition.outputFile) ?? output;
+      await writeWorkflowFile(workflowDir, transition.outputFile, cleaned, taskId);
 
       // verify.md honesty gate + self-repair — API agents save directly here
       // (bypassing the workflow file HTTP handler), so without this they could

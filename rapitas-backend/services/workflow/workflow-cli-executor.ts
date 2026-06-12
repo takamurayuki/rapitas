@@ -525,25 +525,44 @@ curl -X POST http://localhost:${port}/idea-box \\
   // delta, tool-result display, and status line — which polluted research.md /
   // plan.md with mid-run narration ("研究レポートを書き出します…"), false-start
   // blocks, and tool dumps. finalMessage is just the final report.
-  const investigationContent = result.finalMessage?.trim() || result.output?.trim();
-  if (isInvestigationPhase && transition.outputFile && investigationContent) {
-    try {
-      await writeWorkflowFile(workflowDir, transition.outputFile, investigationContent, taskId);
-      log.info(
+  const rawInvestigation = result.finalMessage?.trim() || result.output?.trim();
+  if (isInvestigationPhase && transition.outputFile && rawInvestigation) {
+    // Never persist raw agent logs into the .md. When the agent crashes (e.g.
+    // "Uncaught ReferenceError: Workflow is not defined") finalMessage is empty
+    // and result.output is the full log-laden stdout buffer — extract the clean
+    // report and quality-gate it. A null result (log-only output) means we write
+    // NOTHING, so the phase fails cleanly instead of producing a poisoned file.
+    const cleaned = extractMarkdownFromOutput(rawInvestigation, transition.outputFile);
+    if (!cleaned) {
+      log.warn(
         {
           taskId,
           role: transition.role,
           outputFile: transition.outputFile,
-          chars: investigationContent.length,
+          rawChars: rawInvestigation.length,
           usedFinalMessage: !!result.finalMessage?.trim(),
         },
-        '[WorkflowCLIExecutor] Captured final message and saved to workflow API',
+        '[WorkflowCLIExecutor] Agent output had no clean report (log-only) — skipping md write',
       );
-    } catch (captureErr) {
-      log.warn(
-        { err: captureErr, taskId, role: transition.role },
-        '[WorkflowCLIExecutor] Failed to save stdout to workflow API',
-      );
+    } else {
+      try {
+        await writeWorkflowFile(workflowDir, transition.outputFile, cleaned, taskId);
+        log.info(
+          {
+            taskId,
+            role: transition.role,
+            outputFile: transition.outputFile,
+            chars: cleaned.length,
+            usedFinalMessage: !!result.finalMessage?.trim(),
+          },
+          '[WorkflowCLIExecutor] Captured clean report and saved to workflow API',
+        );
+      } catch (captureErr) {
+        log.warn(
+          { err: captureErr, taskId, role: transition.role },
+          '[WorkflowCLIExecutor] Failed to save report to workflow API',
+        );
+      }
     }
   }
 
