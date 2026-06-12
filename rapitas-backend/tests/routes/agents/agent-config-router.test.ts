@@ -33,7 +33,10 @@ const mockPrisma = {
 };
 
 // Mock modules
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../utils/database/db-helpers', () => ({
   fromJsonString: mock((str: string | null) => (str ? JSON.parse(str) : null)),
 }));

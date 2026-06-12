@@ -21,7 +21,10 @@ const mockPrisma = {
     count: mockCount,
   },
 };
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 
 // ---- workflow-paths mock ----
 mock.module('./workflow-paths', () => ({

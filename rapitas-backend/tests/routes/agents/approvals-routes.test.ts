@@ -63,7 +63,10 @@ const mockPrisma = {
   $transaction: mock((fn: Function) => fn(mockPrisma)),
 };
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config', () => ({
   prisma: mockPrisma,
   getProjectRoot: () => '/tmp/rapitas-test',

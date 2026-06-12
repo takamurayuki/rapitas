@@ -37,7 +37,10 @@ const mockPrisma = {
   activityLog: { create: mockCreate },
 };
 mock.module('../../../config', () => ({ prisma: mockPrisma }));
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 
 // ---- resolveWorkflowDir / workflow-helpers mock ----
 const mockResolveWorkflowDir = mock(() => Promise.resolve(null));

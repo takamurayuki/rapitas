@@ -28,7 +28,10 @@ const mockSendAIMessage = mock(() => Promise.resolve({ content: '{}', tokensUsed
 const mockGetDefaultProvider = mock(() => Promise.resolve('claude'));
 const mockIsAnyApiKeyConfigured = mock(() => Promise.resolve(true));
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},

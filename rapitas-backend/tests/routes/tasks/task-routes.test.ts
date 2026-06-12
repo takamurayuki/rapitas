@@ -40,6 +40,7 @@ const mockPrisma = {
     create: mock(() => Promise.resolve({ id: 1 })),
   },
   notification: {
+    create: mock(() => Promise.resolve({ id: 1 })),
     updateMany: mock(() => Promise.resolve({ count: 0 })),
   },
   $transaction: mock((fn: (tx: unknown) => Promise<unknown>) => fn(mockPrisma)),
@@ -129,6 +130,9 @@ function resetAllMocks() {
   mockPrisma.$transaction.mockImplementation((fn: (tx: unknown) => Promise<unknown>) =>
     fn(mockPrisma),
   );
+  // createTask chains `notification.create(...).catch(...)`; a reset
+  // (undefined-returning) mock would throw on `.catch` of undefined → 500.
+  mockPrisma.notification.create.mockResolvedValue({ id: 1 });
 }
 
 function createApp() {

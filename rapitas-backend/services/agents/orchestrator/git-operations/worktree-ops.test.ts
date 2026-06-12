@@ -44,7 +44,10 @@ const mockStat = mock(() =>
 const mockAwaitWorktreeDependencies = mock(() => Promise.resolve());
 const mockClearWorktreeDependenciesTracking = mock(() => {});
 
-mock.module('../../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
@@ -389,9 +392,9 @@ branch refs/heads/feature/task-123
     const result = await cleanupOrphanedWorktrees(mockBaseDir, { sleepFn: noopSleep });
 
     expect(result).toBe(1);
-    expect(mockFsRm).toHaveBeenCalledWith(
-      expect.stringContaining('task-orphan-xyz'),
-      { recursive: true, force: true },
-    );
+    expect(mockFsRm).toHaveBeenCalledWith(expect.stringContaining('task-orphan-xyz'), {
+      recursive: true,
+      force: true,
+    });
   });
 });

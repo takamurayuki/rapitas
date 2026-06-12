@@ -15,7 +15,10 @@ const mockKnowledgeEntry = {
 
 const mockPrisma = { knowledgeEntry: mockKnowledgeEntry };
 
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: mock(() => {}),

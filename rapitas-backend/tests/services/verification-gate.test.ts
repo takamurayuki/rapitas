@@ -14,7 +14,10 @@ const mockPrisma = {
 
 let verifierMode: 'pass' | 'fail' | 'throw' = 'pass';
 
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},
@@ -49,10 +52,12 @@ mock.module('../../services/agents/verification/automated-verifier', () => ({
       summary: 'verification passed',
     };
   }),
-  renderVerificationMarkdown: (result: { summary: string }) => `# Verification\n\n${result.summary}`,
+  renderVerificationMarkdown: (result: { summary: string }) =>
+    `# Verification\n\n${result.summary}`,
 }));
 
-const { runVerificationGate } = await import('../../services/agents/verification/verification-gate');
+const { runVerificationGate } =
+  await import('../../services/agents/verification/verification-gate');
 
 function resetMockFunctions(value: unknown): void {
   if (typeof value === 'function' && 'mockReset' in value) {

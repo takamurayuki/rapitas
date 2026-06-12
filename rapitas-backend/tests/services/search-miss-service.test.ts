@@ -22,6 +22,7 @@ mock.module('../../config/logger', () => ({
 // prisma singleton; mock it with a searchMiss.findMany we can assert against.
 const relatedFindMany = mock((_args: unknown) => Promise.resolve([] as unknown[]));
 mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: { searchMiss: { findMany: relatedFindMany } },
 }));
 

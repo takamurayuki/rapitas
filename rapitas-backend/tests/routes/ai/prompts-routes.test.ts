@@ -28,7 +28,10 @@ const mockGenerateOptimizedPrompt = mock(() =>
   }),
 );
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../config/logger', () => ({
   createLogger: () => ({
     info: () => {},

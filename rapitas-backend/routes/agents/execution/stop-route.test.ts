@@ -48,6 +48,7 @@ const mockReleaseTaskExecLock = mock(() => Promise.resolve(undefined));
 // ---------------------------------------------------------------------------
 
 mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockDb,
 }));
 

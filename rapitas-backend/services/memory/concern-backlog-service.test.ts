@@ -20,6 +20,7 @@ const mockGitHubIssueFindMany = mock(() => Promise.resolve([]));
 const mockThemeFindFirst = mock(() => Promise.resolve(null));
 
 mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: {
     knowledgeEntry: {
       findFirst: mockKnowledgeEntryFindFirst,

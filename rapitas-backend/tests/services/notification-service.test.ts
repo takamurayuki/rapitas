@@ -25,6 +25,7 @@ const mockPrisma = {
 const mockBroadcast = mock(() => {});
 
 mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: mockPrisma,
 }));
 

@@ -19,6 +19,7 @@ const mockDiscoverModels = mock(() =>
 const mockGetLocalLLMStatus = mock(() => Promise.resolve({ available: false }));
 
 mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
   prisma: { $queryRawUnsafe: mockQueryRawUnsafe },
 }));
 mock.module('../../../services/ai/model-discovery', () => ({

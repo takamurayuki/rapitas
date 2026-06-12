@@ -24,7 +24,10 @@ const mockBcrypt = {
   compare: mock(() => Promise.resolve(true)),
 };
 
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('bcryptjs', () => ({ default: mockBcrypt }));
 mock.module('googleapis', () => ({
   google: {

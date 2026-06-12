@@ -102,7 +102,7 @@ describe('GET /cli-tools/:toolId', () => {
     expect(body.success).toBe(true);
     expect(body.data).toBeDefined();
     expect(body.data.id).toBe('claude-cli');
-    expect(body.data.name).toBe('Claude CLI');
+    expect(body.data.name).toBe('Claude Code');
   });
 
   test('存在しないツールIDでエラーを返すこと', async () => {

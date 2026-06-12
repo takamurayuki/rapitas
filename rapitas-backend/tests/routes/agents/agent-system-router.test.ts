@@ -40,7 +40,10 @@ mock.module('../../../config', () => ({
     debug: mock(() => {}),
   })),
 }));
-mock.module('../../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 mock.module('../../../services/core/orchestrator-instance', () => ({
   orchestrator: mockOrchestrator,
   stopServer: mock(() => Promise.resolve()),

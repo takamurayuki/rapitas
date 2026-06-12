@@ -13,7 +13,10 @@ const mockPrisma = {
 
 // Note: Do not mock @prisma/client globally as it affects other test files.
 // Mock the database config module instead.
-mock.module('../../config/database', () => ({ prisma: mockPrisma }));
+mock.module('../../config/database', () => ({
+  ensureDatabaseConnection: () => Promise.resolve(),
+  prisma: mockPrisma,
+}));
 
 mock.module('../../config/logger', () => ({
   createLogger: () => ({
