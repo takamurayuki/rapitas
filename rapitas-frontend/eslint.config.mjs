@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
+import { stagedSeverity } from '../eslint-shared.mjs';
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -21,17 +22,14 @@ const eslintConfig = defineConfig([
     // Match both relative paths (from rapitas-frontend/) and absolute paths (from root)
     files: ['src/**/*.{ts,tsx}', '**/rapitas-frontend/src/**/*.{ts,tsx}'],
     rules: {
-      // Enforce explicit typing over `any`
-      '@typescript-eslint/no-explicit-any': 'warn',
+      ...stagedSeverity('prod'),
+      // NOTE: Frontend no-console starts at 'warn'; backend uses 'error'.
+      // Raise to 'error' after auditing existing violations.
+      'no-console': 'warn',
       // Prefer consistent type-only imports
       '@typescript-eslint/consistent-type-imports': [
         'warn',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
-      ],
-      // Catch unused variables (allow underscore prefix)
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       // React Compiler lint rules are too noisy for the existing codebase.
       // Keep the baseline lint gate hard, then re-enable these rules
@@ -42,6 +40,16 @@ const eslintConfig = defineConfig([
       'react-hooks/refs': 'off',
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/static-components': 'off',
+    },
+  },
+  {
+    // Test files — relax no-console and no-explicit-any
+    files: [
+      'src/**/__tests__/**/*.{ts,tsx}',
+      '**/rapitas-frontend/src/**/__tests__/**/*.{ts,tsx}',
+    ],
+    rules: {
+      ...stagedSeverity('tests'),
     },
   },
 ]);
