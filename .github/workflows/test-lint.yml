@@ -77,6 +77,37 @@ jobs:
         working-directory: rapitas-backend
         run: echo "Backend gate suite coverage printed above."
 
+  test-sqlite:
+    name: Test SQLite Compatible Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Generate SQLite Prisma Client
+        working-directory: rapitas-backend
+        run: bun run db:prepare:sqlite
+        env:
+          RAPITAS_DB_PROVIDER: sqlite
+          DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Run SQLite compatible tests
+        working-directory: rapitas-backend
+        run: bun run test:sqlite
+        env:
+          RAPITAS_DB_PROVIDER: sqlite
+          DATABASE_URL: "file:./rapitas-ci.db"
+
   check-frontend:
     name: Check Frontend
     runs-on: ubuntu-latest
@@ -91,7 +122,7 @@ jobs:
           node-version: '20'
 
       - name: Install pnpm
-        run: npm install -g pnpm@latest
+        run: npm install -g pnpm@10
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -197,7 +228,7 @@ jobs:
           bun-version: '1.3.11'
 
       - name: Install pnpm
-        run: npm install -g pnpm@latest
+        run: npm install -g pnpm@10
 
       - name: Get pnpm store directory
         shell: bash
@@ -236,6 +267,16 @@ jobs:
         env:
           RAPITAS_DB_PROVIDER: sqlite
           DATABASE_URL: "file:./rapitas-ci.db"
+
+      - name: Verify SQLite generated artifacts match committed files
+        working-directory: rapitas-backend
+        run: |
+          if ! git diff --exit-code prisma/schema.desktop/ src/generated/sqlite-init-sql.ts; then
+            echo ""
+            echo "ERROR: SQLite generated artifacts are out of sync with the Prisma schema."
+            echo "Run 'bun run db:prepare:sqlite' in rapitas-backend/ and commit the regenerated files."
+            exit 1
+          fi
 
       - name: Check backend TypeScript with SQLite Prisma Client
         working-directory: rapitas-backend

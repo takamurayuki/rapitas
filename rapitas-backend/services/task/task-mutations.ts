@@ -158,7 +158,7 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
 
   const currentTask = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { status: true, parentId: true },
+    select: { status: true, parentId: true, workflowStatus: true },
   });
 
   if (!currentTask) {
@@ -184,6 +184,14 @@ export async function updateTask(prisma: PrismaInstance, taskId: number, input: 
       ...(fields.themeId !== undefined && { themeId: fields.themeId }),
       ...(fields.status && { status: fields.status }),
       ...(fields.status === 'done' && { completedAt: new Date() }),
+      // Keep workflowStatus in lock-step when a workflow task is marked done.
+      // The card badge reads workflowStatus, so a task completed via the kanban
+      // (or any path through updateTask) would otherwise still show "進行中"
+      // because only `status` flipped to done. Only touch genuine workflow tasks
+      // (workflowStatus set) that aren't already completed; leave plain tasks be.
+      ...(fields.status === 'done' &&
+        currentTask?.workflowStatus &&
+        currentTask.workflowStatus !== 'completed' && { workflowStatus: 'completed' }),
       ...(fields.status === 'in-progress' &&
         currentTask?.status !== 'in-progress' && { startedAt: new Date() }),
       ...(fields.priority && { priority: fields.priority }),

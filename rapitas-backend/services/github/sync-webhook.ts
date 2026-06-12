@@ -49,12 +49,16 @@ export async function syncPullRequests(
 
   let syncedCount = 0;
   for (const pr of prs) {
+    // gh returns the state UPPERCASE (OPEN/CLOSED/MERGED); store it lowercase so
+    // the UI filters (open/closed) and state badges match. Otherwise the list
+    // shows "no pull requests" even after a successful sync.
+    const state = (pr.state || '').toLowerCase();
     await prisma.gitHubPullRequest.upsert({
       where: { integrationId_prNumber: { integrationId, prNumber: pr.number } },
       update: {
         title: pr.title,
         body: pr.body,
-        state: pr.state,
+        state,
         headBranch: pr.headBranch,
         baseBranch: pr.baseBranch,
         authorLogin: pr.authorLogin,
@@ -66,7 +70,7 @@ export async function syncPullRequests(
         prNumber: pr.number,
         title: pr.title,
         body: pr.body,
-        state: pr.state,
+        state,
         headBranch: pr.headBranch,
         baseBranch: pr.baseBranch,
         authorLogin: pr.authorLogin,
@@ -111,6 +115,9 @@ export async function syncIssues(
 
   let syncedCount = 0;
   for (const issue of issues) {
+    // gh returns the state UPPERCASE — store lowercase so UI filters / the
+    // closed-check below match (issue.state === 'closed' was always false before).
+    const state = (issue.state || '').toLowerCase();
     // NOTE: linkedConcernId is intentionally omitted from `update` so a sync
     // never wipes a concern<->issue link established by the bridge.
     const saved = await prisma.gitHubIssue.upsert({
@@ -118,7 +125,7 @@ export async function syncIssues(
       update: {
         title: issue.title,
         body: issue.body,
-        state: issue.state,
+        state,
         labels: JSON.stringify(issue.labels),
         authorLogin: issue.authorLogin,
         url: issue.url,
@@ -129,7 +136,7 @@ export async function syncIssues(
         issueNumber: issue.number,
         title: issue.title,
         body: issue.body,
-        state: issue.state,
+        state,
         labels: JSON.stringify(issue.labels),
         authorLogin: issue.authorLogin,
         url: issue.url,
@@ -139,7 +146,7 @@ export async function syncIssues(
 
     // Pull the issue's open/closed state onto a linked concern (open<->resolved).
     if (saved.linkedConcernId != null) {
-      await markConcernResolved(saved.linkedConcernId, issue.state === 'closed');
+      await markConcernResolved(saved.linkedConcernId, state === 'closed');
     }
     syncedCount++;
   }

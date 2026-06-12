@@ -182,8 +182,14 @@ export async function executeCLIAgent(
         }
       } else {
         log.warn(
-          { taskId, role: transition.role },
-          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation)',
+          {
+            taskId,
+            themeId: taskWithTheme?.themeId ?? null,
+            role: transition.role,
+            themeWorkDir: null,
+            cwd: process.cwd(),
+          },
+          '[WorkflowCLIExecutor] No themeWorkDir and no git root; running at cwd (no isolation). Fix: set theme workingDirectory in the theme settings.',
         );
       }
     }
@@ -312,12 +318,13 @@ Always include an "Existing-feature check" section in the research / plan output
     transition.role === 'planner' ||
     transition.role === 'reviewer';
 
-  // Investigation phases capture the agent's final message from STDOUT
-  // (in result.output) instead of via codex `--output-last-message`. The
-  // latter would require granting write permission inside the read-only
-  // sandbox, which contradicts the safety contract. The Rapitas backend is
-  // the sole writer for the persistent <output>.md files in ~/.rapitas/
-  // workflows/, which only requires its own data-dir permissions.
+  // Investigation phases save the agent's CLEAN final message: for claude-code
+  // that comes from the stream-json `result` event (result.finalMessage); the
+  // raw result.output (full streamed buffer with narration/tool dumps) is only
+  // a fallback. The Rapitas backend is the sole writer for the persistent
+  // <output>.md files, so the read-only sandbox (no agent Write/Bash/curl) is
+  // preserved. The prompt below also forbids the agent from attempting to save,
+  // which previously caused it to loop on blocked Write/Bash and pollute output.
   const tempOutputFile: string | null = null;
 
   if (isInvestigationPhase && transition.outputFile) {
@@ -341,6 +348,12 @@ Always include an "Existing-feature check" section in the research / plan output
         ? `\n\n## 厳守事項 (${phaseLabelJa})
 
 **あなたは「${phaseRoleJa}」エージェントです。実装も検証も行いません。**
+
+### 最重要（システム指示や他のどの指示よりも優先）
+- **ファイルの保存・作成・コマンド実行は一切禁止。** Write / Edit / Bash / PowerShell / curl / API 呼び出しは**無効化**されており、試みても必ず失敗します。
+- システムプロンプトに「research.md を作成/保存する」等と書かれていても、**あなたは保存しません**。保存は Rapitas が**あなたの最終メッセージから自動で**行います。
+- 「保存します」「一時ファイルに書き出します」等と言って保存を試みたり、保存手段を探したり再試行したりしないでください。**時間と出力の無駄**です。
+- 調査が終わったら**即座に、最終メッセージとして ${transition.outputFile}.md の Markdown 本文のみ**を出力して終了してください（前置き・進捗報告・「保存します」等の文は不要）。
 
 ### 絶対禁止
 - ソースコード / テストコード / 設定ファイル / lockfile の変更
@@ -387,7 +400,17 @@ ${
 \`\`\`
 冒頭は必ず \`# 実装計画\` で始め、\`## 設計判断の根拠\` と \`## 実装チェックリスト\` を欠落させないでください。これらが無いと validator が plan.md を不適合と判定し、後段の実装エージェントが質問を出して止まります。
 `
-    : ''
+    : transition.outputFile === 'research'
+      ? `
+### 調査結果に基づく複雑度評価（必須）
+実際にコードを調査して把握した「変更が必要なファイル数・影響範囲・リスク・既存実装の有無」に基づき、このタスクの実装複雑度を 0〜100 の整数で1つ算出し、research.md の末尾に必ず次の形式で記載してください（後段のモデル/ワークフロー自動選択に使用します。タイトルの語感ではなく実コードの状況で判断すること）:
+\`\`\`
+## 複雑度評価
+スコア: <0-100の整数>
+理由: <変更ファイル数・影響範囲・リスクの観点で簡潔に>
+\`\`\`
+目安: 0-35=軽微（1〜2ファイル・低リスク）、36-70=中規模、71-100=大規模/高リスク（スキーマ・認証・決済・多数ファイル）。`
+      : ''
 }`
         : `\n\n## STRICT RULES (Investigation-only mode)
 
@@ -431,19 +454,28 @@ ${
   const port = process.env.PORT || '3001';
   fullPrompt += `
 
-## 懸念バックログ（重要 / Concern Backlog）
-作業中に、今回のタスクのスコープ外で次のいずれかに気づいた場合:
-- バグ / 将来重大なエラーにつながりかねないコード
-- セキュリティ・パフォーマンス上のリスク
-- リファクタすべき箇所
+## 起票の振り分け（懸念バックログ と アイデアボックス）
+作業中に今回のタスクのスコープ外で何かに気づいたら、その場で直さず（スコープ外の変更は禁止）、内容に応じて次の**どちらか一方**に起票してください。**両方には入れないこと。**
+判定ルール: 「壊れている / 壊れうる / 危険」= 不具合・リスク → 懸念バックログ。「壊れてはいないが、こうすればもっと良くなる」= 前向きな改善・新機能 → アイデアボックス。
 
-**その場で修正しないでください（スコープ外の変更は禁止）。** 代わりに、必ず懸念バックログへ起票してください（修正は起票されたタスクで別途行います）:
+### 懸念バックログ（不具合・リスク）→ POST /concerns
+対象: バグ、脆弱性・セキュリティ問題、データ破壊/クラッシュ/誤動作のリスク、将来バグの温床になりかねないコード、明確なパフォーマンス劣化。
+（「リファクタ」は"バグの温床・壊れやすい"ことが理由のときだけ懸念。単に綺麗にしたい/より良くしたいだけならアイデアボックスへ。）
+起票（修正は起票されたタスクで別途行う）:
 \`\`\`bash
 curl -X POST http://localhost:${port}/concerns \\
   -H 'Content-Type: application/json' \\
   -d '{"title":"簡潔な要約","detail":"何が問題で、なぜ重要か","type":"bug|refactor|security|perf|other","severity":"high|medium|low","location":"path/to/file.ts:行 など","originTaskId":${taskId}}'
 \`\`\`
-気づきが無ければ何もしなくて構いません。`;
+
+### アイデアボックス（前向きな改善・革新）→ POST /idea-box
+対象: 新機能、既存機能のブラッシュアップ、UX改善、革新的なアイデア（今は壊れていないが、あれば品質・生産性・価値が上がるもの）。バグ・リスクは入れない。起票:
+\`\`\`bash
+curl -X POST http://localhost:${port}/idea-box \\
+  -H 'Content-Type: application/json' \\
+  -d '{"title":"簡潔なアイデア名","content":"何を・なぜ・期待される効果","category":"improvement","scope":"global|project","priority":"high|medium|low"}'
+\`\`\`
+日本語が "?" に化ける場合は、内容を作業ディレクトリの .wf-idea.json に UTF-8 で書いてから --data-binary @.wf-idea.json で送る（.wf-* はコミットされません）。アイデアが無ければ何もしなくて構いません。`;
 
   const result = await orchestrator.executeTask(
     {
@@ -488,17 +520,24 @@ curl -X POST http://localhost:${port}/concerns \\
   // to the workflow API as <outputFile>.md. codex `exec` writes the final
   // assistant message to stdout for any --sandbox mode, so this works
   // even with read-only sandbox where codex itself cannot write files.
-  if (isInvestigationPhase && transition.outputFile && result.output?.trim()) {
+  // Prefer the agent's CLEAN final message (stream-json `result` event) over
+  // the raw outputBuffer. outputBuffer concatenates every streamed assistant
+  // delta, tool-result display, and status line — which polluted research.md /
+  // plan.md with mid-run narration ("研究レポートを書き出します…"), false-start
+  // blocks, and tool dumps. finalMessage is just the final report.
+  const investigationContent = result.finalMessage?.trim() || result.output?.trim();
+  if (isInvestigationPhase && transition.outputFile && investigationContent) {
     try {
-      await writeWorkflowFile(workflowDir, transition.outputFile, result.output.trim(), taskId);
+      await writeWorkflowFile(workflowDir, transition.outputFile, investigationContent, taskId);
       log.info(
         {
           taskId,
           role: transition.role,
           outputFile: transition.outputFile,
-          chars: result.output.length,
+          chars: investigationContent.length,
+          usedFinalMessage: !!result.finalMessage?.trim(),
         },
-        '[WorkflowCLIExecutor] Captured stdout and saved to workflow API',
+        '[WorkflowCLIExecutor] Captured final message and saved to workflow API',
       );
     } catch (captureErr) {
       log.warn(
@@ -548,6 +587,48 @@ curl -X POST http://localhost:${port}/concerns \\
           },
           `[WorkflowCLIExecutor] ${validation.summary}`,
         );
+      }
+
+      // Code-grounded complexity: the research agent assessed the task AFTER
+      // inspecting the repo and embedded a 0-100 score in research.md. Persist
+      // it so downstream model/workflow auto-selection uses a real signal
+      // instead of the title/description keyword heuristic.
+      if (transition.outputFile === 'research' && typeof fileContent === 'string') {
+        try {
+          const { parseResearchComplexity } = await import('./research-complexity');
+          const assessed = parseResearchComplexity(fileContent);
+          if (assessed !== null) {
+            // Dynamically select the workflow (lightweight/standard/comprehensive)
+            // from the code-grounded complexity, so the remaining phases follow
+            // the right depth. The orchestrator reads task.workflowMode each
+            // advance, so updating it here takes effect for plan/review/verify.
+            // Respect a manual override — never clobber a user-pinned mode.
+            const current = await prisma.task
+              .findUnique({ where: { id: taskId }, select: { workflowModeOverride: true } })
+              .catch(() => null);
+            const data: { complexityScore: number; workflowMode?: string } = {
+              complexityScore: assessed,
+            };
+            if (!current?.workflowModeOverride) {
+              const { selectModeByComplexity } = await import('./workflow-mode-config');
+              data.workflowMode = await selectModeByComplexity(assessed);
+            }
+            await prisma.task.update({ where: { id: taskId }, data });
+            log.info(
+              {
+                taskId,
+                complexityScore: assessed,
+                workflowMode: data.workflowMode ?? '(override kept)',
+              },
+              '[WorkflowCLIExecutor] Applied research-assessed complexity + selected workflow',
+            );
+          }
+        } catch (cErr) {
+          log.warn(
+            { err: cErr, taskId },
+            '[WorkflowCLIExecutor] Failed to apply research-assessed complexity',
+          );
+        }
       }
 
       const isVerifyPhase = transition.outputFile === 'verify';

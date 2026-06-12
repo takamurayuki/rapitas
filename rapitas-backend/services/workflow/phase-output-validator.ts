@@ -116,7 +116,9 @@ export function validateVerify(content: string): ValidationResult {
   // Detect the explicit "tests did not complete" or "❌" mark — surface
   // as a soft failure so the workflow does not silently auto-PR a
   // broken implementation.
-  if (/❌\s*検証失敗|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
+  // Accept the common verdicts the verifier actually writes, JP + EN. The ❌
+  // anchor on the Japanese verdicts avoids false positives like "不合格項目: なし".
+  if (/❌\s*(検証失敗|不合格|不適合)|❌\s*verification\s*fail|verify[: ]\s*fail/i.test(lower)) {
     return {
       ok: false,
       missingSections: [],

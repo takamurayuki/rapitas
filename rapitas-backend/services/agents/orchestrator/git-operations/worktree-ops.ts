@@ -16,6 +16,7 @@ import { createLogger } from '../../../../config/logger';
 import { WORKTREE_DIR, normalizePath, isPathSafeForWorktreeOperation } from './safety';
 import { ensureGitRepository, validateAndSetupRemote } from './repository-setup';
 import { clearWorktreeDependenciesTracking } from './dependency-installer';
+import { preflightWorktree } from './worktree-preflight';
 import { prisma } from '../../../../config/database';
 
 export { ensureGitRepository, validateAndSetupRemote };
@@ -186,6 +187,10 @@ export async function createWorktree(
         '[createWorktree] Failed to add .wf-tmp.md to git exclude (non-fatal)',
       );
     }
+
+    // Environment preflight: auto-run setup-worktree.cjs (previously a manual
+    // CLAUDE.md rule agents forgot) and fail fast on a broken managed env.
+    await preflightWorktree(worktreePath);
 
     // NOTE: Dependency install is intentionally NOT awaited here. The caller
     // (executeRoute) decides whether/when to install based on task heuristics

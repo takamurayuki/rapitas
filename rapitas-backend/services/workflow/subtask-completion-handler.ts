@@ -15,6 +15,35 @@ import { recordTransition } from './transition-recorder';
 
 const log = createLogger('subtask-completion');
 
+/** Minimal subtask shape needed to judge completion. */
+type SubtaskState = { status: string; workflowStatus: string | null };
+
+// A subtask's progress is tracked across TWO fields (task.status and
+// task.workflowStatus) that several code paths update independently, so they can
+// momentarily diverge (e.g. auto-approve advances workflowStatus but not status).
+// Judge completion from BOTH so a lagging field can never strand the parent.
+
+/** A subtask is finished once verify passed OR its task reached a terminal status. */
+export function isSubtaskFinished(s: SubtaskState): boolean {
+  return (
+    s.workflowStatus === 'completed' ||
+    ['done', 'completed', 'failed', 'cancelled', 'archived'].includes(s.status)
+  );
+}
+
+/** A subtask failed when its task was failed/cancelled. */
+export function isSubtaskFailed(s: SubtaskState): boolean {
+  return s.status === 'failed' || s.status === 'cancelled';
+}
+
+/** A subtask passed when it finished successfully (verify completed / done). */
+export function isSubtaskPassed(s: SubtaskState): boolean {
+  return (
+    !isSubtaskFailed(s) &&
+    (s.workflowStatus === 'completed' || s.status === 'done' || s.status === 'completed')
+  );
+}
+
 /**
  * Check if all sibling subtasks are complete after one finishes.
  * If all done, generate the parent task's integration verify.md and finalize
@@ -41,18 +70,17 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
 
     const siblings = await prisma.task.findMany({
       where: { parentId: subtask.parentId },
-      select: { id: true, title: true, status: true },
+      select: { id: true, title: true, status: true, workflowStatus: true },
     });
 
     // Finalize the parent once every subtask has reached a TERMINAL state
     // (done / failed / cancelled). Gating on "all done" alone would leave the
-    // parent hanging forever if a subtask permanently failed.
-    const TERMINAL = ['done', 'failed', 'cancelled', 'archived'];
-    const stillRunning = siblings.filter((s) => !TERMINAL.includes(s.status));
-    const doneCount = siblings.filter((s) => s.status === 'done').length;
-    const failedCount = siblings.filter(
-      (s) => s.status === 'failed' || s.status === 'cancelled',
-    ).length;
+    // parent hanging forever if a subtask permanently failed. Completion is read
+    // from BOTH status fields (see isSubtaskFinished) so a lagging field can't
+    // strand the parent — the bug that previously lost a split parent's work.
+    const stillRunning = siblings.filter((s) => !isSubtaskFinished(s));
+    const doneCount = siblings.filter(isSubtaskPassed).length;
+    const failedCount = siblings.filter(isSubtaskFailed).length;
 
     log.info(
       `[SubtaskCompletion] Subtask #${completedSubtaskId} done. Parent #${subtask.parentId}: ${doneCount}/${siblings.length} complete, ${stillRunning.length} still running`,
@@ -74,7 +102,7 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
       return;
     }
 
-    const allPassed = siblings.every((s) => s.status === 'done');
+    const allPassed = siblings.every(isSubtaskPassed);
     const verifyContent = buildIntegrationVerify(parentTask, siblings);
 
     // Write verify.md straight to the parent's workflow dir (no HTTP round-trip).
@@ -162,7 +190,7 @@ export async function onSubtaskCompleted(completedSubtaskId: number): Promise<vo
  */
 function buildIntegrationVerify(
   parentTask: { id: number; title: string },
-  subtasks: Array<{ id: number; title: string; status: string }>,
+  subtasks: Array<{ id: number; title: string; status: string; workflowStatus: string | null }>,
 ): string {
   const lines: string[] = [];
 
@@ -174,10 +202,10 @@ function buildIntegrationVerify(
   let allPassed = true;
 
   for (const st of subtasks) {
-    const status = st.status === 'done' ? '✅' : '❌';
-    lines.push(`- ${status} #${st.id}: ${st.title}`);
+    const passed = isSubtaskPassed(st);
+    lines.push(`- ${passed ? '✅' : '❌'} #${st.id}: ${st.title}`);
 
-    if (st.status !== 'done') {
+    if (!passed) {
       allPassed = false;
     }
   }

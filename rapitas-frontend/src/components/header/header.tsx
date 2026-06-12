@@ -31,10 +31,10 @@ import {
   Clock,
   GraduationCap,
   Bot,
-  CheckCircle,
   Settings,
   GitPullRequest,
   CircleDot,
+  Workflow,
   Code,
   Key,
   MessageSquare,
@@ -180,6 +180,7 @@ export default function Header() {
               icon: GitPullRequest,
             },
             { href: '/github/issues', label: 'Issues', icon: CircleDot },
+            { href: '/github/actions', label: 'CI/CD', icon: Workflow },
           ],
         },
         {
@@ -223,7 +224,6 @@ export default function Header() {
             },
           ],
         },
-        { href: '/approvals', label: t('approvals'), icon: CheckCircle },
         {
           href: '/system-prompts',
           label: t('promptManagement'),

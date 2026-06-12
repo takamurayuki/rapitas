@@ -11,6 +11,7 @@ import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
+import { extractFirstJsonArray } from './extract-json-array';
 
 const log = createLogger('subtask-splitter');
 
@@ -18,7 +19,10 @@ const log = createLogger('subtask-splitter');
 // plan.md save request, so an unbounded LLM call would block the whole HTTP
 // response (a real run blocked ~54s). On timeout we fall back to the
 // deterministic split, which produces valid subtasks without the LLM.
-const AI_SUBTASK_GEN_TIMEOUT_MS = 10_000;
+// NOTE: Raised from 10_000 to 15_000 to give the increased maxTokens (8000) enough
+// runway — truncated responses come back fast, so the added buffer only affects
+// slow providers that would already fall back via the deterministic path.
+const AI_SUBTASK_GEN_TIMEOUT_MS = 15_000;
 
 /** Thresholds for when to split a task into subtasks. */
 const SPLIT_THRESHOLDS = {
@@ -27,6 +31,26 @@ const SPLIT_THRESHOLDS = {
   MIN_CHECKLIST_ITEMS: 10,
   MIN_INDEPENDENT_GROUPS: 3,
 };
+
+// Standard plan-template section headings (JP + EN). These describe the plan
+// itself, not independent units of work, so they must NEVER be counted as
+// "independent groups" or turned into subtasks — doing so produced bogus
+// subtasks like 「実装チェックリスト」「完了条件」 that blocked the parent.
+const META_SECTION_PATTERNS: RegExp[] = [
+  /summary|overview|scope|risk|done|definition|acceptance|test|note|depend|background|purpose|goal|objective|constraint|checklist|subtask/i,
+  /概要|サマリ|目的|ゴール|スコープ|リスク|完了|受入|受け入れ|テスト|検証|注意|備考|依存|影響|背景|前提|方針|制約|チェックリスト|サブタスク|定義|タスク/,
+];
+
+/**
+ * True when a section heading is a standard plan meta-section (not a unit of
+ * work). Used to keep splitting at an appropriate granularity.
+ *
+ * @param heading - The `##` heading text (without the `## `) / 見出しテキスト
+ * @returns true for meta sections / メタ節なら true
+ */
+function isMetaSection(heading: string): boolean {
+  return META_SECTION_PATTERNS.some((re) => re.test(heading));
+}
 
 /** Parsed subtask from plan analysis. */
 type PlannedSubtask = {
@@ -90,9 +114,10 @@ export function analyzePlanForSplitting(planContent: string): SplitAnalysis {
   // Estimate lines changed (heuristic: 50 lines per checklist item)
   const estimatedLines = checklistItems.length * 50;
 
-  // Detect independent groups (sections with ## headers)
+  // Detect independent groups: ## sections that are real work units, NOT the
+  // plan's standard meta sections (概要/リスク/完了条件/実装チェックリスト/…).
   const sectionHeaders = lines.filter(
-    (l) => /^##\s+/.test(l) && !/summary|risk|done|definition/i.test(l),
+    (l) => /^##\s+/.test(l) && !isMetaSection(l.replace(/^##\s+/, '')),
   );
   const independentGroups = sectionHeaders.length;
 
@@ -172,7 +197,11 @@ async function generateSubtasksWithAI(
       sendAIMessage({
         systemPrompt: SUBTASK_GEN_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: parts.join('\n') }],
-        maxTokens: 3000,
+        // NOTE: Raised from 3000 to 8000 so that 5 Japanese subtasks with
+        // instructions + acceptanceCriteria fit within finish_reason=stop.
+        // The greedy-regex extraction bug was the primary fix; this reduces the
+        // probability that a truncated response reaches the extractor at all.
+        maxTokens: 8000,
       }),
       new Promise<never>((_, reject) =>
         setTimeout(
@@ -184,9 +213,24 @@ async function generateSubtasksWithAI(
         ),
       ),
     ]);
-    const match = res.content.match(/\[[\s\S]*\]/);
-    if (!match) return null;
-    const parsed = JSON.parse(match[0]) as Array<{
+
+    // NOTE: extractFirstJsonArray replaces the former greedy regex
+    // `/\[[\s\S]*\]/`. The old regex matched from the first `[` to the LAST `]`
+    // in the entire response, which caused it to swallow trailing text containing
+    // `]` and pass a truncated/invalid string to JSON.parse — producing the
+    // "Unterminated string" SyntaxError. The bracket-depth scanner avoids both
+    // the greedy-match and the truncation-exception issues.
+    const jsonStr = extractFirstJsonArray(res.content);
+    if (!jsonStr) {
+      const preview = res.content.slice(0, 500);
+      const suffix = res.content.length > 500 ? `…(+${res.content.length - 500} chars)` : '';
+      log.warn(
+        { contentLength: res.content.length, contentPreview: preview + suffix },
+        '[SubtaskSplitter] AI response contained no valid JSON array — falling back to deterministic split',
+      );
+      return null;
+    }
+    const parsed = JSON.parse(jsonStr) as Array<{
       title?: string;
       scope?: unknown;
       instructions?: unknown;
@@ -221,6 +265,10 @@ async function generateSubtasksWithAI(
       estimatedFiles: Math.max(s.scope.length, 1),
     }));
   } catch (err) {
+    // NOTE: err.message contains the timeout string or JSON.parse error text.
+    // For JSON.parse failures the raw content is already logged above (at the
+    // extractFirstJsonArray null-return site); here we only log the error itself
+    // so the two log lines can be correlated by timestamp / request-id.
     log.warn(
       { err },
       '[SubtaskSplitter] AI subtask generation failed — falling back to deterministic split',
@@ -392,8 +440,9 @@ function extractSubtasksFromPlan(planContent: string, allFiles: string[]): Plann
   let order = 0;
 
   for (const line of lines) {
-    // Detect section headers as subtask boundaries
-    if (/^##\s+/.test(line) && !/summary|risk|done|definition|task/i.test(line)) {
+    // Detect section headers as subtask boundaries — but only genuine work
+    // sections, never the plan's standard meta sections.
+    if (/^##\s+/.test(line) && !isMetaSection(line.replace(/^##\s+/, ''))) {
       if (currentSection && currentItems.length > 0) {
         order++;
         subtasks.push(

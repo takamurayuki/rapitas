@@ -85,6 +85,31 @@ try {
   console.log('\nBackend build complete!');
   console.log(`Output: ${outputPath}`);
 
+  // Step 3: Prisma のネイティブクエリエンジンを同梱する。
+  // bun build --compile は .node ネイティブライブラリを単一バイナリへ含められず、
+  // ユーザー環境には node_modules も無いため、エンジン無し配布は起動時に
+  // PrismaClientInitializationError で即死する（インストーラ版が全滅した原因）。
+  // release.rs が exe と一緒に app data へコピーし PRISMA_QUERY_ENGINE_LIBRARY で
+  // 明示パスを渡す。
+  console.log('\nStep 3: Bundling Prisma query engine...');
+  const prismaClientDir = path.join(BACKEND_DIR, 'node_modules', '.prisma', 'client');
+  const engineFiles = fs.existsSync(prismaClientDir)
+    ? fs.readdirSync(prismaClientDir).filter(
+        (f) => f.includes('query_engine') && f.endsWith('.node') && !f.includes('.tmp')
+      )
+    : [];
+  if (engineFiles.length === 0) {
+    console.error(
+      'No Prisma query engine found in node_modules/.prisma/client — ' +
+      'the packaged backend would crash on startup. Run db:prepare:sqlite first.'
+    );
+    process.exit(1);
+  }
+  for (const engine of engineFiles) {
+    fs.copyFileSync(path.join(prismaClientDir, engine), path.join(OUTPUT_DIR, engine));
+    console.log(`Bundled engine: ${engine}`);
+  }
+
 } catch (error) {
   console.error('Failed to build backend:', error.message);
   process.exit(1);

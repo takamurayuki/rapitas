@@ -109,10 +109,6 @@ mock.module('../../../utils/db-helpers', () => ({
   }),
 }));
 
-mock.module('../../../services/misc/screenshot-service', () => ({
-  captureScreenshotsForDiff: mock(() => Promise.resolve([])),
-}));
-
 const { approvalsRoutes } = await import('../../../routes/agents/integrations/approvals');
 
 import { Elysia } from 'elysia';

@@ -112,8 +112,34 @@ function parseRow(row: {
 /** Serialize toggle settings into the row's `stepDefinitions` JSON shape. */
 function toggleJson(s: Pick<WorkflowModeSettings, 'includePlan' | 'includeReview' | 'autoVerify'>) {
   return JSON.stringify({
-    phases: { includePlan: s.includePlan, includeReview: s.includeReview, autoVerify: s.autoVerify },
+    phases: {
+      includePlan: s.includePlan,
+      includeReview: s.includeReview,
+      autoVerify: s.autoVerify,
+    },
   });
+}
+
+/**
+ * Pick the workflow mode whose (UI-editable) complexity range contains the given
+ * score, considering only enabled modes — so research-assessed complexity can
+ * dynamically select the workflow. Falls back to default thresholds, then any
+ * enabled mode.
+ *
+ * @param score - 0-100 complexity score. / 0-100の複雑度スコア
+ * @returns The selected workflow mode. / 選択されたワークフローモード
+ */
+export async function selectModeByComplexity(score: number): Promise<WorkflowMode> {
+  const all = await getAllModeSettings();
+  const order: WorkflowMode[] = ['lightweight', 'standard', 'comprehensive'];
+  for (const m of order) {
+    const s = all[m];
+    if (s.isEnabled && score >= s.complexityMin && score <= s.complexityMax) return m;
+  }
+  if (score <= 35 && all.lightweight.isEnabled) return 'lightweight';
+  if (score <= 70 && all.standard.isEnabled) return 'standard';
+  if (all.comprehensive.isEnabled) return 'comprehensive';
+  return order.find((m) => all[m].isEnabled) ?? 'comprehensive';
 }
 
 /**
@@ -239,9 +265,7 @@ export function buildTransitions(s: WorkflowModeSettings): Record<string, RoleTr
 }
 
 /** Build the status→role map (role only) used by the role-resolver. */
-export function buildRoleByStatus(
-  s: WorkflowModeSettings,
-): Record<string, RoleTransition['role']> {
+export function buildRoleByStatus(s: WorkflowModeSettings): Record<string, RoleTransition['role']> {
   const transitions = buildTransitions(s);
   const map: Record<string, RoleTransition['role']> = {};
   for (const [status, tr] of Object.entries(transitions)) map[status] = tr.role;

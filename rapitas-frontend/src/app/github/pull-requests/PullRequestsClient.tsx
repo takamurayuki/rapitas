@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -17,13 +17,16 @@ import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, GitHubIntegration } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
+// Shared pagination control — ALWAYS use this for paginated lists (see
+// COMPONENT_SPLITTING_POLICY §7). Do not hand-roll prev/next buttons.
+import Pagination from '@/components/ui/pagination/Pagination';
 
 const logger = createLogger('PullRequestsClient');
 
-/** PRs grouped under their repository for an at-a-glance, per-repo view. */
-interface RepoGroup {
+/** A PR paired with the repo it belongs to, for a flat recency-ordered list. */
+interface PrRow {
   integration: GitHubIntegration;
-  prs: GitHubPullRequest[];
+  pr: GitHubPullRequest;
 }
 
 export default function PullRequestsClient() {
@@ -31,24 +34,30 @@ export default function PullRequestsClient() {
   const searchParams = useSearchParams();
   const integrationId = searchParams.get('integrationId');
 
-  const [groups, setGroups] = useState<RepoGroup[]>([]);
+  const [rows, setRows] = useState<PrRow[]>([]);
   const [integrations, setIntegrations] = useState<GitHubIntegration[]>([]);
   const [selectedIntegration, setSelectedIntegration] = useState<string>(integrationId || '');
-  const [stateFilter, setStateFilter] = useState<string>('open');
+  // Filter is applied client-side (see filteredRows) so open/closed/all switch
+  // instantly without a refetch, and "closed" can include merged PRs.
+  const [stateFilter, setStateFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchIntegrations();
   }, []);
 
-  // Fetch PRs for the selected repo, or ALL repos when none is selected, then
-  // group them by repository so each repo's PRs are shown under its own header.
+  // Fetch ALL PRs (state=all) for the selected repo, or every repo when none is
+  // selected, and flatten them into one list. Filtering / sorting / pagination
+  // all happen client-side below, so the tabs respond instantly and don't depend
+  // on the backend's state filter or ordering.
   const fetchPRs = useCallback(async () => {
     const targets = selectedIntegration
       ? integrations.filter((i) => i.id.toString() === selectedIntegration)
       : integrations;
     if (targets.length === 0) {
-      setGroups([]);
+      setRows([]);
       setLoading(false);
       return;
     }
@@ -58,26 +67,49 @@ export default function PullRequestsClient() {
         targets.map(async (integration) => {
           try {
             const res = await fetch(
-              `${API_BASE_URL}/github/integrations/${integration.id}/pull-requests?state=${stateFilter}`,
+              `${API_BASE_URL}/github/integrations/${integration.id}/pull-requests?state=all`,
             );
             const prs: GitHubPullRequest[] = res.ok ? await res.json() : [];
-            return { integration, prs };
+            return prs.map((pr) => ({ integration, pr }));
           } catch {
-            return { integration, prs: [] as GitHubPullRequest[] };
+            return [] as PrRow[];
           }
         }),
       );
-      setGroups(results.filter((g) => g.prs.length > 0));
+      setRows(results.flat());
     } catch (error) {
       logger.error('Failed to fetch PRs:', error);
     } finally {
       setLoading(false);
     }
-  }, [selectedIntegration, stateFilter, integrations]);
+  }, [selectedIntegration, integrations]);
 
+  // PRs are read from the local DB; on first load it is usually empty (sync has
+  // never run), so the list shows nothing even though GitHub has PRs. Sync each
+  // repo from GitHub once, then read — so past/closed PRs appear too. Subsequent
+  // filter/selection changes just re-read the now-populated DB.
+  const syncedRef = useRef(false);
   useEffect(() => {
-    if (integrations.length > 0) fetchPRs();
-  }, [fetchPRs, integrations.length]);
+    if (integrations.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      if (!syncedRef.current) {
+        syncedRef.current = true;
+        setLoading(true);
+        await Promise.all(
+          integrations.map((i) =>
+            fetch(`${API_BASE_URL}/github/integrations/${i.id}/sync-prs`, {
+              method: 'POST',
+            }).catch(() => {}),
+          ),
+        );
+      }
+      if (!cancelled) fetchPRs();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchPRs, integrations]);
 
   const fetchIntegrations = async () => {
     try {
@@ -93,7 +125,34 @@ export default function PullRequestsClient() {
     }
   };
 
-  const getStateIcon = (state: string) => {
+  // Apply the state tab, then sort newest-first. prNumber is monotonic, so it is
+  // a reliable recency order even when every row shares a bulk-sync timestamp.
+  const filteredRows = useMemo(() => {
+    const matchesState = (state: string) => {
+      const s = (state || '').toLowerCase();
+      if (stateFilter === 'all') return true;
+      if (stateFilter === 'open') return s === 'open';
+      // "closed" tab: a merged PR is also closed.
+      return s === 'closed' || s === 'merged';
+    };
+    return rows
+      .filter((r) => matchesState(r.pr.state))
+      .sort((a, b) => b.pr.prNumber - a.pr.prNumber);
+  }, [rows, stateFilter]);
+
+  // Reset to the first page whenever the filter or repo selection changes so the
+  // user isn't stranded on a now-out-of-range page.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [stateFilter, selectedIntegration]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageRows = filteredRows.slice((safePage - 1) * itemsPerPage, safePage * itemsPerPage);
+
+  const getStateIcon = (rawState: string) => {
+    // gh may send UPPERCASE state on not-yet-renormalised rows.
+    const state = (rawState || '').toLowerCase();
     switch (state) {
       case 'open':
         return <GitPullRequest className="w-5 h-5 text-green-500" />;
@@ -106,7 +165,8 @@ export default function PullRequestsClient() {
     }
   };
 
-  const getStateBadge = (state: string) => {
+  const getStateBadge = (rawState: string) => {
+    const state = (rawState || '').toLowerCase();
     const styles = {
       open: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       merged: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
@@ -114,8 +174,6 @@ export default function PullRequestsClient() {
     };
     return styles[state as keyof typeof styles] || styles.open;
   };
-
-  const totalPrs = groups.reduce((sum, g) => sum + g.prs.length, 0);
 
   return (
     <div className="h-[calc(100vh-5rem)] overflow-auto bg-[var(--background)] scrollbar-thin">
@@ -169,6 +227,12 @@ export default function PullRequestsClient() {
               </button>
             ))}
           </div>
+
+          {!loading && filteredRows.length > 0 && (
+            <span className="text-sm text-zinc-500 dark:text-zinc-400 ml-auto">
+              {filteredRows.length} 件
+            </span>
+          )}
         </div>
 
         {loading ? (
@@ -177,7 +241,7 @@ export default function PullRequestsClient() {
               <div key={i} className="h-16 bg-zinc-200 dark:bg-zinc-700 rounded-xl animate-pulse" />
             ))}
           </div>
-        ) : totalPrs === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700">
             <GitPullRequest className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
             <p className="text-zinc-500 dark:text-zinc-400">
@@ -185,74 +249,74 @@ export default function PullRequestsClient() {
             </p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {groups.map((group) => (
-              <section key={group.integration.id}>
-                {/* Repository header */}
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-700">
-                  <FolderGit2 className="w-4 h-4 text-indigo-500" />
-                  <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                    {group.integration.ownerName}/{group.integration.repositoryName}
-                  </h2>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-                    {group.prs.length}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {group.prs.map((pr) => (
-                    <Link
-                      key={pr.id}
-                      href={`/github/pull-requests/${pr.id}`}
-                      className="block p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md transition-all"
-                    >
-                      <div className="flex items-start gap-4">
-                        {getStateIcon(pr.state)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                              {pr.title}
-                            </h3>
-                            <span
-                              className={`px-2 py-0.5 text-xs font-medium rounded ${getStateBadge(pr.state)}`}
-                            >
-                              {pr.state}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-zinc-500 dark:text-zinc-400">
-                            <span>#{pr.prNumber}</span>
-                            <span>by {pr.authorLogin}</span>
-                            <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 rounded">
-                              {pr.headBranch} → {pr.baseBranch}
-                            </span>
-                          </div>
-                          {pr.body && (
-                            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                              {pr.body}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-zinc-400">
-                          {pr._count?.reviews ? (
-                            <div className="flex items-center gap-1" title={t('reviewCount')}>
-                              <Eye className="w-4 h-4" />
-                              <span>{pr._count.reviews}</span>
-                            </div>
-                          ) : null}
-                          {pr._count?.comments ? (
-                            <div className="flex items-center gap-1" title={t('commentCount')}>
-                              <MessageSquare className="w-4 h-4" />
-                              <span>{pr._count.comments}</span>
-                            </div>
-                          ) : null}
-                        </div>
+          <>
+            <div className="space-y-3">
+              {pageRows.map(({ integration, pr }) => (
+                <Link
+                  key={pr.id}
+                  href={`/github/pull-requests/${pr.id}`}
+                  className="block p-4 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-md transition-all"
+                >
+                  <div className="flex items-start gap-4">
+                    {getStateIcon(pr.state)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {pr.title}
+                        </h3>
+                        <span
+                          className={`px-2 py-0.5 text-xs font-medium rounded ${getStateBadge(pr.state)}`}
+                        >
+                          {pr.state}
+                        </span>
                       </div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
+                        <span className="inline-flex items-center gap-1 text-indigo-500">
+                          <FolderGit2 className="w-3.5 h-3.5" />
+                          {integration.ownerName}/{integration.repositoryName}
+                        </span>
+                        <span>#{pr.prNumber}</span>
+                        <span>by {pr.authorLogin}</span>
+                        <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-2 py-0.5 rounded">
+                          {pr.headBranch} → {pr.baseBranch}
+                        </span>
+                      </div>
+                      {pr.body && (
+                        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                          {pr.body}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-zinc-400">
+                      {pr._count?.reviews ? (
+                        <div className="flex items-center gap-1" title={t('reviewCount')}>
+                          <Eye className="w-4 h-4" />
+                          <span>{pr._count.reviews}</span>
+                        </div>
+                      ) : null}
+                      {pr._count?.comments ? (
+                        <div className="flex items-center gap-1" title={t('commentCount')}>
+                          <MessageSquare className="w-4 h-4" />
+                          <span>{pr._count.comments}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <Pagination
+              currentPage={safePage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={(n) => {
+                setItemsPerPage(n);
+                setCurrentPage(1);
+              }}
+            />
+          </>
         )}
       </div>
     </div>

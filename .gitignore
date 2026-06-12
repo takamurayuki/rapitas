@@ -14,6 +14,11 @@ analysis-result.json
 # Git worktrees for parallel agent execution
 .worktrees/
 
+# Agent transient workflow files — written then curl'd to the workflow/concern/
+# idea APIs (.wf-tmp.md, .wf-concern.json, .wf-idea.json). Ignored repo-wide so
+# they never appear in any git diff/status/add or the changed-file list.
+.wf-*
+
 # Memory system vector DB
 rapitas-backend/data/
 # Stray lockfiles (each subproject owns its own; see ADR-0001)

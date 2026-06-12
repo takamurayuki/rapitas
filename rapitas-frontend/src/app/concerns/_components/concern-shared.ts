@@ -112,7 +112,5 @@ export const SEVERITY_HINT: Record<ConcernSeverity, string> = {
 export const STATUS_TABS: { value: ConcernStatus | 'all'; label: string }[] = [
   { value: 'open', label: '未対応' },
   { value: 'task_created', label: 'タスク化済' },
-  { value: 'resolved', label: '完了' },
-  { value: 'dismissed', label: '却下' },
   { value: 'all', label: 'すべて' },
 ];

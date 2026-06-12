@@ -16,8 +16,10 @@
  * committing or the retry loop.
  */
 import { spawn } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
+import { buildScopedTestCommand } from './related-tests';
+import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
@@ -26,19 +28,12 @@ const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const CMD_TIMEOUT_MS = 180_000;
 /** Test suites routinely run much longer than lint/tsc. */
 const TEST_TIMEOUT_MS = 300_000;
-/**
- * Opt-in: run the project's `test` script as part of the gate. Off by default —
- * test suites can be slow/flaky and gate on a pre-existing red baseline, so the
- * user enables it deliberately. Enable with RAPITAS_VERIFY_TESTS=1.
- */
-const VERIFY_TESTS_ENABLED =
-  process.env.RAPITAS_VERIFY_TESTS === '1' || process.env.RAPITAS_VERIFY_TESTS === 'true';
 const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 /** Cap how much raw output we keep in the report. */
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck' | 'test';
+  name: 'lint' | 'typecheck' | 'test' | 'scope';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -137,6 +132,25 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
     }
   }
   return null;
+}
+
+/**
+ * Lists EVERY changed path in the worktree (any file type, including
+ * deletions) for the plan-scope check — out-of-plan deletions and non-code
+ * edits are scope violations too.
+ */
+async function getAllChangedFiles(workdir: string): Promise<string[]> {
+  const tracked = await git(workdir, 'diff HEAD --name-only --diff-filter=ACMRD');
+  const untracked = await git(workdir, 'ls-files --others --exclude-standard');
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of `${tracked}\n${untracked}`.split('\n')) {
+    const f = line.trim();
+    if (!f || seen.has(f)) continue;
+    seen.add(f);
+    out.push(f);
+  }
+  return out;
 }
 
 /**
@@ -341,40 +355,18 @@ async function typecheckProject(
 }
 
 /**
- * Detects how to run a project's test suite from its package.json + lockfile,
- * or null when there's no `test` script. Uses `<pm> run test` so bun runs the
- * package script rather than its built-in test runner.
+ * Runs the project's tests, SCOPED to the agent's changed test files PLUS the
+ * tests related to its changed sources (see related-tests.ts) — so the gate
+ * catches "changed foo.ts, broke foo.test.ts" without gating on pre-existing
+ * red tests or live-env collisions. Returns null when tests are disabled
+ * (RAPITAS_VERIFY_TESTS=0), there's no `test` script, or nothing is in scope.
  */
-function detectTestCommand(projectRoot: string): string | null {
-  const pkgPath = join(projectRoot, 'package.json');
-  if (!existsSync(pkgPath)) return null;
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
-    if (!pkg.scripts?.test) return null;
-  } catch {
-    return null;
-  }
-  if (existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'))) {
-    return 'bun run test';
-  }
-  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm run test';
-  if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn run test';
-  return 'npm run test';
-}
-
-/**
- * Runs the project's test suite (opt-in). Unlike lint/typecheck this is NOT
- * scoped to changed files — it runs the whole suite, so the project is expected
- * to be green at baseline; a failure (the agent broke something, or the suite
- * was already red) gates the diff and feeds the self-repair loop. Returns null
- * when tests are disabled or the project has no `test` script.
- *
- * NOTE: tests that bind fixed ports/DB can collide with a running app until the
- * per-worktree isolated runtime (Phase ②) lands.
- */
-async function testProject(projectRoot: string): Promise<VerificationCheck | null> {
-  if (!VERIFY_TESTS_ENABLED) return null;
-  const command = detectTestCommand(projectRoot);
+async function testProject(
+  projectRoot: string,
+  workdir: string,
+  relFiles: string[],
+): Promise<VerificationCheck | null> {
+  const command = buildScopedTestCommand(projectRoot, workdir, relFiles);
   if (!command) return null;
   const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
   const ok = res.code === 0;
@@ -420,19 +412,43 @@ function mergeChecks(
   };
 }
 
+/** Optional inputs for {@link runAutomatedVerification}. */
+export interface VerificationOptions {
+  /**
+   * plan.md content; when provided (and it lists parseable paths) the gate also
+   * fails on out-of-plan file changes. Omit in plan-less (lightweight) mode.
+   */
+  planContent?: string | null;
+}
+
 /**
- * Runs automated lint + typecheck verification on an agent's worktree.
+ * Runs automated lint + typecheck + scoped-test (+ plan-scope) verification on
+ * an agent's worktree.
  *
  * @param workdir - The agent's git worktree path / エージェントの worktree パス
+ * @param options - Optional plan content for the scope check / scope判定用plan
  * @returns Structured verification result / 構造化された検証結果
  */
-export async function runAutomatedVerification(workdir: string): Promise<VerificationResult> {
+export async function runAutomatedVerification(
+  workdir: string,
+  options: VerificationOptions = {},
+): Promise<VerificationResult> {
   const changedFiles = await getChangedCodeFiles(workdir);
-  if (changedFiles.length === 0) {
+
+  // Plan-scope check runs over the FULL diff (not just code files): an
+  // out-of-plan doc/config/deletion is a violation too.
+  let scopeCheck: VerificationCheck | null = null;
+  if (options.planContent) {
+    const planFiles = parsePlanFiles(options.planContent);
+    const allChanged = await getAllChangedFiles(workdir);
+    scopeCheck = evaluateScopeCheck(allChanged, planFiles);
+  }
+
+  if (changedFiles.length === 0 && (!scopeCheck || scopeCheck.ok)) {
     return {
       ok: true,
       changedFiles: [],
-      checks: [],
+      checks: scopeCheck ? [scopeCheck] : [],
       summary: '自動検証: 対象のコード変更なし',
       unverifiable: false,
     };
@@ -446,7 +462,7 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
     const [lint, type, test] = await Promise.all([
       lintProject(projectRoot, workdir, relFiles),
       typecheckProject(projectRoot, workdir, relFiles),
-      testProject(projectRoot),
+      testProject(projectRoot, workdir, relFiles),
     ]);
     if (lint) lintParts.push(lint);
     if (type) typeParts.push(type);
@@ -457,6 +473,7 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
     mergeChecks('test', testParts),
+    ...(scopeCheck ? [scopeCheck] : []),
   ];
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.every((c) => c.ok);
@@ -475,25 +492,6 @@ export async function runAutomatedVerification(workdir: string): Promise<Verific
   return { ok, changedFiles, checks, summary: `自動検証: ${summary}`, unverifiable };
 }
 
-/** Renders a verification result as a Markdown block for verify.md / reports. */
-export function renderVerificationMarkdown(result: VerificationResult): string {
-  const verdict = result.unverifiable
-    ? '⚠️ 未検証（ツールを実行できず fail-closed）'
-    : result.ok
-      ? '✅ 合格'
-      : '❌ 失敗（新規エラー検出）';
-  const lines = ['## 自動検証結果（lint / 型チェック）', '', `- 判定: ${verdict}`];
-  for (const c of result.checks) {
-    const status = c.unverifiable
-      ? '⚠️ 未検証（ツール実行不可）'
-      : !c.ran
-        ? '対象外'
-        : c.ok
-          ? '✅ OK'
-          : `❌ ${c.errorCount}件`;
-    lines.push(`- ${c.name}: ${status}`);
-    if (!c.ok && c.details) lines.push('', '```', c.details, '```');
-  }
-  lines.push('', `対象変更ファイル: ${result.changedFiles.length}件`);
-  return lines.join('\n');
-}
+// NOTE: Rendering moved to verification-report.ts (file-size split); re-exported
+// here so existing importers keep working.
+export { renderVerificationMarkdown } from './verification-report';

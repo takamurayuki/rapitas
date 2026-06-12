@@ -14,6 +14,7 @@ import { API_BASE_URL } from '@/utils/api';
 import { useFilterDataStore } from '@/stores/filter-data-store';
 import Pagination from '@/components/ui/pagination/Pagination';
 import { Modal } from '@/components/ui/modal/Modal';
+import { useToast } from '@/components/ui/toast/ToastContainer';
 import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
 import { ConcernCard } from './ConcernCard';
 import {
@@ -36,6 +37,7 @@ export default function ConcernsClient() {
   const [statusFilter, setStatusFilter] = useState<ConcernStatus | 'all'>('open');
   const [typeFilter, setTypeFilter] = useState<ConcernType | 'all'>('all');
   const [severityFilter, setSeverityFilter] = useState<ConcernSeverity | 'all'>('all');
+  const [themeFilter, setThemeFilter] = useState<number | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +58,15 @@ export default function ConcernsClient() {
   const [newThemeId, setNewThemeId] = useState<number | null>(null);
 
   const { categories, themes } = useFilterDataStore();
+  // Concerns publish to a theme's repo, so only themes with a working directory
+  // are selectable. (Shared rule with the idea box.)
+  const workingDirThemes = themes.filter((t) => t.workingDirectory);
   const filteredThemes = newCategoryId
-    ? themes.filter((t) => t.categoryId === newCategoryId)
-    : themes;
+    ? workingDirThemes.filter((t) => t.categoryId === newCategoryId)
+    : workingDirThemes;
+  // Theme lookup for the per-card theme-name badge.
+  const themeById = new Map(themes.map((t) => [t.id, t]));
+  const { showToast } = useToast();
 
   const totalPages = Math.ceil(total / itemsPerPage);
 
@@ -72,6 +80,7 @@ export default function ConcernsClient() {
       });
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (severityFilter !== 'all') params.set('severity', severityFilter);
+      if (themeFilter !== 'all') params.set('themeId', String(themeFilter));
       const res = await fetch(`${API_BASE_URL}/concerns?${params.toString()}`);
       if (res.ok) {
         const data = (await res.json()) as { concerns: Concern[]; total: number };
@@ -83,7 +92,7 @@ export default function ConcernsClient() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, typeFilter, severityFilter, currentPage, itemsPerPage]);
+  }, [statusFilter, typeFilter, severityFilter, themeFilter, currentPage, itemsPerPage]);
 
   useEffect(() => {
     fetchConcerns();
@@ -99,7 +108,7 @@ export default function ConcernsClient() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter, severityFilter]);
+  }, [statusFilter, typeFilter, severityFilter, themeFilter]);
 
   const resetForm = () => {
     setNewTitle('');
@@ -126,15 +135,27 @@ export default function ConcernsClient() {
           themeId: newThemeId ?? undefined,
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        showToast('懸念の登録に失敗しました', 'error');
+        return;
+      }
       resetForm();
       // Keep the modal open (cleared) so the user can file another right away.
       setTimeout(() => titleRef.current?.focus(), 0);
       await fetchConcerns();
     } catch {
-      /* error */
+      showToast('懸念の登録に失敗しました', 'error');
     }
-  }, [newTitle, newDetail, newType, newSeverity, newLocation, newThemeId, fetchConcerns]);
+  }, [
+    newTitle,
+    newDetail,
+    newType,
+    newSeverity,
+    newLocation,
+    newThemeId,
+    fetchConcerns,
+    showToast,
+  ]);
 
   const handleConvert = useCallback(
     async (id: number) => {
@@ -144,67 +165,65 @@ export default function ConcernsClient() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        if (res.ok) await fetchConcerns();
+        if (res.ok) {
+          await fetchConcerns();
+        } else {
+          showToast('タスクへの変換に失敗しました', 'error');
+        }
       } catch {
-        /* error */
+        showToast('タスクへの変換に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns],
+    [fetchConcerns, showToast],
   );
 
-  const handleDismiss = useCallback(
-    async (id: number, dismiss: boolean) => {
+  const handleDelete = useCallback(
+    async (id: number) => {
       setBusyId(id);
       try {
-        const res = await fetch(`${API_BASE_URL}/concerns/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: dismiss ? 'dismissed' : 'open' }),
-        });
-        if (res.ok) await fetchConcerns();
+        const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setConcerns((prev) => prev.filter((c) => c.id !== id));
+          setTotal((t) => Math.max(0, t - 1));
+        } else {
+          showToast('懸念の削除に失敗しました', 'error');
+        }
       } catch {
-        /* error */
+        showToast('懸念の削除に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns],
+    [showToast],
   );
-
-  const handleDelete = useCallback(async (id: number) => {
-    setBusyId(id);
-    try {
-      const res = await fetch(`${API_BASE_URL}/concerns/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setConcerns((prev) => prev.filter((c) => c.id !== id));
-        setTotal((t) => Math.max(0, t - 1));
-      }
-    } catch {
-      /* error */
-    } finally {
-      setBusyId(null);
-    }
-  }, []);
 
   const handlePublish = useCallback(
-    async (id: number, integrationId: number) => {
+    async (id: number): Promise<void> => {
       setBusyId(id);
       try {
+        // One click: no integrationId — the server resolves the repo from the
+        // concern's theme and creates the issue directly.
         const res = await fetch(`${API_BASE_URL}/github/concerns/${id}/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ integrationId }),
+          body: JSON.stringify({}),
         });
-        if (res.ok) await fetchConcerns();
+        if (res.ok) {
+          showToast('GitHub Issue を作成しました', 'success');
+          await fetchConcerns();
+          return;
+        }
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        showToast(data?.error || 'GitHub への公開に失敗しました', 'error');
       } catch {
-        /* error */
+        showToast('GitHub への公開に失敗しました', 'error');
       } finally {
         setBusyId(null);
       }
     },
-    [fetchConcerns],
+    [fetchConcerns, showToast],
   );
 
   return (
@@ -389,6 +408,18 @@ export default function ConcernsClient() {
             </option>
           ))}
         </select>
+        <select
+          value={themeFilter === 'all' ? '' : String(themeFilter)}
+          onChange={(e) => setThemeFilter(e.target.value ? parseInt(e.target.value) : 'all')}
+          className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
+        >
+          <option value="">すべてのテーマ</option>
+          {workingDirThemes.map((th) => (
+            <option key={th.id} value={th.id}>
+              {th.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* List */}
@@ -407,9 +438,9 @@ export default function ConcernsClient() {
               key={c.id}
               concern={c}
               busy={busyId === c.id}
-              integrations={integrations}
+              canPublish={integrations.length > 0}
+              theme={c.themeId != null ? (themeById.get(c.themeId) ?? null) : null}
               onConvert={handleConvert}
-              onDismiss={handleDismiss}
               onDelete={handleDelete}
               onPublish={handlePublish}
             />

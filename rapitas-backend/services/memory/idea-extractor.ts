@@ -12,7 +12,7 @@ import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
-import { submitIdea } from './idea-box-service';
+import { submitIdea, resolveTaskThemeId } from './idea-box-service';
 import { submitConcern, type ConcernType } from './concern-backlog-service';
 
 const log = createLogger('memory:idea-extractor');
@@ -24,34 +24,35 @@ const log = createLogger('memory:idea-extractor');
  */
 const CONCERN_CATEGORY_MAP: Record<string, ConcernType> = {
   bug_noticed: 'bug',
+  security: 'security',
   tech_debt: 'refactor',
   performance: 'perf',
 };
 
 const MIN_CHAT_LENGTH = 5;
 
-const EXTRACTION_PROMPT = `あなたはソフトウェア開発のアイデア抽出AIです。
-以下のコンテンツから、ユーザー体験またはコード品質に直接影響する改善アイデアのみを抽出してください。
+const EXTRACTION_PROMPT = `あなたはソフトウェア開発の「改善アイデア」抽出AIです。
+以下のコンテンツから、プロダクトを**より良くする前向きなアイデアだけ**を抽出してください（今は壊れていないが、あれば価値・品質・生産性・UXが上がるもの）。
 
-抽出対象（厳格に判定）:
-1. 実装中に気づいた具体的な設計上の問題（ファイル名や関数名が特定できる）
-2. テストや検証で発見した未対処のエッジケース
-3. パフォーマンスのボトルネック（具体的な計測根拠あり）
-4. ユーザー体験を損なう具体的な問題（再現手順が示せる）
+抽出対象（前向きな改善・革新のみ・厳格に判定）:
+1. 新機能、または既存機能のブラッシュアップ
+2. UX・使い勝手の具体的な改善案
+3. 保守性・生産性を上げるしくみ（自動化・基盤改善・最適化など）
+4. 革新的なアイデア
 
 除外対象（必ず除外）:
+- **バグ・不具合・エラー・クラッシュ・脆弱性・セキュリティ上の問題・「将来バグの温床になりそう」な箇所**（これらは「懸念」であり、アイデアではない。ここでは絶対に抽出しない）
 - 「あると便利」レベルの曖昧な提案
-- 既に完了した作業の繰り返し・サマリー
+- 既に完了した作業の繰り返し・サマリー、ステータス報告、完了報告
 - 「検討する」「調査する」系の非実行型
-- 実行ログのエコー、ステータス報告、完了報告
-- 「テストが通った」「コミットした」などの作業報告
+- 実行ログのエコー、「テストが通った」「コミットした」などの作業報告
 - 一般論・ベストプラクティスの羅列
 - タスクのタイトルや説明文の言い換え
 
 JSON配列で返してください（他のテキスト不要、最大3件）:
-[{"title":"短い具体的タイトル","content":"何を・なぜ・どこで改善すべきかの説明"}]
+[{"title":"短い具体的タイトル","content":"何を・なぜ・期待される効果"}]
 
-該当なしは [] を返してください。アイデアが質を満たさない場合は無理に出さず [] にしてください。`;
+該当なしは [] を返してください。アイデアが質を満たさない、または「懸念」寄りの内容しかない場合は、無理に出さず [] にしてください。`;
 
 const ENRICHMENT_PROMPT = `以下のアイデアを評価してください。
 
@@ -176,18 +177,11 @@ export async function extractIdeasFromCopilotChat(
 }
 
 /**
- * Look up a task's themeId. Returns null when the task or its theme is missing.
+ * Resolve a task's theme for filed ideas, falling back to the working-directory
+ * theme and then the default theme so ideas aren't dropped into "global".
  */
 async function getTaskThemeId(taskId: number): Promise<number | null> {
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { themeId: true },
-    });
-    return task?.themeId ?? null;
-  } catch {
-    return null;
-  }
+  return resolveTaskThemeId(taskId);
 }
 
 /**
@@ -212,10 +206,37 @@ let enrichChain: Promise<unknown> = Promise.resolve();
  * @param content - Idea content / 本文
  */
 export function runEnrichAndReview(id: number, title: string, content: string): void {
+  const runId = crypto.randomUUID();
+  const startTime = Date.now();
+  let llmCallCount = 0;
+
+  log.info({ runId, ideaId: id }, 'enrichChain: start');
+
   enrichChain = enrichChain
-    .then(() => enrichIdea(id, title, content))
-    .then((enriched) => (enriched.kept ? reviewIdea(id) : undefined))
-    .catch(() => {});
+    .then(async () => {
+      const result = await enrichIdea(id, title, content, { runId });
+      llmCallCount++;
+      return result;
+    })
+    .then(async (enriched) => {
+      if (enriched.kept) {
+        await reviewIdea(id, runId);
+        llmCallCount++;
+      }
+    })
+    .then(() => {
+      log.info(
+        { runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount, outcome: 'success' },
+        'enrichChain: complete',
+      );
+    })
+    .catch((err) => {
+      // NOTE: Errors here indicate a bug in enrichIdea/reviewIdea not catching internally.
+      log.warn(
+        { err, runId, ideaId: id, durationMs: Date.now() - startTime, llmCallCount },
+        'enrichChain: error',
+      );
+    });
 }
 
 /**
@@ -233,12 +254,15 @@ export async function reclassifyExistingIdeas(): Promise<number> {
     where: { sourceType: 'idea_box', forgettingStage: 'active' },
     select: { id: true, title: true, content: true },
   });
-  for (const idea of ideas) {
-    enrichChain = enrichChain
-      .then(() => enrichIdea(idea.id, idea.title, idea.content, { rejectLowQuality: false }))
-      .catch(() => {});
-  }
   log.info({ count: ideas.length }, 'Idea reclassification backfill queued');
+  for (const idea of ideas) {
+    const loopIdeaId = idea.id;
+    enrichChain = enrichChain
+      .then(() => enrichIdea(loopIdeaId, idea.title, idea.content, { rejectLowQuality: false }))
+      .catch((err) => {
+        log.warn({ err, ideaId: loopIdeaId }, 'reclassifyExistingIdeas: enrichment error');
+      });
+  }
   return ideas.length;
 }
 
@@ -255,15 +279,20 @@ async function rejectIdea(ideaId: number, reason: string): Promise<void> {
 /**
  * Step 1: Enrich — score actionability, specificity, impact via Ollama (free).
  *
+ * @param ideaId - ID of the idea to enrich / アイデアID
+ * @param title - Idea title / タイトル
+ * @param content - Idea content / 本文
+ * @param options - Optional flags / オプション
  * @returns kept=false when the idea was deleted for failing quality bars.
  */
 export async function enrichIdea(
   ideaId: number,
   title: string,
   content: string,
-  options: { rejectLowQuality?: boolean } = {},
+  options: { rejectLowQuality?: boolean; runId?: string } = {},
 ): Promise<{ kept: boolean }> {
-  const { rejectLowQuality = true } = options;
+  const { rejectLowQuality = true, runId } = options;
+  const startTime = Date.now();
   try {
     const prompt = ENRICHMENT_PROMPT.replace('{title}', title).replace('{content}', content);
     const response = await callLLM(prompt, 200, 'local');
@@ -312,9 +341,13 @@ export async function enrichIdea(
     }
 
     // Hard-reject ideas that fall below the quality bar. Skipped during a
-    // backfill (rejectLowQuality=false) so existing curated ideas aren't culled.
+    // backfill (rejectLowQuality=false) so existing curated ideas aren't culled,
+    // AND for explicitly-filed ideas (sourceId='user' — manual or agent via POST
+    // /idea-box): a deliberately-filed idea must stay visible even on a low score.
+    // Only noisy machine-extracted ideas (source != 'user') are culled here.
     if (
       rejectLowQuality &&
+      !isUserAuthored &&
       (actionability < MIN_ACTIONABILITY || specificity < MIN_SPECIFICITY)
     ) {
       await rejectIdea(
@@ -357,10 +390,13 @@ export async function enrichIdea(
       },
     });
 
-    log.debug({ ideaId, actionability, specificity, confidence }, 'Idea enriched');
+    log.info(
+      { ideaId, actionability, specificity, confidence, durationMs: Date.now() - startTime, ...(runId && { runId }) },
+      'Idea enriched',
+    );
     return { kept: true };
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea enrichment failed');
+    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea enrichment failed');
     return { kept: true };
   }
 }
@@ -369,12 +405,16 @@ export async function enrichIdea(
  * Step 2: Review — second opinion from a DIFFERENT LLM (Haiku).
  * Checks feasibility, analyzes benefits/risks, and optionally refines the idea.
  * Uses Haiku even if Ollama is available to get a genuinely different perspective.
+ *
+ * @param ideaId - ID of the idea to review / アイデアID
+ * @param runId - Correlation ID from the parent enrichChain run / 親実行ID
  */
-export async function reviewIdea(ideaId: number): Promise<void> {
+export async function reviewIdea(ideaId: number, runId?: string): Promise<void> {
+  const startTime = Date.now();
   try {
     const entry = await prisma.knowledgeEntry.findUnique({
       where: { id: ideaId },
-      select: { title: true, content: true, tags: true },
+      select: { title: true, content: true, tags: true, sourceId: true },
     });
     if (!entry) return;
 
@@ -399,8 +439,13 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       reviewNote?: string;
     };
 
-    // Hard-reject infeasible ideas — they should never make it into the box.
-    if (review.feasible === false) {
+    // Hard-reject infeasible ideas — but NEVER an explicitly-filed one
+    // (sourceId='user'; the Idea Box POST tags every submission, agent included,
+    // as 'user'). Deleting a deliberately-filed idea behind the user's back is
+    // the "ideas stopped appearing" regression. For those, keep the entry and let
+    // the feasible:false tag below record the verdict; only cull auto-extracted
+    // ideas (source != 'user') here.
+    if (review.feasible === false && entry.sourceId !== 'user') {
       await rejectIdea(ideaId, `review-infeasible note=${(review.reviewNote ?? '').slice(0, 80)}`);
       return;
     }
@@ -424,16 +469,18 @@ export async function reviewIdea(ideaId: number): Promise<void> {
       data: updateData,
     });
 
-    log.debug(
+    log.info(
       {
         ideaId,
         feasible: review.feasible,
         refined: !!(review.refinedTitle || review.refinedContent),
+        durationMs: Date.now() - startTime,
+        ...(runId && { runId }),
       },
       'Idea reviewed',
     );
   } catch (err) {
-    log.warn({ err, ideaId }, 'Idea review failed (non-critical)');
+    log.warn({ err, ideaId, durationMs: Date.now() - startTime, ...(runId && { runId }) }, 'Idea review failed (non-critical)');
   }
 }
 

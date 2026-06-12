@@ -313,10 +313,16 @@ export class AgentWorkerManager {
   /**
    * Asynchronously retrieves the list of active execution IDs from the worker process.
    * Used by the resumable-executions API for accurate active execution detection.
+   * Returns an empty array immediately when the worker is not ready or shutting down,
+   * matching the early-return pattern in lifecycle.ts:198.
    *
-   * @returns Array of active execution IDs
+   * @returns Array of active execution IDs / アクティブ実行IDリスト（未準備時は空配列）
    */
   async getActiveExecutionIdsAsync(): Promise<number[]> {
+    // Guard matches lifecycle.ts:198 — skip IPC when worker is not ready or shutting down.
+    if (!this.state.isWorkerReady || this.state.isShuttingDown) {
+      return [];
+    }
     return api.getActiveExecutionIdsAsync(this.ipc.bind(this));
   }
 

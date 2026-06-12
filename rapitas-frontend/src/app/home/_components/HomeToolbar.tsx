@@ -17,7 +17,8 @@ interface HomeToolbarProps {
   isQuickAdding: boolean;
   themeFilter: number | null;
   defaultThemeId: number | undefined;
-  categoryFilter: number | null;
+  /** Active development theme for the auto-execution toggle (null otherwise). */
+  autoRunTheme: { id: number; isDevelopment?: boolean } | null;
   onQuickAddToggle: () => void;
   onBulkUpdateStatus: (status: string) => void;
   onBulkDelete: () => void;
@@ -40,7 +41,7 @@ export function HomeToolbar({
   isQuickAdding,
   themeFilter,
   defaultThemeId,
-  categoryFilter,
+  autoRunTheme,
   onQuickAddToggle,
   onBulkUpdateStatus,
   onBulkDelete,
@@ -65,8 +66,8 @@ export function HomeToolbar({
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Auto-execution mode — hidden during bulk selection */}
-        {!isSelectionMode && <AutoExecutionMode categoryId={categoryFilter} />}
+        {/* Auto-execution toggle — hidden during bulk selection */}
+        {!isSelectionMode && <AutoExecutionMode theme={autoRunTheme} />}
 
         {/* Bulk status change buttons — visible when items are selected */}
         {isSelectionMode && selectedTasksSize > 0 && (

@@ -3,59 +3,53 @@
 /**
  * ConcernCard
  *
- * Renders one concern row: type/severity/status badges, the GitHub-issue link
- * badge, and the action buttons (convert / publish / dismiss / delete).
- * Stateless except for the inline repo picker used when publishing.
+ * Renders one concern row: type/severity/status/theme badges, the GitHub-issue
+ * link badge, and the action buttons (convert / publish / dismiss / delete).
+ * Publishing is one click — the server resolves the target repo from the
+ * concern's theme, so there is no repo picker.
  */
 
-import { useState } from 'react';
 import {
   ListPlus,
   Trash2,
-  ArrowRight,
   Loader2,
   Upload,
   CircleDot,
-  CheckCircle2,
   ExternalLink,
+  FolderOpen,
 } from 'lucide-react';
-import { TYPE_META, SEVERITY_META, type Concern, type GhIntegration } from './concern-shared';
+import { getIconComponent } from '@/components/category/icon-data';
+import PriorityIcon from '@/feature/tasks/components/PriorityIcon';
+import { TYPE_META, SEVERITY_HINT, type Concern } from './concern-shared';
 
 interface ConcernCardProps {
   concern: Concern;
   busy: boolean;
-  integrations: GhIntegration[];
+  /** Whether at least one GitHub integration exists (gates the publish button). */
+  canPublish: boolean;
+  /** The concern's theme, for the theme-name badge (null = unknown). */
+  theme?: { name: string; icon?: string | null; color?: string | null } | null;
   onConvert: (id: number) => void;
-  onDismiss: (id: number, dismiss: boolean) => void;
   onDelete: (id: number) => void;
-  onPublish: (id: number, integrationId: number) => void;
+  /**
+   * Publish the concern as a GitHub issue in one click. The server resolves the
+   * target repo from the concern's theme.
+   */
+  onPublish: (id: number) => Promise<void>;
 }
 
 /** A single concern card with bridge-aware actions and badges. */
 export function ConcernCard({
   concern: c,
   busy,
-  integrations,
+  canPublish,
+  theme,
   onConvert,
-  onDismiss,
   onDelete,
   onPublish,
 }: ConcernCardProps) {
   const TyIcon = TYPE_META[c.type].icon;
-  // Repo picker is only shown when there is more than one integration to choose.
-  const [picking, setPicking] = useState(false);
-  const [repoId, setRepoId] = useState<number | null>(integrations[0]?.id ?? null);
-
-  const publish = () => {
-    if (integrations.length === 1) {
-      onPublish(c.id, integrations[0].id);
-    } else if (picking && repoId != null) {
-      onPublish(c.id, repoId);
-      setPicking(false);
-    } else {
-      setPicking(true);
-    }
-  };
+  const ThemeIcon = getIconComponent(theme?.icon || '') || FolderOpen;
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/50">
@@ -68,10 +62,21 @@ export function ConcernCard({
               <TyIcon className="h-2.5 w-2.5" />
               {TYPE_META[c.type].label}
             </span>
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${SEVERITY_META[c.severity].badge}`}
-            >
-              優先度 {SEVERITY_META[c.severity].label}
+            {/* Theme, then priority icon to its right (matches the idea box). */}
+            <span className="flex items-center gap-1">
+              {theme && (
+                <span
+                  className="flex items-center gap-0.5 text-[10px] font-medium"
+                  style={{ color: theme.color || '#059669' }}
+                  title={`テーマ: ${theme.name}`}
+                >
+                  <ThemeIcon className="h-2.5 w-2.5" />
+                  {theme.name}
+                </span>
+              )}
+              <span title={`優先度: ${SEVERITY_HINT[c.severity]}`}>
+                <PriorityIcon priority={c.severity} size="sm" />
+              </span>
             </span>
             {c.status === 'task_created' && c.createdTaskId && (
               <a
@@ -80,17 +85,6 @@ export function ConcernCard({
               >
                 タスク化済 #{c.createdTaskId}
               </a>
-            )}
-            {c.status === 'resolved' && (
-              <span className="flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
-                <CheckCircle2 className="h-2.5 w-2.5" />
-                完了
-              </span>
-            )}
-            {c.status === 'dismissed' && (
-              <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                却下
-              </span>
             )}
             {/* GitHub publish link badge */}
             {c.linkedIssue && (
@@ -145,50 +139,17 @@ export function ConcernCard({
             タスク化
           </button>
         )}
-        {/* Publish to GitHub — only for open, not-yet-published concerns */}
-        {c.status === 'open' && !c.linkedIssue && integrations.length > 0 && (
-          <div className="flex items-center gap-1">
-            {picking && integrations.length > 1 && (
-              <select
-                value={repoId ?? ''}
-                onChange={(e) => setRepoId(e.target.value ? parseInt(e.target.value) : null)}
-                className="rounded-lg border border-zinc-200 bg-white px-1.5 py-1 text-[10px] outline-none focus:border-blue-400 dark:border-zinc-700 dark:bg-zinc-800"
-              >
-                {integrations.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.ownerName}/{it.repositoryName}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={publish}
-              disabled={busy}
-              title="GitHub Issue として公開"
-              className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {picking && integrations.length > 1 ? '公開する' : 'GitHubに公開'}
-            </button>
-          </div>
-        )}
-        {c.status === 'open' && (
+        {/* Publish to GitHub — one click; the server resolves the repo from the
+            concern's theme. Only for open, not-yet-published concerns. */}
+        {c.status === 'open' && !c.linkedIssue && canPublish && (
           <button
-            onClick={() => onDismiss(c.id, true)}
+            onClick={() => onPublish(c.id)}
             disabled={busy}
-            className="rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
+            title="GitHub Issue として公開"
+            className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            却下
-          </button>
-        )}
-        {c.status === 'dismissed' && (
-          <button
-            onClick={() => onDismiss(c.id, false)}
-            disabled={busy}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-          >
-            <ArrowRight className="h-3 w-3" />
-            未対応に戻す
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+            GitHubに公開
           </button>
         )}
         <button

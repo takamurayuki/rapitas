@@ -7,6 +7,9 @@
 import { Elysia } from 'elysia';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../../config/database';
+// NOTE: PrismaClientKnownRequestError is not exported from '@prisma/client' directly;
+// it lives in the runtime library. P2021 = "The table does not exist".
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { createLogger } from '../../../config/logger';
 import { getInsensitiveMode } from '../../../config/db-provider';
 import { type SearchResultItem, createExcerpt, calculateRelevance } from './helpers';
@@ -218,36 +221,50 @@ export const searchMainRoute = new Elysia().get('/', async ({ query: q, set }) =
     }
 
     if (types.includes('comment')) {
-      const commentWhere = {
-        AND: words.map((word) => ({
-          content: { contains: word, ...insensitive },
-        })),
-      };
+      try {
+        const commentWhere = {
+          AND: words.map((word) => ({
+            content: { contains: word, ...insensitive },
+          })),
+        };
 
-      const comments = await prisma.comment.findMany({
-        where: commentWhere,
-        include: { task: { select: { id: true, title: true } } },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      });
-
-      for (const comment of comments) {
-        results.push({
-          id: comment.id,
-          type: 'comment',
-          title: comment.task ? `Comment on: ${comment.task.title}` : `Comment #${comment.id}`,
-          excerpt: createExcerpt(comment.content, searchQuery),
-          relevance:
-            calculateRelevance(comment.content, null, searchQuery, {
-              updatedAt: comment.updatedAt,
-            }) * 0.6,
-          metadata: {
-            taskId: comment.taskId,
-            taskTitle: comment.task?.title,
-          },
-          createdAt: comment.createdAt,
-          updatedAt: comment.updatedAt,
+        const comments = await prisma.comment.findMany({
+          where: commentWhere,
+          include: { task: { select: { id: true, title: true } } },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
         });
+
+        for (const comment of comments) {
+          results.push({
+            id: comment.id,
+            type: 'comment',
+            title: comment.task ? `Comment on: ${comment.task.title}` : `Comment #${comment.id}`,
+            excerpt: createExcerpt(comment.content, searchQuery),
+            relevance:
+              calculateRelevance(comment.content, null, searchQuery, {
+                updatedAt: comment.updatedAt,
+              }) * 0.6,
+            metadata: {
+              taskId: comment.taskId,
+              taskTitle: comment.task?.title,
+            },
+            createdAt: comment.createdAt,
+            updatedAt: comment.updatedAt,
+          });
+        }
+      } catch (err) {
+        // NOTE: P2021 means the Comment table does not yet exist in the SQLite DB.
+        // The desktop-sqlite self-heal (config/desktop-sqlite.ts) repairs this on
+        // the next server restart. Skip comment results rather than failing the
+        // entire search with HTTP 500.
+        // Duck-type check instead of instanceof so unit tests can mock this error
+        // without constructing a real PrismaClientKnownRequestError instance.
+        if ((err as PrismaClientKnownRequestError).code === 'P2021') {
+          log.warn({ err }, 'Comment table missing from SQLite DB — skipping comment search results');
+        } else {
+          throw err;
+        }
       }
     }
 

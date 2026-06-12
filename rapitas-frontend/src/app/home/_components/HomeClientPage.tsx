@@ -257,6 +257,12 @@ function HomeClientPage() {
     } else setSelectedTasks(new Set(paginatedTasks.map((t) => t.id)));
   };
 
+  // The toolbar auto-execution toggle controls the ACTIVE development theme's
+  // auto-run. Resolve the selected (or default) theme and gate on isDevelopment;
+  // null hides the toggle for non-dev themes.
+  const selectedThemeForAutoRun = themes.find((th) => th.id === themeFilter) ?? defaultTheme;
+  const autoRunTheme = selectedThemeForAutoRun?.isDevelopment ? selectedThemeForAutoRun : null;
+
   // --- Render ---
   return (
     <div className="h-[calc(100vh-4.2rem)] overflow-auto bg-background">
@@ -270,7 +276,7 @@ function HomeClientPage() {
           isQuickAdding={isQuickAdding}
           themeFilter={themeFilter}
           defaultThemeId={defaultTheme?.id}
-          categoryFilter={categoryFilter}
+          autoRunTheme={autoRunTheme}
           onQuickAddToggle={() => setIsQuickAdding(!isQuickAdding)}
           onBulkUpdateStatus={bulkUpdateStatus}
           onBulkDelete={bulkDelete}

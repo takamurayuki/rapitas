@@ -54,15 +54,17 @@ export async function isAgentExecutionActive(): Promise<boolean> {
 /**
  * Handles Prisma schema changes: runs db push, generate, and restarts the server.
  * Defers the operation if an agent execution is active.
+ *
+ * @param changedFile - Relative path of the changed file for deferred log tracking / 変更ファイルの相対パス（遅延ログ用）
  */
-export async function handlePrismaChange(): Promise<void> {
+export async function handlePrismaChange(changedFile?: string): Promise<void> {
   log.info('Prisma schema change detected...');
 
   const agentActive = await isAgentExecutionActive();
   if (agentActive) {
     hasDeferredChanges = true;
     deferredPrismaChange = true;
-    deferredFiles.push('prisma/schema.prisma');
+    deferredFiles.push(changedFile ?? 'prisma/schema/*.prisma');
     log.warn(
       `Deferring Prisma restart — agent execution active (${deferredFiles.length} files queued)`,
     );
@@ -214,7 +216,7 @@ export function watchPrismaSchema(): void {
     if (now - lastChangeTime < 1000) return;
     lastChangeTime = now;
 
-    await handlePrismaChange();
+    await handlePrismaChange(filename?.toString());
   });
 
   log.info(`Watching Prisma schema at ${watchTarget} for changes`);

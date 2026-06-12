@@ -70,23 +70,30 @@ export type FormattedLogLine = {
  * @returns Formatted log line metadata. / フォーマット済みのログ行メタデータ。
  */
 export function formatLogLine(log: string): FormattedLogLine {
+  // Strip any cost token (e.g. " $0.4602") from the log — per-run cost is never
+  // wanted inline; actual usage/cost is surfaced separately. A cost is always
+  // `$<digits>.<digits>` (toFixed output), so requiring a decimal point leaves
+  // shell/diff `$`-tokens like `$1`, `$VAR`, `$env:` and `$ git ...` untouched.
+  // Runs on already-stored logs too, so existing entries are cleaned on render.
+  const line = log.replace(/\s*\$\d+\.\d+/g, '');
+
   // Detect workflow phase transitions
-  const phaseMatch = log.match(
+  const phaseMatch = line.match(
     /\[(research|plan|implement|verify|draft|plan_created|plan_approved|in_progress|completed)\]/i,
   );
   if (phaseMatch) {
-    return { formatted: log, hasJson: false, isPhaseTransition: true };
+    return { formatted: line, hasJson: false, isPhaseTransition: true };
   }
 
   // Check for JSON strings ({...} pattern)
-  const jsonMatch = log.match(/^(.*?)(\{[\s\S]*\})(.*)$/);
-  if (!jsonMatch) return { formatted: log, hasJson: false };
+  const jsonMatch = line.match(/^(.*?)(\{[\s\S]*\})(.*)$/);
+  if (!jsonMatch) return { formatted: line, hasJson: false };
 
   const [, prefix, jsonStr, suffix] = jsonMatch;
   try {
     const parsed = JSON.parse(jsonStr);
     if (typeof parsed !== 'object' || parsed === null) {
-      return { formatted: log, hasJson: false };
+      return { formatted: line, hasJson: false };
     }
 
     const obj = parsed as Record<string, unknown>;
@@ -130,6 +137,6 @@ export function formatLogLine(log: string): FormattedLogLine {
       filePaths: filePaths.length > 0 ? filePaths : undefined,
     };
   } catch {
-    return { formatted: log, hasJson: false };
+    return { formatted: line, hasJson: false };
   }
 }

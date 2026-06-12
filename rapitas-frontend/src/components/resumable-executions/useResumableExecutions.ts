@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { API_BASE_URL, fetchWithRetry } from '@/utils/api';
 import { useBackendHealth } from '@/hooks/common/useBackendHealth';
+import { useOnVisible } from '@/hooks/common/useOnVisible';
 import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { createLogger } from '@/lib/logger';
 import type { ResumableExecution } from './types';
@@ -72,6 +73,9 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
   }, []);
 
   const fetchResumableExecutions = useCallback(async () => {
+    // Skip while backgrounded; this is a global always-mounted poller, so it's a
+    // steady drain when the user is in another app. useOnVisible refreshes on return.
+    if (typeof document !== 'undefined' && document.hidden) return [];
     try {
       setConnectionError(null);
       const res = await fetchWithRetry(
@@ -165,6 +169,11 @@ export function useResumableExecutions(): UseResumableExecutionsReturn {
     );
     return () => clearInterval(interval);
   }, [executions, isDismissed, isConnected, fetchResumableExecutions]);
+
+  // Refresh immediately when the user returns to rapitas.
+  useOnVisible(() => {
+    if (!isDismissed && isConnected) fetchResumableExecutions();
+  });
 
   // Auto-resume — runs at most once per session
   useEffect(() => {

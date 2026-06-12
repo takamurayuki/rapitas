@@ -48,6 +48,7 @@ import {
   workflowRolesRoutes,
   workflowLearningRoutes,
   orchestraRoutes,
+  themeAutoRunRoutes,
   settingsRoutes,
   authRoutes,
   sseRoutes,
@@ -55,7 +56,6 @@ import {
   notificationsRoutes,
   searchRoutes,
   urlMetadataRoutes,
-  screenshotsRoutes,
   smartActionRoutes,
   localLLMRouter,
   transcribeRouter,
@@ -162,6 +162,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(workflowRolesRoutes);
   app.use(workflowLearningRoutes);
   app.use(orchestraRoutes);
+  app.use(themeAutoRunRoutes);
 
   // System
   app.use(settingsRoutes);
@@ -171,7 +172,6 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(notificationsRoutes);
   app.use(searchRoutes);
   app.use(urlMetadataRoutes);
-  app.use(screenshotsRoutes);
   app.use(rateLimitRoutes);
   app.use(progressSummaryRoutes);
   app.use(techDebtRoutes);

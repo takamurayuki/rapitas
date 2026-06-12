@@ -1,197 +1,132 @@
 'use client';
-// AutoExecutionMode — category-scoped auto task generation with IdeaBox integration.
-import { useState, useCallback } from 'react';
-import { Loader2, Orbit, CheckCircle2, AlertCircle, AlertTriangle, X } from 'lucide-react';
-import { API_BASE_URL } from '@/utils/api';
-
-interface GeneratedTask {
-  taskId: number;
-  title: string;
-  description: string;
-  priority: string;
-  reasoning: string;
-}
-
-interface AutoGenerateResponse {
-  success: boolean;
-  tasks?: GeneratedTask[];
-  count?: number;
-  ideasUsed?: number;
-  insufficientData?: boolean;
-  completedTaskCount?: number;
-  innovationTriggered?: boolean;
-  error?: string;
-}
+/**
+ * AutoExecutionMode
+ *
+ * Toolbar toggle for per-theme task auto-execution. Starts/stops the selected
+ * development theme's auto-run, which runs that theme's EXISTING todo tasks one
+ * at a time (highest priority first, then creation order). This is NOT AI task
+ * generation. Rendered only when a development theme is active.
+ *
+ * While running, the button reads "タスク自動実行中" with a spinning,
+ * gently-pulsing indicator (so it clearly looks alive) and swaps to a red
+ * "停止" on hover.
+ * While stopping, it shows a loading spinner and is disabled.
+ */
+import { Play, Square, Loader2, Orbit, Pause } from 'lucide-react';
+import { useThemeAutoRun } from '@/hooks/workflow/useThemeAutoRun';
 
 interface AutoExecutionModeProps {
-  categoryId?: number | null;
+  /** Selected development theme to control, or null when none is active. */
+  theme?: { id: number; isDevelopment?: boolean } | null;
 }
 
-export function AutoExecutionMode({ categoryId }: AutoExecutionModeProps) {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<GeneratedTask[] | null>(null);
-  const [ideasUsed, setIdeasUsed] = useState(0);
-  const [innovationTriggered, setInnovationTriggered] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showThresholdModal, setShowThresholdModal] = useState(false);
-  const [completedCount, setCompletedCount] = useState(0);
-
-  const doGenerate = useCallback(
-    async (force = false) => {
-      setIsGenerating(true);
-      setError(null);
-      setResult(null);
-      setShowThresholdModal(false);
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/tasks/auto-generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            autoExecute: true,
-            categoryId: categoryId ?? null,
-            force,
-          }),
-        });
-
-        const data = (await res.json()) as AutoGenerateResponse;
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error ?? `HTTP ${res.status}`);
-        }
-
-        if (data.insufficientData && !force) {
-          setCompletedCount(data.completedTaskCount ?? 0);
-          setShowThresholdModal(true);
-          return;
-        }
-
-        setResult(data.tasks ?? []);
-        setIdeasUsed(data.ideasUsed ?? 0);
-        setInnovationTriggered(data.innovationTriggered ?? false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'タスク自動生成に失敗しました');
-      } finally {
-        setIsGenerating(false);
-      }
-    },
-    [categoryId],
+/**
+ * Start/stop control for a theme's task auto-execution.
+ *
+ * @param props.theme - The active development theme (id + isDevelopment). / 対象の開発テーマ
+ * @returns The control, or null for non-development themes. / コントロール（非開発テーマはnull）
+ */
+export function AutoExecutionMode({ theme }: AutoExecutionModeProps) {
+  const { data, actionLoading, error, start, stop } = useThemeAutoRun(
+    theme?.id ?? null,
+    theme?.isDevelopment,
   );
 
-  const handleAutoGenerate = useCallback(() => doGenerate(false), [doGenerate]);
-  const handleForceGenerate = useCallback(() => doGenerate(true), [doGenerate]);
+  // Auto-run is a per-development-theme feature — nothing to show otherwise.
+  if (!theme?.isDevelopment) return null;
+
+  const status = data?.autoRun?.status ?? 'idle';
+
+  const errorBadge = error ? (
+    <span className="max-w-40 truncate text-xs text-red-600 dark:text-red-400" title={error}>
+      {error}
+    </span>
+  ) : null;
+
+  // Idle — plain start button.
+  if (status === 'idle') {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => start('priority')}
+          disabled={actionLoading}
+          title="このテーマのToDoタスクをAI生成なしで上から順に自動実行します"
+          className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
+        >
+          {actionLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4 shrink-0" />
+          )}
+          タスク自動実行
+        </button>
+        {errorBadge}
+      </div>
+    );
+  }
+
+  // Stopping — loading spinner, disabled (no hover swap).
+  if (status === 'stopping') {
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          disabled
+          className="inline-flex min-w-32 cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 opacity-80 dark:border-red-700 dark:bg-red-900/30 dark:text-red-400"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          停止中
+        </button>
+        {errorBadge}
+      </div>
+    );
+  }
+
+  // Active (running / paused) — show a live "running" affordance at rest, and
+  // swap to a red "停止" on hover so the active state reads clearly but stopping
+  // is one click away. Paused (awaiting plan approval) uses an amber rest state.
+  const paused = status === 'paused';
+  const restColors = paused
+    ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
 
   return (
-    <div className="space-y-3">
+    <div className="flex items-center gap-2">
       <button
-        onClick={handleAutoGenerate}
-        disabled={isGenerating}
-        className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
+        onClick={() => stop()}
+        disabled={actionLoading}
+        title="自動実行を停止します"
+        className={`group relative inline-flex min-w-32 items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ${restColors}`}
       >
-        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Orbit className="h-4 w-4" />}
-        {isGenerating ? 'AIがタスクを分析中...' : 'タスク自動実行'}
+        {/* REST content — spinner + label, ALWAYS rendered and NEVER touched.
+            Nothing about the spinner's ANCESTORS may change on hover, or the
+            rotating icon gets re-rasterized and distorts. That means: no opacity
+            toggle (re-grouping), AND no colour change on an ancestor (the button
+            used to `transition-colors` to red on hover, repainting this whole
+            subtree — including the spin — every frame of the 150ms fade). So the
+            button no longer changes on hover at all; the hover look is provided
+            entirely by the opaque SIBLING overlay below. The spinner also has a
+            FIXED colour so nothing it inherits can animate. Rigid box (not the
+            SVG) prevents geometric warp. */}
+        {paused ? (
+          <Pause className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        ) : (
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center animate-spin text-emerald-600 [transform-origin:center] dark:text-emerald-400">
+            <Orbit className="h-4 w-4" />
+          </span>
+        )}
+        <span className={paused ? '' : 'animate-pulse'}>
+          {paused ? '一時停止' : 'タスク自動実行中'}
+        </span>
+        {/* HOVER — OPAQUE overlay covering the rest content (independent icon +
+            label). It carries the ENTIRE red "停止" look (bg + border via
+            -inset-px), so the button itself never has to change colour. Instant
+            opacity swap (no fade) keeps zero animation near the spinner. */}
+        <span className="absolute -inset-px flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-red-50 text-red-700 opacity-0 group-hover:opacity-100 dark:border-red-700 dark:bg-red-950 dark:text-red-300">
+          <Square className="h-4 w-4 fill-current" />
+          停止
+        </span>
       </button>
-
-      {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {result && result.length > 0 && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-900/30">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-800 dark:text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" />
-            {result.length}件のタスクを自動生成しました
-            {ideasUsed > 0 && (
-              <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">
-                （アイデア{ideasUsed}件活用）
-              </span>
-            )}
-            {innovationTriggered && (
-              <span className="text-[10px] font-normal text-violet-600 dark:text-violet-400">
-                + 革新アイデア生成
-              </span>
-            )}
-          </div>
-          <ul className="space-y-1.5">
-            {result.map((task) => (
-              <li
-                key={task.taskId}
-                className="flex items-start gap-2 text-xs text-emerald-700 dark:text-emerald-400"
-              >
-                <span className="mt-0.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" />
-                <div>
-                  <a
-                    href={`/tasks/${task.taskId}`}
-                    className="font-medium underline decoration-emerald-300 underline-offset-2 hover:decoration-emerald-500"
-                  >
-                    {task.title}
-                  </a>
-                  <span className="ml-2 text-emerald-600/70 dark:text-emerald-500/70">
-                    — {task.reasoning}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {result && result.length === 0 && (
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-          現在追加すべきタスクは見つかりませんでした。
-        </div>
-      )}
-
-      {/* Insufficient data modal */}
-      {showThresholdModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowThresholdModal(false)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-700 dark:bg-zinc-800"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                <AlertTriangle className="h-5 w-5" />
-                <h3 className="text-base font-semibold">学習データが不足しています</h3>
-              </div>
-              <button
-                onClick={() => setShowThresholdModal(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-400">
-              精度の高いタスク自動生成には、最低10件の完了タスクが必要です。
-            </p>
-            <p className="mb-6 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              現在の完了タスク数:{' '}
-              <span className="text-amber-600 dark:text-amber-400">{completedCount}件</span>
-              <span className="text-zinc-500"> / 10件</span>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowThresholdModal(false)}
-                className="flex-1 rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-700"
-              >
-                閉じる
-              </button>
-              <button
-                onClick={handleForceGenerate}
-                className="flex-1 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
-              >
-                強制実行
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {errorBadge}
     </div>
   );
 }

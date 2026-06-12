@@ -8,12 +8,37 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { readdir, unlink } from 'fs/promises';
+import { join } from 'path';
 import { createLogger } from '../../../../config/logger';
 
 export { getDiff } from './diff-structured';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/core-ops');
+
+/**
+ * Delete the agent's transient `.wf-*` files (e.g. `.wf-tmp.md` for workflow
+ * file saves, `.wf-concern.json` for concern/idea filing) from the working
+ * directory before staging. The agent writes these and curls them to the API,
+ * often leaving them behind; the per-worktree git-exclude is unreliable on
+ * Windows, so `git add -A` would otherwise stage and commit them — polluting
+ * the changed-file list (sometimes the temp file is the ONLY "change"). Best-effort.
+ *
+ * @param workingDirectory - Worktree root to clean / クリーンするディレクトリ
+ */
+async function removeTransientWorkflowFiles(workingDirectory: string): Promise<void> {
+  try {
+    const entries = await readdir(workingDirectory);
+    await Promise.all(
+      entries
+        .filter((name) => name.startsWith('.wf-'))
+        .map((name) => unlink(join(workingDirectory, name)).catch(() => {})),
+    );
+  } catch {
+    /* best-effort: directory unreadable or already clean */
+  }
+}
 
 /**
  * Get the unstaged git diff for a working directory.
@@ -84,6 +109,7 @@ export async function commitChanges(
   taskTitle?: string,
 ): Promise<{ success: boolean; commitHash?: string; error?: string }> {
   try {
+    await removeTransientWorkflowFiles(workingDirectory);
     await execAsync('git add -A', { cwd: workingDirectory });
 
     const fullMessage = taskTitle
@@ -138,6 +164,7 @@ export async function createCommit(
     await execAsync(`git checkout -b ${featureBranch}`, { cwd: workingDirectory });
   }
 
+  await removeTransientWorkflowFiles(workingDirectory);
   await execAsync('git add -A', { cwd: workingDirectory });
 
   const { stdout: diffStat } = await execAsync('git diff --cached --numstat', {
@@ -160,6 +187,31 @@ export async function createCommit(
         deletions += parseInt(parts[1]!, 10) || 0;
       }
     });
+
+  // Nothing staged means the implementer phase already committed its work in
+  // this worktree. Running `git commit` here would exit non-zero ("nothing to
+  // commit, working tree clean"), throw, and make the caller mark auto-commit
+  // FAILED — which skips PR creation entirely (it's gated on auto-commit
+  // success). That stranded branches full of real, already-committed changes
+  // with no PR. Treat the empty case as a no-op SUCCESS on the current HEAD so
+  // the caller still opens a PR from the commits already on the branch.
+  if (filesChanged === 0) {
+    const { stdout: existingHash } = await execAsync('git rev-parse HEAD', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    const { stdout: existingBranch } = await execAsync('git branch --show-current', {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    return {
+      hash: existingHash.trim(),
+      branch: existingBranch.trim(),
+      filesChanged: 0,
+      additions: 0,
+      deletions: 0,
+    };
+  }
 
   const fullMessage = `${message}\n\nCo-Authored-By: Claude Code <noreply@anthropic.com>`;
   await execAsync(`git commit -m "${fullMessage.replace(/"/g, '\\"')}"`, {

@@ -42,12 +42,36 @@ export function resolveDbProvider(): DbProvider {
 }
 
 /**
+ * Normalizes a subprocess exit code, treating null (signal-killed / timed-out
+ * processes) as failure instead of success.
+ *
+ * Bun's `spawn` sets `exitCode` to null when the process is terminated by a
+ * signal rather than by a normal exit. Returning `null ?? 0` would silently
+ * treat a SIGKILL or OOM-kill as success and swallow schema errors. This
+ * function returns 1 for any null exit code so that the failure is propagated.
+ *
+ * @param exitCode - Raw exit code from the subprocess / サブプロセスの生の終了コード
+ * @param signalCode - Signal name if the process was killed, otherwise null / プロセスが終了シグナルで停止した場合のシグナル名
+ * @returns Normalized exit code; 0 = success, non-zero = failure / 正規化された終了コード（0は成功、非0は失敗）
+ */
+export function normalizeExitCode(exitCode: number | null, signalCode?: string | null): number {
+  if (exitCode !== null) return exitCode;
+  // NOTE: null means the process was killed or timed out — treat as failure (1).
+  // Returning 0 here would silently swallow prisma schema errors / OOM kills.
+  return 1;
+}
+
+/**
  * Spawns a command inheriting the dev environment with `RAPITAS_DB_PROVIDER`
- * pinned to the resolved provider, and returns its exit code.
+ * pinned to the resolved provider, and returns its normalized exit code.
+ *
+ * null exit codes (signal-terminated / killed processes) are normalized to 1
+ * (failure) via `normalizeExitCode` so that schema errors and unexpected
+ * process terminations are never silently treated as success.
  *
  * @param cmd - Command and arguments to run / 実行するコマンドと引数
  * @param provider - Provider to pin for the subprocess / サブプロセスに固定するプロバイダ
- * @returns Process exit code (non-zero = failure) / プロセスの終了コード（非0は失敗）
+ * @returns Normalized process exit code (0 = success, non-zero = failure) / 正規化されたプロセス終了コード（0は成功、非0は失敗）
  */
 async function run(cmd: string[], provider: DbProvider): Promise<number> {
   const proc = spawn({
@@ -58,7 +82,10 @@ async function run(cmd: string[], provider: DbProvider): Promise<number> {
     env: { ...process.env, RAPITAS_DB_PROVIDER: provider },
   });
   await proc.exited;
-  return proc.exitCode ?? 0;
+  if (proc.signalCode) {
+    log.warn(`prisma subprocess killed by signal: ${proc.signalCode}`);
+  }
+  return normalizeExitCode(proc.exitCode, proc.signalCode);
 }
 
 /**

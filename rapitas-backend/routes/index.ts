@@ -63,7 +63,6 @@ export { developerModeRoutes } from './system/developer-mode';
 export { notificationsRoutes } from './system/notifications';
 export { searchRoutes } from './system/search';
 export { urlMetadataRoutes } from './system/url-metadata';
-export { screenshotsRoutes } from './system/screenshots';
 export { directoriesRoutes } from './system/directories';
 export { smartActionRoutes } from './system/smart-action';
 export { localLLMRouter } from './system/local-llm';
@@ -88,6 +87,7 @@ export { workflowRolesRoutes } from './workflow/core/workflow-roles';
 export { orchestraRoutes } from './workflow/orchestra';
 export { workflowLearningRoutes } from './workflow/workflow-learning';
 export { taskSpecRoutes } from './tasks/task-spec-routes';
+export { themeAutoRunRoutes } from './workflow/theme-auto-run';
 
 // Social
 export { commentsRoutes } from './social/comments';

@@ -116,6 +116,22 @@ export const executeRoute = new Elysia().post(
       return { error: 'Task not found' };
     }
 
+    // Block manual execution while the theme's auto-run mode is active.
+    // The scheduler owns exclusive control; allow only when no auto-run is running/paused.
+    if (task.themeId) {
+      const { isThemeAutoRunActive } =
+        await import('../../../services/workflow/auto-run/theme-auto-run-service');
+      const autoRunActive = await isThemeAutoRunActive(task.themeId);
+      if (autoRunActive) {
+        context.set.status = 409;
+        return {
+          success: false,
+          error: 'このテーマは自動実行モード中です。手動実行するには自動実行を停止してください。',
+          code: 'AUTO_RUN_ACTIVE',
+        };
+      }
+    }
+
     if (!acquireTaskExecutionLock(taskIdNum)) {
       log.warn(`[API] Duplicate execution rejected for task ${taskIdNum}: in-memory lock held`);
       context.set.status = 409;

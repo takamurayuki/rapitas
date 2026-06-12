@@ -17,7 +17,11 @@ import { tmpdir } from 'os';
 import type { AgentTask, AgentExecutionResult } from '../base-agent';
 import type { WorkerOutputMessage, WorkerInputMessage } from '../../../workers/output-parser-types';
 import { createLogger } from '../../../config/logger';
-import { registerProcess, unregisterProcess } from '../agent-process-tracker';
+import {
+  registerProcess,
+  unregisterProcess,
+  killProcessTreeSafely,
+} from '../agent-process-tracker';
 import { getClaudePath, buildSpawnCommand } from './cli-utils';
 import { buildStructuredPrompt } from './prompt-builder';
 import { startIdleMonitor } from './idle-monitor';
@@ -66,7 +70,9 @@ function buildClaudeArgs(agent: ClaudeCodeAgent): { args: string[]; logExtras: s
       'PowerShell',
       'Edit',
       'Write',
-      'MultiEdit',
+      // NOTE: 'MultiEdit' removed — current Claude Code CLI has no such tool and
+      // logged "Permission deny rule MultiEdit matches no known tool" every run.
+      // File mutation is already blocked via Edit/Write/NotebookEdit.
       'NotebookEdit',
       'Task', // disallow Agent/Task tool to prevent recursion / tool re-acquisition
       // The agent previously pivoted to these tools when blocked from
@@ -326,7 +332,16 @@ export function runClaudeExecution(
     agent.process.on('close', (code: number | null) => {
       monitor.cleanup();
       cleanupPromptFile();
-      if (agent.process?.pid) unregisterProcess(agent.process.pid);
+      if (agent.process?.pid) {
+        const closedPid = agent.process.pid;
+        unregisterProcess(closedPid);
+        // On Windows, 'close' (stdio closed) does NOT guarantee the process
+        // exited — a completed `claude --print` agent can stay resident and pile
+        // up as a zombie. Reap its tree after a short grace if still alive.
+        // killProcessTreeSafely refuses to touch a port-3001 (backend) process.
+        const reap = setTimeout(() => killProcessTreeSafely(closedPid), 3000);
+        (reap as { unref?: () => void }).unref?.();
+      }
       const executionTimeMs = Date.now() - startTime;
 
       if (agent.lineBuffer.trim()) {

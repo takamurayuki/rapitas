@@ -32,11 +32,14 @@ describe('KnowledgeClient', () => {
   let mockSetItemsPerPage: ReturnType<typeof vi.fn>;
   let mockUseKnowledge: ReturnType<typeof vi.fn>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Mock localStorage state
     mockSetItemsPerPage = vi.fn();
     const { useLocalStorageState } = await import('@/hooks/common/useLocalStorageState');
-    vi.mocked(useLocalStorageState).mockReturnValue([15, mockSetItemsPerPage]);
+    vi.mocked(useLocalStorageState).mockReturnValue([
+      15,
+      mockSetItemsPerPage,
+    ] as unknown as ReturnType<typeof useLocalStorageState>);
 
     // Mock knowledge hook
     mockUseKnowledge = vi.fn().mockReturnValue({
@@ -47,7 +50,7 @@ describe('KnowledgeClient', () => {
       createEntry: vi.fn(),
     });
     const { useKnowledge } = await import('@/feature/knowledge/hooks/useKnowledge');
-    vi.mocked(useKnowledge).mockImplementation(mockUseKnowledge);
+    vi.mocked(useKnowledge).mockImplementation(mockUseKnowledge as unknown as typeof useKnowledge);
 
     // Mock search hook
     const { useKnowledgeSearch } = await import('@/feature/knowledge/hooks/useKnowledgeSearch');
@@ -55,13 +58,13 @@ describe('KnowledgeClient', () => {
       results: [],
       isSearching: false,
       search: vi.fn(),
-    });
+    } as unknown as ReturnType<typeof useKnowledgeSearch>);
 
     // Mock stats hook
     const { useMemoryStats } = await import('@/feature/knowledge/hooks/useMemoryStats');
     vi.mocked(useMemoryStats).mockReturnValue({
       stats: null,
-    });
+    } as unknown as ReturnType<typeof useMemoryStats>);
 
     // Mock scroll behavior
     Object.defineProperty(window, 'scrollTo', {
@@ -167,7 +170,7 @@ describe('KnowledgeClient', () => {
       results: [{ ...mockKnowledgeEntries[0], similarity: 0.9 }],
       isSearching: false,
       search: mockSearch,
-    });
+    } as unknown as ReturnType<typeof useKnowledgeSearch>);
 
     render(<KnowledgeClient />);
 

@@ -67,6 +67,11 @@ export class ClaudeCodeAgent extends BaseAgent {
   public config: ClaudeCodeAgentConfig;
   /** @internal */
   public outputBuffer: string = '';
+  /**
+   * @internal The clean FINAL assistant message from the stream-json `result`
+   * event (no narration / tool output). Used by investigation phases.
+   */
+  public finalResultText: string = '';
   /** @internal */
   public errorBuffer: string = '';
   /** @internal Buffer for parsing stream-json format */
@@ -204,6 +209,7 @@ export class ClaudeCodeAgent extends BaseAgent {
           return false;
         }
       },
+      this.config.investigationMode,
     );
   }
 
