@@ -53,7 +53,12 @@ describe('useWorkflowFiles', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/1/files');
+    // The hook passes a no-store fetch options object so polled refetches always
+    // see the agent's latest md writes — tolerate the second argument.
+    expect(fetch).toHaveBeenCalledWith(
+      'http://test:3001/workflow/tasks/1/files',
+      expect.anything(),
+    );
     expect(result.current.files).toEqual({
       research: mockFilesResponse.research,
       question: mockFilesResponse.question,
@@ -151,7 +156,10 @@ describe('useWorkflowFiles', () => {
     // files should be reset immediately on taskId change
     // (they get set to null in the useEffect)
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('http://test:3001/workflow/tasks/2/files');
+      expect(fetch).toHaveBeenCalledWith(
+        'http://test:3001/workflow/tasks/2/files',
+        expect.anything(),
+      );
     });
   });
 });

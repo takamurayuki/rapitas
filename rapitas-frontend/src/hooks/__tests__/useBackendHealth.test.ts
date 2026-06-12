@@ -14,6 +14,13 @@ vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
 }));
 
+// The hook subscribes to the shared EventSource; mock it so the suite never
+// touches a real EventSource (undefined in jsdom). subscribe returns its
+// unsubscribe cleanup.
+vi.mock('@/lib/sse/shared-event-source', () => ({
+  sharedEventSource: { subscribe: vi.fn(() => vi.fn()) },
+}));
+
 describe('useBackendHealth', () => {
   const mockFetch = vi.fn();
 
