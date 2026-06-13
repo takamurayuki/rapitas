@@ -131,6 +131,7 @@ import { migrateLegacyWorkflowFiles } from './services/workflow/workflow-legacy-
 import { startBacklogScheduler } from './services/scheduling/backlog-scheduler';
 import { startBackupScheduler } from './services/system/backup-scheduler';
 import { startWorktreeCleanupScheduler } from './services/scheduling/worktree-cleanup-scheduler';
+import { AutoMergeWatcher } from './services/workflow/auto-merge-watcher';
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -203,6 +204,7 @@ const runStartupWarmup = async (): Promise<void> => {
   await timed('backlog-scheduler', () => startBacklogScheduler());
   await timed('backup-scheduler', () => startBackupScheduler());
   await timed('worktree-cleanup-scheduler', () => startWorktreeCleanupScheduler());
+  await timed('auto-merge-watcher', () => AutoMergeWatcher.getInstance().start());
 
   log.info('Startup warm-up complete');
 };

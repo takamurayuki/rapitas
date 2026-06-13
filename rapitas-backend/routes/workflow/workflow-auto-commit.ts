@@ -10,12 +10,7 @@ import { join } from 'path';
 import { prisma, getProjectRoot } from '../../config';
 import { AgentOrchestrator } from '../../services/agents/agent-orchestrator';
 import { createLogger } from '../../config/logger';
-import {
-  logAutoCommit,
-  logAutoPR,
-  logAutoMerge,
-  logAutoMergeFailure,
-} from './workflow-activity-logger';
+import { logAutoCommit, logAutoPR } from './workflow-activity-logger';
 import { runVerificationGate } from '../../services/agents/verification/verification-gate';
 import { resolveAutomationPolicy } from '../../services/workflow/automation-policy';
 import { linkAutoCreatedPr } from '../../services/github/pr-link';
@@ -36,7 +31,12 @@ export type AutoCommitPRResult = {
     error?: string;
   };
   autoPRResult?: { success: boolean; prUrl?: string; prNumber?: number; error?: string };
-  autoMergeResult?: { success: boolean; mergeStrategy?: string; error?: string };
+  autoMergeResult?: {
+    success: boolean;
+    mergeStrategy?: string;
+    error?: string;
+    deferred?: boolean;
+  };
   worktreeCleanupResult?: { success: boolean; worktreePath?: string; error?: string };
   /**
    * True when the automated verification gate blocked (the agent's changes have
@@ -249,48 +249,17 @@ export async function performAutoCommitAndPR(
       }
     }
 
-    // Process autoMergePR (only if autoCreatePR succeeded)
+    // Process autoMergePR — DEFER the actual merge to the CI-gated AutoMergeWatcher.
+    // The user requirement is "merge only when verification passes AND behaviour
+    // is fine", so the merge must wait for the PR's GitHub CI to go green.
+    // Merging inline here would skip that gate. The watcher derives eligibility
+    // from task status + autoMergePR + the open linked PR, so nothing extra is
+    // persisted; it merges on CI pass, or leaves the PR open on CI fail.
     if (autoMergePR && result.autoPRResult?.success && result.autoPRResult?.prNumber) {
-      try {
-        const mergeResult = await orchestrator.mergePullRequest(
-          gitCwd,
-          result.autoPRResult.prNumber,
-          execConfig?.mergeCommitThreshold ?? 5,
-          targetBranch,
-        );
-        result.autoMergeResult = mergeResult;
-
-        if (mergeResult.success) {
-          log.info(
-            `[Workflow] Auto-merge successful for task ${taskId}: strategy=${mergeResult.mergeStrategy}`,
-          );
-          await logAutoMerge(
-            taskId,
-            task.title,
-            result.autoPRResult.prNumber,
-            result.autoPRResult.prUrl,
-            mergeResult.mergeStrategy,
-          );
-        } else {
-          log.error(
-            { error: mergeResult.error },
-            `[Workflow] Auto-merge failed for task ${taskId}`,
-          );
-          await logAutoMergeFailure(
-            taskId,
-            task.title,
-            result.autoPRResult.prNumber,
-            result.autoPRResult.prUrl,
-            mergeResult.error,
-          );
-        }
-      } catch (mergeError) {
-        log.error({ err: mergeError }, `[Workflow] Auto-merge failed for task ${taskId}`);
-        result.autoMergeResult = {
-          success: false,
-          error: mergeError instanceof Error ? mergeError.message : String(mergeError),
-        };
-      }
+      result.autoMergeResult = { success: false, deferred: true };
+      log.info(
+        `[Workflow] Auto-merge requested for task ${taskId} PR #${result.autoPRResult.prNumber} — deferred until CI passes`,
+      );
     }
 
     // Clean up git worktree after commit/PR/merge is complete.
