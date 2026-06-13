@@ -17,6 +17,7 @@ import { createLogger } from '../../config/logger';
 import { resolveAutomationPolicy } from './automation-policy';
 import { mergePullRequest } from '../agents/orchestrator/git-operations/branch-pr-ops';
 import { recordTransition } from './transition-recorder';
+import { attemptCiRepair } from './ci-self-repair';
 
 const execAsync = promisify(exec);
 const log = createLogger('workflow:auto-merge-watcher');
@@ -284,14 +285,38 @@ export class AutoMergeWatcher {
     }
 
     if (state === 'fail') {
-      await mark(c.taskId, 'auto_merge_blocked', 'ci failed');
-      await notify({
-        taskId: c.taskId,
-        type: 'auto_merge_ci_failed',
-        title: '自動マージ保留（CI失敗）',
-        message: `PR #${c.prNumber} のCIが失敗したため自動マージせずレビュー待ちにしました。`,
-      });
-      log.info({ taskId: c.taskId, prNumber: c.prNumber }, '[auto-merge] Held — CI failed');
+      // CI failed — try to self-repair: bounce the task back to the implementer
+      // with the failing checks as feedback so it fixes them, pushes to the same
+      // PR branch, and CI re-runs. The watcher merges once CI goes green. Only
+      // flag the PR for review once the bounded repair budget is exhausted.
+      const failedChecks = checks
+        .filter((ch) => blocking.has(ch.name) && (ch.bucket === 'fail' || ch.bucket === 'cancel'))
+        .map((ch) => ch.name);
+      const repair = await attemptCiRepair(c.taskId, failedChecks);
+      if (repair.bounced) {
+        await notify({
+          taskId: c.taskId,
+          type: 'auto_merge_ci_repair',
+          title: 'CI失敗を自動修正中',
+          message: `PR #${c.prNumber} のCI失敗（${failedChecks.join(', ') || '不明'}）を検出。実装を修正して再検証します（${repair.attempt}回目）。`,
+        });
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber, attempt: repair.attempt },
+          '[auto-merge] CI failed — bounced for self-repair',
+        );
+      } else {
+        await mark(c.taskId, 'auto_merge_blocked', 'ci failed (repairs exhausted)');
+        await notify({
+          taskId: c.taskId,
+          type: 'auto_merge_ci_failed',
+          title: '自動マージ保留（CI失敗・修復上限）',
+          message: `PR #${c.prNumber} のCIが自動修正の上限まで失敗したため、自動マージせずレビュー待ちにしました。`,
+        });
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] Held — CI failed, repairs exhausted',
+        );
+      }
       return;
     }
 

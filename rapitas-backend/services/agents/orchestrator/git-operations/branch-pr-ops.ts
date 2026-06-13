@@ -102,6 +102,28 @@ export async function createPullRequest(
 
     await execAsync(`git push -u origin ${currentBranch.trim()}`, { cwd: workingDirectory });
 
+    // Idempotent: a CI-repair re-run pushes a fix to the SAME branch. The push
+    // above already updated any existing PR, so reuse it instead of letting
+    // `gh pr create` fail with "a pull request already exists".
+    try {
+      const { stdout: existing } = await execAsync(
+        `${ghPath()} pr list --head ${currentBranch.trim()} --state open --json number,url --jq ".[0]"`,
+        { cwd: workingDirectory, encoding: 'utf8' },
+      );
+      const trimmed = existing.trim();
+      if (trimmed && trimmed !== 'null') {
+        const pr = JSON.parse(trimmed) as { number?: number; url?: string };
+        if (pr.number && pr.url) {
+          logger.info(
+            `[createPullRequest] Reusing existing PR #${pr.number} for ${currentBranch.trim()}`,
+          );
+          return { success: true, prUrl: pr.url, prNumber: pr.number };
+        }
+      }
+    } catch {
+      // No existing PR (or gh error) — fall through to create.
+    }
+
     const { stdout } = await execAsync(
       `${ghPath()} pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${targetBranch}`,
       { cwd: workingDirectory, encoding: 'utf8' },
