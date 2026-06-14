@@ -2,6 +2,7 @@
 // TaskDetailViewBody
 import type { Task, Resource, Comment, WorkflowStatus, Priority } from '@/types';
 import CompactTaskDetailCard from '@/feature/tasks/components/CompactTaskDetailCard';
+import TaskAutomationSettings from '@/feature/tasks/components/TaskAutomationSettings';
 import { API_BASE_URL } from '@/utils/api';
 import TaskAISection, { type TaskAISectionProps } from './TaskAISection';
 import TaskWorkflowSection from './TaskWorkflowSection';
@@ -161,6 +162,12 @@ export default function TaskDetailViewBody({
           onCreateLink={commentSystem.handleCreateCommentLink}
           onDeleteLink={commentSystem.handleDeleteCommentLink}
         />
+      </div>
+
+      {/* Per-task automation (auto-commit / auto-PR / auto-merge). Replaces the
+          old developer-mode config modal as the place to enable auto-merge. */}
+      <div id="td-automation" className="mb-6 scroll-mt-16">
+        <TaskAutomationSettings taskId={taskId} />
       </div>
 
       {/* Unified AI panel — copilot with execution inside */}

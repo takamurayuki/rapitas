@@ -5,7 +5,7 @@ import type { Task, Resource, Comment, WorkflowStatus, DeveloperModeConfig } fro
 import TaskDetailViewBody, { type TaskDetailViewBodyProps } from './TaskDetailViewBody';
 import TaskDetailModals from './TaskDetailModals';
 import { TaskDetailQuickNav, type QuickNavSection } from './TaskDetailQuickNav';
-import { Info, Bot, GitBranch, ListTodo } from 'lucide-react';
+import { Info, Bot, GitBranch, ListTodo, GitMerge } from 'lucide-react';
 import type { WorkflowFile } from '@/types';
 import type { Priority } from '@/types';
 
@@ -110,6 +110,7 @@ export default function TaskDetailContent({
   // Quick-jump targets — must match the section ids in TaskDetailViewBody.
   const quickNavSections: QuickNavSection[] = [
     { id: 'td-info', label: '詳細', icon: Info },
+    { id: 'td-automation', label: '自動化', icon: GitMerge },
     { id: 'td-ai', label: 'AI', icon: Bot },
     ...(task.theme?.isDevelopment === true
       ? [{ id: 'td-workflow', label: 'ワークフロー', icon: GitBranch }]
