@@ -28,9 +28,9 @@ export interface ResolvedAutomationPolicy {
   autoMergePR: boolean;
   /** どのソースで決まったかの診断情報 */
   source: {
-    autoCommit: 'task' | 'env' | 'default';
-    autoCreatePR: 'task' | 'env' | 'default';
-    autoMergePR: 'task' | 'env' | 'default';
+    autoCommit: 'task' | 'user' | 'env' | 'default';
+    autoCreatePR: 'task' | 'user' | 'env' | 'default';
+    autoMergePR: 'task' | 'user' | 'env' | 'default';
   };
 }
 
@@ -68,23 +68,34 @@ export async function resolveAutomationPolicy(
   const envAutoCreatePR = envBoolean('RAPITAS_DEFAULT_AUTO_CREATE_PR');
   const envAutoMergePR = envBoolean('RAPITAS_DEFAULT_AUTO_MERGE_PR');
 
+  // Global defaults set on the "タスク設定" page (UserSettings). These sit between
+  // a per-task override and the env/hardcoded fallback.
+  const userSettings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    autoCommitDefault?: boolean | null;
+    autoCreatePRDefault?: boolean | null;
+    autoMergePRDefault?: boolean | null;
+  } | null;
+
   const resolveOne = <T extends 'autoCommit' | 'autoCreatePR' | 'autoMergePR'>(
     key: T,
+    userValue: boolean | null | undefined,
     envValue: boolean | null,
     fallback: boolean,
-  ): { value: boolean; source: 'task' | 'env' | 'default' } => {
+  ): { value: boolean; source: 'task' | 'user' | 'env' | 'default' } => {
     const taskValue = task?.[key];
     if (typeof taskValue === 'boolean') return { value: taskValue, source: 'task' };
+    if (typeof userValue === 'boolean') return { value: userValue, source: 'user' };
     if (envValue !== null) return { value: envValue, source: 'env' };
     return { value: fallback, source: 'default' };
   };
 
   // Recommended default flow: commit + open a PR automatically so changes reach
   // git and are reviewable, but do NOT auto-merge — a human reviews/merges the
-  // PR. Override per-task (UI) or via RAPITAS_DEFAULT_AUTO_* env vars.
-  const ac = resolveOne('autoCommit', envAutoCommit, true);
-  const acpr = resolveOne('autoCreatePR', envAutoCreatePR, true);
-  const ampr = resolveOne('autoMergePR', envAutoMergePR, false);
+  // PR. Override globally on the タスク設定 page, per-task, or via
+  // RAPITAS_DEFAULT_AUTO_* env vars.
+  const ac = resolveOne('autoCommit', userSettings?.autoCommitDefault, envAutoCommit, true);
+  const acpr = resolveOne('autoCreatePR', userSettings?.autoCreatePRDefault, envAutoCreatePR, true);
+  const ampr = resolveOne('autoMergePR', userSettings?.autoMergePRDefault, envAutoMergePR, false);
 
   log.debug(
     {

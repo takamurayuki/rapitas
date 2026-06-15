@@ -25,6 +25,10 @@ export type UserSettings = {
   autoApprovePlan: boolean;
   autoApproveSubtaskPlan: boolean;
   autoComplexityAnalysis: boolean;
+  autoCommitDefault?: boolean;
+  autoCreatePRDefault?: boolean;
+  autoMergePRDefault?: boolean;
+  mergeCommitThresholdDefault?: number;
   defaultCategoryId?: number | null;
   activeMode: ActiveMode;
   claudeApiKeyConfigured?: boolean;

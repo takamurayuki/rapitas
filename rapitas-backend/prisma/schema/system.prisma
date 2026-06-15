@@ -41,6 +41,11 @@ model UserSettings {
   autoApprovePlan             Boolean   @default(false) // Whether to auto-approve when saving plan.md
   autoApproveSubtaskPlan      Boolean   @default(true)  // Auto-approve subtask plan.md (default ON)
   autoComplexityAnalysis      Boolean   @default(false) // Whether to enable automatic complexity analysis
+  // Global automation defaults (task-level overrides win, then these, then env).
+  autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
+  autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion
+  autoMergePRDefault          Boolean   @default(false) // Default: auto-merge PR once CI passes
+  mergeCommitThresholdDefault Int       @default(5)     // Commits >= this => squash merge
   slackWebhookUrl             String?   // Slack Incoming Webhook URL for notifications
   discordWebhookUrl           String?   // Discord Webhook URL for notifications
   /**

@@ -63,6 +63,10 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration,
         autoApprovePlan,
         autoComplexityAnalysis,
+        autoCommitDefault,
+        autoCreatePRDefault,
+        autoMergePRDefault,
+        mergeCommitThresholdDefault,
         defaultAiProvider,
         defaultCategoryId,
         activeMode,
@@ -80,6 +84,10 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration?: boolean;
         autoApprovePlan?: boolean;
         autoComplexityAnalysis?: boolean;
+        autoCommitDefault?: boolean;
+        autoCreatePRDefault?: boolean;
+        autoMergePRDefault?: boolean;
+        mergeCommitThresholdDefault?: number;
         defaultAiProvider?: string;
         defaultCategoryId?: number;
         activeMode?: string;
@@ -103,6 +111,10 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
               autoApprovePlan: autoApprovePlan ?? false,
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCommitDefault !== undefined && { autoCommitDefault }),
+              ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
+              ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),
+              ...(mergeCommitThresholdDefault !== undefined && { mergeCommitThresholdDefault }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),
               ...(ollamaUrl !== undefined && { ollamaUrl }),
@@ -125,6 +137,10 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               }),
               ...(autoApprovePlan !== undefined && { autoApprovePlan }),
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCommitDefault !== undefined && { autoCommitDefault }),
+              ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
+              ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),
+              ...(mergeCommitThresholdDefault !== undefined && { mergeCommitThresholdDefault }),
               ...(defaultAiProvider !== undefined && { defaultAiProvider }),
               ...(defaultCategoryId !== undefined && { defaultCategoryId }),
               ...(activeMode !== undefined && { activeMode }),

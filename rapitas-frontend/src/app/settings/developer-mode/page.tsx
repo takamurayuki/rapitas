@@ -5,10 +5,10 @@ import { Settings, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
-import { AiAssistantSettingsCard } from './components/AiAssistantSettingsCard';
 import { TaskCreationSettingsCard } from './components/TaskCreationSettingsCard';
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
+import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
 
 export default function DeveloperModeSettingsPage() {
   const t = useTranslations('settings');
@@ -53,12 +53,6 @@ export default function DeveloperModeSettingsPage() {
       )}
 
       <div className="space-y-6">
-        <AiAssistantSettingsCard
-          settings={settings}
-          isSaving={isSaving}
-          onUpdateSettings={updateSettings}
-        />
-
         <TaskCreationSettingsCard
           settings={settings}
           isSaving={isSaving}
@@ -75,6 +69,12 @@ export default function DeveloperModeSettingsPage() {
         />
 
         <WorkflowConfigCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
+        />
+
+        <AutoMergeSettingsCard
           settings={settings}
           isSaving={isSaving}
           onUpdateSettings={updateSettings}
