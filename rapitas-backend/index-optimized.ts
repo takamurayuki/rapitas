@@ -48,6 +48,7 @@ import {
   paidLeaveRoutes,
   urlMetadataRoutes,
   batchRoutes,
+  debugLogsRouter,
 } from './routes';
 
 // Import optimized batch routes
@@ -175,6 +176,7 @@ app.use(schedulesRoutes);
 app.use(dailyScheduleRoutes);
 app.use(learningGoalsRoutes);
 app.use(rateLimitRoutes);
+app.use(debugLogsRouter);
 app.use(paidLeaveRoutes);
 app.use(urlMetadataRoutes);
 app.use(batchRoutes);

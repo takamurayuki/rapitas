@@ -80,6 +80,7 @@ export { progressSummaryRoutes } from './system/monitoring/progress-summary';
 export { techDebtRoutes } from './system/monitoring/tech-debt';
 export { temporalDebugRoutes } from './system/monitoring/temporal-debug';
 export { projectHealthRoutes } from './system/monitoring/project-health';
+export { debugLogsRouter } from './system/monitoring/debug-logs';
 
 // Workflow
 export { workflowRoutes } from './workflow/core/workflow';

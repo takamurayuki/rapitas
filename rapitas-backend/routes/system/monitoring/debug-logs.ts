@@ -4,6 +4,7 @@
 
 import { Elysia, t, type Context } from 'elysia';
 import { createLogger } from '../../../config/logger';
+import { listLogThemes, readThemeLogs } from '../../../services/system/theme-log-reader';
 import DebugLogAnalyzer, {
   LogType,
   LogLevel,
@@ -332,6 +333,40 @@ export const debugLogsRouter = new Elysia({ prefix: '/debug-logs' })
         tags: ['Debug Logs'],
         summary: 'サポートされているログタイプ',
         description: '解析可能なログタイプの一覧を返します',
+      },
+    },
+  )
+  .get(
+    '/themes',
+    async () => {
+      const themes = await listLogThemes();
+      return { success: true, themes };
+    },
+    {
+      detail: {
+        tags: ['Debug Logs'],
+        summary: 'ログ分析対象テーマ一覧',
+        description:
+          '作業ディレクトリが設定されたテーマと、そのログ設定(logDir/logFormat)を返します',
+      },
+    },
+  )
+  .get(
+    '/theme/:themeId/read',
+    async (context) => {
+      const themeId = parseInt((context.params as { themeId: string }).themeId, 10);
+      if (Number.isNaN(themeId)) {
+        context.set.status = 400;
+        return { success: false, error: 'invalid themeId' };
+      }
+      const result = await readThemeLogs(themeId);
+      return { success: true, ...result };
+    },
+    {
+      detail: {
+        tags: ['Debug Logs'],
+        summary: 'テーマのログ読み取り',
+        description: '設定logDir→作業ディレクトリ走査の順でログを読み、生テキストと出所を返します',
       },
     },
   );

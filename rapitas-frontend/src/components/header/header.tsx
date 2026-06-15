@@ -19,6 +19,7 @@ import {
   FolderOpen,
   FolderKanban,
   FolderGit2,
+  ScrollText,
   Target,
   BarChart3,
   GanttChartSquare,
@@ -183,6 +184,7 @@ export default function Header() {
             { href: '/github/actions', label: 'CI/CD', icon: Workflow },
           ],
         },
+        { href: '/logs', label: 'ログ分析', icon: ScrollText },
         {
           href: '#',
           label: t('agent'),
