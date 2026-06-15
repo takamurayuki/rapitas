@@ -60,6 +60,7 @@ Keep this list accurate. If you assign a glyph a new meaning, add it here.
 | `SquareTerminal`          | 統合ターミナル                           |
 | `SplitSquareHorizontal`   | ターミナルのペイン左右分割               |
 | `SplitSquareVertical`     | ターミナルのペイン上下分割               |
+| `BarChart3`               | エラー分析ダッシュボード                 |
 
 ### Known collisions — resolve when you next touch them
 

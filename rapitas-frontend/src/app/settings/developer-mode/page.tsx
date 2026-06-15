@@ -1,7 +1,8 @@
 'use client';
 // DeveloperModeSettingsPage
 
-import { Settings, AlertCircle } from 'lucide-react';
+import { Settings, AlertCircle, BarChart3, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
@@ -79,6 +80,44 @@ export default function DeveloperModeSettingsPage() {
           isSaving={isSaving}
           onUpdateSettings={updateSettings}
         />
+
+        {/* Error analytics entry card */}
+        <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+          <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-5 h-5 text-zinc-400" />
+              <div>
+                <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">エラー分析</h2>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  バックエンドログのエラー傾向を把握する
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <Link
+              href="/settings/developer-mode/error-analytics"
+              className="block group p-4 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+                    <BarChart3 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-zinc-900 dark:text-zinc-50 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
+                      エラー分析ダッシュボード
+                    </h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+                      ERROR/WARN ログのカテゴリ別集計・先週比トレンドを確認
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors" />
+              </div>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
