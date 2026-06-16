@@ -77,6 +77,63 @@ describe('evaluateScopeCheck', () => {
   });
 });
 
+describe('parsePlanFiles — 緩い記載の頑健化', () => {
+  test('ディレクトリ指定・コマンド埋め込みパス・親ディレクトリを取り込むこと', () => {
+    const plan = [
+      '`services/memory/` を編集',
+      '`bun test rapitas-backend/services/workflow/extract-json-array.test.ts` を実行',
+      '`rapitas-backend/utils/common/extract-json-array.ts` を新規作成',
+    ].join('\n');
+    const files = parsePlanFiles(plan);
+    expect(files).toContain('services/memory/'); // ディレクトリトークン
+    expect(files).toContain('rapitas-backend/services/workflow/extract-json-array.test.ts'); // 埋め込み
+    expect(files).toContain('rapitas-backend/services/workflow/'); // 埋め込みパスの親ディレクトリ
+    expect(files).toContain('rapitas-backend/utils/common/extract-json-array.ts');
+    expect(files).toContain('rapitas-backend/utils/common/'); // 親ディレクトリ
+  });
+
+  test('スペースを含むプローズのベース名（`foo bar.ts`）は拾わないこと', () => {
+    // 区切りを持たないサブトークンはパス扱いしない（既存の挙動を維持）。
+    expect(parsePlanFiles('`foo bar.ts` のような記述')).toEqual([]);
+  });
+});
+
+describe('evaluateScopeCheck — 緩い plan でも計画内変更を通すこと (task 234 回帰)', () => {
+  test('ディレクトリ/埋め込みパス記載で全変更ファイルが in-scope になること', () => {
+    const planFiles = parsePlanFiles(
+      [
+        '`services/memory/` の貪欲regexを置換',
+        '`utils/common/` に共通ヘルパーを作成',
+        '`rapitas-backend/utils/common/extract-json-array.ts` 新規',
+        '`bun test rapitas-backend/services/workflow/extract-json-array.test.ts`',
+      ].join('\n'),
+    );
+    const changed = [
+      'rapitas-backend/services/memory/idea-extractor.ts',
+      'rapitas-backend/services/memory/task-knowledge-extractor.ts',
+      'rapitas-backend/services/workflow/extract-json-array.ts',
+      'rapitas-backend/utils/common/index.ts',
+      'rapitas-backend/utils/common/extract-json-array.ts',
+    ];
+    const check = evaluateScopeCheck(changed, planFiles);
+    expect(check?.ok).toBe(true);
+  });
+
+  test('頑健化後も全く無関係なファイルは計画外として検出すること', () => {
+    const planFiles = parsePlanFiles('`services/memory/` を編集');
+    const check = evaluateScopeCheck(
+      [
+        'rapitas-backend/services/memory/idea-extractor.ts',
+        'rapitas-backend/routes/social/github.ts',
+      ],
+      planFiles,
+    );
+    expect(check?.ok).toBe(false);
+    expect(check?.errorCount).toBe(1);
+    expect(check?.details).toContain('routes/social/github.ts');
+  });
+});
+
 describe('related-tests (fixture dirs)', () => {
   const root = join(tmpdir(), `rapitas-related-tests-${process.pid}`);
 
