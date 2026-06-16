@@ -93,6 +93,11 @@ mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),
 }));
 
+// ---- phase-output-validator mock (verify path) ----
+mock.module('../../../services/workflow/phase-output-validator', () => ({
+  validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: 'ok' }),
+}));
+
 // ---- plan-auto-approve mock ----
 mock.module('../../../services/workflow/plan-auto-approve', () => ({
   maybeAutoApprovePlan: mock(() => Promise.resolve({ autoApproved: false })),
@@ -164,6 +169,48 @@ describe('handleSaveFile — empty workflowStatus guard hardening', () => {
       set: makeSet(),
     });
     expect((result as { workflowStatus?: string }).workflowStatus).toBeDefined();
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — dev-mode single-session verify from plan_approved', () => {
+  test('accepts verify.md save at plan_approved (no longer hard-rejected)', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'plan_approved', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks → split-parent guard passes
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    // Accepted (not hard-rejected at the guard): the verify passes the
+    // completion gate (mocked allow) and the task is marked completed.
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('still rejects verify.md save at plan_created (only plan/question allowed there)', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'plan_created', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+
+    await expect(
+      handleSaveFile({
+        params: { taskId: '1', fileType: 'verify' },
+        body: 'verify content',
+        set: makeSet(),
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
   });
 });
 

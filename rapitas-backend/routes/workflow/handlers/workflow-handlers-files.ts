@@ -184,7 +184,14 @@ export async function handleSaveFile({
       draft: new Set(['research', 'question']),
       research_done: new Set(['plan', 'question', 'research']),
       plan_created: new Set(['plan', 'question']),
-      plan_approved: new Set(['question']),
+      // 'verify' is allowed here for the dev-mode single-session flow: ONE agent
+      // does research→plan→implement→verify in a single run, so it reaches
+      // verify.md while workflowStatus is still plan_approved (no separate
+      // implementer PHASE ever advanced it to in_progress). Hard-rejecting it
+      // surfaced a ValidationError in the UI and stranded the run with no
+      // commit/PR. Forward-only; the completion gate (evaluateCompletionGate)
+      // still blocks completions that have no real code diff.
+      plan_approved: new Set(['verify', 'question']),
       in_progress: new Set(['verify', 'question']),
       // 質問待ち中も同じファイルが書ける（質問解消は別 API か question.md 削除で行う）
       awaiting_question: new Set(['research', 'plan', 'verify', 'question']),
