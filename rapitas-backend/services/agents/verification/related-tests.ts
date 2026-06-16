@@ -104,25 +104,28 @@ export function findRelatedTestFiles(projectRoot: string, projectRelFiles: strin
 }
 
 /**
- * Builds the test command for the gate, SCOPED to the agent's changed test
+ * Builds the test command(s) for the gate, SCOPED to the agent's changed test
  * files PLUS the tests related to its changed sources. Running the whole suite
  * gates on pre-existing red tests and live-port collisions (false positives),
  * while the old changed-tests-only scoping missed source regressions entirely.
  *
  * bun projects: scoped run, ON by default (RAPITAS_VERIFY_TESTS=0 disables).
- * Other runners can't be file-scoped reliably here, so they stay full-suite and
- * opt-in (RAPITAS_VERIFY_TESTS=1).
+ * Returns ONE command PER test file — bun's `mock.module` is process-global, so
+ * batching several files into a single `bun test` leaks mocks across them and
+ * yields false failures ("export 'logger' not found", etc.). Separate processes
+ * isolate each file's module registry. Other runners can't be file-scoped
+ * reliably here, so they stay full-suite and opt-in (RAPITAS_VERIFY_TESTS=1).
  *
  * @param projectRoot - Nearest package.json dir (test runner cwd) / プロジェクトルート
  * @param workdir - The agent's worktree root / worktree ルート
  * @param relFiles - Changed code files relative to workdir / 変更コードファイル
- * @returns Shell command, or null when nothing should run / 実行コマンド
+ * @returns Shell commands (run each separately), or null when nothing should run / 実行コマンド群
  */
-export function buildScopedTestCommand(
+export function buildScopedTestCommands(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
-): string | null {
+): string[] | null {
   const raw = process.env.RAPITAS_VERIFY_TESTS;
   if (raw === '0' || raw === 'false') return null;
 
@@ -145,12 +148,13 @@ export function buildScopedTestCommand(
     const related = findRelatedTestFiles(projectRoot, projectRel);
     const all = [...new Set([...changedTests, ...related])];
     if (all.length === 0) return null;
-    return `bun test ${all.map((f) => `"${f}"`).join(' ')}`;
+    // One process per file — see the mock.module note above.
+    return all.map((f) => `bun test "${f}"`);
   }
 
   // Non-bun: full suite is opt-in only (slow/flaky/red-baseline risk).
   if (raw !== '1' && raw !== 'true') return null;
-  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm run test';
-  if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn run test';
-  return 'npm run test';
+  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return ['pnpm run test'];
+  if (existsSync(join(projectRoot, 'yarn.lock'))) return ['yarn run test'];
+  return ['npm run test'];
 }

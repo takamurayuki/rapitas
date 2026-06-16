@@ -18,7 +18,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
-import { buildScopedTestCommand } from './related-tests';
+import { buildScopedTestCommands } from './related-tests';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
@@ -366,20 +366,30 @@ async function testProject(
   workdir: string,
   relFiles: string[],
 ): Promise<VerificationCheck | null> {
-  const command = buildScopedTestCommand(projectRoot, workdir, relFiles);
-  if (!command) return null;
-  const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
-  const ok = res.code === 0;
-  const detail =
-    res.code === 124
-      ? `test suite timed out after ${TEST_TIMEOUT_MS / 1000}s`
-      : (res.stdout || res.stderr).slice(-MAX_DETAIL_CHARS);
+  const commands = buildScopedTestCommands(projectRoot, workdir, relFiles);
+  if (!commands || commands.length === 0) return null;
+  // Run each command in its OWN process (bun: one per file) so mock.module
+  // state from one test file cannot leak into the next and cause false
+  // failures. Aggregate: any failing command fails the check.
+  const failures: string[] = [];
+  for (const command of commands) {
+    const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
+    if (res.code === 0) continue;
+    const detail =
+      res.code === 124
+        ? `timed out after ${TEST_TIMEOUT_MS / 1000}s`
+        : (res.stdout || res.stderr).slice(-MAX_DETAIL_CHARS);
+    failures.push(`${command} failed:\n${detail}`);
+  }
+  const ok = failures.length === 0;
   return {
     name: 'test',
     ran: true,
     ok,
-    errorCount: ok ? 0 : 1,
-    details: ok ? `${command}: passed` : `${command} failed:\n${detail}`,
+    errorCount: failures.length,
+    details: ok
+      ? `${commands.length} test command(s): passed`
+      : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
   };
 }
 

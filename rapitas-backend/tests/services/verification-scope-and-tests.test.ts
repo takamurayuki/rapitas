@@ -14,7 +14,7 @@ import { tmpdir } from 'os';
 import { parsePlanFiles, evaluateScopeCheck } from '../../services/agents/verification/scope-check';
 import {
   findRelatedTestFiles,
-  buildScopedTestCommand,
+  buildScopedTestCommands,
 } from '../../services/agents/verification/related-tests';
 
 describe('parsePlanFiles', () => {
@@ -170,13 +170,37 @@ describe('related-tests (fixture dirs)', () => {
     expect(related.some((f) => f.includes('integration'))).toBe(false);
   });
 
-  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON）', () => {
+  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON / ファイル毎に分離）', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
-      const cmd = buildScopedTestCommand(root, root, ['src/foo.ts']);
-      expect(cmd).toContain('bun test');
-      expect(cmd).toContain('src/foo.test.ts');
+      const cmds = buildScopedTestCommands(root, root, ['src/foo.ts']);
+      // 1ファイル = 1コマンド（mock.module 汚染を避けるためプロセス分離）
+      expect(cmds).not.toBeNull();
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('bun test');
+      expect(cmds![0]).toContain('src/foo.test.ts');
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+    }
+  });
+
+  test('複数の関連テストはファイル毎に別コマンドへ分離すること', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      const cmds = buildScopedTestCommands(root, root, [
+        'src/foo.ts',
+        'src/bar.ts',
+        'services/baz.ts',
+      ]);
+      expect(cmds).not.toBeNull();
+      // foo.test.ts / __tests__/bar.test.ts / tests/services/baz.test.ts の3本
+      expect(cmds!.length).toBe(3);
+      // 1コマンドに複数ファイルを束ねていないこと（各 bun test は1ファイル）
+      for (const c of cmds!) {
+        expect((c.match(/\.test\.ts/g) ?? []).length).toBe(1);
+      }
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
     }
@@ -186,7 +210,7 @@ describe('related-tests (fixture dirs)', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     process.env.RAPITAS_VERIFY_TESTS = '0';
     try {
-      expect(buildScopedTestCommand(root, root, ['src/foo.ts'])).toBeNull();
+      expect(buildScopedTestCommands(root, root, ['src/foo.ts'])).toBeNull();
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
       else delete process.env.RAPITAS_VERIFY_TESTS;
@@ -198,7 +222,7 @@ describe('related-tests (fixture dirs)', () => {
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
       writeFileSync(join(root, 'src', 'lonely.ts'), '');
-      expect(buildScopedTestCommand(root, root, ['src/lonely.ts'])).toBeNull();
+      expect(buildScopedTestCommands(root, root, ['src/lonely.ts'])).toBeNull();
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
     }
