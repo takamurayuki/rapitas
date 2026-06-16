@@ -21,6 +21,7 @@ import {
   WORKFLOW_LOCK_TTL_MS,
 } from '../agents/task-execution-lock';
 import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
+import { isReusableArtifact } from './phase-output-validator';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -296,12 +297,18 @@ export class WorkflowOrchestrator {
       );
     }
 
-    // If output file already exists, skip agent execution and advance status only
-    if (transition.outputFile) {
+    // Reuse an already-saved phase artifact (skip regeneration) when it exists
+    // AND is acceptable. Two deliberate carve-outs:
+    //   - verify.md is NEVER reused: a re-run must re-verify the CURRENT state
+    //     and overwrite verify.md with fresh results. Reusing a stale verify
+    //     would let the completion gate pass/fail on an outdated report.
+    //   - research.md / plan.md are reused only when they still pass their
+    //     validator (no serious problem); a thin/broken artifact is regenerated.
+    if (transition.outputFile && transition.outputFile !== 'verify') {
       const existingContent = await readWorkflowFile(workflowInfo.dir, transition.outputFile);
-      if (existingContent) {
+      if (existingContent && isReusableArtifact(transition.outputFile, existingContent)) {
         log.info(
-          `[WorkflowOrchestrator] ${transition.outputFile}.md already exists for task ${taskId}, skipping agent execution`,
+          `[WorkflowOrchestrator] ${transition.outputFile}.md already exists and is valid for task ${taskId}, skipping regeneration`,
         );
         await prisma.task.update({
           where: { id: taskId },
@@ -311,7 +318,7 @@ export class WorkflowOrchestrator {
           success: true,
           role: transition.role,
           status: transition.nextStatus,
-          output: `${transition.outputFile}.mdは既に存在するため、エージェント実行をスキップしました`,
+          output: `${transition.outputFile}.md は既存かつ内容に問題がないため、再生成をスキップしました`,
         };
       }
     }

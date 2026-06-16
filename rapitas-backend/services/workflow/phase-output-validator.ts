@@ -138,6 +138,26 @@ export function validateVerify(content: string): ValidationResult {
 }
 
 /**
+ * Whether an already-saved phase artifact is good enough to REUSE on a re-run
+ * (so the phase skips regeneration). research/plan are reused unless their
+ * validator flags a SERIOUS problem (severity ≥ 80 — e.g. an (almost) empty
+ * file, or a plan missing its critical 設計判断の根拠 section). verify.md is
+ * intentionally NOT handled here: a re-run must always re-verify the current
+ * state and overwrite verify.md, so callers must never route 'verify' to this.
+ *
+ * @param outputFile - Phase output file type (research / plan / question). / フェーズ出力ファイル種別
+ * @param content - Existing file content on disk. / ディスク上の既存内容
+ * @returns true when the artifact may be reused as-is. / 再利用可能なら true
+ */
+export function isReusableArtifact(outputFile: string, content: string): boolean {
+  if (!content.trim()) return false;
+  if (outputFile === 'research') return validateResearch(content).severity < 80;
+  if (outputFile === 'plan') return validatePlan(content).severity < 80;
+  // question / other artifacts: reuse whenever present.
+  return true;
+}
+
+/**
  * Detect which heading texts are present in a markdown document. Looks at
  * level-2 / level-3 headings (## / ###) and considers a section present if
  * any heading contains the keyword (substring match, case-insensitive).
