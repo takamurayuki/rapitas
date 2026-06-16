@@ -58,10 +58,10 @@ export default function TaskDetailModals({
       <DeveloperModeConfigModal
         config={devModeConfig}
         isOpen={showDevModeConfig}
-        onClose={onCloseDevModeConfig}
-        onSave={updateDevModeConfig}
+        onCloseAction={onCloseDevModeConfig}
+        onSaveAction={updateDevModeConfig}
         selectedAgentConfigId={selectedAgentConfigId}
-        onAgentConfigChange={onAgentConfigChange}
+        onAgentConfigChangeAction={onAgentConfigChange}
         taskId={taskId}
       />
 
