@@ -2,6 +2,8 @@
  * GitHub Integration API Routes
  * GitHub repository integration, PR, and Issue management
  */
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
@@ -21,6 +23,40 @@ import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../sch
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
+
+const execAsync = promisify(exec);
+const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
+
+/**
+ * Last-resort PR resolution: ask GitHub directly for a PR titled `[Task-{id}]`
+ * in the task's repo. Covers the case where the PR was created but never
+ * persisted locally (e.g. no GitHubIntegration for that repo, or linking
+ * failed), so "PRを開く" still navigates instead of dead-ending. Read-only.
+ *
+ * @param taskId - Task whose PR to find. / 対象タスクID
+ * @returns The PR number + url, or null when none is found. / PR番号とURL、無ければnull
+ */
+async function findPrViaGh(taskId: number): Promise<{ prNumber: number; prUrl: string } | null> {
+  const cwd = await resolvePrWorkingDirectory(taskId);
+  if (!cwd) return null;
+  try {
+    // List then substring-match the title (gh `--search` mishandles the `[...]`
+    // tokens). Auto-PR titles are `[Task-{id}] ...`.
+    const { stdout } = await execAsync(
+      `${ghPath} pr list --state all --limit 100 --json number,url,title`,
+      { cwd, encoding: 'utf8' },
+    );
+    const prs = JSON.parse(stdout.trim() || '[]') as {
+      number: number;
+      url: string;
+      title: string;
+    }[];
+    const match = prs.find((p) => p.title?.includes(`[Task-${taskId}]`));
+    return match ? { prNumber: match.number, prUrl: match.url } : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Resolve the local working directory for a PR's merge so we can sync the base
@@ -311,6 +347,19 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
           prNumber,
           error:
             'PRは作成済みですが、ローカルに同期されていません。GitHub統合ページでPRを同期してください。',
+        };
+      }
+      // Live fallback: the PR may exist on GitHub with no local row/log (e.g. no
+      // GitHubIntegration for this repo, or linking failed). Ask gh directly so
+      // the button still opens it instead of falsely reporting "not created".
+      const live = await findPrViaGh(tid);
+      if (live) {
+        return {
+          reason: 'not_synced',
+          prUrl: live.prUrl,
+          prNumber: live.prNumber,
+          error:
+            'PRは作成済みですが、ローカルに同期されていません（このリポジトリのGitHub統合が未登録の可能性）。GitHubで開きます。',
         };
       }
       return { reason: 'not_created', error: 'このタスクのPRはまだ作成されていません。' };
