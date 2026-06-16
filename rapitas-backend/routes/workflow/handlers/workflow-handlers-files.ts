@@ -613,20 +613,42 @@ export async function handleSaveFile({
       const merge = autoCommitPRResult.autoMergeResult;
 
       if (autoCommitPRResult.verificationBlocked) {
-        // The automated verification gate found NEW lint/type errors in the
-        // agent's changes and already marked the task `blocked`. Do NOT overwrite
-        // that with done/completed — the commit/PR were correctly withheld, and
-        // marking it completed here is what produced the confusing "完了 but no
-        // commit, status still stuck" reports. Keep it blocked for the user.
-        verifyGateBlocked = true;
-        await markLatestExecutionFailed(
+        // The automated gate (lint / typecheck / test / scope) found problems in
+        // the agent's changes, so commit/PR were withheld. Rather than dead-end
+        // at `blocked`, bounce back to the implementer with the failure as
+        // feedback so it FIXES the issue and re-verifies (self-improvement loop,
+        // bounded by RAPITAS_MAX_VERIFY_REPAIRS). Block only once exhausted.
+        verifyGateBlocked = true; // either way, do not mark done/PR this pass
+        const gateReason =
+          autoCommitPRResult.error ?? '自動検証に失敗しました（lint/型/テスト/スコープ）。';
+        const { attemptVerifyRepair } =
+          await import('../../../services/workflow/verify-self-repair');
+        const repair = await attemptVerifyRepair(
           taskId,
-          autoCommitPRResult.error ?? '自動検証に失敗したため、コミット/PR を中止しました。',
-        );
-        log.warn(
-          { taskId, reason: autoCommitPRResult.error },
-          '[Workflow] Automated verification blocked — task stays blocked (not completed), no commit/PR.',
-        );
+          'verify_done',
+          gateReason,
+          savedContent,
+        ).catch(() => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>);
+
+        if (repair.bounced && repair.newStatus) {
+          // Roll workflowStatus back to the implementer entry so the runner
+          // re-runs implement → verify. attemptVerifyRepair already set
+          // task.status='in-progress' and wrote the failure into question.md.
+          await prisma.task
+            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
+            .catch(() => {});
+          newStatus = repair.newStatus;
+          log.warn(
+            { taskId, attempt: repair.attempt, reason: gateReason },
+            '[Workflow] Verification gate failed — bounced to implementer for self-repair',
+          );
+        } else {
+          await markLatestExecutionFailed(taskId, gateReason);
+          log.warn(
+            { taskId, reason: gateReason },
+            '[Workflow] Verification gate failed and self-repairs exhausted — task stays blocked, no commit/PR.',
+          );
+        }
       } else {
         await prisma.task.update({
           where: { id: taskId },

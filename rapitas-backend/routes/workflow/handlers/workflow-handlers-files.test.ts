@@ -83,9 +83,16 @@ mock.module('../../../services/memory/task-knowledge-extractor', () => ({
   extractKnowledgeFromTask: mock(() => Promise.resolve()),
 }));
 
-// ---- auto-commit mock ----
+// ---- auto-commit mock (captured so tests can drive verificationBlocked) ----
+const mockPerformAutoCommitAndPR = mock(() => Promise.resolve({})) as any;
 mock.module('../workflow-auto-commit', () => ({
-  performAutoCommitAndPR: mock(() => Promise.resolve({})),
+  performAutoCommitAndPR: mockPerformAutoCommitAndPR,
+}));
+
+// ---- verify-self-repair mock (gate-failure bounce loop) ----
+const mockAttemptVerifyRepair = mock(() => Promise.resolve({ bounced: false })) as any;
+mock.module('../../../services/workflow/verify-self-repair', () => ({
+  attemptVerifyRepair: mockAttemptVerifyRepair,
 }));
 
 // ---- completion-gate mock ----
@@ -129,9 +136,13 @@ beforeEach(() => {
   mockCheckInvariants.mockReset();
   mockUpdate.mockReset();
   mockFindUnique.mockReset();
+  mockPerformAutoCommitAndPR.mockReset();
+  mockAttemptVerifyRepair.mockReset();
   warnCalls.length = 0;
   mockUpdate.mockResolvedValue({});
   mockCheckInvariants.mockResolvedValue([]);
+  mockPerformAutoCommitAndPR.mockResolvedValue({});
+  mockAttemptVerifyRepair.mockResolvedValue({ bounced: false });
 });
 
 // -------------------------------------------------------------------------
@@ -211,6 +222,63 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
         set: makeSet(),
       }),
     ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 検証ゲート失敗時に自己修復ループへ差し戻すこと', () => {
+  test('verificationBlocked かつ repair バウンスで implementer entry に戻すこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: test=NG(1)',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({
+      bounced: true,
+      newStatus: 'plan_approved',
+      attempt: 1,
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect(mockAttemptVerifyRepair).toHaveBeenCalledTimes(1);
+    // 差し戻し先 (plan_approved) を workflowStatus に反映し、completed にはしない
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_approved');
+  });
+
+  test('repair が枯渇 (bounced:false) ならブロック維持で completed にしないこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]);
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      verificationBlocked: true,
+      error: '自動検証: test=NG(1)',
+    });
+    mockAttemptVerifyRepair.mockResolvedValueOnce({ bounced: false });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).not.toBe('completed');
   });
 });
 
