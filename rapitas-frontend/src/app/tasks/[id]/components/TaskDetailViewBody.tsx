@@ -86,7 +86,6 @@ export interface TaskDetailViewBodyProps {
   isWorkflowLoading: boolean;
   workflowError: string | null | undefined;
   onPlanApprovalRequest: () => void;
-  onWorkflowComplete: () => Promise<void>;
   onTaskUpdated?: () => void;
   setTask: React.Dispatch<React.SetStateAction<Task | null>>;
 
@@ -119,7 +118,6 @@ export default function TaskDetailViewBody({
   isWorkflowLoading,
   workflowError,
   onPlanApprovalRequest,
-  onWorkflowComplete,
   onTaskUpdated,
   setTask,
   isParallelExecutionRunning,
@@ -200,7 +198,6 @@ export default function TaskDetailViewBody({
             isWorkflowLoading={isWorkflowLoading}
             workflowError={workflowError}
             onPlanApprovalRequest={onPlanApprovalRequest}
-            onWorkflowComplete={onWorkflowComplete}
             onTaskUpdated={onTaskUpdated}
             setTask={setTask}
           />

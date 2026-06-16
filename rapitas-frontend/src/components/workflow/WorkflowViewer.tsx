@@ -26,7 +26,6 @@ export interface WorkflowViewerProps {
   /** Where the effective ON state originates. Optional informational hint. */
   autoApprovePlanSource?: 'task' | 'global' | 'subtask-global';
   onPlanApprovalRequest?: () => void;
-  onCompleteRequest?: () => void;
   onStatusChange?: (newStatus: WorkflowStatus) => void;
   onWorkflowModeChange?: (mode: WorkflowMode, isOverride: boolean) => void;
   showWorkflowMode?: boolean;
@@ -39,7 +38,6 @@ export default function WorkflowViewer({
   workflowMode = null,
   workflowModeOverride = false,
   onPlanApprovalRequest,
-  onCompleteRequest,
   onStatusChange,
   onWorkflowModeChange,
   autoApprovePlan = false,
@@ -98,13 +96,6 @@ export default function WorkflowViewer({
   // Approval button within plan tab
   const showApprovalButton = activeTab === 'plan' && isPlanAwaitingApproval;
 
-  // Complete button display condition (user explicitly completes after verification)
-  const showCompleteButton =
-    activeTab === 'verify' &&
-    tabStatus.verify &&
-    effectiveStatus === 'verify_done' &&
-    !!onCompleteRequest;
-
   return (
     <div className={className}>
       {/* NOTE: The workflow file path (e.g. tasks/1/17) is intentionally not
@@ -119,11 +110,11 @@ export default function WorkflowViewer({
         />
       )}
 
-      {/* NOTE: The verify_done banner with the "検証結果を確認" button was removed.
-          Verification now auto-completes the task on success (see the verify
-          handler in workflow-handlers-files.ts); on failure the task is flagged
-          for re-verification. The in-content "実装完了" fallback remains for the
-          rare case a task is left at verify_done. */}
+      {/* NOTE: Both the "検証結果を確認" banner and the in-content "実装完了"
+          fallback were removed. Verification auto-completes the task on success
+          (verify handler in workflow-handlers-files.ts); on failure it is flagged
+          for re-verification. Force-completing a verify_done task bypassed the
+          completion/verification gate and skipped commit/PR, so it is gone. */}
 
       {/* Next phase execution button */}
       {effectiveStatus &&
@@ -166,9 +157,7 @@ export default function WorkflowViewer({
           activeFile={activeFile}
           activeTabConfig={activeTabConfig ?? workflowTabs[0]}
           showApprovalButton={!!showApprovalButton}
-          showCompleteButton={!!showCompleteButton}
           onPlanApprovalRequest={onPlanApprovalRequest}
-          onCompleteRequest={onCompleteRequest}
         />
       </div>
     </div>

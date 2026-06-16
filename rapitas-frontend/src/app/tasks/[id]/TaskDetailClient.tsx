@@ -131,7 +131,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     closePlanApprovalModal,
     handlePlanApprovalRequest,
     handleApprovalComplete,
-    handleWorkflowComplete,
   } = useWorkflowHandlers({
     taskId,
     workflowStatus,
@@ -329,7 +328,6 @@ function TaskDetailClient({ taskId: propTaskId, onTaskUpdated }: TaskDetailClien
     isWorkflowLoading,
     workflowError,
     onPlanApprovalRequest: handlePlanApprovalRequest,
-    onWorkflowComplete: handleWorkflowComplete,
     onTaskUpdated,
     setTask,
     isParallelExecutionRunning,

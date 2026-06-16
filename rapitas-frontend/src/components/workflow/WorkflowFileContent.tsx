@@ -95,10 +95,7 @@ interface WorkflowFileContentProps {
   activeTabConfig: WorkflowTab;
   /** Whether to show the inline plan-approval CTA (plan tab + plan_created status) */
   showApprovalButton: boolean;
-  /** Whether to show the inline verification-complete CTA */
-  showCompleteButton: boolean;
   onPlanApprovalRequest?: () => void;
-  onCompleteRequest?: () => void;
 }
 
 /**
@@ -108,20 +105,14 @@ interface WorkflowFileContentProps {
  * @param activeFile - File metadata and content for the selected tab
  * @param activeTabConfig - Tab definition used for the empty-state icon/message
  * @param showApprovalButton - Show the plan-approval CTA inside the content area
- * @param showCompleteButton - Show the task-complete CTA inside the content area
- * @param isRefetching - True while a manual refresh is running
- * @param onRefetch - Manual refresh trigger / 手動再読み込みトリガ
  * @param onPlanApprovalRequest - Opens the plan-approval modal / 計画承認モーダルを開く
- * @param onCompleteRequest - Triggers the task-completion flow / タスク完了フローを起動する
  */
 export function WorkflowFileContent({
   isLoading,
   activeFile,
   activeTabConfig,
   showApprovalButton,
-  showCompleteButton,
   onPlanApprovalRequest,
-  onCompleteRequest,
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
 
@@ -255,27 +246,10 @@ export function WorkflowFileContent({
         </div>
       )}
 
-      {/* Verification complete CTA (inside content area) */}
-      {showCompleteButton && (
-        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-          <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-            <div>
-              <p className="text-sm font-medium text-green-900 dark:text-green-200">
-                検証レポートの確認
-              </p>
-              <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                実装と検証が完了していればタスクを完了にします
-              </p>
-            </div>
-            <button
-              onClick={onCompleteRequest}
-              className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
-            >
-              実装完了
-            </button>
-          </div>
-        </div>
-      )}
+      {/* NOTE: The "実装完了" CTA was removed — verification auto-completes the
+          task on success (verify handler), and force-completing a verify_done
+          task here bypassed the completion/verification gate and skipped
+          commit/PR. Stuck tasks should be fixed and re-run, not force-completed. */}
     </div>
   );
 }
