@@ -136,6 +136,9 @@ export function registerAllRoutes(app: Elysia): void {
   // Social
   app.use(commentsRoutes);
   app.use(githubRoutes);
+  // NOTE: taskGithubRoutes was imported but never mounted — its
+  // /tasks/:id/link-github-pr and /create-github-issue endpoints 404'd.
+  app.use(taskGithubRoutes);
 
   // Analytics
   app.use(statisticsRoutes);

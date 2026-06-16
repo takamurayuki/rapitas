@@ -28,9 +28,25 @@ const execAsync = promisify(exec);
 const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
 /**
+ * Whether a PR title belongs to the given task.
+ *
+ * Accepts both PR-title conventions in use: the app's auto-PR format
+ * `[Task-{id}] ...` and the agent's CLAUDE.md format `[#{id}] ...`. Used only as
+ * a last-resort heuristic after the linkedTaskId/githubPrId links are checked.
+ *
+ * @param title - PR title to test (may be undefined). / PRタイトル
+ * @param taskId - Task id to match against. / 対象タスクID
+ * @returns true when the title references the task. / 一致すればtrue
+ */
+function titleMatchesTask(title: string | null | undefined, taskId: number): boolean {
+  if (!title) return false;
+  return title.includes(`[Task-${taskId}]`) || title.includes(`[#${taskId}]`);
+}
+
+/**
  * Last-resort PR resolution: ask GitHub directly for a PR titled `[Task-{id}]`
- * in the task's repo. Covers the case where the PR was created but never
- * persisted locally (e.g. no GitHubIntegration for that repo, or linking
+ * or `[#{id}]` in the task's repo. Covers the case where the PR was created but
+ * never persisted locally (e.g. no GitHubIntegration for that repo, or linking
  * failed), so "PRを開く" still navigates instead of dead-ending. Read-only.
  *
  * @param taskId - Task whose PR to find. / 対象タスクID
@@ -41,7 +57,8 @@ async function findPrViaGh(taskId: number): Promise<{ prNumber: number; prUrl: s
   if (!cwd) return null;
   try {
     // List then substring-match the title (gh `--search` mishandles the `[...]`
-    // tokens). Auto-PR titles are `[Task-{id}] ...`.
+    // tokens). The app's auto-PR titles are `[Task-{id}] ...`, but agent-created
+    // PRs follow the CLAUDE.md convention `[#{id}] ...`, so accept both.
     const { stdout } = await execAsync(
       `${ghPath} pr list --state all --limit 100 --json number,url,title`,
       { cwd, encoding: 'utf8' },
@@ -51,7 +68,7 @@ async function findPrViaGh(taskId: number): Promise<{ prNumber: number; prUrl: s
       url: string;
       title: string;
     }[];
-    const match = prs.find((p) => p.title?.includes(`[Task-${taskId}]`));
+    const match = prs.find((p) => titleMatchesTask(p.title, taskId));
     return match ? { prNumber: match.number, prUrl: match.url } : null;
   } catch {
     return null;
@@ -298,8 +315,13 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       }
     }
     if (!pr) {
+      // Match both PR-title conventions: the app's `[Task-{id}]` and the
+      // agent's CLAUDE.md `[#{id}]`. Agent-created PRs use the latter and so
+      // never went through linkAutoCreatedPr, leaving paths 1/2 empty.
       pr = await prisma.gitHubPullRequest.findFirst({
-        where: { title: { contains: `[Task-${tid}]` } },
+        where: {
+          OR: [{ title: { contains: `[Task-${tid}]` } }, { title: { contains: `[#${tid}]` } }],
+        },
         orderBy: { createdAt: 'desc' },
         select,
       });
@@ -905,14 +927,18 @@ export const taskGithubRoutes = new Elysia()
     const { params } = context;
     const { id, prId } = params as { id: string; prId: string };
 
-    await prisma.gitHubPullRequest.update({
+    // :prId is the local GitHubPullRequest row id. Task.githubPrId stores the
+    // PR *number* (the by-task path-2 lookup is `where prNumber: githubPrId`),
+    // so read the number off the row rather than storing the local id.
+    const pr = await prisma.gitHubPullRequest.update({
       where: { id: parseInt(prId) },
       data: { linkedTaskId: parseInt(id) },
+      select: { prNumber: true },
     });
 
     await prisma.task.update({
       where: { id: parseInt(id) },
-      data: { githubPrId: parseInt(prId) },
+      data: { githubPrId: pr.prNumber },
     });
 
     return { success: true };
