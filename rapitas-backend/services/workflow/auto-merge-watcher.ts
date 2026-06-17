@@ -43,6 +43,12 @@ const DEFAULT_BLOCKING_CHECKS = [
   'Lint Markdown files',
   'Lint GitHub Actions workflows',
   'Secret scanning',
+  // Build gates: never auto-merge code that doesn't build. (macOS/Windows build
+  // matrices are intentionally NOT blocking — they are slower/flakier; the Linux
+  // build + Quick Build Check are the representative gate. Override via
+  // RAPITAS_AUTOMERGE_CHECKS if your matrix differs.)
+  'Quick Build Check',
+  'Build (ubuntu-latest)',
 ];
 
 function blockingChecks(): Set<string> {

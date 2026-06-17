@@ -18,7 +18,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
-import { buildScopedTestCommands } from './related-tests';
+import { buildScopedTestCommands, TEST_FILE_RE } from './related-tests';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
@@ -33,7 +33,7 @@ const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck' | 'test' | 'scope';
+  name: 'lint' | 'typecheck' | 'test' | 'scope' | 'coverage';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -422,6 +422,42 @@ function mergeChecks(
   };
 }
 
+/** Files that don't need a paired test (declarations / config / stories). */
+const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)/i;
+
+/**
+ * OPT-IN gate (RAPITAS_REQUIRE_TESTS=1): a substantive source change must ship
+ * with an added/changed test file. Off by default — enabling it without tuning
+ * would block legitimate test-free changes (docs/config/UI tweaks). Deterministic
+ * (runs on the changed-file list, zero cost), per the "deterministic checks
+ * first" practice. Returns null when disabled or no source needs a test.
+ *
+ * @param changedCodeFiles - Added/modified code files. / 変更コードファイル
+ * @returns A coverage check, or null when not applicable. / 判定 or null
+ */
+export function coverageCheck(changedCodeFiles: string[]): VerificationCheck | null {
+  const raw = (process.env.RAPITAS_REQUIRE_TESTS || '').trim().toLowerCase();
+  if (raw !== '1' && raw !== 'true' && raw !== 'on') return null;
+
+  const tests = changedCodeFiles.filter((f) => TEST_FILE_RE.test(f));
+  const sources = changedCodeFiles.filter(
+    (f) => !TEST_FILE_RE.test(f) && !COVERAGE_EXEMPT_RE.test(f),
+  );
+  if (sources.length === 0) return null; // nothing that needs a test
+  const ok = tests.length > 0;
+  return {
+    name: 'coverage',
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: ok
+      ? `coverage: ${tests.length} test file(s) changed alongside source`
+      : `ソース変更にテストが伴っていません（テストの追加/更新が必要）:\n${sources
+          .slice(0, 40)
+          .join('\n')}`.slice(0, MAX_DETAIL_CHARS),
+  };
+}
+
 /** Optional inputs for {@link runAutomatedVerification}. */
 export interface VerificationOptions {
   /**
@@ -479,11 +515,13 @@ export async function runAutomatedVerification(
     if (test) testParts.push(test);
   }
 
+  const coverage = coverageCheck(changedFiles);
   const checks = [
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
     mergeChecks('test', testParts),
     ...(scopeCheck ? [scopeCheck] : []),
+    ...(coverage ? [coverage] : []),
   ];
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.every((c) => c.ok);
