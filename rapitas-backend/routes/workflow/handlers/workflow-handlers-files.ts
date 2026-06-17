@@ -849,6 +849,11 @@ export async function handleSaveFile({
       // Post-completion side effects only when the task ACTUALLY completed (not
       // when it was bounced for self-repair or held for a missing PR).
       if (taskMarkedDone) {
+        // Record the outcome for telemetry + adaptive routing (fire-and-forget).
+        import('../../../services/workflow/outcome-telemetry')
+          .then(({ recordTaskOutcome }) => recordTaskOutcome(taskId, 'completed'))
+          .catch(() => {});
+
         // Collect workflow learning data asynchronously (fire-and-forget)
         recordWorkflowCompletion(taskId).catch((err) => {
           log.error({ err, taskId }, 'Failed to record workflow learning data');

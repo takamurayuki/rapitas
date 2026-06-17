@@ -369,11 +369,15 @@ export class WorkflowOrchestrator {
 
         // Failure escalation: a phase that already failed (queue retryCount > 0)
         // gets a STRONGER model on the retry instead of re-running the same weak
-        // one. Reuses the existing per-task queue retry counter.
+        // one. ALSO factor in recent OUTCOME telemetry for this theme — when the
+        // theme's recent tasks have been failing/repair-heavy, start stronger
+        // (adaptive routing closing the outcome loop), not just on per-task retry.
         const queueItem = await WorkflowQueueService.getInstance()
           .findByTaskId(taskId)
           .catch(() => null);
-        const escalation = queueItem?.retryCount ?? 0;
+        const { recentThemeEscalation } = await import('./outcome-telemetry');
+        const themeEscalation = await recentThemeEscalation(task.themeId).catch(() => 0);
+        const escalation = Math.max(queueItem?.retryCount ?? 0, themeEscalation);
 
         // Risk override: schema / auth / payment / security work forces premium
         // regardless of complexity. For code phases, also scan plan.md for risky
