@@ -624,12 +624,11 @@ export async function handleSaveFile({
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
     if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
-      // Best-effort commit/PR/merge — never block completion on its outcome.
+      // Run commit/PR/merge. Completion is GATED on its outcome: the task only
+      // completes when a PR was created (or already exists), or when no PR was
+      // requested. See the gate in the success branch below.
       autoCommitPRResult = await performAutoCommitAndPR(taskId, savedContent).catch((err) => {
-        log.warn(
-          { err, taskId },
-          '[Workflow] Auto-commit/PR failed (non-fatal); completing anyway',
-        );
+        log.warn({ err, taskId }, '[Workflow] Auto-commit/PR threw');
         return {} as Awaited<ReturnType<typeof performAutoCommitAndPR>>;
       });
       const commit = autoCommitPRResult.autoCommitResult;
@@ -674,60 +673,125 @@ export async function handleSaveFile({
           );
         }
       } else {
-        await prisma.task.update({
-          where: { id: taskId },
-          data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-        });
-        taskMarkedDone = true;
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'completed',
-          actor: 'system',
-          cause: 'verify_passed',
-          phase: 'verify',
-          metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-        });
-        log.info(
-          { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
-          '[Workflow] verify.md passed — task marked done/completed (PR best-effort).',
-        );
+        // Completion REQUIRES a successfully created PR (user request): a passing
+        // verify is no longer enough — the change must reach a PR. Exceptions:
+        //   - PR creation was not requested (autoCreatePR off), or
+        //   - a PR already exists for this task (app-linked or task.githubPrId).
+        const prRequested = autoCommitPRResult.requested
+          ? autoCommitPRResult.requested.autoCreatePR
+          : true; // requested unset (e.g. threw) → default flow expects a PR
+        let prSatisfied = pr?.success === true;
+        if (prRequested && !prSatisfied) {
+          const linked = await prisma.gitHubPullRequest
+            .findFirst({ where: { linkedTaskId: taskId }, select: { id: true } })
+            .catch(() => null);
+          if (linked) {
+            prSatisfied = true;
+          } else {
+            const taskRow = await prisma.task
+              .findUnique({ where: { id: taskId }, select: { githubPrId: true } })
+              .catch(() => null);
+            prSatisfied = taskRow?.githubPrId != null;
+          }
+        }
+
+        if (prRequested && !prSatisfied) {
+          // Verify passed but no PR was produced — do NOT complete. Keep the task
+          // actionable (blocked) and surface why, so "完了" always implies a PR.
+          const reason =
+            pr?.error || commit?.error || autoCommitPRResult.error || 'PRが作成されませんでした';
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await markLatestExecutionFailed(
+            taskId,
+            `検証は通過しましたがPRが作成されませんでした: ${reason}。完了にはPR作成が必要です。`,
+          );
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'verify_done',
+            actor: 'system',
+            cause: 'verify_pr_not_created',
+            phase: 'verify',
+            metadata: {
+              commit: commit?.success,
+              prError: pr?.error,
+              error: autoCommitPRResult.error,
+            },
+            invariantViolation: true,
+            invariantMessage:
+              '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
+          });
+          log.warn(
+            {
+              taskId,
+              prError: pr?.error,
+              commitOk: commit?.success,
+              error: autoCommitPRResult.error,
+            },
+            '[Workflow] verify passed but no PR created — NOT completing (completion requires a PR).',
+          );
+        } else {
+          await prisma.task.update({
+            where: { id: taskId },
+            data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+          });
+          taskMarkedDone = true;
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'completed',
+            actor: 'system',
+            cause: 'verify_passed',
+            phase: 'verify',
+            metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+          });
+          log.info(
+            { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+            '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
+          );
+        }
       }
 
-      // Collect workflow learning data asynchronously (fire-and-forget)
-      recordWorkflowCompletion(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to record workflow learning data');
-      });
+      // Post-completion side effects only when the task ACTUALLY completed (not
+      // when it was bounced for self-repair or held for a missing PR).
+      if (taskMarkedDone) {
+        // Collect workflow learning data asynchronously (fire-and-forget)
+        recordWorkflowCompletion(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to record workflow learning data');
+        });
 
-      // Auto-extract knowledge on task completion (async)
-      extractKnowledgeFromTask(taskId).catch((err) => {
-        log.error({ err, taskId }, 'Failed to extract knowledge from task');
-      });
+        // Auto-extract knowledge on task completion (async)
+        extractKnowledgeFromTask(taskId).catch((err) => {
+          log.error({ err, taskId }, 'Failed to extract knowledge from task');
+        });
 
-      // Extract improvement ideas for IdeaBox (async, Ollama-first)
-      import('../../../services/memory/idea-extractor')
-        .then(({ extractIdeasFromExecutionLog }) => {
-          extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
-            log.error({ err, taskId }, 'Failed to extract ideas from task');
-          });
-        })
-        .catch(() => {});
+        // Extract improvement ideas for IdeaBox (async, Ollama-first)
+        import('../../../services/memory/idea-extractor')
+          .then(({ extractIdeasFromExecutionLog }) => {
+            extractIdeasFromExecutionLog(taskId, savedContent).catch((err) => {
+              log.error({ err, taskId }, 'Failed to extract ideas from task');
+            });
+          })
+          .catch(() => {});
 
-      // Record reasoning trace for temporal debugging (async)
-      import('../../../services/analytics/temporal-debugger')
-        .then(({ recordReasoningTrace }) => {
-          // Find the latest execution for this task to record its trace
-          prisma.agentExecution
-            .findFirst({
-              where: { session: { config: { taskId } }, status: 'completed' },
-              orderBy: { completedAt: 'desc' },
-            })
-            .then((exec) => {
-              if (exec) recordReasoningTrace(exec.id).catch(() => {});
-            })
-            .catch(() => {});
-        })
-        .catch(() => {});
+        // Record reasoning trace for temporal debugging (async)
+        import('../../../services/analytics/temporal-debugger')
+          .then(({ recordReasoningTrace }) => {
+            // Find the latest execution for this task to record its trace
+            prisma.agentExecution
+              .findFirst({
+                where: { session: { config: { taskId } }, status: 'completed' },
+                orderBy: { completedAt: 'desc' },
+              })
+              .then((exec) => {
+                if (exec) recordReasoningTrace(exec.id).catch(() => {});
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
+      }
     }
 
     // Build response

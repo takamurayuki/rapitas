@@ -35,6 +35,8 @@ const mockPrisma = {
   agentSession: { findFirst: mockFindFirst },
   agentExecution: { update: mockUpdate },
   activityLog: { create: mockCreate },
+  // Used by the verify→complete PR gate to detect an already-existing PR.
+  gitHubPullRequest: { findFirst: mock(() => Promise.resolve(null)) },
 };
 mock.module('../../../config', () => ({ prisma: mockPrisma }));
 mock.module('../../../config/database', () => ({
@@ -199,6 +201,12 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
     });
     mockFindMany.mockResolvedValueOnce([]); // no subtasks → split-parent guard passes
     mockCheckInvariants.mockResolvedValueOnce([]);
+    // Completion now requires a PR — supply a successful one.
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 1, prUrl: 'https://x/pull/1' },
+    });
 
     const result = await handleSaveFile({
       params: { taskId: '1', fileType: 'verify' },
@@ -206,8 +214,8 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
       set: makeSet(),
     });
 
-    // Accepted (not hard-rejected at the guard): the verify passes the
-    // completion gate (mocked allow) and the task is marked completed.
+    // Accepted (not hard-rejected at the guard); verify passes and a PR was
+    // created → the task is marked completed.
     expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
   });
 
@@ -267,6 +275,89 @@ describe('handleSaveFile — research が修正不要結論ならタスクを完
     });
 
     expect((result as { workflowStatus?: string }).workflowStatus).toBe('research_done');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — 完了は PR 作成成功を要件とすること', () => {
+  const verifyAtInProgress = () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'in_progress', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockFindMany.mockResolvedValueOnce([]); // no subtasks
+    mockCheckInvariants.mockResolvedValueOnce([]);
+  };
+
+  test('PR要求ありで未作成・既存PRも無ければ completed にしない（verify_done 維持）', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: false, error: 'gh pr create failed' },
+    });
+    mockFindUnique.mockResolvedValue({ githubPrId: null }); // no linked PR via task
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('verify_done');
+    expect((result as { taskCompleted?: boolean }).taskCompleted).toBe(false);
+  });
+
+  test('PR が作成成功なら completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: true, prNumber: 9 },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('PR が要求されていなければ（autoCreatePR=false）PR無しでも completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: false, autoCreatePR: false, autoMergePR: false },
+    });
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('未作成でも既存リンクPRがあれば completed', async () => {
+    verifyAtInProgress();
+    mockPerformAutoCommitAndPR.mockResolvedValueOnce({
+      requested: { autoCommit: true, autoCreatePR: true, autoMergePR: false },
+      autoCommitResult: { success: true },
+      autoPRResult: { success: false },
+    });
+    mockPrisma.gitHubPullRequest.findFirst.mockResolvedValueOnce({ id: 50 }); // existing PR
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'verify' },
+      body: 'verify content',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
   });
 });
 
