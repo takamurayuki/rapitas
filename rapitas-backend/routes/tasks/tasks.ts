@@ -424,16 +424,22 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
   .post(
     '/cleanup-completed',
     async (context) => {
-      const body = (context.body ?? {}) as { keepRecent?: number; dryRun?: boolean };
+      const body = (context.body ?? {}) as {
+        keepRecent?: number;
+        dryRun?: boolean;
+        themeId?: number | null;
+      };
       const result = await cleanupCompletedTasks({
         keepRecent: typeof body.keepRecent === 'number' ? body.keepRecent : undefined,
         dryRun: body.dryRun === true,
+        themeId: typeof body.themeId === 'number' ? body.themeId : null,
       });
+      const scope = result.themeId !== null ? `テーマ#${result.themeId}` : '全テーマ';
       return {
         success: true,
         message: result.dryRun
-          ? `${result.candidateCount}件が削除対象です（直近${result.keepRecent}件は保持・dryRun）`
-          : `${result.deletedCount}件の完了タスクを削除しました（ナレッジ記録 ${result.knowledgeRecorded} / 記録済み ${result.alreadyRecorded} / サブタスク未完でスキップ ${result.skippedWithOpenSubtasks}）`,
+          ? `[${scope}] ${result.candidateCount}件が削除対象です（直近${result.keepRecent}件は保持・dryRun）`
+          : `[${scope}] ${result.deletedCount}件の完了タスクを削除しました（ナレッジ記録 ${result.knowledgeRecorded} / 記録済み ${result.alreadyRecorded} / サブタスク未完でスキップ ${result.skippedWithOpenSubtasks}）`,
         ...result,
       };
     },
@@ -442,6 +448,7 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
         t.Object({
           keepRecent: t.Optional(t.Number({ minimum: 0 })),
           dryRun: t.Optional(t.Boolean()),
+          themeId: t.Optional(t.Union([t.Number(), t.Null()])),
         }),
       ),
     },

@@ -119,6 +119,28 @@ describe('cleanupCompletedTasks', () => {
     expect(deleteWorkflowDir).not.toHaveBeenCalled();
   });
 
+  test('themeId 指定時はそのテーマに絞って取得すること', async () => {
+    taskFindMany.mockResolvedValueOnce([{ id: 30 }]);
+    knowledgeCount.mockResolvedValue(1);
+
+    const r = await cleanupCompletedTasks({ keepRecent: 0, themeId: 7 });
+
+    expect(r.themeId).toBe(7);
+    const whereArg = (taskFindMany.mock.calls[0][0] as { where: { themeId?: number } }).where;
+    expect(whereArg.themeId).toBe(7);
+  });
+
+  test('themeId 未指定なら全テーマ（where に themeId を含めない）', async () => {
+    taskFindMany.mockResolvedValueOnce([{ id: 40 }]);
+    knowledgeCount.mockResolvedValue(1);
+
+    const r = await cleanupCompletedTasks({ keepRecent: 0 });
+
+    expect(r.themeId).toBeNull();
+    const whereArg = (taskFindMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
+    expect('themeId' in whereArg).toBe(false);
+  });
+
   test('未完サブタスクを持つ親はスキップすること', async () => {
     taskFindMany.mockResolvedValueOnce([{ id: 20 }]);
     taskCount.mockResolvedValue(2); // 2 open subtasks

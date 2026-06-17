@@ -29,11 +29,15 @@ export interface CleanupOptions {
   keepRecent?: number;
   /** When true, report what WOULD be deleted without deleting. */
   dryRun?: boolean;
+  /** Restrict to a single theme. When omitted/null, all themes are pruned. */
+  themeId?: number | null;
 }
 
 export interface CleanupResult {
   dryRun: boolean;
   keepRecent: number;
+  /** Theme the run was scoped to, or null for all themes. */
+  themeId: number | null;
   completedTotal: number;
   /** Completed tasks beyond keepRecent that are eligible to prune. */
   candidateCount: number;
@@ -102,11 +106,17 @@ async function deleteTaskWithArtifacts(taskId: number): Promise<void> {
 export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<CleanupResult> {
   const keepRecent = Math.max(0, Math.floor(opts.keepRecent ?? DEFAULT_KEEP_RECENT));
   const dryRun = opts.dryRun === true;
+  const themeId = typeof opts.themeId === 'number' ? opts.themeId : null;
 
-  // Top-level completed tasks, newest first. Subtasks are removed with their
+  // Top-level completed tasks, newest first, optionally scoped to one theme.
+  // keepRecent then applies WITHIN that scope. Subtasks are removed with their
   // parent (cascade), so we only choose among top-level tasks here.
   const completed = await prisma.task.findMany({
-    where: { parentId: null, status: { in: COMPLETED_STATUSES } },
+    where: {
+      parentId: null,
+      status: { in: COMPLETED_STATUSES },
+      ...(themeId !== null ? { themeId } : {}),
+    },
     orderBy: [{ completedAt: 'desc' }, { updatedAt: 'desc' }],
     select: { id: true },
   });
@@ -115,6 +125,7 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
   const result: CleanupResult = {
     dryRun,
     keepRecent,
+    themeId,
     completedTotal: completed.length,
     candidateCount: candidates.length,
     deletedCount: 0,
@@ -168,6 +179,7 @@ export async function cleanupCompletedTasks(opts: CleanupOptions = {}): Promise<
     {
       dryRun,
       keepRecent,
+      themeId,
       completedTotal: result.completedTotal,
       deleted: result.deletedCount,
       knowledgeRecorded: result.knowledgeRecorded,
