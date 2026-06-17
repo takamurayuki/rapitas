@@ -228,3 +228,64 @@ describe('related-tests (fixture dirs)', () => {
     }
   });
 });
+
+describe('related-tests — vitest (frontend) はファイルスコープ実行 / 全体スイートにしない', () => {
+  // task 185 回帰: フロント(vitest/pnpm, bun.lock 無し)の1ファイル変更で
+  // 全体スイートを走らせ、無関係な既存赤テストで誤NGになっていた。
+  const root = join(tmpdir(), `rapitas-vitest-scope-${process.pid}`);
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, 'src', '__tests__'), { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    writeFileSync(join(root, 'pnpm-lock.yaml'), '');
+    writeFileSync(join(root, 'src', 'widget.tsx'), '');
+    writeFileSync(join(root, 'src', '__tests__', 'widget.test.tsx'), '');
+    writeFileSync(join(root, 'src', 'cssonly.tsx'), '');
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('関連テストがある変更は scoped な vitest run を1コマンドで組むこと', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      const cmds = buildScopedTestCommands(root, root, ['src/widget.tsx']);
+      expect(cmds).not.toBeNull();
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('vitest run');
+      expect(cmds![0]).toContain('pnpm exec');
+      expect(cmds![0]).toContain('src/__tests__/widget.test.tsx');
+      // 全体スイート(`pnpm run test`)に落ちていないこと
+      expect(cmds![0]).not.toContain('run test');
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+    }
+  });
+
+  test('関連テストの無い変更は null（スキップ） — 全体スイートで誤NGにしない', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      // RAPITAS_VERIFY_TESTS=1 でも vitest は全体スイートに落とさない
+      process.env.RAPITAS_VERIFY_TESTS = '1';
+      expect(buildScopedTestCommands(root, root, ['src/cssonly.tsx'])).toBeNull();
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+      else delete process.env.RAPITAS_VERIFY_TESTS;
+    }
+  });
+
+  test('RAPITAS_VERIFY_TESTS=0 で vitest も無効化できること', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    process.env.RAPITAS_VERIFY_TESTS = '0';
+    try {
+      expect(buildScopedTestCommands(root, root, ['src/widget.tsx'])).toBeNull();
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+      else delete process.env.RAPITAS_VERIFY_TESTS;
+    }
+  });
+});

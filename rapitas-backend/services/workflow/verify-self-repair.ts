@@ -138,10 +138,14 @@ export async function attemptVerifyRepair(
 
   await writeRepairFeedback(taskId, reason, verifyContent, attempt);
 
-  // Keep the task non-terminal so the auto-run scheduler holds it and the runner
-  // re-runs implement → verify (rather than treating it as failed/blocked).
+  // Keep the task non-terminal and roll the workflow back to the implementer
+  // entry so the runner re-runs implement → verify (rather than treating it as
+  // failed/blocked).
   await prisma.task
-    .update({ where: { id: taskId }, data: { status: 'in-progress', updatedAt: new Date() } })
+    .update({
+      where: { id: taskId },
+      data: { status: 'in-progress', workflowStatus: newStatus, updatedAt: new Date() },
+    })
     .catch((err) =>
       log.warn({ err, taskId }, '[verify-repair] Failed to reset task to in-progress'),
     );
@@ -156,9 +160,38 @@ export async function attemptVerifyRepair(
     metadata: { attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, reason },
   });
 
+  // Self-drive the re-run. The WorkflowRunner only polls while an AIOrchestra
+  // session or theme-auto-run is active; a single/manual execution has no poller,
+  // so a bounce would otherwise park the task at in-progress forever (the very
+  // stuck-state this loop is meant to avoid). Re-queue + idempotently start the
+  // runner so implement → verify actually re-runs regardless of launch mode.
+  await ensureRunnerResumes(taskId).catch((err) =>
+    log.warn({ err, taskId }, '[verify-repair] Failed to re-queue for self-repair'),
+  );
+
   log.info(
     { taskId, attempt, max: DEFAULT_MAX_VERIFY_REPAIRS, newStatus },
     '[verify-repair] Bounced verify failure back to implementer',
   );
   return { bounced: true, newStatus, attempt };
+}
+
+/**
+ * Re-queue the task and ensure the WorkflowRunner is processing, so the
+ * implement→verify re-run happens regardless of how the task was launched.
+ * Idempotent: enqueue throws when an active item already exists (a driver is
+ * already on it) — swallowed. The per-task single-agent mutex prevents a
+ * duplicate agent. Not spawning agents here — only nudging the existing runner.
+ *
+ * @param taskId - Task to resume / 再開対象タスク
+ */
+async function ensureRunnerResumes(taskId: number): Promise<void> {
+  const { WorkflowQueueService } = await import('./workflow-queue');
+  const { WorkflowRunner } = await import('./workflow-runner');
+  try {
+    await WorkflowQueueService.getInstance().enqueue({ taskId });
+  } catch {
+    // Already queued/running — a driver is active; nothing to enqueue.
+  }
+  WorkflowRunner.getInstance().startProcessing(); // idempotent (guarded by `running`)
 }
