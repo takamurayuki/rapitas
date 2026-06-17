@@ -51,6 +51,56 @@ export async function createBranch(workingDirectory: string, branchName: string)
   }
 }
 
+/** Matches git's various "remote is ahead / you must fetch first" push errors. */
+function isNonFastForwardError(message: string): boolean {
+  return /non-fast-forward|\[rejected\]|fetch first|tip of your current branch is behind|Updates were rejected/i.test(
+    message,
+  );
+}
+
+/**
+ * Push the current branch for PR creation, tolerant of a DIVERGED remote branch.
+ *
+ * A plain `git push -u origin <branch>` fails non-fast-forward when origin already
+ * has a branch of the same name from an earlier run (common because the branch
+ * namer collapses many tasks to `feature/implement-task`). Rather than
+ * force-pushing — which could rewrite a still-open PR or merged history — this
+ * renames the local branch to a commit-unique name and pushes that, so a PR can
+ * always be created without clobbering anything.
+ *
+ * @param cwd - Repository / worktree directory / リポジトリ・worktree ディレクトリ
+ * @param branch - The branch the agent worked on / エージェントの作業ブランチ
+ * @returns The branch name actually pushed (renamed on divergence) / 実際に push したブランチ名
+ * @throws Re-throws non-divergence push failures (auth, network, etc.). / 分岐以外の push 失敗は再送出。
+ */
+async function pushBranchForPr(cwd: string, branch: string): Promise<string> {
+  try {
+    await execAsync(`git push -u origin ${branch}`, { cwd });
+    return branch;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!isNonFastForwardError(msg)) throw error;
+
+    const { stdout: sha } = await execAsync('git rev-parse --short HEAD', { cwd });
+    const unique = `${branch}-${sha.trim()}`;
+    logger.warn(
+      `[createPullRequest] origin/${branch} has diverged; pushing unique branch ${unique} instead`,
+    );
+    // Rename the local branch so HEAD (and gh's inferred PR head) match the push.
+    await execAsync(`git branch -M ${unique}`, { cwd });
+    try {
+      await execAsync(`git push -u origin ${unique}`, { cwd });
+    } catch (err2) {
+      const msg2 = err2 instanceof Error ? err2.message : String(err2);
+      if (!isNonFastForwardError(msg2)) throw err2;
+      // The commit-unique branch also diverged — it is tied to THIS exact commit,
+      // so a lease-guarded force can only restore identical work.
+      await execAsync(`git push -u --force-with-lease origin ${unique}`, { cwd });
+    }
+    return unique;
+  }
+}
+
 /**
  * Create a pull request targeting the best available base branch.
  * Automatically determines base branch (prefer develop, fallback to main/master) if not specified.
@@ -95,19 +145,23 @@ export async function createPullRequest(
       logger.info(`[createPullRequest] Auto-determined base branch: ${targetBranch}`);
     }
 
-    const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+    const { stdout: currentBranchRaw } = await execAsync('git branch --show-current', {
       cwd: workingDirectory,
       encoding: 'utf8',
     });
 
-    await execAsync(`git push -u origin ${currentBranch.trim()}`, { cwd: workingDirectory });
+    // Push the work. If origin's branch has DIVERGED (a stale branch left by a
+    // prior run — the AI/fallback namer collapses many Japanese-titled tasks to
+    // the shared `feature/implement-task`, so collisions are common), this falls
+    // back to a fresh uniquely-named branch instead of failing the whole PR step.
+    const currentBranch = await pushBranchForPr(workingDirectory, currentBranchRaw.trim());
 
     // Idempotent: a CI-repair re-run pushes a fix to the SAME branch. The push
     // above already updated any existing PR, so reuse it instead of letting
     // `gh pr create` fail with "a pull request already exists".
     try {
       const { stdout: existing } = await execAsync(
-        `${ghPath()} pr list --head ${currentBranch.trim()} --state open --json number,url --jq ".[0]"`,
+        `${ghPath()} pr list --head ${currentBranch} --state open --json number,url --jq ".[0]"`,
         { cwd: workingDirectory, encoding: 'utf8' },
       );
       const trimmed = existing.trim();
