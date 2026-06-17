@@ -89,6 +89,19 @@ function isWorkflowTerminal(data: Record<string, unknown>): boolean {
 }
 
 /**
+ * True when the TASK is still actively progressing even though the current
+ * execution row completed — e.g. a verify that did NOT finalize the task because
+ * it bounced into the self-repair loop (verify → implement → verify). The
+ * verifier phase is NOT in AUTO_ADVANCING_PHASES, so without this the poller
+ * stopped at the verifier seam and the UI froze at 完了 until a manual reload
+ * ("再読込しないとステータスが更新されない"). Bounded: as soon as taskStatus
+ * leaves 'in-progress' (→ done/blocked/failed) polling stops on the next tick.
+ */
+function isTaskActivelyProgressing(data: Record<string, unknown>): boolean {
+  return data.taskStatus === 'in-progress' && data.workflowStatus !== 'completed';
+}
+
+/**
  * Handle the 'completed' execution status.
  * Returns a state updater function, or null if the update should be skipped.
  *
@@ -117,7 +130,9 @@ export function handleCompleted(
   // A completed execution counts as auto-advancing ONLY while the task itself
   // is not yet terminal. Once the task is done/completed there is no next phase,
   // so finalize the UI (show 完了 + the PRを開く button) instead of polling on.
-  const autoAdvancing = !isWorkflowTerminal(data) && isAutoAdvancingPhase(sessionMode);
+  const autoAdvancing =
+    !isWorkflowTerminal(data) &&
+    (isAutoAdvancingPhase(sessionMode) || isTaskActivelyProgressing(data));
   let completionMessage = '\n[完了] 実行が完了しました。\n';
   if (sessionMode?.startsWith('workflow-')) {
     completionMessage =
@@ -165,7 +180,13 @@ export function handleCompleted(
 export function shouldKeepPollingAfterCompleted(data: Record<string, unknown>): boolean {
   // Keep polling for the next phase ONLY while the task is still in flight. A
   // terminal task (single execution that completed everything) has no next phase.
-  return !isWorkflowTerminal(data) && isAutoAdvancingPhase(data.sessionMode as string | null);
+  // Also keep polling when the task itself is still progressing (e.g. a verify
+  // bounce re-running implement→verify) so the UI follows the loop without a
+  // manual reload — even though the verifier phase is not auto-advancing.
+  return (
+    !isWorkflowTerminal(data) &&
+    (isAutoAdvancingPhase(data.sessionMode as string | null) || isTaskActivelyProgressing(data))
+  );
 }
 
 /**

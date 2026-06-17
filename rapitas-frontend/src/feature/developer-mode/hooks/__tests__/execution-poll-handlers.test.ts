@@ -103,3 +103,44 @@ describe('terminal task finalization for auto-advancing single executions', () =
     expect(state.isRunning).toBe(false);
   });
 });
+
+// Regression (task 185): a verifier execution can COMPLETE while the task bounces
+// into the self-repair loop (verify → implement → verify). The verifier phase is
+// not auto-advancing, so the poller used to stop and freeze the UI at 完了 until a
+// manual reload. Keep polling while the task is still 'in-progress'.
+describe('verify self-repair seam keeps the UI live', () => {
+  it('keeps polling when a completed verifier left the task in-progress', () => {
+    expect(
+      shouldKeepPollingAfterCompleted({
+        sessionMode: 'workflow-verifier',
+        workflowStatus: 'plan_approved',
+        taskStatus: 'in-progress',
+      }),
+    ).toBe(true);
+  });
+
+  it('stops once the task reaches a terminal/blocked state', () => {
+    expect(
+      shouldKeepPollingAfterCompleted({
+        sessionMode: 'workflow-verifier',
+        workflowStatus: 'plan_approved',
+        taskStatus: 'blocked',
+      }),
+    ).toBe(false);
+  });
+
+  it('handleCompleted stays running (not 完了) while the task is in-progress', () => {
+    const updater = handleCompleted(
+      {
+        executionStatus: 'completed',
+        sessionMode: 'workflow-verifier',
+        workflowStatus: 'plan_approved',
+        taskStatus: 'in-progress',
+      },
+      makeRefs(),
+    );
+    const state = updater!(emptyState());
+    expect(state.status).toBe('running');
+    expect(state.isRunning).toBe(true);
+  });
+});
