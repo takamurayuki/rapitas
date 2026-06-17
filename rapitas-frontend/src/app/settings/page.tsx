@@ -11,7 +11,6 @@ import { ApiKeySection } from './_components/ApiKeySection';
 import { DefaultProviderSection } from './_components/DefaultProviderSection';
 import { LocalLlmSection } from './_components/LocalLlmSection';
 import { DevToolsSection } from './_components/DevToolsSection';
-import { TaskCleanupSection } from './_components/TaskCleanupSection';
 
 function SettingsPage() {
   const t = useTranslations('settings');
@@ -107,8 +106,6 @@ function SettingsPage() {
         />
 
         <DevToolsSection />
-
-        <TaskCleanupSection />
       </div>
     </div>
   );
