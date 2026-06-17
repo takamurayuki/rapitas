@@ -652,6 +652,67 @@ export async function handleSaveFile({
       }
     }
 
+    // Independent adversarial diff review: a separate judge (ideally a different
+    // provider than the implementer) scores the ACTUAL diff against plan +
+    // acceptance criteria, catching wrong/incomplete implementations that the
+    // self-reported verify.md misses. On a FAIL verdict, bounce the workflow back
+    // to the implementer (self-repair loop) instead of completing. Fail-open: an
+    // unavailable judge ('unknown') does not block.
+    if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
+      const reviewSession = await prisma.agentSession
+        .findFirst({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { worktreePath: true },
+        })
+        .catch(() => null);
+      const { reviewDiffAdversarially } =
+        await import('../../../services/agents/verification/adversarial-diff-review');
+      const review = await reviewDiffAdversarially({
+        taskId,
+        worktreePath: reviewSession?.worktreePath,
+      }).catch(() => null);
+
+      if (review && review.verdict === 'fail') {
+        verifyGateBlocked = true;
+        const reason = `差分レビュー不合格: ${
+          review.reasons.slice(0, 5).join(' / ') || '受入基準を満たしていません'
+        }`;
+        const { attemptVerifyRepair } =
+          await import('../../../services/workflow/verify-self-repair');
+        const repair = await attemptVerifyRepair(taskId, 'verify_done', reason, savedContent).catch(
+          () => ({ bounced: false }) as Awaited<ReturnType<typeof attemptVerifyRepair>>,
+        );
+        if (repair.bounced && repair.newStatus) {
+          await prisma.task
+            .update({ where: { id: taskId }, data: { workflowStatus: repair.newStatus } })
+            .catch(() => {});
+          newStatus = repair.newStatus;
+          log.warn(
+            { taskId, attempt: repair.attempt, severity: review.severity },
+            '[Workflow] Adversarial diff review FAILED — bounced to implementer for self-repair',
+          );
+        } else {
+          await markLatestExecutionFailed(taskId, reason);
+          log.warn(
+            { taskId, severity: review.severity },
+            '[Workflow] Adversarial diff review FAILED and repairs exhausted — task stays blocked',
+          );
+        }
+        await recordTransition({
+          taskId,
+          fromStatus: 'verify_done',
+          toStatus: newStatus,
+          actor: 'system',
+          cause: 'adversarial_review_failed',
+          phase: 'verify',
+          metadata: { severity: review.severity, reasons: review.reasons.slice(0, 5) },
+          invariantViolation: true,
+          invariantMessage: reason,
+        }).catch(() => {});
+      }
+    }
+
     let autoCommitPRResult: Awaited<ReturnType<typeof performAutoCommitAndPR>> = {};
     let taskMarkedDone = false;
     if (fileType === 'verify' && newStatus === 'verify_done' && !verifyGateBlocked) {
