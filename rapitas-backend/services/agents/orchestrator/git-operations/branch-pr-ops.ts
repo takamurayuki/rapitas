@@ -166,6 +166,12 @@ export async function mergePullRequest(
   success: boolean;
   mergeStrategy?: 'squash' | 'merge';
   error?: string;
+  /**
+   * The merge was blocked by a transient/recoverable condition (head branch
+   * behind base — branch protection requires up-to-date). We updated the branch;
+   * the caller should retry on a later poll (CI re-runs first). Not a failure.
+   */
+  retriable?: boolean;
 }> {
   try {
     const { stdout } = await execAsync(
@@ -186,10 +192,35 @@ export async function mergePullRequest(
 
     return { success: true, mergeStrategy };
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    const msg = error instanceof Error ? error.message : String(error);
+    // Branch protection requires the head branch to be up to date with base.
+    // Update it (merge base into the PR head on GitHub) so CI re-runs; the
+    // caller (AutoMergeWatcher) retries the merge once checks are green again.
+    if (/not up.?to.?date with the base branch|not mergeable|base branch was modified/i.test(msg)) {
+      try {
+        await execAsync(`${ghPath()} pr update-branch ${prNumber}`, {
+          cwd: workingDirectory,
+          encoding: 'utf8',
+        });
+        return {
+          success: false,
+          retriable: true,
+          error: 'head branch was behind base; updated branch — will retry after CI re-runs',
+        };
+      } catch (updErr) {
+        const um = updErr instanceof Error ? updErr.message : String(updErr);
+        // Already up to date (race) — just retry the merge next tick.
+        if (/already up.?to.?date|no new commits|not behind/i.test(um)) {
+          return {
+            success: false,
+            retriable: true,
+            error: 'branch already up to date; will retry',
+          };
+        }
+        return { success: false, error: `update-branch failed: ${um}` };
+      }
+    }
+    return { success: false, error: msg };
   }
 }
 

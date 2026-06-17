@@ -272,6 +272,14 @@ export class AutoMergeWatcher {
           message: `PR #${c.prNumber} をCI通過後に自動マージしました（${res.mergeStrategy}）`,
         });
         log.info({ taskId: c.taskId, prNumber: c.prNumber }, '[auto-merge] Merged after CI pass');
+      } else if (res.retriable) {
+        // Head branch was behind base; mergePullRequest updated it. Do NOT mark
+        // terminal — the branch update triggers a fresh CI run; the next tick
+        // re-evaluates and merges once checks are green and the branch is current.
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber, reason: res.error },
+          '[auto-merge] Head behind base — updated branch, will retry next tick',
+        );
       } else {
         await mark(c.taskId, 'auto_merge_blocked', `merge failed: ${res.error}`);
         await notify({
