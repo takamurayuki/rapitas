@@ -18,6 +18,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { submitIdea } from './idea-box-service';
@@ -179,17 +180,10 @@ async function generateForTheme(
     return 0;
   }
 
-  const jsonMatch = response.content.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return 0;
+  const parsedIdeas = parseJsonArray<{ title: string; content: string }>(response.content);
+  if (!parsedIdeas) return 0;
 
-  let ideas: Array<{ title: string; content: string }>;
-  try {
-    ideas = (JSON.parse(jsonMatch[0]) as Array<{ title: string; content: string }>)
-      .filter((i) => i.title && i.content)
-      .slice(0, IDEAS_PER_THEME);
-  } catch {
-    return 0;
-  }
+  const ideas = parsedIdeas.filter((i) => i.title && i.content).slice(0, IDEAS_PER_THEME);
 
   let created = 0;
   for (const idea of ideas) {
