@@ -891,6 +891,21 @@ export async function handleSaveFile({
       }
     }
 
+    // Telemetry: a verify save that left the task BLOCKED by any gate (NOT a
+    // self-repair bounce — those leave it in-progress for a re-run) is recorded
+    // as a blocked outcome, so the per-theme difficulty signal reflects failures
+    // as well as successes.
+    if (fileType === 'verify' && !taskMarkedDone) {
+      const cur = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { status: true } })
+        .catch(() => null);
+      if (cur?.status === 'blocked') {
+        import('../../../services/workflow/outcome-telemetry')
+          .then(({ recordTaskOutcome }) => recordTaskOutcome(taskId, 'blocked'))
+          .catch(() => {});
+      }
+    }
+
     // Build response
     const response: Record<string, unknown> = {
       success: true,

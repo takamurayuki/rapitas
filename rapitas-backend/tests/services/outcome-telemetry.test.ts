@@ -27,9 +27,11 @@ mock.module('../../config/logger', () => {
   const noop = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
   return { createLogger: () => noop, logger: noop, getBackendLogFilePath: () => '/tmp/b.log' };
 });
-mock.module('../../services/memory/timeline', () => ({ appendEvent: () => Promise.resolve() }));
+const appendEvent = mock((_e: { payload?: Record<string, unknown> }) => Promise.resolve()) as any;
+mock.module('../../services/memory/timeline', () => ({ appendEvent }));
 
-const { recentThemeEscalation } = await import('../../services/workflow/outcome-telemetry');
+const { recentThemeEscalation, recordTaskOutcome } =
+  await import('../../services/workflow/outcome-telemetry');
 
 const tasks = (n: number, blocked = 0) =>
   Array.from({ length: n }, (_, i) => ({ id: i + 1, status: i < blocked ? 'blocked' : 'done' }));
@@ -65,5 +67,42 @@ describe('recentThemeEscalation', () => {
     taskFindMany.mockResolvedValueOnce(tasks(5, 0));
     transitionFindMany.mockResolvedValueOnce([]);
     expect(await recentThemeEscalation(1)).toBe(0);
+  });
+});
+
+describe('recordTaskOutcome', () => {
+  test('completed かつ trouble 0 なら firstTrySuccess=true で記録', async () => {
+    appendEvent.mockReset();
+    appendEvent.mockResolvedValue(undefined);
+    mockPrisma.task.findUnique.mockResolvedValueOnce({
+      themeId: 1,
+      workflowMode: 'standard',
+      complexityScore: 40,
+    });
+    mockPrisma.workflowTransition.count.mockResolvedValueOnce(0);
+    await recordTaskOutcome(5, 'completed');
+    const payload = appendEvent.mock.calls[0][0] as {
+      eventType: string;
+      payload: Record<string, unknown>;
+    };
+    expect(payload.eventType).toBe('task_outcome');
+    expect(payload.payload.finalStatus).toBe('completed');
+    expect(payload.payload.firstTrySuccess).toBe(true);
+  });
+
+  test('blocked は firstTrySuccess=false', async () => {
+    appendEvent.mockReset();
+    appendEvent.mockResolvedValue(undefined);
+    mockPrisma.task.findUnique.mockResolvedValueOnce({
+      themeId: 1,
+      workflowMode: 'standard',
+      complexityScore: 40,
+    });
+    mockPrisma.workflowTransition.count.mockResolvedValueOnce(2);
+    await recordTaskOutcome(6, 'blocked');
+    const payload = appendEvent.mock.calls[0][0] as { payload: Record<string, unknown> };
+    expect(payload.payload.finalStatus).toBe('blocked');
+    expect(payload.payload.firstTrySuccess).toBe(false);
+    expect(payload.payload.troubleCount).toBe(2);
   });
 });
