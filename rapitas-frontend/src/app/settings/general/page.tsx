@@ -8,7 +8,6 @@ import { locales, type Locale } from '@/i18n/config';
 import { EXTERNAL_BROWSER_KEY } from '@/utils/tauri';
 import BackupCard from '../_components/BackupCard';
 import RecentErrorsCard from '../_components/RecentErrorsCard';
-import { TaskCleanupSection } from '../_components/TaskCleanupSection';
 import Link from 'next/link';
 
 const LOCALE_LABELS: Record<Locale, string> = {
@@ -150,7 +149,6 @@ export default function GeneralSettingsPage() {
 
         <BackupCard />
         <RecentErrorsCard />
-        <TaskCleanupSection />
 
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
           <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">

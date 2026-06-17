@@ -9,6 +9,7 @@ import { TaskCreationSettingsCard } from './components/TaskCreationSettingsCard'
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
 import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
+import { TaskCleanupSection } from '../_components/TaskCleanupSection';
 
 export default function DeveloperModeSettingsPage() {
   const t = useTranslations('settings');
@@ -79,6 +80,8 @@ export default function DeveloperModeSettingsPage() {
           isSaving={isSaving}
           onUpdateSettings={updateSettings}
         />
+
+        <TaskCleanupSection />
       </div>
     </div>
   );
