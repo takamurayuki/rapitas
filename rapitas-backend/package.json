@@ -15,6 +15,7 @@
     "test:watch": "bun test --watch",
     "test:sqlite": "node scripts/run-sqlite-tests.cjs",
     "test:coverage": "bun test --coverage",
+    "eval:gates": "bun run scripts/eval-gates.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:generate:sqlite": "bun run scripts/generate-sqlite-prisma-schema.cjs && prisma generate --schema prisma/schema.desktop",
