@@ -8,6 +8,7 @@ import { API_BASE_URL } from '@/utils/api';
 interface ThemeOption {
   id: number;
   name: string;
+  workingDirectory?: string | null;
 }
 
 /** Result shape returned by POST /tasks/cleanup-completed. */
@@ -48,7 +49,13 @@ export function TaskCleanupSection() {
         if (res.ok) {
           const data = (await res.json()) as ThemeOption[] | { themes?: ThemeOption[] };
           const list = Array.isArray(data) ? data : (data.themes ?? []);
-          setThemes(list.map((t) => ({ id: t.id, name: t.name })));
+          // Only themes with a working directory — those are the ones that
+          // actually run tasks (and thus accumulate completed tasks to prune).
+          setThemes(
+            list
+              .filter((t) => typeof t.workingDirectory === 'string' && t.workingDirectory.trim())
+              .map((t) => ({ id: t.id, name: t.name })),
+          );
         }
       } catch {
         /* theme list is optional — the "all themes" option still works */
