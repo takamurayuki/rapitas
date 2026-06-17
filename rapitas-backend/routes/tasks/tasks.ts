@@ -15,6 +15,7 @@ import {
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
+import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
@@ -415,6 +416,36 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           : '重複サブタスクはありませんでした',
     };
   })
+
+  // Prune old COMPLETED tasks: keep the most recent N, delete older ones after
+  // capturing their knowledge (skip extraction when already recorded). Also
+  // removes each task's workflow md files and git worktrees. Manual trigger.
+  // Body: { keepRecent?: number, dryRun?: boolean }. Use dryRun first to preview.
+  .post(
+    '/cleanup-completed',
+    async (context) => {
+      const body = (context.body ?? {}) as { keepRecent?: number; dryRun?: boolean };
+      const result = await cleanupCompletedTasks({
+        keepRecent: typeof body.keepRecent === 'number' ? body.keepRecent : undefined,
+        dryRun: body.dryRun === true,
+      });
+      return {
+        success: true,
+        message: result.dryRun
+          ? `${result.candidateCount}件が削除対象です（直近${result.keepRecent}件は保持・dryRun）`
+          : `${result.deletedCount}件の完了タスクを削除しました（ナレッジ記録 ${result.knowledgeRecorded} / 記録済み ${result.alreadyRecorded} / サブタスク未完でスキップ ${result.skippedWithOpenSubtasks}）`,
+        ...result,
+      };
+    },
+    {
+      body: t.Optional(
+        t.Object({
+          keepRecent: t.Optional(t.Number({ minimum: 0 })),
+          dryRun: t.Optional(t.Boolean()),
+        }),
+      ),
+    },
+  )
 
   // Bulk delete duplicate subtasks across all tasks
   .post('/cleanup-all-duplicates', async () => {

@@ -4,7 +4,7 @@
  * Low-level filesystem helpers for reading, writing, and cleaning up workflow
  * Markdown files. Does not contain any business logic or DB access.
  */
-import { readFile, writeFile, mkdir, rename, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, stat, rm } from 'fs/promises';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { prisma } from '../../config';
@@ -44,6 +44,28 @@ export async function resolveWorkflowDir(taskId: number) {
     categoryId,
     themeId,
   };
+}
+
+/**
+ * Delete a task's workflow directory (research/plan/verify/question + archived
+ * versions) from disk. Best-effort and recursive; a missing task/dir is a no-op.
+ * MUST be called while the task still exists (resolveWorkflowDir reads it to
+ * derive the category/theme path), i.e. before `prisma.task.delete`.
+ *
+ * @param taskId - Task whose workflow md files to remove. / 対象タスクID
+ * @returns true when a directory removal was attempted. / 削除を試みたか
+ */
+export async function deleteWorkflowDir(taskId: number): Promise<boolean> {
+  try {
+    const resolved = await resolveWorkflowDir(taskId);
+    if (!resolved) return false;
+    await rm(resolved.dir, { recursive: true, force: true });
+    log.info({ taskId, dir: resolved.dir }, '[workflow-file-utils] Deleted workflow dir');
+    return true;
+  } catch (err) {
+    log.warn({ err, taskId }, '[workflow-file-utils] Failed to delete workflow dir');
+    return false;
+  }
 }
 
 /**
