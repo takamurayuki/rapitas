@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
@@ -421,11 +422,8 @@ ${context}
     });
 
     const text = response.content.trim();
-    // Extract JSON portion
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractedKnowledge[];
+    const parsed = parseJsonArray<ExtractedKnowledge>(text);
+    if (!parsed) return [];
     const validCategories = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
 
     return parsed

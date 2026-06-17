@@ -10,6 +10,7 @@
 import { PrismaClient } from '@prisma/client';
 import { searchKnowledge } from '../memory/rag/search';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createLogger } from '../../config';
 
 type PrismaInstance = InstanceType<typeof PrismaClient>;
@@ -134,20 +135,17 @@ ${gapSummary || 'なし'}
       ragThemeId: themeId,
     });
 
-    // Parse AI response
-    const jsonMatch = response.content.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      log.warn('AI response did not contain valid JSON array for knowledge suggestions');
-      return [];
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+    const parsed = parseJsonArray<{
       title: string;
       description: string;
       priority: string;
       source: string;
       confidence: number;
-    }>;
+    }>(response.content);
+    if (!parsed) {
+      log.warn('AI response did not contain valid JSON array for knowledge suggestions');
+      return [];
+    }
 
     // Map related knowledge IDs based on content relevance
     const suggestions: KnowledgeSuggestion[] = parsed.slice(0, limit).map((s) => {
