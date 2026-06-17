@@ -13,6 +13,7 @@ import { promisify } from 'node:util';
 import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
+import { researchConcludesNoChange } from '../../../services/workflow/completion-gate';
 import { checkWorkflowInvariants } from '../../../services/workflow/workflow-invariants';
 import {
   isIsolatedWorktree,
@@ -203,6 +204,38 @@ export async function handleResearchResult(params: HandleResearchResultParams): 
       { err: revertErr, taskId: taskIdNum },
       '[API] Failed to inspect/revert worktree in research mode',
     );
+  }
+
+  // 4a. Research concluded the requirement is ALREADY satisfied (explicit
+  // "## 結論: 修正不要" verdict): complete the task directly — no plan / impl /
+  // verify — so already-done work doesn't get a duplicate PR.
+  if (savedOk && researchConcludesNoChange(researchMarkdown)) {
+    await prisma.task
+      .update({
+        where: { id: taskIdNum },
+        data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+      })
+      .catch((e) =>
+        log.warn({ err: e, taskId: taskIdNum }, '[API] Failed to complete (no-change)'),
+      );
+    await recordTransition({
+      taskId: taskIdNum,
+      fromStatus: 'draft',
+      toStatus: 'completed',
+      actor: 'researcher',
+      cause: 'research_no_change_complete',
+      phase: 'research',
+      sessionId,
+      metadata: { reportChars: researchMarkdown.length },
+    }).catch(() => {});
+    await prisma.agentSession
+      .update({ where: { id: sessionId }, data: { status: 'completed', completedAt: new Date() } })
+      .catch(() => {});
+    log.info(
+      { taskId: taskIdNum },
+      '[API] Research concluded no change needed — task completed without plan/impl',
+    );
+    return;
   }
 
   // 4. Update task / session status AND advance workflow.

@@ -21,7 +21,10 @@ import {
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
-import { evaluateCompletionGate } from '../../../services/workflow/completion-gate';
+import {
+  evaluateCompletionGate,
+  researchConcludesNoChange,
+} from '../../../services/workflow/completion-gate';
 import { recordTransition } from '../../../services/workflow/transition-recorder';
 import {
   checkWorkflowInvariants,
@@ -341,7 +344,20 @@ export async function handleSaveFile({
 
     log.info(`[Workflow] Processing fileType: ${fileType}, currentStatus: ${currentStatus}`);
 
-    if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
+    // Research concluded the requirement is ALREADY satisfied (explicit
+    // "修正不要" verdict). Complete the task directly from research — no plan.md,
+    // no implementation, no verify — so already-done work doesn't get a
+    // duplicate PR. Only valid while still in the research phase.
+    let researchCompleted = false;
+    if (
+      fileType === 'research' &&
+      (!currentStatus || currentStatus === 'draft' || currentStatus === 'research_done') &&
+      researchConcludesNoChange(savedContent)
+    ) {
+      log.info(`[Workflow] Research concluded no change needed — completing task ${taskId}`);
+      newStatus = 'completed';
+      researchCompleted = true;
+    } else if (fileType === 'research' && (!currentStatus || currentStatus === 'draft')) {
       log.info(`[Workflow] Research completed: setting newStatus to research_done`);
       newStatus = 'research_done';
     } else if (fileType === 'plan' && (!currentStatus || currentStatus === 'research_done')) {
@@ -435,7 +451,15 @@ export async function handleSaveFile({
     if (newStatus) {
       await prisma.task.update({
         where: { id: taskId },
-        data: { workflowStatus: newStatus, updatedAt: new Date() },
+        // Research-no-change completion also marks the task itself done.
+        data: researchCompleted
+          ? {
+              workflowStatus: newStatus,
+              status: 'done',
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            }
+          : { workflowStatus: newStatus, updatedAt: new Date() },
       });
       // Record the transition + immediately verify invariants. We log
       // violations but DO NOT throw — the file was already saved on disk
@@ -453,7 +477,7 @@ export async function handleSaveFile({
         fromStatus: currentStatus ?? null,
         toStatus: newStatus,
         actor: 'system',
-        cause: `file_saved:${fileType}`,
+        cause: researchCompleted ? 'research_no_change_complete' : `file_saved:${fileType}`,
         phase: fileType,
         metadata: transitionMetadata,
         invariantViolation: violations.length > 0,
