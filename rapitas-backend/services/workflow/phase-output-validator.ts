@@ -44,9 +44,61 @@ const PLAN_REQUIRED_SECTIONS = [
 const VERIFY_REQUIRED_SECTIONS = ['テスト結果', 'チェックリスト', '検証結果サマリ'];
 
 /**
+ * Patterns that NEVER appear in a legitimate workflow artifact — their presence
+ * means the agent's streamed execution log / stream-json leaked into the md
+ * (a "broken" file). Any single match flags pollution.
+ */
+const HARD_NOISE_PATTERNS: RegExp[] = [
+  /\[System:\s*(?:init|thinking_tokens)\]/i,
+  /\[Claude Code\]\s*(?:Starting execution|Working directory|Process PID|Timeout|Prompt:)/i,
+  /^\s*\[Result:\s*\w+/im,
+  /^\s*\{"type":\s*"/m, // stream-json event
+  /^\s*data:\s*\{/m, // SSE frame
+  // eslint-disable-next-line no-control-regex
+  /\[[0-9;]*m/, // ANSI color escape
+];
+
+/**
+ * Agent-log line shapes that occasionally appear legitimately (e.g. quoted in a
+ * report), so they only flag pollution in QUANTITY.
+ */
+const SOFT_NOISE_LINE =
+  /^\s*\[(?:Tool|Tool Done|Tool Error|Command|エージェント|実行開始|継続実行|System Error|調査完了|計画作成完了|実装完了|検証完了|フェーズ完了)\b/i;
+
+/**
+ * Whether an md is "broken" by agent log / stream output leaking into it. Used
+ * to stop a corrupted research/plan/verify from being accepted, auto-approved,
+ * reused, or implemented against. Any HARD pattern, or enough SOFT log lines.
+ *
+ * @param content - md body to inspect / 検査するmd本文
+ * @returns true when the file looks log-polluted / ログ混入で壊れていれば true
+ */
+export function looksLogPolluted(content: string | null | undefined): boolean {
+  if (!content) return false;
+  if (HARD_NOISE_PATTERNS.some((re) => re.test(content))) return true;
+  const lines = content.split(/\r?\n/);
+  const nonEmpty = lines.filter((l) => l.trim().length > 0);
+  if (nonEmpty.length === 0) return false;
+  const noisy = nonEmpty.filter((l) => SOFT_NOISE_LINE.test(l)).length;
+  // Many agent-log lines (absolute) or a large fraction → polluted.
+  return noisy >= 6 || noisy / nonEmpty.length >= 0.2;
+}
+
+/** A polluted-file validation result (unusable; forces re-generation). */
+function pollutedResult(label: string): ValidationResult {
+  return {
+    ok: false,
+    missingSections: [],
+    severity: 100,
+    summary: `${label} is corrupted: agent execution log / stream output leaked into the file`,
+  };
+}
+
+/**
  * Validate research.md content.
  */
 export function validateResearch(content: string): ValidationResult {
+  if (looksLogPolluted(content)) return pollutedResult('research.md');
   return validateSections(content, RESEARCH_REQUIRED_SECTIONS, 'research.md');
 }
 
@@ -55,6 +107,7 @@ export function validateResearch(content: string): ValidationResult {
  * critical — without it, implementers will ask questions or guess.
  */
 export function validatePlan(content: string): ValidationResult {
+  if (looksLogPolluted(content)) return pollutedResult('plan.md');
   const result = validateSections(content, PLAN_REQUIRED_SECTIONS, 'plan.md');
   // Up-weight the criticality of "設計判断の根拠"
   if (result.missingSections.includes('設計判断の根拠')) {
@@ -81,6 +134,7 @@ export function validatePlan(content: string): ValidationResult {
  * @returns Validation result with contradiction details when applicable
  */
 export function validateVerify(content: string): ValidationResult {
+  if (looksLogPolluted(content)) return pollutedResult('verify.md');
   const sectionResult = validateSections(content, VERIFY_REQUIRED_SECTIONS, 'verify.md');
   if (!sectionResult.ok) return sectionResult;
 

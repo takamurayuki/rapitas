@@ -20,6 +20,7 @@ import {
 } from '../core/workflow-helpers';
 import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
+import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
 import {
   evaluateCompletionGate,
@@ -330,6 +331,36 @@ export async function handleSaveFile({
           `Windows では PowerShell のパイプ/インライン文字列で curl に渡さないでください（既定の US-ASCII で '?' に潰れます）。` +
           `内容を一時ファイルに UTF-8 で書き出し、'curl.exe -X PUT <url> --data-binary @<file>.md -H "Content-Type: text/markdown; charset=utf-8"' で送ってください。`,
         mojibake: { runs: loss.runs, count: loss.count, longest: loss.longest },
+      };
+    }
+
+    // Reject a "broken" md whose body is the agent's streamed execution log /
+    // stream-json rather than a real report. Persisting it would let a corrupted
+    // plan.md get auto-approved and implemented against (and reused on re-run).
+    // Don't write it, don't advance — the phase re-runs and regenerates a clean
+    // file. (verify validation has its own self-repair path; here we stop the
+    // garbage at the door for every file type.)
+    if (looksLogPolluted(content)) {
+      log.warn(
+        { taskId, fileType, currentStatus: currentStatusForGuard, chars: content.length },
+        '[Workflow] Rejected workflow file save: agent log/stream output leaked into the md',
+      );
+      await recordTransition({
+        taskId,
+        fromStatus: currentStatusForGuard,
+        toStatus: currentStatusForGuard,
+        actor: 'system',
+        cause: 'log_polluted_rejected',
+        phase: fileType,
+        metadata: { chars: content.length },
+        invariantViolation: true,
+        invariantMessage: `${fileType}.md rejected: agent execution log leaked into the file (broken artifact)`,
+      });
+      set.status = 422;
+      return {
+        error:
+          `${fileType}.md の内容に実行ログ/ストリーム出力が混入しています（壊れた成果物）。保存を中止しました。` +
+          `最終的なMarkdown本文のみ（ツールログ・[System:...]・stream-json を含めない）を保存してください。`,
       };
     }
 

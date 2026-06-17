@@ -6,7 +6,11 @@
  * 渡さない（常に再生成する）方針。
  */
 import { describe, test, expect } from 'bun:test';
-import { isReusableArtifact } from '../../services/workflow/phase-output-validator';
+import {
+  isReusableArtifact,
+  looksLogPolluted,
+  validatePlan,
+} from '../../services/workflow/phase-output-validator';
 
 const FULL_RESEARCH = [
   '# 調査結果',
@@ -71,5 +75,40 @@ describe('isReusableArtifact', () => {
 
   test('question / その他は存在すれば再利用する', () => {
     expect(isReusableArtifact('question', 'なんらかの内容')).toBe(true);
+  });
+});
+
+describe('looksLogPolluted', () => {
+  test('stream-json / [System:...] 混入を検出する', () => {
+    expect(looksLogPolluted('# 実装計画\n[System: thinking_tokens]\n本文')).toBe(true);
+    expect(looksLogPolluted('## 概要\n{"type":"assistant","message":{}}')).toBe(true);
+    expect(looksLogPolluted('[Claude Code] Starting execution...\n# 計画')).toBe(true);
+    expect(looksLogPolluted('[Result: completed (10s) $0.5]\n本文')).toBe(true);
+  });
+
+  test('ツールログ行が多数なら検出する', () => {
+    const polluted = [
+      '# 実装計画',
+      '[Tool: Read] -> a.ts',
+      '[Tool: Edit] -> b.ts',
+      '[Tool: Bash] $ ls',
+      '[Tool Done: Bash] (1s)',
+      '[Tool: Grep] pattern: x',
+      '[エージェント] Claude Code',
+    ].join('\n');
+    expect(looksLogPolluted(polluted)).toBe(true);
+  });
+
+  test('正常な plan/research は誤検出しない', () => {
+    expect(looksLogPolluted(FULL_PLAN)).toBe(false);
+    expect(looksLogPolluted(FULL_RESEARCH)).toBe(false);
+    expect(looksLogPolluted('')).toBe(false);
+  });
+
+  test('ログ汚染した md は再利用しない・plan validator も不合格', () => {
+    const broken = '# 実装計画\n[System: thinking_tokens]\n[System: init]\nゴミ';
+    expect(isReusableArtifact('plan', broken)).toBe(false);
+    expect(validatePlan(broken).ok).toBe(false);
+    expect(validatePlan(broken).severity).toBe(100);
   });
 });

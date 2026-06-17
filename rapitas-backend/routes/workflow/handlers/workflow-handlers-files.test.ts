@@ -107,9 +107,24 @@ mock.module('../../../services/workflow/completion-gate', () => ({
     !!c && /結論\s*[:：]\s*(?:[^\n]*)?(?:修正|対応|実装|変更)(?:は)?不要/.test(c),
 }));
 
-// ---- phase-output-validator mock (verify path) ----
+// ---- phase-output-validator mock (verify path + pollution guard) ----
 mock.module('../../../services/workflow/phase-output-validator', () => ({
   validateVerify: () => ({ ok: true, missingSections: [], severity: 0, summary: 'ok' }),
+  // Faithful-enough mirror of the real detector for the handler's reject guard.
+  looksLogPolluted: (c: string | null | undefined) => {
+    if (!c) return false;
+    if (
+      /\[System:\s*(?:init|thinking_tokens)\]|\[Claude Code\]\s*(?:Starting|Working|Process)|^\s*\[Result:\s*\w+|^\s*\{"type":\s*"|^\s*data:\s*\{/im.test(
+        c,
+      )
+    )
+      return true;
+    const ne = c.split(/\r?\n/).filter((l) => l.trim());
+    const noisy = ne.filter((l) =>
+      /^\s*\[(Tool|Tool Done|Tool Error|Command|エージェント|実行開始)/i.test(l),
+    ).length;
+    return noisy >= 6 || (ne.length > 0 && noisy / ne.length >= 0.2);
+  },
 }));
 
 // ---- plan-auto-approve mock ----
@@ -275,6 +290,45 @@ describe('handleSaveFile — research が修正不要結論ならタスクを完
     });
 
     expect((result as { workflowStatus?: string }).workflowStatus).toBe('research_done');
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — ログ混入で壊れた md は保存を拒否すること', () => {
+  test('plan.md にログが混入していたら 422 で拒否し、保存・遷移しない', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'research_done', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    const set = makeSet();
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'plan' },
+      body: '# 実装計画\n[System: thinking_tokens]\n[System: init]\n[Tool: Read] -> a.ts\nゴミ出力',
+      set,
+    });
+
+    expect(set.status).toBe(422);
+    expect((result as { error?: string }).error).toContain('実行ログ');
+    // 壊れたmdは保存せず、status も進めない
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  test('正常な plan.md は通常どおり保存・遷移する', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'research_done', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'plan' },
+      body: '# 実装計画\n## 設計判断の根拠\n理由\n## 実装チェックリスト\n- [ ] x',
+      set: makeSet(),
+    });
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('plan_created');
   });
 });
 
