@@ -52,7 +52,9 @@ mock.module('../core/workflow-helpers', () => ({
 
 // ---- writeWorkflowFile mock ----
 mock.module('../../../services/workflow/workflow-file-utils', () => ({
-  writeWorkflowFile: mock(() => Promise.resolve('content')),
+  // Echo the saved content so handler logic that inspects it (e.g. the research
+  // "no change" verdict) sees the real body.
+  writeWorkflowFile: mock((_dir: string, _ft: string, content: string) => Promise.resolve(content)),
 }));
 
 // ---- recordTransition mock ----
@@ -98,6 +100,9 @@ mock.module('../../../services/workflow/verify-self-repair', () => ({
 // ---- completion-gate mock ----
 mock.module('../../../services/workflow/completion-gate', () => ({
   evaluateCompletionGate: mock(() => Promise.resolve({ allow: true })),
+  // Mimic the real detector closely enough for the handler test.
+  researchConcludesNoChange: (c: string | null | undefined) =>
+    !!c && /結論\s*[:：]\s*(?:[^\n]*)?(?:修正|対応|実装|変更)(?:は)?不要/.test(c),
 }));
 
 // ---- phase-output-validator mock (verify path) ----
@@ -222,6 +227,46 @@ describe('handleSaveFile — dev-mode single-session verify from plan_approved',
         set: makeSet(),
       }),
     ).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+});
+
+// -------------------------------------------------------------------------
+describe('handleSaveFile — research が修正不要結論ならタスクを完了すること', () => {
+  test('「結論: 修正不要」付き research.md 保存で completed + done になること', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n\n## 結論: 修正不要\n既存実装で充足',
+      set: makeSet(),
+    });
+
+    // newStatus='completed' は research-no-change 完了経路でのみ設定される。
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('completed');
+  });
+
+  test('修正不要結論が無い通常 research.md は research_done に進むこと', async () => {
+    mockResolveWorkflowDir.mockResolvedValueOnce({
+      task: { workflowStatus: 'draft', id: 1 },
+      dir: '/fake/dir/1',
+      categoryId: null,
+      themeId: null,
+    });
+    mockCheckInvariants.mockResolvedValueOnce([]);
+
+    const result = await handleSaveFile({
+      params: { taskId: '1', fileType: 'research' },
+      body: '# 調査結果\n## 影響範囲\n変更が必要',
+      set: makeSet(),
+    });
+
+    expect((result as { workflowStatus?: string }).workflowStatus).toBe('research_done');
   });
 });
 

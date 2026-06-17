@@ -41,6 +41,37 @@ export function verifyJustifiesNoChange(verifyContent: string | null | undefined
   return NO_CHANGE_JUSTIFICATIONS.some((re) => re.test(verifyContent));
 }
 
+/**
+ * Explicit "no change needed" VERDICT markers a researcher writes in research.md
+ * when the task's requirement is ALREADY satisfied by existing code. Deliberately
+ * STRICT (anchored verdict line / heading, not prose) so a research note that
+ * merely mentions "既存実装" while still proposing changes does NOT false-trigger
+ * a premature completion. The research prompt mandates the exact `## 結論: 修正不要`
+ * form (see instruction-builder / research-prompt-builder).
+ */
+const RESEARCH_NO_CHANGE_VERDICTS: RegExp[] = [
+  // Heading or line: 結論/判定/総括 ... (修正|対応|実装|変更|追加実装) (は) 不要
+  /^#{0,4}\s*(?:結論|判定|総括)\s*[:：][^\n]{0,60}(?:修正|対応|実装|変更|追加実装)(?:は)?不要/m,
+  // Machine token line: 修正不要: true / 対応不要: はい
+  /^\s*(?:修正|対応|実装|変更)不要\s*[:：]\s*(?:true|yes|はい|○)\s*$/im,
+  // English: conclusion: no change needed
+  /^#{0,4}\s*conclusion\s*[:：][^\n]{0,60}no[ -]?change[s]?\s*(?:needed|required|necessary)?/im,
+];
+
+/**
+ * Whether research.md explicitly concludes the task needs NO change (the
+ * requirement is already satisfied by existing implementation). When true, the
+ * task may be completed directly from the research phase — no plan.md / impl /
+ * verify — avoiding a duplicate PR for already-satisfied work.
+ *
+ * @param researchContent - research.md body / research.md 本文
+ * @returns true when an explicit no-change verdict is present / 明示的な修正不要判定があれば true
+ */
+export function researchConcludesNoChange(researchContent: string | null | undefined): boolean {
+  if (!researchContent) return false;
+  return RESEARCH_NO_CHANGE_VERDICTS.some((re) => re.test(researchContent));
+}
+
 export interface CompletionGateResult {
   /** Whether the task may be marked completed. */
   allow: boolean;
