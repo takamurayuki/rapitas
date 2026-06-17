@@ -77,6 +77,12 @@ jobs:
         working-directory: rapitas-backend
         run: echo "Backend gate suite coverage printed above."
 
+      - name: Evaluate workflow quality gates
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
+        run: bun run eval:gates
+
   test-sqlite:
     name: Test SQLite Compatible Suite
     runs-on: ubuntu-latest
