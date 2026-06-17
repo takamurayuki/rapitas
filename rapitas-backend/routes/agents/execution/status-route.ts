@@ -138,10 +138,22 @@ export const statusRoute = new Elysia().get(
       const hasOutputOffset = Number.isFinite(outputOffset) && outputOffset >= 0;
       const output = hasOutputOffset ? fullOutput.slice(outputOffset) : fullOutput;
 
+      // Surface the TASK's own status so the poller can finalize the UI when the
+      // run has actually completed the whole workflow. Without this, a single
+      // dev-mode execution whose sessionMode is an auto-advancing phase
+      // (workflow-researcher etc.) kept the UI "running" forever waiting for a
+      // next phase that never spawns — the task was already done. (The
+      // "PRを開く" button + completed badge only appear after a manual reload.)
+      const taskRow = await prisma.task
+        .findUnique({ where: { id: taskId }, select: { status: true, workflowStatus: true } })
+        .catch(() => null);
+
       return {
         sessionId: latestSession.id,
         sessionStatus: latestSession.status,
         sessionMode: latestSession.mode || null,
+        workflowStatus: taskRow?.workflowStatus ?? null,
+        taskStatus: taskRow?.status ?? null,
         executionId: latestExecution?.id,
         executionStatus: effectiveExecutionStatus,
         output,

@@ -71,6 +71,23 @@ function isAutoAdvancingPhase(sessionMode: string | null | undefined): boolean {
   return !!sessionMode && AUTO_ADVANCING_PHASES.has(sessionMode);
 }
 
+/** Terminal task/workflow states — no further phase will run. */
+const TERMINAL_TASK_STATUSES = new Set(['done', 'completed', 'failed', 'cancelled', 'archived']);
+
+/**
+ * True when the TASK itself has reached a terminal state. A single dev-mode
+ * execution can finish the whole workflow (research→…→verify→completed) in one
+ * AgentExecution whose sessionMode is an auto-advancing phase; once the task is
+ * terminal there is NO next phase, so the poller must finalize the UI instead of
+ * waiting forever. Reads the task status/workflowStatus the status endpoint now
+ * returns.
+ */
+function isWorkflowTerminal(data: Record<string, unknown>): boolean {
+  const wf = data.workflowStatus as string | null | undefined;
+  const ts = data.taskStatus as string | null | undefined;
+  return wf === 'completed' || (!!ts && TERMINAL_TASK_STATUSES.has(ts));
+}
+
 /**
  * Handle the 'completed' execution status.
  * Returns a state updater function, or null if the update should be skipped.
@@ -97,6 +114,10 @@ export function handleCompleted(
   }
 
   const sessionMode = data.sessionMode as string | null;
+  // A completed execution counts as auto-advancing ONLY while the task itself
+  // is not yet terminal. Once the task is done/completed there is no next phase,
+  // so finalize the UI (show 完了 + the PRを開く button) instead of polling on.
+  const autoAdvancing = !isWorkflowTerminal(data) && isAutoAdvancingPhase(sessionMode);
   let completionMessage = '\n[完了] 実行が完了しました。\n';
   if (sessionMode?.startsWith('workflow-')) {
     completionMessage =
@@ -116,9 +137,10 @@ export function handleCompleted(
   return (prev) => ({
     ...prev,
     // Stay "running" between auto-advancing phases so the UI does not
-    // flash "完了" between implementer and verifier.
-    isRunning: isAutoAdvancingPhase(sessionMode) ? true : false,
-    status: isAutoAdvancingPhase(sessionMode) ? 'running' : 'completed',
+    // flash "完了" between implementer and verifier — UNLESS the task is
+    // already terminal (single-execution run that finished everything).
+    isRunning: autoAdvancing ? true : false,
+    status: autoAdvancing ? 'running' : 'completed',
     waitingForInput: false,
     question: undefined,
     sessionMode: sessionMode || prev.sessionMode,
@@ -141,7 +163,9 @@ export function handleCompleted(
  * keep running after this `completed` row was processed.
  */
 export function shouldKeepPollingAfterCompleted(data: Record<string, unknown>): boolean {
-  return isAutoAdvancingPhase(data.sessionMode as string | null);
+  // Keep polling for the next phase ONLY while the task is still in flight. A
+  // terminal task (single execution that completed everything) has no next phase.
+  return !isWorkflowTerminal(data) && isAutoAdvancingPhase(data.sessionMode as string | null);
 }
 
 /**

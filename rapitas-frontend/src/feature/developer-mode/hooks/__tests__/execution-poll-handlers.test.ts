@@ -61,3 +61,45 @@ describe('shouldKeepPollingAfterCompleted', () => {
     expect(shouldKeepPollingAfterCompleted({ sessionMode: null })).toBe(false);
   });
 });
+
+// Regression: a single dev-mode execution can finish the WHOLE workflow in one
+// AgentExecution whose sessionMode is an auto-advancing phase. Once the task is
+// terminal there is no next phase, so the poller must finalize (status
+// 'completed', stop polling) instead of waiting forever — previously the run
+// stayed "進行中" with no "PRを開く" button until a manual reload.
+describe('terminal task finalization for auto-advancing single executions', () => {
+  it('stops polling once the task workflow is completed', () => {
+    expect(
+      shouldKeepPollingAfterCompleted({
+        sessionMode: 'workflow-researcher',
+        workflowStatus: 'completed',
+        taskStatus: 'done',
+      }),
+    ).toBe(false);
+  });
+
+  it('still polls while the auto-advancing task is in flight', () => {
+    expect(
+      shouldKeepPollingAfterCompleted({
+        sessionMode: 'workflow-researcher',
+        workflowStatus: 'research_done',
+        taskStatus: 'in-progress',
+      }),
+    ).toBe(true);
+  });
+
+  it('handleCompleted finalizes to completed when the task is terminal', () => {
+    const updater = handleCompleted(
+      {
+        executionStatus: 'completed',
+        sessionMode: 'workflow-researcher',
+        workflowStatus: 'completed',
+        taskStatus: 'done',
+      },
+      makeRefs(),
+    );
+    const state = updater!(emptyState());
+    expect(state.status).toBe('completed');
+    expect(state.isRunning).toBe(false);
+  });
+});
