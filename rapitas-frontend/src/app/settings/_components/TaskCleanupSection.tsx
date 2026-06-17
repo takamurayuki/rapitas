@@ -97,20 +97,20 @@ export function TaskCleanupSection() {
   };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs dark:shadow-2xl dark:shadow-black/50 overflow-hidden">
-      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
+      <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <div className="flex items-center gap-3">
-          <Trash2 className="w-5 h-5 text-zinc-400" />
-          <div>
-            <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">タスク整理</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-              テーマごとに、直近N件を残して古い完了タスクを削除します。削除前にナレッジを記録（記録済みはスキップ）し、ワークフローのmdファイルも削除します。
-            </p>
-          </div>
+          <Trash2 className="h-5 w-5 text-violet-500" />
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+            タスク整理（完了タスクの削除）
+          </h2>
         </div>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          テーマごとに、直近N件を残して古い完了タスクを削除します。削除前にナレッジを記録（記録済みはスキップ）し、ワークフローのmdファイルも削除します。
+        </p>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-6 p-6">
         <div className="flex flex-wrap items-end gap-4">
           {/* Theme selector */}
           <label className="flex flex-col gap-1 text-sm">
