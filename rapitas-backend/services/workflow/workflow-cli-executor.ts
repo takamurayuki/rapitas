@@ -6,6 +6,7 @@
  * back the output file, and applies the Markdown extraction fallback.
  */
 import { mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
@@ -32,6 +33,25 @@ import { maybeAutoApprovePlan } from './plan-auto-approve';
 
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
+
+/**
+ * Whether a worktree recorded on a prior session can be REUSED for this phase.
+ * A path is only reusable if it still exists ON DISK — a phantom path (removed by
+ * a stop/cleanup, or one that never finished creating) must NOT be reused: doing
+ * so makes every implementer/verifier re-launch fail "Working directory does not
+ * exist" and retry until the task is blocked (task 30 regression). When this
+ * returns false the caller recreates a fresh worktree.
+ *
+ * @param recordedPath - worktreePath from the latest prior session / 直近セッションの worktreePath
+ * @param pathExists - existence probe (injectable for tests) / 存在判定（テスト差し替え用）
+ * @returns true when the worktree is safe to reuse / 再利用可能なら true
+ */
+export function canReuseWorktree(
+  recordedPath: string | null | undefined,
+  pathExists: (p: string) => boolean = existsSync,
+): boolean {
+  return !!recordedPath && pathExists(recordedPath);
+}
 
 /**
  * Resolves the git repository root for a directory.
@@ -135,14 +155,27 @@ export async function executeCLIAgent(
         select: { worktreePath: true, branchName: true },
       })
       .catch(() => null);
-    if (sessionWithWorktree?.worktreePath) {
-      resolvedWorktreePath = sessionWithWorktree.worktreePath;
-      resolvedBranchName = sessionWithWorktree.branchName;
+    // Only REUSE a recorded worktree if it still exists ON DISK. A prior
+    // session may record a worktreePath that was later removed (a stop/cleanup,
+    // or a worktree that never finished creating). Reusing a phantom path makes
+    // every implementer/verifier re-launch fail with "Working directory does not
+    // exist" and retry forever (task 30: .worktrees/task-30-… was gone). When the
+    // recorded path is missing, fall through to recreate a fresh worktree.
+    const recordedPath = sessionWithWorktree?.worktreePath ?? null;
+    if (canReuseWorktree(recordedPath)) {
+      resolvedWorktreePath = recordedPath;
+      resolvedBranchName = sessionWithWorktree?.branchName ?? null;
       log.info(
         { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
         '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
       );
     } else {
+      if (recordedPath) {
+        log.warn(
+          { taskId, role: transition.role, recordedPath },
+          '[WorkflowCLIExecutor] Recorded worktree no longer exists on disk — recreating instead of reusing a phantom path',
+        );
+      }
       // No prior worktree — create one so implementer/verifier always runs in
       // isolation and produces a branch the auto-PR pipeline can push. Host it
       // in the theme's project dir, or — when unset (e.g. rapitas
