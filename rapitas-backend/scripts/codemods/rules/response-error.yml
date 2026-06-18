@@ -1,0 +1,25 @@
+# response-error.yml
+#
+# Detects inline `{ success: false, error: "..." }` object literals.
+# Use: ast-grep scan -r scripts/codemods/rules/response-error.yml --json
+#
+# Matches:
+#   { success: false, error: 'some string' }
+#   return { success: false, error: msg };
+#
+# Does NOT match:
+#   createErrorResponse(...)      — already migrated
+#   { success: true, ... }        — different semantic
+
+id: response-error
+language: TypeScript
+rule:
+  kind: object
+  all:
+    - has:
+        kind: pair
+        pattern: "success: false"
+    - has:
+        kind: pair
+        regex: "^error:"
+message: "Replace inline `{ success: false, error: ... }` with `createErrorResponse(...)` from utils/common/response"
