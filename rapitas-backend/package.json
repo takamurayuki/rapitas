@@ -28,7 +28,11 @@
     "format": "prettier --write \"**/*.ts\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.ts\" --ignore-path .gitignore",
     "e2e": "bun run scripts/restart-loop-smoke.ts",
-    "test:e2e": "bun run scripts/restart-loop-smoke.ts"
+    "test:e2e": "bun run scripts/restart-loop-smoke.ts",
+    "codemod:response": "bun run scripts/codemods/response-helper.ts",
+    "codemod:spec-array": "bun run scripts/codemods/spec-array.ts",
+    "codemod:prisma": "bun run scripts/codemods/prisma-singleton.ts",
+    "codemod:all": "bun run scripts/codemods/response-helper.ts && bun run scripts/codemods/spec-array.ts && bun run scripts/codemods/prisma-singleton.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
