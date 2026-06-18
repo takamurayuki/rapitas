@@ -22,6 +22,7 @@ import {
 } from '../agents/task-execution-lock';
 import { DEFAULT_SYSTEM_PROMPTS } from '../../routes/ai/system-prompts/default-prompts';
 import { isReusableArtifact } from './phase-output-validator';
+import { recordTransition } from './transition-recorder';
 
 // Re-export sub-module helpers so existing imports from this path keep working.
 export { resolveWorkflowDir, readWorkflowFile, writeWorkflowFile } from './workflow-file-utils';
@@ -319,6 +320,43 @@ export class WorkflowOrchestrator {
           role: transition.role,
           status: transition.nextStatus,
           output: `${transition.outputFile}.md は既存かつ内容に問題がないため、再生成をスキップしました`,
+        };
+      }
+    }
+
+    // Guard against implementing on a BROKEN plan. plan.md/research.md approved
+    // BEFORE the log-pollution checks existed (or auto-approved garbage) can be
+    // pure agent-log noise — the implementer would then build from nothing
+    // (task 223: plan.md was 301 chars of "[System: thinking_tokens]"). The
+    // reuse-check above only fires for the phase that PRODUCES an md; the
+    // implementer CONSUMES plan.md without re-validating it. So before the
+    // implementer runs, re-validate plan.md and roll the workflow back to draft
+    // when it is unusable — the researcher/planner reuse-checks then regenerate
+    // ONLY the polluted artifacts (a clean one is skipped) before re-implementing.
+    if (transition.role === 'implementer') {
+      const planMd = await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null);
+      if (!planMd || !isReusableArtifact('plan', planMd)) {
+        log.warn(
+          `[WorkflowOrchestrator] task ${taskId}: plan.md is log-polluted or non-substantive — rolling back to re-plan instead of implementing on a broken plan`,
+        );
+        await prisma.task.update({
+          where: { id: taskId },
+          data: { workflowStatus: 'draft' },
+        });
+        await recordTransition({
+          taskId,
+          fromStatus: 'plan_approved',
+          toStatus: 'draft',
+          actor: 'system',
+          cause: 'plan_invalid_replan',
+          phase: 'plan',
+          metadata: { reason: 'plan.md is log-polluted or non-substantive; regenerating' },
+        }).catch(() => {});
+        return {
+          success: true,
+          role: transition.role,
+          status: 'draft',
+          output: 'plan.md が壊れている（ログ汚染/空）ため、再計画にロールバックしました',
         };
       }
     }
