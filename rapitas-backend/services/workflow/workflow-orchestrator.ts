@@ -47,6 +47,8 @@ type WorkflowStatus =
   | 'plan_created'
   | 'plan_approved'
   | 'in_progress'
+  // Set by the intake gate when it pauses for a clarifying question before research.
+  | 'awaiting_question'
   | 'verify_done'
   | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
@@ -188,6 +190,32 @@ export class WorkflowOrchestrator {
         status: currentStatus as WorkflowStatus,
         error: `ステータス "${currentStatus}" では次のフェーズを実行できません`,
       };
+    }
+
+    // Intake quality gate — runs once, just before the first (research) phase.
+    // Enriches a thin spec and, per policy, pauses for a single clarifying
+    // question (returns early to awaiting_question) or proceeds on best-guess.
+    // Fail-open: any error here must NOT block the workflow — fall through to
+    // research. Idempotent, so re-entry after a question is answered is safe.
+    if (currentStatus === 'draft' && transition.role === 'researcher') {
+      try {
+        const { ensureIntakeReady } = await import('../intake');
+        const intake = await ensureIntakeReady(taskId);
+        if (intake.status === 'awaiting_question') {
+          return {
+            success: true,
+            role: transition.role,
+            status: 'awaiting_question' as WorkflowStatus,
+            output:
+              intake.message ?? '仕様が不十分なため確認の質問を作成しました（回答後に再開します）',
+          };
+        }
+      } catch (err) {
+        log.warn(
+          { err, taskId },
+          '[WorkflowOrchestrator] intake gate failed — proceeding to research (fail-open)',
+        );
+      }
     }
 
     // Get role configuration

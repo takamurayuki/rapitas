@@ -540,6 +540,28 @@ export async function handleSaveFile({
       }
     }
 
+    // Research/plan critic gate (judge panel). After the artifact is saved and
+    // its status persisted, run independent critic lenses; on a FAIL verdict the
+    // artifact is archived and the workflow rolled back to regenerate it (bounded
+    // self-repair, mirroring the verify gate). Changing newStatus to the rollback
+    // target naturally skips the auto-split / auto-approve blocks below. env-gated
+    // (RAPITAS_PHASE_CRITIC); fail-open when critics are unavailable.
+    if (
+      (fileType === 'research' && newStatus === 'research_done') ||
+      (fileType === 'plan' && newStatus === 'plan_created')
+    ) {
+      const { applyPhaseCriticGate } = await import('../../../services/workflow/phase-critic');
+      const gate = await applyPhaseCriticGate({
+        taskId,
+        phase: fileType === 'research' ? 'research' : 'plan',
+        content: savedContent,
+        currentStatus: newStatus,
+      }).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
+      if (gate.bounced && gate.newStatus) {
+        newStatus = gate.newStatus;
+      }
+    }
+
     // Auto-split into subtasks when plan.md is saved and task is large enough.
     // Gated OFF by default — see isSubtaskSplitEnabled for why.
     let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;

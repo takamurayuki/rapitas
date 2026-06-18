@@ -5,8 +5,11 @@
  * Reads previously created workflow files and combines them with task metadata
  * and role-specific instructions. Does not execute agents or write files.
  */
+import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
+import { buildCriticFeedback } from './phase-critic';
 
 type WorkflowRole =
   | 'researcher'
@@ -174,12 +177,26 @@ export async function buildRoleContext(
       // (similar tasks, past concerns, lessons) instead of a blank slate.
       const memory = await buildMemoryContext(taskId, task, language);
       const memoryBlock = memory ? `\n\n${memory}` : '';
-      return `${taskInfo}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      // On a critic-gate bounce, lead with the issues the prior research missed.
+      const critic = await buildCriticFeedback(taskId, 'research', language);
+      const criticBlock = critic ? `\n\n${critic}` : '';
+      return `${taskInfo}${criticBlock}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
       const research = await readWorkflowFile(dir, 'research');
       let ctx = taskInfo;
+      // On a critic-gate bounce, lead with the issues the prior plan missed.
+      const planCritic = await buildCriticFeedback(taskId, 'plan', language);
+      if (planCritic) {
+        ctx += `\n\n${planCritic}`;
+      }
+      // Recall human rejections of prior plans in this theme so the new plan
+      // addresses them instead of repeating a turned-down design.
+      const rejected = await buildRejectedPlanContext(taskId, language);
+      if (rejected) {
+        ctx += `\n\n${rejected}`;
+      }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
@@ -234,19 +251,35 @@ export async function buildRoleContext(
       if (plan) {
         ctx += `\n\n${t.verifier.planHeader}\n\n${plan}`;
       }
-      // Append git diff when available
+      // Append the branch diff so the verifier reviews ACTUAL changes. Use the
+      // agent's worktree (when known) and getDiff's merge-base — `git diff HEAD~1`
+      // at process.cwd() was wrong on two counts: it diffed the main checkout
+      // (not the worktree) and assumed exactly one commit, so multi-commit /
+      // mid-run-commit runs showed the wrong (or empty) diff.
       try {
-        const { execSync } = await import('child_process');
-        const diff = execSync('git diff HEAD~1', {
-          cwd: process.cwd(),
-          encoding: 'utf-8',
-          timeout: 10000,
-        });
-        if (diff.trim()) {
-          ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diff.substring(0, 50000)}\n\`\`\``;
+        const { getDiff } = await import('../agents/orchestrator/git-operations/diff-structured');
+        const session = await prisma.agentSession
+          .findFirst({
+            where: { config: { taskId }, worktreePath: { not: null } },
+            orderBy: { createdAt: 'desc' },
+            select: { worktreePath: true },
+          })
+          .catch(() => null);
+        const diffCwd = session?.worktreePath ?? process.cwd();
+        const records = await getDiff(diffCwd).catch(() => []);
+        const patches = records
+          .map((r) => r.patch)
+          .filter((p): p is string => !!p && p.trim().length > 0)
+          .join('\n');
+        const fallbackList = records
+          .map((r) => `${r.status}\t${r.filename} (+${r.additions}/-${r.deletions})`)
+          .join('\n');
+        const diffText = patches || fallbackList;
+        if (diffText.trim()) {
+          ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diffText.substring(0, 50000)}\n\`\`\``;
         }
       } catch {
-        // Continue even if git diff fails
+        // Continue even if diff retrieval fails — verify.md can still be written.
       }
       // Lightweight workflow has no plan.md — verify against the task/research
       // requirements instead of a plan checklist that doesn't exist.
