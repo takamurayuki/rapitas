@@ -108,20 +108,30 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
 async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> {
   for (const label of labels) {
     try {
-      await runGhCommand(['label', 'create', label, '--repo', repo]);
-    } catch {
-      // Already exists, or can't be created — the issue create will still
-      // attach it if present. Non-fatal.
+      // NOTE: skipLog suppresses the gh-client ERROR log for expected failures
+      // (label already exists). We handle unexpected failures with log.warn below.
+      await runGhCommand(['label', 'create', label, '--repo', repo], undefined, { skipLog: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // "already exists" / "already been taken" are expected when the label is present.
+      if (!message.includes('already') && !message.includes('taken')) {
+        log.warn({ repo, label, message }, 'Failed to create label; issue may be created without it');
+      }
     }
   }
 }
 
 export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
-  const args = ['issue', 'create', '--repo', repo, '--title', input.title];
+  const baseArgs = ['issue', 'create', '--repo', repo, '--title', input.title];
 
   if (input.body) {
-    args.push('--body', input.body);
+    baseArgs.push('--body', input.body);
   }
+  if (input.assignees && input.assignees.length > 0) {
+    baseArgs.push('--assignee', input.assignees.join(','));
+  }
+
+  const args = [...baseArgs];
   if (input.labels && input.labels.length > 0) {
     // `gh issue create --label` fails if a label doesn't exist in the repo
     // (e.g. our `type:*` / `priority:*` labels on a fresh repo), so ensure they
@@ -129,12 +139,20 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
     await ensureLabelsExist(repo, input.labels);
     args.push('--label', input.labels.join(','));
   }
-  if (input.assignees && input.assignees.length > 0) {
-    args.push('--assignee', input.assignees.join(','));
-  }
 
-  // Get the URL
-  const url = await runGhCommand(args);
+  let url: string;
+  try {
+    url = await runGhCommand(args);
+  } catch (err) {
+    if (input.labels && input.labels.length > 0) {
+      // NOTE: gh rejects --label when any label doesn't exist in the repo.
+      // Best-effort: create the issue without labels rather than failing entirely.
+      log.warn({ repo, labels: input.labels }, 'Issue creation with labels failed; retrying without labels');
+      url = await runGhCommand(baseArgs);
+    } else {
+      throw err;
+    }
+  }
 
   // Extract the created issue number
   const match = url.match(/\/issues\/(\d+)/);

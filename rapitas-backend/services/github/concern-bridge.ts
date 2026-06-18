@@ -104,7 +104,7 @@ export async function publishConcernToIssue(
     issue = await createIssue(repo, { title: concern.title, body, labels });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    log.error({ concernId, repo, message }, 'Failed to create GitHub issue from concern');
+    log.error({ concernId, repo, labels, message }, 'Failed to create GitHub issue from concern');
     return { success: false, status: 502, error: `GitHub Issue の作成に失敗しました: ${message}` };
   }
 
