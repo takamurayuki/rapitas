@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useExecutionPolling, useExecutionStream } from '../../hooks/useExecutionStream';
 import { useAgentExecutionHandlers } from './useAgentExecutionHandlers';
 import { parseQuestionOptions, type ParsedQuestion } from './agent-execution-utils';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import type {
   UseAgentExecutionProps,
   UseAgentExecutionReturn,
@@ -258,6 +259,37 @@ export function useAgentExecution(props: UseAgentExecutionProps): UseAgentExecut
     }, 1000);
     return () => clearInterval(interval);
   }, [isWaitingForInput, pollingQuestionTimeout]);
+
+  // Publish the live question to the shared store so the workflow Q&A tab can
+  // render it (the Q&A tab lives in a different subtree with no shared parent).
+  // Cleared when not waiting; the store de-dupes so this is safe on every poll.
+  const setLiveQuestion = useExecutionStateStore((s) => s.setLiveQuestion);
+  useEffect(() => {
+    if (isWaitingForInput && hasQuestion) {
+      setLiveQuestion(taskId, {
+        taskId,
+        text: questionParsed?.text ?? question,
+        options: questionParsed?.options ?? [],
+        sessionId: sessionId ?? undefined,
+        timeoutDeadline: pollingQuestionTimeout?.deadline ?? null,
+        confirmed: isConfirmedQuestion,
+      });
+    } else {
+      setLiveQuestion(taskId, null);
+    }
+  }, [
+    isWaitingForInput,
+    hasQuestion,
+    taskId,
+    question,
+    questionParsed,
+    sessionId,
+    pollingQuestionTimeout,
+    isConfirmedQuestion,
+    setLiveQuestion,
+  ]);
+  // Clear the published question when this hook unmounts (task view closed).
+  useEffect(() => () => setLiveQuestion(taskId, null), [taskId, setLiveQuestion]);
 
   // Reset all local state when the displayed task changes
   const previousTaskIdRef = useRef<number | null>(null);

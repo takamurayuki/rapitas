@@ -1,8 +1,10 @@
 'use client';
 // WorkflowViewer
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { WorkflowFileType, WorkflowStatus } from '@/types';
+import { API_BASE_URL } from '@/utils/api';
+import { useExecutionStateStore } from '@/stores/execution-state-store';
 import { type WorkflowMode } from './CompactWorkflowSelector';
 import { useWorkflowViewer } from './useWorkflowViewer';
 import { getWorkflowTabs } from './workflow-viewer-utils';
@@ -14,6 +16,7 @@ import {
 } from './WorkflowBanners';
 import { WorkflowTabBar } from './WorkflowTabBar';
 import { WorkflowFileContent } from './WorkflowFileContent';
+import { WorkflowQuestionPanel } from './WorkflowQuestionPanel';
 
 export interface WorkflowViewerProps {
   taskId: number;
@@ -84,6 +87,41 @@ export default function WorkflowViewer({
 
   const activeTabConfig = workflowTabs.find((t) => t.id === validActiveTab)!;
 
+  // Live agent question (published by the execution layer). Rendered in the Q&A
+  // tab; the interactive prompt was relocated here from the execution log.
+  const liveQuestion = useExecutionStateStore((s) => s.liveQuestions.get(taskId) ?? null);
+  const markQuestionAnswered = useExecutionStateStore((s) => s.markQuestionAnswered);
+  const hasQAtab = workflowTabs.some((t) => t.id === 'question');
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
+
+  // Auto-switch to the Q&A tab ONCE when a question first appears, so the user
+  // notices it without losing manual control afterwards.
+  const announcedQuestionRef = useRef(false);
+  useEffect(() => {
+    if (liveQuestion && hasQAtab && !announcedQuestionRef.current) {
+      announcedQuestionRef.current = true;
+      setActiveTab('question');
+    }
+    if (!liveQuestion) announcedQuestionRef.current = false;
+  }, [liveQuestion, hasQAtab, setActiveTab]);
+
+  /** POST the answer to the agent, then optimistically clear the live question. */
+  const handleAnswerQuestion = async (answer: string) => {
+    setSubmittingAnswer(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/agent-respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: answer }),
+      });
+      if (res.ok) markQuestionAnswered(taskId);
+    } catch {
+      /* leave the question visible so the user can retry */
+    } finally {
+      setSubmittingAnswer(false);
+    }
+  };
+
   // Show the approval banner/button during plan_created — UNLESS auto-approve is
   // effective, in which case the plan is approved automatically and no manual
   // approval prompt should appear.
@@ -152,6 +190,17 @@ export default function WorkflowViewer({
 
       {/* Content area */}
       <div className="p-5">
+        {/* Live Q&A: when a question is pending and the Q&A tab is active, the
+            interactive prompt renders here (relocated from the execution log). */}
+        {validActiveTab === 'question' && liveQuestion && (
+          <div className="mb-4">
+            <WorkflowQuestionPanel
+              question={liveQuestion}
+              submitting={submittingAnswer}
+              onAnswer={handleAnswerQuestion}
+            />
+          </div>
+        )}
         <WorkflowFileContent
           isLoading={isLoading}
           activeFile={activeFile}
