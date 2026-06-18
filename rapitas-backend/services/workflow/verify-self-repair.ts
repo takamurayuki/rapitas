@@ -178,14 +178,39 @@ export async function attemptVerifyRepair(
 
 /**
  * Re-queue the task and ensure the WorkflowRunner is processing, so the
- * implement→verify re-run happens regardless of how the task was launched.
- * Idempotent: enqueue throws when an active item already exists (a driver is
- * already on it) — swallowed. The per-task single-agent mutex prevents a
- * duplicate agent. Not spawning agents here — only nudging the existing runner.
+ * implement→verify re-run happens for a SINGLE/MANUAL execution that has no
+ * poller driving it.
+ *
+ * Skips entirely when the task's theme has ACTIVE auto-run: that scheduler
+ * already re-enqueues its current task (with its themeId, so the global
+ * concurrency gate counts it) and starts the runner. Enqueuing here too would
+ * add a themeId-LESS item the gate can't see — letting the scheduler launch a
+ * second task concurrently (the "multiple agents started before others
+ * finished" bug). Idempotent: enqueue throws when an active item already exists
+ * — swallowed. The per-task single-agent mutex prevents a duplicate agent.
  *
  * @param taskId - Task to resume / 再開対象タスク
  */
 async function ensureRunnerResumes(taskId: number): Promise<void> {
+  // Defer to the theme auto-run scheduler when it owns this task.
+  try {
+    const task = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { themeId: true } })
+      .catch(() => null);
+    const { isThemeAutoRunActive } = await import('./auto-run/theme-auto-run-service');
+    if (await isThemeAutoRunActive(task?.themeId ?? null)) {
+      log.info(
+        { taskId, themeId: task?.themeId },
+        '[verify-repair] Theme auto-run is active — letting the scheduler resume (no extra enqueue)',
+      );
+      return;
+    }
+  } catch (err) {
+    // If we cannot determine auto-run state, fall through and self-drive — a
+    // stuck single-exec task is worse than a redundant (deduped) enqueue.
+    log.warn({ err, taskId }, '[verify-repair] Could not check theme auto-run state');
+  }
+
   const { WorkflowQueueService } = await import('./workflow-queue');
   const { WorkflowRunner } = await import('./workflow-runner');
   try {

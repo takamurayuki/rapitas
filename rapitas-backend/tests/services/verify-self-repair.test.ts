@@ -10,7 +10,10 @@ import { describe, test, expect, mock, beforeEach } from 'bun:test';
 const mockPrisma = {
   workflowTransition: { count: mock(() => Promise.resolve(0)) },
   workflowFile: { findFirst: mock(() => Promise.resolve(null)) },
-  task: { update: mock(() => Promise.resolve({})) },
+  task: {
+    update: mock(() => Promise.resolve({})),
+    findUnique: mock(() => Promise.resolve({ themeId: null })),
+  },
 };
 const recordTransition = mock(() => Promise.resolve());
 const writeWorkflowFile = mock(() => Promise.resolve('/p/question.md'));
@@ -46,6 +49,13 @@ mock.module('../../services/workflow/workflow-queue', () => ({
 mock.module('../../services/workflow/workflow-runner', () => ({
   WorkflowRunner: { getInstance: () => ({ startProcessing }) },
 }));
+// Theme auto-run state: default INACTIVE so ensureRunnerResumes self-drives
+// (single/manual exec) — the behavior the existing assertions expect. The
+// concurrency-guard test flips this to active.
+const isThemeAutoRunActive = mock(() => Promise.resolve(false));
+mock.module('../../services/workflow/auto-run/theme-auto-run-service', () => ({
+  isThemeAutoRunActive,
+}));
 
 const { attemptVerifyRepair } = await import('../../services/workflow/verify-self-repair');
 
@@ -67,6 +77,10 @@ describe('attemptVerifyRepair', () => {
     enqueue.mockReset();
     startProcessing.mockReset();
     enqueue.mockResolvedValue({ id: 1 });
+    mockPrisma.task.findUnique.mockReset();
+    mockPrisma.task.findUnique.mockResolvedValue({ themeId: null });
+    isThemeAutoRunActive.mockReset();
+    isThemeAutoRunActive.mockResolvedValue(false);
   });
 
   test('plan あり → plan_approved へ bounce（attempt 1）すること', async () => {
@@ -121,6 +135,17 @@ describe('attemptVerifyRepair', () => {
     const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
     expect(r.bounced).toBe(true);
     expect(startProcessing).toHaveBeenCalledTimes(1);
+  });
+
+  test('テーマ自動実行が稼働中なら自走しない（スケジューラに委譲＝並列起動を防ぐ）', async () => {
+    mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
+    mockPrisma.task.findUnique.mockResolvedValue({ themeId: 1 });
+    isThemeAutoRunActive.mockResolvedValue(true); // theme auto-run owns this task
+    const r = await attemptVerifyRepair(1, 'in_progress', 'fail', 'v');
+    expect(r.bounced).toBe(true); // 差し戻し自体は行う
+    // ただし themeId-less な enqueue / runner 起動はしない（並列起動の原因を断つ）
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(startProcessing).not.toHaveBeenCalled();
   });
 
   test('差し戻しフィードバックを question.md に書き、テスト改ざん禁止を明記すること', async () => {
