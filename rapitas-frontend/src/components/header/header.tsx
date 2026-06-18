@@ -7,11 +7,9 @@
  * and restart dialogs. All state logic lives in useHeader().
  */
 
-import { Menu, X } from 'lucide-react';
-import Link from 'next/link';
-import AppIcon from '@/components/common/app-icon';
-import { useTranslations } from 'next-intl';
 import {
+  Menu,
+  X,
   Home,
   Columns3,
   Tags,
@@ -49,6 +47,9 @@ import {
   Keyboard,
   Scale,
 } from 'lucide-react';
+import Link from 'next/link';
+import AppIcon from '@/components/common/app-icon';
+import { useTranslations } from 'next-intl';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
 import { SideNav } from './side-nav';
