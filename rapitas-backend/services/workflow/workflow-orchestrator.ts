@@ -176,7 +176,7 @@ export class WorkflowOrchestrator {
 
     // Build the transition table from the (DB-backed, UI-editable) mode config.
     // Single source of truth — see workflow-mode-config.ts.
-    const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
+    let workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
     const { getModeSettings, buildTransitions } = await import('./workflow-mode-config');
     const modeSettings = await getModeSettings(workflowMode);
     const modeTransitions = buildTransitions(modeSettings);
@@ -214,6 +214,71 @@ export class WorkflowOrchestrator {
         log.warn(
           { err, taskId },
           '[WorkflowOrchestrator] intake gate failed — proceeding to research (fail-open)',
+        );
+      }
+    }
+
+    // Pre-research mode selection: pick the workflow mode from a cheap metadata
+    // complexity estimate BEFORE the researcher runs, so the phase chain (does a
+    // plan phase exist?) and the researcher's prompt are mode-aware from the
+    // start. Without this, every task ran research in the default 'comprehensive'
+    // framing and the mode was corrected only AFTER research — producing
+    // plan-assuming research.md (and a plan) even for trivial tasks. The
+    // research-assessed code-grounded complexity refines (UPGRADES) this later.
+    // Respects a user-pinned mode (workflowModeOverride). Fail-open.
+    if (
+      currentStatus === 'draft' &&
+      transition.role === 'researcher' &&
+      !task.workflowModeOverride
+    ) {
+      try {
+        // Re-read the spec: the intake gate above may have just enriched it, and
+        // a richer spec makes the metadata estimate more accurate.
+        const fresh = await prisma.task
+          .findUnique({
+            where: { id: taskId },
+            select: {
+              complexityScore: true,
+              goals: true,
+              constraints: true,
+              acceptanceCriteria: true,
+            },
+          })
+          .catch(() => null);
+        let score = fresh?.complexityScore ?? null;
+        if (score == null) {
+          await scoreTaskComplexity(taskId, {
+            ...task,
+            goals: fresh?.goals ?? task.goals,
+            constraints: fresh?.constraints ?? task.constraints,
+            acceptanceCriteria: fresh?.acceptanceCriteria ?? task.acceptanceCriteria,
+          }).catch(() => {});
+          score =
+            (
+              await prisma.task
+                .findUnique({ where: { id: taskId }, select: { complexityScore: true } })
+                .catch(() => null)
+            )?.complexityScore ?? null;
+        }
+        if (score != null) {
+          const { selectProvisionalMode } = await import('./workflow-mode-config');
+          const provisional = await selectProvisionalMode(score);
+          if (provisional !== workflowMode) {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { workflowMode: provisional },
+            });
+            log.info(
+              { taskId, score, from: workflowMode, to: provisional },
+              '[WorkflowOrchestrator] Pre-research provisional mode selected',
+            );
+            workflowMode = provisional;
+          }
+        }
+      } catch (err) {
+        log.warn(
+          { err, taskId },
+          '[WorkflowOrchestrator] Pre-research mode selection failed — keeping current mode',
         );
       }
     }
@@ -395,6 +460,7 @@ export class WorkflowOrchestrator {
       workflowInfo.dir,
       task,
       language,
+      workflowMode,
     );
 
     // agentConfig is resolved above (role assignment or capability fallback).

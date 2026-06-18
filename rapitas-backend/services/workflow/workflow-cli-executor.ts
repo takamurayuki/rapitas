@@ -6,7 +6,6 @@
  * back the output file, and applies the Markdown extraction fallback.
  */
 import { mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
@@ -25,7 +24,7 @@ import {
   validateVerify,
   type ValidationResult,
 } from './phase-output-validator';
-import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import type { RoleTransition, WorkflowAdvanceResult, WorkflowMode } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
@@ -34,24 +33,12 @@ import { maybeAutoApprovePlan } from './plan-auto-approve';
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
 
-/**
- * Whether a worktree recorded on a prior session can be REUSED for this phase.
- * A path is only reusable if it still exists ON DISK — a phantom path (removed by
- * a stop/cleanup, or one that never finished creating) must NOT be reused: doing
- * so makes every implementer/verifier re-launch fail "Working directory does not
- * exist" and retry until the task is blocked (task 30 regression). When this
- * returns false the caller recreates a fresh worktree.
- *
- * @param recordedPath - worktreePath from the latest prior session / 直近セッションの worktreePath
- * @param pathExists - existence probe (injectable for tests) / 存在判定（テスト差し替え用）
- * @returns true when the worktree is safe to reuse / 再利用可能なら true
- */
-export function canReuseWorktree(
-  recordedPath: string | null | undefined,
-  pathExists: (p: string) => boolean = existsSync,
-): boolean {
-  return !!recordedPath && pathExists(recordedPath);
-}
+// Disk-existence guard for reusing a recorded worktree. Re-exported here so the
+// existing worktree-reuse.test.ts import path keeps working; the single source
+// of truth now lives in git-operations/worktree-usable so every execution entry
+// point (orchestrator, continue-execution route) shares the same check.
+export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
 
 /**
  * Resolves the git repository root for a directory.
@@ -656,23 +643,34 @@ curl -X POST http://localhost:${port}/idea-box \\
             // advance, so updating it here takes effect for plan/review/verify.
             // Respect a manual override — never clobber a user-pinned mode.
             const current = await prisma.task
-              .findUnique({ where: { id: taskId }, select: { workflowModeOverride: true } })
+              .findUnique({
+                where: { id: taskId },
+                select: { workflowModeOverride: true, workflowMode: true },
+              })
               .catch(() => null);
             const data: { complexityScore: number; workflowMode?: string } = {
               complexityScore: assessed,
             };
             if (!current?.workflowModeOverride) {
-              const { selectModeByComplexity } = await import('./workflow-mode-config');
-              data.workflowMode = await selectModeByComplexity(assessed);
+              const { selectModeByComplexity, higherMode } = await import('./workflow-mode-config');
+              const assessedMode = await selectModeByComplexity(assessed);
+              const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
+              // Upgrade only: research-grounded complexity may RAISE ceremony (a
+              // task that looked trivial actually needs a plan) but must not LOWER
+              // it — research.md was already written for the provisional mode set
+              // before research; dropping the plan now would strand a
+              // plan-assuming research artifact.
+              const upgraded = higherMode(currentMode, assessedMode);
+              if (upgraded !== currentMode) data.workflowMode = upgraded;
             }
             await prisma.task.update({ where: { id: taskId }, data });
             log.info(
               {
                 taskId,
                 complexityScore: assessed,
-                workflowMode: data.workflowMode ?? '(override kept)',
+                workflowMode: data.workflowMode ?? '(unchanged)',
               },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity + selected workflow',
+              '[WorkflowCLIExecutor] Applied research-assessed complexity (upgrade-only)',
             );
           }
         } catch (cErr) {

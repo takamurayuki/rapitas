@@ -142,6 +142,68 @@ export async function selectModeByComplexity(score: number): Promise<WorkflowMod
   return order.find((m) => all[m].isEnabled) ?? 'comprehensive';
 }
 
+/** Tier rank of each mode (ceremony level): lightweight < standard < comprehensive. */
+export const MODE_TIER: Record<WorkflowMode, number> = {
+  lightweight: 0,
+  standard: 1,
+  comprehensive: 2,
+};
+
+/**
+ * Return the higher-ceremony of two modes. Used so research-assessed complexity
+ * can only UPGRADE the provisional mode, never downgrade it — a downgrade would
+ * drop the plan phase after research was already written assuming one.
+ *
+ * @param a - First mode. / モードA
+ * @param b - Second mode. / モードB
+ * @returns The higher-tier mode. / 上位ティアのモード
+ */
+export function higherMode(a: WorkflowMode, b: WorkflowMode): WorkflowMode {
+  return MODE_TIER[a] >= MODE_TIER[b] ? a : b;
+}
+
+/**
+ * Bias a WEAK (pre-research, metadata-only) complexity estimate upward: only
+ * trust 'lightweight' when the score is unambiguously low, otherwise step up to
+ * 'standard'. The pre-research signal is derived from title/description/spec
+ * keywords, not the real code, so under-planning is the dangerous failure — a
+ * little over-process (an unnecessary plan) is the safe one. Pure/testable.
+ *
+ * @param base - Mode that the raw thresholds would select. / 閾値による素のモード
+ * @param score - The (weak) metadata complexity score. / メタデータ複雑度スコア
+ * @param standardEnabled - Whether 'standard' is enabled (else keep base). / standard有効か
+ * @param lightweightConfidentMax - Score at/below which 'lightweight' is trusted. / lightweightを信頼する上限
+ * @returns The biased provisional mode. / バイアス後の暫定モード
+ */
+export function applyProvisionalBias(
+  base: WorkflowMode,
+  score: number,
+  standardEnabled: boolean,
+  lightweightConfidentMax: number,
+): WorkflowMode {
+  if (base === 'lightweight' && score > lightweightConfidentMax && standardEnabled) {
+    return 'standard';
+  }
+  return base;
+}
+
+/**
+ * Select the PROVISIONAL workflow mode from a pre-research (metadata) complexity
+ * score, biased toward 'standard' for ambiguous scores (see applyProvisionalBias).
+ * Run before the researcher so the phase chain and the researcher's prompt are
+ * mode-aware from the start; research-assessed complexity refines it afterward.
+ *
+ * @param score - Pre-research metadata complexity score (0-100). / 事前メタ複雑度
+ * @returns The provisional mode. / 暫定モード
+ */
+export async function selectProvisionalMode(score: number): Promise<WorkflowMode> {
+  const base = await selectModeByComplexity(score);
+  const all = await getAllModeSettings();
+  // Trust 'lightweight' only in the lower half of its configured band.
+  const lightweightConfidentMax = Math.floor(all.lightweight.complexityMax / 2);
+  return applyProvisionalBias(base, score, all.standard.isEnabled, lightweightConfidentMax);
+}
+
 /**
  * Load all three mode settings, seeding the table with defaults on first use.
  * Cached in-memory; call invalidateModeConfigCache() after a write.
