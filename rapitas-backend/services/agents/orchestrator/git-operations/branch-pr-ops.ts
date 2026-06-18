@@ -161,16 +161,34 @@ export async function createPullRequest(
     // `gh pr create` fail with "a pull request already exists".
     try {
       const { stdout: existing } = await execAsync(
-        `${ghPath()} pr list --head ${currentBranch} --state open --json number,url --jq ".[0]"`,
+        `${ghPath()} pr list --head ${currentBranch} --state open --json number,url,baseRefName --jq ".[0]"`,
         { cwd: workingDirectory, encoding: 'utf8' },
       );
       const trimmed = existing.trim();
       if (trimmed && trimmed !== 'null') {
-        const pr = JSON.parse(trimmed) as { number?: number; url?: string };
+        const pr = JSON.parse(trimmed) as { number?: number; url?: string; baseRefName?: string };
         if (pr.number && pr.url) {
-          logger.info(
-            `[createPullRequest] Reusing existing PR #${pr.number} for ${currentBranch.trim()}`,
-          );
+          // A reused PR may have been opened against the WRONG base by an earlier
+          // run (e.g. main instead of the theme's develop — the recurring #170/#172
+          // mistarget). Retarget to the intended base so completion lands on the
+          // right branch. Best-effort: a retarget failure still reuses the PR.
+          if (pr.baseRefName && pr.baseRefName !== targetBranch) {
+            try {
+              await execAsync(`${ghPath()} pr edit ${pr.number} --base ${targetBranch}`, {
+                cwd: workingDirectory,
+                encoding: 'utf8',
+              });
+              logger.info(
+                `[createPullRequest] Retargeted reused PR #${pr.number} base ${pr.baseRefName} -> ${targetBranch}`,
+              );
+            } catch (err) {
+              logger.warn(
+                { err, prNumber: pr.number },
+                `[createPullRequest] Failed to retarget PR #${pr.number} base to ${targetBranch}`,
+              );
+            }
+          }
+          logger.info(`[createPullRequest] Reusing existing PR #${pr.number} for ${currentBranch}`);
           return { success: true, prUrl: pr.url, prNumber: pr.number };
         }
       }

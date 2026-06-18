@@ -296,18 +296,30 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
       );
     }
 
-    // NOTE: Keep task as in-progress until the full pipeline
-    // (AI review → commit → PR → cleanup) completes. Only then mark as done.
-    // Canonical task.status is hyphenated 'in-progress' (see StatusConfig); the
-    // underscore form is the separate workflowStatus value. Writing the wrong
-    // one left subtasks unrecognized by the UI and by status='in-progress'
-    // queries, so they appeared stuck.
-    await prisma.task
-      .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
-      .catch((e: unknown) =>
-        log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+    // Do NOT downgrade an already-COMPLETED task. A stray execution running on a
+    // task whose workflowStatus is 'completed' (e.g. task 216: a researcher phase
+    // fired ~16s after completion) would flip status done → in-progress and leave
+    // an inconsistent gap (workflowStatus=completed / status=in-progress) with the
+    // 完了 UI lost. A completed task is terminal; this run does not reopen it.
+    if (taskWorkflowState?.workflowStatus === 'completed') {
+      log.warn(
+        { taskId: taskIdNum, sessionId },
+        '[API] Execution finished on an already-completed task — keeping it completed (not downgrading to in-progress).',
       );
-    log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    } else {
+      // NOTE: Keep task as in-progress until the full pipeline
+      // (AI review → commit → PR → cleanup) completes. Only then mark as done.
+      // Canonical task.status is hyphenated 'in-progress' (see StatusConfig); the
+      // underscore form is the separate workflowStatus value. Writing the wrong
+      // one left subtasks unrecognized by the UI and by status='in-progress'
+      // queries, so they appeared stuck.
+      await prisma.task
+        .update({ where: { id: taskIdNum }, data: { status: 'in-progress' } })
+        .catch((e: unknown) =>
+          log.error({ err: e }, `[API] Failed to update task ${taskIdNum} to in_progress`),
+        );
+      log.info(`[API] Task ${taskIdNum} kept as in_progress (pending review pipeline)`);
+    }
 
     await updateSessionStatusWithRetry(sessionId, 'completed', '[API]', 3);
 

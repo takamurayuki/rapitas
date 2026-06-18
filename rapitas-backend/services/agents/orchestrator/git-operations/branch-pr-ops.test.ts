@@ -96,6 +96,47 @@ describe('createPullRequest — push 分岐耐性', () => {
     expect(calls.some((c) => /git branch -M/.test(c))).toBe(false); // リネームしない
   });
 
+  test('既存PRを再利用する際、ベースが target と違えば retarget すること (#172 回帰)', async () => {
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'chore/update-refactor\n' },
+      { match: /git push -u origin chore\/update-refactor$/, result: '' },
+      // 既存PR #172 は base=main で開かれている
+      {
+        match: /pr list --head chore\/update-refactor/,
+        result: JSON.stringify({ number: 172, url: 'https://x/pull/172', baseRefName: 'main' }),
+      },
+      { match: /pr edit 172 --base develop/, result: '' },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b');
+
+    expect(res.success).toBe(true);
+    expect(res.prNumber).toBe(172);
+    // main -> develop へ retarget したこと
+    expect(calls.some((c) => /pr edit 172 --base develop/.test(c))).toBe(true);
+    // 再利用なので pr create はしないこと
+    expect(calls.some((c) => /pr create/.test(c))).toBe(false);
+  });
+
+  test('既存PRのベースが既に target と同じなら retarget しないこと', async () => {
+    script = [
+      { match: /git branch --list develop/, result: 'develop\n' },
+      { match: /git branch --show-current/, result: 'feature/x-y\n' },
+      { match: /git push -u origin feature\/x-y$/, result: '' },
+      {
+        match: /pr list --head feature\/x-y/,
+        result: JSON.stringify({ number: 9, url: 'https://x/pull/9', baseRefName: 'develop' }),
+      },
+    ];
+
+    const res = await createPullRequest('/repo', 't', 'b');
+
+    expect(res.success).toBe(true);
+    expect(res.prNumber).toBe(9);
+    expect(calls.some((c) => /pr edit/.test(c))).toBe(false);
+  });
+
   test('分岐以外の push 失敗 (認証等) は PR 失敗として返すこと', async () => {
     script = [
       { match: /git branch --list develop/, result: 'develop\n' },
