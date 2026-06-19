@@ -323,8 +323,7 @@ export function getErrorAnalytics(days: number): ErrorAnalyticsResult {
 
   // Compute % share now that grandTotal is known
   for (const cat of categoryStats) {
-    cat.sharePercent =
-      grandTotal === 0 ? 0 : Math.round((cat.totalCount / grandTotal) * 1000) / 10;
+    cat.sharePercent = grandTotal === 0 ? 0 : Math.round((cat.totalCount / grandTotal) * 1000) / 10;
   }
 
   // Sort by totalCount desc

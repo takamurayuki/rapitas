@@ -19,7 +19,12 @@ import {
 
 describe('parsePinoLine', () => {
   it('parses a valid error line', () => {
-    const raw = JSON.stringify({ level: 50, time: 1700000000000, msg: 'gh command failed', name: 'gh-client' });
+    const raw = JSON.stringify({
+      level: 50,
+      time: 1700000000000,
+      msg: 'gh command failed',
+      name: 'gh-client',
+    });
     const result = parsePinoLine(raw);
     expect(result).not.toBeNull();
     expect(result!.level).toBe(50);
