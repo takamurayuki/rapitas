@@ -64,6 +64,27 @@ async function stopExecutions(executionIds: number[], reason: string): Promise<n
       log.error({ err, executionId }, '[stopTaskAgents] Failed to stop execution');
     }
   }
+
+  // Mark the parent session(s) terminal too. The execution rows above were
+  // cancelled, but leaving the SESSION 'active' made the status endpoint keep
+  // reporting a stale running session (the "zombie 進行中" that never finalized
+  // until a manual reload). Only flips still-active sessions.
+  if (done.length > 0) {
+    const sessionRows = await prisma.agentExecution
+      .findMany({ where: { id: { in: done } }, select: { sessionId: true } })
+      .catch(() => [] as { sessionId: number | null }[]);
+    const sessionIds = [
+      ...new Set(sessionRows.map((r) => r.sessionId).filter((s): s is number => s != null)),
+    ];
+    if (sessionIds.length > 0) {
+      await prisma.agentSession
+        .updateMany({
+          where: { id: { in: sessionIds }, status: 'active' },
+          data: { status: 'cancelled' },
+        })
+        .catch(() => {});
+    }
+  }
   return done;
 }
 

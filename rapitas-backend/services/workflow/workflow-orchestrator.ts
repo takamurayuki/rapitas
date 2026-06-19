@@ -124,8 +124,9 @@ export class WorkflowOrchestrator {
     taskId: number,
     language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
-    // WORKFLOW_LOCK_TTL_MS (15min) intentionally exceeds the WorkflowRunner's
-    // 10-min per-phase timeout so a long phase cannot have its lock stolen.
+    // WORKFLOW_LOCK_TTL_MS intentionally exceeds the WorkflowRunner's per-phase
+    // timeout (both derive from execution-timeouts) so a long phase cannot have
+    // its lock stolen mid-run.
     if (!acquireTaskExecutionLock(taskId, WORKFLOW_LOCK_TTL_MS)) {
       const current = await prisma.task
         .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
