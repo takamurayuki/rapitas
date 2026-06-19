@@ -125,23 +125,30 @@ export async function createPullRequest(
   try {
     let targetBranch = baseBranch;
     if (!targetBranch) {
-      try {
-        const { stdout: developCheck } = await execAsync('git branch --list develop', {
+      // Prefer develop, then main, then master. Check the REMOTE-tracking ref
+      // (origin/<b>) as well as a local branch: `gh pr create --base` targets the
+      // remote, and in many checkouts `develop` exists ONLY as `origin/develop`
+      // (no local branch). The old local-only check then fell through to main —
+      // the recurring #170/#172 mistarget where the PR diff shows main instead of
+      // develop until manually retargeted.
+      const branchExists = async (b: string): Promise<boolean> => {
+        const local = await execAsync(`git branch --list ${b}`, {
           cwd: workingDirectory,
           encoding: 'utf8',
-        });
-        if (developCheck.trim()) {
-          targetBranch = 'develop';
-        } else {
-          const { stdout: mainCheck } = await execAsync('git branch --list main', {
-            cwd: workingDirectory,
-            encoding: 'utf8',
-          });
-          targetBranch = mainCheck.trim() ? 'main' : 'master';
-        }
-      } catch {
-        targetBranch = 'main';
-      }
+        })
+          .then((r) => !!r.stdout.trim())
+          .catch(() => false);
+        if (local) return true;
+        return await execAsync(`git branch -r --list origin/${b}`, {
+          cwd: workingDirectory,
+          encoding: 'utf8',
+        })
+          .then((r) => !!r.stdout.trim())
+          .catch(() => false);
+      };
+      if (await branchExists('develop')) targetBranch = 'develop';
+      else if (await branchExists('main')) targetBranch = 'main';
+      else targetBranch = 'master';
       logger.info(`[createPullRequest] Auto-determined base branch: ${targetBranch}`);
     }
 
