@@ -635,6 +635,17 @@ export class WorkflowOrchestrator {
         where: { id: taskId },
         data: { workflowStatus: 'draft', status: 'in-progress' },
       });
+    } else if (task.status === 'todo') {
+      // A task that resumes at a non-draft phase (valid research/plan artifacts
+      // reused, or a multi-phase / re-run continuation) skips the draft branch
+      // above, so its status was never flipped off 'todo' while the workflow
+      // advances — leaving it stuck looking like 'todo' (進行中にならない) in the UI.
+      // Flip it forward without touching workflowStatus. Only 'todo' is advanced,
+      // so 'done'/'blocked' are never clobbered.
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'in-progress' },
+      });
     }
 
     const advanceFn = this.advanceWorkflow.bind(this);
