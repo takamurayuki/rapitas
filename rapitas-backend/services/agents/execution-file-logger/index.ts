@@ -293,7 +293,9 @@ export class ExecutionFileLogger {
    * @param context - Optional structured context / 追加コンテキスト（省略可）
    */
   logWarn(message: string, context?: Record<string, unknown>): void {
-    this.log('WARN', 'error', message, context);
+    // NOTE: Previously used eventType 'error' which caused WARN-level fallback retries to be
+    // classified as ERROR events by monitoring, triggering spurious bug tickets.
+    this.log('WARN', 'warning', message, context);
   }
 
   /**

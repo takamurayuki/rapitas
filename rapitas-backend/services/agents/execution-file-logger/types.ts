@@ -13,6 +13,7 @@ export type LogEventType =
   | 'execution_end'
   | 'output'
   | 'error'
+  | 'warning'
   | 'question_detected'
   | 'question_answered'
   | 'status_change'
