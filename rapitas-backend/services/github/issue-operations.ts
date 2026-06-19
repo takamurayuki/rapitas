@@ -115,7 +115,10 @@ async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> 
       const message = err instanceof Error ? err.message : String(err);
       // "already exists" / "already been taken" are expected when the label is present.
       if (!message.includes('already') && !message.includes('taken')) {
-        log.warn({ repo, label, message }, 'Failed to create label; issue may be created without it');
+        log.warn(
+          { repo, label, message },
+          'Failed to create label; issue may be created without it',
+        );
       }
     }
   }
@@ -147,7 +150,10 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
     if (input.labels && input.labels.length > 0) {
       // NOTE: gh rejects --label when any label doesn't exist in the repo.
       // Best-effort: create the issue without labels rather than failing entirely.
-      log.warn({ repo, labels: input.labels }, 'Issue creation with labels failed; retrying without labels');
+      log.warn(
+        { repo, labels: input.labels },
+        'Issue creation with labels failed; retrying without labels',
+      );
       url = await runGhCommand(baseArgs);
     } else {
       throw err;

@@ -173,6 +173,36 @@ fn main() {
         println!("cargo:rustc-env=RAPITAS_BACKEND_PATH=binaries/rapitas-backend-not-found");
     }
 
+    // On non-Windows CI builds the `binaries/rapitas-backend-*.exe` resource glob
+    // in tauri.conf.json has no match when only the Linux/macOS binary is present.
+    // Create a placeholder .exe so tauri_build::build() can validate the glob.
+    // Real Windows release builds already have the actual .exe binary, so the
+    // placeholder is only created when no .exe file exists yet.
+    if env::var("CI").is_ok() && target_os != "windows" {
+        let _ = fs::create_dir_all(&binaries_dir);
+        let has_exe = fs::read_dir(&binaries_dir)
+            .map(|rd| {
+                rd.flatten().any(|e| {
+                    e.file_name()
+                        .to_string_lossy()
+                        .ends_with(".exe")
+                })
+            })
+            .unwrap_or(false);
+        if !has_exe {
+            let exe_placeholder = binaries_dir.join("rapitas-backend-placeholder.exe");
+            match fs::write(&exe_placeholder, b"") {
+                Ok(()) => println!(
+                    "cargo:warning=Created .exe placeholder for cross-platform glob validation: {}",
+                    exe_placeholder.display()
+                ),
+                Err(e) => println!(
+                    "cargo:warning=Failed to create .exe placeholder: {e}"
+                ),
+            }
+        }
+    }
+
     // The `binaries/*query_engine*` resource glob (tauri.conf.json) requires the
     // Prisma query engine, which is only fetched for real release builds. In CI
     // clippy/check the engine is absent, so the glob matches nothing and Tauri's
