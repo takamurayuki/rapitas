@@ -164,10 +164,25 @@ bun test: 5 passed, 0 failed
     expect(result.missingSections).toEqual([]);
   });
 
-  test('reproduces the WARN: auto_verifier output missing チェックリスト and 検証結果サマリ', () => {
-    // This is the pattern that was triggering
-    // "[WorkflowCLIExecutor] verify.md missing sections: チェックリスト, 検証結果サマリ"
-    const missingBothSections = `# 実装結果検証レポート
+  // NOTE: '# 実装結果検証レポート' now satisfies the 検証結果サマリ requirement via the
+  // '実装結果検証' synonym. Only チェックリスト is missing in this pattern.
+  test('reproduces the WARN (updated): auto_verifier output with 実装結果検証 heading passes サマリ check', () => {
+    // '# 実装結果検証レポート' → matches '実装結果検証' synonym → サマリ requirement satisfied.
+    // Only チェックリスト is missing.
+    const missingOnlyChecklist = `# 実装結果検証レポート
+## テスト結果
+bun test: 5 passed, 0 failed
+## 変更ファイル一覧
+- workflow-context-builder.ts`;
+    const result = validateVerify(missingOnlyChecklist);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('チェックリスト');
+    expect(result.missingSections).not.toContain('検証結果サマリ');
+  });
+
+  test('rejects verify missing both チェックリスト and 検証結果サマリ (no synonym match)', () => {
+    // No heading matches any synonym for 検証結果サマリ → must fail.
+    const missingBothSections = `# 調査レポート
 ## テスト結果
 bun test: 5 passed, 0 failed
 ## 変更ファイル一覧
@@ -176,5 +191,54 @@ bun test: 5 passed, 0 failed
     expect(result.ok).toBe(false);
     expect(result.missingSections).toContain('チェックリスト');
     expect(result.missingSections).toContain('検証結果サマリ');
+  });
+
+  // Synonym acceptance tests
+  test('accepts verify with # 検証結果 heading (synonym, no サマリ suffix)', () => {
+    const withKekkaOnly = `# 検証結果
+## テスト結果
+all pass
+## チェックリスト消化状況
+- ok`;
+    const result = validateVerify(withKekkaOnly);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts verify with ## 総合評価 heading as synonym', () => {
+    const withSogohyoka = `# 検証レポート
+## テスト結果
+all pass
+## チェックリスト
+- ok
+## 総合評価
+✅ 合格`;
+    const result = validateVerify(withSogohyoka);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts verify with ## 検証レポート heading as synonym', () => {
+    // '検証レポート' is a recognized synonym for 検証結果サマリ.
+    const withKenshoReport = `## 検証レポート
+✅ 合格
+## テスト結果
+pass
+## チェックリスト
+- ok`;
+    const result = validateVerify(withKenshoReport);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('still rejects verify missing テスト結果 even when サマリ synonym present', () => {
+    // AND requirement: all 3 must be satisfied.
+    const missingTestResult = `## 検証結果サマリ
+✅ 合格
+## チェックリスト
+- ok`;
+    const result = validateVerify(missingTestResult);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('テスト結果');
   });
 });

@@ -41,7 +41,13 @@ const PLAN_REQUIRED_SECTIONS = [
   '完了条件',
 ];
 
-const VERIFY_REQUIRED_SECTIONS = ['テスト結果', 'チェックリスト', '検証結果サマリ'];
+// NOTE: OR-group — any synonym satisfies the 検証結果サマリ requirement.
+// Agents (especially auto_verifier) produce varied heading text; these alternatives prevent false WARN.
+const VERIFY_REQUIRED_SECTIONS: (string | string[])[] = [
+  'テスト結果',
+  'チェックリスト',
+  ['検証結果サマリ', '検証結果', '検証サマリ', '総合評価', '実装結果検証', '検証レポート'],
+];
 
 /**
  * Patterns that NEVER appear in a legitimate workflow artifact — their presence
