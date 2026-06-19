@@ -228,6 +228,9 @@ export async function buildRoleContext(
       const plan = await readWorkflowFile(dir, 'plan');
       const question = await readWorkflowFile(dir, 'question');
       const research = await readWorkflowFile(dir, 'research');
+      // On a self-repair bounce, verify/CI failure feedback is written to
+      // verify.md (not question.md) — read it so the implementer fixes it.
+      const verifyFeedback = await readWorkflowFile(dir, 'verify');
       let ctx = taskInfo;
       // Recall prior knowledge for the implementer too — known pitfalls and past
       // design decisions should steer the actual code changes, not just research.
@@ -243,6 +246,13 @@ export async function buildRoleContext(
       }
       if (question) {
         ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
+      }
+      if (verifyFeedback) {
+        const header =
+          language === 'ja'
+            ? '# 検証 / CI からの差し戻し（前回の失敗 — 必ず対応すること）'
+            : '# Verification / CI feedback (previous failure — must address)';
+        ctx += `\n\n${header}\n\n${verifyFeedback}`;
       }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
       ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
