@@ -46,8 +46,13 @@ mock.module('child_process', () => ({
 }));
 
 // Import after mocking so the modules pick up the mocks.
-const { mergePullRequest, createPullRequestComment, approvePullRequest, requestChanges, createPullRequest } =
-  await import('./pr-write');
+const {
+  mergePullRequest,
+  createPullRequestComment,
+  approvePullRequest,
+  requestChanges,
+  createPullRequest,
+} = await import('./pr-write');
 
 // ─── mergePullRequest ─────────────────────────────────────────────────────────
 
@@ -285,11 +290,7 @@ describe('createPullRequest', () => {
     expect(result.prUrl).toBe(prUrl);
     expect(result.prNumber).toBe(99);
     expect(mockRunGhCommandWithBody).toHaveBeenCalledTimes(1);
-    const [args, body, cwd] = mockRunGhCommandWithBody.mock.calls[0] as [
-      string[],
-      string,
-      string,
-    ];
+    const [args, body, cwd] = mockRunGhCommandWithBody.mock.calls[0] as [string[], string, string];
     expect(args).toContain('pr');
     expect(args).toContain('create');
     expect(args).toContain('--title');

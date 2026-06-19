@@ -152,9 +152,7 @@ describe('runGhCommandWithBody', () => {
       runGhCommandWithBody(['cmd3'], 'body3'),
     ]);
 
-    const paths = (mockWriteFile.mock.calls as [string, string, string][]).map(
-      ([p]) => p,
-    );
+    const paths = (mockWriteFile.mock.calls as [string, string, string][]).map(([p]) => p);
     const unique = new Set(paths);
     expect(unique.size).toBe(3);
   });
