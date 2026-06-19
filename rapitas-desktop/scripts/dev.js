@@ -1572,6 +1572,48 @@ async function main() {
   }
 
   // フロントエンドを起動
+  startFrontendProcess();
+
+  console.log(
+    `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
+  );
+  console.log(
+    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
+  );
+
+  // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
+  startFrontendWatchdog();
+
+  // --watch モード時は fs.watch ベースのファイル監視を開始
+  if (useWatch) {
+    startFileWatcher();
+  }
+}
+
+/**
+ * フロントエンド dev サーバーの自動リサイクル機構
+ *
+ * NOTE: Next.js dev サーバーは長時間稼働すると HMR/コンパイルキャッシュが蓄積して
+ * ヒープが肥大化し、git のブランチ切替やマージで大量ファイルが一括変更されると、
+ * 肥大ヒープ上で再コンパイルが走って GC スラッシングに陥り CPU を恒常的に張り付かせる
+ * (実測: 184h 稼働で 6.5GB / 1 コア換算 350%)。RSS が閾値を超えたフロントエンドのみを
+ * リサイクルすることで、バックエンド(:3001、エージェントの生命線)に触れず再発を防ぐ。
+ */
+const FRONTEND_RSS_LIMIT_MB = Number(
+  process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 4096,
+);
+const FRONTEND_WATCHDOG_INTERVAL_MS = 60_000;
+// 連続超過回数。瞬間的なコンパイルスパイクでの誤リサイクルを防ぐ。
+const FRONTEND_WATCHDOG_BREACH_LIMIT = 2;
+let frontendWatchdogTimer = null;
+let frontendBreachCount = 0;
+let isFrontendRestarting = false;
+
+/**
+ * フロントエンド(pnpm run dev → next dev)プロセスを spawn する。
+ * 起動時とリサイクル時の両方から呼ばれる。
+ */
+function startFrontendProcess() {
   frontend = spawn("pnpm", ["run", "dev"], {
     cwd: FRONTEND_DIR,
     stdio: "inherit",
@@ -1582,20 +1624,128 @@ async function main() {
       NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
     },
   });
-
-  console.log(
-    `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
-  );
-  console.log(
-    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
-  );
-
   frontend.on("error", (err) => console.error("Frontend error:", err));
+}
 
-  // --watch モード時は fs.watch ベースのファイル監視を開始
-  if (useWatch) {
-    startFileWatcher();
+/**
+ * 指定 PID 群の WorkingSetSize 合計を MB で返す (Windows 専用)。
+ *
+ * @param {number[]} pids 対象 PID 配列 / 対象プロセスID
+ * @returns {number} 合計 RSS(MB)。取得失敗時は 0。/ 合計常駐メモリ。失敗時は 0。
+ */
+function getRssMbForPids(pids) {
+  if (!pids.length) return 0;
+  const filter = pids.map((p) => `ProcessId=${p}`).join(" OR ");
+  const script = `(Get-CimInstance Win32_Process -Filter "${filter}" | Measure-Object -Property WorkingSetSize -Sum).Sum`;
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+    const bytes = Number((out || "").trim());
+    return Number.isFinite(bytes) ? Math.round(bytes / (1024 * 1024)) : 0;
+  } catch {
+    return 0;
   }
+}
+
+/**
+ * 指定プロセスの全子孫 PID(自身を含む)を列挙する。
+ *
+ * @param {number} rootPid 起点プロセスID / 起点となる PID
+ * @returns {number[]} 子孫を含む PID 配列 / 自身と全子孫の PID
+ */
+function collectDescendantPids(rootPid) {
+  const result = [];
+  const seen = new Set();
+  const queue = [rootPid];
+  while (queue.length) {
+    const pid = queue.shift();
+    if (seen.has(pid)) continue;
+    seen.add(pid);
+    result.push(pid);
+    for (const proc of queryWin32Processes(`ParentProcessId=${pid}`)) {
+      const childPid = Number(proc.ProcessId);
+      if (Number.isInteger(childPid) && !seen.has(childPid)) {
+        queue.push(childPid);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * フロントエンドプロセスツリーの合計 RSS を MB で返す。
+ *
+ * @returns {number} RSS(MB)。フロントエンド未起動時は 0。/ ツリー合計の常駐メモリ。
+ */
+function getFrontendTreeRssMb() {
+  if (!frontend || !frontend.pid) return 0;
+  return getRssMbForPids(collectDescendantPids(frontend.pid));
+}
+
+/**
+ * フロントエンド dev サーバーのみを再起動する。バックエンド(:3001)には一切触れない。
+ *
+ * @param {string} reason リサイクル理由(ログ用) / リサイクルのトリガー理由
+ */
+async function restartFrontend(reason) {
+  if (isFrontendRestarting) return;
+  isFrontendRestarting = true;
+  try {
+    console.log(`\n🔄 Recycling frontend dev server (reason: ${reason})...`);
+    killProcessTree(frontend);
+    sleepSync(1000);
+    // フロントエンドポートのみ確実に解放(バックエンドポートは対象外)
+    if (isPortListening(actualFrontendPort)) {
+      forceKillAllOnPort(actualFrontendPort);
+    }
+    startFrontendProcess();
+    frontendBreachCount = 0;
+    console.log(
+      `✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`,
+    );
+  } finally {
+    isFrontendRestarting = false;
+  }
+}
+
+/**
+ * フロントエンドの RSS を定期監視し、閾値を連続超過したら自動リサイクルする。
+ * RAPITAS_FRONTEND_RSS_LIMIT_MB=0 で無効化できる。
+ */
+function startFrontendWatchdog() {
+  if (frontendWatchdogTimer) return;
+  if (!(FRONTEND_RSS_LIMIT_MB > 0)) {
+    console.log(
+      "ℹ️  Frontend memory watchdog disabled (RAPITAS_FRONTEND_RSS_LIMIT_MB=0).",
+    );
+    return;
+  }
+  console.log(
+    `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
+  );
+  frontendWatchdogTimer = setInterval(() => {
+    if (isCleaningUp || isFrontendRestarting || !frontend || !frontend.pid) {
+      return;
+    }
+    const rss = getFrontendTreeRssMb();
+    if (rss <= 0) return; // 取得失敗時は判定をスキップ
+    if (rss >= FRONTEND_RSS_LIMIT_MB) {
+      frontendBreachCount += 1;
+      console.log(
+        `⚠️  Frontend RSS ${rss}MB ≥ ${FRONTEND_RSS_LIMIT_MB}MB (breach ${frontendBreachCount}/${FRONTEND_WATCHDOG_BREACH_LIMIT}).`,
+      );
+      if (frontendBreachCount >= FRONTEND_WATCHDOG_BREACH_LIMIT) {
+        restartFrontend("memory-threshold").catch((err) =>
+          console.error("❌ Frontend auto-recycle failed:", err.message || err),
+        );
+      }
+    } else if (frontendBreachCount > 0) {
+      frontendBreachCount = 0; // 閾値を下回ったらカウンタをリセット
+    }
+  }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
 // プロセス終了時のクリーンアップ
@@ -1615,6 +1765,12 @@ let isCleaningUp = false;
 function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
+
+  // フロントエンド監視タイマーを停止(クリーンアップ中のリサイクル発火を防止)
+  if (frontendWatchdogTimer) {
+    clearInterval(frontendWatchdogTimer);
+    frontendWatchdogTimer = null;
+  }
 
   // ファイルウォッチャーを先に閉じてリスタート競合を防止
   for (const watcher of fileWatchers) {
