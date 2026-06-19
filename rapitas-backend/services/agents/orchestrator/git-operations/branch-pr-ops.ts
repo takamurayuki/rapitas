@@ -8,6 +8,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../../../config/logger';
+import { isPrimaryWorkTree, ensureNotPrimaryWorkTree } from './worktree-guard';
 
 const execAsync = promisify(exec);
 const logger = createLogger('git-operations/branch-pr-ops');
@@ -33,6 +34,9 @@ function ghPath(): string {
  */
 export async function createBranch(workingDirectory: string, branchName: string): Promise<boolean> {
   try {
+    // Switching/creating a branch on the primary checkout changes the
+    // developer's current branch — only do it inside a worktree.
+    await ensureNotPrimaryWorkTree(workingDirectory, `switch to branch ${branchName}`);
     const { stdout } = await execAsync(`git branch --list ${branchName}`, {
       cwd: workingDirectory,
     });
@@ -266,8 +270,18 @@ export async function mergePullRequest(
       encoding: 'utf8',
     });
 
-    await execAsync(`git checkout ${baseBranch}`, { cwd: workingDirectory });
-    await execAsync('git pull', { cwd: workingDirectory });
+    // Post-merge local sync. On the PRIMARY checkout this `git checkout` + pull
+    // would switch the developer's branch and could clobber uncommitted work —
+    // skip it there (the merge already landed on GitHub). Only sync worktrees.
+    if (await isPrimaryWorkTree(workingDirectory)) {
+      logger.warn(
+        { workingDirectory },
+        '[mergeBranch] primary working tree — skipping local checkout+pull sync to protect developer work',
+      );
+    } else {
+      await execAsync(`git checkout ${baseBranch}`, { cwd: workingDirectory });
+      await execAsync('git pull', { cwd: workingDirectory });
+    }
 
     return { success: true, mergeStrategy };
   } catch (error) {
@@ -340,37 +354,5 @@ export async function revertChanges(workingDirectory: string): Promise<boolean> 
   } catch (error) {
     logger.error({ err: error }, 'Failed to revert changes');
     return false;
-  }
-}
-
-/**
- * Determine whether a directory is the PRIMARY git working tree (as opposed to
- * a linked `git worktree`). Returns true on the primary tree, where destructive
- * reverts would clobber the developer's own work.
- *
- * @param workingDirectory - Directory to test / 判定対象ディレクトリ
- * @returns true if primary worktree (or detection failed → treat as primary to be safe) / プライマリなら true（判定失敗時も安全側で true）
- */
-async function isPrimaryWorkTree(workingDirectory: string): Promise<boolean> {
-  try {
-    const [gitDir, commonDir] = await Promise.all([
-      execAsync('git rev-parse --absolute-git-dir', { cwd: workingDirectory }),
-      execAsync('git rev-parse --git-common-dir', { cwd: workingDirectory }),
-    ]);
-    const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
-    let common = normalize(commonDir.stdout);
-    // --git-common-dir may be relative (e.g. ".git"); resolve against the dir.
-    if (!/^([a-zA-Z]:)?\//.test(common)) {
-      const root = await execAsync('git rev-parse --show-toplevel', { cwd: workingDirectory });
-      common = normalize(`${normalize(root.stdout)}/${common}`);
-    }
-    return normalize(gitDir.stdout) === common;
-  } catch (error) {
-    // If we cannot tell, assume PRIMARY and refuse — never risk the main tree.
-    logger.warn(
-      { err: error, workingDirectory },
-      '[revertChanges] Could not determine worktree type; treating as primary and skipping revert',
-    );
-    return true;
   }
 }
