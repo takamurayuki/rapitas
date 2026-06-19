@@ -7,7 +7,7 @@
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
-import { resolveWorkflowDir, readWorkflowFile } from './workflow-file-utils';
+import { resolveWorkflowDir, readWorkflowFile, archiveWorkflowFile } from './workflow-file-utils';
 import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
@@ -59,6 +59,13 @@ type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 // every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
+
+/**
+ * Max times the implementer guard may roll back to re-plan a task whose plan.md
+ * keeps coming back invalid. Beyond this the task is blocked instead of looping
+ * (draft→…→plan_approved→rollback) forever. / 再計画ロールバックの上限。
+ */
+const MAX_PLAN_REPLANS = 3;
 
 /**
  * Resolves the system prompt content for a given key.
@@ -430,9 +437,69 @@ export class WorkflowOrchestrator {
     if (transition.role === 'implementer') {
       const planMd = await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null);
       if (!planMd || !isReusableArtifact('plan', planMd)) {
+        // BOUND the replan loop. Previously this rolled back to draft every time
+        // an invalid plan.md was seen, with no limit and WITHOUT removing the bad
+        // file — so a plan that kept coming back invalid spun forever
+        // (draft→…→plan_approved→rollback, ~1/s, hitting maxIterations then
+        // retrying). Count prior replans; once exhausted, block for inspection
+        // instead of looping.
+        // Window to "recent" so old replans from an unrelated past run don't
+        // pre-block a fresh re-run; a real loop trips this within seconds.
+        const priorReplans = await prisma.workflowTransition
+          .count({
+            where: {
+              taskId,
+              cause: 'plan_invalid_replan',
+              createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+            },
+          })
+          .catch(() => 0);
+
+        if (priorReplans >= MAX_PLAN_REPLANS) {
+          log.warn(
+            { taskId, priorReplans },
+            '[WorkflowOrchestrator] plan.md still invalid after repeated re-plans — blocking instead of looping',
+          );
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'plan_approved',
+            toStatus: 'plan_approved',
+            actor: 'system',
+            cause: 'plan_invalid_replan_exhausted',
+            phase: 'plan',
+            metadata: { priorReplans },
+            invariantViolation: true,
+            invariantMessage:
+              'plan.md remained invalid after repeated re-plans; blocked to stop the loop',
+          }).catch(() => {});
+          import('../communication/notification-service')
+            .then(({ createNotification }) =>
+              createNotification({
+                type: 'system',
+                title: '計画の再生成に失敗（ブロック）',
+                message: `タスク #${taskId} は plan.md が繰り返し不正なため、再計画を打ち切りブロックしました。手動で確認してください。`,
+                link: `/tasks?taskId=${taskId}`,
+                metadata: { taskId, priorReplans, reason: 'plan_invalid_replan_exhausted' },
+              }),
+            )
+            .catch(() => {});
+          return {
+            success: false,
+            role: transition.role,
+            status: 'plan_approved' as WorkflowStatus,
+            error: 'plan.md が繰り返し不正なため再計画を打ち切りブロックしました',
+          };
+        }
+
         log.warn(
-          `[WorkflowOrchestrator] task ${taskId}: plan.md is log-polluted or non-substantive — rolling back to re-plan instead of implementing on a broken plan`,
+          `[WorkflowOrchestrator] task ${taskId}: plan.md is log-polluted or non-substantive — archiving it and rolling back to re-plan (attempt ${priorReplans + 1}/${MAX_PLAN_REPLANS})`,
         );
+        // Archive the bad plan so the planner MUST regenerate it (it can no
+        // longer be reused by the reuse-check), breaking the reuse↔reject loop.
+        await archiveWorkflowFile(workflowInfo.dir, 'plan').catch(() => {});
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: 'draft' },
@@ -444,13 +511,15 @@ export class WorkflowOrchestrator {
           actor: 'system',
           cause: 'plan_invalid_replan',
           phase: 'plan',
-          metadata: { reason: 'plan.md is log-polluted or non-substantive; regenerating' },
+          metadata: {
+            reason: 'plan.md is log-polluted or non-substantive; archived + regenerating',
+          },
         }).catch(() => {});
         return {
           success: true,
           role: transition.role,
           status: 'draft',
-          output: 'plan.md が壊れている（ログ汚染/空）ため、再計画にロールバックしました',
+          output: 'plan.md が壊れている（ログ汚染/空）ため、退避して再計画にロールバックしました',
         };
       }
     }
