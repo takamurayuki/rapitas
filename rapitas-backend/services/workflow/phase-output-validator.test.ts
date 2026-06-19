@@ -164,10 +164,9 @@ bun test: 5 passed, 0 failed
     expect(result.missingSections).toEqual([]);
   });
 
-  test('reproduces the WARN: auto_verifier output missing チェックリスト and 検証結果サマリ', () => {
-    // This is the pattern that was triggering
-    // "[WorkflowCLIExecutor] verify.md missing sections: チェックリスト, 検証結果サマリ"
-    const missingBothSections = `# 実装結果検証レポート
+  test('rejects verify missing チェックリスト and 検証結果サマリ group entirely', () => {
+    // A verify with テスト結果 but no チェックリスト and no 検証結果サマリ synonym
+    const missingBothSections = `# 実装レポート
 ## テスト結果
 bun test: 5 passed, 0 failed
 ## 変更ファイル一覧
@@ -176,5 +175,68 @@ bun test: 5 passed, 0 failed
     expect(result.ok).toBe(false);
     expect(result.missingSections).toContain('チェックリスト');
     expect(result.missingSections).toContain('検証結果サマリ');
+  });
+
+  // OR-group synonym tests: any alternative satisfies the 検証結果サマリ requirement
+  test('accepts 検証結果 (L1 heading, no サマリ) as synonym for 検証結果サマリ', () => {
+    const content = `# 検証結果
+## テスト結果
+bun test: 3 passed
+## チェックリスト
+- [x] done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 総合評価 heading as synonym for 検証結果サマリ', () => {
+    const content = `## 総合評価
+合格
+## テスト結果
+ok
+## チェックリスト
+- [x]`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 実装結果検証レポート heading as synonym for 検証結果サマリ', () => {
+    const content = `# 実装結果検証レポート
+## テスト結果
+all pass
+## チェックリスト
+- [x] all done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('still rejects verify with テスト結果 missing even when 検索結果サマリ synonym present', () => {
+    const content = `## 検証レポート
+summary here
+## チェックリスト
+- [x] done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(false);
+    expect(result.missingSections).toContain('テスト結果');
+  });
+
+  test('returns severity=100 for empty verify content', () => {
+    const result = validateVerify('   ');
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(100);
+  });
+
+  test('detects contradiction: all-pass claim with failure signal', () => {
+    const contradictory = `## 検証結果サマリ
+全テスト通過
+## テスト結果
+1 failed
+## チェックリスト
+- [x]`;
+    const result = validateVerify(contradictory);
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(80);
   });
 });
