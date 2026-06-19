@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import PullRequestDetailClient from './PullRequestDetailClient';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PRDetailSkeleton } from './components/PRDetailSkeleton';
 
 // NOTE: Required for static export — generates placeholder route params at build time.
 export async function generateStaticParams() {
@@ -9,7 +9,7 @@ export async function generateStaticParams() {
 
 export default function PullRequestDetailPage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<PRDetailSkeleton />}>
       <PullRequestDetailClient />
     </Suspense>
   );

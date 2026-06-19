@@ -14,7 +14,7 @@ import { MessageSquare, FileCode, GitMerge, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GitHubPullRequest, FileDiff } from '@/types';
 import { API_BASE_URL } from '@/utils/api';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { PRDetailSkeleton } from './components/PRDetailSkeleton';
 import { useToast } from '@/components/ui/toast/ToastContainer';
 import { createLogger } from '@/lib/logger';
 
@@ -219,7 +219,7 @@ export default function PullRequestDetailClient() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <PRDetailSkeleton />;
   }
 
   if (!pr) {
@@ -231,6 +231,14 @@ export default function PullRequestDetailClient() {
   }
 
   const conversationCount = (pr.reviews?.length || 0) + (pr.comments?.length || 0);
+
+  // Always offer a usable base-branch list. When the repo's branch fetch is
+  // empty/slow the selector previously showed ONLY the current base (a dead
+  // dropdown). Union the fetched branches with the current base and the common
+  // lines (develop/main/master), excluding the PR's own head branch.
+  const baseOptions = Array.from(
+    new Set<string>([...branches, pr.baseBranch, 'develop', 'main', 'master']),
+  ).filter((b) => !!b && b !== pr.headBranch);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -246,11 +254,7 @@ export default function PullRequestDetailClient() {
             disabled={changingBase}
             className="px-3 py-1.5 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm disabled:opacity-50"
           >
-            {/* Ensure the current base is selectable even if the branch list hasn't loaded. */}
-            {!branches.includes(pr.baseBranch) && (
-              <option value={pr.baseBranch}>{pr.baseBranch}</option>
-            )}
-            {branches.map((b) => (
+            {baseOptions.map((b) => (
               <option key={b} value={b}>
                 {b}
               </option>
