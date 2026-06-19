@@ -403,6 +403,23 @@ export class ThemeAutoRunScheduler {
 
     const taskId = result.taskId;
 
+    // A re-run (a 'todo' task whose workflowStatus is a stale terminal state from
+    // a prior run) has no forward transition from verify_done/completed — reset
+    // it to 'draft' so the workflow actually re-runs (research/plan are reused
+    // via isReusableArtifact, so this is cheap). Without this the task would be
+    // dequeued and immediately fail "cannot advance from verify_done".
+    const picked = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    if (picked?.workflowStatus === 'verify_done' || picked?.workflowStatus === 'completed') {
+      await prisma.task
+        .update({ where: { id: taskId }, data: { workflowStatus: 'draft' } })
+        .catch(() => {});
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${picked.workflowStatus} → draft`,
+      );
+    }
+
     // Enqueue via WorkflowQueueService with themeId set
     try {
       await this.queue.enqueue({ taskId, themeId, priority: 50 });
