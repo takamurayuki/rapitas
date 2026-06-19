@@ -8,7 +8,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
-import { runGhCommand } from './gh-client';
+import { runGhCommand, runGhCommandWithBody } from './gh-client';
 import type { PullRequestComment, CreatePRCommentInput, GhComment } from './types';
 
 const log = createLogger('github-service:pr-write');
@@ -58,7 +58,7 @@ export async function createPullRequestComment(
     };
   } else {
     // General comment (Issue comment)
-    await runGhCommand(['pr', 'comment', String(prNumber), '--repo', repo, '--body', input.body]);
+    await runGhCommandWithBody(['pr', 'comment', String(prNumber), '--repo', repo], input.body);
 
     return {
       id: 0, // gh pr comment does not return an ID
@@ -82,8 +82,7 @@ export async function approvePullRequest(
   body?: string,
 ): Promise<void> {
   const args = ['pr', 'review', String(prNumber), '--repo', repo, '--approve'];
-  if (body) args.push('--body', body);
-  await runGhCommand(args);
+  await runGhCommandWithBody(args, body);
 }
 
 /**
@@ -94,16 +93,10 @@ export async function approvePullRequest(
  * @param body - Change request message / 変更リクエストメッセージ
  */
 export async function requestChanges(repo: string, prNumber: number, body: string): Promise<void> {
-  await runGhCommand([
-    'pr',
-    'review',
-    String(prNumber),
-    '--repo',
-    repo,
-    '--request-changes',
-    '--body',
+  await runGhCommandWithBody(
+    ['pr', 'review', String(prNumber), '--repo', repo, '--request-changes'],
     body,
-  ]);
+  );
 }
 
 /**
@@ -235,19 +228,9 @@ export async function createPullRequest(
     // Push the current branch
     await execAsync(`git push -u origin ${headBranch}`, { cwd: workingDirectory });
 
-    const output = await runGhCommand(
-      [
-        'pr',
-        'create',
-        '--title',
-        title,
-        '--body',
-        body,
-        '--base',
-        baseBranch,
-        '--head',
-        headBranch,
-      ],
+    const output = await runGhCommandWithBody(
+      ['pr', 'create', '--title', title, '--base', baseBranch, '--head', headBranch],
+      body,
       workingDirectory,
     );
 

@@ -62,9 +62,14 @@ const mockCreateIssue = mock(() =>
 );
 const mockCloseIssue = mock(() => Promise.resolve(undefined));
 
+// NOTE: Mirror ALL issue-operations exports to avoid bun mock.module process-global
+// pollution when tests run in the same process as issue-operations.test.ts.
 mock.module('./issue-operations', () => ({
   createIssue: mockCreateIssue,
   closeIssue: mockCloseIssue,
+  getIssues: mock(() => Promise.resolve([])),
+  getIssue: mock(() => Promise.resolve(null)),
+  addIssueComment: mock(() => Promise.resolve({ id: 0, body: '' })),
 }));
 
 mock.module('../../config/logger', () => ({

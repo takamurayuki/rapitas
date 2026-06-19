@@ -1,9 +1,10 @@
 /**
  * pr-write.test
  *
- * Tests for PR write operations, focusing on mergePullRequest's
- * --auto fallback logic: when GitHub doesn't support auto-merge,
- * the function must retry without --auto and log a warning.
+ * Tests for PR write operations:
+ * - mergePullRequest --auto fallback logic
+ * - createPullRequestComment, approvePullRequest, requestChanges, createPullRequest
+ *   each use runGhCommandWithBody (not runGhCommand) for dynamic body content
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
@@ -11,17 +12,49 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 const mockRunGhCommand = mock((_args: string[], _cwd?: string, _opts?: { skipLog?: boolean }) =>
   Promise.resolve(''),
 );
+const mockRunGhCommandWithBody = mock(
+  (_args: string[], _body?: string, _cwd?: string, _opts?: { skipLog?: boolean }) =>
+    Promise.resolve(''),
+);
 
 mock.module('./gh-client', () => ({
   runGhCommand: mockRunGhCommand,
+  runGhCommandWithBody: mockRunGhCommandWithBody,
 }));
 
-// Import after mocking so the module picks up the mock.
-const { mergePullRequest } = await import('./pr-write');
+// exec is used by createPullRequest (git push) and syncLocalBranchWithRemote
+let execShouldFail = false;
+const mockExec = mock(
+  (
+    _cmd: string,
+    _opts: object,
+    cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void,
+  ) => {
+    if (execShouldFail) {
+      cb(new Error('git push failed'));
+    } else {
+      cb(null, { stdout: '', stderr: '' });
+    }
+  },
+);
+
+// NOTE: Include execFile as well to prevent "export not found" when gh-client.test.ts
+// runs in the same process (bun mock.module is process-global).
+mock.module('child_process', () => ({
+  exec: mockExec,
+  execFile: mock(() => {}),
+}));
+
+// Import after mocking so the modules pick up the mocks.
+const { mergePullRequest, createPullRequestComment, approvePullRequest, requestChanges, createPullRequest } =
+  await import('./pr-write');
+
+// ─── mergePullRequest ─────────────────────────────────────────────────────────
 
 describe('mergePullRequest', () => {
   beforeEach(() => {
     mockRunGhCommand.mockReset();
+    mockRunGhCommandWithBody.mockReset();
   });
 
   describe('without auto option', () => {
@@ -150,5 +183,134 @@ describe('mergePullRequest', () => {
       expect(fallbackArgs).toContain('--delete-branch');
       expect(fallbackArgs).not.toContain('--auto');
     });
+  });
+});
+
+// ─── createPullRequestComment ─────────────────────────────────────────────────
+
+describe('createPullRequestComment', () => {
+  beforeEach(() => {
+    mockRunGhCommand.mockReset();
+    mockRunGhCommandWithBody.mockReset();
+  });
+
+  it('一般コメント: runGhCommandWithBody を使い --body を付与しない', async () => {
+    mockRunGhCommandWithBody.mockResolvedValueOnce('');
+
+    const result = await createPullRequestComment('owner/repo', 10, {
+      body: '改行あり\nコメント',
+    });
+
+    expect(result.body).toBe('改行あり\nコメント');
+    expect(mockRunGhCommandWithBody).toHaveBeenCalledTimes(1);
+    const [args, body] = mockRunGhCommandWithBody.mock.calls[0] as [string[], string];
+    expect(args).toContain('pr');
+    expect(args).toContain('comment');
+    expect(args).toContain('10');
+    expect(args).not.toContain('--body');
+    expect(body).toBe('改行あり\nコメント');
+  });
+});
+
+// ─── approvePullRequest ───────────────────────────────────────────────────────
+
+describe('approvePullRequest', () => {
+  beforeEach(() => {
+    mockRunGhCommandWithBody.mockReset();
+  });
+
+  it('body あり: runGhCommandWithBody に body を渡す', async () => {
+    mockRunGhCommandWithBody.mockResolvedValueOnce('');
+
+    await approvePullRequest('owner/repo', 5, 'LGTM\n詳細コメント');
+
+    const [args, body] = mockRunGhCommandWithBody.mock.calls[0] as [string[], string | undefined];
+    expect(args).toContain('--approve');
+    expect(args).not.toContain('--body');
+    expect(body).toBe('LGTM\n詳細コメント');
+  });
+
+  it('body なし: runGhCommandWithBody に undefined を渡す', async () => {
+    mockRunGhCommandWithBody.mockResolvedValueOnce('');
+
+    await approvePullRequest('owner/repo', 5);
+
+    const [, body] = mockRunGhCommandWithBody.mock.calls[0] as [string[], string | undefined];
+    expect(body).toBeUndefined();
+  });
+});
+
+// ─── requestChanges ───────────────────────────────────────────────────────────
+
+describe('requestChanges', () => {
+  beforeEach(() => {
+    mockRunGhCommandWithBody.mockReset();
+  });
+
+  it('runGhCommandWithBody を使い --request-changes に body を渡す', async () => {
+    mockRunGhCommandWithBody.mockResolvedValueOnce('');
+
+    await requestChanges('owner/repo', 7, '変更が必要です\n詳細: ...');
+
+    expect(mockRunGhCommandWithBody).toHaveBeenCalledTimes(1);
+    const [args, body] = mockRunGhCommandWithBody.mock.calls[0] as [string[], string];
+    expect(args).toContain('--request-changes');
+    expect(args).not.toContain('--body');
+    expect(body).toBe('変更が必要です\n詳細: ...');
+  });
+});
+
+// ─── createPullRequest ────────────────────────────────────────────────────────
+
+describe('createPullRequest', () => {
+  beforeEach(() => {
+    mockRunGhCommandWithBody.mockReset();
+    mockExec.mockClear();
+    execShouldFail = false;
+  });
+
+  it('正常系: git push 後に runGhCommandWithBody で PR を作成し success を返す', async () => {
+    const prUrl = 'https://github.com/owner/repo/pull/99';
+    mockRunGhCommandWithBody.mockResolvedValueOnce(prUrl);
+
+    const result = await createPullRequest(
+      '/workspace',
+      'feature/test',
+      'develop',
+      '[#42] テスト PR',
+      '## Summary\n日本語PR本文\n\nCloses #42',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.prUrl).toBe(prUrl);
+    expect(result.prNumber).toBe(99);
+    expect(mockRunGhCommandWithBody).toHaveBeenCalledTimes(1);
+    const [args, body, cwd] = mockRunGhCommandWithBody.mock.calls[0] as [
+      string[],
+      string,
+      string,
+    ];
+    expect(args).toContain('pr');
+    expect(args).toContain('create');
+    expect(args).toContain('--title');
+    expect(args).not.toContain('--body');
+    expect(body).toBe('## Summary\n日本語PR本文\n\nCloses #42');
+    expect(cwd).toBe('/workspace');
+  });
+
+  it('git push 失敗 → success: false でエラーメッセージを返す', async () => {
+    execShouldFail = true;
+
+    const result = await createPullRequest(
+      '/workspace',
+      'feature/test',
+      'develop',
+      'PR title',
+      'PR body',
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(mockRunGhCommandWithBody).not.toHaveBeenCalled();
   });
 });

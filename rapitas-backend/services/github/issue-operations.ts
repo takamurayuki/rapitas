@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '../../config/logger';
-import { runGhCommand } from './gh-client';
+import { runGhCommand, runGhCommandWithBody } from './gh-client';
 import type { Issue, CreateIssueInput, GhIssue, GhLabel } from './types';
 
 const log = createLogger('github-service:issues');
@@ -124,9 +124,6 @@ async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> 
 export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
   const baseArgs = ['issue', 'create', '--repo', repo, '--title', input.title];
 
-  if (input.body) {
-    baseArgs.push('--body', input.body);
-  }
   if (input.assignees && input.assignees.length > 0) {
     baseArgs.push('--assignee', input.assignees.join(','));
   }
@@ -142,13 +139,13 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
 
   let url: string;
   try {
-    url = await runGhCommand(args);
+    url = await runGhCommandWithBody(args, input.body);
   } catch (err) {
     if (input.labels && input.labels.length > 0) {
       // NOTE: gh rejects --label when any label doesn't exist in the repo.
       // Best-effort: create the issue without labels rather than failing entirely.
       log.warn({ repo, labels: input.labels }, 'Issue creation with labels failed; retrying without labels');
-      url = await runGhCommand(baseArgs);
+      url = await runGhCommandWithBody(baseArgs, input.body);
     } else {
       throw err;
     }
@@ -194,7 +191,7 @@ export async function addIssueComment(
   issueNumber: number,
   body: string,
 ): Promise<{ id: number; body: string }> {
-  await runGhCommand(['issue', 'comment', String(issueNumber), '--repo', repo, '--body', body]);
+  await runGhCommandWithBody(['issue', 'comment', String(issueNumber), '--repo', repo], body);
 
   return {
     id: 0, // gh issue comment does not return an ID
