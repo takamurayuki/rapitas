@@ -117,6 +117,27 @@ export const themeAutoRunRoutes = new Elysia()
         // stop
         state = await stopAutoRun(themeId);
         log.info(`[theme-auto-run] Stop requested for theme ${themeId}`);
+        // Immediately kill the in-flight agent the SAME way the (reliable)
+        // task-detail stop does — stopTaskAgents — instead of only flipping the
+        // state to 'stopping' and waiting for the scheduler's next tick to call
+        // stopThemeExecution. That tick delay is why the agent sometimes keeps
+        // running after the user presses the auto-run stop button. Idempotent, so
+        // the scheduler's later cleanup pass is harmless.
+        const runningTaskId = state.currentTaskId;
+        if (runningTaskId) {
+          const { stopTaskAgents } = await import('../../services/agents/stop-task-agents');
+          await stopTaskAgents(runningTaskId, {
+            errorMessage: 'Cancelled by user (auto-run stop)',
+          }).catch((err) =>
+            log.error(
+              { err, themeId, taskId: runningTaskId },
+              '[theme-auto-run] Failed to stop in-flight agent on stop',
+            ),
+          );
+          log.info(
+            `[theme-auto-run] Halted in-flight agent for task ${runningTaskId} (theme ${themeId})`,
+          );
+        }
       }
 
       return { success: true, autoRun: state };
