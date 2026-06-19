@@ -23,6 +23,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { prisma } from '../../../config/database';
 import { checkClaudeAvailable } from './cli-utils';
+import { getAgentTimeoutMs } from '../execution-timeouts';
 import { handleWorkerMessage } from './worker-message-handler';
 import type { WorkerResultUsageSnapshot } from './worker-message-handler';
 import { buildResolveAfterParse } from './execution-resolver';
@@ -100,7 +101,10 @@ export class ClaudeCodeAgent extends BaseAgent {
   constructor(id: string, name: string, config: ClaudeCodeAgentConfig = {}) {
     super(id, name, 'claude-code');
     this.config = {
-      timeout: 900000, // 15 minutes default
+      // Default derived from the shared timeout config so the agent self-
+      // terminates just BEFORE the WorkflowRunner's phase backstop (see
+      // execution-timeouts). A caller-supplied config.timeout still wins.
+      timeout: getAgentTimeoutMs(),
       ...config,
     };
   }
@@ -229,7 +233,7 @@ export class ClaudeCodeAgent extends BaseAgent {
     this.onParseComplete = null;
     const startTime = Date.now();
 
-    const timeout = this.config.timeout ?? 900000; // 15 minutes
+    const timeout = this.config.timeout ?? getAgentTimeoutMs();
 
     const fs = await import('fs/promises');
     const workDir = task.workingDirectory || this.config.workingDirectory || getProjectRoot();

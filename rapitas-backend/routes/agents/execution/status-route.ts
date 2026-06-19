@@ -148,12 +148,24 @@ export const statusRoute = new Elysia().get(
         .findUnique({ where: { id: taskId }, select: { status: true, workflowStatus: true } })
         .catch(() => null);
 
+      // Surface the auto-created PR so the execution log can show "PR created: …"
+      // (and the "PRを開く" button has a URL) without a separate request.
+      const prRow = await prisma.gitHubPullRequest
+        .findFirst({
+          where: { linkedTaskId: taskId },
+          orderBy: { createdAt: 'desc' },
+          select: { url: true, prNumber: true },
+        })
+        .catch(() => null);
+
       return {
         sessionId: latestSession.id,
         sessionStatus: latestSession.status,
         sessionMode: latestSession.mode || null,
         workflowStatus: taskRow?.workflowStatus ?? null,
         taskStatus: taskRow?.status ?? null,
+        prUrl: prRow?.url ?? null,
+        prNumber: prRow?.prNumber ?? null,
         executionId: latestExecution?.id,
         executionStatus: effectiveExecutionStatus,
         output,

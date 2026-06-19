@@ -207,6 +207,8 @@ export default function WorkflowViewer({
           activeTabConfig={activeTabConfig ?? workflowTabs[0]}
           showApprovalButton={!!showApprovalButton}
           onPlanApprovalRequest={onPlanApprovalRequest}
+          taskId={taskId}
+          onSaved={refetch}
         />
       </div>
     </div>

@@ -26,6 +26,32 @@ import type { RequestOptions } from './types';
  */
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/**
+ * Per-attempt timeout for idempotent GETs. A healthy backend serves GETs in
+ * well under a second (verified: GET /tasks/:id ≈ 0.2s), so a GET that stalls
+ * this long is almost always a dead/stale keep-alive connection or a transient
+ * backend hiccup under load — NOT a legitimately slow response. Aborting at 15s
+ * frees the connection and lets the retry below open a FRESH one, which is what
+ * turns the "task detail page never loads (Request timeout after 30002ms)"
+ * symptom into an automatic recovery.
+ */
+const GET_ATTEMPT_TIMEOUT_MS = 15_000;
+/** Transient-error retries for idempotent GETs (mutations are never retried). */
+const MAX_GET_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 300;
+
+/** Whether an error from performFetch is transient and safe to retry a GET on. */
+export function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('Request timeout after') || // our abort timeout
+    msg.includes('Failed to fetch') || // network / dropped connection
+    /API Error: 5\d\d/.test(msg) // 5xx
+  );
+}
+
+const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 export class APIClient {
   private cache = new ApiClientCache();
   private batch = new ApiClientBatch();
@@ -84,7 +110,16 @@ export class APIClient {
     const existingRequest = this.requestQueue.get(cacheKey);
     if (existingRequest) return existingRequest as Promise<T>;
 
-    const request = this.performFetch<T>(url, options)
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
+    // Retry idempotent GETs on transient errors (timeout / dropped connection /
+    // 5xx). The retry runs INSIDE the deduped promise, so every caller waiting on
+    // this path gets the recovered result instead of a shared timeout failure.
+    const runner =
+      isGet && !options.skipRetry
+        ? () => this.getWithRetries<T>(url, options)
+        : () => this.performFetch<T>(url, options, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
+
+    const request = runner()
       .then((data) => {
         if (options.method === 'GET' || !options.method) {
           this.cache.set(cacheKey, data, options.cacheTime);
@@ -102,6 +137,27 @@ export class APIClient {
     this.requestQueue.set(cacheKey, request);
     this.requestQueueAt.set(cacheKey, Date.now());
     return request;
+  }
+
+  /**
+   * Run an idempotent GET with bounded retries on transient errors, each
+   * attempt on a fresh connection (the prior attempt's socket is aborted). This
+   * recovers from a stale/dropped keep-alive that would otherwise stall until
+   * the hard timeout and blank the page.
+   */
+  private async getWithRetries<T>(url: string, options: RequestOptions): Promise<T> {
+    const perAttempt = options.timeoutMs ?? GET_ATTEMPT_TIMEOUT_MS;
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= MAX_GET_RETRIES; attempt++) {
+      try {
+        return await this.performFetch<T>(url, options, perAttempt);
+      } catch (err) {
+        lastError = err;
+        if (attempt === MAX_GET_RETRIES || !isTransientError(err)) throw err;
+        await delay(RETRY_BASE_DELAY_MS * (attempt + 1));
+      }
+    }
+    throw lastError;
   }
 
   /**
@@ -250,7 +306,11 @@ export class APIClient {
    * @returns Parsed JSON response / パース済みJSONレスポンス
    * @throws {Error} On non-2xx responses / 2xx以外のレスポンス時
    */
-  private async performFetch<T>(url: string, options: RequestOptions): Promise<T> {
+  private async performFetch<T>(
+    url: string,
+    options: RequestOptions,
+    timeoutMs: number = REQUEST_TIMEOUT_MS,
+  ): Promise<T> {
     const requestStartedAt = Date.now();
     const method = (options.method || 'GET').toUpperCase();
     const requestLabel = `${method} ${(() => {
@@ -273,7 +333,7 @@ export class APIClient {
 
       console.error('[api-client] timeout', { requestLabel, elapsedMs: elapsed });
       timeoutController.abort(new Error(msg));
-    }, REQUEST_TIMEOUT_MS);
+    }, timeoutMs);
 
     let signal: AbortSignal = timeoutController.signal;
     const callerSignal = (options as RequestOptions & { signal?: AbortSignal }).signal;

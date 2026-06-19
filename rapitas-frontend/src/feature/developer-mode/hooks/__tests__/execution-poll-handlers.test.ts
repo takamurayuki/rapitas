@@ -104,6 +104,56 @@ describe('terminal task finalization for auto-advancing single executions', () =
   });
 });
 
+// The run used to end at "[調査完了]…次のフェーズへ" with no sign the PR opened.
+// On terminal completion with a PR url, surface it in the log.
+describe('PR creation surfaced in the completion log', () => {
+  it('appends a PR line when the task is terminal and a PR url is present', () => {
+    const updater = handleCompleted(
+      {
+        executionStatus: 'completed',
+        sessionMode: 'workflow-verifier',
+        workflowStatus: 'completed',
+        taskStatus: 'done',
+        prUrl: 'https://github.com/o/r/pull/175',
+        prNumber: 175,
+      },
+      makeRefs(),
+    );
+    const log = updater!(emptyState()).logs.join('');
+    expect(log).toContain('PRを作成しました');
+    expect(log).toContain('#175');
+    expect(log).toContain('https://github.com/o/r/pull/175');
+  });
+
+  it('does NOT append a PR line at a non-terminal phase boundary', () => {
+    const updater = handleCompleted(
+      {
+        executionStatus: 'completed',
+        sessionMode: 'workflow-researcher',
+        workflowStatus: 'research_done',
+        taskStatus: 'in-progress',
+        prUrl: 'https://github.com/o/r/pull/175',
+      },
+      makeRefs(),
+    );
+    expect(updater!(emptyState()).logs.join('')).not.toContain('PRを作成しました');
+  });
+
+  it('does NOT append a PR line when no PR exists', () => {
+    const updater = handleCompleted(
+      {
+        executionStatus: 'completed',
+        sessionMode: 'workflow-verifier',
+        workflowStatus: 'completed',
+        taskStatus: 'done',
+        prUrl: null,
+      },
+      makeRefs(),
+    );
+    expect(updater!(emptyState()).logs.join('')).not.toContain('PRを作成しました');
+  });
+});
+
 // Regression (task 185): a verifier execution can COMPLETE while the task bounces
 // into the self-repair loop (verify → implement → verify). The verifier phase is
 // not auto-advancing, so the poller used to stop and freeze the UI at 完了 until a

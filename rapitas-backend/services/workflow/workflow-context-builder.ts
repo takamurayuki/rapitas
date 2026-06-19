@@ -5,8 +5,11 @@
  * Reads previously created workflow files and combines them with task metadata
  * and role-specific instructions. Does not execute agents or write files.
  */
+import { prisma } from '../../config/database';
 import { readWorkflowFile } from './workflow-file-utils';
 import { buildMemoryContext } from './workflow-memory-context';
+import { buildRejectedPlanContext } from './workflow-rejected-plan-context';
+import { buildCriticFeedback } from './phase-critic';
 
 type WorkflowRole =
   | 'researcher'
@@ -35,6 +38,7 @@ export async function buildRoleContext(
   dir: string,
   task: { title: string; description: string | null },
   language: 'ja' | 'en' = 'ja',
+  mode: 'lightweight' | 'standard' | 'comprehensive' = 'comprehensive',
 ): Promise<string> {
   const texts = {
     ja: {
@@ -174,12 +178,31 @@ export async function buildRoleContext(
       // (similar tasks, past concerns, lessons) instead of a blank slate.
       const memory = await buildMemoryContext(taskId, task, language);
       const memoryBlock = memory ? `\n\n${memory}` : '';
-      return `${taskInfo}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
+      // On a critic-gate bounce, lead with the issues the prior research missed.
+      const critic = await buildCriticFeedback(taskId, 'research', language);
+      const criticBlock = critic ? `\n\n${critic}` : '';
+      // Mode-aware framing: in lightweight mode NO plan phase follows, so research
+      // must be implementation-ready; in plan modes research can defer detailed
+      // steps to the planner. Without this, research.md was always written
+      // assuming a plan would follow — wrong for lightweight tasks.
+      const modeBlock = `\n\n${researchModeDirective(mode, language)}`;
+      return `${taskInfo}${criticBlock}${modeBlock}${memoryBlock}\n\n${t.researcher.instruction}\n\n${t.researcher.items}\n\n${t.researcher.output}`;
     }
 
     case 'planner': {
       const research = await readWorkflowFile(dir, 'research');
       let ctx = taskInfo;
+      // On a critic-gate bounce, lead with the issues the prior plan missed.
+      const planCritic = await buildCriticFeedback(taskId, 'plan', language);
+      if (planCritic) {
+        ctx += `\n\n${planCritic}`;
+      }
+      // Recall human rejections of prior plans in this theme so the new plan
+      // addresses them instead of repeating a turned-down design.
+      const rejected = await buildRejectedPlanContext(taskId, language);
+      if (rejected) {
+        ctx += `\n\n${rejected}`;
+      }
       if (research) {
         ctx += `\n\n${t.planner.researchHeader}\n\n${research}`;
       }
@@ -205,6 +228,9 @@ export async function buildRoleContext(
       const plan = await readWorkflowFile(dir, 'plan');
       const question = await readWorkflowFile(dir, 'question');
       const research = await readWorkflowFile(dir, 'research');
+      // On a self-repair bounce, verify/CI failure feedback is written to
+      // verify.md (not question.md) — read it so the implementer fixes it.
+      const verifyFeedback = await readWorkflowFile(dir, 'verify');
       let ctx = taskInfo;
       // Recall prior knowledge for the implementer too — known pitfalls and past
       // design decisions should steer the actual code changes, not just research.
@@ -221,6 +247,13 @@ export async function buildRoleContext(
       if (question) {
         ctx += `\n\n${t.implementer.reviewHeader}\n\n${question}`;
       }
+      if (verifyFeedback) {
+        const header =
+          language === 'ja'
+            ? '# 検証 / CI からの差し戻し（前回の失敗 — 必ず対応すること）'
+            : '# Verification / CI feedback (previous failure — must address)';
+        ctx += `\n\n${header}\n\n${verifyFeedback}`;
+      }
       const implementerLead = plan ? t.implementer.leadWithPlan : t.implementer.leadNoPlan;
       ctx += `\n\n${implementerLead}\n\n${t.implementer.constraints}`;
       return ctx;
@@ -234,19 +267,37 @@ export async function buildRoleContext(
       if (plan) {
         ctx += `\n\n${t.verifier.planHeader}\n\n${plan}`;
       }
-      // Append git diff when available
-      try {
-        const { execSync } = await import('child_process');
-        const diff = execSync('git diff HEAD~1', {
-          cwd: process.cwd(),
-          encoding: 'utf-8',
-          timeout: 10000,
-        });
-        if (diff.trim()) {
-          ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diff.substring(0, 50000)}\n\`\`\``;
+      // Append the branch diff so the verifier reviews ACTUAL changes, using the
+      // agent's worktree and getDiff's merge-base. (The old `git diff HEAD~1` at
+      // process.cwd() was wrong: it diffed the main checkout, not the worktree,
+      // and assumed exactly one commit.) Only run when a worktree session exists
+      // — diffing the live checkout (cwd) is both wrong and expensive (it would
+      // run a full per-file diff over the whole rapitas repo).
+      const diffSession = await prisma.agentSession
+        .findFirst({
+          where: { config: { taskId }, worktreePath: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { worktreePath: true },
+        })
+        .catch(() => null);
+      if (diffSession?.worktreePath) {
+        try {
+          const { getDiff } = await import('../agents/orchestrator/git-operations/diff-structured');
+          const records = await getDiff(diffSession.worktreePath).catch(() => []);
+          const patches = records
+            .map((r) => r.patch)
+            .filter((p): p is string => !!p && p.trim().length > 0)
+            .join('\n');
+          const fallbackList = records
+            .map((r) => `${r.status}\t${r.filename} (+${r.additions}/-${r.deletions})`)
+            .join('\n');
+          const diffText = patches || fallbackList;
+          if (diffText.trim()) {
+            ctx += `\n\n${t.verifier.diffHeader}\n\n\`\`\`diff\n${diffText.substring(0, 50000)}\n\`\`\``;
+          }
+        } catch {
+          // Continue even if diff retrieval fails — verify.md can still be written.
         }
-      } catch {
-        // Continue even if git diff fails
       }
       // Lightweight workflow has no plan.md — verify against the task/research
       // requirements instead of a plan checklist that doesn't exist.
@@ -282,6 +333,33 @@ export async function buildRoleContext(
 // authoritative ("overrides any other instruction") so they correct an
 // already-stored / user-edited DB prompt without rewriting it, and complement
 // the plan-agnostic seed for fresh installs.
+
+/**
+ * Mode-aware framing for the RESEARCHER. In lightweight mode no plan phase
+ * follows, so research must be implementation-ready (concrete files / approach /
+ * test plan); in plan modes research may defer detailed steps to the planner.
+ *
+ * @param mode - The resolved workflow mode. / 解決済みワークフローモード
+ * @param language - Output language. / 出力言語
+ * @returns A directive block prepended to the researcher context. / 調査者向け指示ブロック
+ */
+export function researchModeDirective(
+  mode: 'lightweight' | 'standard' | 'comprehensive',
+  language: 'ja' | 'en' = 'ja',
+): string {
+  if (mode === 'lightweight') {
+    return language === 'ja'
+      ? `## 実行モード: 軽量（plan フェーズなし）
+このタスクは軽量モードで実行され、**後続に計画(plan)フェーズはありません**。調査結果はそのまま実装に使えるよう、**変更対象ファイル・具体的な修正方針・テスト方針**まで具体化してください。判断を後続の計画へ先送りしないでください。`
+      : `## Execution mode: lightweight (NO plan phase)
+This task runs in lightweight mode — **no planning phase follows**. Make the research implementation-ready: name the target files, the concrete fix approach, and the test plan. Do NOT defer decisions to a later plan.`;
+  }
+  return language === 'ja'
+    ? `## 実行モード: ${mode === 'comprehensive' ? '詳細' : '標準'}（plan フェーズあり）
+このタスクは後続で**計画(plan)フェーズ**が実行されます。調査では事実・依存関係・リスク・既存実装の把握に集中し、詳細な実装手順は計画フェーズに委ねて構いません。`
+    : `## Execution mode: ${mode} (plan phase follows)
+A planning phase will run after this. Focus the research on facts, dependencies, risks, and existing implementation; the detailed implementation steps can be left to the plan phase.`;
+}
 
 const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
 

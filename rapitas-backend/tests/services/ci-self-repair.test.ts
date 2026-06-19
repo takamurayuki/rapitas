@@ -87,12 +87,12 @@ describe('attemptCiRepair', () => {
     expect(recordTransition).not.toHaveBeenCalled();
   });
 
-  test('差し戻しフィードバックを question.md に追記し、失敗チェック名を明記すること', async () => {
+  test('差し戻しフィードバックを verify.md に追記し、失敗チェック名を明記すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     await attemptCiRepair(1, ['Check Frontend', 'Lint Code']);
     expect(writeWorkflowFile).toHaveBeenCalled();
     const args = writeWorkflowFile.mock.calls[0] as unknown[];
-    expect(args[1]).toBe('question');
+    expect(args[1]).toBe('verify');
     const content = args[2] as string;
     expect(content).toContain('CIからの差し戻し');
     expect(content).toContain('Check Frontend');

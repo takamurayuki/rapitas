@@ -1,6 +1,7 @@
 export {
   getLocalLLMStatus,
   ensureLocalLLM,
+  isLocalLLMEnabled,
   stopLlamaServer,
   cleanupLocalLLM,
   type LocalLLMStatus,

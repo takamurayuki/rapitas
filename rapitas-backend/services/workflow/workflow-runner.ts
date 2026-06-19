@@ -285,13 +285,13 @@ export class WorkflowRunner {
         this.broadcastItemUpdate(item.id, item.taskId, 'phase_started', currentStatus);
 
         const executionPromise = this.orchestrator.advanceWorkflow(item.taskId);
+        const { getPhaseTimeoutMs } = await import('../agents/execution-timeouts');
+        const phaseTimeoutMs = getPhaseTimeoutMs();
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(
-            () => {
-              reject(new Error(`Phase execution timeout for task ${item.taskId} (10 minutes)`));
-            },
-            10 * 60 * 1000,
-          ); // 10-minute timeout
+          setTimeout(() => {
+            const mins = Math.round(phaseTimeoutMs / 60000);
+            reject(new Error(`Phase execution timeout for task ${item.taskId} (${mins} minutes)`));
+          }, phaseTimeoutMs);
         });
 
         const result = await Promise.race([executionPromise, timeoutPromise]);

@@ -46,7 +46,7 @@ import { callChatGPTStream } from './chatgpt-provider';
 import { callGeminiStream } from './gemini-provider';
 import { callOllamaStream } from './ollama-provider';
 import { getOllamaUrl } from './credentials';
-import { ensureLocalLLM } from '../../services/local-llm';
+import { ensureLocalLLM, isLocalLLMEnabled } from '../../services/local-llm';
 import { createLogger } from '../../config';
 import { buildRAGContext } from '../../services/memory/rag/context-builder';
 import {
@@ -121,6 +121,12 @@ export async function sendAIMessage(options: AIRequestOptions): Promise<AIRespon
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
+    // Local LLM disabled by config (RAPITAS_ENABLE_LOCAL_LLM unset) is the
+    // EXPECTED state, not a failure — route straight to the paid API without a
+    // warning. Otherwise every memory/contradiction job logged a WARN per call.
+    if (!isLocalLLMEnabled()) {
+      return await sendWithPaidProvider(options);
+    }
     try {
       const ollamaUrl = await getOllamaUrl();
       const localLLM = await ensureLocalLLM(ollamaUrl, options.model);
@@ -225,6 +231,10 @@ export async function sendAIMessageStream(options: AIRequestOptions): Promise<Re
 
   // Local LLM (Ollama preferred -> llama-server -> paid API fallback)
   if (provider === 'ollama') {
+    // Disabled by config is the expected state — fall back silently (see sendAIMessage).
+    if (!isLocalLLMEnabled()) {
+      return await sendStreamWithPaidProvider(options);
+    }
     try {
       const ollamaUrl = await getOllamaUrl();
       const localLLM = await ensureLocalLLM(ollamaUrl);
