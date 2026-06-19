@@ -92,7 +92,12 @@ export function diffSnapshots(before: GlobalSnapshot, after: GlobalSnapshot): Sn
   const exitBefore = before.functions.processExit;
   const exitAfter = after.functions.processExit;
   if (!(exitBefore === undefined && exitAfter === undefined) && exitBefore !== exitAfter) {
-    diffs.push({ key: 'process.exit', kind: 'function_changed', before: exitBefore, after: exitAfter });
+    diffs.push({
+      key: 'process.exit',
+      kind: 'function_changed',
+      before: exitBefore,
+      after: exitAfter,
+    });
   }
 
   // Compare process.env: additions, removals, and value changes.

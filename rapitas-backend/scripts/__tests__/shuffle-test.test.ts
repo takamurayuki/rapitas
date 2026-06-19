@@ -97,10 +97,7 @@ describe('filterExcluded', () => {
   });
 
   test('removes Windows-style integration paths', () => {
-    const files = [
-      'C:\\app\\tests\\unit\\foo.test.ts',
-      'C:\\app\\tests\\integration\\db.test.ts',
-    ];
+    const files = ['C:\\app\\tests\\unit\\foo.test.ts', 'C:\\app\\tests\\integration\\db.test.ts'];
     const result = filterExcluded(files, INTEGRATION_EXCLUDE_PATTERN);
     expect(result).toEqual(['C:\\app\\tests\\unit\\foo.test.ts']);
   });
