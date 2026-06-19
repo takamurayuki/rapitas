@@ -158,15 +158,13 @@ export function useShortcutSettings() {
     }
 
     try {
-      const tauri = window.__TAURI__;
-      if (tauri?.core?.invoke) {
-        const result = await tauri.core.invoke('get_global_shortcut');
-        const shortcut = String(result);
-        setCurrentGlobalShortcut(shortcut);
-        const { modifiers, key } = parseGlobalShortcut(shortcut);
-        setGlobalModifiers(modifiers);
-        setGlobalKey(key);
-      }
+      const { invoke } = await import('@tauri-apps/api/core');
+      const result = await invoke('get_global_shortcut');
+      const shortcut = String(result);
+      setCurrentGlobalShortcut(shortcut);
+      const { modifiers, key } = parseGlobalShortcut(shortcut);
+      setGlobalModifiers(modifiers);
+      setGlobalKey(key);
     } catch (e) {
       logger.error('Failed to load shortcut:', e);
     } finally {
@@ -240,17 +238,15 @@ export function useShortcutSettings() {
     }
 
     try {
-      const tauri = window.__TAURI__;
-      if (tauri?.core?.invoke) {
-        await tauri.core.invoke('set_global_shortcut', {
-          shortcut: newShortcut,
-        });
-        setCurrentGlobalShortcut(newShortcut);
-        setGlobalMessage({
-          type: 'success',
-          text: t('changedToShortcut', { shortcut: newShortcut }),
-        });
-      }
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('set_global_shortcut', {
+        shortcut: newShortcut,
+      });
+      setCurrentGlobalShortcut(newShortcut);
+      setGlobalMessage({
+        type: 'success',
+        text: t('changedToShortcut', { shortcut: newShortcut }),
+      });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       setGlobalMessage({
