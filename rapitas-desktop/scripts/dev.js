@@ -1599,14 +1599,26 @@ async function main() {
  * (実測: 184h 稼働で 6.5GB / 1 コア換算 350%)。RSS が閾値を超えたフロントエンドのみを
  * リサイクルすることで、バックエンド(:3001、エージェントの生命線)に触れず再発を防ぐ。
  */
+// NOTE: 既定では無効(0)。純粋な RSS 閾値だけだと、このアプリの正常な初回コンパイルの
+// ピーク(実測 約5GB)が閾値を超え、watchdog がコンパイル途中の frontend を kill→再起動する
+// リサイクルループに陥って逆に CPU を張り付かせる事故が起きた。有効化する場合は
+// RAPITAS_FRONTEND_RSS_LIMIT_MB に「コンパイルピークより十分高い値(推奨 6144 以上)」を設定し、
+// 必ず下の uptime ガードと併用すること。
 const FRONTEND_RSS_LIMIT_MB = Number(
-  process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 4096,
+  process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 0,
+);
+// uptime ガード: 起動からこの時間を超えるまでは絶対にリサイクルしない。初回コンパイルの
+// 一時的な高 RSS(分オーダー)を、長時間稼働による肥大(時間オーダー)と確実に区別するため。
+const FRONTEND_MIN_UPTIME_MS = Number(
+  process.env.RAPITAS_FRONTEND_MIN_UPTIME_MS || 6 * 60 * 60 * 1000,
 );
 const FRONTEND_WATCHDOG_INTERVAL_MS = 60_000;
 // 連続超過回数。瞬間的なコンパイルスパイクでの誤リサイクルを防ぐ。
 const FRONTEND_WATCHDOG_BREACH_LIMIT = 2;
 let frontendWatchdogTimer = null;
 let frontendBreachCount = 0;
+// フロントエンドを spawn した時刻(uptime ガード用)。startFrontendProcess で更新。
+let frontendStartedAt = 0;
 let isFrontendRestarting = false;
 
 /**
@@ -1625,6 +1637,7 @@ function startFrontendProcess() {
     },
   });
   frontend.on("error", (err) => console.error("Frontend error:", err));
+  frontendStartedAt = Date.now();
 }
 
 /**
@@ -1719,15 +1732,22 @@ function startFrontendWatchdog() {
   if (frontendWatchdogTimer) return;
   if (!(FRONTEND_RSS_LIMIT_MB > 0)) {
     console.log(
-      "ℹ️  Frontend memory watchdog disabled (RAPITAS_FRONTEND_RSS_LIMIT_MB=0).",
+      "ℹ️  Frontend memory watchdog disabled (set RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 to enable).",
     );
     return;
   }
   console.log(
-    `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
+    `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB after ${Math.round(
+      FRONTEND_MIN_UPTIME_MS / 3_600_000,
+    )}h uptime, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
   );
   frontendWatchdogTimer = setInterval(() => {
     if (isCleaningUp || isFrontendRestarting || !frontend || !frontend.pid) {
+      return;
+    }
+    // uptime ガード: 起動直後の初回コンパイル(高 RSS だが一過性)を絶対に kill しない。
+    // これが無いと閾値を下回れない大規模コンパイルで永久リサイクルループに陥る。
+    if (Date.now() - frontendStartedAt < FRONTEND_MIN_UPTIME_MS) {
       return;
     }
     const rss = getFrontendTreeRssMb();
