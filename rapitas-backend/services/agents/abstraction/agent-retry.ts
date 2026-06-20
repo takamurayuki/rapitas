@@ -15,9 +15,8 @@ import type {
 } from './types';
 import { AgentError } from './interfaces';
 import type { AgentLifecycleHooks } from './types';
-
-// NOTE(agent): Upper bound to prevent infinite retry loops regardless of hook/strategy configuration.
-const MAX_RETRY_UPPER_BOUND = 10;
+import { getGlobalRetryPolicy } from './retry-policy';
+import type { RetryPolicy } from './retry-policy';
 
 /**
  * Delays execution for the specified milliseconds.
@@ -31,14 +30,21 @@ export function sleep(ms: number): Promise<void> {
 
 /**
  * Evaluates whether an error should trigger a retry attempt.
- * Consults the onError lifecycle hook first; if unavailable, uses the
- * error's recoverable flag with a default 3-second delay.
+ * Consults the onError lifecycle hook first (hook is always authoritative).
+ * When no hook is configured, uses the fallback path with configurable limits.
+ *
+ * Fallback priority order (most-local wins):
+ *   1. `policy` argument (if provided)
+ *   2. `context.maxRetries` (per-execution override)
+ *   3. `RAPITAS_RETRY_MAX` env var
+ *   4. Hard-coded default (3)
  *
  * @param error - The error that occurred / 発生したエラー
  * @param context - Execution context / 実行コンテキスト
  * @param retryCount - Current retry count (0-based) / 現在のリトライ回数（0始まり）
  * @param hooks - Lifecycle hooks / ライフサイクルフック
  * @param logFn - Logger function forwarded from the agent / エージェントからのログ関数
+ * @param policy - Optional retry policy override (caller-supplied) / 呼び出し元からのポリシー上書き
  * @returns Retry decision with shouldRetry flag and delay / リトライ判断とディレイ
  */
 export async function evaluateRetry(
@@ -47,19 +53,24 @@ export async function evaluateRetry(
   retryCount: number,
   hooks: AgentLifecycleHooks,
   logFn: (level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: unknown) => void,
+  policy?: RetryPolicy,
 ): Promise<{ shouldRetry: boolean; delay: number }> {
+  // NOTE(agent): Resolve effective policy once per call (lazy env read keeps tests hermetic).
+  const effectivePolicy = policy ?? getGlobalRetryPolicy();
+
   // NOTE(agent): Hard upper bound prevents infinite retries even if hooks always return true.
-  if (retryCount >= MAX_RETRY_UPPER_BOUND) {
-    logFn('error', `Max retry upper bound (${MAX_RETRY_UPPER_BOUND}) reached, giving up`);
+  if (retryCount >= effectivePolicy.upperBound) {
+    logFn('error', `Max retry upper bound (${effectivePolicy.upperBound}) reached, giving up`);
     return { shouldRetry: false, delay: 0 };
   }
 
+  // NOTE(agent): onError hook is always consulted first and takes precedence over policy/context.
   if (hooks.onError) {
     try {
       const hookResult = await hooks.onError(context, error, retryCount);
       return {
         shouldRetry: hookResult.retry,
-        delay: hookResult.delay ?? 3000,
+        delay: hookResult.delay ?? effectivePolicy.delayMs,
       };
     } catch (hookError) {
       logFn(
@@ -70,13 +81,15 @@ export async function evaluateRetry(
     }
   }
 
-  // NOTE(agent): Without an onError hook, fall back to the error's recoverable flag.
-  // Limit default retries to 3 to avoid excessive retries without explicit configuration.
-  const DEFAULT_MAX_RETRIES = 3;
-  const DEFAULT_DELAY_MS = 3000;
+  // NOTE(agent): Without an onError hook, apply the fallback policy.
+  // Priority: policy argument > context.maxRetries > env var (already in effectivePolicy.maxRetries).
+  const maxRetries =
+    policy !== undefined
+      ? policy.maxRetries
+      : (context.maxRetries ?? effectivePolicy.maxRetries);
 
-  if (error.recoverable && retryCount < DEFAULT_MAX_RETRIES) {
-    return { shouldRetry: true, delay: DEFAULT_DELAY_MS };
+  if (error.recoverable && retryCount < maxRetries) {
+    return { shouldRetry: true, delay: effectivePolicy.delayMs };
   }
 
   return { shouldRetry: false, delay: 0 };

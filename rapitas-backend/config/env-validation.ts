@@ -20,6 +20,19 @@ const ENV_VARS: EnvVar[] = [
   { name: 'FRONTEND_URL', required: false, defaultValue: 'http://localhost:3000' },
   { name: 'ENCRYPTION_KEY', required: false },
   { name: 'UPLOAD_DIR', required: false, defaultValue: 'uploads' },
+
+  // Agent retry policy (all optional — defaults preserve pre-existing behaviour).
+  // Global fallback (hook-less path):
+  { name: 'RAPITAS_RETRY_MAX', required: false, defaultValue: '3' },
+  { name: 'RAPITAS_RETRY_DELAY_MS', required: false, defaultValue: '3000' },
+  { name: 'RAPITAS_RETRY_UPPER_BOUND', required: false, defaultValue: '10' },
+  // Per-error-type overrides — representative keys listed here for visibility.
+  // Full set: RAPITAS_RETRY_<TYPE>_{MAX,DELAY_MS,MAX_DELAY_MS,BACKOFF}
+  // where <TYPE> is the AgentErrorType in UPPER_SNAKE_CASE (e.g. RATE_LIMIT, NETWORK, TIMEOUT).
+  { name: 'RAPITAS_RETRY_RATE_LIMIT_MAX', required: false },
+  { name: 'RAPITAS_RETRY_RATE_LIMIT_DELAY_MS', required: false },
+  { name: 'RAPITAS_RETRY_NETWORK_MAX', required: false },
+  { name: 'RAPITAS_RETRY_TIMEOUT_MAX', required: false },
 ];
 
 export function validateEnvironment(): void {
