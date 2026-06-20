@@ -14,7 +14,7 @@
 import Database from 'bun:sqlite';
 import fs from 'fs';
 import path from 'path';
-import { SQLITE_INIT_SQL } from '../../src/generated/sqlite-init-sql';
+import { SQLITE_INIT_SQL } from '../../../src/generated/sqlite-init-sql';
 
 // NOTE: Counter is process-scoped and deterministic — no Date.now()/Math.random().
 let counter = 0;
