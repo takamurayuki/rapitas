@@ -220,6 +220,11 @@ export async function createPullRequest(
     }
 
     const prNumber = parseInt(prMatch[1], 10);
+    // Defensive: `gh pr create --base X` has been observed opening the PR against
+    // the repo default (main) instead of X — notably when the head branch name was
+    // reused and its previous PR had merged to main. Read the actual base back and
+    // force-retarget if it drifted, so PRs always land on the intended branch.
+    await ensurePrBase(workingDirectory, prNumber, targetBranch);
     logger.info(`[createPullRequest] Created PR #${prNumber} to ${targetBranch}: ${prUrl}`);
     return { success: true, prUrl, prNumber };
   } catch (error) {
@@ -227,6 +232,41 @@ export async function createPullRequest(
       success: false,
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+}
+
+/**
+ * Ensure a PR's base matches the intended target, retargeting if gh opened it
+ * against a different branch. Best-effort — a failure is logged, not thrown, so
+ * PR creation still succeeds.
+ *
+ * @param workingDirectory - Repository directory / リポジトリのディレクトリ
+ * @param prNumber - PR number to verify / 確認するPR番号
+ * @param intended - The base branch the PR should target / 本来のベースブランチ
+ */
+async function ensurePrBase(
+  workingDirectory: string,
+  prNumber: number,
+  intended: string,
+): Promise<void> {
+  try {
+    const { stdout } = await execAsync(
+      `${ghPath()} pr view ${prNumber} --json baseRefName --jq .baseRefName`,
+      { cwd: workingDirectory, encoding: 'utf8' },
+    );
+    const actual = stdout.trim();
+    if (actual && actual !== intended) {
+      await execAsync(`${ghPath()} pr edit ${prNumber} --base ${intended}`, {
+        cwd: workingDirectory,
+        encoding: 'utf8',
+      });
+      logger.info(`[createPullRequest] Corrected PR #${prNumber} base ${actual} -> ${intended}`);
+    }
+  } catch (err) {
+    logger.warn(
+      { err, prNumber, intended },
+      `[createPullRequest] Failed to verify/correct PR #${prNumber} base`,
+    );
   }
 }
 
