@@ -2,6 +2,7 @@
 // AutoRunSettingsCard
 
 import { Play } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { UserSettings } from '@/types';
 
 interface AutoRunSettingsCardProps {
@@ -24,6 +25,26 @@ export function AutoRunSettingsCard({
   isSaving,
   onUpdateSettings,
 }: AutoRunSettingsCardProps) {
+  const serverLimit = settings?.autoCreateFromBacklogLimit ?? 0;
+
+  // NOTE: Local state so the field accepts free typing (incl. clearing). Binding
+  // straight to the server value + a per-keystroke PATCH disabled the input mid-
+  // save and blocked subsequent digits. We persist on blur instead.
+  const [localLimit, setLocalLimit] = useState<number | ''>(serverLimit);
+
+  // Re-sync when the server value changes (initial load / external update).
+  useEffect(() => {
+    setLocalLimit(serverLimit);
+  }, [serverLimit]);
+
+  const commit = () => {
+    const clamped = localLimit === '' ? 0 : Math.max(0, Math.min(50, localLimit));
+    setLocalLimit(clamped);
+    if (clamped !== serverLimit) {
+      onUpdateSettings({ autoCreateFromBacklogLimit: clamped });
+    }
+  };
+
   return (
     <div className="mt-8 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
@@ -52,16 +73,23 @@ export function AutoRunSettingsCard({
               type="number"
               min={0}
               max={50}
-              value={settings?.autoCreateFromBacklogLimit ?? 0}
-              onChange={(e) =>
-                onUpdateSettings({
-                  autoCreateFromBacklogLimit: Math.max(0, parseInt(e.target.value, 10) || 0),
-                })
-              }
-              disabled={isSaving}
-              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-blue-400 focus:outline-none disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
+              value={localLimit}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setLocalLimit('');
+                  return;
+                }
+                const num = Number(raw);
+                if (Number.isNaN(num)) return;
+                setLocalLimit(num);
+              }}
+              onBlur={commit}
+              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-blue-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
             />
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">件</span>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              件{isSaving ? '（保存中…）' : ''}
+            </span>
           </div>
         </div>
       </div>
