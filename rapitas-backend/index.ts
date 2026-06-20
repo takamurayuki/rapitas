@@ -355,7 +355,14 @@ process.on('unhandledRejection', (reason) => {
 // (which force-closes every connection) the instant the parent disappears, with
 // no dependency on signal delivery.
 const PARENT_PID = process.ppid;
-if (PARENT_PID && PARENT_PID > 1) {
+// Skip the watchdog in CI / test runs: there the backend is intentionally
+// launched as a detached background job (`bun run index.ts & sleep 5`) and
+// measured in a LATER step, so the launching shell exits between steps. The
+// watchdog would then see its parent gone and self-shut-down before the health
+// check — exactly the spurious shutdown that fails the Performance job. Ephemeral
+// runners have no zombie-socket concern, so disabling it there is safe.
+const isCiOrTest = process.env.CI === 'true' || process.env.NODE_ENV === 'test';
+if (PARENT_PID && PARENT_PID > 1 && !isCiOrTest) {
   const parentWatch = setInterval(() => {
     let parentAlive = true;
     try {
