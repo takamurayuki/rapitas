@@ -42,7 +42,27 @@ export interface VerifyRepairResult {
  * @returns Prior repair count / これまでの修復回数
  */
 async function countPriorRepairs(taskId: number): Promise<number> {
-  return prisma.workflowTransition.count({ where: { taskId, cause: REPAIR_CAUSE } }).catch(() => 0);
+  // Reset the budget on each manual retry: count only repair bounces SINCE the
+  // most recent `task_retried` (recorded by POST /tasks/:id/retry). Without this,
+  // a retried blocked task whose worktree was cleaned re-runs verify on an empty
+  // tree, fails, and — finding the OLD budget already exhausted — re-blocks
+  // instead of bouncing to the implementer, so the implementation is never redone.
+  const lastRetry = await prisma.activityLog
+    .findFirst({
+      where: { taskId, action: 'task_retried' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    })
+    .catch(() => null);
+  return prisma.workflowTransition
+    .count({
+      where: {
+        taskId,
+        cause: REPAIR_CAUSE,
+        ...(lastRetry ? { createdAt: { gt: lastRetry.createdAt } } : {}),
+      },
+    })
+    .catch(() => 0);
 }
 
 /**
