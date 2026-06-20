@@ -65,6 +65,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoComplexityAnalysis,
         autoCreateFromBacklogLimit,
         restartOnAutoRunDry,
+        verifyRepairLimit,
         autoCommitDefault,
         autoCreatePRDefault,
         autoMergePRDefault,
@@ -88,6 +89,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoComplexityAnalysis?: boolean;
         autoCreateFromBacklogLimit?: number;
         restartOnAutoRunDry?: boolean;
+        verifyRepairLimit?: number;
         autoCommitDefault?: boolean;
         autoCreatePRDefault?: boolean;
         autoMergePRDefault?: boolean;
@@ -172,6 +174,21 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
             })
             .catch((err) => log.warn({ err }, 'restartOnAutoRunDry persist failed'));
           (settings as Record<string, unknown>).restartOnAutoRunDry = restartOnAutoRunDry;
+        }
+
+        // Persist verifyRepairLimit via cast for the same reason (column pending
+        // client regen on the next restart). Clamp to a sane 0..10 range.
+        if (verifyRepairLimit !== undefined) {
+          const clamped = Math.max(0, Math.min(10, Math.floor(verifyRepairLimit)));
+          await prisma.userSettings
+            .update({
+              where: { id: settings.id },
+              data: { verifyRepairLimit: clamped } as unknown as Parameters<
+                typeof prisma.userSettings.update
+              >[0]['data'],
+            })
+            .catch((err) => log.warn({ err }, 'verifyRepairLimit persist failed'));
+          (settings as Record<string, unknown>).verifyRepairLimit = clamped;
         }
 
         return settings;

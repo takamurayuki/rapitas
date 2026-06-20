@@ -49,6 +49,10 @@ model UserSettings {
   // committed fixes before creating more tasks. Gated by HEAD-moved + no-agents +
   // rate-limit in dev-restart-on-dry.ts. Only effective under dev.js (exit 75).
   restartOnAutoRunDry         Boolean   @default(false)
+  // Max verify->implement self-repair cycles before a task is blocked. The
+  // verifier's failure is fed back to the implementer to fix and re-verify, up
+  // to this many times. 0 disables auto-repair. See verify-self-repair.ts.
+  verifyRepairLimit           Int       @default(2)
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

@@ -41,6 +41,21 @@ export interface VerifyRepairResult {
  * @param taskId - Task id / タスクID
  * @returns Prior repair count / これまでの修復回数
  */
+/**
+ * Resolve the max verify->implement repair cycles: UserSettings.verifyRepairLimit
+ * when set (UI-configurable), else the env/default. Read via cast — the column is
+ * pending Prisma client regen until the next restart.
+ *
+ * @returns Max repair cycles / 最大修復サイクル数
+ */
+async function resolveMaxRepairs(): Promise<number> {
+  const s = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    verifyRepairLimit?: number | null;
+  } | null;
+  const v = s?.verifyRepairLimit;
+  return typeof v === 'number' && v >= 0 ? v : DEFAULT_MAX_VERIFY_REPAIRS;
+}
+
 async function countPriorRepairs(taskId: number): Promise<number> {
   // Reset the budget on each manual retry: count only repair bounces SINCE the
   // most recent `task_retried` (recorded by POST /tasks/:id/retry). Without this,
@@ -144,12 +159,13 @@ export async function attemptVerifyRepair(
   reason: string,
   verifyContent: string,
 ): Promise<VerifyRepairResult> {
-  if (DEFAULT_MAX_VERIFY_REPAIRS === 0) return { bounced: false };
+  const max = await resolveMaxRepairs();
+  if (max === 0) return { bounced: false };
 
   const prior = await countPriorRepairs(taskId);
-  if (prior >= DEFAULT_MAX_VERIFY_REPAIRS) {
+  if (prior >= max) {
     log.warn(
-      { taskId, prior, max: DEFAULT_MAX_VERIFY_REPAIRS },
+      { taskId, prior, max },
       '[verify-repair] Repair attempts exhausted — caller should block',
     );
     return { bounced: false };
