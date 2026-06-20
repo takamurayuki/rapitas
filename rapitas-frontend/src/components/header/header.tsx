@@ -32,7 +32,6 @@ import {
   Bot,
   Settings,
   GitPullRequest,
-  Github,
   CircleDot,
   GitMerge,
   Code,
@@ -53,6 +52,7 @@ import AppIcon from '@/components/common/app-icon';
 import { useTranslations } from 'next-intl';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
+import { GithubMarkIcon } from '@/components/icons/github-mark-icon';
 import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
@@ -174,7 +174,7 @@ export default function Header() {
         {
           href: '#',
           label: 'GitHub',
-          icon: Github,
+          icon: GithubMarkIcon,
           children: [
             { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {
