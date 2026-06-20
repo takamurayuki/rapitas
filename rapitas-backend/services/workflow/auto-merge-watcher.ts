@@ -26,8 +26,19 @@ const log = createLogger('workflow:auto-merge-watcher');
 const POLL_INTERVAL_MS = 60_000;
 /** Give up waiting for CI after this long and flag the PR for review. */
 const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
-/** Transition causes that mark a task's auto-merge/CI-completion as resolved. */
-const DONE_CAUSES = ['auto_merged', 'auto_merge_blocked', 'pr_ci_completed'];
+/**
+ * Causes that mark a task TERMINALLY resolved — the work landed, never retry.
+ * Note `auto_merge_blocked` is intentionally NOT here: a block is often transient
+ * (a conflict from a wrong base, a flaky merge) and the PR can become mergeable
+ * later. Permanently skipping on it left retargeted-but-blocked PRs open forever.
+ */
+const TERMINAL_CAUSES = ['auto_merged', 'pr_ci_completed'];
+/**
+ * Retry a previously `auto_merge_blocked` PR until it merges or this many blocks
+ * accumulate, then give up for good (avoids re-notifying every tick on a PR that
+ * genuinely cannot merge). Each failed merge records one more block.
+ */
+const MAX_BLOCK_RETRIES = 3;
 
 /**
  * Staged completion (RAPITAS_STAGED_COMPLETION): when ON, a task that landed via
@@ -223,11 +234,18 @@ async function findCandidates(): Promise<Candidate[]> {
         : null;
     if (!mode) continue;
 
-    // Already merged or already given up — skip.
-    const resolved = await prisma.workflowTransition
-      .count({ where: { taskId, cause: { in: DONE_CAUSES } } })
+    // Terminally resolved (merged / CI-completed) — skip for good.
+    const terminal = await prisma.workflowTransition
+      .count({ where: { taskId, cause: { in: TERMINAL_CAUSES } } })
       .catch(() => 0);
-    if (resolved > 0) continue;
+    if (terminal > 0) continue;
+
+    // Previously blocked: retry (the block may have been transient — e.g. a
+    // wrong-base conflict since retargeted) until the block budget is spent.
+    const blocked = await prisma.workflowTransition
+      .count({ where: { taskId, cause: 'auto_merge_blocked' } })
+      .catch(() => 0);
+    if (blocked >= MAX_BLOCK_RETRIES) continue;
 
     const cwd = task.workingDirectory || task.theme?.workingDirectory;
     if (!cwd) continue;
