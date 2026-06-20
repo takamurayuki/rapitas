@@ -66,6 +66,15 @@ async function restartEnabled(): Promise<boolean> {
  */
 export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   if (restarting) return true;
+
+  // Cheapest check first (in-memory): require global quiescence so we never kill
+  // an in-flight agent. This is safe to call on EVERY tick — a busy loop with a
+  // large backlog rarely reaches all_done, but it does briefly hit 0 agents
+  // BETWEEN tasks; catching that gap is what lets fixes apply without waiting for
+  // the whole backlog to drain.
+  const active = AgentOrchestrator.getInstance(prisma).getActiveExecutionCount();
+  if (active > 0) return false;
+
   if (!(await restartEnabled())) return false;
 
   const now = Date.now();
@@ -74,11 +83,6 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   // Only restart when there is genuinely something new to apply.
   const current = await headCommit();
   if (!current || !startupCommit || current === startupCommit) return false;
-
-  // all_done is per-theme; require global quiescence so we never kill another
-  // theme's in-flight agent.
-  const active = AgentOrchestrator.getInstance(prisma).getActiveExecutionCount();
-  if (active > 0) return false;
 
   restarting = true;
   lastRestartAt = now;
