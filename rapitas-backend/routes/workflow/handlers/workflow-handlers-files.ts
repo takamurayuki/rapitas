@@ -22,6 +22,7 @@ import { writeWorkflowFile } from '../../../services/workflow/workflow-file-util
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { resolveLandingMode } from '../../../services/workflow/automation-policy';
 import {
   evaluateCompletionGate,
   researchConcludesNoChange,
@@ -847,24 +848,55 @@ export async function handleSaveFile({
             '[Workflow] verify passed but no PR created — NOT completing (completion requires a PR).',
           );
         } else {
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-          });
-          taskMarkedDone = true;
-          await recordTransition({
-            taskId,
-            fromStatus: 'verify_done',
-            toStatus: 'completed',
-            actor: 'system',
-            cause: 'verify_passed',
-            phase: 'verify',
-            metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-          });
-          log.info(
-            { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
-            '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
-          );
+          // Staged completion: when changes land via a PR, completion is NOT at
+          // PR creation — `pr` mode completes when the PR's CI goes green, `merge`
+          // mode completes when the PR is merged. The PR-completion watcher
+          // advances those. Only `commit`/`none` complete here. Gated OFF by
+          // default so existing deployments keep the verify-time completion until
+          // they opt in (RAPITAS_STAGED_COMPLETION=true) + restart.
+          const staged =
+            process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
+            process.env.RAPITAS_STAGED_COMPLETION === '1';
+          const landingMode = autoCommitPRResult.requested
+            ? resolveLandingMode(autoCommitPRResult.requested)
+            : 'none';
+          if (staged && (landingMode === 'pr' || landingMode === 'merge')) {
+            // Hold at verify_done (status stays in-progress, NOT done). The watcher
+            // completes on CI-green (pr) / merge (merge). Do not fire completion
+            // side effects yet (taskMarkedDone stays false).
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'verify_done',
+              actor: 'system',
+              cause: 'verify_passed_awaiting_ci',
+              phase: 'verify',
+              metadata: { landingMode, pr: pr?.success, prNumber: pr?.prNumber },
+            });
+            log.info(
+              { taskId, landingMode, prNumber: pr?.prNumber },
+              '[Workflow] verify passed + PR created — completion deferred to CI/merge (staged completion).',
+            );
+          } else {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            });
+            taskMarkedDone = true;
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'completed',
+              actor: 'system',
+              cause: 'verify_passed',
+              phase: 'verify',
+              metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+            });
+            log.info(
+              { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+              '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
+            );
+          }
         }
       }
 
