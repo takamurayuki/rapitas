@@ -21,6 +21,7 @@ import { WorkflowQueueService } from '../workflow-queue';
 import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
+import { promoteBacklogForTheme } from './backlog-task-promoter';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   POLL_INTERVAL_MS,
@@ -389,7 +390,22 @@ export class ThemeAutoRunScheduler {
 
     if (!result.found) {
       if (result.reason === 'all_done') {
-        // All tasks for this theme are done — set to idle
+        // Before idling, refill from the backlog (open concerns first, then ideas
+        // once concerns are clear) up to the per-theme cap, so a theme that ran
+        // out of work keeps progressing. When tasks were created, stay active —
+        // the next tick selects them.
+        const created = await promoteBacklogForTheme(themeId).catch((err) => {
+          log.warn({ err, themeId }, '[ThemeAutoRunScheduler] Backlog promotion failed');
+          return 0;
+        });
+        if (created > 0) {
+          log.info(
+            `[ThemeAutoRunScheduler] Theme ${themeId} — promoted ${created} backlog task(s); staying active`,
+          );
+          this.broadcastAutoRunUpdate(themeId);
+          return;
+        }
+        // All tasks done and backlog empty/capped/disabled — set to idle
         await prisma.themeAutoRun.updateMany({
           where: { themeId },
           data: { status: 'idle', enabled: false, currentTaskId: null },
@@ -402,6 +418,23 @@ export class ThemeAutoRunScheduler {
     }
 
     const taskId = result.taskId;
+
+    // A re-run (a 'todo' task whose workflowStatus is a stale terminal state from
+    // a prior run) has no forward transition from verify_done/completed — reset
+    // it to 'draft' so the workflow actually re-runs (research/plan are reused
+    // via isReusableArtifact, so this is cheap). Without this the task would be
+    // dequeued and immediately fail "cannot advance from verify_done".
+    const picked = await prisma.task
+      .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
+      .catch(() => null);
+    if (picked?.workflowStatus === 'verify_done' || picked?.workflowStatus === 'completed') {
+      await prisma.task
+        .update({ where: { id: taskId }, data: { workflowStatus: 'draft' } })
+        .catch(() => {});
+      log.info(
+        `[ThemeAutoRunScheduler] Task ${taskId} re-run — reset stale workflowStatus ${picked.workflowStatus} → draft`,
+      );
+    }
 
     // Enqueue via WorkflowQueueService with themeId set
     try {

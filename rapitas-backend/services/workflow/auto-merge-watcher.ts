@@ -26,8 +26,23 @@ const log = createLogger('workflow:auto-merge-watcher');
 const POLL_INTERVAL_MS = 60_000;
 /** Give up waiting for CI after this long and flag the PR for review. */
 const PENDING_TIMEOUT_MS = 90 * 60 * 1000; // 90 min
-/** Transition causes that mark a task's auto-merge as already resolved. */
-const DONE_CAUSES = ['auto_merged', 'auto_merge_blocked'];
+/** Transition causes that mark a task's auto-merge/CI-completion as resolved. */
+const DONE_CAUSES = ['auto_merged', 'auto_merge_blocked', 'pr_ci_completed'];
+
+/**
+ * Staged completion (RAPITAS_STAGED_COMPLETION): when ON, a task that landed via
+ * a PR is NOT completed at PR creation — `pr` mode completes when the PR's CI is
+ * green (no merge), `merge` mode completes when the PR is merged. The watcher
+ * therefore also picks up not-yet-completed tasks (verify_done) and marks them
+ * done at the right point. When OFF, only already-`done` autoMergePR tasks merge
+ * (legacy behaviour), so nothing regresses.
+ */
+function stagedCompletionEnabled(): boolean {
+  return (
+    process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
+    process.env.RAPITAS_STAGED_COMPLETION === '1'
+  );
+}
 
 /**
  * Checks that GATE the merge. A PR merges only when every present blocking check
@@ -135,7 +150,7 @@ async function notify(p: NotifyParams): Promise<void> {
     .catch(() => {});
 }
 
-/** A task whose PR is waiting on CI before auto-merge. */
+/** A task whose PR is waiting on CI before auto-merge / CI-green completion. */
 interface Candidate {
   taskId: number;
   taskTitle: string;
@@ -144,6 +159,21 @@ interface Candidate {
   cwd: string;
   threshold: number;
   completedAt: Date | null;
+  /** `merge`: merge on CI green, then complete. `pr`: complete on CI green (no merge). */
+  mode: 'merge' | 'pr';
+}
+
+/**
+ * Mark a task row done/completed (idempotent). Used when the watcher is the one
+ * that reaches a task's completion point under staged completion.
+ */
+async function completeTaskRow(taskId: number): Promise<void> {
+  await prisma.task
+    .update({
+      where: { id: taskId },
+      data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+    })
+    .catch((err) => log.warn({ err, taskId }, '[auto-merge] completeTaskRow failed'));
 }
 
 /**
@@ -167,15 +197,31 @@ async function findCandidates(): Promise<Candidate[]> {
         id: true,
         title: true,
         status: true,
+        workflowStatus: true,
         completedAt: true,
         workingDirectory: true,
         theme: { select: { workingDirectory: true } },
       },
     });
-    if (!task || (task.status !== 'done' && task.status !== 'completed')) continue;
+    if (!task) continue;
+
+    const staged = stagedCompletionEnabled();
+    const isCompleted = task.status === 'done' || task.status === 'completed';
+    // Under staged completion the task is still in-progress at verify_done while
+    // its PR's CI runs; pick those up so the watcher can complete them.
+    const isAwaitingCi = staged && task.workflowStatus === 'verify_done' && !isCompleted;
+    if (!isCompleted && !isAwaitingCi) continue;
 
     const policy = await resolveAutomationPolicy(prisma, taskId).catch(() => null);
-    if (!policy?.autoMergePR) continue;
+    // merge mode in any era; pr mode (complete on CI green, no merge) only when
+    // staged completion is enabled — otherwise pr-mode tasks already completed at
+    // verify and the watcher must not touch them.
+    const mode: 'merge' | 'pr' | null = policy?.autoMergePR
+      ? 'merge'
+      : staged && policy?.autoCreatePR
+        ? 'pr'
+        : null;
+    if (!mode) continue;
 
     // Already merged or already given up — skip.
     const resolved = await prisma.workflowTransition
@@ -198,6 +244,7 @@ async function findCandidates(): Promise<Candidate[]> {
       cwd,
       threshold: cfg?.mergeCommitThreshold ?? 5,
       completedAt: task.completedAt,
+      mode,
     });
   }
   return out;
@@ -268,8 +315,29 @@ export class AutoMergeWatcher {
     const state = evaluateAutoMergeChecks(checks, blocking);
 
     if (state === 'pass') {
+      // PR mode: CI is green and we DO NOT merge — completion is reaching green.
+      if (c.mode === 'pr') {
+        await completeTaskRow(c.taskId);
+        await mark(c.taskId, 'pr_ci_completed', `PR #${c.prNumber} CI green`);
+        await notify({
+          taskId: c.taskId,
+          type: 'pr_ci_completed',
+          title: 'CI通過で完了',
+          message: `PR #${c.prNumber} のCIが通過したためタスクを完了にしました（マージは手動）。`,
+        });
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] PR CI green — task completed (no merge, pr mode)',
+        );
+        return;
+      }
+
       const res = await mergePullRequest(c.cwd, c.prNumber, c.threshold, c.baseBranch);
       if (res.success) {
+        // Under staged completion the task is still in-progress at verify_done;
+        // completing on merge is the merge-mode completion point. Idempotent for
+        // the legacy path where the task was already done.
+        await completeTaskRow(c.taskId);
         await mark(c.taskId, 'auto_merged', `strategy=${res.mergeStrategy}`);
         await notify({
           taskId: c.taskId,

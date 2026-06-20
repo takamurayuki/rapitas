@@ -188,10 +188,9 @@ export function buildResolveAfterParse(
       errorParts.push(`Process exited with code ${code}`);
 
       if (ctx.resumeSessionId) {
-        errorParts.push(
-          `\n\n【Session Resume Mode】session expired or not found\nSession ID: ${ctx.resumeSessionId}`,
-        );
-        errorParts.push(`\n* Session may be expired or invalid`);
+        // NOTE: Neutral label only — asserting "session expired" here caused false-positive
+        // SESSION_FAILURE_RE matches on every resume-mode failure regardless of actual cause.
+        errorParts.push(`\n\n【Session Resume Mode】Session ID: ${ctx.resumeSessionId}`);
       } else if (ctx.continueConversation) {
         errorParts.push(`\n\n【Conversation Continue Mode】\nUsing --continue flag`);
       }
@@ -208,11 +207,9 @@ export function buildResolveAfterParse(
         errorParts.push(`\n\n【Unprocessed Buffer】\n${ctx.lineBuffer.trim().slice(-500)}`);
       }
 
-      // NOTE: Very short execution time suggests a failed session resume
+      // NOTE: Neutral short-execution warning — asserting session failure here fed SESSION_FAILURE_RE false positives
       if (executionTimeMs < 10000) {
-        errorParts.push(
-          `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short. session expired or not found - session resume may have failed.`,
-        );
+        errorParts.push(`\n\n【Warning】Execution time of ${executionTimeMs}ms is very short.`);
       }
 
       errorMessage = errorParts.join('');

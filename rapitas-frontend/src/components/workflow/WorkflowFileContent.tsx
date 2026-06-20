@@ -2,9 +2,10 @@
 // WorkflowFileContent
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, List, ChevronDown } from 'lucide-react';
+import { Loader2, List, ChevronDown, Pencil } from 'lucide-react';
 import type { WorkflowTab } from './workflow-viewer-utils';
 import { MarkdownView } from '../markdown/MarkdownView';
+import { WorkflowFileEditor } from './WorkflowFileEditor';
 
 /** A heading extracted from markdown for the in-file table of contents. */
 interface TocHeading {
@@ -96,6 +97,10 @@ interface WorkflowFileContentProps {
   /** Whether to show the inline plan-approval CTA (plan tab + plan_created status) */
   showApprovalButton: boolean;
   onPlanApprovalRequest?: () => void;
+  /** Task id — enables inline editing of the plan. / インライン編集に必要 */
+  taskId?: number;
+  /** Called after a successful inline save so the parent refetches. / 保存後の再取得 */
+  onSaved?: () => void;
 }
 
 /**
@@ -113,8 +118,21 @@ export function WorkflowFileContent({
   activeTabConfig,
   showApprovalButton,
   onPlanApprovalRequest,
+  taskId,
+  onSaved,
 }: WorkflowFileContentProps) {
   const headings = useMemo(() => extractHeadings(activeFile?.content ?? ''), [activeFile?.content]);
+
+  // Inline editing is offered for the plan only (refine before approving). It
+  // requires a taskId (the save target); without it the tab stays read-only.
+  const canEdit =
+    activeTabConfig.id === 'plan' && !!activeFile?.exists && typeof taskId === 'number';
+  const [isEditing, setIsEditing] = useState(false);
+  // Leaving the plan tab (or losing the file) must drop edit mode so a stale
+  // editor never lingers over a different tab's content.
+  useEffect(() => {
+    if (!canEdit) setIsEditing(false);
+  }, [canEdit]);
 
   // The TOC is sticky and vertical, so its height varies with the heading count.
   // Measure it and feed the value into each <h2>'s scroll-margin-top so clicked
@@ -169,8 +187,37 @@ export function WorkflowFileContent({
     );
   }
 
+  // Inline plan editor (replaces the read-only view while editing).
+  if (isEditing && canEdit && typeof taskId === 'number') {
+    return (
+      <WorkflowFileEditor
+        taskId={taskId}
+        fileType="plan"
+        initialContent={activeFile?.content || ''}
+        onCancel={() => setIsEditing(false)}
+        onSaved={() => {
+          setIsEditing(false);
+          onSaved?.();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {/* Edit CTA — lets a human refine the plan before approval. */}
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            計画を編集
+          </button>
+        </div>
+      )}
       {/* In-file table of contents — sticky so it stays clickable after the
           content scrolls. -mx-5/px-5 cancel the parent p-5 so the background
           spans the card. top:88px (inline, not an arbitrary class which may not

@@ -148,13 +148,13 @@ describe('attemptVerifyRepair', () => {
     expect(startProcessing).not.toHaveBeenCalled();
   });
 
-  test('差し戻しフィードバックを question.md に書き、テスト改ざん禁止を明記すること', async () => {
+  test('差し戻しフィードバックを verify.md に書き、テスト改ざん禁止を明記すること', async () => {
     mockPrisma.workflowFile.findFirst.mockResolvedValue({ id: 7 });
     await attemptVerifyRepair(1, 'in_progress', 'self-contradicts', 'VERIFY BODY');
 
     expect(writeWorkflowFile).toHaveBeenCalledTimes(1);
     const args = writeWorkflowFile.mock.calls[0] as unknown[];
-    expect(args[1]).toBe('question');
+    expect(args[1]).toBe('verify');
     const content = args[2] as string;
     expect(content).toContain('検証フェーズからの差し戻し');
     expect(content).toContain('テストを実際に通す');

@@ -135,12 +135,32 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
 }
 
 /**
+ * Resolve the fork-point this worktree branched from, so changed-file lists
+ * include commits the agent made mid-run. A plain `git diff HEAD` only shows
+ * UNCOMMITTED work, so once the agent commits (workflow verify phase commits
+ * before this gate runs) the change set reads as empty — the scope check sees
+ * nothing and lint runs on nothing, a silent false pass. Mirrors getDiff's
+ * base order (develop → main → master); falls back to HEAD when none exists.
+ *
+ * @param workdir - Worktree directory. / ワークツリーのディレクトリ
+ * @returns A diffable base ref (merge-base commit or 'HEAD'). / 差分基準のref
+ */
+async function diffBaseRef(workdir: string): Promise<string> {
+  for (const candidate of ['develop', 'main', 'master']) {
+    const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
+    if (base) return base;
+  }
+  return 'HEAD';
+}
+
+/**
  * Lists EVERY changed path in the worktree (any file type, including
  * deletions) for the plan-scope check — out-of-plan deletions and non-code
  * edits are scope violations too.
  */
 async function getAllChangedFiles(workdir: string): Promise<string[]> {
-  const tracked = await git(workdir, 'diff HEAD --name-only --diff-filter=ACMRD');
+  const base = await diffBaseRef(workdir);
+  const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMRD`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
   const out: string[] = [];
@@ -159,7 +179,9 @@ async function getAllChangedFiles(workdir: string): Promise<string[]> {
  */
 async function getChangedCodeFiles(workdir: string): Promise<string[]> {
   // ACMR = added/copied/modified/renamed — excludes deletions (nothing to lint).
-  const tracked = await git(workdir, 'diff HEAD --name-only --diff-filter=ACMR');
+  // Base = fork-point (not HEAD) so files in the agent's mid-run commits are linted.
+  const base = await diffBaseRef(workdir);
+  const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMR`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
   const out: string[] = [];
@@ -368,9 +390,9 @@ async function testProject(
 ): Promise<VerificationCheck | null> {
   const commands = buildScopedTestCommands(projectRoot, workdir, relFiles);
   if (!commands || commands.length === 0) return null;
-  // Run each command in its OWN process (bun: one per file) so mock.module
-  // state from one test file cannot leak into the next and cause false
-  // failures. Aggregate: any failing command fails the check.
+  // Run each command (bun: one `--isolate` command covering all files) so each
+  // file runs in its own module registry; mock.module state cannot leak across
+  // files. Aggregate: any failing command fails the check.
   const failures: string[] = [];
   for (const command of commands) {
     const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);

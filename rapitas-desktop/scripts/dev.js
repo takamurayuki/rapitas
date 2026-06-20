@@ -654,6 +654,9 @@ const useWatch = args.includes("--watch");
 
 const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
 const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
+// Repo root (the PRIMARY git checkout). The dev backend runs whatever branch
+// this is on — see ensurePrimaryBranch().
+const REPO_ROOT = path.resolve(__dirname, "../..");
 const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
 const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
@@ -972,6 +975,13 @@ function isPrismaPrepareCacheValid(currentHash) {
     // the generated client is actually the sqlite one; otherwise force regen.
     const clientSchema = fs.readFileSync(PRISMA_CLIENT_SCHEMA, "utf8");
     if (!/provider\s*=\s*"sqlite"/.test(clientSchema)) return false;
+    // NOTE: schema.prisma and index.js can DIVERGE — a postgres `prisma generate`
+    // (e.g. a pre-commit hook) overwrites the runtime index.js to postgres while
+    // leaving the client's schema.prisma copy on the previous sqlite generate, so
+    // a schema.prisma-only guard is fooled. The runtime loads index.js, which
+    // bakes the datasource as `provider = \"postgresql\"`; treat that as drift.
+    const clientJs = fs.readFileSync(PRISMA_CLIENT_OUTPUT, "utf8");
+    if (/provider\s*=\s*\\?"postgresql\\?"/.test(clientJs)) return false;
   } catch {
     return false;
   }
@@ -1508,12 +1518,76 @@ function startFileWatcher() {
   );
 }
 
+/**
+ * Pin the PRIMARY git checkout to the development theme's branch BEFORE starting
+ * the backend. The dev backend runs whatever branch this checkout is on, so when
+ * an agent (or anything) leaves it on a stale feature branch, a restart silently
+ * runs old code (observed: backend ran an agent's bugfix branch, missing recent
+ * develop fixes). Target = RAPITAS_PRIMARY_BRANCH, defaulting to the rapitas
+ * self-theme's defaultBranch ('develop'). Set the env to follow a theme whose
+ * defaultBranch differs.
+ *
+ * Safe by design: only auto-switches when the working tree is CLEAN; with
+ * uncommitted work it ABORTS startup with a clear message instead of clobbering.
+ */
+function ensurePrimaryBranch() {
+  const target = process.env.RAPITAS_PRIMARY_BRANCH || "develop";
+  let current;
+  try {
+    current = execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    }).trim();
+  } catch (err) {
+    // Not a git repo / git unavailable — don't block dev startup. Warn loudly.
+    console.warn(
+      `⚠️  Could not determine the git branch (${err.message}); skipping branch pin.`,
+    );
+    return;
+  }
+
+  if (current === target) {
+    console.log(`✅ Primary checkout on '${target}' (dev backend will run it).`);
+    return;
+  }
+
+  const dirty =
+    execSync("git status --porcelain", { cwd: REPO_ROOT, encoding: "utf8" })
+      .trim().length > 0;
+
+  if (dirty) {
+    console.error(
+      `\n❌ Primary checkout is on '${current}', not '${target}', and has UNCOMMITTED changes.\n` +
+        `   Refusing to start so uncommitted work is never clobbered.\n` +
+        `   Commit/stash, then 'git checkout ${target}' and re-run.\n` +
+        `   (Override the expected branch with RAPITAS_PRIMARY_BRANCH.)`,
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `🔀 Primary checkout was on '${current}'; switching to '${target}' (clean tree).`,
+  );
+  try {
+    execSync(`git checkout ${target}`, { cwd: REPO_ROOT, stdio: "inherit" });
+  } catch (err) {
+    console.error(
+      `❌ Failed to switch to '${target}': ${err.message}. Fix manually and re-run.`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main() {
   // CI環境では実行しない
   if (process.env.CI === 'true' || process.env.CI === '1') {
     console.log("CI environment detected. Skipping dev server startup.");
     process.exit(0);
   }
+
+  // 開発バックエンドはこのチェックアウトのブランチで動くため、テーマのデフォルト
+  // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
+  ensurePrimaryBranch();
 
   // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
   console.log("\nCleaning up agent zombie processes...");
@@ -1572,6 +1646,60 @@ async function main() {
   }
 
   // フロントエンドを起動
+  startFrontendProcess();
+
+  console.log(
+    `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
+  );
+  console.log(
+    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
+  );
+
+  // フロントエンド dev サーバーのメモリ肥大化を監視し、閾値超過で自動リサイクルする
+  startFrontendWatchdog();
+
+  // --watch モード時は fs.watch ベースのファイル監視を開始
+  if (useWatch) {
+    startFileWatcher();
+  }
+}
+
+/**
+ * フロントエンド dev サーバーの自動リサイクル機構
+ *
+ * NOTE: Next.js dev サーバーは長時間稼働すると HMR/コンパイルキャッシュが蓄積して
+ * ヒープが肥大化し、git のブランチ切替やマージで大量ファイルが一括変更されると、
+ * 肥大ヒープ上で再コンパイルが走って GC スラッシングに陥り CPU を恒常的に張り付かせる
+ * (実測: 184h 稼働で 6.5GB / 1 コア換算 350%)。RSS が閾値を超えたフロントエンドのみを
+ * リサイクルすることで、バックエンド(:3001、エージェントの生命線)に触れず再発を防ぐ。
+ */
+// NOTE: 既定では無効(0)。純粋な RSS 閾値だけだと、このアプリの正常な初回コンパイルの
+// ピーク(実測 約5GB)が閾値を超え、watchdog がコンパイル途中の frontend を kill→再起動する
+// リサイクルループに陥って逆に CPU を張り付かせる事故が起きた。有効化する場合は
+// RAPITAS_FRONTEND_RSS_LIMIT_MB に「コンパイルピークより十分高い値(推奨 6144 以上)」を設定し、
+// 必ず下の uptime ガードと併用すること。
+const FRONTEND_RSS_LIMIT_MB = Number(
+  process.env.RAPITAS_FRONTEND_RSS_LIMIT_MB || 0,
+);
+// uptime ガード: 起動からこの時間を超えるまでは絶対にリサイクルしない。初回コンパイルの
+// 一時的な高 RSS(分オーダー)を、長時間稼働による肥大(時間オーダー)と確実に区別するため。
+const FRONTEND_MIN_UPTIME_MS = Number(
+  process.env.RAPITAS_FRONTEND_MIN_UPTIME_MS || 6 * 60 * 60 * 1000,
+);
+const FRONTEND_WATCHDOG_INTERVAL_MS = 60_000;
+// 連続超過回数。瞬間的なコンパイルスパイクでの誤リサイクルを防ぐ。
+const FRONTEND_WATCHDOG_BREACH_LIMIT = 2;
+let frontendWatchdogTimer = null;
+let frontendBreachCount = 0;
+// フロントエンドを spawn した時刻(uptime ガード用)。startFrontendProcess で更新。
+let frontendStartedAt = 0;
+let isFrontendRestarting = false;
+
+/**
+ * フロントエンド(pnpm run dev → next dev)プロセスを spawn する。
+ * 起動時とリサイクル時の両方から呼ばれる。
+ */
+function startFrontendProcess() {
   frontend = spawn("pnpm", ["run", "dev"], {
     cwd: FRONTEND_DIR,
     stdio: "inherit",
@@ -1582,20 +1710,136 @@ async function main() {
       NEXT_PUBLIC_API_BASE_URL: `http://localhost:${actualBackendPort}`,
     },
   });
-
-  console.log(
-    `\n🖥️  Development mode: Backend :${actualBackendPort}, Frontend :${actualFrontendPort}`,
-  );
-  console.log(
-    "ℹ️  Changes will be reflected via hot reload (no rebuild needed)",
-  );
-
   frontend.on("error", (err) => console.error("Frontend error:", err));
+  frontendStartedAt = Date.now();
+}
 
-  // --watch モード時は fs.watch ベースのファイル監視を開始
-  if (useWatch) {
-    startFileWatcher();
+/**
+ * 指定 PID 群の WorkingSetSize 合計を MB で返す (Windows 専用)。
+ *
+ * @param {number[]} pids 対象 PID 配列 / 対象プロセスID
+ * @returns {number} 合計 RSS(MB)。取得失敗時は 0。/ 合計常駐メモリ。失敗時は 0。
+ */
+function getRssMbForPids(pids) {
+  if (!pids.length) return 0;
+  const filter = pids.map((p) => `ProcessId=${p}`).join(" OR ");
+  const script = `(Get-CimInstance Win32_Process -Filter "${filter}" | Measure-Object -Property WorkingSetSize -Sum).Sum`;
+  try {
+    const out = execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] },
+    );
+    const bytes = Number((out || "").trim());
+    return Number.isFinite(bytes) ? Math.round(bytes / (1024 * 1024)) : 0;
+  } catch {
+    return 0;
   }
+}
+
+/**
+ * 指定プロセスの全子孫 PID(自身を含む)を列挙する。
+ *
+ * @param {number} rootPid 起点プロセスID / 起点となる PID
+ * @returns {number[]} 子孫を含む PID 配列 / 自身と全子孫の PID
+ */
+function collectDescendantPids(rootPid) {
+  const result = [];
+  const seen = new Set();
+  const queue = [rootPid];
+  while (queue.length) {
+    const pid = queue.shift();
+    if (seen.has(pid)) continue;
+    seen.add(pid);
+    result.push(pid);
+    for (const proc of queryWin32Processes(`ParentProcessId=${pid}`)) {
+      const childPid = Number(proc.ProcessId);
+      if (Number.isInteger(childPid) && !seen.has(childPid)) {
+        queue.push(childPid);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * フロントエンドプロセスツリーの合計 RSS を MB で返す。
+ *
+ * @returns {number} RSS(MB)。フロントエンド未起動時は 0。/ ツリー合計の常駐メモリ。
+ */
+function getFrontendTreeRssMb() {
+  if (!frontend || !frontend.pid) return 0;
+  return getRssMbForPids(collectDescendantPids(frontend.pid));
+}
+
+/**
+ * フロントエンド dev サーバーのみを再起動する。バックエンド(:3001)には一切触れない。
+ *
+ * @param {string} reason リサイクル理由(ログ用) / リサイクルのトリガー理由
+ */
+async function restartFrontend(reason) {
+  if (isFrontendRestarting) return;
+  isFrontendRestarting = true;
+  try {
+    console.log(`\n🔄 Recycling frontend dev server (reason: ${reason})...`);
+    killProcessTree(frontend);
+    sleepSync(1000);
+    // フロントエンドポートのみ確実に解放(バックエンドポートは対象外)
+    if (isPortListening(actualFrontendPort)) {
+      forceKillAllOnPort(actualFrontendPort);
+    }
+    startFrontendProcess();
+    frontendBreachCount = 0;
+    console.log(
+      `✅ Frontend dev server recycled on :${actualFrontendPort} (backend untouched).`,
+    );
+  } finally {
+    isFrontendRestarting = false;
+  }
+}
+
+/**
+ * フロントエンドの RSS を定期監視し、閾値を連続超過したら自動リサイクルする。
+ * RAPITAS_FRONTEND_RSS_LIMIT_MB=0 で無効化できる。
+ */
+function startFrontendWatchdog() {
+  if (frontendWatchdogTimer) return;
+  if (!(FRONTEND_RSS_LIMIT_MB > 0)) {
+    console.log(
+      "ℹ️  Frontend memory watchdog disabled (set RAPITAS_FRONTEND_RSS_LIMIT_MB ≥ 6144 to enable).",
+    );
+    return;
+  }
+  console.log(
+    `🩺 Frontend memory watchdog active (limit ${FRONTEND_RSS_LIMIT_MB}MB after ${Math.round(
+      FRONTEND_MIN_UPTIME_MS / 3_600_000,
+    )}h uptime, ${FRONTEND_WATCHDOG_BREACH_LIMIT} consecutive breaches → recycle).`,
+  );
+  frontendWatchdogTimer = setInterval(() => {
+    if (isCleaningUp || isFrontendRestarting || !frontend || !frontend.pid) {
+      return;
+    }
+    // uptime ガード: 起動直後の初回コンパイル(高 RSS だが一過性)を絶対に kill しない。
+    // これが無いと閾値を下回れない大規模コンパイルで永久リサイクルループに陥る。
+    if (Date.now() - frontendStartedAt < FRONTEND_MIN_UPTIME_MS) {
+      return;
+    }
+    const rss = getFrontendTreeRssMb();
+    if (rss <= 0) return; // 取得失敗時は判定をスキップ
+    if (rss >= FRONTEND_RSS_LIMIT_MB) {
+      frontendBreachCount += 1;
+      console.log(
+        `⚠️  Frontend RSS ${rss}MB ≥ ${FRONTEND_RSS_LIMIT_MB}MB (breach ${frontendBreachCount}/${FRONTEND_WATCHDOG_BREACH_LIMIT}).`,
+      );
+      if (frontendBreachCount >= FRONTEND_WATCHDOG_BREACH_LIMIT) {
+        restartFrontend("memory-threshold").catch((err) =>
+          console.error("❌ Frontend auto-recycle failed:", err.message || err),
+        );
+      }
+    } else if (frontendBreachCount > 0) {
+      frontendBreachCount = 0; // 閾値を下回ったらカウンタをリセット
+    }
+  }, FRONTEND_WATCHDOG_INTERVAL_MS);
 }
 
 // プロセス終了時のクリーンアップ
@@ -1615,6 +1859,12 @@ let isCleaningUp = false;
 function cleanupSync() {
   if (isCleaningUp) return;
   isCleaningUp = true;
+
+  // フロントエンド監視タイマーを停止(クリーンアップ中のリサイクル発火を防止)
+  if (frontendWatchdogTimer) {
+    clearInterval(frontendWatchdogTimer);
+    frontendWatchdogTimer = null;
+  }
 
   // ファイルウォッチャーを先に閉じてリスタート競合を防止
   for (const watcher of fileWatchers) {

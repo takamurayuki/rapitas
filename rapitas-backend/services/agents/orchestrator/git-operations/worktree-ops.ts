@@ -102,6 +102,11 @@ export async function createWorktree(
 
   try {
     let effectiveBranchName = branchName;
+    // Prune stale worktree entries (their dir was deleted on disk but git still
+    // lists them). Otherwise a removed worktree makes its branch look "in use"
+    // below and forces a divergent unique branch — orphaning the PR's commits on
+    // a ci_repair re-run that means to reuse the existing feature branch.
+    await execAsync('git worktree prune', { cwd: baseDir, encoding: 'utf8' }).catch(() => {});
     try {
       const { stdout: worktreeList } = await execAsync('git worktree list --porcelain', {
         cwd: baseDir,

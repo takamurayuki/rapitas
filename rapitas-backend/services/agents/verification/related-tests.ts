@@ -119,9 +119,9 @@ function execPrefix(projectRoot: string): string {
  * File-scopeable runners (bun, vitest): scoped run, ON by default
  * (RAPITAS_VERIFY_TESTS=0 disables). Returns null when nothing is in scope —
  * a change with no related test is NOT gated on the rest of the suite.
- * - bun: ONE command PER test file. bun's `mock.module` is process-global, so
- *   batching files into a single `bun test` leaks mocks across them and yields
- *   false failures; separate processes isolate each file's module registry.
+ * - bun: ONE command for ALL test files using `--isolate`. Each file runs in its
+ *   own module registry so mock.module state cannot leak across files, eliminating
+ *   the false failures caused by process-global mock contamination.
  * - vitest: ONE command for all files (vitest isolates per-file already), via
  *   `<pm> exec vitest run <files>`. Frontend (vitest/pnpm, no bun.lock) used to
  *   fall through to the full-suite branch below and gate on unrelated red tests.
@@ -167,8 +167,10 @@ export function buildScopedTestCommands(
     existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'));
   if (usesBun) {
     if (scoped.length === 0) return null;
-    // One process per file — see the mock.module note above.
-    return scoped.map((f) => `bun test "${f}"`);
+    // NOTE: --isolate gives each file its own module registry so mock.module
+    // state cannot leak across files — eliminates false failures from contamination.
+    const files = scoped.map((f) => `"${f}"`).join(' ');
+    return [`bun test --isolate ${files}`];
   }
 
   // vitest is file-scopeable too; treat it like bun (default-on, never full-suite).

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
+import { getInsensitiveMode } from '../../config/db-provider';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('prisma-optimization');
@@ -315,11 +316,11 @@ export const QueryOptimizers = {
         filters,
         {
           OR: [
-            { title: { contains: searchTerm, mode: 'insensitive' as const } },
+            { title: { contains: searchTerm, ...getInsensitiveMode() } },
             {
               description: {
                 contains: searchTerm,
-                mode: 'insensitive' as const,
+                ...getInsensitiveMode(),
               },
             },
             {
@@ -328,7 +329,7 @@ export const QueryOptimizers = {
                   label: {
                     name: {
                       contains: searchTerm,
-                      mode: 'insensitive' as const,
+                      ...getInsensitiveMode(),
                     },
                   },
                 },

@@ -7,7 +7,7 @@
  */
 import { prisma } from '../../config';
 import { createLogger } from '../../config/logger';
-import { resolveWorkflowDir, readWorkflowFile } from './workflow-file-utils';
+import { resolveWorkflowDir, readWorkflowFile, archiveWorkflowFile } from './workflow-file-utils';
 import { buildRoleContext, applyPlanModeDirective } from './workflow-context-builder';
 import {
   executeCLIAgent,
@@ -47,6 +47,8 @@ type WorkflowStatus =
   | 'plan_created'
   | 'plan_approved'
   | 'in_progress'
+  // Set by the intake gate when it pauses for a clarifying question before research.
+  | 'awaiting_question'
   | 'verify_done'
   | 'completed';
 type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
@@ -57,6 +59,13 @@ type WorkflowMode = 'lightweight' | 'standard' | 'comprehensive';
 // every mode; the tiers diverge by ceremony (plan / review / auto-verify).
 
 const CLI_AGENT_TYPES = new Set(['claude-code', 'codex', 'gemini']);
+
+/**
+ * Max times the implementer guard may roll back to re-plan a task whose plan.md
+ * keeps coming back invalid. Beyond this the task is blocked instead of looping
+ * (draft→…→plan_approved→rollback) forever. / 再計画ロールバックの上限。
+ */
+const MAX_PLAN_REPLANS = 3;
 
 /**
  * Resolves the system prompt content for a given key.
@@ -122,8 +131,9 @@ export class WorkflowOrchestrator {
     taskId: number,
     language: 'ja' | 'en' = 'ja',
   ): Promise<WorkflowAdvanceResult> {
-    // WORKFLOW_LOCK_TTL_MS (15min) intentionally exceeds the WorkflowRunner's
-    // 10-min per-phase timeout so a long phase cannot have its lock stolen.
+    // WORKFLOW_LOCK_TTL_MS intentionally exceeds the WorkflowRunner's per-phase
+    // timeout (both derive from execution-timeouts) so a long phase cannot have
+    // its lock stolen mid-run.
     if (!acquireTaskExecutionLock(taskId, WORKFLOW_LOCK_TTL_MS)) {
       const current = await prisma.task
         .findUnique({ where: { id: taskId }, select: { workflowStatus: true } })
@@ -172,9 +182,24 @@ export class WorkflowOrchestrator {
       };
     }
 
+    // A blocked task awaits user inspection and must NOT be auto-advanced. Without
+    // this guard a task blocked by the replan-exhausted path (status='blocked' but
+    // workflowStatus still 'plan_approved') gets re-dispatched and re-runs the same
+    // block path, re-recording plan_invalid_replan_exhausted every few seconds
+    // (observed: 80+ transitions on stale invalid-plan tasks). / ブロック中タスクは
+    // 自動実行せずスキップし、exhausted ループの再記録を止める。
+    if (task.status === 'blocked') {
+      return {
+        success: false,
+        role: 'researcher',
+        status: (task.workflowStatus as WorkflowStatus) || 'draft',
+        error: 'タスクはブロック中のため自動実行をスキップしました',
+      };
+    }
+
     // Build the transition table from the (DB-backed, UI-editable) mode config.
     // Single source of truth — see workflow-mode-config.ts.
-    const workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
+    let workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
     const { getModeSettings, buildTransitions } = await import('./workflow-mode-config');
     const modeSettings = await getModeSettings(workflowMode);
     const modeTransitions = buildTransitions(modeSettings);
@@ -188,6 +213,97 @@ export class WorkflowOrchestrator {
         status: currentStatus as WorkflowStatus,
         error: `ステータス "${currentStatus}" では次のフェーズを実行できません`,
       };
+    }
+
+    // Intake quality gate — runs once, just before the first (research) phase.
+    // Enriches a thin spec and, per policy, pauses for a single clarifying
+    // question (returns early to awaiting_question) or proceeds on best-guess.
+    // Fail-open: any error here must NOT block the workflow — fall through to
+    // research. Idempotent, so re-entry after a question is answered is safe.
+    if (currentStatus === 'draft' && transition.role === 'researcher') {
+      try {
+        const { ensureIntakeReady } = await import('../intake');
+        const intake = await ensureIntakeReady(taskId);
+        if (intake.status === 'awaiting_question') {
+          return {
+            success: true,
+            role: transition.role,
+            status: 'awaiting_question' as WorkflowStatus,
+            output:
+              intake.message ?? '仕様が不十分なため確認の質問を作成しました（回答後に再開します）',
+          };
+        }
+      } catch (err) {
+        log.warn(
+          { err, taskId },
+          '[WorkflowOrchestrator] intake gate failed — proceeding to research (fail-open)',
+        );
+      }
+    }
+
+    // Pre-research mode selection: pick the workflow mode from a cheap metadata
+    // complexity estimate BEFORE the researcher runs, so the phase chain (does a
+    // plan phase exist?) and the researcher's prompt are mode-aware from the
+    // start. Without this, every task ran research in the default 'comprehensive'
+    // framing and the mode was corrected only AFTER research — producing
+    // plan-assuming research.md (and a plan) even for trivial tasks. The
+    // research-assessed code-grounded complexity refines (UPGRADES) this later.
+    // Respects a user-pinned mode (workflowModeOverride). Fail-open.
+    if (
+      currentStatus === 'draft' &&
+      transition.role === 'researcher' &&
+      !task.workflowModeOverride
+    ) {
+      try {
+        // Re-read the spec: the intake gate above may have just enriched it, and
+        // a richer spec makes the metadata estimate more accurate.
+        const fresh = await prisma.task
+          .findUnique({
+            where: { id: taskId },
+            select: {
+              complexityScore: true,
+              goals: true,
+              constraints: true,
+              acceptanceCriteria: true,
+            },
+          })
+          .catch(() => null);
+        let score = fresh?.complexityScore ?? null;
+        if (score == null) {
+          await scoreTaskComplexity(taskId, {
+            ...task,
+            goals: fresh?.goals ?? task.goals,
+            constraints: fresh?.constraints ?? task.constraints,
+            acceptanceCriteria: fresh?.acceptanceCriteria ?? task.acceptanceCriteria,
+          }).catch(() => {});
+          score =
+            (
+              await prisma.task
+                .findUnique({ where: { id: taskId }, select: { complexityScore: true } })
+                .catch(() => null)
+            )?.complexityScore ?? null;
+        }
+        if (score != null) {
+          const { selectProvisionalMode } = await import('./workflow-mode-config');
+          const provisional = await selectProvisionalMode(score);
+          if (provisional !== workflowMode) {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { workflowMode: provisional },
+            });
+            log.info(
+              { taskId, score, from: workflowMode, to: provisional },
+              '[WorkflowOrchestrator] Pre-research provisional mode selected',
+            );
+            workflowMode = provisional;
+          }
+        }
+      } catch (err) {
+        log.warn(
+          { err, taskId },
+          '[WorkflowOrchestrator] Pre-research mode selection failed — keeping current mode',
+        );
+      }
     }
 
     // Get role configuration
@@ -336,9 +452,69 @@ export class WorkflowOrchestrator {
     if (transition.role === 'implementer') {
       const planMd = await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null);
       if (!planMd || !isReusableArtifact('plan', planMd)) {
+        // BOUND the replan loop. Previously this rolled back to draft every time
+        // an invalid plan.md was seen, with no limit and WITHOUT removing the bad
+        // file — so a plan that kept coming back invalid spun forever
+        // (draft→…→plan_approved→rollback, ~1/s, hitting maxIterations then
+        // retrying). Count prior replans; once exhausted, block for inspection
+        // instead of looping.
+        // Window to "recent" so old replans from an unrelated past run don't
+        // pre-block a fresh re-run; a real loop trips this within seconds.
+        const priorReplans = await prisma.workflowTransition
+          .count({
+            where: {
+              taskId,
+              cause: 'plan_invalid_replan',
+              createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+            },
+          })
+          .catch(() => 0);
+
+        if (priorReplans >= MAX_PLAN_REPLANS) {
+          log.warn(
+            { taskId, priorReplans },
+            '[WorkflowOrchestrator] plan.md still invalid after repeated re-plans — blocking instead of looping',
+          );
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'plan_approved',
+            toStatus: 'plan_approved',
+            actor: 'system',
+            cause: 'plan_invalid_replan_exhausted',
+            phase: 'plan',
+            metadata: { priorReplans },
+            invariantViolation: true,
+            invariantMessage:
+              'plan.md remained invalid after repeated re-plans; blocked to stop the loop',
+          }).catch(() => {});
+          import('../communication/notification-service')
+            .then(({ createNotification }) =>
+              createNotification({
+                type: 'system',
+                title: '計画の再生成に失敗（ブロック）',
+                message: `タスク #${taskId} は plan.md が繰り返し不正なため、再計画を打ち切りブロックしました。手動で確認してください。`,
+                link: `/tasks?taskId=${taskId}`,
+                metadata: { taskId, priorReplans, reason: 'plan_invalid_replan_exhausted' },
+              }),
+            )
+            .catch(() => {});
+          return {
+            success: false,
+            role: transition.role,
+            status: 'plan_approved' as WorkflowStatus,
+            error: 'plan.md が繰り返し不正なため再計画を打ち切りブロックしました',
+          };
+        }
+
         log.warn(
-          `[WorkflowOrchestrator] task ${taskId}: plan.md is log-polluted or non-substantive — rolling back to re-plan instead of implementing on a broken plan`,
+          `[WorkflowOrchestrator] task ${taskId}: plan.md is log-polluted or non-substantive — archiving it and rolling back to re-plan (attempt ${priorReplans + 1}/${MAX_PLAN_REPLANS})`,
         );
+        // Archive the bad plan so the planner MUST regenerate it (it can no
+        // longer be reused by the reuse-check), breaking the reuse↔reject loop.
+        await archiveWorkflowFile(workflowInfo.dir, 'plan').catch(() => {});
         await prisma.task.update({
           where: { id: taskId },
           data: { workflowStatus: 'draft' },
@@ -350,13 +526,15 @@ export class WorkflowOrchestrator {
           actor: 'system',
           cause: 'plan_invalid_replan',
           phase: 'plan',
-          metadata: { reason: 'plan.md is log-polluted or non-substantive; regenerating' },
+          metadata: {
+            reason: 'plan.md is log-polluted or non-substantive; archived + regenerating',
+          },
         }).catch(() => {});
         return {
           success: true,
           role: transition.role,
           status: 'draft',
-          output: 'plan.md が壊れている（ログ汚染/空）ため、再計画にロールバックしました',
+          output: 'plan.md が壊れている（ログ汚染/空）ため、退避して再計画にロールバックしました',
         };
       }
     }
@@ -367,6 +545,7 @@ export class WorkflowOrchestrator {
       workflowInfo.dir,
       task,
       language,
+      workflowMode,
     );
 
     // agentConfig is resolved above (role assignment or capability fallback).
@@ -470,6 +649,17 @@ export class WorkflowOrchestrator {
       await prisma.task.update({
         where: { id: taskId },
         data: { workflowStatus: 'draft', status: 'in-progress' },
+      });
+    } else if (task.status === 'todo') {
+      // A task that resumes at a non-draft phase (valid research/plan artifacts
+      // reused, or a multi-phase / re-run continuation) skips the draft branch
+      // above, so its status was never flipped off 'todo' while the workflow
+      // advances — leaving it stuck looking like 'todo' (進行中にならない) in the UI.
+      // Flip it forward without touching workflowStatus. Only 'todo' is advanced,
+      // so 'done'/'blocked' are never clobbered.
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { status: 'in-progress' },
       });
     }
 

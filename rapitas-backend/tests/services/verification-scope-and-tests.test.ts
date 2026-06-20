@@ -170,22 +170,22 @@ describe('related-tests (fixture dirs)', () => {
     expect(related.some((f) => f.includes('integration'))).toBe(false);
   });
 
-  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON / ファイル毎に分離）', () => {
+  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON / --isolate で1プロセス集約）', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
       const cmds = buildScopedTestCommands(root, root, ['src/foo.ts']);
-      // 1ファイル = 1コマンド（mock.module 汚染を避けるためプロセス分離）
+      // 1ファイルでも --isolate 付き1コマンドに集約（分岐を増やさない）
       expect(cmds).not.toBeNull();
       expect(cmds!.length).toBe(1);
-      expect(cmds![0]).toContain('bun test');
+      expect(cmds![0]).toContain('bun test --isolate');
       expect(cmds![0]).toContain('src/foo.test.ts');
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
     }
   });
 
-  test('複数の関連テストはファイル毎に別コマンドへ分離すること', () => {
+  test('複数の関連テストは --isolate 付き1コマンドに全ファイル集約すること', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
@@ -195,12 +195,12 @@ describe('related-tests (fixture dirs)', () => {
         'services/baz.ts',
       ]);
       expect(cmds).not.toBeNull();
-      // foo.test.ts / __tests__/bar.test.ts / tests/services/baz.test.ts の3本
-      expect(cmds!.length).toBe(3);
-      // 1コマンドに複数ファイルを束ねていないこと（各 bun test は1ファイル）
-      for (const c of cmds!) {
-        expect((c.match(/\.test\.ts/g) ?? []).length).toBe(1);
-      }
+      // foo.test.ts / __tests__/bar.test.ts / tests/services/baz.test.ts が全て1コマンドに集約
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('bun test --isolate');
+      expect(cmds![0]).toContain('src/foo.test.ts');
+      expect(cmds![0]).toContain('src/__tests__/bar.test.ts');
+      expect(cmds![0]).toContain('tests/services/baz.test.ts');
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
     }

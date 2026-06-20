@@ -22,6 +22,7 @@ import { writeWorkflowFile } from '../../../services/workflow/workflow-file-util
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
+import { resolveLandingMode } from '../../../services/workflow/automation-policy';
 import {
   evaluateCompletionGate,
   researchConcludesNoChange,
@@ -540,6 +541,28 @@ export async function handleSaveFile({
       }
     }
 
+    // Research/plan critic gate (judge panel). After the artifact is saved and
+    // its status persisted, run independent critic lenses; on a FAIL verdict the
+    // artifact is archived and the workflow rolled back to regenerate it (bounded
+    // self-repair, mirroring the verify gate). Changing newStatus to the rollback
+    // target naturally skips the auto-split / auto-approve blocks below. env-gated
+    // (RAPITAS_PHASE_CRITIC); fail-open when critics are unavailable.
+    if (
+      (fileType === 'research' && newStatus === 'research_done') ||
+      (fileType === 'plan' && newStatus === 'plan_created')
+    ) {
+      const { applyPhaseCriticGate } = await import('../../../services/workflow/phase-critic');
+      const gate = await applyPhaseCriticGate({
+        taskId,
+        phase: fileType === 'research' ? 'research' : 'plan',
+        content: savedContent,
+        currentStatus: newStatus,
+      }).catch(() => ({ bounced: false }) as { bounced: boolean; newStatus?: string });
+      if (gate.bounced && gate.newStatus) {
+        newStatus = gate.newStatus;
+      }
+    }
+
     // Auto-split into subtasks when plan.md is saved and task is large enough.
     // Gated OFF by default — see isSubtaskSplitEnabled for why.
     let splitResult: { subtasksCreated: number; subtaskIds: number[] } | null = null;
@@ -630,25 +653,57 @@ export async function handleSaveFile({
       );
       if (!completionGate.allow) {
         verifyGateBlocked = true;
-        await prisma.task
-          .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
-          .catch(() => {});
-        await recordTransition({
-          taskId,
-          fromStatus: 'verify_done',
-          toStatus: 'verify_done',
-          actor: 'verifier',
-          cause: 'verify_no_changes',
-          phase: 'verify',
-          metadata: { reason: completionGate.reason },
-          invariantViolation: true,
-          invariantMessage:
-            '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
-        });
-        log.warn(
-          { taskId, reason: completionGate.reason },
-          '[Workflow] verify passed but no code changes and no justification — blocking instead of completing',
-        );
+        // Empty diff + no explicit "no change needed" justification. The FIRST
+        // time, block so a re-run can implement (or add the justification). But if
+        // the task has ALREADY hit verify_no_changes before, the implementer was
+        // given a chance and STILL produced no diff — the code is genuinely
+        // already correct / no change is needed. Per product requirement, complete
+        // it as 修正不要 and move on instead of leaving it stuck blocked forever.
+        const priorNoChange = await prisma.workflowTransition
+          .count({ where: { taskId, cause: 'verify_no_changes' } })
+          .catch(() => 0);
+
+        if (priorNoChange >= 1) {
+          await prisma.task
+            .update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'completed',
+            actor: 'system',
+            cause: 'verify_no_change_confirmed',
+            phase: 'verify',
+            metadata: { reason: completionGate.reason, priorNoChange },
+          });
+          log.info(
+            { taskId, priorNoChange },
+            '[Workflow] Empty diff confirmed across attempts — completing as no-change-needed (修正不要), moving on.',
+          );
+        } else {
+          await prisma.task
+            .update({ where: { id: taskId }, data: { status: 'blocked', updatedAt: new Date() } })
+            .catch(() => {});
+          await recordTransition({
+            taskId,
+            fromStatus: 'verify_done',
+            toStatus: 'verify_done',
+            actor: 'verifier',
+            cause: 'verify_no_changes',
+            phase: 'verify',
+            metadata: { reason: completionGate.reason },
+            invariantViolation: true,
+            invariantMessage:
+              '検証は通過しましたが、実装による変更がありません（verify.md に「変更不要の理由」の明記もなし）。暗黙的な完了を防ぐためタスクをブロックしました。',
+          });
+          log.warn(
+            { taskId, reason: completionGate.reason },
+            '[Workflow] verify passed but no code changes and no justification — blocking (1st time; re-run may implement or justify)',
+          );
+        }
       }
     }
 
@@ -825,24 +880,55 @@ export async function handleSaveFile({
             '[Workflow] verify passed but no PR created — NOT completing (completion requires a PR).',
           );
         } else {
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-          });
-          taskMarkedDone = true;
-          await recordTransition({
-            taskId,
-            fromStatus: 'verify_done',
-            toStatus: 'completed',
-            actor: 'system',
-            cause: 'verify_passed',
-            phase: 'verify',
-            metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
-          });
-          log.info(
-            { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
-            '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
-          );
+          // Staged completion: when changes land via a PR, completion is NOT at
+          // PR creation — `pr` mode completes when the PR's CI goes green, `merge`
+          // mode completes when the PR is merged. The PR-completion watcher
+          // advances those. Only `commit`/`none` complete here. Gated OFF by
+          // default so existing deployments keep the verify-time completion until
+          // they opt in (RAPITAS_STAGED_COMPLETION=true) + restart.
+          const staged =
+            process.env.RAPITAS_STAGED_COMPLETION === 'true' ||
+            process.env.RAPITAS_STAGED_COMPLETION === '1';
+          const landingMode = autoCommitPRResult.requested
+            ? resolveLandingMode(autoCommitPRResult.requested)
+            : 'none';
+          if (staged && (landingMode === 'pr' || landingMode === 'merge')) {
+            // Hold at verify_done (status stays in-progress, NOT done). The watcher
+            // completes on CI-green (pr) / merge (merge). Do not fire completion
+            // side effects yet (taskMarkedDone stays false).
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'verify_done',
+              actor: 'system',
+              cause: 'verify_passed_awaiting_ci',
+              phase: 'verify',
+              metadata: { landingMode, pr: pr?.success, prNumber: pr?.prNumber },
+            });
+            log.info(
+              { taskId, landingMode, prNumber: pr?.prNumber },
+              '[Workflow] verify passed + PR created — completion deferred to CI/merge (staged completion).',
+            );
+          } else {
+            await prisma.task.update({
+              where: { id: taskId },
+              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+            });
+            taskMarkedDone = true;
+            await recordTransition({
+              taskId,
+              fromStatus: 'verify_done',
+              toStatus: 'completed',
+              actor: 'system',
+              cause: 'verify_passed',
+              phase: 'verify',
+              metadata: { commit: commit?.success, pr: pr?.success, merge: merge?.success },
+            });
+            log.info(
+              { taskId, commitOk: commit?.success, prOk: pr?.success, mergeOk: merge?.success },
+              '[Workflow] verify.md passed AND PR satisfied — task marked done/completed.',
+            );
+          }
         }
       }
 

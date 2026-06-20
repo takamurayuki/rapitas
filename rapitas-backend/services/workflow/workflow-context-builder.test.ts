@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { buildRoleContext } from './workflow-context-builder';
+import { buildRoleContext, researchModeDirective } from './workflow-context-builder';
 
 const TASK = { title: 'Test task', description: 'A test description' };
 // Use a path that does not exist so readWorkflowFile returns null for all files.
@@ -51,5 +51,23 @@ describe('buildRoleContext', () => {
       // Both roles fall through to the same code block, so their outputs must be identical.
       expect(autoCtx).toBe(verifierCtx);
     });
+  });
+});
+
+describe('researchModeDirective', () => {
+  test('lightweight declares no plan phase and demands implementation-ready research', () => {
+    const d = researchModeDirective('lightweight', 'ja');
+    expect(d).toContain('軽量');
+    expect(d).toContain('計画(plan)フェーズはありません');
+  });
+
+  test('standard / comprehensive declare a following plan phase', () => {
+    expect(researchModeDirective('standard', 'ja')).toContain('計画(plan)フェーズ');
+    expect(researchModeDirective('comprehensive', 'ja')).toContain('計画(plan)フェーズ');
+  });
+
+  test('english variants', () => {
+    expect(researchModeDirective('lightweight', 'en')).toContain('no planning phase');
+    expect(researchModeDirective('standard', 'en')).toContain('planning phase will run');
   });
 });

@@ -16,6 +16,7 @@ export const systemSchemas = {
     autoCreateAfterTitleGeneration: t.Optional(t.Boolean()),
     autoApprovePlan: t.Optional(t.Boolean()),
     autoComplexityAnalysis: t.Optional(t.Boolean()),
+    autoCreateFromBacklogLimit: t.Optional(t.Number()),
     autoCommitDefault: t.Optional(t.Boolean()),
     autoCreatePRDefault: t.Optional(t.Boolean()),
     autoMergePRDefault: t.Optional(t.Boolean()),

@@ -47,7 +47,8 @@ export function verifyJustifiesNoChange(verifyContent: string | null | undefined
  * STRICT (anchored verdict line / heading, not prose) so a research note that
  * merely mentions "既存実装" while still proposing changes does NOT false-trigger
  * a premature completion. The research prompt mandates the exact `## 結論: 修正不要`
- * form (see instruction-builder / research-prompt-builder).
+ * form when no change is needed (see the researcher `output` instruction in
+ * workflow-context-builder.ts).
  */
 const RESEARCH_NO_CHANGE_VERDICTS: RegExp[] = [
   // Heading or line: 結論/判定/総括 ... (修正|対応|実装|変更|追加実装) (は) 不要

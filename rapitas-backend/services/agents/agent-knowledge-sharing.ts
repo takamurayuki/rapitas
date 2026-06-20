@@ -5,6 +5,7 @@
  * previous agent executions as context for new agent runs.
  */
 import { prisma } from '../../config/database';
+import { getInsensitiveMode } from '../../config/db-provider';
 import { createLogger } from '../../config/logger';
 
 const log = createLogger('agent-knowledge-sharing');
@@ -281,8 +282,8 @@ async function findRelevantKnowledgeForAgent(task: {
       confidence: { gte: 0.5 },
       OR: keywords.slice(0, 4).map((kw) => ({
         OR: [
-          { title: { contains: kw, mode: 'insensitive' as const } },
-          { content: { contains: kw, mode: 'insensitive' as const } },
+          { title: { contains: kw, ...getInsensitiveMode() } },
+          { content: { contains: kw, ...getInsensitiveMode() } },
         ],
       })),
     },

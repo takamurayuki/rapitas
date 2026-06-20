@@ -7,11 +7,9 @@
  * and restart dialogs. All state logic lives in useHeader().
  */
 
-import { Menu, X } from 'lucide-react';
-import Link from 'next/link';
-import AppIcon from '@/components/common/app-icon';
-import { useTranslations } from 'next-intl';
 import {
+  Menu,
+  X,
   Home,
   Columns3,
   Tags,
@@ -49,8 +47,12 @@ import {
   Keyboard,
   Scale,
 } from 'lucide-react';
+import Link from 'next/link';
+import AppIcon from '@/components/common/app-icon';
+import { useTranslations } from 'next-intl';
 import { useHeader } from './useHeader';
 import { type NavItem } from './types';
+import { GithubMarkIcon } from '@/components/icons/github-mark-icon';
 import { SideNav } from './side-nav';
 import { HeaderSearch } from './header-search';
 import { HeaderToolbar } from './header-toolbar';
@@ -172,7 +174,7 @@ export default function Header() {
         {
           href: '#',
           label: 'GitHub',
-          icon: Code,
+          icon: GithubMarkIcon,
           children: [
             { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {

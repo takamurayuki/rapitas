@@ -22,6 +22,8 @@ export interface UserSettingsUpdateBody {
   autoCreateAfterTitleGeneration?: boolean;
   autoApprovePlan?: boolean;
   autoComplexityAnalysis?: boolean;
+  /** Per-theme cap on auto-created backlog tasks (0 = disabled). */
+  autoCreateFromBacklogLimit?: number;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

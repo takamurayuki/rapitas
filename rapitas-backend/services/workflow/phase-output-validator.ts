@@ -41,8 +41,7 @@ const PLAN_REQUIRED_SECTIONS = [
   '完了条件',
 ];
 
-// NOTE: OR-group — any synonym satisfies the 検証結果サマリ requirement.
-// Agents (especially auto_verifier) produce varied heading text; these alternatives prevent false WARN.
+// OR-group: any of the listed headings satisfies the 検証結果サマリ requirement
 const VERIFY_REQUIRED_SECTIONS: (string | string[])[] = [
   'テスト結果',
   'チェックリスト',

@@ -56,8 +56,10 @@ async function resolveImplementEntryStatus(
 }
 
 /**
- * Append the CI failure to question.md so the re-run implementer reads it as
- * feedback (the implementer context surfaces question.md). Best-effort.
+ * Append the CI failure to verify.md so the re-run implementer reads it as
+ * verification feedback (the implementer context surfaces verify.md). This is a
+ * verification/CI concern, not a user Q&A — keeping it out of question.md stops
+ * it from polluting the Q&A tab. Best-effort.
  */
 async function writeCiFeedback(
   taskId: number,
@@ -68,7 +70,7 @@ async function writeCiFeedback(
   try {
     const info = await resolveWorkflowDir(taskId);
     if (!info) return;
-    const prior = (await readWorkflowFile(info.dir, 'question')) ?? '';
+    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
     const block = [
       `# CIからの差し戻し（自己修復 ${attempt} 回目）`,
       '',
@@ -84,9 +86,9 @@ async function writeCiFeedback(
       .filter(Boolean)
       .join('\n');
     const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
-    await writeWorkflowFile(info.dir, 'question', next, taskId);
+    await writeWorkflowFile(info.dir, 'verify', next, taskId);
   } catch (err) {
-    log.warn({ err, taskId }, '[ci-repair] Failed to write CI feedback to question.md');
+    log.warn({ err, taskId }, '[ci-repair] Failed to write CI feedback to verify.md');
   }
 }
 

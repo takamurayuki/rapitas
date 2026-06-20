@@ -17,6 +17,37 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('workflow:automation-policy');
 
 /**
+ * The single "landing strategy" a task uses to reach completion, derived from
+ * its automation policy. Completion is marked at a DIFFERENT point per mode:
+ *  - `none`   → completed as soon as verify passes (no git automation).
+ *  - `commit` → completed after commit+push to the theme's default branch.
+ *  - `pr`     → completed after the created PR's CI goes green (NOT merged).
+ *  - `merge`  → completed after the PR is merged into the default branch.
+ *
+ * Direct-to-default `commit` and PR-based `pr`/`merge` are mutually exclusive
+ * landing strategies; a higher mode supersedes the lower ones.
+ */
+export type LandingMode = 'merge' | 'pr' | 'commit' | 'none';
+
+/**
+ * Collapse a resolved policy into its single landing mode.
+ * Precedence (higher supersedes lower): autoMergePR > autoCreatePR > autoCommit.
+ *
+ * @param policy - Resolved autoCommit/autoCreatePR/autoMergePR booleans. / 解決済み自動化フラグ
+ * @returns The landing mode that decides where completion is marked. / 完了点を決める landing mode
+ */
+export function resolveLandingMode(policy: {
+  autoCommit: boolean;
+  autoCreatePR: boolean;
+  autoMergePR: boolean;
+}): LandingMode {
+  if (policy.autoMergePR) return 'merge';
+  if (policy.autoCreatePR) return 'pr';
+  if (policy.autoCommit) return 'commit';
+  return 'none';
+}
+
+/**
  * 解決後の自動化設定。verify_done → completed の自動進行をどこまで進めるかを表す。
  */
 export interface ResolvedAutomationPolicy {

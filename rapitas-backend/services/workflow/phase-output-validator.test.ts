@@ -164,25 +164,9 @@ bun test: 5 passed, 0 failed
     expect(result.missingSections).toEqual([]);
   });
 
-  // NOTE: '# 実装結果検証レポート' now satisfies the 検証結果サマリ requirement via the
-  // '実装結果検証' synonym. Only チェックリスト is missing in this pattern.
-  test('reproduces the WARN (updated): auto_verifier output with 実装結果検証 heading passes サマリ check', () => {
-    // '# 実装結果検証レポート' → matches '実装結果検証' synonym → サマリ requirement satisfied.
-    // Only チェックリスト is missing.
-    const missingOnlyChecklist = `# 実装結果検証レポート
-## テスト結果
-bun test: 5 passed, 0 failed
-## 変更ファイル一覧
-- workflow-context-builder.ts`;
-    const result = validateVerify(missingOnlyChecklist);
-    expect(result.ok).toBe(false);
-    expect(result.missingSections).toContain('チェックリスト');
-    expect(result.missingSections).not.toContain('検証結果サマリ');
-  });
-
-  test('rejects verify missing both チェックリスト and 検証結果サマリ (no synonym match)', () => {
-    // No heading matches any synonym for 検証結果サマリ → must fail.
-    const missingBothSections = `# 調査レポート
+  test('rejects verify missing チェックリスト and 検証結果サマリ group entirely', () => {
+    // A verify with テスト結果 but no チェックリスト and no 検証結果サマリ synonym
+    const missingBothSections = `# 実装レポート
 ## テスト結果
 bun test: 5 passed, 0 failed
 ## 変更ファイル一覧
@@ -193,52 +177,66 @@ bun test: 5 passed, 0 failed
     expect(result.missingSections).toContain('検証結果サマリ');
   });
 
-  // Synonym acceptance tests
-  test('accepts verify with # 検証結果 heading (synonym, no サマリ suffix)', () => {
-    const withKekkaOnly = `# 検証結果
+  // OR-group synonym tests: any alternative satisfies the 検証結果サマリ requirement
+  test('accepts 検証結果 (L1 heading, no サマリ) as synonym for 検証結果サマリ', () => {
+    const content = `# 検証結果
+## テスト結果
+bun test: 3 passed
+## チェックリスト
+- [x] done`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 総合評価 heading as synonym for 検証結果サマリ', () => {
+    const content = `## 総合評価
+合格
+## テスト結果
+ok
+## チェックリスト
+- [x]`;
+    const result = validateVerify(content);
+    expect(result.ok).toBe(true);
+    expect(result.missingSections).toEqual([]);
+  });
+
+  test('accepts 実装結果検証レポート heading as synonym for 検証結果サマリ', () => {
+    const content = `# 実装結果検証レポート
 ## テスト結果
 all pass
-## チェックリスト消化状況
-- ok`;
-    const result = validateVerify(withKekkaOnly);
+## チェックリスト
+- [x] all done`;
+    const result = validateVerify(content);
     expect(result.ok).toBe(true);
     expect(result.missingSections).toEqual([]);
   });
 
-  test('accepts verify with ## 総合評価 heading as synonym', () => {
-    const withSogohyoka = `# 検証レポート
-## テスト結果
-all pass
+  test('still rejects verify with テスト結果 missing even when 検索結果サマリ synonym present', () => {
+    const content = `## 検証レポート
+summary here
 ## チェックリスト
-- ok
-## 総合評価
-✅ 合格`;
-    const result = validateVerify(withSogohyoka);
-    expect(result.ok).toBe(true);
-    expect(result.missingSections).toEqual([]);
-  });
-
-  test('accepts verify with ## 検証レポート heading as synonym', () => {
-    // '検証レポート' is a recognized synonym for 検証結果サマリ.
-    const withKenshoReport = `## 検証レポート
-✅ 合格
-## テスト結果
-pass
-## チェックリスト
-- ok`;
-    const result = validateVerify(withKenshoReport);
-    expect(result.ok).toBe(true);
-    expect(result.missingSections).toEqual([]);
-  });
-
-  test('still rejects verify missing テスト結果 even when サマリ synonym present', () => {
-    // AND requirement: all 3 must be satisfied.
-    const missingTestResult = `## 検証結果サマリ
-✅ 合格
-## チェックリスト
-- ok`;
-    const result = validateVerify(missingTestResult);
+- [x] done`;
+    const result = validateVerify(content);
     expect(result.ok).toBe(false);
     expect(result.missingSections).toContain('テスト結果');
+  });
+
+  test('returns severity=100 for empty verify content', () => {
+    const result = validateVerify('   ');
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(100);
+  });
+
+  test('detects contradiction: all-pass claim with failure signal', () => {
+    const contradictory = `## 検証結果サマリ
+全テスト通過
+## テスト結果
+1 failed
+## チェックリスト
+- [x]`;
+    const result = validateVerify(contradictory);
+    expect(result.ok).toBe(false);
+    expect(result.severity).toBe(80);
   });
 });

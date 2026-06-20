@@ -63,6 +63,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration,
         autoApprovePlan,
         autoComplexityAnalysis,
+        autoCreateFromBacklogLimit,
         autoCommitDefault,
         autoCreatePRDefault,
         autoMergePRDefault,
@@ -84,6 +85,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoCreateAfterTitleGeneration?: boolean;
         autoApprovePlan?: boolean;
         autoComplexityAnalysis?: boolean;
+        autoCreateFromBacklogLimit?: number;
         autoCommitDefault?: boolean;
         autoCreatePRDefault?: boolean;
         autoMergePRDefault?: boolean;
@@ -111,6 +113,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               autoCreateAfterTitleGeneration: autoCreateAfterTitleGeneration ?? false,
               autoApprovePlan: autoApprovePlan ?? false,
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCreateFromBacklogLimit !== undefined && { autoCreateFromBacklogLimit }),
               ...(autoCommitDefault !== undefined && { autoCommitDefault }),
               ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
               ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),
@@ -137,6 +140,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               }),
               ...(autoApprovePlan !== undefined && { autoApprovePlan }),
               ...(autoComplexityAnalysis !== undefined && { autoComplexityAnalysis }),
+              ...(autoCreateFromBacklogLimit !== undefined && { autoCreateFromBacklogLimit }),
               ...(autoCommitDefault !== undefined && { autoCommitDefault }),
               ...(autoCreatePRDefault !== undefined && { autoCreatePRDefault }),
               ...(autoMergePRDefault !== undefined && { autoMergePRDefault }),

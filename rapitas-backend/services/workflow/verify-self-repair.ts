@@ -82,7 +82,9 @@ async function writeRepairFeedback(
   try {
     const info = await resolveWorkflowDir(taskId);
     if (!info) return;
-    const prior = (await readWorkflowFile(info.dir, 'question')) ?? '';
+    // Verification feedback belongs to the verify artifact, not question.md
+    // (Q&A). The implementer context reads verify.md for this on re-run.
+    const prior = (await readWorkflowFile(info.dir, 'verify')) ?? '';
     const block = [
       `# 検証フェーズからの差し戻し（自己修復 ${attempt} 回目）`,
       '',
@@ -99,9 +101,9 @@ async function writeRepairFeedback(
       '```',
     ].join('\n');
     const next = prior.trim() ? `${prior.trim()}\n\n---\n\n${block}` : block;
-    await writeWorkflowFile(info.dir, 'question', next, taskId);
+    await writeWorkflowFile(info.dir, 'verify', next, taskId);
   } catch (err) {
-    log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to question.md');
+    log.warn({ err, taskId }, '[verify-repair] Failed to write repair feedback to verify.md');
   }
 }
 
