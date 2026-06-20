@@ -70,15 +70,19 @@ export function isJobDue(s: BacklogScheduleConfig, now: Date): boolean {
  * button. No-op (returns 0) if the job is already running.
  *
  * @param kind - Job to run / 実行するジョブ
+ * @param since - For health_check only: process entries on or after this time
  * @returns Number of items produced (ideas/concerns) / 生成件数
  */
-export async function runBacklogJobNow(kind: BacklogJobKind): Promise<number> {
+export async function runBacklogJobNow(kind: BacklogJobKind, since?: Date): Promise<number> {
   if (running.has(kind)) {
     log.info({ kind }, 'Job already running — skipping duplicate run');
     return 0;
   }
   running.add(kind);
   try {
+    if (kind === 'health_check') {
+      return await runLogHealthCheck(since);
+    }
     return await HANDLERS[kind]();
   } finally {
     running.delete(kind);
@@ -100,13 +104,17 @@ async function tick(): Promise<void> {
     if (!isJobDue(s, now)) continue;
     if (running.has(s.kind)) continue;
 
+    // Capture lastRunAt before markScheduleRun overwrites it — used as the
+    // `since` cursor for health_check so only new log entries are processed.
+    const prevLastRunAt = s.lastRunAt ?? undefined;
+
     // Claim the daily slot up front (persisted) so the next tick won't re-fire
     // even if the job runs longer than the poll interval or the server restarts.
     await markScheduleRun(s.kind, now).catch((err) =>
       log.warn({ err, kind: s.kind }, 'Failed to record run start'),
     );
     log.info({ kind: s.kind, hour: s.hour }, 'Backlog job due — starting');
-    void runBacklogJobNow(s.kind).catch((err) =>
+    void runBacklogJobNow(s.kind, prevLastRunAt).catch((err) =>
       log.warn({ err, kind: s.kind }, 'Scheduled backlog job failed'),
     );
   }
