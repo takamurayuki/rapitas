@@ -27,6 +27,8 @@ export type UserSettings = {
   autoComplexityAnalysis: boolean;
   /** Per-theme cap on auto-created backlog tasks when auto-run runs dry (0 = disabled). */
   autoCreateFromBacklogLimit?: number;
+  /** Dev: restart the backend when auto-run runs dry to apply committed fixes. */
+  restartOnAutoRunDry?: boolean;
   autoCommitDefault?: boolean;
   autoCreatePRDefault?: boolean;
   autoMergePRDefault?: boolean;

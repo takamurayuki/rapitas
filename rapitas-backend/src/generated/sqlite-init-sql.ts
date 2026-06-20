@@ -1068,6 +1068,7 @@ CREATE TABLE "UserSettings" (
     "autoApproveSubtaskPlan" BOOLEAN NOT NULL DEFAULT true,
     "autoComplexityAnalysis" BOOLEAN NOT NULL DEFAULT false,
     "autoCreateFromBacklogLimit" INTEGER NOT NULL DEFAULT 0,
+    "restartOnAutoRunDry" BOOLEAN NOT NULL DEFAULT false,
     "autoCommitDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoCreatePRDefault" BOOLEAN NOT NULL DEFAULT false,
     "autoMergePRDefault" BOOLEAN NOT NULL DEFAULT false,

@@ -45,6 +45,10 @@ model UserSettings {
   // When a theme's auto-run runs out of work it promotes open concerns (then
   // ideas once concerns are clear) into tasks up to this cap. See backlog-task-promoter.
   autoCreateFromBacklogLimit  Int       @default(0)
+  // Dev: when auto-run runs dry (no live agents), restart the backend to pick up
+  // committed fixes before creating more tasks. Gated by HEAD-moved + no-agents +
+  // rate-limit in dev-restart-on-dry.ts. Only effective under dev.js (exit 75).
+  restartOnAutoRunDry         Boolean   @default(false)
   // Global automation defaults (task-level overrides win, then these, then env).
   autoCommitDefault           Boolean   @default(false) // Default: auto-commit on completion
   autoCreatePRDefault         Boolean   @default(false) // Default: auto-create PR on completion

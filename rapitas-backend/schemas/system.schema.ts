@@ -17,6 +17,7 @@ export const systemSchemas = {
     autoApprovePlan: t.Optional(t.Boolean()),
     autoComplexityAnalysis: t.Optional(t.Boolean()),
     autoCreateFromBacklogLimit: t.Optional(t.Number()),
+    restartOnAutoRunDry: t.Optional(t.Boolean()),
     autoCommitDefault: t.Optional(t.Boolean()),
     autoCreatePRDefault: t.Optional(t.Boolean()),
     autoMergePRDefault: t.Optional(t.Boolean()),

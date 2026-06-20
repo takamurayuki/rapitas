@@ -64,6 +64,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoApprovePlan,
         autoComplexityAnalysis,
         autoCreateFromBacklogLimit,
+        restartOnAutoRunDry,
         autoCommitDefault,
         autoCreatePRDefault,
         autoMergePRDefault,
@@ -86,6 +87,7 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
         autoApprovePlan?: boolean;
         autoComplexityAnalysis?: boolean;
         autoCreateFromBacklogLimit?: number;
+        restartOnAutoRunDry?: boolean;
         autoCommitDefault?: boolean;
         autoCreatePRDefault?: boolean;
         autoMergePRDefault?: boolean;
@@ -154,6 +156,22 @@ export const settingsRoutes = new Elysia({ prefix: '/settings' })
               ...(skipAgentPermissionPrompts !== undefined && { skipAgentPermissionPrompts }),
             },
           });
+        }
+
+        // Persist restartOnAutoRunDry separately: the Prisma client type does not
+        // include this column until it is regenerated (on the next backend
+        // restart), so write it through a cast to keep this compiling now. The
+        // value still lands in the row the same way once the column exists.
+        if (restartOnAutoRunDry !== undefined) {
+          await prisma.userSettings
+            .update({
+              where: { id: settings.id },
+              data: { restartOnAutoRunDry } as unknown as Parameters<
+                typeof prisma.userSettings.update
+              >[0]['data'],
+            })
+            .catch((err) => log.warn({ err }, 'restartOnAutoRunDry persist failed'));
+          (settings as Record<string, unknown>).restartOnAutoRunDry = restartOnAutoRunDry;
         }
 
         return settings;

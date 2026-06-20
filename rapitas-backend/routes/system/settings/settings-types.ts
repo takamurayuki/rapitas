@@ -24,6 +24,8 @@ export interface UserSettingsUpdateBody {
   autoComplexityAnalysis?: boolean;
   /** Per-theme cap on auto-created backlog tasks (0 = disabled). */
   autoCreateFromBacklogLimit?: number;
+  /** Dev: restart backend when auto-run runs dry to apply committed fixes. */
+  restartOnAutoRunDry?: boolean;
   defaultAiProvider?: string;
   defaultCategoryId?: number | null;
   activeMode?: string;

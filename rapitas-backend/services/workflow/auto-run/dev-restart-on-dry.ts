@@ -1,0 +1,102 @@
+/**
+ * dev-restart-on-dry
+ *
+ * Optional dev-mode auto-restart. When a theme's auto-run runs out of work (the
+ * quiet point with no live agents) AND the local checkout has new commits since
+ * this backend started, gracefully restart so committed fixes take effect before
+ * more tasks are created. Gated behind UserSettings.restartOnAutoRunDry, a global
+ * no-agent check, a "HEAD actually moved" check, and a rate limit.
+ *
+ * Only meaningful under the dev orchestrator (dev.js relaunches the process on
+ * exit code 75). Not responsible for selecting/creating tasks.
+ */
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { prisma } from '../../../config/database';
+import { createLogger } from '../../../config/logger';
+import { AgentOrchestrator } from '../../agents/agent-orchestrator';
+
+const execFileAsync = promisify(execFile);
+const log = createLogger('auto-run:dev-restart');
+
+/** dev.js relaunches the backend when it exits with this code. */
+const RESTART_EXIT_CODE = 75;
+/** Never auto-restart more often than this (avoid restart loops). */
+const MIN_RESTART_INTERVAL_MS = 10 * 60 * 1000;
+
+let startupCommit: string | null = null;
+let lastRestartAt = 0;
+let restarting = false;
+
+/** Current HEAD of the backend's checkout, or null if git is unavailable. */
+async function headCommit(): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: process.cwd() });
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Capture the commit the backend booted on. Call once at scheduler start so a
+ * later dry-restart only fires when HEAD has actually advanced past it.
+ */
+export async function recordStartupCommit(): Promise<void> {
+  if (startupCommit) return;
+  startupCommit = await headCommit();
+  log.info({ startupCommit }, '[dev-restart] recorded startup commit');
+}
+
+/** Whether the toggle is on. Read via cast — the column is pending client regen. */
+async function restartEnabled(): Promise<boolean> {
+  const s = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    restartOnAutoRunDry?: boolean | null;
+  } | null;
+  return s?.restartOnAutoRunDry === true;
+}
+
+/**
+ * Gracefully restart when all gates pass: enabled + new commits since boot + no
+ * live agents anywhere + not rate-limited. Returns true when a restart was kicked
+ * off (so the caller skips backlog promotion / idling this pass).
+ *
+ * @param themeId - The theme whose auto-run just ran dry. / 枯渇したテーマID
+ * @returns Whether a restart was initiated. / 再起動を開始したか
+ */
+export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
+  if (restarting) return true;
+  if (!(await restartEnabled())) return false;
+
+  const now = Date.now();
+  if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) return false;
+
+  // Only restart when there is genuinely something new to apply.
+  const current = await headCommit();
+  if (!current || !startupCommit || current === startupCommit) return false;
+
+  // all_done is per-theme; require global quiescence so we never kill another
+  // theme's in-flight agent.
+  const active = AgentOrchestrator.getInstance(prisma).getActiveExecutionCount();
+  if (active > 0) return false;
+
+  restarting = true;
+  lastRestartAt = now;
+  log.warn(
+    { themeId, startupCommit, current },
+    '[dev-restart] auto-run dry + new commits + no agents — restarting to apply updates',
+  );
+  void gracefulRestart();
+  return true;
+}
+
+/** Graceful shutdown then exit with the restart code dev.js watches for. */
+async function gracefulRestart(): Promise<void> {
+  try {
+    await AgentOrchestrator.getInstance(prisma).gracefulShutdown();
+  } catch (err) {
+    log.error({ err }, '[dev-restart] graceful shutdown error; exiting anyway');
+  }
+  // Small delay so logs flush + the shutdown settles before the process dies.
+  setTimeout(() => process.exit(RESTART_EXIT_CODE), 300);
+}

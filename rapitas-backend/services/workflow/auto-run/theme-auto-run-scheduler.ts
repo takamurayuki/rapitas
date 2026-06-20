@@ -22,6 +22,7 @@ import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
 import { promoteBacklogForTheme } from './backlog-task-promoter';
+import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
   POLL_INTERVAL_MS,
@@ -75,6 +76,10 @@ export class ThemeAutoRunScheduler {
     // 'queued' forever and never run (observed: tasks enqueued but no agent ran).
     // startProcessing() is idempotent, so calling it on every start() is safe.
     WorkflowRunner.getInstance().startProcessing();
+
+    // Capture the commit this backend booted on so the optional dry-restart only
+    // fires once new commits actually land (avoids restarting on every dry tick).
+    void recordStartupCommit();
 
     if (this.running) return;
     this.running = true;
@@ -390,6 +395,12 @@ export class ThemeAutoRunScheduler {
 
     if (!result.found) {
       if (result.reason === 'all_done') {
+        // Optional dev safety: when enabled, this quiet point (no live agents) is
+        // the safe moment to restart and pick up committed fixes BEFORE creating
+        // more tasks. Only fires when HEAD moved since boot + no agents anywhere +
+        // not rate-limited; otherwise it's a no-op. If it restarts, stop here.
+        if (await maybeRestartForUpdate(themeId)) return;
+
         // Before idling, refill from the backlog (open concerns first, then ideas
         // once concerns are clear) up to the per-theme cap, so a theme that ran
         // out of work keeps progressing. When tasks were created, stay active —

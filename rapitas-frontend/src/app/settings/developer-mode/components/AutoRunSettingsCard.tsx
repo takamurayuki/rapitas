@@ -92,6 +92,36 @@ export function AutoRunSettingsCard({
             </span>
           </div>
         </div>
+
+        {/* Restart backend when auto-run runs dry (apply committed fixes safely).
+            NOTE: literal JP copy — add i18n keys (devRestartOnAutoRunDry*) later. */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              枯渇時にバックエンドを再起動して修正を反映（開発用）
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              自動実行でタスクが無くなった静止点（実行中エージェント0）で、起動後に新しいコミットがある場合のみ安全に再起動し、コミット済みの修正を反映してから次の自動起票へ進みます（10分のレート制限つき）。dev 起動時のみ有効。
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              onUpdateSettings({ restartOnAutoRunDry: !settings?.restartOnAutoRunDry })
+            }
+            disabled={isSaving}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+              settings?.restartOnAutoRunDry ? 'bg-violet-500' : 'bg-zinc-300 dark:bg-zinc-600'
+            }`}
+            role="switch"
+            aria-checked={settings?.restartOnAutoRunDry ?? false}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                settings?.restartOnAutoRunDry ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );
