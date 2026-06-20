@@ -568,6 +568,23 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       return { success: false, error: 'PR not found' };
     }
 
+    // NOTE: Prisma guarantees Int for prNumber, but guard against runtime data corruption
+    // that could cause `gh pr edit #` (non-numeric) to be executed (see research.md #謎 analysis).
+    if (!Number.isInteger(pr.prNumber) || pr.prNumber <= 0) {
+      context.set.status = 422;
+      return { success: false, error: 'PR番号が不正です' };
+    }
+
+    // NOTE: GitHub API rejects base-branch changes on merged/closed PRs — block before
+    // calling gh to prevent ERROR-level log spam from gh-client.ts:54.
+    if (pr.state !== 'open') {
+      context.set.status = 409;
+      return {
+        success: false,
+        error: `PRがopen状態でないためマージ先を変更できません (現在: ${pr.state})`,
+      };
+    }
+
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     try {
       await githubService.changePullRequestBase(repo, pr.prNumber, baseBranch);
