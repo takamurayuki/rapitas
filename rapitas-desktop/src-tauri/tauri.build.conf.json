@@ -7,7 +7,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "rpm", "nsis", "msi", "dmg", "app"],
     "externalBin": [],
     "resources": [
       "binaries/rapitas-backend-*.exe",
