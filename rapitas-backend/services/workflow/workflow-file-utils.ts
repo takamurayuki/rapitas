@@ -138,6 +138,32 @@ export async function writeWorkflowFile(
 }
 
 /**
+ * Move a workflow file into `_archive/<ts>/` so a later phase cannot reuse it.
+ * Used when an artifact is rejected (e.g. a log-polluted plan.md on replan): the
+ * producing phase then regenerates from scratch instead of re-reading the bad
+ * file and looping. Best-effort; a missing file is a no-op.
+ *
+ * @param dir - Workflow directory. / ワークフローディレクトリ
+ * @param fileType - Artifact to archive. / 退避するファイル種別
+ * @returns true when a file was archived. / 退避した場合 true
+ */
+export async function archiveWorkflowFile(
+  dir: string,
+  fileType: WorkflowFileType,
+): Promise<boolean> {
+  const filePath = join(dir, `${fileType}.md`);
+  try {
+    await stat(filePath);
+    const archiveDir = getArchiveDir(dir, new Date().toISOString());
+    await mkdir(archiveDir, { recursive: true });
+    await rename(filePath, join(archiveDir, `${fileType}.md`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Upsert a row in the `WorkflowFile` metadata table so consumers can query
  * "which tasks have a stale plan?" without touching the filesystem.
  * Best-effort — failures are logged and swallowed.

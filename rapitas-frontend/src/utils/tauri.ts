@@ -93,11 +93,14 @@ type ExtendedWindow = Window & {
 
 /**
  * Determine if running in Tauri environment
- * Checks for window.__TAURI__ existence
+ * Checks for the always-injected __TAURI_INTERNALS__ global
  */
 export function isTauri(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!(window as ExtendedWindow).__TAURI__;
+  // NOTE: detect via __TAURI_INTERNALS__ (always injected by Tauri) rather than
+  // __TAURI__, which is gone once withGlobalTauri is disabled. The @tauri-apps/api
+  // modules use the same internals, so module-based calls keep working.
+  return '__TAURI_INTERNALS__' in window;
 }
 
 /**
@@ -156,15 +159,12 @@ export function getQueryParam(param: string): string | null {
 export async function hideToTray(): Promise<void> {
   if (!isTauri()) return;
   try {
-    const tauri = (window as ExtendedWindow).__TAURI__;
-    const webviewWindow = tauri?.webviewWindow;
-    if (webviewWindow) {
-      const current = webviewWindow.getCurrentWebviewWindow();
-      if (current) {
-        // NOTE: close() fires CloseRequested event in Rust's on_window_event,
-        // where prevent_close() + window.hide() minimizes to tray
-        await current.close();
-      }
+    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+    const current = getCurrentWebviewWindow();
+    if (current) {
+      // NOTE: close() fires CloseRequested event in Rust's on_window_event,
+      // where prevent_close() + window.hide() minimizes to tray
+      await current.close();
     }
   } catch (e) {
     logger.error('Failed to hide window to tray:', e);
@@ -279,16 +279,15 @@ export async function openExternalUrlInNewWindow(
   }
 
   try {
-    const tauri = (window as ExtendedWindow).__TAURI__;
-    const webviewWindow = tauri?.webviewWindow?.WebviewWindow;
+    const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
 
-    if (webviewWindow) {
+    {
       // Generate window label (using URL hostname)
       const urlObj = new URL(url);
       const label = `external-${urlObj.hostname.replace(/\./g, '-')}-${Date.now()}`;
 
       // Create new WebView window
-      const newWindow = new webviewWindow(label, {
+      const newWindow = new WebviewWindow(label, {
         url,
         title,
         width: 1200,

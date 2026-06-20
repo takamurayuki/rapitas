@@ -15,21 +15,21 @@ describe('tauri utilities', () => {
 
   beforeEach(() => {
     // Store original values
-    originalTauri = (window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    originalTauri = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     originalSplitView = (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown })
       .__RAPITAS_SPLIT_VIEW__;
 
     // Clean up window state
-    delete (window as unknown as { __TAURI__?: unknown }).__TAURI__;
+    delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     delete (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__;
   });
 
   afterEach(() => {
     // Restore original values or delete if they didn't exist
     if (originalTauri !== undefined) {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = originalTauri;
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = originalTauri;
     } else {
-      delete (window as unknown as { __TAURI__?: unknown }).__TAURI__;
+      delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     }
 
     if (originalSplitView !== undefined) {
@@ -47,7 +47,7 @@ describe('tauri utilities', () => {
 
     it('Tauri環境のときtrueを返す', () => {
       // Mock Tauri API
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {
         event: {},
         window: {},
       };
@@ -66,13 +66,13 @@ describe('tauri utilities', () => {
     });
 
     it('Tauri環境で数値IDの場合、クエリパラメータ形式のパスを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(getTaskDetailPath(456)).toBe('/tasks/detail?id=456');
     });
 
     it('Tauri環境で文字列IDの場合、クエリパラメータ形式のパスを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(getTaskDetailPath('xyz')).toBe('/tasks/detail?id=xyz');
     });
@@ -84,7 +84,7 @@ describe('tauri utilities', () => {
     });
 
     it('Tauri環境で正しいパスを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(getApprovalDetailPath(789)).toBe('/approvals/detail?id=789');
     });
@@ -100,13 +100,13 @@ describe('tauri utilities', () => {
     });
 
     it('Tauri環境で正しいパスを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(getGitHubPRDetailPath(42)).toBe('/github/pull-requests/detail?id=42');
     });
 
     it('文字列IDを正しく処理する', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(getGitHubPRDetailPath('pr-123')).toBe('/github/pull-requests/detail?id=pr-123');
     });
@@ -186,13 +186,13 @@ describe('tauri utilities', () => {
     });
 
     it('Tauri環境でスプリットビュー状態がない場合、falseを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
 
       expect(isSplitViewActive()).toBe(false);
     });
 
     it('Tauri環境でスプリットビュー状態がある場合、trueを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
       (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__ = {
         originalSize: { width: 1200, height: 800 },
         originalPosition: { x: 100, y: 100 },
@@ -206,7 +206,7 @@ describe('tauri utilities', () => {
     });
 
     it('スプリットビュー状態がnullの場合、falseを返す', () => {
-      (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
       (window as unknown as { __RAPITAS_SPLIT_VIEW__?: unknown }).__RAPITAS_SPLIT_VIEW__ = null;
 
       expect(isSplitViewActive()).toBe(false);

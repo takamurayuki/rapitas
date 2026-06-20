@@ -141,6 +141,15 @@ export function handleCompleted(
       '\n';
   }
 
+  // When the whole task has finished AND an auto-PR was created, surface it in
+  // the log — the run previously ended at "[調査完了]…次のフェーズへ" with no
+  // sign the PR had been opened. Added once (gated by hasAddedFinalLogRef).
+  const prUrl = typeof data.prUrl === 'string' ? data.prUrl : null;
+  if (isWorkflowTerminal(data) && prUrl) {
+    const prNumber = typeof data.prNumber === 'number' ? `#${data.prNumber} ` : '';
+    completionMessage += `[PR作成] PRを作成しました: ${prNumber}${prUrl}\n`;
+  }
+
   // PHASE-COMPLETE BUT NOT TASK-COMPLETE: do NOT reset the dedup refs here.
   // Resetting on every 'completed' poll made this handler re-run and re-emit the
   // phase-completion message on EVERY subsequent poll while the same completed

@@ -20,7 +20,20 @@ import {
 const logger = createLogger('fallback-handler');
 
 /**
+ * Matches actual Claude Code CLI session-expiry messages.
+ * Intentionally narrow: generic tokens like "session", "code 1", "invalid",
+ * and "not found" alone are excluded — they caused false positives on unrelated
+ * failures when execution-resolver injected "session expired or not found" into
+ * every resume-mode errorMessage regardless of actual cause.
+ */
+const SESSION_FAILURE_RE =
+  /no conversation found|conversation .*not found|session (id )?(not found|expired|invalid|does not exist)|no such session|could not (resume|find) session|resume failed/i;
+
+/**
  * Determines whether a result indicates that the --resume session ID is no longer valid.
+ * Requires an actual CLI session-expiry signature in errorMessage; execution-time
+ * heuristics alone are not sufficient (they caused false positives on working-dir-not-found
+ * and other quick exits unrelated to session expiry).
  *
  * @param result - Agent execution result / エージェント実行結果
  * @param claudeSessionId - Session ID that was used / 使用されたセッションID
@@ -34,9 +47,7 @@ export function isSessionResumeFailure(
     !result.success &&
     !result.waitingForInput &&
     !!claudeSessionId &&
-    ((result.executionTimeMs !== undefined && result.executionTimeMs < 10000) ||
-      (!!result.errorMessage &&
-        /session|expired|invalid|not found|code 1/i.test(result.errorMessage)))
+    SESSION_FAILURE_RE.test(result.errorMessage ?? '')
   );
 }
 

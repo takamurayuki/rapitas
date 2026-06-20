@@ -45,16 +45,15 @@ export function useWindowResize({
   }, [debounceMs, onResize, onResizeStart, onResizeEnd]);
 
   useEffect(() => {
-    // Check for Tauri environment
-    const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+    // Check for Tauri environment via the always-injected internals (works with
+    // withGlobalTauri disabled). Receive optimized resize events from Tauri.
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-    if (isTauri && window.__TAURI__?.event) {
-      // Receive optimized resize events from Tauri
-      const { listen } = window.__TAURI__.event;
-
+    if (isTauri) {
       let unlisten: (() => void) | undefined;
 
       (async () => {
+        const { listen } = await import('@tauri-apps/api/event');
         unlisten = await listen('window-resize-optimized', handleResize);
       })();
 

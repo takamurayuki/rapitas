@@ -83,6 +83,41 @@ jobs:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/rapitas_test
         run: bun run eval:gates
 
+  test-order-check:
+    name: Test Order Dependency Check
+    runs-on: ubuntu-latest
+    # NOTE: continue-on-error keeps this job in "visibility phase".
+    # Existing order-dependent tests should be fixed before enabling strict mode.
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+
+      - name: Install backend dependencies
+        working-directory: rapitas-backend
+        run: bun install
+
+      - name: Generate Prisma client
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+        run: bunx prisma generate
+
+      - name: Run tests in shuffled order
+        working-directory: rapitas-backend
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+          TEST_SHUFFLE_SEED: ${{ github.run_number }}
+        run: |
+          echo "Shuffle seed: $TEST_SHUFFLE_SEED  (pass TEST_SHUFFLE_SEED=$TEST_SHUFFLE_SEED to reproduce)"
+          bun run test:shuffle
+
   test-sqlite:
     name: Test SQLite Compatible Suite
     runs-on: ubuntu-latest

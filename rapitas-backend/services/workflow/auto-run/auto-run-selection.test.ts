@@ -120,6 +120,27 @@ describe('selectNextTask', () => {
     expect(result).toEqual({ found: true, taskId: 10 });
   });
 
+  it('keeps a todo task eligible even with a terminal workflowStatus (re-run)', async () => {
+    // Regression: a todo task whose workflowStatus is verify_done/completed
+    // (status reset to re-run, or a verify that did not finalize) was excluded,
+    // so the theme idled with this task still pending.
+    const mockFindMany = mock().mockResolvedValue([
+      {
+        id: 232,
+        status: 'todo',
+        workflowStatus: 'verify_done',
+        priority: 'medium',
+        createdAt: new Date(),
+      },
+    ]);
+    const prisma = makePrisma({ task: { findMany: mockFindMany } });
+    const result = await selectNextTask(prisma, 1, 'priority', [], 0);
+    expect(result).toEqual({ found: true, taskId: 232 });
+    // The where clause must allow a 'todo' row through regardless of workflowStatus.
+    const where = mockFindMany.mock.calls[0][0].where as { OR: unknown[] };
+    expect(where.OR).toEqual(expect.arrayContaining([{ status: 'todo' }]));
+  });
+
   it('skips blocked tasks', async () => {
     const tasks = [
       {

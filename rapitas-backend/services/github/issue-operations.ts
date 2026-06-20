@@ -90,14 +90,6 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
 }
 
 /**
- * Create a new issue in a repository.
- *
- * @param repo - Repository in owner/name format / リポジトリ名
- * @param input - Issue creation input / イシュー作成入力
- * @returns Created issue / 作成されたイシュー
- * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
- */
-/**
  * Ensure each label exists in the repo, creating any that are missing. Failures
  * (including "label already exists") are ignored — best-effort so a label that
  * already exists doesn't block issue creation.
@@ -124,6 +116,14 @@ async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> 
   }
 }
 
+/**
+ * Create a new issue in a repository.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param input - Issue creation input / イシュー作成入力
+ * @returns Created issue / 作成されたイシュー
+ * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
+ */
 export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
   const baseArgs = ['issue', 'create', '--repo', repo, '--title', input.title];
 
