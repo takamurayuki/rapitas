@@ -151,6 +151,12 @@ export class ThemeAutoRunScheduler {
   private async tick(): Promise<void> {
     if (!this.running) return;
     try {
+      // Apply committed fixes at the next safe gap. With a large backlog the loop
+      // rarely reaches all_done, but it briefly hits 0 agents BETWEEN tasks — this
+      // catches that gap (gated on no-agents + HEAD-moved + rate-limit) so updates
+      // don't wait for the whole backlog to drain. No-op when busy / nothing new.
+      if (await maybeRestartForUpdate(0)) return;
+
       await this.processStoppingThemes();
       await this.processRunningThemes();
       await this.processPausedThemes();

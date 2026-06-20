@@ -8,7 +8,7 @@
       "lineCount": 1738
     },
     "rapitas-backend/services/workflow/workflow-cli-executor.ts": {
-      "lineCount": 985
+      "lineCount": 1012
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
       "lineCount": 973
