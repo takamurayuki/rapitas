@@ -18,7 +18,10 @@ import {
   resolveWorkflowDir,
   getFileInfo,
 } from '../core/workflow-helpers';
-import { writeWorkflowFile } from '../../../services/workflow/workflow-file-utils';
+import {
+  writeWorkflowFile,
+  sliceFromReportHeading,
+} from '../../../services/workflow/workflow-file-utils';
 import { detectReplacementLoss } from '../../../utils/common/mojibake-detector';
 import { looksLogPolluted } from '../../../services/workflow/phase-output-validator';
 import { performAutoCommitAndPR } from '../workflow-auto-commit';
@@ -303,6 +306,12 @@ export async function handleSaveFile({
       content = parsedBody.content;
       fileLanguage = parsedBody.language === 'en' ? 'en' : 'ja';
     }
+
+    // Strip any conversational preamble the agent wrote before the report body
+    // (e.g. "これで必要な調査が完了しました。以下がresearch.mdです。"). The .md
+    // should begin with its report heading; slice from there. No-op when a heading
+    // already leads or none is present.
+    content = sliceFromReportHeading(content, fileType);
 
     // Reject irreversible UTF-8 → '?' replacement mojibake. The original bytes are
     // gone, so there is nothing to "sanitise" — saving it would silently persist

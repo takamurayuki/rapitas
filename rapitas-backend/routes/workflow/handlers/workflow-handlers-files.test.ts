@@ -57,6 +57,9 @@ mock.module('../../../services/workflow/workflow-file-utils', () => ({
   // Echo the saved content so handler logic that inspects it (e.g. the research
   // "no change" verdict) sees the real body.
   writeWorkflowFile: mock((_dir: string, _ft: string, content: string) => Promise.resolve(content)),
+  // Identity passthrough — the handler strips conversational preamble via this;
+  // these tests pass already-clean bodies, so returning content as-is is faithful.
+  sliceFromReportHeading: (content: string) => content,
 }));
 
 // ---- recordTransition mock ----
