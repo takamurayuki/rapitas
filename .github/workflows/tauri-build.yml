@@ -342,7 +342,11 @@ jobs:
       # Same packaging smoke test as Windows: boot the compiled binary outside
       # the repo (no node_modules) and require a 200 from a DB-backed route.
       - name: Smoke test backend binary (Unix)
-        if: matrix.platform != 'windows-latest'
+        # Skip the x86_64-apple-darwin CROSS build: the macos runner is arm64, so
+        # the smoke copies the runner's native arm64 Prisma query engine, which the
+        # Intel binary can't load — it can never serve /categories. Only smoke the
+        # NATIVE targets (ubuntu x86_64, macos aarch64).
+        if: matrix.platform != 'windows-latest' && matrix.target != 'x86_64-apple-darwin'
         working-directory: rapitas-backend
         shell: bash
         run: |
