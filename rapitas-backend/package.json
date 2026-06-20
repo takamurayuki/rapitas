@@ -16,7 +16,7 @@
     "test:all": "bun test --isolate && bun test --path-ignore-patterns=\"\" ./tests/integration/",
     "test:watch": "bun test --watch",
     "test:sqlite": "node scripts/run-sqlite-tests.cjs",
-    "test:coverage": "bun test --coverage",
+    "test:coverage": "bun test --coverage --isolate",
     "eval:gates": "bun run scripts/eval-gates.ts",
     "eval:judge": "bun run scripts/eval-judge.ts",
     "db:push": "prisma db push",
