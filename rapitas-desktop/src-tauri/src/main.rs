@@ -354,6 +354,16 @@ fn setup_global_shortcut(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 }
 
 fn main() {
+    // Keep WebView2 painting when the window is occluded/backgrounded (e.g. behind
+    // another window in a split-screen layout). Without this, Chromium's native
+    // window-occlusion detection pauses rendering and the webview shows a black
+    // frame that only repaints on click. Must run before any webview is created.
+    #[cfg(target_os = "windows")]
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--disable-features=CalculateNativeWinOcclusion",
+    );
+
     #[cfg(not(debug_assertions))]
     {
         use std::sync::Mutex;
