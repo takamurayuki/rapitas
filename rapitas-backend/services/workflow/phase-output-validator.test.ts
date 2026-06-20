@@ -147,6 +147,31 @@ TypeScript: 1 件のエラー
     expect(validateVerify(failed).ok).toBe(false);
   });
 
+  test('does NOT flag an error-handling verify (✅ success, 失敗テスト数: 0)', () => {
+    // Regression: a bug fix for a FAILURE path (ENOENT/phantom) legitimately
+    // mentions 失敗 and reports the instructed "失敗テスト数: 0". The old regex
+    // matched bare "失敗テスト", wrongly blocking the task (verify_validation_failed).
+    const errorHandlingVerify = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功 — phantom path で失敗テストを再現し、cmd.exe を spawn しないことを確認。
+## テスト結果
+bun test: 4 passed, 失敗テスト数: 0
+## チェックリスト消化状況
+- [x] existsSync ガード追加`;
+    expect(validateVerify(errorHandlingVerify).ok).toBe(true);
+  });
+
+  test('still flags a real contradiction (✅ success but 10 tests failed)', () => {
+    const contradictory = `# 検証レポート
+## 検証結果サマリ
+✅ 検証成功
+## テスト結果
+bun test: 2 passed, 10 failed
+## チェックリスト消化状況
+- [x] done`;
+    expect(validateVerify(contradictory).ok).toBe(false);
+  });
+
   // Regression tests for the auto_verifier WARN: lightweight mode (no plan.md) must still
   // emit the 3 required headings so validateVerify does not produce the WARN.
   test('accepts auto_verifier output with チェックリスト消化状況 heading (no plan)', () => {

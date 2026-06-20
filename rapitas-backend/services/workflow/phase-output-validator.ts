@@ -148,17 +148,21 @@ export function validateVerify(content: string): ValidationResult {
     /全[テt]?\d*\s*テスト[^❌]{0,30}通過|all\s+tests?\s+pass|all\s+\d+\s+tests?\s+passed|✅\s*検証成功|✅\s*pass/i.test(
       content,
     ) || /すべて(?:の)?テスト[^❌]{0,40}(成功|通過|パス)/.test(content);
+  // Failure signals must indicate an ACTUAL non-zero failure. Earlier patterns
+  // matched bare prose ("失敗テスト", "failing test") and the instructed
+  // "失敗テスト数: 0" field, so any task that FIXES a failure (e.g. ENOENT/error
+  // handling) — whose verify.md legitimately discusses failure scenarios and
+  // reports "0 failed" — was wrongly flagged as a hallucinated pass and blocked.
+  // Require a non-zero count (or an explicit fail mark) instead.
   const failureSignals = [
-    /\b(\d+)\s+failed/i,
-    /tests?\s+\d+\s+failed/i,
-    /test\s+files?[\s\S]{0,80}failed/i,
-    /failing\s+test/i,
-    /テスト[^。\n]{0,30}失敗/,
-    /失敗\s*(?:した)?テスト/,
+    /\b([1-9]\d*)\s+failed/i, // "10 failed" — not "0 failed"
+    /tests?\s+([1-9]\d*)\s+failed/i,
+    /test\s+files?[\s\S]{0,80}?([1-9]\d*)\s+failed/i,
+    /失敗\s*(?:した)?テスト\s*(?:数|件数)?\s*[:：]?\s*([1-9]\d*)/, // "失敗テスト数: 3", not ": 0"
+    /テスト[^。\n]{0,20}?([1-9]\d*)\s*(?:件|個)\s*(?:が)?\s*失敗/, // "テストが3件失敗"
     /❌/,
-    /exit\s*(code\s*)?[:=]?\s*1\b/i,
-    /exit\s*1\b/i,
-    /×\s*\d+/,
+    /exit\s*(?:code\s*)?[:=]?\s*1\b/i,
+    /×\s*[1-9]\d*/, // "× 5" — not "× 0"
   ];
   const failureHits = failureSignals
     .map((re) => content.match(re))
