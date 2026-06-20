@@ -17,20 +17,31 @@ import { createTask } from '../../task/task-mutations';
 
 const log = createLogger('auto-run:backlog-promoter');
 
+/** Blocked tasks older than this stop counting toward the cap (anti-deadlock). */
+const STALE_BLOCKED_MS = 2 * 60 * 60 * 1000;
+
 /**
- * In-flight auto-created tasks for a theme: todo / in-progress AND blocked.
- * Blocked MUST count — a promoted task that fails goes to 'blocked', not 'done',
- * so excluding it would let the cap refill endlessly as tasks block (create →
- * block → create → block …), flooding the theme with failing backlog tasks.
- * Only 'done' frees a slot.
+ * In-flight auto-created tasks for a theme: todo / in-progress, plus RECENTLY
+ * blocked tasks. Recent blocks still count so the cap pauses creation while a
+ * theme's tasks are actively failing (don't flood it). But STALE blocked tasks
+ * (e.g. a batch stuck by a since-fixed bug) must release their slot — otherwise a
+ * pile of permanently-blocked tasks DEADLOCKS all new 起票 (observed: 10 verify-
+ * gate false-positives filled the cap and stopped promotion entirely). This is
+ * safe against the "create → block → create …" refill the old code feared: the
+ * per-item dedup (convertConcernToTask marks the source 'task_created', so it
+ * leaves the open list) already prevents re-promoting a blocked item.
  */
 async function countOutstandingAutoCreated(themeId: number): Promise<number> {
+  const staleCutoff = new Date(Date.now() - STALE_BLOCKED_MS);
   return prisma.task
     .count({
       where: {
         themeId,
         autoCreatedFromBacklog: true,
-        status: { in: ['todo', 'in-progress', 'blocked'] },
+        OR: [
+          { status: { in: ['todo', 'in-progress'] } },
+          { status: 'blocked', updatedAt: { gt: staleCutoff } },
+        ],
       },
     })
     .catch(() => 0);
