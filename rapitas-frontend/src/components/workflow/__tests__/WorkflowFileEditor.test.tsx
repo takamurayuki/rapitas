@@ -1,6 +1,6 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '@/__tests__/test-utils';
 import { WorkflowFileEditor } from '../WorkflowFileEditor';
-import { ToastProvider } from '../../ui/toast/ToastContainer';
 
 vi.mock('@/utils/api', () => ({
   API_BASE_URL: 'http://test:3001',
@@ -9,16 +9,14 @@ vi.mock('@/utils/api', () => ({
 function renderEditor(overrides?: { onSaved?: () => void; onCancel?: () => void }) {
   const onSaved = overrides?.onSaved ?? vi.fn();
   const onCancel = overrides?.onCancel ?? vi.fn();
-  render(
-    <ToastProvider>
-      <WorkflowFileEditor
-        taskId={5}
-        fileType="plan"
-        initialContent={'# Plan\n- step'}
-        onSaved={onSaved}
-        onCancel={onCancel}
-      />
-    </ToastProvider>,
+  renderWithProviders(
+    <WorkflowFileEditor
+      taskId={5}
+      fileType="plan"
+      initialContent={'# Plan\n- step'}
+      onSaved={onSaved}
+      onCancel={onCancel}
+    />,
   );
   return { onSaved, onCancel };
 }

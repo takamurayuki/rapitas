@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithProviders } from '@/__tests__/test-utils';
 import DecisionsClient from '../DecisionsClient';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
@@ -45,12 +46,12 @@ describe('DecisionsClient', () => {
   });
 
   it('renders the page title', async () => {
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     expect(screen.getByText('デシジョンジャーナル')).toBeInTheDocument();
   });
 
   it('fetches and displays decisions', async () => {
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => {
       expect(screen.getByText('TypeScriptの採用を決定')).toBeInTheDocument();
     });
@@ -58,21 +59,21 @@ describe('DecisionsClient', () => {
 
   it('shows empty state when no decisions', async () => {
     setupFetch([]);
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => {
       expect(screen.getByText(/記録された意思決定はありません/)).toBeInTheDocument();
     });
   });
 
   it('opens add modal when button clicked', async () => {
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => screen.getByText('TypeScriptの採用を決定'));
     fireEvent.click(screen.getByText('決定を記録'));
     expect(screen.getByPlaceholderText(/決定内容/)).toBeInTheDocument();
   });
 
   it('shows status filter tabs', async () => {
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     expect(screen.getByText('未レビュー')).toBeInTheDocument();
     expect(screen.getByText('レビュー済')).toBeInTheDocument();
     expect(screen.getByText('アーカイブ')).toBeInTheDocument();
@@ -82,7 +83,7 @@ describe('DecisionsClient', () => {
   it('shows review button with count when review-due items exist', async () => {
     const overdue = makeDecision({ reviewDate: '2020-01-01T00:00:00Z' });
     setupFetch([makeDecision()], [overdue]);
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => {
       expect(screen.getByText('今日のレビュー')).toBeInTheDocument();
     });
@@ -90,7 +91,7 @@ describe('DecisionsClient', () => {
 
   it('does not show review button when no review-due items', async () => {
     setupFetch([makeDecision()], []);
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => screen.getByText('TypeScriptの採用を決定'));
     expect(screen.queryByText('今日のレビュー')).not.toBeInTheDocument();
   });
@@ -112,7 +113,7 @@ describe('DecisionsClient', () => {
       });
     }) as unknown as typeof fetch;
 
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => expect(screen.getByText('今日のレビュー')).toBeInTheDocument());
 
     fireEvent.click(screen.getByText('今日のレビュー'));
@@ -134,7 +135,7 @@ describe('DecisionsClient', () => {
 
   it('shows task badge when decision is converted', async () => {
     setupFetch([makeDecision({ taskId: 42 })]);
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => {
       expect(screen.getByText('タスク化済 #42')).toBeInTheDocument();
     });
@@ -155,7 +156,7 @@ describe('DecisionsClient', () => {
     }) as unknown as typeof fetch;
     global.fetch = mockFetch;
 
-    render(<DecisionsClient />);
+    renderWithProviders(<DecisionsClient />);
     await waitFor(() => screen.getByText('TypeScriptの採用を決定'));
 
     const deleteBtn = screen.getByTitle('削除');

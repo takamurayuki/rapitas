@@ -1,7 +1,6 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { renderWithProviders } from '@/__tests__/test-utils';
 import IdeasClient from '../IdeasClient';
-// IdeasClient calls useToast — every render must be wrapped in ToastProvider.
-import { ToastProvider } from '@/components/ui/toast/ToastContainer';
 
 vi.mock('@/utils/api', () => ({ API_BASE_URL: 'http://test' }));
 vi.mock('@/stores/filter-data-store', () => ({
@@ -40,12 +39,12 @@ describe('IdeasClient', () => {
   });
 
   it('renders the page title', async () => {
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     expect(screen.getByText('アイデアボックス')).toBeInTheDocument();
   });
 
   it('fetches and displays ideas', async () => {
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => {
       expect(screen.getByText('テストアイデア')).toBeInTheDocument();
     });
@@ -58,21 +57,21 @@ describe('IdeasClient', () => {
         json: () => Promise.resolve({ ideas: [], total: 0 }),
       }),
     ) as unknown as typeof fetch;
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => {
       expect(screen.getByText(/アイデアがまだありません/)).toBeInTheDocument();
     });
   });
 
   it('opens quick add form when button clicked', async () => {
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
     fireEvent.click(screen.getByText('アイデアを追加'));
     expect(screen.getByPlaceholderText(/アイデアをひとことで/)).toBeInTheDocument();
   });
 
   it('does not show pagination when total pages is 1', async () => {
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
     // Paginationコンポーネントは totalPages <= 1 の場合非表示
     expect(screen.queryByRole('button', { name: /ページ/ })).not.toBeInTheDocument();
@@ -92,7 +91,7 @@ describe('IdeasClient', () => {
       });
     }) as unknown as typeof fetch;
 
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
     // 総数40、itemsPerPage=10なので4ページ => ページネーション表示される
     // (4 はページサイズ候補[5,10,15]に無く一意に取れる)
@@ -114,7 +113,7 @@ describe('IdeasClient', () => {
     }) as unknown as typeof fetch;
     global.fetch = mockFetch;
 
-    render(<IdeasClient />, { wrapper: ToastProvider });
+    renderWithProviders(<IdeasClient />);
     await waitFor(() => screen.getByText('テストアイデア'));
 
     // 初期APIコールを確認
