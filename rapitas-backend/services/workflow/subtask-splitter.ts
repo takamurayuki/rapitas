@@ -11,7 +11,7 @@ import { realtimeService } from '../communication/realtime-service';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { getTaskWorkflowDir } from './workflow-paths';
-import { extractFirstJsonArray } from './extract-json-array';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 
 const log = createLogger('subtask-splitter');
 
@@ -214,14 +214,19 @@ async function generateSubtasksWithAI(
       ),
     ]);
 
-    // NOTE: extractFirstJsonArray replaces the former greedy regex
+    // NOTE: parseJsonArray replaces the former greedy regex
     // `/\[[\s\S]*\]/`. The old regex matched from the first `[` to the LAST `]`
     // in the entire response, which caused it to swallow trailing text containing
     // `]` and pass a truncated/invalid string to JSON.parse — producing the
     // "Unterminated string" SyntaxError. The bracket-depth scanner avoids both
     // the greedy-match and the truncation-exception issues.
-    const jsonStr = extractFirstJsonArray(res.content);
-    if (!jsonStr) {
+    const parsed = parseJsonArray<{
+      title?: string;
+      scope?: unknown;
+      instructions?: unknown;
+      acceptanceCriteria?: unknown;
+    }>(res.content);
+    if (!parsed) {
       const preview = res.content.slice(0, 500);
       const suffix = res.content.length > 500 ? `…(+${res.content.length - 500} chars)` : '';
       log.warn(
@@ -230,13 +235,6 @@ async function generateSubtasksWithAI(
       );
       return null;
     }
-    const parsed = JSON.parse(jsonStr) as Array<{
-      title?: string;
-      scope?: unknown;
-      instructions?: unknown;
-      acceptanceCriteria?: unknown;
-    }>;
-    if (!Array.isArray(parsed)) return null;
 
     const toStringArray = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x) => typeof x === 'string').map((x) => x as string) : [];
@@ -267,7 +265,7 @@ async function generateSubtasksWithAI(
   } catch (err) {
     // NOTE: err.message contains the timeout string or JSON.parse error text.
     // For JSON.parse failures the raw content is already logged above (at the
-    // extractFirstJsonArray null-return site); here we only log the error itself
+    // parseJsonArray null-return site); here we only log the error itself
     // so the two log lines can be correlated by timestamp / request-id.
     log.warn(
       { err },
