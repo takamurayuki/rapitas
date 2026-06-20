@@ -47,7 +47,9 @@ export async function buildRoleContext(
         instruction: '上記のタスクについてコードベースを調査してください。',
         items:
           '調査項目:\n- 既存コードの構造と依存関係\n- 変更が必要なファイルの特定\n- 類似実装の有無\n- リスクと影響範囲の評価',
-        output: '調査結果をresearch.mdとしてMarkdown形式でまとめてください。',
+        output:
+          '調査結果をresearch.mdとしてMarkdown形式でまとめてください。\n\n' +
+          '**重要**: 調査の結果、タスクの要件が既存コードで**既に満たされており修正が不要**だと判断した場合は、research.md の最後に必ずこの見出し行を入れてください: `## 結論: 修正不要`（直後に1〜2行で根拠を記載）。これにより plan/実装フェーズに進まず research 段階で完了でき、不要な再計画ループ（plan_invalid_replan）や重複PRを避けられます。本当に変更が必要な場合はこの行を書かないでください。',
       },
       planner: {
         researchHeader: '# リサーチャーの調査結果 (research.md)',
@@ -112,7 +114,9 @@ export async function buildRoleContext(
         instruction: 'Please investigate the codebase for the above task.',
         items:
           'Investigation items:\n- Existing code structure and dependencies\n- Identification of files that need changes\n- Presence of similar implementations\n- Risk assessment and impact analysis',
-        output: 'Please summarize the research results as research.md in Markdown format.',
+        output:
+          'Please summarize the research results as research.md in Markdown format.\n\n' +
+          '**Important**: If your investigation concludes the task requirement is ALREADY satisfied by existing code and no change is needed, you MUST end research.md with this exact heading line: `## Conclusion: No change needed` (followed by 1-2 lines of justification). This lets the task complete at the research phase instead of proceeding to plan/implementation — avoiding a wasted re-plan loop (plan_invalid_replan) and a duplicate PR. Do NOT write this line if any change is actually required.',
       },
       planner: {
         researchHeader: '# Research Results (research.md)',
