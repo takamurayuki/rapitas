@@ -32,6 +32,7 @@ import {
   Bot,
   Settings,
   GitPullRequest,
+  Github,
   CircleDot,
   GitMerge,
   Code,
@@ -173,7 +174,7 @@ export default function Header() {
         {
           href: '#',
           label: 'GitHub',
-          icon: Code,
+          icon: Github,
           children: [
             { href: '/github', label: t('devDashboard'), icon: FolderGit2 },
             {
