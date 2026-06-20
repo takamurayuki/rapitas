@@ -17,14 +17,20 @@ import { createTask } from '../../task/task-mutations';
 
 const log = createLogger('auto-run:backlog-promoter');
 
-/** Outstanding (todo / in-progress) auto-created tasks for a theme. */
+/**
+ * In-flight auto-created tasks for a theme: todo / in-progress AND blocked.
+ * Blocked MUST count — a promoted task that fails goes to 'blocked', not 'done',
+ * so excluding it would let the cap refill endlessly as tasks block (create →
+ * block → create → block …), flooding the theme with failing backlog tasks.
+ * Only 'done' frees a slot.
+ */
 async function countOutstandingAutoCreated(themeId: number): Promise<number> {
   return prisma.task
     .count({
       where: {
         themeId,
         autoCreatedFromBacklog: true,
-        status: { in: ['todo', 'in-progress'] },
+        status: { in: ['todo', 'in-progress', 'blocked'] },
       },
     })
     .catch(() => 0);
