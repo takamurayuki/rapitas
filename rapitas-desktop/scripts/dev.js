@@ -975,6 +975,13 @@ function isPrismaPrepareCacheValid(currentHash) {
     // the generated client is actually the sqlite one; otherwise force regen.
     const clientSchema = fs.readFileSync(PRISMA_CLIENT_SCHEMA, "utf8");
     if (!/provider\s*=\s*"sqlite"/.test(clientSchema)) return false;
+    // NOTE: schema.prisma and index.js can DIVERGE — a postgres `prisma generate`
+    // (e.g. a pre-commit hook) overwrites the runtime index.js to postgres while
+    // leaving the client's schema.prisma copy on the previous sqlite generate, so
+    // a schema.prisma-only guard is fooled. The runtime loads index.js, which
+    // bakes the datasource as `provider = \"postgresql\"`; treat that as drift.
+    const clientJs = fs.readFileSync(PRISMA_CLIENT_OUTPUT, "utf8");
+    if (/provider\s*=\s*\\?"postgresql\\?"/.test(clientJs)) return false;
   } catch {
     return false;
   }
