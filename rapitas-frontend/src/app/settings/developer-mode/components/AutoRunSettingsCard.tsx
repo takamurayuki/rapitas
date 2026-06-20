@@ -45,6 +45,20 @@ export function AutoRunSettingsCard({
     }
   };
 
+  // Verify->implement self-repair limit (same local-state + blur pattern).
+  const serverRepairLimit = settings?.verifyRepairLimit ?? 2;
+  const [localRepairLimit, setLocalRepairLimit] = useState<number | ''>(serverRepairLimit);
+  useEffect(() => {
+    setLocalRepairLimit(serverRepairLimit);
+  }, [serverRepairLimit]);
+  const commitRepairLimit = () => {
+    const clamped = localRepairLimit === '' ? 0 : Math.max(0, Math.min(10, localRepairLimit));
+    setLocalRepairLimit(clamped);
+    if (clamped !== serverRepairLimit) {
+      onUpdateSettings({ verifyRepairLimit: clamped });
+    }
+  };
+
   return (
     <div className="mt-8 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-indigo-dark-900">
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
@@ -89,6 +103,42 @@ export function AutoRunSettingsCard({
             />
             <span className="text-sm text-zinc-500 dark:text-zinc-400">
               件{isSaving ? '（保存中…）' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Verify->implement self-repair limit (retry count; 0 = disabled).
+            NOTE: literal JP copy — add i18n keys (devVerifyRepairLimit*) later. */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
+              検証失敗時のリトライ回数（自己改善ループ上限）
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              検証が失敗したとき、その指摘を実装者に差し戻して「実装を修正→再検証」を自動で繰り返す上限回数です。上限まで自己改善ループを回し、超えるとブロックします。0でリトライ無効。
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={10}
+              value={localRepairLimit}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  setLocalRepairLimit('');
+                  return;
+                }
+                const num = Number(raw);
+                if (Number.isNaN(num)) return;
+                setLocalRepairLimit(num);
+              }}
+              onBlur={commitRepairLimit}
+              className="w-16 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 focus:border-blue-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50"
+            />
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              回{isSaving ? '（保存中…）' : ''}
             </span>
           </div>
         </div>
