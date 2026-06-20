@@ -645,6 +645,10 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
         '4. 競合を両者の意図を保ちつつ解消し、競合マーカー(<<<<<<< など)を残さない',
         '5. 変更を commit',
         `6. git push origin ${pr.headBranch} でPRブランチを更新`,
+        '',
+        '重要: 解消は PR ブランチへの push で完結し、このタスクの worktree には差分が残らないため、',
+        'verify.md に必ず「変更不要: 競合解消は PR ブランチへ push 済み」と明記してください',
+        '（空diffで誤ブロックされるのを防ぐため）。新規 PR は作成不要です。',
       ].join('\n');
       const task = await prisma.task
         .create({
@@ -656,6 +660,10 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
             isDeveloperMode: true,
             ...(themeId != null && { themeId }),
             workingDirectory,
+            // Link the existing PR so completion is NOT blocked by the "a PR must
+            // be created" gate — a conflict task updates PR #N, it never opens a
+            // new one. Also makes the task's "PRを開く" button resolve.
+            githubPrId: pr.prNumber,
           },
         })
         .catch(() => null);
