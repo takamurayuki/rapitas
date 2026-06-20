@@ -195,35 +195,6 @@ export function TaskCreationSettingsCard({
             <span className={thumbClass(settings?.autoFetchTaskSuggestions)} />
           </button>
         </div>
-
-        {/* Auto-create from backlog limit (per-theme cap; 0 = disabled).
-            NOTE: literal JP copy — add i18n keys (devAutoCreateFromBacklog*) later. */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-zinc-900 dark:text-zinc-50">
-              懸念・アイデアから自動起票（上限）
-            </h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              自動実行でタスクが無くなったとき、懸念バックログ（解決後はアイデアボックス）からタスクを自動起票します。テーマごとの同時起票上限。0で無効。
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              max={50}
-              value={settings?.autoCreateFromBacklogLimit ?? 0}
-              onChange={(e) =>
-                onUpdateSettings({
-                  autoCreateFromBacklogLimit: Math.max(0, parseInt(e.target.value, 10) || 0),
-                })
-              }
-              disabled={isSaving}
-              className="w-16 px-2 py-1 text-sm text-center rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:border-blue-400 disabled:opacity-50"
-            />
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">件</span>
-          </div>
-        </div>
       </div>
     </div>
   );

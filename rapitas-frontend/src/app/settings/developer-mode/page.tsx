@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
 import { TaskCreationSettingsCard } from './components/TaskCreationSettingsCard';
+import { AutoRunSettingsCard } from './components/AutoRunSettingsCard';
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
 import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
@@ -61,6 +62,12 @@ export default function DeveloperModeSettingsPage() {
           onUpdateSettings={updateSettings}
           onDelayChange={handleDelayChange}
           onDelayBlur={handleDelayBlur}
+        />
+
+        <AutoRunSettingsCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
         />
 
         <AutoResumeSettingsCard
