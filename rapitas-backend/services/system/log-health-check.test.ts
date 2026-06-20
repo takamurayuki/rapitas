@@ -99,7 +99,12 @@ describe('readGlobalEntries', () => {
   it('filters out entries whose time is before sinceMs', async () => {
     const sinceMs = Date.now();
     const old = JSON.stringify({ level: 50, msg: 'old error', time: sinceMs - 5_000, name: 'x' });
-    const fresh = JSON.stringify({ level: 50, msg: 'fresh error', time: sinceMs + 5_000, name: 'x' });
+    const fresh = JSON.stringify({
+      level: 50,
+      msg: 'fresh error',
+      time: sinceMs + 5_000,
+      name: 'x',
+    });
     const p = writeTmp('hc-filter.log', `${old}\n${fresh}\n`);
     const entries = await readGlobalEntries(sinceMs, p);
     expect(entries.some((e) => e.msg === 'old error')).toBe(false);
@@ -107,7 +112,10 @@ describe('readGlobalEntries', () => {
   });
 
   it('keeps entries with no time field regardless of sinceMs', async () => {
-    const p = writeTmp('hc-notime.log', JSON.stringify({ level: 50, msg: 'no time', name: 'x' }) + '\n');
+    const p = writeTmp(
+      'hc-notime.log',
+      JSON.stringify({ level: 50, msg: 'no time', name: 'x' }) + '\n',
+    );
     // Use a very large sinceMs to verify time-less entries are always kept.
     const entries = await readGlobalEntries(Date.now() + 999_999_999, p);
     expect(entries.some((e) => e.msg === 'no time')).toBe(true);

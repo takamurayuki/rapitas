@@ -165,7 +165,10 @@ async function fileGroupedConcerns(
  * @param filePath - Override log file path (test injection only)
  * @returns Filtered parsed entries / フィルタ済みエントリ
  */
-export async function readGlobalEntries(sinceMs: number, filePath?: string): Promise<ParsedLogEntry[]> {
+export async function readGlobalEntries(
+  sinceMs: number,
+  filePath?: string,
+): Promise<ParsedLogEntry[]> {
   const path = filePath ?? getBackendLogFilePath();
   if (!existsSync(path)) return [];
   try {
