@@ -182,6 +182,21 @@ export class WorkflowOrchestrator {
       };
     }
 
+    // A blocked task awaits user inspection and must NOT be auto-advanced. Without
+    // this guard a task blocked by the replan-exhausted path (status='blocked' but
+    // workflowStatus still 'plan_approved') gets re-dispatched and re-runs the same
+    // block path, re-recording plan_invalid_replan_exhausted every few seconds
+    // (observed: 80+ transitions on stale invalid-plan tasks). / ブロック中タスクは
+    // 自動実行せずスキップし、exhausted ループの再記録を止める。
+    if (task.status === 'blocked') {
+      return {
+        success: false,
+        role: 'researcher',
+        status: (task.workflowStatus as WorkflowStatus) || 'draft',
+        error: 'タスクはブロック中のため自動実行をスキップしました',
+      };
+    }
+
     // Build the transition table from the (DB-backed, UI-editable) mode config.
     // Single source of truth — see workflow-mode-config.ts.
     let workflowMode = (task.workflowMode as WorkflowMode) || 'comprehensive';
