@@ -390,9 +390,9 @@ async function testProject(
 ): Promise<VerificationCheck | null> {
   const commands = buildScopedTestCommands(projectRoot, workdir, relFiles);
   if (!commands || commands.length === 0) return null;
-  // Run each command in its OWN process (bun: one per file) so mock.module
-  // state from one test file cannot leak into the next and cause false
-  // failures. Aggregate: any failing command fails the check.
+  // Run each command (bun: one `--isolate` command covering all files) so each
+  // file runs in its own module registry; mock.module state cannot leak across
+  // files. Aggregate: any failing command fails the check.
   const failures: string[] = [];
   for (const command of commands) {
     const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
