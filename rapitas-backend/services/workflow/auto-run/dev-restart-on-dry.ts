@@ -67,6 +67,11 @@ async function restartEnabled(): Promise<boolean> {
 export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
   if (restarting) return true;
 
+  // Only self-restart under the desktop dev orchestrator (dev.js sets TAURI_BUILD
+  // and relaunches on exit 75). In web dev / a direct run nothing watches for exit
+  // 75, so exiting would ORPHAN the backend and kill the loop — make it a no-op.
+  if (process.env.TAURI_BUILD !== 'true') return false;
+
   // Cheapest check first (in-memory): require global quiescence so we never kill
   // an in-flight agent. This is safe to call on EVERY tick — a busy loop with a
   // large backlog rarely reaches all_done, but it does briefly hit 0 agents
