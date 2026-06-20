@@ -14,6 +14,24 @@ import type { AgentTask, AgentExecutionResult } from '../services/agents/base-ag
 
 const logger = createLogger('agent-worker');
 
+// NOTE: The main backend (index.ts) installs these handlers but the worker did not.
+// An unhandled rejection from background work (orchestrator event listeners, interval
+// timers, fire-and-forget promises outside the IPC try/catch) therefore crashed the
+// worker with a blind exit 255 — leaving no stack — and the manager respawned it every
+// ~2s, pegging the CPU. Mirror index.ts: log the full stack for triage and keep the
+// worker alive on a rejection (only a genuine uncaughtException is treated as fatal).
+process.on('unhandledRejection', (reason) => {
+  logger.error(
+    { err: reason instanceof Error ? reason : new Error(String(reason)) },
+    '[AgentWorker] Unhandled promise rejection (non-fatal; worker stays up)',
+  );
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, '[AgentWorker] Uncaught exception — exiting for a clean restart');
+  process.exit(1);
+});
+
 // IPC Message Types
 interface IPCMessage {
   id: string;

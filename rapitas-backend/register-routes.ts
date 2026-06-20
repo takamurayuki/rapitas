@@ -65,6 +65,7 @@ import {
   techDebtRoutes,
   temporalDebugRoutes,
   projectHealthRoutes,
+  debugLogsRouter,
   gitCleanupRoutes,
   backupsRoutes,
   errorsRoutes,
@@ -135,6 +136,9 @@ export function registerAllRoutes(app: Elysia): void {
   // Social
   app.use(commentsRoutes);
   app.use(githubRoutes);
+  // NOTE: taskGithubRoutes was imported but never mounted — its
+  // /tasks/:id/link-github-pr and /create-github-issue endpoints 404'd.
+  app.use(taskGithubRoutes);
 
   // Analytics
   app.use(statisticsRoutes);
@@ -177,6 +181,7 @@ export function registerAllRoutes(app: Elysia): void {
   app.use(techDebtRoutes);
   app.use(temporalDebugRoutes);
   app.use(projectHealthRoutes);
+  app.use(debugLogsRouter);
   app.use(gitCleanupRoutes);
   app.use(backupsRoutes);
   app.use(errorsRoutes);

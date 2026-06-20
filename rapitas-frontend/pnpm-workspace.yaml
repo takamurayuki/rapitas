@@ -1,3 +1,8 @@
+# pnpm v10 treats this file as a workspace root and rejects the install with
+# "packages field missing or empty" when it is absent. rapitas-frontend is a
+# single package, so the workspace contains just itself.
+packages:
+  - '.'
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true

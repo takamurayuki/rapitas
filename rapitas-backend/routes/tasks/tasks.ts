@@ -15,6 +15,7 @@ import {
 } from '../../services/task/task-service';
 import { removeWorktree } from '../../services/agents/orchestrator/git-operations/worktree-ops';
 import { getProjectRoot } from '../../config';
+import { cleanupCompletedTasks } from '../../services/task/completed-task-cleanup';
 
 import { QueryOptimizers } from '../../utils/database/prisma-optimization';
 
@@ -415,6 +416,43 @@ export const tasksRoutes = new Elysia({ prefix: '/tasks' })
           : '重複サブタスクはありませんでした',
     };
   })
+
+  // Prune old COMPLETED tasks: keep the most recent N, delete older ones after
+  // capturing their knowledge (skip extraction when already recorded). Also
+  // removes each task's workflow md files and git worktrees. Manual trigger.
+  // Body: { keepRecent?: number, dryRun?: boolean }. Use dryRun first to preview.
+  .post(
+    '/cleanup-completed',
+    async (context) => {
+      const body = (context.body ?? {}) as {
+        keepRecent?: number;
+        dryRun?: boolean;
+        themeId?: number | null;
+      };
+      const result = await cleanupCompletedTasks({
+        keepRecent: typeof body.keepRecent === 'number' ? body.keepRecent : undefined,
+        dryRun: body.dryRun === true,
+        themeId: typeof body.themeId === 'number' ? body.themeId : null,
+      });
+      const scope = result.themeId !== null ? `テーマ#${result.themeId}` : '全テーマ';
+      return {
+        success: true,
+        message: result.dryRun
+          ? `[${scope}] ${result.candidateCount}件が削除対象です（直近${result.keepRecent}件は保持・dryRun）`
+          : `[${scope}] ${result.deletedCount}件の完了タスクを削除しました（ナレッジ記録 ${result.knowledgeRecorded} / 記録済み ${result.alreadyRecorded} / サブタスク未完でスキップ ${result.skippedWithOpenSubtasks}）`,
+        ...result,
+      };
+    },
+    {
+      body: t.Optional(
+        t.Object({
+          keepRecent: t.Optional(t.Number({ minimum: 0 })),
+          dryRun: t.Optional(t.Boolean()),
+          themeId: t.Optional(t.Union([t.Number(), t.Null()])),
+        }),
+      ),
+    },
+  )
 
   // Bulk delete duplicate subtasks across all tasks
   .post('/cleanup-all-duplicates', async () => {

@@ -14,7 +14,7 @@ import { tmpdir } from 'os';
 import { parsePlanFiles, evaluateScopeCheck } from '../../services/agents/verification/scope-check';
 import {
   findRelatedTestFiles,
-  buildScopedTestCommand,
+  buildScopedTestCommands,
 } from '../../services/agents/verification/related-tests';
 
 describe('parsePlanFiles', () => {
@@ -77,6 +77,63 @@ describe('evaluateScopeCheck', () => {
   });
 });
 
+describe('parsePlanFiles — 緩い記載の頑健化', () => {
+  test('ディレクトリ指定・コマンド埋め込みパス・親ディレクトリを取り込むこと', () => {
+    const plan = [
+      '`services/memory/` を編集',
+      '`bun test rapitas-backend/services/workflow/extract-json-array.test.ts` を実行',
+      '`rapitas-backend/utils/common/extract-json-array.ts` を新規作成',
+    ].join('\n');
+    const files = parsePlanFiles(plan);
+    expect(files).toContain('services/memory/'); // ディレクトリトークン
+    expect(files).toContain('rapitas-backend/services/workflow/extract-json-array.test.ts'); // 埋め込み
+    expect(files).toContain('rapitas-backend/services/workflow/'); // 埋め込みパスの親ディレクトリ
+    expect(files).toContain('rapitas-backend/utils/common/extract-json-array.ts');
+    expect(files).toContain('rapitas-backend/utils/common/'); // 親ディレクトリ
+  });
+
+  test('スペースを含むプローズのベース名（`foo bar.ts`）は拾わないこと', () => {
+    // 区切りを持たないサブトークンはパス扱いしない（既存の挙動を維持）。
+    expect(parsePlanFiles('`foo bar.ts` のような記述')).toEqual([]);
+  });
+});
+
+describe('evaluateScopeCheck — 緩い plan でも計画内変更を通すこと (task 234 回帰)', () => {
+  test('ディレクトリ/埋め込みパス記載で全変更ファイルが in-scope になること', () => {
+    const planFiles = parsePlanFiles(
+      [
+        '`services/memory/` の貪欲regexを置換',
+        '`utils/common/` に共通ヘルパーを作成',
+        '`rapitas-backend/utils/common/extract-json-array.ts` 新規',
+        '`bun test rapitas-backend/services/workflow/extract-json-array.test.ts`',
+      ].join('\n'),
+    );
+    const changed = [
+      'rapitas-backend/services/memory/idea-extractor.ts',
+      'rapitas-backend/services/memory/task-knowledge-extractor.ts',
+      'rapitas-backend/services/workflow/extract-json-array.ts',
+      'rapitas-backend/utils/common/index.ts',
+      'rapitas-backend/utils/common/extract-json-array.ts',
+    ];
+    const check = evaluateScopeCheck(changed, planFiles);
+    expect(check?.ok).toBe(true);
+  });
+
+  test('頑健化後も全く無関係なファイルは計画外として検出すること', () => {
+    const planFiles = parsePlanFiles('`services/memory/` を編集');
+    const check = evaluateScopeCheck(
+      [
+        'rapitas-backend/services/memory/idea-extractor.ts',
+        'rapitas-backend/routes/social/github.ts',
+      ],
+      planFiles,
+    );
+    expect(check?.ok).toBe(false);
+    expect(check?.errorCount).toBe(1);
+    expect(check?.details).toContain('routes/social/github.ts');
+  });
+});
+
 describe('related-tests (fixture dirs)', () => {
   const root = join(tmpdir(), `rapitas-related-tests-${process.pid}`);
 
@@ -113,13 +170,37 @@ describe('related-tests (fixture dirs)', () => {
     expect(related.some((f) => f.includes('integration'))).toBe(false);
   });
 
-  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON）', () => {
+  test('ソース変更のみでも関連テストで scoped コマンドが組まれること（既定ON / --isolate で1プロセス集約）', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
-      const cmd = buildScopedTestCommand(root, root, ['src/foo.ts']);
-      expect(cmd).toContain('bun test');
-      expect(cmd).toContain('src/foo.test.ts');
+      const cmds = buildScopedTestCommands(root, root, ['src/foo.ts']);
+      // 1ファイルでも --isolate 付き1コマンドに集約（分岐を増やさない）
+      expect(cmds).not.toBeNull();
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('bun test --isolate');
+      expect(cmds![0]).toContain('src/foo.test.ts');
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+    }
+  });
+
+  test('複数の関連テストは --isolate 付き1コマンドに全ファイル集約すること', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      const cmds = buildScopedTestCommands(root, root, [
+        'src/foo.ts',
+        'src/bar.ts',
+        'services/baz.ts',
+      ]);
+      expect(cmds).not.toBeNull();
+      // foo.test.ts / __tests__/bar.test.ts / tests/services/baz.test.ts が全て1コマンドに集約
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('bun test --isolate');
+      expect(cmds![0]).toContain('src/foo.test.ts');
+      expect(cmds![0]).toContain('src/__tests__/bar.test.ts');
+      expect(cmds![0]).toContain('tests/services/baz.test.ts');
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
     }
@@ -129,7 +210,7 @@ describe('related-tests (fixture dirs)', () => {
     const prev = process.env.RAPITAS_VERIFY_TESTS;
     process.env.RAPITAS_VERIFY_TESTS = '0';
     try {
-      expect(buildScopedTestCommand(root, root, ['src/foo.ts'])).toBeNull();
+      expect(buildScopedTestCommands(root, root, ['src/foo.ts'])).toBeNull();
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
       else delete process.env.RAPITAS_VERIFY_TESTS;
@@ -141,9 +222,70 @@ describe('related-tests (fixture dirs)', () => {
     delete process.env.RAPITAS_VERIFY_TESTS;
     try {
       writeFileSync(join(root, 'src', 'lonely.ts'), '');
-      expect(buildScopedTestCommand(root, root, ['src/lonely.ts'])).toBeNull();
+      expect(buildScopedTestCommands(root, root, ['src/lonely.ts'])).toBeNull();
     } finally {
       if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+    }
+  });
+});
+
+describe('related-tests — vitest (frontend) はファイルスコープ実行 / 全体スイートにしない', () => {
+  // task 185 回帰: フロント(vitest/pnpm, bun.lock 無し)の1ファイル変更で
+  // 全体スイートを走らせ、無関係な既存赤テストで誤NGになっていた。
+  const root = join(tmpdir(), `rapitas-vitest-scope-${process.pid}`);
+
+  beforeAll(() => {
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, 'src', '__tests__'), { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }));
+    writeFileSync(join(root, 'pnpm-lock.yaml'), '');
+    writeFileSync(join(root, 'src', 'widget.tsx'), '');
+    writeFileSync(join(root, 'src', '__tests__', 'widget.test.tsx'), '');
+    writeFileSync(join(root, 'src', 'cssonly.tsx'), '');
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  test('関連テストがある変更は scoped な vitest run を1コマンドで組むこと', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      const cmds = buildScopedTestCommands(root, root, ['src/widget.tsx']);
+      expect(cmds).not.toBeNull();
+      expect(cmds!.length).toBe(1);
+      expect(cmds![0]).toContain('vitest run');
+      expect(cmds![0]).toContain('pnpm exec');
+      expect(cmds![0]).toContain('src/__tests__/widget.test.tsx');
+      // 全体スイート(`pnpm run test`)に落ちていないこと
+      expect(cmds![0]).not.toContain('run test');
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+    }
+  });
+
+  test('関連テストの無い変更は null（スキップ） — 全体スイートで誤NGにしない', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    delete process.env.RAPITAS_VERIFY_TESTS;
+    try {
+      // RAPITAS_VERIFY_TESTS=1 でも vitest は全体スイートに落とさない
+      process.env.RAPITAS_VERIFY_TESTS = '1';
+      expect(buildScopedTestCommands(root, root, ['src/cssonly.tsx'])).toBeNull();
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+      else delete process.env.RAPITAS_VERIFY_TESTS;
+    }
+  });
+
+  test('RAPITAS_VERIFY_TESTS=0 で vitest も無効化できること', () => {
+    const prev = process.env.RAPITAS_VERIFY_TESTS;
+    process.env.RAPITAS_VERIFY_TESTS = '0';
+    try {
+      expect(buildScopedTestCommands(root, root, ['src/widget.tsx'])).toBeNull();
+    } finally {
+      if (prev !== undefined) process.env.RAPITAS_VERIFY_TESTS = prev;
+      else delete process.env.RAPITAS_VERIFY_TESTS;
     }
   });
 });

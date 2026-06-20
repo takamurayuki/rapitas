@@ -32,4 +32,6 @@ export type ExecutionLogViewerProps = {
   showHeader?: boolean;
   /** Max log height in pixels */
   maxHeight?: number;
+  /** Task id — shown in the header as `Task #<id>` so it's easy to reference/share. */
+  taskId?: number;
 };

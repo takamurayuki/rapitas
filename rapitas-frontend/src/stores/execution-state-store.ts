@@ -6,6 +6,27 @@ interface ExecutingTask {
   status: 'running' | 'waiting_for_input' | 'completed' | 'failed';
 }
 
+/**
+ * A pending agent question surfaced to the workflow Q&A tab. Published by the
+ * execution layer when the agent calls AskUserQuestion (waiting_for_input) and
+ * cleared once answered/resolved. Decouples the deep agent-execution subtree
+ * from the workflow viewer subtree (they share no near parent) so the live Q&A
+ * can render in the Q&A tab without prop-drilling.
+ */
+export interface LiveQuestion {
+  taskId: number;
+  /** The question text (without the options block). */
+  text: string;
+  /** Multiple-choice options; empty when the agent asked free-text. */
+  options: string[];
+  /** Session to POST the answer back to (/tasks/:taskId/agent-respond). */
+  sessionId?: number;
+  /** ISO deadline for the auto-continue countdown, if any. */
+  timeoutDeadline?: string | null;
+  /** True when confirmed via the AskUserQuestion tool (not pattern-detected). */
+  confirmed?: boolean;
+}
+
 interface ExecutionStateStore {
   /** List of currently executing tasks */
   executingTasks: Map<number, ExecutingTask>;
@@ -27,11 +48,72 @@ interface ExecutionStateStore {
   setTaskLoaded: (taskId: number) => void;
   /** Whether a task is currently loading execution status */
   isTaskLoading: (taskId: number) => boolean;
+  /** Pending agent questions keyed by taskId (rendered in the workflow Q&A tab). */
+  liveQuestions: Map<number, LiveQuestion>;
+  /** Epoch ms of the last answer per task, for the re-publish grace window. */
+  answeredAt: Map<number, number>;
+  /** Publish (or clear, when null) the live question for a task. */
+  setLiveQuestion: (taskId: number, question: LiveQuestion | null) => void;
+  /** Read the live question for a task, or null. */
+  getLiveQuestion: (taskId: number) => LiveQuestion | null;
+  /**
+   * Mark a task's question as answered: clears it AND suppresses re-publishing
+   * for a short grace window. Without this, the polling publisher re-shows the
+   * same question for ~1-2s until the backend clears waiting_for_input — a
+   * flicker after the user already answered.
+   */
+  markQuestionAnswered: (taskId: number) => void;
 }
+
+/** How long to suppress question re-publishing after an answer (ms). */
+const ANSWER_GRACE_MS = 8000;
 
 export const useExecutionStateStore = create<ExecutionStateStore>()((set, get) => ({
   executingTasks: new Map(),
   loadingTaskIds: new Set(),
+  liveQuestions: new Map(),
+  answeredAt: new Map<number, number>(),
+  setLiveQuestion: (taskId, question) =>
+    set((state) => {
+      const existing = state.liveQuestions.get(taskId) ?? null;
+      // Suppress re-publishing a question within the grace window after an answer
+      // (the poller keeps reporting waiting_for_input until the backend clears it).
+      if (question !== null) {
+        const answered = state.answeredAt.get(taskId);
+        if (answered !== undefined && Date.now() - answered < ANSWER_GRACE_MS) {
+          if (existing === null) return state;
+          const cleared = new Map(state.liveQuestions);
+          cleared.delete(taskId);
+          return { liveQuestions: cleared };
+        }
+      }
+      // Skip no-op updates to avoid re-render loops (the publisher fires on every poll).
+      if (question === null && existing === null) return state;
+      if (
+        question &&
+        existing &&
+        existing.text === question.text &&
+        existing.options.length === question.options.length &&
+        existing.options.every((o, i) => o === question.options[i]) &&
+        existing.sessionId === question.sessionId &&
+        existing.timeoutDeadline === question.timeoutDeadline
+      ) {
+        return state;
+      }
+      const newMap = new Map(state.liveQuestions);
+      if (question === null) newMap.delete(taskId);
+      else newMap.set(taskId, question);
+      return { liveQuestions: newMap };
+    }),
+  getLiveQuestion: (taskId) => get().liveQuestions.get(taskId) ?? null,
+  markQuestionAnswered: (taskId) =>
+    set((state) => {
+      const answeredAt = new Map(state.answeredAt);
+      answeredAt.set(taskId, Date.now());
+      const liveQuestions = new Map(state.liveQuestions);
+      liveQuestions.delete(taskId);
+      return { answeredAt, liveQuestions };
+    }),
   setTaskLoading: (taskId) =>
     set((state) => {
       if (state.loadingTaskIds.has(taskId)) return state;

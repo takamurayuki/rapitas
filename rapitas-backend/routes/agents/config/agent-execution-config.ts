@@ -16,6 +16,8 @@ interface ExecutionConfigBody {
   branchPrefix?: string;
   autoCommit?: boolean;
   autoCreatePR?: boolean;
+  autoMergePR?: boolean;
+  mergeCommitThreshold?: number;
   requireApproval?: string;
   autoExecuteOnAnalysis?: boolean;
   parallelExecution?: boolean;
@@ -98,6 +100,13 @@ export const agentExecutionConfigRoutes = new Elysia({
       set.status = 400;
       return { error: 'maxRetries must be between 0 and 5' };
     }
+    if (
+      body.mergeCommitThreshold !== undefined &&
+      (body.mergeCommitThreshold < 1 || body.mergeCommitThreshold > 100)
+    ) {
+      set.status = 400;
+      return { error: 'mergeCommitThreshold must be between 1 and 100' };
+    }
 
     if (body.agentConfigId) {
       const agentConfig = await prisma.aIAgentConfig.findUnique({
@@ -120,6 +129,10 @@ export const agentExecutionConfigRoutes = new Elysia({
         ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
         ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
         ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
+        ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
+        ...(body.mergeCommitThreshold !== undefined && {
+          mergeCommitThreshold: body.mergeCommitThreshold,
+        }),
         ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
         ...(body.autoExecuteOnAnalysis !== undefined && {
           autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,
@@ -151,6 +164,8 @@ export const agentExecutionConfigRoutes = new Elysia({
         branchPrefix: body.branchPrefix ?? 'feature/',
         autoCommit: body.autoCommit ?? false,
         autoCreatePR: body.autoCreatePR ?? false,
+        autoMergePR: body.autoMergePR ?? false,
+        mergeCommitThreshold: body.mergeCommitThreshold ?? 5,
         requireApproval: body.requireApproval ?? 'always',
         autoExecuteOnAnalysis: body.autoExecuteOnAnalysis ?? false,
         parallelExecution: body.parallelExecution ?? false,
@@ -222,6 +237,10 @@ export const agentExecutionConfigRoutes = new Elysia({
         ...(body.branchPrefix !== undefined && { branchPrefix: body.branchPrefix }),
         ...(body.autoCommit !== undefined && { autoCommit: body.autoCommit }),
         ...(body.autoCreatePR !== undefined && { autoCreatePR: body.autoCreatePR }),
+        ...(body.autoMergePR !== undefined && { autoMergePR: body.autoMergePR }),
+        ...(body.mergeCommitThreshold !== undefined && {
+          mergeCommitThreshold: body.mergeCommitThreshold,
+        }),
         ...(body.requireApproval !== undefined && { requireApproval: body.requireApproval }),
         ...(body.autoExecuteOnAnalysis !== undefined && {
           autoExecuteOnAnalysis: body.autoExecuteOnAnalysis,

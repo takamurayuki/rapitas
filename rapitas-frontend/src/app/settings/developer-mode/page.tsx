@@ -5,10 +5,12 @@ import { Settings, AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useDeveloperModeSettings } from './hooks/useDeveloperModeSettings';
-import { AiAssistantSettingsCard } from './components/AiAssistantSettingsCard';
 import { TaskCreationSettingsCard } from './components/TaskCreationSettingsCard';
+import { AutoRunSettingsCard } from './components/AutoRunSettingsCard';
 import { AutoResumeSettingsCard } from './components/AutoResumeSettingsCard';
 import { WorkflowConfigCard } from './components/WorkflowConfigCard';
+import { AutoMergeSettingsCard } from './components/AutoMergeSettingsCard';
+import { TaskCleanupSection } from '../_components/TaskCleanupSection';
 
 export default function DeveloperModeSettingsPage() {
   const t = useTranslations('settings');
@@ -53,12 +55,6 @@ export default function DeveloperModeSettingsPage() {
       )}
 
       <div className="space-y-6">
-        <AiAssistantSettingsCard
-          settings={settings}
-          isSaving={isSaving}
-          onUpdateSettings={updateSettings}
-        />
-
         <TaskCreationSettingsCard
           settings={settings}
           isSaving={isSaving}
@@ -66,6 +62,12 @@ export default function DeveloperModeSettingsPage() {
           onUpdateSettings={updateSettings}
           onDelayChange={handleDelayChange}
           onDelayBlur={handleDelayBlur}
+        />
+
+        <AutoRunSettingsCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
         />
 
         <AutoResumeSettingsCard
@@ -79,6 +81,14 @@ export default function DeveloperModeSettingsPage() {
           isSaving={isSaving}
           onUpdateSettings={updateSettings}
         />
+
+        <AutoMergeSettingsCard
+          settings={settings}
+          isSaving={isSaving}
+          onUpdateSettings={updateSettings}
+        />
+
+        <TaskCleanupSection />
       </div>
     </div>
   );

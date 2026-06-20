@@ -1,0 +1,18 @@
+# prisma-singleton.yml
+#
+# Detects `new PrismaClient()` (no arguments) that should use the shared singleton.
+# Use: ast-grep scan -r scripts/codemods/rules/prisma-singleton.yml --json
+#
+# Matches:
+#   new PrismaClient()
+#   const prisma = new PrismaClient()
+#
+# Does NOT match:
+#   new PrismaClient({ log: [...] })   — has arguments, requires manual review
+#   prisma (singleton import)          — already correct
+
+id: prisma-singleton
+language: TypeScript
+rule:
+  pattern: "new PrismaClient()"
+message: "Replace `new PrismaClient()` with the shared `prisma` singleton from config/database"

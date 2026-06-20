@@ -12,6 +12,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { getApiKeyForProvider } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import {
   getUnusedIdeasForContext,
   markIdeaAsUsed,
@@ -237,19 +238,12 @@ export async function autoGenerateTasks(
 
   const text = response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
 
-  let suggestions: GeneratedTask[];
-  try {
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('No JSON array found in response');
-    }
-    suggestions = JSON.parse(jsonMatch[0]);
-  } catch (e) {
+  const parsed = parseJsonArray<GeneratedTask>(text);
+  if (!parsed) {
     log.error({ response: text }, 'Failed to parse Claude response as JSON');
-    throw new Error(
-      `Failed to parse task suggestions: ${e instanceof Error ? e.message : 'Unknown'}`,
-    );
+    throw new Error('No JSON array found in response');
   }
+  let suggestions: GeneratedTask[] = parsed;
 
   suggestions = suggestions.filter((s) => s.title && s.description).slice(0, 5);
 

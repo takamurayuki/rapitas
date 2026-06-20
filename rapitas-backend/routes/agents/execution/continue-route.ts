@@ -13,6 +13,7 @@ import { prisma } from '../../../config/database';
 import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
+import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
@@ -115,15 +116,30 @@ export const continueRoute = new Elysia().post(
 
       log.info(`[continue-execution] Continuing task ${taskId} in: ${workingDirectory}`);
 
-      // NOTE: Reuse existing worktree if available, otherwise create a new one
-      let executionDir = (session as Record<string, unknown>).worktreePath as string | null;
-      if (executionDir) {
+      // Decide how to obtain the working directory. Reuse the recorded worktree
+      // ONLY when it still exists on disk: a phantom path (removed by cleanup /
+      // stop / a merged-PR teardown) is still truthy, and passing it as cwd made
+      // the re-run crash "Working directory does not exist" and retry until the
+      // task blocked (task 233 regression). When it is missing but the branch is
+      // known, recreate the worktree; otherwise fall back to the project dir.
+      const recordedWorktree = (session as Record<string, unknown>).worktreePath as string | null;
+      const decision = decideWorktree(recordedWorktree, session.branchName);
+      // 'reuse' implies canReuseWorktree(recordedWorktree) === true, so it is
+      // non-null here; the other branches assign a concrete directory below.
+      let executionDir: string = workingDirectory;
+      if (decision === 'reuse') {
+        executionDir = recordedWorktree!;
         log.info(`[continue-execution] Reusing existing worktree: ${executionDir}`);
-      } else if (session.branchName) {
+      } else if (decision === 'recreate') {
+        if (recordedWorktree) {
+          log.warn(
+            `[continue-execution] Recorded worktree no longer exists on disk (${recordedWorktree}) — recreating on branch ${session.branchName}`,
+          );
+        }
         try {
           executionDir = await agentWorkerManager.createWorktree(
             workingDirectory,
-            session.branchName,
+            session.branchName!,
             taskId,
             task.theme?.repositoryUrl || null,
           );
@@ -134,13 +150,18 @@ export const continueRoute = new Elysia().post(
         } catch (error) {
           log.error({ err: error }, `[continue-execution] Worktree creation error, falling back`);
           try {
-            await agentWorkerManager.createBranch(workingDirectory, session.branchName);
+            await agentWorkerManager.createBranch(workingDirectory, session.branchName!);
           } catch {
             // NOTE: Branch checkout fallback failure is non-fatal — use working directory directly.
           }
           executionDir = workingDirectory;
         }
       } else {
+        if (recordedWorktree) {
+          log.warn(
+            `[continue-execution] Recorded worktree missing (${recordedWorktree}) and no branch to recreate — falling back to working directory`,
+          );
+        }
         executionDir = workingDirectory;
       }
 

@@ -681,12 +681,15 @@ export default function IdeasClient() {
               <div className="space-y-2">
                 {paginatedFiltered.map((idea) => {
                   const SourceIcon = SOURCE_ICONS[idea.source] ?? User;
+                  // Converted ideas stay fully visible (not dimmed) and show a
+                  // clickable "タスク化済 #ID" badge — matching how the concern
+                  // backlog renders task_created items (see ConcernCard).
                   return (
                     <div
                       key={idea.id}
                       className={`group rounded-xl border px-4 py-3 transition-colors ${
                         idea.usedInTaskId
-                          ? 'border-zinc-100 bg-zinc-50/50 opacity-50 dark:border-zinc-800 dark:bg-zinc-900/30'
+                          ? 'border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800/50'
                           : 'border-zinc-200 bg-white hover:border-amber-300 dark:border-zinc-700 dark:bg-zinc-800/50 dark:hover:border-amber-700'
                       }`}
                     >
@@ -722,6 +725,16 @@ export default function IdeasClient() {
                                 <PriorityIcon priority={idea.priority} size="sm" />
                               </span>
                             </span>
+                            {/* タスク化済バッジ — テーマ名の右横（懸念バックログと同じ配置）。
+                                /tasks/{ID} へ遷移する。 */}
+                            {idea.usedInTaskId && (
+                              <a
+                                href={`/tasks/${idea.usedInTaskId}`}
+                                className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:underline dark:bg-emerald-900/30 dark:text-emerald-300"
+                              >
+                                タスク化済 #{idea.usedInTaskId}
+                              </a>
+                            )}
                             {/* Source (manual / agent / AI assistant) — far right */}
                             <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-zinc-400">
                               <SourceIcon className="h-2.5 w-2.5" />
@@ -741,9 +754,6 @@ export default function IdeasClient() {
                           )}
                           <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-400">
                             <span>{new Date(idea.createdAt).toLocaleDateString('ja-JP')}</span>
-                            {idea.usedInTaskId && (
-                              <span className="text-emerald-500">タスク化済み</span>
-                            )}
                           </div>
                         </div>
                       </div>

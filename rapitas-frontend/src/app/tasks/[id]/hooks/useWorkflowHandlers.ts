@@ -1,18 +1,16 @@
 /**
  * useWorkflowHandlers
  *
- * Manages plan-approval and workflow-completion callbacks for the task
- * detail page. Handles polling to restore execution state after approval.
+ * Manages plan-approval callbacks for the task detail page. Handles polling to
+ * restore execution state after approval.
  * Not responsible for fetching workflow files — that is owned by useWorkflowFiles.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { WorkflowStatus } from '@/types';
-import { API_BASE_URL } from '@/utils/api';
 import { createLogger } from '@/lib/logger';
 
 const logger = createLogger('useWorkflowHandlers');
-const API_BASE = API_BASE_URL;
 
 /** Interval (ms) between execution-state restore polls after plan approval. */
 const RESTORE_POLL_INTERVAL_MS = 2000;
@@ -34,7 +32,6 @@ export interface UseWorkflowHandlersResult {
   closePlanApprovalModal: () => void;
   handlePlanApprovalRequest: () => void;
   handleApprovalComplete: (approved: boolean, newStatus?: string) => void;
-  handleWorkflowComplete: () => Promise<void>;
 }
 
 /**
@@ -100,37 +97,9 @@ export function useWorkflowHandlers({
     [onTaskUpdated, refetchWorkflowFiles, restoreExecutionState],
   );
 
-  const handleWorkflowComplete = useCallback(async () => {
-    if (!taskId) return;
-    try {
-      const response = await fetch(`${API_BASE}/workflow/tasks/${taskId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          // Required by the backend status guard so agent shell-calls can't
-          // mutate workflow state. Only the UI is allowed to send this.
-          'X-Rapitas-Source': 'ui',
-        },
-        body: JSON.stringify({ status: 'completed' }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        // Also move the task's own status to 'done'. Setting only
-        // workflowStatus left the task showing as in-progress, so the manual
-        // "complete" action appeared to do nothing.
-        await fetch(`${API_BASE}/tasks/${taskId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'done' }),
-        }).catch((err) => logger.error('Error marking task done:', err));
-        setCurrentWorkflowStatus('completed');
-        refetchWorkflowFiles();
-        onTaskUpdated?.();
-      }
-    } catch (err) {
-      logger.error('Error completing workflow:', err);
-    }
-  }, [taskId, refetchWorkflowFiles, onTaskUpdated, setCurrentWorkflowStatus]);
+  // NOTE: handleWorkflowComplete (the manual "実装完了" force-complete) was
+  // removed — verification auto-completes the task on success, and forcing
+  // completion bypassed the completion/verification gate and skipped commit/PR.
 
   return {
     currentWorkflowStatus,
@@ -139,6 +108,5 @@ export function useWorkflowHandlers({
     closePlanApprovalModal: () => setShowPlanApprovalModal(false),
     handlePlanApprovalRequest,
     handleApprovalComplete,
-    handleWorkflowComplete,
   };
 }

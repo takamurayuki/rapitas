@@ -43,9 +43,33 @@ export interface QueueState {
   maxConcurrency: number;
 }
 
+/**
+ * Default executor concurrency. The WorkflowRunner dequeues up to this many
+ * items AT ONCE. It must match the auto-run SELECTION gate
+ * (AUTO_RUN_GLOBAL_MAX_CONCURRENCY, default 1): the theme scheduler only limits
+ * how many themeId-tagged tasks it ENQUEUES, but any extra queued item (a
+ * subtask, a self-repair re-queue, a themeId-less resume) would otherwise let
+ * the runner start a 2nd/3rd agent while another task is mid-flight — the
+ * "multiple agents launched before others finished" bug. Keep them aligned;
+ * AIOrchestra still raises it per-session via setMaxConcurrency for intentional
+ * parallel orchestration.
+ */
+const DEFAULT_MAX_CONCURRENCY = Math.max(
+  1,
+  Math.min(
+    10,
+    parseInt(
+      process.env.WORKFLOW_RUNNER_MAX_CONCURRENCY ??
+        process.env.AUTO_RUN_GLOBAL_MAX_CONCURRENCY ??
+        '1',
+      10,
+    ) || 1,
+  ),
+);
+
 export class WorkflowQueueService {
   private static instance: WorkflowQueueService;
-  private maxConcurrency = 3;
+  private maxConcurrency = DEFAULT_MAX_CONCURRENCY;
 
   static getInstance(): WorkflowQueueService {
     if (!WorkflowQueueService.instance) {

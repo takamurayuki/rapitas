@@ -18,7 +18,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
-import { buildScopedTestCommand } from './related-tests';
+import { buildScopedTestCommands, TEST_FILE_RE } from './related-tests';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
@@ -33,7 +33,7 @@ const MAX_OUTPUT_CHARS = 16 * 1024 * 1024;
 const MAX_DETAIL_CHARS = 2_000;
 
 export interface VerificationCheck {
-  name: 'lint' | 'typecheck' | 'test' | 'scope';
+  name: 'lint' | 'typecheck' | 'test' | 'scope' | 'coverage';
   /** Whether the check was applicable and actually executed. */
   ran: boolean;
   /** True when the check passed (no new failures in the changed files). */
@@ -135,12 +135,32 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
 }
 
 /**
+ * Resolve the fork-point this worktree branched from, so changed-file lists
+ * include commits the agent made mid-run. A plain `git diff HEAD` only shows
+ * UNCOMMITTED work, so once the agent commits (workflow verify phase commits
+ * before this gate runs) the change set reads as empty — the scope check sees
+ * nothing and lint runs on nothing, a silent false pass. Mirrors getDiff's
+ * base order (develop → main → master); falls back to HEAD when none exists.
+ *
+ * @param workdir - Worktree directory. / ワークツリーのディレクトリ
+ * @returns A diffable base ref (merge-base commit or 'HEAD'). / 差分基準のref
+ */
+async function diffBaseRef(workdir: string): Promise<string> {
+  for (const candidate of ['develop', 'main', 'master']) {
+    const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
+    if (base) return base;
+  }
+  return 'HEAD';
+}
+
+/**
  * Lists EVERY changed path in the worktree (any file type, including
  * deletions) for the plan-scope check — out-of-plan deletions and non-code
  * edits are scope violations too.
  */
 async function getAllChangedFiles(workdir: string): Promise<string[]> {
-  const tracked = await git(workdir, 'diff HEAD --name-only --diff-filter=ACMRD');
+  const base = await diffBaseRef(workdir);
+  const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMRD`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
   const out: string[] = [];
@@ -159,7 +179,9 @@ async function getAllChangedFiles(workdir: string): Promise<string[]> {
  */
 async function getChangedCodeFiles(workdir: string): Promise<string[]> {
   // ACMR = added/copied/modified/renamed — excludes deletions (nothing to lint).
-  const tracked = await git(workdir, 'diff HEAD --name-only --diff-filter=ACMR');
+  // Base = fork-point (not HEAD) so files in the agent's mid-run commits are linted.
+  const base = await diffBaseRef(workdir);
+  const tracked = await git(workdir, `diff ${base} --name-only --diff-filter=ACMR`);
   const untracked = await git(workdir, 'ls-files --others --exclude-standard');
   const seen = new Set<string>();
   const out: string[] = [];
@@ -366,20 +388,30 @@ async function testProject(
   workdir: string,
   relFiles: string[],
 ): Promise<VerificationCheck | null> {
-  const command = buildScopedTestCommand(projectRoot, workdir, relFiles);
-  if (!command) return null;
-  const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
-  const ok = res.code === 0;
-  const detail =
-    res.code === 124
-      ? `test suite timed out after ${TEST_TIMEOUT_MS / 1000}s`
-      : (res.stdout || res.stderr).slice(-MAX_DETAIL_CHARS);
+  const commands = buildScopedTestCommands(projectRoot, workdir, relFiles);
+  if (!commands || commands.length === 0) return null;
+  // Run each command (bun: one `--isolate` command covering all files) so each
+  // file runs in its own module registry; mock.module state cannot leak across
+  // files. Aggregate: any failing command fails the check.
+  const failures: string[] = [];
+  for (const command of commands) {
+    const res = await runCmd(command, projectRoot, TEST_TIMEOUT_MS);
+    if (res.code === 0) continue;
+    const detail =
+      res.code === 124
+        ? `timed out after ${TEST_TIMEOUT_MS / 1000}s`
+        : (res.stdout || res.stderr).slice(-MAX_DETAIL_CHARS);
+    failures.push(`${command} failed:\n${detail}`);
+  }
+  const ok = failures.length === 0;
   return {
     name: 'test',
     ran: true,
     ok,
-    errorCount: ok ? 0 : 1,
-    details: ok ? `${command}: passed` : `${command} failed:\n${detail}`,
+    errorCount: failures.length,
+    details: ok
+      ? `${commands.length} test command(s): passed`
+      : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
   };
 }
 
@@ -409,6 +441,42 @@ function mergeChecks(
     errorCount,
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
+  };
+}
+
+/** Files that don't need a paired test (declarations / config / stories). */
+const COVERAGE_EXEMPT_RE = /(\.d\.ts$|\.config\.[cm]?[jt]s$|\.stories\.[jt]sx?$)/i;
+
+/**
+ * OPT-IN gate (RAPITAS_REQUIRE_TESTS=1): a substantive source change must ship
+ * with an added/changed test file. Off by default — enabling it without tuning
+ * would block legitimate test-free changes (docs/config/UI tweaks). Deterministic
+ * (runs on the changed-file list, zero cost), per the "deterministic checks
+ * first" practice. Returns null when disabled or no source needs a test.
+ *
+ * @param changedCodeFiles - Added/modified code files. / 変更コードファイル
+ * @returns A coverage check, or null when not applicable. / 判定 or null
+ */
+export function coverageCheck(changedCodeFiles: string[]): VerificationCheck | null {
+  const raw = (process.env.RAPITAS_REQUIRE_TESTS || '').trim().toLowerCase();
+  if (raw !== '1' && raw !== 'true' && raw !== 'on') return null;
+
+  const tests = changedCodeFiles.filter((f) => TEST_FILE_RE.test(f));
+  const sources = changedCodeFiles.filter(
+    (f) => !TEST_FILE_RE.test(f) && !COVERAGE_EXEMPT_RE.test(f),
+  );
+  if (sources.length === 0) return null; // nothing that needs a test
+  const ok = tests.length > 0;
+  return {
+    name: 'coverage',
+    ran: true,
+    ok,
+    errorCount: ok ? 0 : 1,
+    details: ok
+      ? `coverage: ${tests.length} test file(s) changed alongside source`
+      : `ソース変更にテストが伴っていません（テストの追加/更新が必要）:\n${sources
+          .slice(0, 40)
+          .join('\n')}`.slice(0, MAX_DETAIL_CHARS),
   };
 }
 
@@ -469,11 +537,13 @@ export async function runAutomatedVerification(
     if (test) testParts.push(test);
   }
 
+  const coverage = coverageCheck(changedFiles);
   const checks = [
     mergeChecks('lint', lintParts),
     mergeChecks('typecheck', typeParts),
     mergeChecks('test', testParts),
     ...(scopeCheck ? [scopeCheck] : []),
+    ...(coverage ? [coverage] : []),
   ];
   const unverifiable = checks.some((c) => c.unverifiable);
   const ok = checks.every((c) => c.ok);

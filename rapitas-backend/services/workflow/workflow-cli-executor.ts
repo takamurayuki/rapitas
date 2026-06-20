@@ -24,7 +24,7 @@ import {
   validateVerify,
   type ValidationResult,
 } from './phase-output-validator';
-import type { RoleTransition, WorkflowAdvanceResult } from './workflow-types';
+import type { RoleTransition, WorkflowAdvanceResult, WorkflowMode } from './workflow-types';
 import { recordTransition, type TransitionActor } from './transition-recorder';
 import { evaluateCompletionGate } from './completion-gate';
 import { checkWorkflowInvariants } from './workflow-invariants';
@@ -32,6 +32,14 @@ import { maybeAutoApprovePlan } from './plan-auto-approve';
 
 const log = createLogger('workflow-cli-executor');
 const execAsync = promisify(exec);
+
+// Disk-existence guard for reusing a recorded worktree. Re-exported here so the
+// existing worktree-reuse.test.ts import path keeps working; the single source
+// of truth now lives in git-operations/worktree-usable so every execution entry
+// point (orchestrator, continue-execution route) shares the same check.
+export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { isBackendPrimaryCheckout } from '../agents/orchestrator/git-operations/worktree-guard';
 
 /**
  * Resolves the git repository root for a directory.
@@ -105,7 +113,11 @@ export async function executeCLIAgent(
   // separately via the workflow API regardless of cwd.
   const taskWithTheme = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { themeId: true, theme: { select: { workingDirectory: true } } },
+    select: {
+      themeId: true,
+      workflowStatus: true,
+      theme: { select: { workingDirectory: true } },
+    },
   });
   const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
   const isImplementationRole = transition.role === 'implementer';
@@ -135,14 +147,27 @@ export async function executeCLIAgent(
         select: { worktreePath: true, branchName: true },
       })
       .catch(() => null);
-    if (sessionWithWorktree?.worktreePath) {
-      resolvedWorktreePath = sessionWithWorktree.worktreePath;
-      resolvedBranchName = sessionWithWorktree.branchName;
+    // Only REUSE a recorded worktree if it still exists ON DISK. A prior
+    // session may record a worktreePath that was later removed (a stop/cleanup,
+    // or a worktree that never finished creating). Reusing a phantom path makes
+    // every implementer/verifier re-launch fail with "Working directory does not
+    // exist" and retry forever (task 30: .worktrees/task-30-… was gone). When the
+    // recorded path is missing, fall through to recreate a fresh worktree.
+    const recordedPath = sessionWithWorktree?.worktreePath ?? null;
+    if (canReuseWorktree(recordedPath)) {
+      resolvedWorktreePath = recordedPath;
+      resolvedBranchName = sessionWithWorktree?.branchName ?? null;
       log.info(
         { taskId, role: transition.role, worktreePath: resolvedWorktreePath },
         '[WorkflowCLIExecutor] Reusing existing worktree from prior session',
       );
     } else {
+      if (recordedPath) {
+        log.warn(
+          { taskId, role: transition.role, recordedPath },
+          '[WorkflowCLIExecutor] Recorded worktree no longer exists on disk — recreating instead of reusing a phantom path',
+        );
+      }
       // No prior worktree — create one so implementer/verifier always runs in
       // isolation and produces a branch the auto-PR pipeline can push. Host it
       // in the theme's project dir, or — when unset (e.g. rapitas
@@ -166,7 +191,16 @@ export async function executeCLIAgent(
           const taskTitle =
             (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
               ?.title ?? `task-${taskId}`;
-          const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          // Reuse the EXISTING feature branch (it holds the prior implementation
+          // and the commits already pushed to the PR) when a prior session
+          // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
+          // up. Recreating on a FRESH branch loses the PR's work and re-implements
+          // from scratch, so the CI fix never lands on the PR branch (observed:
+          // task 227 re-implement loop). createWorktree checks out an existing
+          // branch as-is, keeping its commits.
+          const priorBranch = sessionWithWorktree?.branchName?.trim();
+          const branchName =
+            priorBranch || generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;
@@ -201,6 +235,30 @@ export async function executeCLIAgent(
   const effectiveWorkDir: string =
     resolvedWorktreePath ??
     (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
+
+  // SAFETY (②): a mutating role running in the backend's OWN primary checkout
+  // would create/switch a branch there via its own git commands, and the dev
+  // backend would then run that stale branch on restart (the recurring
+  // main-checkout clobber). When worktree isolation failed and the cwd fell back
+  // to the self primary, REFUSE rather than clobber — the task errors with a
+  // clear cause and can be retried once a worktree can be created. Other themes'
+  // repos and linked worktrees of the self repo are NOT affected.
+  if (
+    (isImplementationRole || isVerifierRole) &&
+    (await isBackendPrimaryCheckout(effectiveWorkDir))
+  ) {
+    log.error(
+      { taskId, role: transition.role, effectiveWorkDir },
+      '[WorkflowCLIExecutor] Refusing to run a mutating role in the primary checkout — worktree isolation failed',
+    );
+    return {
+      success: false,
+      role: transition.role,
+      status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
+      error:
+        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+    };
+  }
 
   const devConfig = await getOrCreateDevConfig(taskId);
   const session = await prisma.agentSession.create({
@@ -623,23 +681,34 @@ curl -X POST http://localhost:${port}/idea-box \\
             // advance, so updating it here takes effect for plan/review/verify.
             // Respect a manual override — never clobber a user-pinned mode.
             const current = await prisma.task
-              .findUnique({ where: { id: taskId }, select: { workflowModeOverride: true } })
+              .findUnique({
+                where: { id: taskId },
+                select: { workflowModeOverride: true, workflowMode: true },
+              })
               .catch(() => null);
             const data: { complexityScore: number; workflowMode?: string } = {
               complexityScore: assessed,
             };
             if (!current?.workflowModeOverride) {
-              const { selectModeByComplexity } = await import('./workflow-mode-config');
-              data.workflowMode = await selectModeByComplexity(assessed);
+              const { selectModeByComplexity, higherMode } = await import('./workflow-mode-config');
+              const assessedMode = await selectModeByComplexity(assessed);
+              const currentMode = (current?.workflowMode as WorkflowMode) || 'comprehensive';
+              // Upgrade only: research-grounded complexity may RAISE ceremony (a
+              // task that looked trivial actually needs a plan) but must not LOWER
+              // it — research.md was already written for the provisional mode set
+              // before research; dropping the plan now would strand a
+              // plan-assuming research artifact.
+              const upgraded = higherMode(currentMode, assessedMode);
+              if (upgraded !== currentMode) data.workflowMode = upgraded;
             }
             await prisma.task.update({ where: { id: taskId }, data });
             log.info(
               {
                 taskId,
                 complexityScore: assessed,
-                workflowMode: data.workflowMode ?? '(override kept)',
+                workflowMode: data.workflowMode ?? '(unchanged)',
               },
-              '[WorkflowCLIExecutor] Applied research-assessed complexity + selected workflow',
+              '[WorkflowCLIExecutor] Applied research-assessed complexity (upgrade-only)',
             );
           }
         } catch (cErr) {

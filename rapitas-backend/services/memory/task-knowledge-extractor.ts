@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
@@ -151,8 +152,14 @@ export async function findRelatedKnowledge(
     // above (L140), and Japanese (the dominant content language) has no
     // case distinction, so dropping `mode` is functionally equivalent and
     // works on both database backends.
+    // Knowledge governance: NEVER inject knowledge a validation step rejected or
+    // flagged as contradictory — injecting bad/conflicting knowledge biases the
+    // agent and amplifies errors (the "context failure" / self-improvement-loop
+    // risk). `pending` is still allowed (it's the bulk of auto-extracted
+    // knowledge); `validated` is boosted in scoring below.
     const where: Record<string, unknown> = {
       forgettingStage: { in: ['active', 'dormant'] },
+      validationStatus: { notIn: ['rejected', 'conflict'] },
       OR: keywords.map((kw) => ({
         OR: [{ title: { contains: kw } }, { content: { contains: kw } }],
       })),
@@ -169,6 +176,7 @@ export async function findRelatedKnowledge(
         decayScore: true,
         themeId: true,
         tags: true,
+        validationStatus: true,
       },
       orderBy: [{ decayScore: 'desc' }, { confidence: 'desc' }],
       take: limit * 3, // Fetch extra for post-scoring
@@ -191,6 +199,9 @@ export async function findRelatedKnowledge(
       // Confidence and decay score
       relevanceScore += entry.confidence * 10;
       relevanceScore += entry.decayScore * 10;
+
+      // Prefer human/automatically VALIDATED knowledge over still-pending entries.
+      if (entry.validationStatus === 'validated') relevanceScore += 15;
 
       return {
         id: entry.id,
@@ -421,11 +432,8 @@ ${context}
     });
 
     const text = response.content.trim();
-    // Extract JSON portion
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractedKnowledge[];
+    const parsed = parseJsonArray<ExtractedKnowledge>(text);
+    if (!parsed) return [];
     const validCategories = ['procedure', 'pattern', 'insight', 'fact', 'preference', 'general'];
 
     return parsed

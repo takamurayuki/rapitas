@@ -42,7 +42,8 @@ export type TimelineEventType =
   | 'distillation_completed'
   | 'task_knowledge_extracted'
   | 'knowledge_reminder_sent'
-  | 'knowledge_reviewed';
+  | 'knowledge_reviewed'
+  | 'task_outcome';
 
 export type ActorType = 'user' | 'agent' | 'system';
 

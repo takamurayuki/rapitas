@@ -135,6 +135,10 @@ model Task {
   sourceTask            Task?     @relation("RecurringSource", fields: [sourceTaskId], references: [id], onDelete: SetNull)
   generatedTasks        Task[]    @relation("RecurringSource")
   nextOccurrence        DateTime? // Next scheduled generation date
+  // True when auto-run created this task from the concern/idea backlog because a
+  // theme ran out of work. Counted (todo/in-progress) against the per-theme
+  // UserSettings.autoCreateFromBacklogLimit so promotion never overfills a theme.
+  autoCreatedFromBacklog Boolean  @default(false)
 
   @@index([status])
   @@index([themeId])

@@ -201,9 +201,15 @@ export const agentSystemRouter = new Elysia({ prefix: '/agents' })
       : orchestrator.getActiveExecutionCount?.() || 0;
     const isShuttingDown = orchestrator.isInShutdown();
 
+    // Count running/pending executions, but EXCLUDE orphaned rows whose task is
+    // already terminal/blocked. A blocked or done task cannot have a legitimately
+    // live agent — a row left at 'running' there is a stale record (process died,
+    // task was blocked) and made the restart dialog falsely warn "1 task running"
+    // even though the orchestrator's real active count was 0 (task 223 / exec 686).
     const runningExecutions = await prisma.agentExecution.count({
       where: {
         status: { in: ['running', 'pending'] },
+        session: { config: { task: { status: { in: ['todo', 'in-progress'] } } } },
       },
     });
 

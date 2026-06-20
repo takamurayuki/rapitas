@@ -51,6 +51,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
   collapsible = true,
   showHeader = true,
   maxHeight = 256,
+  taskId,
 }) => {
   const {
     isExpanded,
@@ -123,6 +124,11 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
         <div className="flex items-center gap-2">
           <Terminal className="w-4 h-4 text-green-400" />
           <span className="text-sm font-medium text-zinc-200">実行ログ</span>
+          {taskId != null && (
+            <span className="px-1.5 py-0.5 bg-zinc-700 text-zinc-300 rounded text-xs font-mono">
+              Task #{taskId}
+            </span>
+          )}
         </div>
         <ChevronDown className="w-4 h-4 text-zinc-400" />
       </button>
@@ -142,6 +148,7 @@ export const ExecutionLogViewer: React.FC<ExecutionLogViewerProps> = ({
       {showHeader && (
         <LogViewerHeader
           status={status}
+          taskId={taskId}
           isRunning={isRunning}
           isConnected={isConnected}
           viewMode={viewMode}

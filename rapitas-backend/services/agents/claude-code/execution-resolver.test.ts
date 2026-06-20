@@ -78,6 +78,83 @@ function createCtx(overrides: Partial<ResolverContext> = {}): ResolverContext {
 
 // --- テストスイート ---
 
+describe('buildResolveAfterParse — resume モード errorMessage 汚染除去', () => {
+  test('resume モード失敗時: errorMessage に "session expired or not found" を合成注入しない', async () => {
+    const ctx = createCtx({ resumeSessionId: 'session-abc-123' });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1, // exit 1
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    // NOTE: 旧実装は "session expired or not found" と "Session may be expired or invalid" を
+    // resume モードの全失敗に無条件注入していた。この文言が SESSION_FAILURE_RE に常時マッチし誤検知の原因。
+    expect(result.errorMessage).not.toContain('session expired or not found');
+    expect(result.errorMessage).not.toContain('Session may be expired or invalid');
+    // 中立ラベルとセッションIDは含まれる
+    expect(result.errorMessage).toContain('Session Resume Mode');
+    expect(result.errorMessage).toContain('session-abc-123');
+  });
+
+  test('resume モード失敗（短時間）: errorMessage に "session resume may have failed" を注入しない', async () => {
+    const ctx = createCtx({ resumeSessionId: 'session-abc-123' });
+    const { resolve, promise } = createResolveTracker();
+
+    const startTime = Date.now() - 500; // 500ms 前の開始で短時間実行をシミュレート
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      startTime,
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    // NOTE: 旧実装は executionTimeMs < 10000 でも "session resume may have failed" を注入していた。
+    expect(result.errorMessage).not.toContain('session resume may have failed');
+    expect(result.errorMessage).not.toContain('session expired or not found');
+    // 中立的な短時間警告は含まれる
+    expect(result.errorMessage).toContain('is very short');
+  });
+
+  test('生 stderr は errorMessage に維持される（SESSION_FAILURE_RE が本物だけに当たるよう）', async () => {
+    const ctx = createCtx({
+      resumeSessionId: 'session-abc-123',
+      errorBuffer: 'no conversation found',
+    });
+    const { resolve, promise } = createResolveTracker();
+
+    const callback = buildResolveAfterParse(
+      ctx,
+      1,
+      '/tmp/workdir',
+      Date.now(),
+      resolve,
+      () => [],
+      () => [],
+    );
+    callback();
+
+    const result = await promise;
+    expect(result.success).toBe(false);
+    // 生 stderr（本物の失効文言）は errorMessage に保持されること
+    expect(result.errorMessage).toContain('no conversation found');
+  });
+});
+
 describe('buildResolveAfterParse — investigation mode', () => {
   test('ケース1: investigationMode=true + exit0 + outputBuffer ≥200文字 → success: true', async () => {
     const ctx = createCtx({ outputBuffer: 'a'.repeat(250) });

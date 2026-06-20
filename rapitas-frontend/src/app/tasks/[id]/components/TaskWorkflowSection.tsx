@@ -15,7 +15,6 @@ export interface TaskWorkflowSectionProps {
   isWorkflowLoading: boolean;
   workflowError: string | null | undefined;
   onPlanApprovalRequest: () => void;
-  onWorkflowComplete: () => Promise<void>;
   onTaskUpdated?: () => void;
   setTask: React.Dispatch<React.SetStateAction<Task | null>>;
 }
@@ -32,7 +31,6 @@ export default function TaskWorkflowSection({
   isWorkflowLoading,
   workflowError,
   onPlanApprovalRequest,
-  onWorkflowComplete,
   onTaskUpdated,
   setTask,
 }: TaskWorkflowSectionProps) {
@@ -166,7 +164,6 @@ export default function TaskWorkflowSection({
         autoApprovePlan={effectiveAutoApprove}
         autoApprovePlanSource={autoApproveSource}
         onPlanApprovalRequest={onPlanApprovalRequest}
-        onCompleteRequest={onWorkflowComplete}
         onStatusChange={(newStatus) => {
           setCurrentWorkflowStatus(newStatus);
           if (onTaskUpdated) onTaskUpdated();

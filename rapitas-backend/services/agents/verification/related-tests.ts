@@ -103,54 +103,86 @@ export function findRelatedTestFiles(projectRoot: string, projectRelFiles: strin
   return [...found].map((abs) => relative(projectRoot, abs).replace(/\\/g, '/')).sort();
 }
 
+/** The package-manager `exec` prefix for invoking a local bin, by lockfile. */
+function execPrefix(projectRoot: string): string {
+  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm exec';
+  if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn exec';
+  return 'npx';
+}
+
 /**
- * Builds the test command for the gate, SCOPED to the agent's changed test
+ * Builds the test command(s) for the gate, SCOPED to the agent's changed test
  * files PLUS the tests related to its changed sources. Running the whole suite
  * gates on pre-existing red tests and live-port collisions (false positives),
  * while the old changed-tests-only scoping missed source regressions entirely.
  *
- * bun projects: scoped run, ON by default (RAPITAS_VERIFY_TESTS=0 disables).
- * Other runners can't be file-scoped reliably here, so they stay full-suite and
- * opt-in (RAPITAS_VERIFY_TESTS=1).
+ * File-scopeable runners (bun, vitest): scoped run, ON by default
+ * (RAPITAS_VERIFY_TESTS=0 disables). Returns null when nothing is in scope —
+ * a change with no related test is NOT gated on the rest of the suite.
+ * - bun: ONE command for ALL test files using `--isolate`. Each file runs in its
+ *   own module registry so mock.module state cannot leak across files, eliminating
+ *   the false failures caused by process-global mock contamination.
+ * - vitest: ONE command for all files (vitest isolates per-file already), via
+ *   `<pm> exec vitest run <files>`. Frontend (vitest/pnpm, no bun.lock) used to
+ *   fall through to the full-suite branch below and gate on unrelated red tests.
+ *
+ * Other non-bun/non-vitest runners can't be file-scoped reliably here, so they
+ * stay full-suite and opt-in (RAPITAS_VERIFY_TESTS=1).
  *
  * @param projectRoot - Nearest package.json dir (test runner cwd) / プロジェクトルート
  * @param workdir - The agent's worktree root / worktree ルート
  * @param relFiles - Changed code files relative to workdir / 変更コードファイル
- * @returns Shell command, or null when nothing should run / 実行コマンド
+ * @returns Shell commands (run each separately), or null when nothing should run / 実行コマンド群
  */
-export function buildScopedTestCommand(
+export function buildScopedTestCommands(
   projectRoot: string,
   workdir: string,
   relFiles: string[],
-): string | null {
+): string[] | null {
   const raw = process.env.RAPITAS_VERIFY_TESTS;
   if (raw === '0' || raw === 'false') return null;
 
   const pkgPath = join(projectRoot, 'package.json');
   if (!existsSync(pkgPath)) return null;
+  let testScript = '';
   try {
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
-    if (!pkg.scripts?.test) return null;
+    testScript = pkg.scripts?.test ?? '';
+    if (!testScript) return null;
   } catch {
     return null;
   }
 
+  // The set of test files in scope: the agent's own changed tests + tests
+  // related (by basename) to its changed sources. Shared by all file-scopeable
+  // runners; empty → the change has no covering test, so skip (don't full-suite).
+  const projectRel = relFiles.map((f) =>
+    relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
+  );
+  const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
+  const related = findRelatedTestFiles(projectRoot, projectRel);
+  const scoped = [...new Set([...changedTests, ...related])];
+
   const usesBun =
     existsSync(join(projectRoot, 'bun.lockb')) || existsSync(join(projectRoot, 'bun.lock'));
   if (usesBun) {
-    const projectRel = relFiles.map((f) =>
-      relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
-    );
-    const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
-    const related = findRelatedTestFiles(projectRoot, projectRel);
-    const all = [...new Set([...changedTests, ...related])];
-    if (all.length === 0) return null;
-    return `bun test ${all.map((f) => `"${f}"`).join(' ')}`;
+    if (scoped.length === 0) return null;
+    // NOTE: --isolate gives each file its own module registry so mock.module
+    // state cannot leak across files — eliminates false failures from contamination.
+    const files = scoped.map((f) => `"${f}"`).join(' ');
+    return [`bun test --isolate ${files}`];
   }
 
-  // Non-bun: full suite is opt-in only (slow/flaky/red-baseline risk).
+  // vitest is file-scopeable too; treat it like bun (default-on, never full-suite).
+  if (/\bvitest\b/.test(testScript)) {
+    if (scoped.length === 0) return null;
+    const files = scoped.map((f) => `"${f}"`).join(' ');
+    return [`${execPrefix(projectRoot)} vitest run ${files}`];
+  }
+
+  // Other non-bun runners can't be file-scoped reliably → full suite, opt-in only.
   if (raw !== '1' && raw !== 'true') return null;
-  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return 'pnpm run test';
-  if (existsSync(join(projectRoot, 'yarn.lock'))) return 'yarn run test';
-  return 'npm run test';
+  if (existsSync(join(projectRoot, 'pnpm-lock.yaml'))) return ['pnpm run test'];
+  if (existsSync(join(projectRoot, 'yarn.lock'))) return ['yarn run test'];
+  return ['npm run test'];
 }

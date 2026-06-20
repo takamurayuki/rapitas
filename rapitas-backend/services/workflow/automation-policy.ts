@@ -17,6 +17,37 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('workflow:automation-policy');
 
 /**
+ * The single "landing strategy" a task uses to reach completion, derived from
+ * its automation policy. Completion is marked at a DIFFERENT point per mode:
+ *  - `none`   → completed as soon as verify passes (no git automation).
+ *  - `commit` → completed after commit+push to the theme's default branch.
+ *  - `pr`     → completed after the created PR's CI goes green (NOT merged).
+ *  - `merge`  → completed after the PR is merged into the default branch.
+ *
+ * Direct-to-default `commit` and PR-based `pr`/`merge` are mutually exclusive
+ * landing strategies; a higher mode supersedes the lower ones.
+ */
+export type LandingMode = 'merge' | 'pr' | 'commit' | 'none';
+
+/**
+ * Collapse a resolved policy into its single landing mode.
+ * Precedence (higher supersedes lower): autoMergePR > autoCreatePR > autoCommit.
+ *
+ * @param policy - Resolved autoCommit/autoCreatePR/autoMergePR booleans. / 解決済み自動化フラグ
+ * @returns The landing mode that decides where completion is marked. / 完了点を決める landing mode
+ */
+export function resolveLandingMode(policy: {
+  autoCommit: boolean;
+  autoCreatePR: boolean;
+  autoMergePR: boolean;
+}): LandingMode {
+  if (policy.autoMergePR) return 'merge';
+  if (policy.autoCreatePR) return 'pr';
+  if (policy.autoCommit) return 'commit';
+  return 'none';
+}
+
+/**
  * 解決後の自動化設定。verify_done → completed の自動進行をどこまで進めるかを表す。
  */
 export interface ResolvedAutomationPolicy {
@@ -28,9 +59,9 @@ export interface ResolvedAutomationPolicy {
   autoMergePR: boolean;
   /** どのソースで決まったかの診断情報 */
   source: {
-    autoCommit: 'task' | 'env' | 'default';
-    autoCreatePR: 'task' | 'env' | 'default';
-    autoMergePR: 'task' | 'env' | 'default';
+    autoCommit: 'task' | 'user' | 'env' | 'default';
+    autoCreatePR: 'task' | 'user' | 'env' | 'default';
+    autoMergePR: 'task' | 'user' | 'env' | 'default';
   };
 }
 
@@ -68,23 +99,34 @@ export async function resolveAutomationPolicy(
   const envAutoCreatePR = envBoolean('RAPITAS_DEFAULT_AUTO_CREATE_PR');
   const envAutoMergePR = envBoolean('RAPITAS_DEFAULT_AUTO_MERGE_PR');
 
+  // Global defaults set on the "タスク設定" page (UserSettings). These sit between
+  // a per-task override and the env/hardcoded fallback.
+  const userSettings = (await prisma.userSettings.findFirst().catch(() => null)) as {
+    autoCommitDefault?: boolean | null;
+    autoCreatePRDefault?: boolean | null;
+    autoMergePRDefault?: boolean | null;
+  } | null;
+
   const resolveOne = <T extends 'autoCommit' | 'autoCreatePR' | 'autoMergePR'>(
     key: T,
+    userValue: boolean | null | undefined,
     envValue: boolean | null,
     fallback: boolean,
-  ): { value: boolean; source: 'task' | 'env' | 'default' } => {
+  ): { value: boolean; source: 'task' | 'user' | 'env' | 'default' } => {
     const taskValue = task?.[key];
     if (typeof taskValue === 'boolean') return { value: taskValue, source: 'task' };
+    if (typeof userValue === 'boolean') return { value: userValue, source: 'user' };
     if (envValue !== null) return { value: envValue, source: 'env' };
     return { value: fallback, source: 'default' };
   };
 
   // Recommended default flow: commit + open a PR automatically so changes reach
   // git and are reviewable, but do NOT auto-merge — a human reviews/merges the
-  // PR. Override per-task (UI) or via RAPITAS_DEFAULT_AUTO_* env vars.
-  const ac = resolveOne('autoCommit', envAutoCommit, true);
-  const acpr = resolveOne('autoCreatePR', envAutoCreatePR, true);
-  const ampr = resolveOne('autoMergePR', envAutoMergePR, false);
+  // PR. Override globally on the タスク設定 page, per-task, or via
+  // RAPITAS_DEFAULT_AUTO_* env vars.
+  const ac = resolveOne('autoCommit', userSettings?.autoCommitDefault, envAutoCommit, true);
+  const acpr = resolveOne('autoCreatePR', userSettings?.autoCreatePRDefault, envAutoCreatePR, true);
+  const ampr = resolveOne('autoMergePR', userSettings?.autoMergePRDefault, envAutoMergePR, false);
 
   log.debug(
     {

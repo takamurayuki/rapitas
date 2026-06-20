@@ -153,6 +153,7 @@ export function AgentExecutionPanel(props: Props) {
           isRunning={running}
           collapsible={false}
           maxHeight={maxHeight}
+          taskId={taskId}
         />
       );
     }

@@ -17,6 +17,11 @@ import type { LogType, LogAnalysisResult, LogFilter, LogLevel } from '@/types/de
 
 interface DebugLogAnalyzerProps {
   onAnalyze?: (logContent: string, logType?: LogType) => Promise<LogAnalysisResult>;
+  /** Pre-fill the log input (e.g. logs read from a theme). Pass a changing `key`
+   *  to reset when the source changes. / 入力の初期値（テーマのログ等） */
+  initialContent?: string;
+  /** Pre-select the log type. / ログ形式の初期選択 */
+  initialType?: LogType;
 }
 
 /**
@@ -75,9 +80,13 @@ function buildDemoResult(logContent: string, selectedLogType: LogType): LogAnaly
   };
 }
 
-export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({ onAnalyze }) => {
-  const [logContent, setLogContent] = useState('');
-  const [selectedLogType, setSelectedLogType] = useState<LogType>('unknown');
+export const DebugLogAnalyzer: React.FC<DebugLogAnalyzerProps> = ({
+  onAnalyze,
+  initialContent = '',
+  initialType = 'unknown',
+}) => {
+  const [logContent, setLogContent] = useState(initialContent);
+  const [selectedLogType, setSelectedLogType] = useState<LogType>(initialType);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<LogAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);

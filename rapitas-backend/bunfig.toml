@@ -5,7 +5,10 @@ coverageDir = "coverage"
 # Exclude integration tests from default run (they don't use mock.module)
 # Run them separately with: bun test --path-ignore-patterns="" ./tests/integration/
 pathIgnorePatterns = ["tests/integration/**"]
+# Isolate each test file in its own module registry to prevent mock.module
+# process-global contamination from leaking across files (mirrors --isolate CLI flag).
+isolate = true
 # NOTE: NODE_ENV=test disables the logger's file sink so test-generated errors
 # do not contaminate the shared daily log file (~/.rapitas/logs/).
 # Bun 1.3.13 on Windows does not set NODE_ENV automatically for bun test.
-preload = ["./tests/setup.ts"]
+preload = ["./tests/setup.ts", "./tests/setup/global-state-guard.ts"]

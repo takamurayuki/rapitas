@@ -12,6 +12,7 @@ import { createLogger } from '../../config/logger';
 import { getLocalLLMStatus } from '../local-llm';
 import { getBestLocalModel } from '../local-llm/local-model-selector';
 import { sendAIMessage } from '../../utils/ai-client';
+import { parseJsonArray } from '../../utils/common/json-extractor';
 import { submitIdea, resolveTaskThemeId } from './idea-box-service';
 import { submitConcern, type ConcernType } from './concern-backlog-service';
 
@@ -507,9 +508,8 @@ interface RawIdea {
 /** Call LLM for idea extraction. Ollama preferred, Haiku fallback. */
 async function callLLMForIdeas(context: string): Promise<RawIdea[]> {
   const text = await callLLM(`${EXTRACTION_PROMPT}\n\n---\n${context}`, 600, 'local');
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
-  const parsed = JSON.parse(jsonMatch[0]) as RawIdea[];
+  const parsed = parseJsonArray<RawIdea>(text);
+  if (!parsed) return [];
   return parsed.filter((i) => i.title && i.content).slice(0, 3);
 }
 

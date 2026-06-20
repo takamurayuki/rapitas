@@ -41,6 +41,8 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
     similarity: number;
     tags: string[];
     createdAt: Date;
+    /** Source task this entry was learned from (for outcome-weighted recall). */
+    taskId: number | null;
   }>
 > {
   const { query, limit = 10, minSimilarity = 0.5, forgettingStage, category, themeId } = options;
@@ -74,6 +76,7 @@ export async function searchKnowledge(options: KnowledgeSearchOptions): Promise<
       forgettingStage: true,
       tags: true,
       createdAt: true,
+      taskId: true,
     },
   });
 

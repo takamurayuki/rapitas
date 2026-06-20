@@ -429,6 +429,14 @@ export const executeRoute = new Elysia().post(
         select: { id: true },
       })
       .catch(() => null);
+    // A prior research.md — so the prompt can tell the agent to reuse it on a
+    // re-run instead of regenerating (see buildFullInstruction reuse section).
+    const existingResearch = await prisma.workflowFile
+      .findFirst({
+        where: { taskId: taskIdNum, fileType: 'research' },
+        select: { id: true },
+      })
+      .catch(() => null);
     const isContinuation = !!sessionId;
     const resolvedAgentConfig = resolvedAgentConfigId
       ? await prisma.aIAgentConfig
@@ -530,6 +538,8 @@ export const executeRoute = new Elysia().post(
           taskId: taskIdNum,
           enforceWorkflow,
           taskSpec,
+          hasResearch: !!existingResearch,
+          hasPlan: !!existingPlan,
         });
 
     const analysisInfo =

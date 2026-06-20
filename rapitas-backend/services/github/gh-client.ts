@@ -6,6 +6,10 @@
  */
 
 import { execFile } from 'child_process';
+import { writeFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { randomUUID } from 'node:crypto';
 import { promisify } from 'util';
 import { createLogger } from '../../config/logger';
 
@@ -50,6 +54,50 @@ export async function runGhCommand(
       log.error({ message, stderr }, `gh command failed: gh ${args.join(' ')}`);
     }
     throw new Error(stderr || message);
+  }
+}
+
+/**
+ * Execute a gh CLI command whose body may contain multi-line text, Japanese
+ * characters, or exceed the Windows CreateProcess argument-length limit.
+ *
+ * Writes `body` to a UTF-8 temp file in os.tmpdir(), appends
+ * `--body-file <path>` to args, then calls runGhCommand. The temp file is
+ * unconditionally removed in a finally block — unlink failures emit a warn
+ * log only and do not affect the return value.
+ *
+ * When `body` is undefined, delegates directly to runGhCommand without
+ * creating any file or appending --body-file.
+ *
+ * @param baseArgs - CLI arguments without any --body or --body-file / --bodyなしのCLI引数
+ * @param body - Body text passed via temp file; undefined omits --body-file / 本文テキスト（undefinedの場合はファイル経由しない）
+ * @param cwd - Optional working directory / 作業ディレクトリ
+ * @param opts - Options forwarded to runGhCommand / runGhCommandに転送するオプション
+ * @returns Trimmed stdout string / 標準出力文字列
+ * @throws {Error} When gh command exits with non-zero status / コマンド失敗時
+ */
+export async function runGhCommandWithBody(
+  baseArgs: string[],
+  body: string | undefined,
+  cwd?: string,
+  opts?: { skipLog?: boolean },
+): Promise<string> {
+  if (body === undefined) {
+    return runGhCommand(baseArgs, cwd, opts);
+  }
+
+  const tmpPath = join(tmpdir(), `gh-body-${randomUUID()}.md`);
+  try {
+    await writeFile(tmpPath, body, 'utf8');
+    return await runGhCommand([...baseArgs, '--body-file', tmpPath], cwd, opts);
+  } finally {
+    try {
+      await unlink(tmpPath);
+    } catch (err) {
+      // NOTE: Disk cleanup failure; OS will eventually clear os.tmpdir() so
+      // we log a warning instead of propagating to avoid masking the gh result.
+      log.warn({ tmpPath, err }, 'Failed to delete gh body temp file');
+    }
   }
 }
 

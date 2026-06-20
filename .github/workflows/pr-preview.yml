@@ -107,11 +107,18 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
+            libasound2-dev \
             patchelf
 
       - name: Install backend dependencies
         working-directory: rapitas-backend
         run: bun install
+
+      - name: Generate Prisma Client
+        working-directory: rapitas-backend
+        run: bunx prisma generate
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
 
       - name: Install frontend dependencies
         working-directory: rapitas-frontend

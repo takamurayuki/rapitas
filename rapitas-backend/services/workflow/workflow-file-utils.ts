@@ -4,7 +4,7 @@
  * Low-level filesystem helpers for reading, writing, and cleaning up workflow
  * Markdown files. Does not contain any business logic or DB access.
  */
-import { readFile, writeFile, mkdir, rename, stat } from 'fs/promises';
+import { readFile, writeFile, mkdir, rename, stat, rm } from 'fs/promises';
 import { createHash } from 'crypto';
 import { join } from 'path';
 import { prisma } from '../../config';
@@ -44,6 +44,28 @@ export async function resolveWorkflowDir(taskId: number) {
     categoryId,
     themeId,
   };
+}
+
+/**
+ * Delete a task's workflow directory (research/plan/verify/question + archived
+ * versions) from disk. Best-effort and recursive; a missing task/dir is a no-op.
+ * MUST be called while the task still exists (resolveWorkflowDir reads it to
+ * derive the category/theme path), i.e. before `prisma.task.delete`.
+ *
+ * @param taskId - Task whose workflow md files to remove. / 対象タスクID
+ * @returns true when a directory removal was attempted. / 削除を試みたか
+ */
+export async function deleteWorkflowDir(taskId: number): Promise<boolean> {
+  try {
+    const resolved = await resolveWorkflowDir(taskId);
+    if (!resolved) return false;
+    await rm(resolved.dir, { recursive: true, force: true });
+    log.info({ taskId, dir: resolved.dir }, '[workflow-file-utils] Deleted workflow dir');
+    return true;
+  } catch (err) {
+    log.warn({ err, taskId }, '[workflow-file-utils] Failed to delete workflow dir');
+    return false;
+  }
 }
 
 /**
@@ -113,6 +135,32 @@ export async function writeWorkflowFile(
   }
 
   return sanitizeResult.content;
+}
+
+/**
+ * Move a workflow file into `_archive/<ts>/` so a later phase cannot reuse it.
+ * Used when an artifact is rejected (e.g. a log-polluted plan.md on replan): the
+ * producing phase then regenerates from scratch instead of re-reading the bad
+ * file and looping. Best-effort; a missing file is a no-op.
+ *
+ * @param dir - Workflow directory. / ワークフローディレクトリ
+ * @param fileType - Artifact to archive. / 退避するファイル種別
+ * @returns true when a file was archived. / 退避した場合 true
+ */
+export async function archiveWorkflowFile(
+  dir: string,
+  fileType: WorkflowFileType,
+): Promise<boolean> {
+  const filePath = join(dir, `${fileType}.md`);
+  try {
+    await stat(filePath);
+    const archiveDir = getArchiveDir(dir, new Date().toISOString());
+    await mkdir(archiveDir, { recursive: true });
+    await rename(filePath, join(archiveDir, `${fileType}.md`));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
