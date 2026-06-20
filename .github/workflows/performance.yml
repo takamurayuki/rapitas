@@ -151,7 +151,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: rapitas-frontend
-        run: pnpm install
+        # --no-frozen-lockfile matches the bundle-size + tauri-build jobs; a plain
+        # frozen install fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH when the
+        # lockfile's overrides drift from package.json.
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build frontend
         working-directory: rapitas-frontend
