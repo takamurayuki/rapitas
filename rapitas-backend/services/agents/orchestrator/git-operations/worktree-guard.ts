@@ -12,6 +12,7 @@
  */
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { resolve } from 'path';
 import { createLogger } from '../../../../config/logger';
 
 const execAsync = promisify(exec);
@@ -33,10 +34,12 @@ export async function isPrimaryWorkTree(workingDirectory: string): Promise<boole
     ]);
     const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
     let common = normalize(commonDir.stdout);
-    // --git-common-dir may be relative (e.g. ".git"); resolve against the dir.
+    // --git-common-dir is relative to the CWD (e.g. ".git" at the root, "../.git"
+    // from a subdir like rapitas-backend); resolve it against workingDirectory so
+    // ".." segments collapse — NOT against show-toplevel, which left "<root>/../.git"
+    // un-normalized and made isPrimaryWorkTree wrongly return false from a subdir.
     if (!/^([a-zA-Z]:)?\//.test(common)) {
-      const root = await execAsync('git rev-parse --show-toplevel', { cwd: workingDirectory });
-      common = normalize(`${normalize(root.stdout)}/${common}`);
+      common = normalize(resolve(workingDirectory, common));
     }
     return normalize(gitDir.stdout) === common;
   } catch (error) {
@@ -70,4 +73,48 @@ export async function ensureNotPrimaryWorkTree(
         "primary checkout would stage/commit or clobber the developer's uncommitted work.",
     );
   }
+}
+
+/**
+ * Resolve the absolute, normalized git-common-dir for a directory (the shared
+ * `.git` of a repo and all its linked worktrees). Returns null on failure.
+ *
+ * @param workingDirectory - Directory inside a git repo. / git リポジトリ内のディレクトリ
+ * @returns Normalized common dir, or null. / 正規化済み common dir、失敗時 null
+ */
+async function gitCommonDir(workingDirectory: string): Promise<string | null> {
+  try {
+    const normalize = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    const commonDir = await execAsync('git rev-parse --git-common-dir', {
+      cwd: workingDirectory,
+    });
+    let common = normalize(commonDir.stdout);
+    if (!/^([a-zA-Z]:)?\//.test(common)) {
+      const root = await execAsync('git rev-parse --show-toplevel', { cwd: workingDirectory });
+      common = normalize(`${normalize(root.stdout)}/${common}`);
+    }
+    return common;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether `workingDirectory` is the PRIMARY working tree of the SAME repository
+ * the backend itself runs from (process.cwd()). True only for the rapitas
+ * self-development checkout — NOT for other themes' repos and NOT for linked
+ * worktrees of the self repo. Running an agent here lets its git commands switch
+ * the dev backend's branch (the recurring main-checkout clobber), so callers must
+ * refuse and require a worktree instead.
+ *
+ * @param workingDirectory - Directory the agent would run in. / エージェントの実行ディレクトリ
+ * @returns true when it is the backend's own primary checkout. / backend自身のprimaryなら true
+ */
+export async function isBackendPrimaryCheckout(workingDirectory: string): Promise<boolean> {
+  if (!(await isPrimaryWorkTree(workingDirectory))) return false;
+  const [dirCommon, backendCommon] = await Promise.all([
+    gitCommonDir(workingDirectory),
+    gitCommonDir(process.cwd()),
+  ]);
+  return dirCommon != null && backendCommon != null && dirCommon === backendCommon;
 }

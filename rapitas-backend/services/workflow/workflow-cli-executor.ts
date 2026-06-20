@@ -39,6 +39,7 @@ const execAsync = promisify(exec);
 // point (orchestrator, continue-execution route) shares the same check.
 export { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
 import { canReuseWorktree } from '../agents/orchestrator/git-operations/worktree-usable';
+import { isBackendPrimaryCheckout } from '../agents/orchestrator/git-operations/worktree-guard';
 
 /**
  * Resolves the git repository root for a directory.
@@ -112,7 +113,11 @@ export async function executeCLIAgent(
   // separately via the workflow API regardless of cwd.
   const taskWithTheme = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { themeId: true, theme: { select: { workingDirectory: true } } },
+    select: {
+      themeId: true,
+      workflowStatus: true,
+      theme: { select: { workingDirectory: true } },
+    },
   });
   const themeWorkDir = taskWithTheme?.theme?.workingDirectory || null;
   const isImplementationRole = transition.role === 'implementer';
@@ -221,6 +226,30 @@ export async function executeCLIAgent(
   const effectiveWorkDir: string =
     resolvedWorktreePath ??
     (isImplementationRole || isVerifierRole ? (themeWorkDir ?? process.cwd()) : process.cwd());
+
+  // SAFETY (②): a mutating role running in the backend's OWN primary checkout
+  // would create/switch a branch there via its own git commands, and the dev
+  // backend would then run that stale branch on restart (the recurring
+  // main-checkout clobber). When worktree isolation failed and the cwd fell back
+  // to the self primary, REFUSE rather than clobber — the task errors with a
+  // clear cause and can be retried once a worktree can be created. Other themes'
+  // repos and linked worktrees of the self repo are NOT affected.
+  if (
+    (isImplementationRole || isVerifierRole) &&
+    (await isBackendPrimaryCheckout(effectiveWorkDir))
+  ) {
+    log.error(
+      { taskId, role: transition.role, effectiveWorkDir },
+      '[WorkflowCLIExecutor] Refusing to run a mutating role in the primary checkout — worktree isolation failed',
+    );
+    return {
+      success: false,
+      role: transition.role,
+      status: (taskWithTheme?.workflowStatus as WorkflowAdvanceResult['status']) || 'draft',
+      error:
+        'worktree 隔離に失敗したため primary チェックアウトでの実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+    };
+  }
 
   const devConfig = await getOrCreateDevConfig(taskId);
   const session = await prisma.agentSession.create({
