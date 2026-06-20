@@ -21,7 +21,7 @@ import { WorkflowQueueService } from '../workflow-queue';
 import { WorkflowRunner } from '../workflow-runner';
 import { AgentWorkerManager } from '../../agents/agent-worker-manager';
 import { realtimeService } from '../../communication/realtime-service';
-import { promoteBacklogForTheme } from './backlog-task-promoter';
+import { promoteBacklogForTheme, hasPromotableBacklog } from './backlog-task-promoter';
 import { recordStartupCommit, maybeRestartForUpdate } from './dev-restart-on-dry';
 import {
   AUTO_RUN_GLOBAL_MAX_CONCURRENCY,
@@ -43,6 +43,7 @@ import {
   resumeAutoRun,
   finalizeStop,
   getAutoRunState,
+  startAutoRun,
 } from './theme-auto-run-service';
 import {
   notifyAwaitingPlanApproval,
@@ -153,6 +154,7 @@ export class ThemeAutoRunScheduler {
       await this.processStoppingThemes();
       await this.processRunningThemes();
       await this.processPausedThemes();
+      await this.processIdleThemes();
     } catch (err) {
       log.error({ err }, '[ThemeAutoRunScheduler] Tick error');
     }
@@ -169,6 +171,39 @@ export class ThemeAutoRunScheduler {
         log.info(`[ThemeAutoRunScheduler] Theme ${state.themeId} stopped`);
       } catch (err) {
         log.error({ err }, `[ThemeAutoRunScheduler] Error stopping theme ${state.themeId}`);
+      }
+    }
+  }
+
+  /**
+   * Auto-resume themes that completed all work and went idle-but-ARMED
+   * (enabled:true) once new work appears — a fresh todo task, or a backlog item
+   * that can now be promoted (a backlog job added a concern/idea, or a freed cap
+   * slot). This is what makes auto-run self-sustaining instead of dying at the
+   * first dry. A USER stop leaves enabled:false and is never auto-resumed.
+   */
+  private async processIdleThemes(): Promise<void> {
+    const idle = await findByStatuses(['idle']);
+    for (const state of idle) {
+      if (!state.enabled) continue; // user-stopped → stay stopped
+      try {
+        const todo = await prisma.task
+          .count({ where: { themeId: state.themeId, status: 'todo' } })
+          .catch(() => 0);
+        const hasWork = todo > 0 || (await hasPromotableBacklog(state.themeId));
+        if (!hasWork) continue;
+
+        await startAutoRun(state.themeId);
+        this.broadcastAutoRunUpdate(state.themeId);
+        log.info(
+          { themeId: state.themeId, todo },
+          '[ThemeAutoRunScheduler] new work appeared — auto-resumed idle theme',
+        );
+      } catch (err) {
+        log.warn(
+          { err, themeId: state.themeId },
+          '[ThemeAutoRunScheduler] idle auto-resume failed',
+        );
       }
     }
   }
@@ -416,12 +451,16 @@ export class ThemeAutoRunScheduler {
           this.broadcastAutoRunUpdate(themeId);
           return;
         }
-        // All tasks done and backlog empty/capped/disabled — set to idle
+        // All tasks done and backlog empty/capped/disabled — go idle but stay
+        // ARMED (enabled:true) so processIdleThemes auto-resumes when new work
+        // appears (a backlog job adds a concern/idea, or a freed cap slot lets a
+        // promotion happen). A USER stop sets enabled:false (finalizeStop) and is
+        // therefore never auto-resumed. This closes the perpetual loop.
         await prisma.themeAutoRun.updateMany({
           where: { themeId },
-          data: { status: 'idle', enabled: false, currentTaskId: null },
+          data: { status: 'idle', enabled: true, currentTaskId: null },
         });
-        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, set to idle`);
+        log.info(`[ThemeAutoRunScheduler] Theme ${themeId} — all tasks done, idle (armed)`);
         await notifyAllDone(themeId);
         this.broadcastAutoRunUpdate(themeId);
       }

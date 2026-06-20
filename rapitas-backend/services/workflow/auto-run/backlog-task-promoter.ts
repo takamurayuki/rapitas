@@ -36,6 +36,30 @@ async function countOutstandingAutoCreated(themeId: number): Promise<number> {
     .catch(() => 0);
 }
 
+/**
+ * Whether a promotion would create at least one task right now: the cap has room
+ * (outstanding < limit) AND there is an open concern or idea to promote. Used to
+ * decide whether to auto-resume an idle theme — no side effects (does not create).
+ *
+ * @param themeId - Theme to check. / 対象テーマID
+ * @returns true when promotion would yield a task. / 起票が発生する見込みなら true
+ */
+export async function hasPromotableBacklog(themeId: number): Promise<boolean> {
+  const limit = await resolveLimit();
+  if (limit <= 0) return false;
+  const outstanding = await countOutstandingAutoCreated(themeId);
+  if (outstanding >= limit) return false;
+  const { total: concernTotal } = await listConcerns({ status: 'open', themeId, limit: 1 }).catch(
+    () => ({ concerns: [], total: 0 }),
+  );
+  if (concernTotal > 0) return true;
+  const { total: ideaTotal } = await listIdeas({ status: 'open', themeId, limit: 1 }).catch(() => ({
+    ideas: [],
+    total: 0,
+  }));
+  return ideaTotal > 0;
+}
+
 /** Read the global per-theme backlog promotion cap (0 = disabled). */
 async function resolveLimit(): Promise<number> {
   const s = await prisma.userSettings
