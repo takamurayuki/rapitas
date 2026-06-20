@@ -654,6 +654,9 @@ const useWatch = args.includes("--watch");
 
 const FRONTEND_DIR = path.resolve(__dirname, "../../rapitas-frontend");
 const BACKEND_DIR = path.resolve(__dirname, "../../rapitas-backend");
+// Repo root (the PRIMARY git checkout). The dev backend runs whatever branch
+// this is on — see ensurePrimaryBranch().
+const REPO_ROOT = path.resolve(__dirname, "../..");
 const DESKTOP_DATA_DIR = path.resolve(__dirname, "..", ".data");
 const DESKTOP_DB_PATH = path.join(DESKTOP_DATA_DIR, "rapitas-dev.db");
 const BINARIES_DIR = path.resolve(__dirname, "../src-tauri/binaries");
@@ -1508,12 +1511,76 @@ function startFileWatcher() {
   );
 }
 
+/**
+ * Pin the PRIMARY git checkout to the development theme's branch BEFORE starting
+ * the backend. The dev backend runs whatever branch this checkout is on, so when
+ * an agent (or anything) leaves it on a stale feature branch, a restart silently
+ * runs old code (observed: backend ran an agent's bugfix branch, missing recent
+ * develop fixes). Target = RAPITAS_PRIMARY_BRANCH, defaulting to the rapitas
+ * self-theme's defaultBranch ('develop'). Set the env to follow a theme whose
+ * defaultBranch differs.
+ *
+ * Safe by design: only auto-switches when the working tree is CLEAN; with
+ * uncommitted work it ABORTS startup with a clear message instead of clobbering.
+ */
+function ensurePrimaryBranch() {
+  const target = process.env.RAPITAS_PRIMARY_BRANCH || "develop";
+  let current;
+  try {
+    current = execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    }).trim();
+  } catch (err) {
+    // Not a git repo / git unavailable — don't block dev startup. Warn loudly.
+    console.warn(
+      `⚠️  Could not determine the git branch (${err.message}); skipping branch pin.`,
+    );
+    return;
+  }
+
+  if (current === target) {
+    console.log(`✅ Primary checkout on '${target}' (dev backend will run it).`);
+    return;
+  }
+
+  const dirty =
+    execSync("git status --porcelain", { cwd: REPO_ROOT, encoding: "utf8" })
+      .trim().length > 0;
+
+  if (dirty) {
+    console.error(
+      `\n❌ Primary checkout is on '${current}', not '${target}', and has UNCOMMITTED changes.\n` +
+        `   Refusing to start so uncommitted work is never clobbered.\n` +
+        `   Commit/stash, then 'git checkout ${target}' and re-run.\n` +
+        `   (Override the expected branch with RAPITAS_PRIMARY_BRANCH.)`,
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `🔀 Primary checkout was on '${current}'; switching to '${target}' (clean tree).`,
+  );
+  try {
+    execSync(`git checkout ${target}`, { cwd: REPO_ROOT, stdio: "inherit" });
+  } catch (err) {
+    console.error(
+      `❌ Failed to switch to '${target}': ${err.message}. Fix manually and re-run.`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main() {
   // CI環境では実行しない
   if (process.env.CI === 'true' || process.env.CI === '1') {
     console.log("CI environment detected. Skipping dev server startup.");
     process.exit(0);
   }
+
+  // 開発バックエンドはこのチェックアウトのブランチで動くため、テーマのデフォルト
+  // ブランチに固定してから起動する（古いブランチで動く事故を防ぐ）。
+  ensurePrimaryBranch();
 
   // エージェントゾンビプロセスのクリーンアップ（ポート解放前に実行）
   console.log("\nCleaning up agent zombie processes...");
