@@ -25,6 +25,8 @@ export type UserSettings = {
   autoApprovePlan: boolean;
   autoApproveSubtaskPlan: boolean;
   autoComplexityAnalysis: boolean;
+  /** Per-theme cap on auto-created backlog tasks when auto-run runs dry (0 = disabled). */
+  autoCreateFromBacklogLimit?: number;
   autoCommitDefault?: boolean;
   autoCreatePRDefault?: boolean;
   autoMergePRDefault?: boolean;
