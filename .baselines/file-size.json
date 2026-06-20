@@ -11,7 +11,7 @@
       "lineCount": 985
     },
     "rapitas-backend/routes/workflow/handlers/workflow-handlers-files.ts": {
-      "lineCount": 951
+      "lineCount": 973
     },
     "rapitas-backend/routes/social/github.ts": {
       "lineCount": 945
@@ -20,7 +20,7 @@
       "lineCount": 916
     },
     "rapitas-backend/services/workflow/workflow-orchestrator.ts": {
-      "lineCount": 833
+      "lineCount": 1023
     },
     "rapitas-backend/services/agents/orchestrator/task-executor.ts": {
       "lineCount": 719
@@ -44,7 +44,7 @@
       "lineCount": 616
     },
     "rapitas-frontend/src/feature/developer-mode/hooks/execution-poll-handlers.ts": {
-      "lineCount": 616
+      "lineCount": 625
     },
     "rapitas-backend/services/agents/orchestrator/git-operations/worktree-ops.ts": {
       "lineCount": 601
@@ -62,13 +62,16 @@
       "lineCount": 547
     },
     "rapitas-backend/services/agents/verification/automated-verifier.ts": {
-      "lineCount": 545
+      "lineCount": 567
     },
     "rapitas-frontend/src/hooks/common/useSpeechRecognition.ts": {
       "lineCount": 541
     },
     "rapitas-frontend/src/feature/developer-mode/utils/log-patterns-table.ts": {
       "lineCount": 535
+    },
+    "rapitas-backend/services/workflow/auto-run/theme-auto-run-scheduler.ts": {
+      "lineCount": 515
     },
     "rapitas-backend/routes/organization/themes.ts": {
       "lineCount": 505
