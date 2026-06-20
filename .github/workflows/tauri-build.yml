@@ -551,11 +551,18 @@ jobs:
 
       - name: Build Tauri application
         working-directory: rapitas-desktop
+        shell: bash
         run: |
           # Build Tauri application with the correct target
           echo "Building Tauri app for ${{ matrix.platform }} (${{ matrix.target }})"
-          echo "Bundle targets: deb, rpm (AppImage disabled)"
-          pnpm run build --target ${{ matrix.target }}
+          if [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
+            # AppImage requires linuxdeploy which is unavailable in CI runners.
+            # Explicitly limit Linux bundles to deb and rpm only.
+            echo "Bundle targets: deb, rpm (AppImage disabled — linuxdeploy not available in CI)"
+            pnpm run build --target "${{ matrix.target }}" --bundles deb,rpm
+          else
+            pnpm run build --target "${{ matrix.target }}"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI: true
