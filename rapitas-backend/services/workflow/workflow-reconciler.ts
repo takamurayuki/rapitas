@@ -22,6 +22,7 @@ import { existsSync } from 'fs';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createNotification } from '../communication/notification-service';
+import { recordTransition } from './transition-recorder';
 
 const log = createLogger('workflow-reconciler');
 
@@ -41,6 +42,10 @@ export const STALE_TASK_MS = 45 * 60 * 1000;
  * a task whose completion is still mid-write.
  */
 export const COMPLETED_DESYNC_MS = 2 * 60 * 1000;
+/** Don't re-queue orphans older than this — ancient ones are likely abandoned. */
+const MAX_ORPHAN_REQUEUE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+/** Re-queue an orphan at most this many times before leaving it for notification. */
+const MAX_ORPHAN_REQUEUE = 2;
 /** Only inspect worktree rows touched within this window (bound the scan). */
 const PHANTOM_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
@@ -243,14 +248,79 @@ async function healCompletedDesync(nowMs: number): Promise<number> {
   return healed;
 }
 
+/**
+ * Orphan recovery: re-queue a genuinely-stuck in-progress task (no live agent,
+ * stale, non-terminal workflowStatus) back to 'todo' so auto-run reruns it.
+ * Guards: skips completed (healed elsewhere) and awaiting_question (paused),
+ * skips ANCIENT orphans (likely abandoned), and caps re-queues so an orphan that
+ * keeps dying isn't requeued forever — after the cap, flagOrphanTasks notifies.
+ */
+async function requeueOrphanTasks(nowMs: number): Promise<number> {
+  const staleBefore = new Date(nowMs - STALE_TASK_MS);
+  const notOlderThan = new Date(nowMs - MAX_ORPHAN_REQUEUE_AGE_MS);
+  const tasks = await prisma.task
+    .findMany({
+      where: {
+        status: 'in-progress',
+        parentId: null,
+        updatedAt: { lt: staleBefore, gt: notOlderThan },
+      },
+      select: { id: true, title: true, workflowStatus: true },
+    })
+    .catch(() => [] as { id: number; title: string; workflowStatus: string | null }[]);
+
+  let requeued = 0;
+  for (const t of tasks) {
+    if (t.workflowStatus === 'completed' || t.workflowStatus === 'awaiting_question') continue;
+
+    const live = await prisma.agentExecution
+      .findFirst({
+        where: { session: { config: { taskId: t.id } }, status: { in: ACTIVE_EXEC } },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (live) continue;
+
+    const attempts = await prisma.workflowTransition
+      .count({ where: { taskId: t.id, cause: 'reconciler_requeue' } })
+      .catch(() => 0);
+    if (attempts >= MAX_ORPHAN_REQUEUE) continue;
+
+    await prisma.task
+      .update({ where: { id: t.id }, data: { status: 'todo', updatedAt: new Date() } })
+      .catch(() => {});
+    await recordTransition({
+      taskId: t.id,
+      fromStatus: t.workflowStatus,
+      toStatus: t.workflowStatus ?? 'draft',
+      actor: 'system',
+      cause: 'reconciler_requeue',
+      metadata: { reason: 'orphan_in_progress_no_execution', attempt: attempts + 1 },
+    }).catch(() => {});
+    requeued++;
+    log.info(
+      { taskId: t.id, attempt: attempts + 1, wf: t.workflowStatus },
+      '[reconciler] Re-queued orphaned in-progress task -> todo',
+    );
+  }
+  return requeued;
+}
+
 /** Run one reconciliation pass. Single-flight; never throws. */
 export async function reconcileOnce(): Promise<{
   zombieSessions: number;
   phantomWorktrees: number;
   orphanTasks: number;
   completedDesyncs: number;
+  requeuedOrphans: number;
 }> {
-  const empty = { zombieSessions: 0, phantomWorktrees: 0, orphanTasks: 0, completedDesyncs: 0 };
+  const empty = {
+    zombieSessions: 0,
+    phantomWorktrees: 0,
+    orphanTasks: 0,
+    completedDesyncs: 0,
+    requeuedOrphans: 0,
+  };
   if (inFlight) return empty;
   inFlight = true;
   const nowMs = Date.now();
@@ -258,14 +328,17 @@ export async function reconcileOnce(): Promise<{
     const zombieSessions = await healZombieSessions(nowMs);
     const phantomWorktrees = await clearPhantomWorktrees(nowMs);
     const completedDesyncs = await healCompletedDesync(nowMs);
+    // Try to recover orphans (re-queue) BEFORE flagging — a successful re-queue
+    // means we don't also notify the user about the same task.
+    const requeuedOrphans = await requeueOrphanTasks(nowMs);
     const orphanTasks = await flagOrphanTasks(nowMs);
-    if (zombieSessions || phantomWorktrees || orphanTasks || completedDesyncs) {
+    if (zombieSessions || phantomWorktrees || orphanTasks || completedDesyncs || requeuedOrphans) {
       log.info(
-        { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs },
+        { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs, requeuedOrphans },
         '[reconciler] repaired divergences',
       );
     }
-    return { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs };
+    return { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs, requeuedOrphans };
   } catch (err) {
     log.warn({ err }, '[reconciler] pass failed');
     return empty;
