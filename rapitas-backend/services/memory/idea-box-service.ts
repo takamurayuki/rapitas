@@ -111,11 +111,22 @@ export async function resolveTaskThemeId(taskId: number): Promise<number | null>
       });
       if (byDir) return byDir.id;
     }
-    const def = await prisma.theme.findFirst({
-      where: { isDefault: true },
-      select: { id: true },
+    // Fall back to a theme that actually has a working directory — ideas become
+    // tasks that run in a repo, so a working-dir theme is the meaningful home (and
+    // a null/empty workingDirectory would otherwise show as a generic project/
+    // global icon). Prefer a default working-dir theme, then any. Treat empty
+    // string as no working dir, matching the UI's truthy filter. Only when no
+    // working-dir theme exists at all do we fall back to a default / null.
+    const candidates = await prisma.theme.findMany({
+      select: { id: true, isDefault: true, workingDirectory: true },
+      orderBy: { id: 'asc' },
     });
-    return def?.id ?? null;
+    const hasWd = (wd: string | null): boolean => !!wd && wd.trim() !== '';
+    const defaultWithWd = candidates.find((t) => t.isDefault && hasWd(t.workingDirectory));
+    if (defaultWithWd) return defaultWithWd.id;
+    const anyWithWd = candidates.find((t) => hasWd(t.workingDirectory));
+    if (anyWithWd) return anyWithWd.id;
+    return candidates.find((t) => t.isDefault)?.id ?? null;
   } catch {
     return null;
   }
