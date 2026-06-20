@@ -182,11 +182,8 @@ fn main() {
         let _ = fs::create_dir_all(&binaries_dir);
         let has_exe = fs::read_dir(&binaries_dir)
             .map(|rd| {
-                rd.flatten().any(|e| {
-                    e.file_name()
-                        .to_string_lossy()
-                        .ends_with(".exe")
-                })
+                rd.flatten()
+                    .any(|e| e.file_name().to_string_lossy().ends_with(".exe"))
             })
             .unwrap_or(false);
         if !has_exe {
@@ -196,9 +193,7 @@ fn main() {
                     "cargo:warning=Created .exe placeholder for cross-platform glob validation: {}",
                     exe_placeholder.display()
                 ),
-                Err(e) => println!(
-                    "cargo:warning=Failed to create .exe placeholder: {e}"
-                ),
+                Err(e) => println!("cargo:warning=Failed to create .exe placeholder: {e}"),
             }
         }
     }

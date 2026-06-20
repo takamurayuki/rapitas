@@ -209,9 +209,7 @@ export function buildResolveAfterParse(
 
       // NOTE: Neutral short-execution warning — asserting session failure here fed SESSION_FAILURE_RE false positives
       if (executionTimeMs < 10000) {
-        errorParts.push(
-          `\n\n【Warning】Execution time of ${executionTimeMs}ms is very short.`,
-        );
+        errorParts.push(`\n\n【Warning】Execution time of ${executionTimeMs}ms is very short.`);
       }
 
       errorMessage = errorParts.join('');

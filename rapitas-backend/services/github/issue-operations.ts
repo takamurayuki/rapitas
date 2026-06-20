@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '../../config/logger';
-import { runGhCommand } from './gh-client';
+import { runGhCommand, runGhCommandWithBody } from './gh-client';
 import type { Issue, CreateIssueInput, GhIssue, GhLabel } from './types';
 
 const log = createLogger('github-service:issues');
@@ -90,14 +90,6 @@ export async function getIssue(repo: string, issueNumber: number): Promise<Issue
 }
 
 /**
- * Create a new issue in a repository.
- *
- * @param repo - Repository in owner/name format / リポジトリ名
- * @param input - Issue creation input / イシュー作成入力
- * @returns Created issue / 作成されたイシュー
- * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
- */
-/**
  * Ensure each label exists in the repo, creating any that are missing. Failures
  * (including "label already exists") are ignored — best-effort so a label that
  * already exists doesn't block issue creation.
@@ -124,12 +116,17 @@ async function ensureLabelsExist(repo: string, labels: string[]): Promise<void> 
   }
 }
 
+/**
+ * Create a new issue in a repository.
+ *
+ * @param repo - Repository in owner/name format / リポジトリ名
+ * @param input - Issue creation input / イシュー作成入力
+ * @returns Created issue / 作成されたイシュー
+ * @throws {Error} When issue URL cannot be parsed or issue cannot be fetched
+ */
 export async function createIssue(repo: string, input: CreateIssueInput): Promise<Issue> {
   const baseArgs = ['issue', 'create', '--repo', repo, '--title', input.title];
 
-  if (input.body) {
-    baseArgs.push('--body', input.body);
-  }
   if (input.assignees && input.assignees.length > 0) {
     baseArgs.push('--assignee', input.assignees.join(','));
   }
@@ -145,7 +142,7 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
 
   let url: string;
   try {
-    url = await runGhCommand(args);
+    url = await runGhCommandWithBody(args, input.body);
   } catch (err) {
     if (input.labels && input.labels.length > 0) {
       // NOTE: gh rejects --label when any label doesn't exist in the repo.
@@ -154,7 +151,7 @@ export async function createIssue(repo: string, input: CreateIssueInput): Promis
         { repo, labels: input.labels },
         'Issue creation with labels failed; retrying without labels',
       );
-      url = await runGhCommand(baseArgs);
+      url = await runGhCommandWithBody(baseArgs, input.body);
     } else {
       throw err;
     }
@@ -200,7 +197,7 @@ export async function addIssueComment(
   issueNumber: number,
   body: string,
 ): Promise<{ id: number; body: string }> {
-  await runGhCommand(['issue', 'comment', String(issueNumber), '--repo', repo, '--body', body]);
+  await runGhCommandWithBody(['issue', 'comment', String(issueNumber), '--repo', repo], body);
 
   return {
     id: 0, // gh issue comment does not return an ID
