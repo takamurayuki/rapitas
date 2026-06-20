@@ -330,6 +330,33 @@ export function looksLikeAgentLog(text: string): boolean {
 }
 
 /**
+ * Slice off any conversational/log preamble that precedes the report body.
+ *
+ * Slices from the LAST canonical heading for `fileType` when present; otherwise
+ * falls back to the FIRST Markdown heading so a chat preamble the agent prepended
+ * (e.g. "これで必要な調査が完了しました。以下がresearch.mdです。") is dropped even
+ * when the heading is non-standard. Returns the input unchanged when no heading
+ * is found, so genuinely heading-less content is left for the caller to judge.
+ *
+ * @param text - Candidate report text (ANSI already stripped). / 判定対象テキスト
+ * @param fileType - Workflow file type selecting the canonical heading. / ファイル種別
+ * @returns Text from the report heading onward. / 見出し以降のテキスト
+ */
+export function sliceFromReportHeading(text: string, fileType: string): string {
+  const headerRe = REPORT_HEADERS[fileType];
+  if (headerRe) {
+    headerRe.lastIndex = 0;
+    let lastIndex = -1;
+    let m: RegExpExecArray | null;
+    while ((m = headerRe.exec(text)) !== null) lastIndex = m.index;
+    if (lastIndex >= 0) return text.slice(lastIndex);
+  }
+  const firstHeading = text.match(/^#{1,6}\s+\S/m);
+  if (firstHeading?.index) return text.slice(firstHeading.index);
+  return text;
+}
+
+/**
  * Extract a clean Markdown report from raw CLI/API agent output.
  *
  * The agent's stdout/finalMessage can be polluted with execution logs (tool
@@ -353,16 +380,8 @@ export function extractMarkdownFromOutput(output: string, fileType: string): str
   if (!output) return null;
   let text = output.replace(/\r\n/g, '\n').replace(ANSI_RE, '');
 
-  // 1) Slice from the report heading when present — the strongest defense, as it
-  // discards everything logged before the report begins.
-  const headerRe = REPORT_HEADERS[fileType];
-  if (headerRe) {
-    headerRe.lastIndex = 0;
-    let lastIndex = -1;
-    let m: RegExpExecArray | null;
-    while ((m = headerRe.exec(text)) !== null) lastIndex = m.index;
-    if (lastIndex >= 0) text = text.slice(lastIndex);
-  }
+  // 1) Slice off any preamble before the report body (the strongest defense).
+  text = sliceFromReportHeading(text, fileType);
 
   // 2) Drop residual tool/log/spinner/stack-trace lines.
   const contentLines = text
