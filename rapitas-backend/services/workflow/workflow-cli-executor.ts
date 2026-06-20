@@ -191,7 +191,16 @@ export async function executeCLIAgent(
           const taskTitle =
             (await prisma.task.findUnique({ where: { id: taskId }, select: { title: true } }))
               ?.title ?? `task-${taskId}`;
-          const branchName = generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
+          // Reuse the EXISTING feature branch (it holds the prior implementation
+          // and the commits already pushed to the PR) when a prior session
+          // recorded one — e.g. a ci_repair re-run after the worktree was cleaned
+          // up. Recreating on a FRESH branch loses the PR's work and re-implements
+          // from scratch, so the CI fix never lands on the PR branch (observed:
+          // task 227 re-implement loop). createWorktree checks out an existing
+          // branch as-is, keeping its commits.
+          const priorBranch = sessionWithWorktree?.branchName?.trim();
+          const branchName =
+            priorBranch || generateFallbackBranchName(taskTitle) || `feature/task-${taskId}-auto`;
           const wt = await orchestrator.createWorktree(worktreeBase, branchName, taskId, null);
           resolvedWorktreePath = wt;
           resolvedBranchName = branchName;
