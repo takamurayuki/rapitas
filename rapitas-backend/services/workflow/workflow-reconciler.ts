@@ -35,6 +35,12 @@ const STARTUP_DELAY_MS = 30_000;
 export const STALE_SESSION_MS = 45 * 60 * 1000;
 /** An in-progress task idle this long with no live execution is surfaced. */
 export const STALE_TASK_MS = 45 * 60 * 1000;
+/**
+ * Settle window before healing a status=in-progress / workflowStatus=completed
+ * desync. Short (the workflow is already terminal) but non-zero so we never race
+ * a task whose completion is still mid-write.
+ */
+export const COMPLETED_DESYNC_MS = 2 * 60 * 1000;
 /** Only inspect worktree rows touched within this window (bound the scan). */
 const PHANTOM_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
@@ -193,27 +199,73 @@ async function flagOrphanTasks(nowMs: number): Promise<number> {
   return flagged;
 }
 
+/**
+ * Heal the completion desync: a task left at status='in-progress' while its
+ * workflowStatus has already reached 'completed'. This happens when an
+ * execution-start path (continue / execute / respond / post-review) sets
+ * status='in-progress' without syncing workflowStatus, or a re-selection
+ * re-flips an already-completed task. `flagOrphanTasks` deliberately skips
+ * wf=completed, so without this heal these tasks stay stuck "進行中" forever
+ * with no live execution. The workflow is terminal, so finalize to 'done'.
+ */
+async function healCompletedDesync(nowMs: number): Promise<number> {
+  const cutoff = new Date(nowMs - COMPLETED_DESYNC_MS);
+  const tasks = await prisma.task
+    .findMany({
+      where: { status: 'in-progress', workflowStatus: 'completed', updatedAt: { lt: cutoff } },
+      select: { id: true, title: true, completedAt: true },
+    })
+    .catch(() => [] as { id: number; title: string; completedAt: Date | null }[]);
+
+  let healed = 0;
+  for (const t of tasks) {
+    // A live agent means the completion may still be settling — leave it alone.
+    const liveExec = await prisma.agentExecution
+      .findFirst({
+        where: { session: { config: { taskId: t.id } }, status: { in: ACTIVE_EXEC } },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (liveExec) continue;
+
+    await prisma.task
+      .update({
+        where: { id: t.id },
+        data: { status: 'done', completedAt: t.completedAt ?? new Date() },
+      })
+      .catch(() => {});
+    healed++;
+    log.info(
+      { taskId: t.id },
+      '[reconciler] Healed completion desync (in-progress + wf=completed) -> done',
+    );
+  }
+  return healed;
+}
+
 /** Run one reconciliation pass. Single-flight; never throws. */
 export async function reconcileOnce(): Promise<{
   zombieSessions: number;
   phantomWorktrees: number;
   orphanTasks: number;
+  completedDesyncs: number;
 }> {
-  const empty = { zombieSessions: 0, phantomWorktrees: 0, orphanTasks: 0 };
+  const empty = { zombieSessions: 0, phantomWorktrees: 0, orphanTasks: 0, completedDesyncs: 0 };
   if (inFlight) return empty;
   inFlight = true;
   const nowMs = Date.now();
   try {
     const zombieSessions = await healZombieSessions(nowMs);
     const phantomWorktrees = await clearPhantomWorktrees(nowMs);
+    const completedDesyncs = await healCompletedDesync(nowMs);
     const orphanTasks = await flagOrphanTasks(nowMs);
-    if (zombieSessions || phantomWorktrees || orphanTasks) {
+    if (zombieSessions || phantomWorktrees || orphanTasks || completedDesyncs) {
       log.info(
-        { zombieSessions, phantomWorktrees, orphanTasks },
+        { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs },
         '[reconciler] repaired divergences',
       );
     }
-    return { zombieSessions, phantomWorktrees, orphanTasks };
+    return { zombieSessions, phantomWorktrees, orphanTasks, completedDesyncs };
   } catch (err) {
     log.warn({ err }, '[reconciler] pass failed');
     return empty;
