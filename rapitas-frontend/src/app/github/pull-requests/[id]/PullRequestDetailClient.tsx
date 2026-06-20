@@ -43,6 +43,7 @@ export default function PullRequestDetailClient() {
   const [mergeMethod, setMergeMethod] = useState<MergeMethod>('squash');
   const [deleteBranch, setDeleteBranch] = useState(true);
   const [branches, setBranches] = useState<string[]>([]);
+  const [themeDefaultBranch, setThemeDefaultBranch] = useState<string | null>(null);
   const [changingBase, setChangingBase] = useState(false);
   const [autoMerge, setAutoMerge] = useState(false);
   const [resolvingConflicts, setResolvingConflicts] = useState(false);
@@ -61,6 +62,30 @@ export default function PullRequestDetailClient() {
       .then((data: { branches?: string[] }) => setBranches(data.branches ?? []))
       .catch(() => setBranches([]));
   }, [repositoryUrl]);
+
+  // Resolve the linked task's theme default branch so the configured merge
+  // target is always offered — when the integration has no repositoryUrl the
+  // remote branch fetch above is skipped, otherwise the dropdown would only show
+  // the generic develop/main/master lines.
+  const linkedTaskId = pr?.linkedTaskId;
+  useEffect(() => {
+    if (!linkedTaskId) return;
+    fetch(`${API_BASE_URL}/tasks/${linkedTaskId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(
+        (
+          data: {
+            task?: { theme?: { defaultBranch?: string | null } };
+            theme?: { defaultBranch?: string | null };
+          } | null,
+        ) => {
+          // The task endpoint may wrap the row in { task } or return it directly.
+          const dflt = data?.task?.theme?.defaultBranch ?? data?.theme?.defaultBranch;
+          if (dflt) setThemeDefaultBranch(dflt);
+        },
+      )
+      .catch(() => setThemeDefaultBranch(null));
+  }, [linkedTaskId]);
 
   const handleChangeBase = async (baseBranch: string) => {
     if (!pr || baseBranch === pr.baseBranch) return;
@@ -237,8 +262,12 @@ export default function PullRequestDetailClient() {
   // dropdown). Union the fetched branches with the current base and the common
   // lines (develop/main/master), excluding the PR's own head branch.
   const baseOptions = Array.from(
-    new Set<string>([...branches, pr.baseBranch, 'develop', 'main', 'master']),
-  ).filter((b) => !!b && b !== pr.headBranch);
+    new Set<string>(
+      [themeDefaultBranch, ...branches, pr.baseBranch, 'develop', 'main', 'master'].filter(
+        (b): b is string => !!b,
+      ),
+    ),
+  ).filter((b) => b !== pr.headBranch);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
