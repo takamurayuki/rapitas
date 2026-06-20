@@ -121,7 +121,7 @@ async function main(): Promise<void> {
   console.log('[shuffle-test] (Pass TEST_SHUFFLE_SEED=' + seed + ' to reproduce this order)\n');
   console.log('[shuffle-test] Running bun test in shuffled order...\n');
 
-  const proc = Bun.spawn(['bun', 'test', ...shuffled], {
+  const proc = Bun.spawn(['bun', 'test', '--isolate', ...shuffled], {
     cwd: root,
     stdio: ['inherit', 'inherit', 'inherit'],
     env: { ...process.env },
