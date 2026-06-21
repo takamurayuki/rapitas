@@ -8,7 +8,42 @@ import {
   validateResearchReport,
   sliceResearchReport,
   extractFinalAgentMessage,
+  isIsolatedWorktree,
 } from './research-output-utils';
+
+describe('isIsolatedWorktree', () => {
+  test('true for a path containing /.worktrees/ (Linux absolute)', () => {
+    expect(isIsolatedWorktree('/home/u/proj/.worktrees/task-1')).toBe(true);
+  });
+
+  test('true for a Windows path with backslash separators', () => {
+    // NOTE: The function normalizes \\ to / before checking, so Windows paths work.
+    expect(isIsolatedWorktree('C:\\repo\\.worktrees\\task-1')).toBe(true);
+  });
+
+  test('true for a relative path containing .worktrees/', () => {
+    expect(isIsolatedWorktree('./.worktrees/task-1')).toBe(true);
+  });
+
+  test('false for a path that does not contain .worktrees/', () => {
+    expect(isIsolatedWorktree('/repo/src/foo')).toBe(false);
+  });
+
+  test('false for empty string', () => {
+    expect(isIsolatedWorktree('')).toBe(false);
+  });
+
+  test('false when .worktrees appears only as a filename suffix (no surrounding /)', () => {
+    // NOTE: Guards against false-positive on paths like "/foo.worktrees" —
+    // the check requires the literal substring "/.worktrees/" including both slashes.
+    expect(isIsolatedWorktree('/repo/foo.worktrees')).toBe(false);
+  });
+
+  test('false for a path where .worktrees is a filename suffix after normalization', () => {
+    // ".worktrees" at the END of a component still has no trailing slash — false
+    expect(isIsolatedWorktree('/repo/.worktrees')).toBe(false);
+  });
+});
 
 describe('validateResearchReport', () => {
   test('rejects empty output', () => {
