@@ -19,7 +19,8 @@ import { spawn } from 'child_process';
 import os from 'os';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { dirname, extname, join, relative, resolve } from 'path';
-import { buildScopedTestCommands, TEST_FILE_RE } from './related-tests';
+import { buildScopedTestCommands, findRelatedTestFiles, TEST_FILE_RE } from './related-tests';
+import { triageTestFailures } from './test-triage';
 import { parsePlanFiles, evaluateScopeCheck } from './scope-check';
 
 /** Code extensions worth linting / typechecking. */
@@ -48,6 +49,12 @@ export interface VerificationCheck {
    * execute — the gate fails closed instead of silently treating it as passed.
    */
   unverifiable?: boolean;
+  /**
+   * Test files that failed before the agent's changes (pre-existing failures).
+   * Only set on 'test' checks when triage detected at least one pre-existing failure.
+   * These are excluded from errorCount/ok so they don't false-block the gate.
+   */
+  preExistingFailures?: string[];
 }
 
 export interface VerificationResult {
@@ -146,7 +153,7 @@ function resolveBin(projectRoot: string, workdir: string, name: string): string 
  * @param workdir - Worktree directory. / ワークツリーのディレクトリ
  * @returns A diffable base ref (merge-base commit or 'HEAD'). / 差分基準のref
  */
-async function diffBaseRef(workdir: string): Promise<string> {
+export async function diffBaseRef(workdir: string): Promise<string> {
   for (const candidate of ['develop', 'main', 'master']) {
     const base = (await git(workdir, `merge-base HEAD ${candidate}`)).trim();
     if (base) return base;
@@ -489,6 +496,38 @@ async function testProject(
     failures.push(`${command} failed:\n${detail}`);
   }
   const ok = failures.length === 0;
+  // When tests fail, triage pre-existing vs. new failures so the gate doesn't
+  // block on tests that were already red before this change (RAPITAS_TEST_TRIAGE
+  // defaults on; set to '0' or 'false' to disable).
+  if (!ok) {
+    const triageFlag = (process.env.RAPITAS_TEST_TRIAGE ?? '').trim().toLowerCase();
+    const triageEnabled = triageFlag !== '0' && triageFlag !== 'false';
+    if (triageEnabled) {
+      const projectRel = relFiles.map((f) =>
+        relative(projectRoot, join(workdir, f)).replace(/\\/g, '/'),
+      );
+      const changedTests = projectRel.filter((f) => TEST_FILE_RE.test(f));
+      const related = findRelatedTestFiles(projectRoot, projectRel);
+      const scopedFiles = [...new Set([...changedTests, ...related])];
+      if (scopedFiles.length > 0) {
+        const triage = await triageTestFailures(projectRoot, workdir, scopedFiles);
+        if (triage !== null) {
+          const { preExisting, newFailures } = triage;
+          const newOk = newFailures.length === 0;
+          return {
+            name: 'test',
+            ran: true,
+            ok: newOk,
+            errorCount: newFailures.length,
+            details: newOk
+              ? `${commands.length} test command(s): passed (${preExisting.length} pre-existing failure(s) excluded)`
+              : failures.join('\n\n').slice(0, MAX_DETAIL_CHARS),
+            preExistingFailures: preExisting.length > 0 ? preExisting : undefined,
+          };
+        }
+      }
+    }
+  }
   return {
     name: 'test',
     ran: true,
@@ -519,6 +558,8 @@ function mergeChecks(
   ]
     .join('\n\n')
     .slice(0, MAX_DETAIL_CHARS);
+  // Aggregate pre-existing failures across all project parts (only set for 'test').
+  const allPreExisting = parts.flatMap((p) => p.preExistingFailures ?? []);
   return {
     name,
     ran: ran.length > 0,
@@ -526,6 +567,7 @@ function mergeChecks(
     errorCount,
     details: details || `${name}: ok`,
     unverifiable: unverifiable.length > 0 || undefined,
+    preExistingFailures: allPreExisting.length > 0 ? allPreExisting : undefined,
   };
 }
 

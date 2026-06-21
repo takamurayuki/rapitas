@@ -20,6 +20,7 @@ import {
   resolveConcernIntegration,
 } from '../../services/github/concern-bridge';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
+import { checkPrActionable } from '../../services/github/pr-guards';
 import {
   resolvePrOrThrow,
   resolveIssueOrThrow,
@@ -415,6 +416,12 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const pr = await resolvePrOrThrow(id);
 
+    const commentGuard = checkPrActionable(pr, { operationLabel: 'コメント投稿', requireOpen: false });
+    if (commentGuard) {
+      context.set.status = commentGuard.status;
+      return commentGuard.body;
+    }
+
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
       body: commentBody,
@@ -445,6 +452,12 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const pr = await resolvePrOrThrow(id);
 
+    const approveGuard = checkPrActionable(pr, { operationLabel: '承認', requireOpen: true });
+    if (approveGuard) {
+      context.set.status = approveGuard.status;
+      return approveGuard.body;
+    }
+
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
 
@@ -468,6 +481,12 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
     const pr = await resolvePrOrThrow(id);
 
+    const requestChangesGuard = checkPrActionable(pr, { operationLabel: '変更要求', requireOpen: true });
+    if (requestChangesGuard) {
+      context.set.status = requestChangesGuard.status;
+      return requestChangesGuard.body;
+    }
+
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
 
@@ -487,7 +506,16 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       where: { id: parseInt(id) },
       include: { integration: true },
     });
-    if (!pr) return { success: false, error: 'PR not found' };
+    if (!pr) {
+      context.set.status = 404;
+      return { success: false, error: 'PR not found' };
+    }
+
+    const mergeGuard = checkPrActionable(pr, { operationLabel: 'マージ', requireOpen: true });
+    if (mergeGuard) {
+      context.set.status = mergeGuard.status;
+      return mergeGuard.body;
+    }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     let mergeResult: { autoQueued: boolean };
@@ -551,6 +579,12 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     if (!pr) {
       context.set.status = 404;
       return { success: false, error: 'PR not found' };
+    }
+
+    const baseGuard = checkPrActionable(pr, { operationLabel: 'base変更', requireOpen: true });
+    if (baseGuard) {
+      context.set.status = baseGuard.status;
+      return baseGuard.body;
     }
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
