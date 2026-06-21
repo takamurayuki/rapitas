@@ -26,6 +26,7 @@ import {
 } from './execution-helpers';
 import { isSessionResumeFailure, handleResumeFailureFallbacks } from './fallback-handler';
 import { buildContinuationAgentConfig } from './continuation-agent-config';
+import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('continuation-executor');
 
@@ -282,24 +283,33 @@ export async function executeContinuationInternal(
       workingDirectory: task?.workingDirectory || undefined,
     };
 
-    let result = await agent.execute(agentTask);
+    let result = await withLlmCallScope(async () => {
+      let r = await agent.execute(agentTask);
 
-    // Fallback on --resume failure
-    if (isSessionResumeFailure(result, claudeSessionId)) {
-      result = await handleResumeFailureFallbacks(
-        ctx,
-        agent,
-        agentConfig,
-        agentTask,
-        agentInfo,
-        execution,
-        state,
-        fileLogger,
-        logManager,
-        taskId,
-        claudeSessionId!,
-      );
-    }
+      // Fallback on --resume failure
+      if (isSessionResumeFailure(r, claudeSessionId)) {
+        r = await handleResumeFailureFallbacks(
+          ctx,
+          agent,
+          agentConfig,
+          agentTask,
+          agentInfo,
+          execution,
+          state,
+          fileLogger,
+          logManager,
+          taskId,
+          claudeSessionId!,
+        );
+      }
+
+      // Merge Tier 2 (ALS sendAIMessage calls) into Tier 1 (CLI num_turns)
+      const alsCount = getLlmCallCount();
+      if (alsCount > 0) {
+        r = { ...r, llmCallCount: (r.llmCallCount ?? 0) + alsCount };
+      }
+      return r;
+    });
 
     await saveExecutionResult(
       ctx.prisma,
