@@ -20,6 +20,11 @@ import {
   resolveConcernIntegration,
 } from '../../services/github/concern-bridge';
 import { githubSchemas, githubParamSchemas, githubQuerySchemas } from '../../schemas/github.schema';
+import {
+  resolvePrOrThrow,
+  resolveIssueOrThrow,
+  resolveIntegrationOrThrow,
+} from '../../services/github/resource-guard';
 
 // Create GitHub service instance
 const githubService = new GitHubService(prisma);
@@ -393,12 +398,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   .get('/pull-requests/:id/diff', async (context) => {
     const { params } = context;
     const { id } = params as { id: string };
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
+    const pr = await resolvePrOrThrow(id);
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     return await githubService.getPullRequestDiff(repo, pr.prNumber);
@@ -413,12 +413,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       line,
     } = context.body as { body: string; path?: string; line?: number };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
+    const pr = await resolvePrOrThrow(id);
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
@@ -448,12 +443,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const { id } = context.params as { id: string };
     const { body: reviewBody } = context.body as { body?: string };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
+    const pr = await resolvePrOrThrow(id);
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
@@ -476,12 +466,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const id = context.params.id;
     const reviewBody = (context.body as { body?: string }).body;
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
+    const pr = await resolvePrOrThrow(id);
 
     const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
@@ -589,14 +574,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   // for real conflicts, files an agent task to resolve them.
   .post('/pull-requests/:id/resolve-conflicts', async (context) => {
     const { id } = context.params as { id: string };
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) {
-      context.set.status = 404;
-      return { error: 'PR not found' };
-    }
+    const pr = await resolvePrOrThrow(id);
 
     // The conflict resolution needs a local checkout of the repo — use the
     // linked task's (or its theme's) working directory.
@@ -782,12 +760,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const { id } = context.params as { id: string };
     const { body: commentBody } = context.body as { body: string };
 
-    const issue = await prisma.gitHubIssue.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!issue) return { error: 'Issue not found' };
+    const issue = await resolveIssueOrThrow(id);
 
     const repo = `${issue.integration.ownerName}/${issue.integration.repositoryName}`;
     return await githubService.addIssueComment(repo, issue.issueNumber, commentBody);
@@ -802,11 +775,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       priority?: string;
     };
 
-    const issue = await prisma.gitHubIssue.findUnique({
-      where: { id: parseInt(id) },
-    });
-
-    if (!issue) return { error: 'Issue not found' };
+    const issue = await resolveIssueOrThrow(id);
 
     const task = await prisma.task.create({
       data: {
@@ -893,10 +862,7 @@ export const taskGithubRoutes = new Elysia()
     });
     if (!task) return { error: 'Task not found' };
 
-    const integration = await prisma.gitHubIntegration.findUnique({
-      where: { id: integrationId },
-    });
-    if (!integration) return { error: 'Integration not found' };
+    const integration = await resolveIntegrationOrThrow(integrationId);
 
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
     const issue = await githubService.createIssue(repo, {

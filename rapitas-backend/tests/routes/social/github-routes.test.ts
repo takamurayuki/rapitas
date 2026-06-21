@@ -108,6 +108,7 @@ mock.module('../../../services/core/github-service', () => ({
 // No mock needed for schemas as they are just type definitions
 
 const { githubRoutes, taskGithubRoutes } = await import('../../../routes/social/github');
+const { errorHandler } = await import('../../../middleware/error-handler');
 
 function resetAllMocks() {
   for (const model of Object.values(mockPrisma)) {
@@ -142,11 +143,11 @@ function resetAllMocks() {
 }
 
 function createApp() {
-  return new Elysia().use(githubRoutes);
+  return new Elysia().use(errorHandler).use(githubRoutes);
 }
 
 function createTaskApp() {
-  return new Elysia().use(taskGithubRoutes);
+  return new Elysia().use(errorHandler).use(taskGithubRoutes);
 }
 
 describe('GET /github/status', () => {
@@ -476,13 +477,15 @@ describe('GET /github/pull-requests/:id/diff', () => {
     expect(body.diff).toBe('diff content');
   });
 
-  test('PRが見つからない場合エラーを返すこと', async () => {
+  test('PRが見つからない場合 404 + PR_NOT_FOUND を返すこと', async () => {
     mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
 
     const res = await app.handle(new Request('http://localhost/github/pull-requests/999/diff'));
     const body = await res.json();
 
+    expect(res.status).toBe(404);
     expect(body.error).toBeDefined();
+    expect(body.code).toBe('PR_NOT_FOUND');
   });
 });
 
@@ -727,5 +730,143 @@ describe('GET /github/pull-requests/by-task/:taskId', () => {
     expect(body.reason).toBe('not_synced');
     expect(body.prUrl).toBe('https://github.com/o/r/pull/12');
     expect(body.prNumber).toBe(12);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 404 ガード統合テスト — resource-guard 置換後の HTTP ステータス確認
+// ---------------------------------------------------------------------------
+
+describe('POST /github/pull-requests/:id/comments — PR not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'comment' }),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('POST /github/pull-requests/:id/approve — PR not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'LGTM' }),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('POST /github/pull-requests/:id/request-changes — PR not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/request-changes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'needs work' }),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('POST /github/pull-requests/:id/resolve-conflicts — PR not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('PRが存在しない場合 404 + PR_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubPullRequest.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/pull-requests/999/resolve-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('PR_NOT_FOUND');
+  });
+});
+
+describe('POST /github/issues/:id/comments — Issue not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('Issueが存在しない場合 404 + ISSUE_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubIssue.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/999/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'comment' }),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('ISSUE_NOT_FOUND');
+  });
+});
+
+describe('POST /github/issues/:id/create-task — Issue not found → 404', () => {
+  let app: ReturnType<typeof createApp>;
+  beforeEach(() => { resetAllMocks(); app = createApp(); });
+
+  test('Issueが存在しない場合 404 + ISSUE_NOT_FOUND を返すこと', async () => {
+    mockPrisma.gitHubIssue.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/github/issues/999/create-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('ISSUE_NOT_FOUND');
+  });
+});
+
+describe('POST /tasks/:id/create-github-issue — Integration not found → 404', () => {
+  let app: ReturnType<typeof createTaskApp>;
+  beforeEach(() => { resetAllMocks(); app = createTaskApp(); });
+
+  test('Integrationが存在しない場合 404 + INTEGRATION_NOT_FOUND を返すこと', async () => {
+    mockPrisma.task.findUnique.mockResolvedValue({ id: 1, title: 'Task', description: 'desc' });
+    mockPrisma.gitHubIntegration.findUnique.mockResolvedValue(null);
+    const res = await app.handle(
+      new Request('http://localhost/tasks/1/create-github-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrationId: 999 }),
+      }),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(404);
+    expect(body.code).toBe('INTEGRATION_NOT_FOUND');
   });
 });
