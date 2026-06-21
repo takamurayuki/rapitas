@@ -5,6 +5,7 @@
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
@@ -388,10 +389,7 @@ export const commentsRoutes = new Elysia()
       // `mode: 'insensitive'` is Postgres-only; SQLite (desktop) Prisma client omits
       // `mode` from StringFilter and raises PrismaClientValidationError at runtime.
       // Attach conditionally — same pattern as search-route.ts:62-65.
-      const isPostgres =
-        process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&
-        !process.env.DATABASE_URL?.startsWith('file:');
-      const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};
+      const insensitive = getInsensitiveMode();
 
       // If search query provided, filter by content
       if (q && q.trim()) {

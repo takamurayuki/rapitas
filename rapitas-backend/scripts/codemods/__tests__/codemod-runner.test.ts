@@ -15,6 +15,7 @@ import { join, sep } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ensureImport, relativeImportPath, runCodemod, walkTs } from '../lib/codemod-runner';
+import { transformInsensitiveMode } from '../insensitive-mode';
 import { transformPrismaSingleton } from '../prisma-singleton';
 import { transformResponseHelper } from '../response-helper';
 import { transformSpecArray } from '../spec-array';
@@ -283,6 +284,156 @@ describe('transformResponseHelper', () => {
     const result = transformResponseHelper({ filePath: routePath(), content });
     expect(result.changed).toBe(true);
     expect(result.newContent).toContain("createErrorResponse(e.message, 'NOT_FOUND')");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// transformInsensitiveMode
+// ---------------------------------------------------------------------------
+
+describe('transformInsensitiveMode', () => {
+  const svcPath = () => join(tmpDir, 'services', 'foo.ts');
+  const dbProviderPath = () => join(tmpDir, 'config', 'db-provider.ts');
+
+  it('replaces Pattern A (single-line declaration) with getInsensitiveMode()', () => {
+    const content = [
+      `import { prisma } from '../../config/database';`,
+      `const isPostgres =`,
+      `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');`,
+      `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+      `const result = { contains: q, ...insensitive };`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain('const insensitive = getInsensitiveMode();');
+    expect(result.newContent).not.toContain('isPostgres');
+    expect(result.newContent).not.toContain("mode: 'insensitive' as const");
+  });
+
+  it('replaces Pattern A (multi-line declaration) with getInsensitiveMode()', () => {
+    const content = [
+      `const isPostgres =`,
+      `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' &&`,
+      `  !process.env.DATABASE_URL?.startsWith('file:');`,
+      `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain('const insensitive = getInsensitiveMode();');
+    expect(result.newContent).not.toContain('isPostgres');
+  });
+
+  it('adds getInsensitiveMode import when transforming', () => {
+    const content = [
+      `import { prisma } from '../../config/database';`,
+      `const isPostgres =`,
+      `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');`,
+      `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(true);
+    expect(result.newContent).toContain('import { getInsensitiveMode }');
+  });
+
+  it('does not add duplicate import on second pass', () => {
+    const content = [
+      `import { getInsensitiveMode } from '../../config/db-provider';`,
+      `const isPostgres =`,
+      `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');`,
+      `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    if (result.changed) {
+      const count = (result.newContent.match(/import \{ getInsensitiveMode \}/g) || []).length;
+      expect(count).toBe(1);
+    }
+  });
+
+  it('is idempotent — skips files already using getInsensitiveMode()', () => {
+    const content = `const insensitive = getInsensitiveMode();\n`;
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+  });
+
+  it('skips config/db-provider.ts to prevent self-modification', () => {
+    const content = [
+      `export function getInsensitiveMode() {`,
+      `  return getDbProvider() === 'postgresql' ? { mode: 'insensitive' as const } : {};`,
+      `}`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: dbProviderPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+  });
+
+  it('detects Pattern B and adds to manualReview without modifying content', () => {
+    const content = [
+      `function titleEqualsFilter(title: string) {`,
+      `  if (getDbProvider() === 'sqlite') {`,
+      `    return { equals: title };`,
+      `  }`,
+      `  return { equals: title, mode: 'insensitive' };`,
+      `}`,
+    ].join('\n');
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.newContent).toBe(content);
+    expect(result.manualReview.length).toBeGreaterThan(0);
+    expect(result.manualReview[0]).toContain('Pattern B');
+  });
+
+  it('leaves unrelated files unchanged with empty manualReview', () => {
+    const content = `const x = 1;\n`;
+    const result = transformInsensitiveMode({ filePath: svcPath(), content });
+    expect(result.changed).toBe(false);
+    expect(result.manualReview).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runCodemod dry-run integration (transformInsensitiveMode)
+// ---------------------------------------------------------------------------
+
+describe('runCodemod dry-run (transformInsensitiveMode)', () => {
+  it('does NOT write files in dry-run mode', () => {
+    const content = [
+      `const isPostgres =`,
+      `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');`,
+      `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+    ].join('\n');
+    const filePath = write('services/test-insensitive.ts', content);
+    const before = readFileSync(filePath, 'utf-8');
+
+    runCodemod(transformInsensitiveMode, {
+      roots: [join(tmpDir, 'services')],
+      label: 'test-insensitive-dry',
+      write: false,
+    });
+
+    const after = readFileSync(filePath, 'utf-8');
+    expect(after).toBe(before);
+  });
+
+  it('returns correct summary counts', () => {
+    write(
+      'services/a.ts',
+      [
+        `const isPostgres =`,
+        `  process.env.RAPITAS_DB_PROVIDER !== 'sqlite' && !process.env.DATABASE_URL?.startsWith('file:');`,
+        `const insensitive = isPostgres ? { mode: 'insensitive' as const } : {};`,
+      ].join('\n'),
+    );
+    write('services/b.ts', `const x = getInsensitiveMode();\n`);
+
+    const summary = runCodemod(transformInsensitiveMode, {
+      roots: [join(tmpDir, 'services')],
+      label: 'test-insensitive-summary',
+      write: false,
+    });
+
+    expect(summary.changed).toBe(1);
+    expect(summary.unchanged).toBe(1);
   });
 });
 

@@ -109,6 +109,11 @@ export function buildFullInstruction(params: {
   hasResearch?: boolean;
   /** A plan.md already exists for this task (re-run) — reuse if still valid. */
   hasPlan?: boolean;
+  /**
+   * Resolved workflow mode. In `lightweight` there is NO plan phase, so the
+   * enforced workflow is research → implement (the agent must NOT create plan.md).
+   */
+  workflowMode?: 'lightweight' | 'standard' | 'comprehensive';
 }): string {
   const {
     taskTitle,
@@ -122,6 +127,7 @@ export function buildFullInstruction(params: {
     taskSpec,
     hasResearch = false,
     hasPlan = false,
+    workflowMode = 'standard',
   } = params;
 
   let fullInstruction: string;
@@ -184,7 +190,30 @@ curl -s http://localhost:3001/workflow/tasks/${taskId}/files
   // CLAUDE.md (which they do not auto-load). The agent saves research.md and
   // plan.md via the workflow API, then exits — the user approves the plan in
   // the UI, and a subsequent execution handles implementation.
-  if (enforceWorkflow && taskId !== undefined) {
+  if (enforceWorkflow && taskId !== undefined && workflowMode === 'lightweight') {
+    // Lightweight mode has NO plan phase: research → implement IN THIS SAME run.
+    // Without this branch the agent got the standard research→plan→stop workflow
+    // (16 plan.md mentions) and created a plan.md for a lightweight task (task 229).
+    fullInstruction += `\n\n## 必須ワークフロー (軽量モード — plan フェーズなし / 絶対に守ってください)
+
+このタスクは**軽量モード**です。計画(plan)フェーズはありません。
+**この実行では調査(research.md)のみを行い、保存したら終了します。plan.md は作成しません。**（軽量モードに計画フェーズはありません）
+**この実行で実装(コード変更)を始めないでください。** 実装は調査完了後、Rapitas が自動で次フェーズ(実装)を起動して行います。CLAUDE.md に「Step 2 — Plan / plan.md を作成」とあっても従わないでください。
+
+### Step 1: 調査 (research.md の作成)
+- 既存の research.md があれば取得（\`curl -s http://localhost:3001/workflow/tasks/${taskId}/files\`）して妥当性を評価。**妥当でも、軽量モードでは下記の "次フェーズ起動" のために必ず一度 PUT で再保存**してください（内容は同等で可）。不足なら補って保存。無ければ調査して保存。
+- 軽量モードは後続に計画フェーズが無いため、research.md は**実装に直接使える具体度**（変更対象ファイル・具体的な修正方針・テスト方針）まで書くこと。判断を後続へ先送りしない。
+
+### Step 1.4: 既に要件を満たしている場合（修正不要での完了）
+調査の結果、既存実装で要件が全て満たされ**コード変更が一切不要**なら、research.md 末尾に \`## 結論: 修正不要\` を書いて保存し終了（タスクは自動完了）。少しでも変更余地があればこの結論は書かない。
+
+### Step 1.5: ユーザ質問 (判断不能な場合のみ)
+仕様が曖昧で決定不能な場合のみ question.md に質問を書いて停止（回答後に再実行）。
+
+### Step 2: 終了
+research.md を保存したら、**コードを一切変更せずにすぐ終了**してください。実装は次フェーズで自動実行されます。
+`;
+  } else if (enforceWorkflow && taskId !== undefined) {
     fullInstruction += `\n\n## 必須ワークフロー (絶対に守ってください)
 
 **この実行では実装を始めてはいけません。** 調査と計画を保存してから終了します。
