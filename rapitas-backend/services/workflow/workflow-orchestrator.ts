@@ -455,7 +455,12 @@ export class WorkflowOrchestrator {
     // implementer runs, re-validate plan.md and roll the workflow back to draft
     // when it is unusable — the researcher/planner reuse-checks then regenerate
     // ONLY the polluted artifacts (a clean one is skipped) before re-implementing.
-    if (transition.role === 'implementer') {
+    // Lightweight mode has NO plan phase, so the implementer legitimately runs
+    // with no plan.md — skip the plan-validity guard. Otherwise an empty/absent
+    // plan.md reads as "broken plan" and rolls a lightweight task back to re-plan
+    // forever (task 229's plan_invalid_replan loop, and why the lightweight
+    // research→implement handoff stalled at research_done).
+    if (transition.role === 'implementer' && workflowMode !== 'lightweight') {
       const planMd = await readWorkflowFile(workflowInfo.dir, 'plan').catch(() => null);
       if (!planMd || !isReusableArtifact('plan', planMd)) {
         // BOUND the replan loop. Previously this rolled back to draft every time
