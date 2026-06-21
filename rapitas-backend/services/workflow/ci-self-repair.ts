@@ -109,6 +109,23 @@ export async function attemptCiRepair(
 ): Promise<CiRepairResult> {
   if (DEFAULT_MAX_CI_REPAIRS === 0) return { bounced: false };
 
+  // Conflict-resolution tasks ("PR #N の競合を解消") must NOT be CI-repaired: their
+  // job is to resolve a merge conflict, not to fix failing tests. Re-running the
+  // agent finds no conflict left and cannot fix a CI bug, so bouncing it merely
+  // UN-COMPLETES a finished task (the completed→plan_approved flip the user saw on
+  // task 280). A CI failure on such a PR is a separate concern — leave the task
+  // completed and let the caller flag the PR for review instead.
+  const ctask = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { title: true, githubPrId: true } })
+    .catch(() => null);
+  if (ctask && ctask.githubPrId != null && /^PR #\d+ の競合を解消/.test(ctask.title ?? '')) {
+    log.info(
+      { taskId },
+      '[ci-repair] Conflict-resolution task — skipping CI repair (re-run cannot fix CI; staying completed)',
+    );
+    return { bounced: false };
+  }
+
   const prior = await countPriorRepairs(taskId);
   if (prior >= DEFAULT_MAX_CI_REPAIRS) {
     log.warn(
