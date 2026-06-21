@@ -1,11 +1,14 @@
 /**
  * log-health-check.test
  *
- * Unit tests for the grouping/normalization core (groupEntries) and the
- * level→severity mapping. File I/O and concern filing are covered elsewhere.
+ * Unit tests for the grouping/normalization core (groupEntries), the
+ * level→severity mapping, and the async differential readGlobalEntries.
  */
-import { describe, it, expect } from 'bun:test';
-import { groupEntries, levelToSeverity } from './log-health-check';
+import { describe, it, expect, afterEach } from 'bun:test';
+import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { groupEntries, levelToSeverity, readGlobalEntries } from './log-health-check';
 import type { ParsedLogEntry } from './log-format-parser';
 
 function entry(over: Partial<ParsedLogEntry> & { level: number; msg: string }): ParsedLogEntry {
@@ -63,5 +66,58 @@ describe('levelToSeverity', () => {
     expect(levelToSeverity(40)).toBe('medium'); // warn
     expect(levelToSeverity(50)).toBe('high'); // error
     expect(levelToSeverity(60)).toBe('urgent'); // fatal
+  });
+});
+
+describe('readGlobalEntries', () => {
+  const tmpFiles: string[] = [];
+
+  function writeTmp(name: string, content: string): string {
+    const p = join(tmpdir(), name);
+    writeFileSync(p, content, 'utf-8');
+    tmpFiles.push(p);
+    return p;
+  }
+
+  afterEach(() => {
+    for (const p of tmpFiles.splice(0)) {
+      if (existsSync(p)) unlinkSync(p);
+    }
+  });
+
+  it('returns [] when the file does not exist', async () => {
+    const entries = await readGlobalEntries(0, join(tmpdir(), '__nonexistent_test__.log'));
+    expect(entries).toEqual([]);
+  });
+
+  it('returns [] for an empty file', async () => {
+    const p = writeTmp('hc-empty.log', '');
+    const entries = await readGlobalEntries(0, p);
+    expect(entries).toEqual([]);
+  });
+
+  it('filters out entries whose time is before sinceMs', async () => {
+    const sinceMs = Date.now();
+    const old = JSON.stringify({ level: 50, msg: 'old error', time: sinceMs - 5_000, name: 'x' });
+    const fresh = JSON.stringify({
+      level: 50,
+      msg: 'fresh error',
+      time: sinceMs + 5_000,
+      name: 'x',
+    });
+    const p = writeTmp('hc-filter.log', `${old}\n${fresh}\n`);
+    const entries = await readGlobalEntries(sinceMs, p);
+    expect(entries.some((e) => e.msg === 'old error')).toBe(false);
+    expect(entries.some((e) => e.msg === 'fresh error')).toBe(true);
+  });
+
+  it('keeps entries with no time field regardless of sinceMs', async () => {
+    const p = writeTmp(
+      'hc-notime.log',
+      JSON.stringify({ level: 50, msg: 'no time', name: 'x' }) + '\n',
+    );
+    // Use a very large sinceMs to verify time-less entries are always kept.
+    const entries = await readGlobalEntries(Date.now() + 999_999_999, p);
+    expect(entries.some((e) => e.msg === 'no time')).toBe(true);
   });
 });
