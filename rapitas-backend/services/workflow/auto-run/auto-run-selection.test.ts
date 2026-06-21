@@ -12,6 +12,7 @@ import {
   hasItemAwaitingApproval,
   selectNextTask,
   isTaskBlocked,
+  priorityRank,
 } from './auto-run-selection';
 import type { PrismaClient } from '@prisma/client';
 
@@ -35,6 +36,34 @@ function makePrisma(overrides: Partial<Record<string, unknown>> = {}): PrismaCli
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+describe('priorityRank', () => {
+  it('null / undefined / 空文字 は medium (2) として扱われる', () => {
+    expect(priorityRank(null)).toBe(2);
+    expect(priorityRank(undefined)).toBe(2);
+    expect(priorityRank('')).toBe(2);
+  });
+
+  it('PRIORITY_RANK に存在しない文字列（NaN, critical 等）は medium (2) にフォールバックする', () => {
+    expect(priorityRank('NaN')).toBe(2);
+    expect(priorityRank('critical')).toBe(2);
+  });
+
+  it('大文字・混合大文字の優先度文字列は toLowerCase() で正規化される', () => {
+    // toLowerCase() が効いていることを確認
+    expect(priorityRank('URGENT')).toBe(0);
+    expect(priorityRank('High')).toBe(1);
+    expect(priorityRank('MEDIUM')).toBe(2);
+    expect(priorityRank('LOW')).toBe(3);
+  });
+
+  it('全優先度の数値ランクが正しい（urgent < high < medium < low）', () => {
+    expect(priorityRank('urgent')).toBe(0);
+    expect(priorityRank('high')).toBe(1);
+    expect(priorityRank('medium')).toBe(2);
+    expect(priorityRank('low')).toBe(3);
+  });
+});
 
 describe('isTaskBlocked', () => {
   it('returns true for blocked status', () => {
