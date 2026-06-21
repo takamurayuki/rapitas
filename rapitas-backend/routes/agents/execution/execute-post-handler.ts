@@ -332,12 +332,21 @@ export async function handleExecuteResult(params: HandleExecuteResultParams): Pr
     const session = await prisma.agentSession
       .findUnique({ where: { id: sessionId }, select: { mode: true } })
       .catch(() => null);
-    const isWorkflowPhase = session?.mode?.startsWith('workflow-') === true;
+    // Only the CODE-producing workflow phases (implementer/verifier) defer their
+    // PR to the verify.md handler. A workflow-researcher/planner run via the
+    // execute path produces NO code and must still auto-advance to the next phase
+    // — otherwise a lightweight research run stalls at research_done with nothing
+    // dispatching the implementer (the previous `startsWith('workflow-')` guard
+    // wrongly skipped the researcher/planner advance too).
+    const isWorkflowCodePhase =
+      session?.mode === 'workflow-implementer' ||
+      session?.mode === 'workflow-verifier' ||
+      session?.mode === 'workflow-auto_verifier';
 
-    if (isWorkflowPhase) {
+    if (isWorkflowCodePhase) {
       log.info(
         { taskId: taskIdNum, mode: session?.mode },
-        '[API] Workflow phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
+        '[API] Workflow code phase detected — skipping post-execution PR pipeline (verify.md handler will commit/PR after verification)',
       );
     } else if (await advanceManagedPlanningPhase(taskIdNum)) {
       // Handled inside the helper: a dev-mode run that self-followed CLAUDE.md
