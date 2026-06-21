@@ -15,6 +15,7 @@ import { toJsonString, fromJsonString } from '../../../utils/database/db-helpers
 import type { SubtaskProposal } from '../../../services/claude-agent';
 import { createSubtasksInTransaction } from './bulk-approve-handler';
 import { resolveAgentForTask } from '../../../services/workflow/role-resolver';
+import { isShutdownError } from '../../../services/agents/agent-worker/shutdown-error';
 
 const log = createLogger('routes:approvals:approve');
 
@@ -138,6 +139,12 @@ export const approveRoutes = new Elysia()
           }
         })
         .catch(async (error) => {
+          if (isShutdownError(error)) {
+            // NOTE: Shutdown-originated reject is not a failure — demote to WARN
+            // and skip the error notification to avoid false "Agent Execution Error" noise.
+            log.warn({ err: error }, 'Agent execution interrupted by shutdown');
+            return;
+          }
           log.error({ err: error }, 'Agent execution failed');
           await prisma.notification.create({
             data: {
