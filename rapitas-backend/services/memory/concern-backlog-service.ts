@@ -11,6 +11,7 @@ import { createHash } from 'crypto';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createTask } from '../task/task-mutations';
+import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 
 const log = createLogger('memory:concern-backlog');
 
@@ -108,6 +109,18 @@ function contentHash(input: string): string {
  * @returns Created (or existing duplicate) KnowledgeEntry id / 作成・既存のID
  */
 export async function submitConcern(input: SubmitConcernInput): Promise<number> {
+  // 文字化けチェック＆修正: repair title/detail BEFORE storing so a garbled concern
+  // never lands in the backlog (agent submissions over curl/files on Windows can
+  // arrive mojibake'd). Only an effective fix is adopted; clean text is untouched.
+  const sanTitle = sanitizeMarkdownContent(input.title);
+  const sanDetail = sanitizeMarkdownContent(input.detail);
+  input = { ...input, title: sanTitle.content, detail: sanDetail.content };
+  if (sanTitle.wasFixed || sanDetail.wasFixed) {
+    log.info(
+      { issues: [...sanTitle.issues, ...sanDetail.issues] },
+      '[concern-backlog] Repaired mojibake before registering concern',
+    );
+  }
   const type = normalizeConcernType(input.type);
   const severity = normalizeConcernSeverity(input.severity);
   // A stable dedupKey wins over title+detail so a recurring concern whose detail

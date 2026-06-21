@@ -8,6 +8,7 @@
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createContentHash } from './utils';
+import { sanitizeMarkdownContent } from '../../utils/common/mojibake-detector';
 
 const log = createLogger('memory:idea-box');
 
@@ -149,7 +150,21 @@ export async function resolveDefaultThemeId(): Promise<number | null> {
 }
 
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
-  const hash = createContentHash(`${input.title}:${input.content}`);
+  // 文字化けチェック＆修正: agent submissions (via curl / files on Windows) can
+  // arrive mojibake'd; repair title/content BEFORE storing so a garbled idea never
+  // lands in the box. sanitizeMarkdownContent only adopts a fix that improves the
+  // mojibake score, else keeps the original — so clean text is untouched.
+  const sanTitle = sanitizeMarkdownContent(input.title);
+  const sanContent = sanitizeMarkdownContent(input.content);
+  const title = sanTitle.content;
+  const content = sanContent.content;
+  if (sanTitle.wasFixed || sanContent.wasFixed) {
+    log.info(
+      { issues: [...sanTitle.issues, ...sanContent.issues] },
+      '[idea-box] Repaired mojibake before registering idea',
+    );
+  }
+  const hash = createContentHash(`${title}:${content}`);
 
   // Deduplicate
   const existing = await prisma.knowledgeEntry.findFirst({
@@ -180,8 +195,8 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     data: {
       sourceType: 'idea_box',
       sourceId: input.source ?? 'user',
-      title: input.title,
-      content: input.content,
+      title,
+      content,
       contentHash: hash,
       category: input.category ?? 'improvement',
       tags: JSON.stringify(allTags),
