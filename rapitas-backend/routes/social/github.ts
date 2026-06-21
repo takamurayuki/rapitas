@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
 import { GitHubService, type GitHubWebhookPayload } from '../../services/core/github-service';
+import { resolvePrOrThrow } from './pr-guard';
 import {
   listWorkflowRuns,
   getWorkflowRun,
@@ -391,16 +392,8 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
 
   // Get PR diff
   .get('/pull-requests/:id/diff', async (context) => {
-    const { params } = context;
-    const { id } = params as { id: string };
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { id } = context.params as { id: string };
+    const { pr, repo } = await resolvePrOrThrow(id);
     return await githubService.getPullRequestDiff(repo, pr.prNumber);
   })
 
@@ -413,14 +406,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       line,
     } = context.body as { body: string; path?: string; line?: number };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { pr, repo } = await resolvePrOrThrow(id);
     const comment = await githubService.createPullRequestComment(repo, pr.prNumber, {
       body: commentBody,
       path,
@@ -430,7 +416,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     // Save comment to DB
     await prisma.gitHubPRComment.create({
       data: {
-        pullRequestId: parseInt(id),
+        pullRequestId: pr.id,
         commentId: comment.id || 0,
         body: commentBody,
         path,
@@ -448,14 +434,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const { id } = context.params as { id: string };
     const { body: reviewBody } = context.body as { body?: string };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { pr, repo } = await resolvePrOrThrow(id);
     await githubService.approvePullRequest(repo, pr.prNumber, reviewBody);
 
     // Create notification
@@ -476,14 +455,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     const id = context.params.id;
     const reviewBody = (context.body as { body?: string }).body;
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-
-    if (!pr) return { error: 'PR not found' };
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { pr, repo } = await resolvePrOrThrow(id);
     await githubService.requestChanges(repo, pr.prNumber, reviewBody ?? '');
 
     return { success: true };
@@ -498,13 +470,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       auto?: boolean;
     };
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) return { success: false, error: 'PR not found' };
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { pr, repo } = await resolvePrOrThrow(id);
     let mergeResult: { autoQueued: boolean };
     try {
       mergeResult = await githubService.mergePullRequest(repo, pr.prNumber, {
@@ -525,7 +491,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     }
 
     await prisma.gitHubPullRequest
-      .update({ where: { id: parseInt(id) }, data: { state: 'merged', updatedAt: new Date() } })
+      .update({ where: { id: pr.id }, data: { state: 'merged', updatedAt: new Date() } })
       .catch(() => {});
 
     // Pull the merged changes into the LOCAL base branch so the working copy
@@ -559,16 +525,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
       return { success: false, error: 'baseBranch は必須です' };
     }
 
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) {
-      context.set.status = 404;
-      return { success: false, error: 'PR not found' };
-    }
-
-    const repo = `${pr.integration.ownerName}/${pr.integration.repositoryName}`;
+    const { pr, repo } = await resolvePrOrThrow(id);
     try {
       await githubService.changePullRequestBase(repo, pr.prNumber, baseBranch);
     } catch (err) {
@@ -578,7 +535,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
     }
 
     await prisma.gitHubPullRequest
-      .update({ where: { id: parseInt(id) }, data: { baseBranch, updatedAt: new Date() } })
+      .update({ where: { id: pr.id }, data: { baseBranch, updatedAt: new Date() } })
       .catch(() => {});
 
     return { success: true, baseBranch };
@@ -589,14 +546,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   // for real conflicts, files an agent task to resolve them.
   .post('/pull-requests/:id/resolve-conflicts', async (context) => {
     const { id } = context.params as { id: string };
-    const pr = await prisma.gitHubPullRequest.findUnique({
-      where: { id: parseInt(id) },
-      include: { integration: true },
-    });
-    if (!pr) {
-      context.set.status = 404;
-      return { error: 'PR not found' };
-    }
+    const { pr } = await resolvePrOrThrow(id);
 
     // The conflict resolution needs a local checkout of the repo — use the
     // linked task's (or its theme's) working directory.
