@@ -27,6 +27,7 @@ CREATE TABLE "AgentSession" (
     "lastActivityAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "totalTokensUsed" INTEGER NOT NULL DEFAULT 0,
     "totalCostUsd" DECIMAL NOT NULL DEFAULT 0,
+    "totalLlmCallCount" INTEGER NOT NULL DEFAULT 0,
     "errorMessage" TEXT,
     "metadata" TEXT,
     "branchName" TEXT,
@@ -117,6 +118,7 @@ CREATE TABLE "AgentExecution" (
     "questionType" TEXT,
     "questionDetails" TEXT,
     "claudeSessionId" TEXT,
+    "llmCallCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "AgentExecution_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "AgentSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "AgentExecution_agentConfigId_fkey" FOREIGN KEY ("agentConfigId") REFERENCES "AIAgentConfig" ("id") ON DELETE SET NULL ON UPDATE CASCADE

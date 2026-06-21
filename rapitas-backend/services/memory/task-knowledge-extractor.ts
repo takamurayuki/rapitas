@@ -7,12 +7,12 @@
  */
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getInsensitiveMode } from '../../config/db-provider';
 import { sendAIMessage } from '../../utils/ai-client';
 import { parseJsonArray } from '../../utils/common/json-extractor';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
 import { memoryTaskQueue } from './index';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 const log = createLogger('memory:task-knowledge');
 

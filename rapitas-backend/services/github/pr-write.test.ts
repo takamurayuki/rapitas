@@ -62,6 +62,23 @@ describe('mergePullRequest', () => {
     mockRunGhCommandWithBody.mockReset();
   });
 
+  describe('prNumber validation', () => {
+    it('throws without calling gh when prNumber is 0', async () => {
+      await expect(mergePullRequest('owner/repo', 0)).rejects.toThrow('無効なPR番号です: 0');
+      expect(mockRunGhCommand).not.toHaveBeenCalled();
+    });
+
+    it('throws without calling gh when prNumber is negative', async () => {
+      await expect(mergePullRequest('owner/repo', -1)).rejects.toThrow('無効なPR番号です: -1');
+      expect(mockRunGhCommand).not.toHaveBeenCalled();
+    });
+
+    it('throws without calling gh when prNumber is NaN', async () => {
+      await expect(mergePullRequest('owner/repo', NaN)).rejects.toThrow(/無効なPR番号です/);
+      expect(mockRunGhCommand).not.toHaveBeenCalled();
+    });
+  });
+
   describe('without auto option', () => {
     it('calls gh pr merge without --auto and returns autoQueued: false', async () => {
       mockRunGhCommand.mockResolvedValueOnce('');
@@ -92,6 +109,46 @@ describe('mergePullRequest', () => {
 
       const [args] = mockRunGhCommand.mock.calls[0] as [string[]];
       expect(args).toContain('--squash');
+    });
+
+    it('runs update-branch then retries merge on head-behind error, returns autoQueued: false', async () => {
+      // First call: merge fails with head-behind error.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Pull request is not up to date with the base branch'),
+      );
+      // Second call: update-branch succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+      // Third call: retry merge succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      const result = await mergePullRequest('owner/repo', 10, { method: 'squash' });
+
+      expect(result).toEqual({ autoQueued: false });
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(3);
+      const [updateArgs] = mockRunGhCommand.mock.calls[1] as [string[]];
+      expect(updateArgs).toContain('update-branch');
+      expect(updateArgs).toContain('10');
+    });
+
+    it('throws CI-retry message when update-branch succeeds but retry merge also fails', async () => {
+      mockRunGhCommand.mockRejectedValueOnce(new Error('base branch was modified'));
+      mockRunGhCommand.mockResolvedValueOnce(''); // update-branch succeeds
+      mockRunGhCommand.mockRejectedValueOnce(new Error('still not mergeable'));
+
+      await expect(mergePullRequest('owner/repo', 10)).rejects.toThrow(
+        'ブランチを最新化しました。CI 完了後に再度マージしてください',
+      );
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(3);
+    });
+
+    it('rethrows original merge error when update-branch reports already up to date', async () => {
+      const originalError = new Error('not up to date with the base branch');
+      mockRunGhCommand.mockRejectedValueOnce(originalError);
+      // update-branch exits non-zero with "already up to date"
+      mockRunGhCommand.mockRejectedValueOnce(new Error('Pull request is already up-to-date'));
+
+      await expect(mergePullRequest('owner/repo', 10)).rejects.toBe(originalError);
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -167,7 +224,9 @@ describe('mergePullRequest', () => {
       mockRunGhCommand.mockRejectedValueOnce(
         new Error('Auto-merge is not allowed for this repository'),
       );
-      const directMergeError = new Error('Pull request is not mergeable');
+      // NOTE: This error does not match HEAD_BEHIND_RE, so no update-branch retry
+      // is attempted and the error propagates directly to the caller.
+      const directMergeError = new Error('Pull request has unresolved merge conflicts');
       mockRunGhCommand.mockRejectedValueOnce(directMergeError);
 
       await expect(mergePullRequest('owner/repo', 7, { auto: true })).rejects.toBe(
@@ -187,6 +246,28 @@ describe('mergePullRequest', () => {
       const [fallbackArgs] = mockRunGhCommand.mock.calls[1] as [string[]];
       expect(fallbackArgs).toContain('--delete-branch');
       expect(fallbackArgs).not.toContain('--auto');
+    });
+
+    it('auto fallback direct merge recovers from head-behind via update-branch + retry', async () => {
+      // First call: --auto fails (auto-merge not enabled).
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Auto-merge is not allowed for this repository'),
+      );
+      // Second call: fallback direct merge fails with head-behind.
+      mockRunGhCommand.mockRejectedValueOnce(
+        new Error('Pull request is not up to date with the base branch'),
+      );
+      // Third call: update-branch succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+      // Fourth call: retry merge succeeds.
+      mockRunGhCommand.mockResolvedValueOnce('');
+
+      const result = await mergePullRequest('owner/repo', 7, { auto: true });
+
+      expect(result).toEqual({ autoQueued: false });
+      expect(mockRunGhCommand).toHaveBeenCalledTimes(4);
+      const [updateArgs] = mockRunGhCommand.mock.calls[2] as [string[]];
+      expect(updateArgs).toContain('update-branch');
     });
   });
 });

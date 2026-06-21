@@ -79,7 +79,10 @@ async function stopExecutions(executionIds: number[], reason: string): Promise<n
     if (sessionIds.length > 0) {
       await prisma.agentSession
         .updateMany({
-          where: { id: { in: sessionIds }, status: 'active' },
+          // Cancel BOTH 'active' AND 'running' sessions — verification-retry sets
+          // a session to 'running', so a stop that only cleared 'active' would
+          // leave a 'running' zombie behind (blocking auto-run's next pick).
+          where: { id: { in: sessionIds }, status: { in: ['active', 'running'] } },
           data: { status: 'cancelled' },
         })
         .catch(() => {});

@@ -17,6 +17,7 @@ import {
   type VerificationResult,
 } from './automated-verifier';
 import { resolveWorkflowDir, readWorkflowFile } from '../../workflow/workflow-file-utils';
+import { submitConcern } from '../../memory/concern-backlog-service';
 
 const log = createLogger('agents:verification-gate');
 
@@ -46,6 +47,38 @@ export interface GateOutcome {
 }
 
 /**
+ * Files concerns for pre-existing test failures found during triage. Non-fatal:
+ * failures to submit are logged and swallowed so the gate outcome is unaffected.
+ * Uses dedupKey `test-baseline:<file>` (task-independent) so the same failing
+ * test is filed only once regardless of how many tasks trigger verification.
+ *
+ * @param taskId - Task whose verification found the failures / 発見タスク
+ * @param result - Verification result containing triage data / 検証結果
+ */
+async function reportPreExistingFailures(
+  taskId: number,
+  result: VerificationResult,
+): Promise<void> {
+  const testCheck = result.checks.find((c) => c.name === 'test');
+  const preExisting = testCheck?.preExistingFailures;
+  if (!preExisting || preExisting.length === 0) return;
+  for (const file of preExisting) {
+    await submitConcern({
+      title: `既存テスト失敗: ${file}`,
+      detail: `テストファイル \`${file}\` はエージェントの変更以前から失敗していました。タスク #${taskId} の検証中に検出されました。`,
+      type: 'bug',
+      severity: 'high',
+      location: file,
+      originTaskId: taskId,
+      source: 'verification-triage',
+      dedupKey: `test-baseline:${file}`,
+    }).catch((err: unknown) =>
+      log.warn({ err, file }, 'Failed to submit pre-existing failure concern (non-fatal)'),
+    );
+  }
+}
+
+/**
  * Runs the automated lint/typecheck gate on a worktree.
  *
  * @param taskId - Task being verified / 検証対象タスク
@@ -64,6 +97,11 @@ export async function runVerificationGate(
     return null;
   });
   if (!result) return { ok: true, result: null };
+
+  // Report pre-existing failures as concerns before the gate verdict is applied.
+  // Runs regardless of ok/NG so concerns are filed even when the gate passes.
+  await reportPreExistingFailures(taskId, result);
+
   if (result.ok) {
     log.info({ taskId, summary: result.summary }, 'Automated verification passed');
     return { ok: true, result };

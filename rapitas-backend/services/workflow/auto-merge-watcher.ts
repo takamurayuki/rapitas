@@ -150,6 +150,30 @@ async function readPrChecks(cwd: string, prNumber: number): Promise<PrCheck[] | 
   }
 }
 
+/**
+ * Read GitHub's authoritative merge state (mergeStateStatus) for a PR. Used as a
+ * fallback when no blocking CI checks are present: a branch with NO CI configured
+ * would otherwise sit at 'unknown' forever and time out UNMERGED, even though
+ * GitHub considers the PR CLEAN/mergeable. Returns null on a transient gh error.
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns mergeStateStatus ('CLEAN' | 'BLOCKED' | 'BEHIND' | 'DIRTY' | 'UNKNOWN' …) or null
+ */
+async function readMergeState(cwd: string, prNumber: number): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(`${ghPath()} pr view ${prNumber} --json mergeStateStatus`, {
+      cwd,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(stdout) as { mergeStateStatus?: string };
+    return parsed.mergeStateStatus ?? null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR merge state');
+    return null;
+  }
+}
+
 interface NotifyParams {
   taskId: number;
   type: string;
@@ -201,16 +225,41 @@ async function completeTaskRow(taskId: number): Promise<void> {
  * not already been merged/blocked. Bounded by the (small) set of open linked PRs.
  */
 async function findCandidates(): Promise<Candidate[]> {
+  // Two link sources. pr-link.ts sets BOTH GitHubPullRequest.linkedTaskId AND the
+  // Task.githubPrId fallback, but rows pulled in by a webhook sync (or created
+  // when integration resolution failed at link time) have a NULL linkedTaskId
+  // while task.githubPrId is still set. The watcher used to query only
+  // linkedTaskId, so those PRs were invisible and never auto-merged (observed:
+  // #211-#215, all CLEAN/MERGEABLE, linkedTaskId=null but task.githubPrId set).
+  const links = new Map<number, { prNumber: number; baseBranch: string | null }>();
+
   const openPrs = await prisma.gitHubPullRequest.findMany({
     where: { state: 'open', linkedTaskId: { not: null } },
     select: { prNumber: true, baseBranch: true, linkedTaskId: true },
   });
+  for (const pr of openPrs) {
+    if (pr.linkedTaskId != null && !links.has(pr.linkedTaskId)) {
+      links.set(pr.linkedTaskId, { prNumber: pr.prNumber, baseBranch: pr.baseBranch });
+    }
+  }
+
+  // Fallback: tasks carrying a githubPrId whose PR row is not linkedTaskId-linked.
+  // Only adopt one when an OPEN local PR row for that number exists (so we never
+  // act on a closed/merged or unknown PR).
+  const prTasks = await prisma.task
+    .findMany({ where: { githubPrId: { not: null } }, select: { id: true, githubPrId: true } })
+    .catch(() => [] as { id: number; githubPrId: number | null }[]);
+  for (const t of prTasks) {
+    if (t.githubPrId == null || links.has(t.id)) continue;
+    const row = await prisma.gitHubPullRequest
+      .findFirst({ where: { prNumber: t.githubPrId, state: 'open' }, select: { baseBranch: true } })
+      .catch(() => null);
+    if (!row) continue;
+    links.set(t.id, { prNumber: t.githubPrId, baseBranch: row.baseBranch });
+  }
 
   const out: Candidate[] = [];
-  for (const pr of openPrs) {
-    const taskId = pr.linkedTaskId;
-    if (taskId == null) continue;
-
+  for (const [taskId, link] of links) {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       select: {
@@ -266,8 +315,8 @@ async function findCandidates(): Promise<Candidate[]> {
     out.push({
       taskId,
       taskTitle: task.title,
-      prNumber: pr.prNumber,
-      baseBranch: pr.baseBranch || 'develop',
+      prNumber: link.prNumber,
+      baseBranch: link.baseBranch || 'develop',
       cwd,
       threshold: cfg?.mergeCommitThreshold ?? 5,
       completedAt: task.completedAt,
@@ -339,7 +388,24 @@ export class AutoMergeWatcher {
     const checks = await readPrChecks(c.cwd, c.prNumber);
     if (checks === null) return; // transient gh error — retry next tick
 
-    const state = evaluateAutoMergeChecks(checks, blocking);
+    let state = evaluateAutoMergeChecks(checks, blocking);
+
+    // No blocking CI checks reported (e.g. the branch has no CI configured, or only
+    // advisory checks ran). 'unknown' would wait for CI that never arrives and then
+    // time out → auto_merge_blocked, so a CLEAN, mergeable PR would never merge.
+    // Defer to GitHub's authoritative merge state: only when GitHub itself reports
+    // CLEAN (nothing blocking) do we treat it as pass. BLOCKED/BEHIND/DIRTY/UNKNOWN
+    // keep waiting, so this never merges past a real pending/failed required check.
+    if (state === 'unknown') {
+      const ghState = await readMergeState(c.cwd, c.prNumber);
+      if (ghState === 'CLEAN') {
+        state = 'pass';
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state CLEAN — treating as pass',
+        );
+      }
+    }
 
     if (state === 'pass') {
       // PR mode: CI is green and we DO NOT merge — completion is reaching green.

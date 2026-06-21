@@ -5,7 +5,7 @@
  * regression: resume モードでの任意失敗が常に true を返していた誤検知を防ぐ。
  */
 import { describe, expect, test } from 'bun:test';
-import { isSessionResumeFailure } from './fallback-handler';
+import { isSessionResumeFailure } from '../session-resume-detector';
 import type { AgentExecutionResult } from '../base-agent';
 
 /** テスト用の最小 AgentExecutionResult を構築する */

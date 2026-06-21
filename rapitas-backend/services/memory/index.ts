@@ -40,7 +40,6 @@ export { createContentHash, cosineSimilarity } from './utils';
 // --- Memory System Singleton ---
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
-import { getInsensitiveMode } from '../../config/db-provider';
 import { MemoryJournal } from './streaming_journal';
 import { MemoryTaskQueueProcessor } from './task_queue';
 import { generateEmbedding } from './rag/embedding';
@@ -52,6 +51,7 @@ import { runForgettingSweep } from './forgetting';
 import { distillFromExecution } from './distillation';
 import { createContentHash } from './utils';
 import { appendEvent } from './timeline';
+import { getInsensitiveMode } from '../../config/db-provider';
 import type {
   CreateKnowledgeEntryInput,
   UpdateKnowledgeEntryInput,

@@ -4,8 +4,8 @@
  */
 import { Elysia, t } from 'elysia';
 import { prisma } from '../../config/database';
-import { getInsensitiveMode } from '../../config/db-provider';
 import { ValidationError, NotFoundError } from '../../middleware/error-handler';
+import { getInsensitiveMode } from '../../config/db-provider';
 
 // Helper to get comment with links
 async function getCommentWithLinks(commentId: number) {
