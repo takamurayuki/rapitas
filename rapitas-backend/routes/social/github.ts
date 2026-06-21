@@ -734,11 +734,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   // CI/CD: a single run with its jobs/steps.
   .get('/integrations/:id/runs/:runId', async (context) => {
     const { id, runId } = context.params as { id: string; runId: string };
-    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
-    if (!integration) {
-      context.set.status = 404;
-      return { error: 'リポジトリ連携が見つかりません' };
-    }
+    const integration = await resolveIntegrationOrThrow(id);
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
     try {
       return await getWorkflowRun(repo, parseInt(runId));
@@ -752,11 +748,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   .get('/integrations/:id/runs/:runId/log', async (context) => {
     const { id, runId } = context.params as { id: string; runId: string };
     const { failed } = context.query as { failed?: string };
-    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
-    if (!integration) {
-      context.set.status = 404;
-      return { error: 'リポジトリ連携が見つかりません' };
-    }
+    const integration = await resolveIntegrationOrThrow(id);
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
     const log = await getWorkflowRunLog(repo, parseInt(runId), failed === 'true');
     return { log };
@@ -766,11 +758,7 @@ export const githubRoutes = new Elysia({ prefix: '/github' })
   // step expansion in the CI/CD view).
   .get('/integrations/:id/jobs/:jobId/log', async (context) => {
     const { id, jobId } = context.params as { id: string; jobId: string };
-    const integration = await prisma.gitHubIntegration.findUnique({ where: { id: parseInt(id) } });
-    if (!integration) {
-      context.set.status = 404;
-      return { error: 'リポジトリ連携が見つかりません' };
-    }
+    const integration = await resolveIntegrationOrThrow(id);
     const repo = `${integration.ownerName}/${integration.repositoryName}`;
     try {
       const sections = await getWorkflowJobLog(repo, parseInt(jobId));
