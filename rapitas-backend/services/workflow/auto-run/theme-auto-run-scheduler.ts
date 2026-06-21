@@ -151,19 +151,24 @@ export class ThemeAutoRunScheduler {
   private async tick(): Promise<void> {
     if (!this.running) return;
     try {
-      // NOTE: dev-restart is intentionally NOT polled here. It used to run on
-      // EVERY tick (maybeRestartForUpdate(0)) to catch the 0-agent gap BETWEEN
-      // tasks, but that fired even after the user STOPPED auto-run — the poller
-      // keeps ticking while stopped — rebooting the backend on the next commit
-      // (the "stopped yet it restarted" surprise). Restart is now EVENT-DRIVEN:
-      // only the all_done branch of an actively-running theme triggers it (see
-      // advanceTheme → maybeRestartForUpdate(themeId)), so a stopped/idle system
-      // can never self-reboot. maybeRestartForUpdate also gates on enabled themes
-      // as defence-in-depth.
       await this.processStoppingThemes();
       await this.processRunningThemes();
       await this.processPausedThemes();
       await this.processIdleThemes();
+
+      // Apply committed fixes during the brief 0-agent gap BETWEEN tasks. The
+      // all_done branch alone (advanceTheme → maybeRestartForUpdate) missed this:
+      // with auto-create refilling the queue the theme rarely reaches all_done,
+      // and even then the just-finished agent's count still lagged > 0, so the
+      // restart was skipped and fixes NEVER auto-deployed (observed: cycles=0
+      // while monitoring). Poll it here instead — maybeRestartForUpdate restarts
+      // ONLY when (a) no agent is executing (active==0 → a RUNNING agent is never
+      // interrupted), (b) a theme is still enabled (a STOPPED system, enabled:0,
+      // never self-reboots — the original reason this was removed is now covered
+      // by that gate), (c) HEAD moved past the startup commit, and (d) the 10-min
+      // rate limit allows it. That is exactly "apply when idle + something new,
+      // without disturbing work".
+      await maybeRestartForUpdate(0);
     } catch (err) {
       log.error({ err }, '[ThemeAutoRunScheduler] Tick error');
     }

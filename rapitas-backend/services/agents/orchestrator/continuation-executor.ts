@@ -27,6 +27,7 @@ import {
 import { isSessionResumeFailure } from '../session-resume-detector';
 import { handleResumeFailureFallbacks } from './fallback-handler';
 import { buildContinuationAgentConfig } from './continuation-agent-config';
+import { buildShutdownErrorMessage } from './shutdown-error';
 import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('continuation-executor');
@@ -196,9 +197,10 @@ export async function executeContinuationInternal(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot continue execution');
+    const shutdownMsg = buildShutdownErrorMessage('continue execution');
+    fileLogger.logError(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot continue execution');
+    throw new Error(shutdownMsg);
   }
 
   setupQuestionDetectedHandler(agent, {

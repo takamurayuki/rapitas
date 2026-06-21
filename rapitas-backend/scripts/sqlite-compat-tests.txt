@@ -13,6 +13,7 @@
 # ===== 必須 (Prisma 非依存 / bun:sqlite 直接使用 — 確実グリーン) =====
 tests/config/desktop-sqlite-self-heal.test.ts
 tests/utils/postgres-to-sqlite-migration.test.ts
+tests/helpers/sqlite-test-db.test.ts
 
 # ===== 検証済み (SQLite env 下でグリーン確認済み) =====
 tests/services/search-miss-service.test.ts
