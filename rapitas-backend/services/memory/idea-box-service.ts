@@ -117,19 +117,35 @@ export async function resolveTaskThemeId(taskId: number): Promise<number | null>
     // global icon). Prefer a default working-dir theme, then any. Treat empty
     // string as no working dir, matching the UI's truthy filter. Only when no
     // working-dir theme exists at all do we fall back to a default / null.
-    const candidates = await prisma.theme.findMany({
-      select: { id: true, isDefault: true, workingDirectory: true },
-      orderBy: { id: 'asc' },
-    });
-    const hasWd = (wd: string | null): boolean => !!wd && wd.trim() !== '';
-    const defaultWithWd = candidates.find((t) => t.isDefault && hasWd(t.workingDirectory));
-    if (defaultWithWd) return defaultWithWd.id;
-    const anyWithWd = candidates.find((t) => hasWd(t.workingDirectory));
-    if (anyWithWd) return anyWithWd.id;
-    return candidates.find((t) => t.isDefault)?.id ?? null;
+    return await resolveDefaultThemeId();
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve the home theme to use when an idea has no task/theme of its own.
+ * Prefers a default theme with a working directory, then any theme with one,
+ * then the default theme, then ANY theme — so an idea is tied to a real theme
+ * (and shows that theme's icon) instead of falling into the global/地球儀 bucket.
+ * Returns null only when no theme exists at all.
+ *
+ * @returns A theme id to attribute the idea to, or null if there are no themes.
+ */
+export async function resolveDefaultThemeId(): Promise<number | null> {
+  const candidates = await prisma.theme
+    .findMany({
+      select: { id: true, isDefault: true, workingDirectory: true },
+      orderBy: { id: 'asc' },
+    })
+    .catch(() => [] as { id: number; isDefault: boolean; workingDirectory: string | null }[]);
+  const hasWd = (wd: string | null): boolean => !!wd && wd.trim() !== '';
+  const defaultWithWd = candidates.find((t) => t.isDefault && hasWd(t.workingDirectory));
+  if (defaultWithWd) return defaultWithWd.id;
+  const anyWithWd = candidates.find((t) => hasWd(t.workingDirectory));
+  if (anyWithWd) return anyWithWd.id;
+  // Last resort: the default theme, else ANY theme — never null while a theme exists.
+  return candidates.find((t) => t.isDefault)?.id ?? candidates[0]?.id ?? null;
 }
 
 export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
@@ -146,7 +162,17 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
     return existing.id;
   }
 
-  const scope = input.scope ?? (input.themeId ? 'project' : 'global');
+  // Always attribute an idea to a real theme so it never falls into the global
+  // (地球儀) bucket: use the caller's themeId, else the source task's theme, else
+  // the default theme. With a single-project setup (only rapitas) every idea thus
+  // lands on that theme. Only an explicit scope:'global' keeps it themeless.
+  let themeId = input.themeId ?? null;
+  if (themeId == null && input.scope !== 'global') {
+    if (input.taskId != null) themeId = await resolveTaskThemeId(input.taskId);
+    if (themeId == null) themeId = await resolveDefaultThemeId();
+  }
+
+  const scope = input.scope ?? (themeId ? 'project' : 'global');
   const priority = normalizeIdeaPriority(input.priority);
   const allTags = [...(input.tags ?? []), `scope:${scope}`, `priority:${priority}`];
 
@@ -160,7 +186,7 @@ export async function submitIdea(input: SubmitIdeaInput): Promise<number> {
       category: input.category ?? 'improvement',
       tags: JSON.stringify(allTags),
       confidence: input.confidence ?? 0.7,
-      themeId: input.themeId ?? null,
+      themeId,
       taskId: input.taskId ?? null,
       forgettingStage: 'active',
       decayScore: 1.0,
@@ -226,7 +252,10 @@ export async function listIdeas(options: {
   const [entries, total] = await Promise.all([
     prisma.knowledgeEntry.findMany({
       where,
-      orderBy: [{ confidence: 'desc' }, { createdAt: 'desc' }],
+      // Default to 起票順 (creation order, newest first) so the list is stable and
+      // predictable, instead of reshuffling by AI confidence. (The auto-task
+      // context picker below still ranks by confidence — that is a different need.)
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
       skip: offset,
       select: {
