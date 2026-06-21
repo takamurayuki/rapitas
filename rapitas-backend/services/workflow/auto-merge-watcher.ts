@@ -431,6 +431,21 @@ export class AutoMergeWatcher {
         // completing on merge is the merge-mode completion point. Idempotent for
         // the legacy path where the task was already done.
         await completeTaskRow(c.taskId);
+        // Sync the LOCAL PR mirror to merged. The watcher merged on GitHub, but
+        // nothing else updates the local GitHubPullRequest row (there is no webhook
+        // in dev), so it kept showing 'open' even though the PR was merged — the
+        // "PR won't merge" the user saw was actually a stale local state.
+        await prisma.gitHubPullRequest
+          .updateMany({
+            where: { prNumber: c.prNumber, state: 'open' },
+            data: { state: 'merged', updatedAt: new Date() },
+          })
+          .catch((err) =>
+            log.warn(
+              { err, prNumber: c.prNumber },
+              '[auto-merge] Failed to sync local PR row to merged',
+            ),
+          );
         await mark(c.taskId, 'auto_merged', `strategy=${res.mergeStrategy}`);
         await notify({
           taskId: c.taskId,

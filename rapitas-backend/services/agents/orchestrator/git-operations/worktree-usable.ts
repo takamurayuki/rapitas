@@ -13,13 +13,21 @@
  * the same logic instead of re-implementing (and forgetting) the disk check.
  */
 import { existsSync } from 'fs';
+import { join } from 'path';
 
 /** What a re-run should do with a recorded worktree path. */
 export type WorktreeDecision = 'reuse' | 'recreate' | 'fallback';
 
 /**
  * Whether a worktree recorded on a prior session can be REUSED for this run.
- * Only true when the path still exists on disk.
+ *
+ * Requires not just that the path EXISTS but that it is a REAL git worktree —
+ * a linked worktree always has a `.git` entry (a file pointing back to the main
+ * repo's `worktrees/<name>`). A bare existsSync was insufficient: a partially
+ * created worktree (git worktree add failed after mkdir) leaves an EMPTY
+ * directory that passes existsSync, so it was "reused"; the agent then ran in an
+ * empty dir where git resolves to the PARENT (primary) checkout — silently
+ * editing/clobbering the main checkout and losing the task's work (task 288).
  *
  * @param recordedPath - worktreePath from the latest prior session. / 直近セッションの worktreePath
  * @param pathExists - existence probe (injectable for tests). / 存在判定（テスト差し替え用）
@@ -29,7 +37,7 @@ export function canReuseWorktree(
   recordedPath: string | null | undefined,
   pathExists: (p: string) => boolean = existsSync,
 ): boolean {
-  return !!recordedPath && pathExists(recordedPath);
+  return !!recordedPath && pathExists(recordedPath) && pathExists(join(recordedPath, '.git'));
 }
 
 /**
