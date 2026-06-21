@@ -143,7 +143,6 @@ vi.mock('lucide-react', async (importOriginal) => {
     Bot: createIcon('bot-icon'),
     CheckCircle: createIcon('check-circle-icon'),
     Settings: createIcon('settings-icon'),
-    Github: createIcon('github-icon'),
     GitPullRequest: createIcon('git-pull-request-icon'),
     CircleDot: createIcon('circle-dot-icon'),
     Code: createIcon('code-icon'),
