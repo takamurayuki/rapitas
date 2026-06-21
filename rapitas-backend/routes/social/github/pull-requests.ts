@@ -6,19 +6,15 @@
  * Also contains PR-local helper functions (findPrViaGh, etc.) that are only
  * used within this file.
  */
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
 import { Elysia } from 'elysia';
 import { prisma } from '../../../config/database';
 import { GitHubService } from '../../../services/core/github-service';
 import { resolvePrConflicts } from '../../../services/github/conflict-resolver';
 import { checkPrActionable } from '../../../services/github/pr-guards';
 import { resolvePrOrThrow } from '../../../services/github/resource-guard';
+import { runGhCommand } from '../../../services/github/gh-client';
 
 const githubService = new GitHubService(prisma);
-
-const execAsync = promisify(exec);
-const ghPath = process.platform === 'win32' ? '"C:\\Program Files\\GitHub CLI\\gh.exe"' : 'gh';
 
 /**
  * Whether a PR title belongs to the given task.
@@ -52,11 +48,11 @@ async function findPrViaGh(taskId: number): Promise<{ prNumber: number; prUrl: s
     // List then substring-match the title (gh `--search` mishandles the `[...]`
     // tokens). The app's auto-PR titles are `[Task-{id}] ...`, but agent-created
     // PRs follow the CLAUDE.md convention `[#{id}] ...`, so accept both.
-    const { stdout } = await execAsync(
-      `${ghPath} pr list --state all --limit 100 --json number,url,title`,
-      { cwd, encoding: 'utf8' },
+    const raw = await runGhCommand(
+      ['pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,url,title'],
+      cwd,
     );
-    const prs = JSON.parse(stdout.trim() || '[]') as {
+    const prs = JSON.parse(raw || '[]') as {
       number: number;
       url: string;
       title: string;

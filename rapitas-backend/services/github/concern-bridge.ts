@@ -7,8 +7,6 @@
  * Not responsible for reading/sync of issues (see sync-webhook) — it only links.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { prisma } from '../../config/database';
 import { createLogger } from '../../config/logger';
 import { createIssue, closeIssue } from './issue-operations';
@@ -19,9 +17,9 @@ import {
   normalizeConcernSeverity,
   type LinkedIssueRef,
 } from '../memory/concern-backlog-service';
+import { parseOwnerRepo, ownerRepoFromGitRemote } from './git-exec';
 
 const log = createLogger('github:concern-bridge');
-const execAsync = promisify(exec);
 
 /** Result of a bridge mutation; `status` is the HTTP status the route should use. */
 type BridgeResult<T> = ({ success: true } & T) | { success: false; status: number; error: string };
@@ -203,26 +201,6 @@ export async function resolveConcernIntegration(concernId: number): Promise<{ id
   if (integrations.length === 1) return { id: integrations[0].id };
 
   return null;
-}
-
-/** Extract `{owner, repo}` from a GitHub repo URL (https or ssh form). */
-function parseOwnerRepo(url: string | null): { owner: string; repo: string } | null {
-  if (!url) return null;
-  const m = url.match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?\/?$/i);
-  if (!m) return null;
-  return { owner: m[1], repo: m[2] };
-}
-
-/** Read a working directory's `origin` remote and parse its owner/repo. */
-async function ownerRepoFromGitRemote(
-  workingDirectory: string,
-): Promise<{ owner: string; repo: string } | null> {
-  try {
-    const { stdout } = await execAsync('git remote get-url origin', { cwd: workingDirectory });
-    return parseOwnerRepo(stdout.trim());
-  } catch {
-    return null;
-  }
 }
 
 /**
