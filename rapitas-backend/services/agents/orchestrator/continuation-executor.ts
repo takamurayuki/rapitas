@@ -24,7 +24,8 @@ import {
   emitResultEvent,
   handleExecutionError,
 } from './execution-helpers';
-import { isSessionResumeFailure, handleResumeFailureFallbacks } from './fallback-handler';
+import { isSessionResumeFailure } from '../session-resume-detector';
+import { handleResumeFailureFallbacks } from './fallback-handler';
 import { buildContinuationAgentConfig } from './continuation-agent-config';
 import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
