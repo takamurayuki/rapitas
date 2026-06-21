@@ -23,6 +23,7 @@ import {
   handleExecutionError,
   type LogChunkManager,
 } from './execution-helpers';
+import { buildShutdownErrorMessage } from './shutdown-error';
 
 import { appendEvent } from '../../memory/timeline';
 import { memoryTaskQueue } from '../../memory';
@@ -595,9 +596,10 @@ export async function executeTask(
   if (ctx.isShuttingDown) {
     ctx.activeAgents.delete(execution.id);
     ctx.activeExecutions.delete(execution.id);
-    fileLogger.logError('Server is shutting down, cannot start new execution');
+    const shutdownMsg = buildShutdownErrorMessage('start new execution');
+    fileLogger.logError(shutdownMsg);
     await fileLogger.flush();
-    throw new Error('Server is shutting down, cannot start new execution');
+    throw new Error(shutdownMsg);
   }
 
   // Setup handlers
