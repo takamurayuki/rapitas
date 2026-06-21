@@ -26,6 +26,7 @@ import {
   handleExecutionError,
 } from './execution-helpers';
 import { buildResumePrompt, resolveAgentConfig } from './resume-helpers';
+import { withLlmCallScope, getLlmCallCount } from '../../../utils/llm-call-context';
 
 const logger = createLogger('execution-resume');
 
@@ -259,7 +260,16 @@ export async function resumeInterruptedExecution(
       workingDirectory,
     };
 
-    const result = await agent.execute(agentTask);
+    const result = await withLlmCallScope(async () => {
+      let r = await agent.execute(agentTask);
+
+      // Merge Tier 2 (ALS sendAIMessage calls) into Tier 1 (CLI num_turns)
+      const alsCount = getLlmCallCount();
+      if (alsCount > 0) {
+        r = { ...r, llmCallCount: (r.llmCallCount ?? 0) + alsCount };
+      }
+      return r;
+    });
 
     await saveExecutionResult(
       ctx.prisma,

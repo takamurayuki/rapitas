@@ -60,6 +60,25 @@ async function resolveGitRoot(dir: string): Promise<string | null> {
 }
 
 /**
+ * Whether a task already has a created PR — an app-linked GitHubPullRequest row
+ * or a task.githubPrId. Used to gate verify-time completion on a PR existing, so
+ * a passing verify never completes a task that produced no PR.
+ *
+ * @param taskId - Task id / タスクID
+ * @returns true when a PR is already recorded for the task / PR記録済みなら true
+ */
+async function taskHasLinkedPr(taskId: number): Promise<boolean> {
+  const linked = await prisma.gitHubPullRequest
+    .findFirst({ where: { linkedTaskId: taskId }, select: { id: true } })
+    .catch(() => null);
+  if (linked) return true;
+  const row = await prisma.task
+    .findUnique({ where: { id: taskId }, select: { githubPrId: true } })
+    .catch(() => null);
+  return row?.githubPrId != null;
+}
+
+/**
  * Linear rank of each workflow status, used to advance status FORWARD only.
  * The HTTP file-save handler may have already advanced the task (e.g. plan
  * auto-approved, or verify auto-completed); the executor must not regress it
@@ -804,24 +823,79 @@ curl -X POST http://localhost:${port}/idea-box \\
               '[WorkflowCLIExecutor] Verify passed but no code changes and no justification — blocking instead of completing',
             );
           } else {
-            await prisma.task.update({
-              where: { id: taskId },
-              data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
-            });
-            await recordTransition({
-              taskId,
-              fromStatus: currentWfStatus,
-              toStatus: 'completed',
-              actor: transition.role as TransitionActor,
-              cause: 'verify_passed',
-              phase: 'verify',
-              sessionId: session.id,
-              metadata: {
-                chars: typeof fileContent === 'string' ? fileContent.length : 0,
-                gate: gate.reason,
-              },
-            });
-            phaseStatus = 'completed';
+            // Completion REQUIRES a PR — mirror the HTTP file-save handler
+            // (workflow-handlers-files.ts). This phased/queue path previously marked
+            // the task done WITHOUT creating or confirming a PR, so auto-run tasks
+            // that completed here produced no PR at all (the HTTP path made PRs; this
+            // one silently did not).
+            let prSatisfied = await taskHasLinkedPr(taskId);
+            let prRequested = true;
+            let prError: string | undefined;
+            if (!prSatisfied) {
+              // No PR yet (e.g. the HTTP save bounced before PR creation). Run the
+              // shared commit/PR flow; a pre-existing PR is re-confirmed via
+              // taskHasLinkedPr. Dynamic import avoids a routes↔services import cycle.
+              const { performAutoCommitAndPR } =
+                await import('../../routes/workflow/workflow-auto-commit');
+              const acpr = await performAutoCommitAndPR(
+                taskId,
+                typeof fileContent === 'string' ? fileContent : '',
+              ).catch(() => ({}) as Awaited<ReturnType<typeof performAutoCommitAndPR>>);
+              prRequested = acpr.requested ? acpr.requested.autoCreatePR : true;
+              prSatisfied =
+                !prRequested ||
+                acpr.autoPRResult?.success === true ||
+                (await taskHasLinkedPr(taskId));
+              prError = acpr.autoPRResult?.error ?? acpr.error;
+            }
+
+            if (prRequested && !prSatisfied) {
+              // Verify passed but no PR was produced — do NOT complete. Keep the
+              // task actionable (blocked) so "完了" always implies a PR.
+              await prisma.task
+                .update({
+                  where: { id: taskId },
+                  data: { status: 'blocked', updatedAt: new Date() },
+                })
+                .catch(() => {});
+              await recordTransition({
+                taskId,
+                fromStatus: currentWfStatus,
+                toStatus: currentWfStatus,
+                actor: transition.role as TransitionActor,
+                cause: 'verify_pr_not_created',
+                phase: 'verify',
+                sessionId: session.id,
+                metadata: { reason: prError ?? 'PRが作成されませんでした' },
+                invariantViolation: true,
+                invariantMessage:
+                  '検証通過後にPRが作成されませんでした。PR作成成功まで完了にしません。',
+              });
+              phaseStatus = currentWfStatus as WorkflowAdvanceResult['status'];
+              log.warn(
+                { taskId, prError },
+                '[WorkflowCLIExecutor] Verify passed but no PR — blocking (completion requires a PR).',
+              );
+            } else {
+              await prisma.task.update({
+                where: { id: taskId },
+                data: { status: 'done', workflowStatus: 'completed', completedAt: new Date() },
+              });
+              await recordTransition({
+                taskId,
+                fromStatus: currentWfStatus,
+                toStatus: 'completed',
+                actor: transition.role as TransitionActor,
+                cause: 'verify_passed',
+                phase: 'verify',
+                sessionId: session.id,
+                metadata: {
+                  chars: typeof fileContent === 'string' ? fileContent.length : 0,
+                  gate: gate.reason,
+                },
+              });
+              phaseStatus = 'completed';
+            }
           }
         }
       } else if (currentWfStatus !== transition.nextStatus && nextRank > curRank) {

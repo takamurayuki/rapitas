@@ -99,6 +99,8 @@ export function buildResolveAfterParse(
             (usage.outputTokens ?? 0) +
             (usage.cacheReadInputTokens ?? 0) +
             (usage.cacheCreationInputTokens ?? 0),
+          // NOTE: num_turns from stream-json result = total assistant LLM calls for this CLI session.
+          llmCallCount: usage.numTurns,
           finalMessage,
         }
       : { finalMessage };
