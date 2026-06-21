@@ -29,6 +29,8 @@ export type UserSettings = {
   autoCreateFromBacklogLimit?: number;
   /** Dev: restart the backend when auto-run runs dry to apply committed fixes. */
   restartOnAutoRunDry?: boolean;
+  /** Max verify->implement self-repair cycles before a task is blocked (0 = off). */
+  verifyRepairLimit?: number;
   autoCommitDefault?: boolean;
   autoCreatePRDefault?: boolean;
   autoMergePRDefault?: boolean;

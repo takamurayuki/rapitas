@@ -17,6 +17,14 @@ import { createLogger } from '../../config/logger';
 const log = createLogger('workflow:automation-policy');
 
 /**
+ * Last-logged policy signature per task. `resolveAutomationPolicy` is called on a
+ * hot path (the 60s auto-merge poll iterates every open PR), so logging on every
+ * call floods the log with identical lines. We log only when a task's resolved
+ * policy first appears or actually changes. / 解決ポリシーが変化した時だけログする。
+ */
+const lastLoggedPolicy = new Map<number, string>();
+
+/**
  * The single "landing strategy" a task uses to reach completion, derived from
  * its automation policy. Completion is marked at a DIFFERENT point per mode:
  *  - `none`   → completed as soon as verify passes (no git automation).
@@ -128,16 +136,22 @@ export async function resolveAutomationPolicy(
   const acpr = resolveOne('autoCreatePR', userSettings?.autoCreatePRDefault, envAutoCreatePR, true);
   const ampr = resolveOne('autoMergePR', userSettings?.autoMergePRDefault, envAutoMergePR, false);
 
-  log.debug(
-    {
-      taskId,
-      autoCommit: ac.value,
-      autoCreatePR: acpr.value,
-      autoMergePR: ampr.value,
-      sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
-    },
-    '[automation-policy] resolved policy',
-  );
+  // Only log when this task's resolved policy is new or changed — avoids flooding
+  // the log with one identical line per open PR on every 60s auto-merge poll.
+  const signature = `${ac.value}:${acpr.value}:${ampr.value}:${ac.source}:${acpr.source}:${ampr.source}`;
+  if (lastLoggedPolicy.get(taskId) !== signature) {
+    lastLoggedPolicy.set(taskId, signature);
+    log.debug(
+      {
+        taskId,
+        autoCommit: ac.value,
+        autoCreatePR: acpr.value,
+        autoMergePR: ampr.value,
+        sources: { autoCommit: ac.source, autoCreatePR: acpr.source, autoMergePR: ampr.source },
+      },
+      '[automation-policy] resolved policy',
+    );
+  }
 
   return {
     autoCommit: ac.value,

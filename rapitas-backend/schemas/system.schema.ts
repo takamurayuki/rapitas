@@ -18,6 +18,7 @@ export const systemSchemas = {
     autoComplexityAnalysis: t.Optional(t.Boolean()),
     autoCreateFromBacklogLimit: t.Optional(t.Number()),
     restartOnAutoRunDry: t.Optional(t.Boolean()),
+    verifyRepairLimit: t.Optional(t.Number()),
     autoCommitDefault: t.Optional(t.Boolean()),
     autoCreatePRDefault: t.Optional(t.Boolean()),
     autoMergePRDefault: t.Optional(t.Boolean()),

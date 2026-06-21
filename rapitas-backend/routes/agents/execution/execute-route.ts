@@ -540,6 +540,11 @@ export const executeRoute = new Elysia().post(
           taskSpec,
           hasResearch: !!existingResearch,
           hasPlan: !!existingPlan,
+          // Lightweight tasks skip the plan phase: the workflow injection becomes
+          // research → implement (no plan.md) instead of research → plan → stop.
+          workflowMode:
+            (task.workflowMode as 'lightweight' | 'standard' | 'comprehensive' | null) ??
+            'standard',
         });
 
     const analysisInfo =

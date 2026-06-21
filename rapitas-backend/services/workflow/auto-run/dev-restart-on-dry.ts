@@ -23,6 +23,12 @@ const log = createLogger('auto-run:dev-restart');
 const RESTART_EXIT_CODE = 75;
 /** Never auto-restart more often than this (avoid restart loops). */
 const MIN_RESTART_INTERVAL_MS = 10 * 60 * 1000;
+/**
+ * Hard ceiling on graceful shutdown before we exit anyway. A restart must NEVER
+ * leave the backend wedged (not serving, not relaunching) just because shutdown
+ * hung — exit(75) so dev.js relaunches regardless.
+ */
+const SHUTDOWN_BUDGET_MS = 30_000;
 
 let startupCommit: string | null = null;
 let lastRestartAt = 0;
@@ -82,6 +88,18 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 
   if (!(await restartEnabled())) return false;
 
+  // Respect a user STOP. dev-restart exists only to let the AUTO-RUN loop pick up
+  // committed fixes between tasks — it is driven from the scheduler tick, which
+  // keeps polling even after every theme is stopped (a user stop sets
+  // enabled:false via finalizeStop but does NOT stop the global poller). Without
+  // this gate the backend self-reboots on the next commit even though auto-run is
+  // off — the observed "stopped auto-run yet it restarted" surprise. Only restart
+  // while at least one theme is armed/active (enabled:true).
+  const activeAutoRun = await prisma.themeAutoRun
+    .count({ where: { enabled: true } })
+    .catch(() => 0);
+  if (activeAutoRun === 0) return false;
+
   const now = Date.now();
   if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) return false;
 
@@ -101,11 +119,18 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 
 /** Graceful shutdown then exit with the restart code dev.js watches for. */
 async function gracefulRestart(): Promise<void> {
+  // Backstop: if gracefulShutdown hangs, exit anyway so the restart can't wedge
+  // the backend (neither serving nor relaunching). Resolved path clears this.
+  const hardExit = setTimeout(() => {
+    log.warn('[dev-restart] shutdown exceeded budget — forcing exit to relaunch');
+    process.exit(RESTART_EXIT_CODE);
+  }, SHUTDOWN_BUDGET_MS);
   try {
     await AgentOrchestrator.getInstance(prisma).gracefulShutdown();
   } catch (err) {
     log.error({ err }, '[dev-restart] graceful shutdown error; exiting anyway');
   }
+  clearTimeout(hardExit);
   // Small delay so logs flush + the shutdown settles before the process dies.
   setTimeout(() => process.exit(RESTART_EXIT_CODE), 300);
 }

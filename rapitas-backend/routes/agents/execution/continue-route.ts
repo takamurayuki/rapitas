@@ -14,6 +14,7 @@ import { createLogger } from '../../../config/logger';
 import { getProjectRoot } from '../../../config';
 import { AgentWorkerManager } from '../../../services/agents/agent-worker-manager';
 import { decideWorktree } from '../../../services/agents/orchestrator/git-operations/worktree-usable';
+import { isBackendPrimaryCheckout } from '../../../services/agents/orchestrator/git-operations/worktree-guard';
 import { toJsonString } from '../../../utils/database/db-helpers';
 import { acquireTaskExecutionLock, releaseTaskExecutionLock } from './execution-lock';
 import { handleContinueResult, handleContinueError } from './continue-post-handler';
@@ -163,6 +164,27 @@ export const continueRoute = new Elysia().post(
           );
         }
         executionDir = workingDirectory;
+      }
+
+      // SAFETY: when worktree isolation fell back to the working directory, REFUSE
+      // if that directory is the backend's OWN primary checkout. Resuming a
+      // mutating agent there lets its git commands switch the dev backend's branch
+      // and clobber uncommitted work (the recurring main-checkout clobber). Only
+      // fires for the rapitas self-dev primary — never other themes' repos or
+      // linked worktrees. Mirrors the workflow-cli-executor guard.
+      if (await isBackendPrimaryCheckout(executionDir)) {
+        log.error(
+          { taskId, executionDir },
+          '[continue-execution] Refusing to resume a mutating agent in the primary checkout — worktree isolation failed',
+        );
+        await prisma.agentSession
+          .update({ where: { id: targetSessionId }, data: { status: 'cancelled' } })
+          .catch(() => {});
+        context.set.status = 409;
+        return {
+          error:
+            'worktree 隔離に失敗したため primary チェックアウトでの再実行を中止しました（dev ブランチの切替を防止）。worktree を再生成して再実行してください。',
+        };
       }
 
       // NOTE: Session/task update failures are non-fatal — execution proceeds with stale status.

@@ -131,6 +131,8 @@ export type AgentExecutionResult = {
   cacheCreationInputTokens?: number;
   /** Primary model used for this execution (largest token share in `modelUsage`). */
   modelName?: string;
+  /** LLM API call count for this execution. CLI: from stream-json num_turns. API: 1 per callApi. */
+  llmCallCount?: number;
   /**
    * The agent's FINAL assistant message only (Claude Code stream-json `result`
    * event). Unlike `output` — which concatenates every streamed assistant

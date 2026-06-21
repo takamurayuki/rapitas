@@ -84,6 +84,8 @@ export type WorkerResultEvent = {
   usage?: WorkerResultUsage;
   /** Per-model breakdown (model id → tokens & cost). */
   modelUsage?: Record<string, WorkerResultModelUsage>;
+  /** Total assistant turns for this CLI session — equals LLM API call count. */
+  numTurns?: number;
 };
 
 export type WorkerResultUsage = {

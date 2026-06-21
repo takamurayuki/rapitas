@@ -16,11 +16,12 @@
 
 import { classifyAgentError, type ClassifiedError } from './agent-error-classifier';
 import { isProviderInCooldown, markProviderCooldown, type Provider } from './provider-cooldown';
+import { createLogger } from '../../config/logger';
 
-const log = {
-  info: (data: unknown, message: string) => console.info(message, data),
-  warn: (data: unknown, message: string) => console.warn(message, data),
-};
+// NOTE: Use the shared pino logger, not a console shim. The console.* shim tripped
+// the no-console lint ERROR, which made project-wide `bun run lint` exit non-zero
+// and blocked every auto-run task whose DoD requires a clean lint.
+const log = createLogger('ai:agent-fallback');
 
 type AgentConfigRecord = {
   id: number;
