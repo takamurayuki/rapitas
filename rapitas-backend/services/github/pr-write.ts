@@ -19,6 +19,15 @@ const execAsync = promisify(exec);
 const AUTO_MERGE_UNSUPPORTED_RE =
   /auto.?merge is not allowed|not in a state that can be auto.?merged/i;
 
+// NOTE: Pattern shared with branch-pr-ops.ts — keep in sync if gh CLI changes.
+// Branch protection requires "up-to-date" head; detected before the merge lands.
+const HEAD_BEHIND_RE =
+  /not up.?to.?date with the base branch|not mergeable|base branch was modified/i;
+
+// gh pr update-branch exits non-zero with this message when the head is already
+// caught up to base (race condition). Rethrow the original merge error in this case.
+const UPDATE_BRANCH_NOOP_RE = /already up.?to.?date|no new commits|not behind/i;
+
 /**
  * Post a comment on a pull request (inline or general).
  *
@@ -107,23 +116,76 @@ export async function requestChanges(repo: string, prNumber: number, body: strin
  * gh returns an error; in that case, falls back to a direct merge and logs a
  * warning so operators know to enable "Allow auto-merge" in the repo settings.
  *
+ * For direct merges (both explicit and auto fallback): if the head branch is
+ * behind base, automatically runs `gh pr update-branch` and retries the merge
+ * once. If the retry still fails, throws an actionable message directing the
+ * caller to wait for CI to complete before retrying.
+ *
  * @param repo - Repository in owner/name format / リポジトリ名
- * @param prNumber - PR number / PR番号
+ * @param prNumber - PR number (must be a positive integer) / PR番号（正の整数）
  * @param options - Merge method (default squash), branch deletion, and auto-merge / マージ方式・ブランチ削除・自動マージ
  * @returns Whether the merge was queued via auto-merge or completed immediately / 自動マージキューに入ったか即時マージかを返す
- * @throws {Error} When the merge command fails for a reason unrelated to auto-merge / 自動マージ以外の理由でマージ失敗時
+ * @throws {Error} When prNumber is not a positive integer / PR番号が正の整数でない場合
+ * @throws {Error} When the merge fails and cannot be recovered by update-branch / マージ失敗かつ回復不能な場合
+ * @throws {Error} 'ブランチを最新化しました...' when update-branch succeeded but CI re-run is needed / ブランチ更新後CI待ちが必要な場合
  */
 export async function mergePullRequest(
   repo: string,
   prNumber: number,
   options?: { method?: 'merge' | 'squash' | 'rebase'; deleteBranch?: boolean; auto?: boolean },
 ): Promise<{ autoQueued: boolean }> {
+  if (!Number.isInteger(prNumber) || prNumber <= 0) {
+    throw new Error(`無効なPR番号です: ${prNumber}`);
+  }
+
   const method = options?.method ?? 'squash';
   const baseArgs = ['pr', 'merge', String(prNumber), '--repo', repo, `--${method}`];
   if (options?.deleteBranch) baseArgs.push('--delete-branch');
 
+  /**
+   * Run a direct gh pr merge, with one automatic recovery attempt when the head
+   * branch is behind the base. Uses runGhCommand throughout for consistent
+   * logging, encoding, and windowsHide behaviour.
+   */
+  async function runDirectMerge(mergeArgs: string[]): Promise<void> {
+    try {
+      await runGhCommand(mergeArgs);
+    } catch (mergeErr) {
+      const mergeMsg = mergeErr instanceof Error ? mergeErr.message : String(mergeErr);
+
+      if (!HEAD_BEHIND_RE.test(mergeMsg)) {
+        throw mergeErr;
+      }
+
+      // Head is behind base — bring it up to date on GitHub.
+      // NOTE: skipLog suppresses the ERROR emitted by runGhCommand when
+      // update-branch exits non-zero (e.g. "already up to date" race).
+      try {
+        await runGhCommand(
+          ['pr', 'update-branch', String(prNumber), '--repo', repo],
+          undefined,
+          { skipLog: true },
+        );
+      } catch (updateErr) {
+        const updateMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+        if (UPDATE_BRANCH_NOOP_RE.test(updateMsg)) {
+          // Branch was already up to date — rethrow original merge error.
+          throw mergeErr;
+        }
+        throw updateErr;
+      }
+
+      // Retry merge once after the branch has been updated.
+      try {
+        await runGhCommand(mergeArgs);
+      } catch {
+        throw new Error('ブランチを最新化しました。CI 完了後に再度マージしてください');
+      }
+    }
+  }
+
   if (!options?.auto) {
-    await runGhCommand(baseArgs);
+    await runDirectMerge(baseArgs);
     return { autoQueued: false };
   }
 
@@ -148,7 +210,7 @@ export async function mergePullRequest(
       { repo, prNumber, ghError: errMessage },
       'gh --auto failed: auto-merge not enabled on repository; retrying as direct merge',
     );
-    await runGhCommand(baseArgs);
+    await runDirectMerge(baseArgs);
     return { autoQueued: false };
   }
 }

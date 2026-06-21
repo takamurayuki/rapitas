@@ -218,13 +218,17 @@ export class AnthropicApiAgent extends AbstractAgent {
 
       this.updateMetrics(metrics);
 
-      return {
-        success: true,
-        state: 'completed',
-        output,
-        metrics,
-        sessionId: this._metadata.id,
-      };
+      // NOTE: llmCallCount flattened from metrics.apiCalls for saveExecutionResult compatibility.
+      return Object.assign(
+        {
+          success: true,
+          state: 'completed' as const,
+          output,
+          metrics,
+          sessionId: this._metadata.id,
+        },
+        { llmCallCount: metrics.apiCalls },
+      );
     } catch (error) {
       const endTime = new Date();
       const durationMs = endTime.getTime() - startTime.getTime();

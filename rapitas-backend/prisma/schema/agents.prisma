@@ -33,6 +33,7 @@ model AgentSession {
   lastActivityAt    DateTime  @default(now())
   totalTokensUsed   Int       @default(0)
   totalCostUsd      Decimal   @default(0) @db.Decimal(12, 6)
+  totalLlmCallCount Int       @default(0)
   errorMessage      String?
   metadata          String?   // JSON stored as string
   branchName        String?   // Git branch name for the execution session
@@ -127,6 +128,7 @@ model AgentExecution {
   questionType      String?
   questionDetails   String?   // JSON stored as string
   claudeSessionId   String?   // Claude Code CLI session ID for --resume
+  llmCallCount      Int       @default(0)
   createdAt         DateTime  @default(now())
   gitCommits        GitCommit[]
   executionLogs     AgentExecutionLog[]

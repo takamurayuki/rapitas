@@ -31,6 +31,21 @@ export function renderVerificationMarkdown(result: VerificationResult): string {
     lines.push(`- ${c.name}: ${status}`);
     if (!c.ok && c.details) lines.push('', '```', c.details, '```');
   }
+  // Render pre-existing failures separately so they are visually distinct from
+  // new failures and the reader can immediately see these are not regressions.
+  const preExisting = result.checks.find((c) => c.name === 'test')?.preExistingFailures;
+  if (preExisting && preExisting.length > 0) {
+    lines.push(
+      '',
+      '### ⚠️ 既存失敗（本変更とは無関係）',
+      '',
+      '以下のテストはエージェントの変更以前から失敗しており、本変更とは無関係です。懸念バックログに起票済みです。',
+      '',
+    );
+    for (const f of preExisting) {
+      lines.push(`- \`${f}\``);
+    }
+  }
   lines.push('', `対象変更ファイル: ${result.changedFiles.length}件`);
   return lines.join('\n');
 }

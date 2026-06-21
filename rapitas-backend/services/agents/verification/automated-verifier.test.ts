@@ -114,4 +114,71 @@ describe('renderVerificationMarkdown', () => {
     // details surfaced even though the check did not "run"
     expect(md).toContain('could not be resolved');
   });
+
+  it('renders pre-existing failures as a separate section when present', () => {
+    const result: VerificationResult = {
+      ok: true,
+      changedFiles: ['src/a.ts'],
+      checks: [
+        {
+          name: 'test',
+          ran: true,
+          ok: true,
+          errorCount: 0,
+          details: '1 test command(s): passed (2 pre-existing failure(s) excluded)',
+          preExistingFailures: [
+            'tests/services/idea-box-service.test.ts',
+            'tests/services/other.test.ts',
+          ],
+        },
+      ],
+      summary: '自動検証: test=ok',
+    };
+    const md = renderVerificationMarkdown(result);
+    expect(md).toContain('✅ 合格');
+    expect(md).toContain('既存失敗（本変更とは無関係）');
+    expect(md).toContain('idea-box-service.test.ts');
+    expect(md).toContain('懸念バックログに起票済み');
+  });
+
+  it('does not render pre-existing section when none detected', () => {
+    const result: VerificationResult = {
+      ok: false,
+      changedFiles: ['src/a.ts'],
+      checks: [
+        {
+          name: 'test',
+          ran: true,
+          ok: false,
+          errorCount: 1,
+          details: 'bun test failed:\n1 failing',
+        },
+      ],
+      summary: '自動検証: test=NG(1)',
+    };
+    const md = renderVerificationMarkdown(result);
+    expect(md).not.toContain('既存失敗');
+  });
+
+  it('renders mixed: new failure blocks gate, pre-existing listed separately', () => {
+    const result: VerificationResult = {
+      ok: false,
+      changedFiles: ['src/a.ts'],
+      checks: [
+        {
+          name: 'test',
+          ran: true,
+          ok: false,
+          errorCount: 1,
+          details: 'bun test tests/services/new.test.ts failed:\n1 failing',
+          preExistingFailures: ['tests/services/idea-box-service.test.ts'],
+        },
+      ],
+      summary: '自動検証: test=NG(1)',
+    };
+    const md = renderVerificationMarkdown(result);
+    expect(md).toContain('❌ 失敗');
+    expect(md).toContain('既存失敗（本変更とは無関係）');
+    expect(md).toContain('idea-box-service.test.ts');
+  });
 });

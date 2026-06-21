@@ -28,13 +28,14 @@ describe('getSelfObservationSummary', () => {
     expect(r.windowDays).toBe(7);
     expect(r.totalCostUsd).toBe(0);
     expect(r.totalExecutions).toBe(0);
+    expect(r.totalLlmCalls).toBe(0);
     expect(r.cacheHitRate).toBe(0);
     expect(r.errorRate).toBe(0);
     expect(r.dailyCost.length).toBe(7);
     expect(r.modelMix.length).toBe(0);
   });
 
-  it('複数行から合計・キャッシュ命中率・モデル分布を計算する', async () => {
+  it('複数行から合計・キャッシュ命中率・モデル分布・llmCallCount合計を計算する', async () => {
     const today = new Date();
     today.setUTCHours(12, 0, 0, 0);
 
@@ -51,6 +52,7 @@ describe('getSelfObservationSummary', () => {
         cacheCreationInputTokens: 0,
         costUsd: '0.012345',
         modelName: 'claude-haiku-4-5-20251001',
+        llmCallCount: 5,
       },
       {
         startedAt: today,
@@ -64,12 +66,14 @@ describe('getSelfObservationSummary', () => {
         cacheCreationInputTokens: 0,
         costUsd: '0.001000',
         modelName: 'claude-sonnet-4-6-20250610',
+        llmCallCount: 2,
       },
     ]);
 
     const r = await getSelfObservationSummary(14);
 
     expect(r.totalExecutions).toBe(2);
+    expect(r.totalLlmCalls).toBe(7); // 5 + 2
     expect(r.totalInputTokens).toBe(300);
     expect(r.totalCacheReadInputTokens).toBe(900);
     expect(r.totalCostUsd).toBeCloseTo(0.013345, 6);

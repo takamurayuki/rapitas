@@ -25,6 +25,7 @@ import { parsePlanFiles, evaluateScopeCheck } from '../services/agents/verificat
 import { researchConcludesNoChange } from '../services/workflow/completion-gate';
 import { parseReviewVerdict } from '../services/agents/verification/adversarial-diff-review';
 import { coverageCheck } from '../services/agents/verification/automated-verifier';
+import { classifyFailures } from '../services/agents/verification/test-triage';
 
 process.env.RAPITAS_REQUIRE_TESTS = '1'; // exercise the coverage gate
 
@@ -125,6 +126,42 @@ const GROUPS: { gate: string; cases: Case[] }[] = [
       {
         name: 'normal research',
         ok: () => researchConcludesNoChange('## 影響範囲\n修正が必要') === false,
+      },
+    ],
+  },
+  {
+    gate: 'classifyFailures (test-triage)',
+    cases: [
+      {
+        name: 'existing-only',
+        ok: () => {
+          const r = classifyFailures(['a.test.ts'], new Set(['a.test.ts']));
+          return r.preExisting.length === 1 && r.newFailures.length === 0;
+        },
+      },
+      {
+        name: 'new-only',
+        ok: () => {
+          const r = classifyFailures(['b.test.ts'], new Set(['a.test.ts']));
+          return r.preExisting.length === 0 && r.newFailures.length === 1;
+        },
+      },
+      {
+        name: 'mixed',
+        ok: () => {
+          const r = classifyFailures(['a.test.ts', 'b.test.ts'], new Set(['a.test.ts']));
+          return r.preExisting.length === 1 && r.newFailures.length === 1;
+        },
+      },
+      {
+        name: 'baseline-absent-file-is-new',
+        ok: () => {
+          const r = classifyFailures(
+            ['agent-added.test.ts'],
+            new Set(['unrelated.test.ts']),
+          );
+          return r.preExisting.length === 0 && r.newFailures.length === 1;
+        },
       },
     ],
   },
