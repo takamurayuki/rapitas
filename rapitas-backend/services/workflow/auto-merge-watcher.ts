@@ -150,6 +150,30 @@ async function readPrChecks(cwd: string, prNumber: number): Promise<PrCheck[] | 
   }
 }
 
+/**
+ * Read GitHub's authoritative merge state (mergeStateStatus) for a PR. Used as a
+ * fallback when no blocking CI checks are present: a branch with NO CI configured
+ * would otherwise sit at 'unknown' forever and time out UNMERGED, even though
+ * GitHub considers the PR CLEAN/mergeable. Returns null on a transient gh error.
+ *
+ * @param cwd - Repo working directory / リポジトリ作業ディレクトリ
+ * @param prNumber - PR number / PR番号
+ * @returns mergeStateStatus ('CLEAN' | 'BLOCKED' | 'BEHIND' | 'DIRTY' | 'UNKNOWN' …) or null
+ */
+async function readMergeState(cwd: string, prNumber: number): Promise<string | null> {
+  try {
+    const { stdout } = await execAsync(`${ghPath()} pr view ${prNumber} --json mergeStateStatus`, {
+      cwd,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(stdout) as { mergeStateStatus?: string };
+    return parsed.mergeStateStatus ?? null;
+  } catch (err) {
+    log.warn({ err, prNumber }, '[auto-merge] Failed to read PR merge state');
+    return null;
+  }
+}
+
 interface NotifyParams {
   taskId: number;
   type: string;
@@ -339,7 +363,24 @@ export class AutoMergeWatcher {
     const checks = await readPrChecks(c.cwd, c.prNumber);
     if (checks === null) return; // transient gh error — retry next tick
 
-    const state = evaluateAutoMergeChecks(checks, blocking);
+    let state = evaluateAutoMergeChecks(checks, blocking);
+
+    // No blocking CI checks reported (e.g. the branch has no CI configured, or only
+    // advisory checks ran). 'unknown' would wait for CI that never arrives and then
+    // time out → auto_merge_blocked, so a CLEAN, mergeable PR would never merge.
+    // Defer to GitHub's authoritative merge state: only when GitHub itself reports
+    // CLEAN (nothing blocking) do we treat it as pass. BLOCKED/BEHIND/DIRTY/UNKNOWN
+    // keep waiting, so this never merges past a real pending/failed required check.
+    if (state === 'unknown') {
+      const ghState = await readMergeState(c.cwd, c.prNumber);
+      if (ghState === 'CLEAN') {
+        state = 'pass';
+        log.info(
+          { taskId: c.taskId, prNumber: c.prNumber },
+          '[auto-merge] No blocking CI checks; GitHub merge state CLEAN — treating as pass',
+        );
+      }
+    }
 
     if (state === 'pass') {
       // PR mode: CI is green and we DO NOT merge — completion is reaching green.
