@@ -657,9 +657,25 @@ export class WorkflowOrchestrator {
     }
 
     if (currentStatus === 'draft') {
+      // Reconcile the status from EXISTING artifacts before starting. A
+      // re-dispatched task whose research.md / plan.md already exist must not
+      // restart at `draft` — draft only accepts research/question saves, so the
+      // agent would have to RE-SAVE research.md just to escape draft before it can
+      // save verify.md (the "verify.md already written but won't advance without a
+      // re-save" the user observed on task 267). Mirror resolveImplementEntryStatus:
+      // plan.md present → plan_approved, else research.md present → research_done.
+      const [hasPlan, hasResearch] = await Promise.all([
+        prisma.workflowFile
+          .findFirst({ where: { taskId, fileType: 'plan' }, select: { id: true } })
+          .catch(() => null),
+        prisma.workflowFile
+          .findFirst({ where: { taskId, fileType: 'research' }, select: { id: true } })
+          .catch(() => null),
+      ]);
+      const reconciled = hasPlan ? 'plan_approved' : hasResearch ? 'research_done' : 'draft';
       await prisma.task.update({
         where: { id: taskId },
-        data: { workflowStatus: 'draft', status: 'in-progress' },
+        data: { workflowStatus: reconciled, status: 'in-progress' },
       });
     } else if (task.status === 'todo') {
       // A task that resumes at a non-draft phase (valid research/plan artifacts
