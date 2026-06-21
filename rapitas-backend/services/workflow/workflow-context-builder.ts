@@ -368,6 +368,8 @@ A planning phase will run after this. Focus the research on facts, dependencies,
 const IMPLEMENTER_NO_PLAN_DIRECTIVE = `## 実行モード: 調査→実装→検証（plan.md なし） — 他のどの指示よりも優先
 
 このタスクには **plan.md がありません**（軽量ワークフローは計画フェーズを実施しません）。
+**あなたは「実装」フェーズの担当です。今すぐコードを実装してください。**
+- **plan.md を新規作成・保存しないでください。** あなたの成果物は plan.md ではなく**コードの変更**です。research.md とタスク要件を読んだら、調査やレポートで止まらず **Write/Edit でコードを編集**してください。CLAUDE.md に「Step 2 — Plan / plan.md を作成」とあっても、このフェーズでは従わないでください（フェーズ遷移は orchestrator が管理します）。
 以下のロール説明に「plan.md」「承認された計画」「計画のチェックリスト」「プランナーへの質問」等があっても、次のとおり読み替えてください:
 - 実装の根拠は **research.md とタスク要件** です。「計画に従う」ではなく、調査結果とタスク内容に基づいて実装してください。
 - plan.md のチェックリストは存在しません。**タスク要件を満たすこと**を完了基準にしてください。

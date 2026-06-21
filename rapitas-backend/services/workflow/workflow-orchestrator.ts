@@ -405,11 +405,17 @@ export class WorkflowOrchestrator {
     // mode directive so the implementer/verifier work from research.md + task
     // requirements instead of a non-existent plan/checklist/planner. Applies to
     // implementer/verifier only; no-op for other roles.
-    if (systemPromptContent) {
+    // Apply the AUTHORITATIVE plan-mode directive ALWAYS — even when the role has
+    // no configured system prompt. This was gated behind `if (systemPromptContent)`,
+    // but the implementer role's system prompt is EMPTY by default, so the
+    // no-plan directive was never prepended: a lightweight implementer then
+    // followed CLAUDE.md's generic plan step and created a plan.md (task 229).
+    // applyPlanModeDirective handles an empty base prompt (returns just the directive).
+    {
       const planContent = await readWorkflowFile(workflowInfo.dir, 'plan');
       systemPromptContent = applyPlanModeDirective(
         transition.role,
-        systemPromptContent,
+        systemPromptContent || '',
         !!planContent?.trim(),
       );
     }
