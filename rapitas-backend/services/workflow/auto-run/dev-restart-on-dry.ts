@@ -82,6 +82,18 @@ export async function maybeRestartForUpdate(themeId: number): Promise<boolean> {
 
   if (!(await restartEnabled())) return false;
 
+  // Respect a user STOP. dev-restart exists only to let the AUTO-RUN loop pick up
+  // committed fixes between tasks — it is driven from the scheduler tick, which
+  // keeps polling even after every theme is stopped (a user stop sets
+  // enabled:false via finalizeStop but does NOT stop the global poller). Without
+  // this gate the backend self-reboots on the next commit even though auto-run is
+  // off — the observed "stopped auto-run yet it restarted" surprise. Only restart
+  // while at least one theme is armed/active (enabled:true).
+  const activeAutoRun = await prisma.themeAutoRun
+    .count({ where: { enabled: true } })
+    .catch(() => 0);
+  if (activeAutoRun === 0) return false;
+
   const now = Date.now();
   if (lastRestartAt && now - lastRestartAt < MIN_RESTART_INTERVAL_MS) return false;
 
